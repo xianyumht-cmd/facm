@@ -83,6 +83,9 @@ namespace FACM.League
         public const string LoginRankDivision = "LeagueEfficiencyLoginRankDivision";
         public const string LoginRankDivisionHint = "LeagueEfficiencyLoginRankDivisionHint";
         public const string LoginRankSaved = "LeagueEfficiencyLoginRankSaved";
+        public const string OfflineLock = "LeagueEfficiencyOfflineLock";
+        public const string OfflineLockHint = "LeagueEfficiencyOfflineLockHint";
+        public const string OfflineLockSaved = "LeagueEfficiencyOfflineLockSaved";
         public const string LobbyInvitationSaved = "LeagueEfficiencyLobbyInvitationSaved";
         public const string FriendInviteOpen = "LeagueEfficiencyFriendInviteOpen";
         public const string FriendInviteTitle = "LeagueEfficiencyFriendInviteTitle";
@@ -248,6 +251,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.LoginRankDivision, "展示段位小段" },
             { LeagueEfficiencyUiTextKeys.LoginRankDivisionHint, "选择 I / II / III / IV；大师、宗师与王者不会发送小段。" },
             { LeagueEfficiencyUiTextKeys.LoginRankSaved, "登录展示段位设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.OfflineLock, "维持离线显示" },
+            { LeagueEfficiencyUiTextKeys.OfflineLockHint, "已观察到离线后，若大厅将状态改回在线或离开，会再次核实并恢复离线。复用大厅检测频率，关闭时不读取状态；默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.OfflineLockSaved, "离线显示设置已保存。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
             { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
             { LeagueEfficiencyUiTextKeys.FriendInviteTitle, "GGman · 好友邀请排队" },

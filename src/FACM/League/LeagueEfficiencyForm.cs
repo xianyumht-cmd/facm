@@ -31,6 +31,7 @@ namespace FACM.League
         private readonly ComboBox _loginRankQueue;
         private readonly ComboBox _loginRankTier;
         private readonly ComboBox _loginRankDivision;
+        private readonly CheckBox _offlineLock;
         private readonly CheckBox _autoHandleInvitations;
         private readonly CheckBox _skipInvitationsWhenAway;
         private readonly CheckBox _autoSkipLeader;
@@ -113,6 +114,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             for (var row = 0; row < 4; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowCount = root.RowStyles.Count;
 
@@ -364,6 +366,15 @@ namespace FACM.League
             _loginRankTier.SelectedIndexChanged += LoginRankSettingChanged;
             _loginRankDivision.SelectedIndexChanged += LoginRankSettingChanged;
             UpdateRankSettingControlStates();
+            _offlineLock = AddAutomationRow(root, 42, T(LeagueEfficiencyUiTextKeys.OfflineLock),
+                T(LeagueEfficiencyUiTextKeys.OfflineLockHint), _module.LockOfflineStatusEnabled);
+            _offlineLock.CheckedChanged += delegate
+            {
+                if (_loading) return;
+                _module.UpdateLockOfflineStatus(_offlineLock.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.OfflineLockSaved);
+            };
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -838,6 +849,7 @@ namespace FACM.League
                     RefreshAramTeamSideSettingsFromModule();
                     RefreshLoginSignatureSettingsFromModule();
                     RefreshLoginRankSettingsFromModule();
+                    RefreshOfflineLockSettingsFromModule();
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -904,6 +916,14 @@ namespace FACM.League
                 _loginRankDivision.SelectedIndex = RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision);
                 UpdateRankSettingControlStates();
             }
+            finally { _loading = false; }
+        }
+
+        private void RefreshOfflineLockSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading || _offlineLock.Checked == _module.LockOfflineStatusEnabled) return;
+            _loading = true;
+            try { _offlineLock.Checked = _module.LockOfflineStatusEnabled; }
             finally { _loading = false; }
         }
 

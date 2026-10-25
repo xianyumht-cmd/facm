@@ -44,6 +44,7 @@ namespace FACM.AppHost.Modules
         private LeagueFriendInvitationController _friendInvitations;
         private LeagueAramTeamSideController _aramSide;
         private LeagueLoginStatusRestoreController _loginSignature;
+        private LeagueOfflineStatusLockController _offlineLock;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -110,6 +111,9 @@ namespace FACM.AppHost.Modules
             _loginSignature = new LeagueLoginStatusRestoreController(
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
             ConfigureLoginSignature();
+            _offlineLock = new LeagueOfflineStatusLockController(
+                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
+            _offlineLock.Configure(LockOfflineStatusEnabled);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -125,6 +129,7 @@ namespace FACM.AppHost.Modules
                 _friendInvitations.Observe(current);
                 _aramSide.Observe(current);
                 _loginSignature.Observe(current);
+                _offlineLock.Observe(current);
             }
         }
 
@@ -150,6 +155,7 @@ namespace FACM.AppHost.Modules
         public string AutoLoginRankedQueue { get { return _settingsModule.Settings.LeagueAutoLoginRankedQueue; } }
         public string AutoLoginRankedTier { get { return _settingsModule.Settings.LeagueAutoLoginRankedTier; } }
         public string AutoLoginRankedDivision { get { return _settingsModule.Settings.LeagueAutoLoginRankedDivision; } }
+        public bool LockOfflineStatusEnabled { get { return _settingsModule.Settings.LeagueLockOfflineStatusEnabled; } }
         public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
@@ -268,6 +274,15 @@ namespace FACM.AppHost.Modules
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
         }
 
+        public void UpdateLockOfflineStatus(bool enabled)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueLockOfflineStatusEnabled = enabled;
+            _settingsModule.Settings.Save();
+            _offlineLock?.Configure(enabled);
+            _offlineLock?.Observe(_dashboard.CurrentGameflowState);
+        }
+
         private void ConfigureLoginSignature()
         {
             _loginSignature?.Configure(AutoLoginStatusMessageEnabled, AutoLoginStatusMessage,
@@ -306,6 +321,7 @@ namespace FACM.AppHost.Modules
             _aramSide?.Observe(_dashboard.CurrentGameflowState);
             ConfigureLoginSignature();
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
+            _offlineLock?.Configure(LockOfflineStatusEnabled);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -451,6 +467,7 @@ namespace FACM.AppHost.Modules
             if (_friendInvitations != null) _friendInvitations.Observe(state);
             if (_aramSide != null) _aramSide.Observe(state);
             if (_loginSignature != null) _loginSignature.Observe(state);
+            if (_offlineLock != null) _offlineLock.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -491,6 +508,11 @@ namespace FACM.AppHost.Modules
             {
                 _loginSignature.Dispose();
                 _loginSignature = null;
+            }
+            if (_offlineLock != null)
+            {
+                _offlineLock.Dispose();
+                _offlineLock = null;
             }
             if (_aramSide != null)
             {

@@ -37,6 +37,7 @@ namespace FACM.Services
         public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
         public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
         public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
+        public bool LeagueLockOfflineStatusEnabled { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -80,6 +81,7 @@ namespace FACM.Services
                 LeagueAutoLoginRankedQueue = settings.LeagueAutoLoginRankedQueue,
                 LeagueAutoLoginRankedTier = settings.LeagueAutoLoginRankedTier,
                 LeagueAutoLoginRankedDivision = settings.LeagueAutoLoginRankedDivision,
+                LeagueLockOfflineStatusEnabled = settings.LeagueLockOfflineStatusEnabled,
                 LeagueAutoMatchmakingMinPartySize = settings.LeagueAutoMatchmakingMinPartySize,
                 LeagueAutoMatchmakingStartDelayMs = settings.LeagueAutoMatchmakingStartDelayMs,
                 LeagueAutoAcceptDelayMs = settings.LeagueAutoAcceptDelayMs,
@@ -132,6 +134,7 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
+            settings.LeagueLockOfflineStatusEnabled = LeagueLockOfflineStatusEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = LeagueAutoAcceptDelayMs;

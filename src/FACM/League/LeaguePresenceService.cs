@@ -123,11 +123,29 @@ namespace FACM.League
             LeaguePresenceMode mode,
             CancellationToken cancellationToken)
         {
+            return await ApplyModeCoreAsync(mode, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        internal Task<LeaguePresenceApplyResult> ApplyIfAvailabilityUnchangedAsync(
+            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken)
+        {
+            if (string.IsNullOrEmpty(expectedAvailability))
+                return Task.FromResult(new LeaguePresenceApplyResult { Status = "invalid", Mode = mode });
+            return ApplyModeCoreAsync(mode, expectedAvailability, cancellationToken);
+        }
+
+        private async Task<LeaguePresenceApplyResult> ApplyModeCoreAsync(
+            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken)
+        {
             var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
             if (root == null)
             {
                 return new LeaguePresenceApplyResult { Status = "unavailable", Mode = mode };
             }
+
+            if (expectedAvailability != null && !string.Equals(
+                ReadString(root, "availability"), expectedAvailability, StringComparison.OrdinalIgnoreCase))
+                return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
 
             ApplyMode(root, mode);
             var payload = _json.Serialize(root);

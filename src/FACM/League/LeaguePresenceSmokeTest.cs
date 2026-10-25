@@ -26,6 +26,7 @@ namespace FACM.League
             ValidateRankedOverrideIsReportedWithoutRewriteLoop();
             ValidateDedicatedWriterFence();
             LeagueLoginStatusRestoreSmokeTest.Validate();
+            LeagueOfflineStatusLockSmokeTest.Validate();
         }
 
         private static void ValidatePayloadPreservesUnrelatedPresenceFields()

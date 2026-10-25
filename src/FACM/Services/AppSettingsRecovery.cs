@@ -53,6 +53,7 @@ namespace FACM.Services
             "LeagueAutoLoginRankedQueue",
             "LeagueAutoLoginRankedTier",
             "LeagueAutoLoginRankedDivision",
+            "LeagueLockOfflineStatusEnabled",
             "LeagueAutoMatchmakingMinPartySize",
             "LeagueAutoMatchmakingStartDelayMs",
             "LeagueAutoAcceptDelayMs",
