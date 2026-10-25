@@ -163,8 +163,9 @@ namespace FACM.Mayhem
             for (var i = 1; i <= 17; i++)
             {
                 var name = "Champion" + i;
-                rows.Add(new MayhemTopChampion { Rank = i, Name = name,
-                    Slug = ChampionAliases.Slugify(name), WinRate = 51 + i, Tier = "S" });
+                if (i <= 10)
+                    rows.Add(new MayhemTopChampion { Rank = i, Name = name,
+                        Slug = ChampionAliases.Slugify(name), WinRate = 51 + i, Tier = "S" });
                 fixture += "<tr><td>" + i + "</td><td><a href='/en/champion-stats/" + i +
                     "'>" + name + "</a></td><td>" + (51 + i) + ".25%</td><td>S</td></tr>";
             }
