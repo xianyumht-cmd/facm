@@ -153,6 +153,17 @@ jobs:
             if ((Get-Item $path).Length -lt 2048) { throw "Suspiciously small native UI screenshot $path" }
           }
 
+      - name: Probe live public ranking sources (informational)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $result = Start-Process -FilePath $exe -ArgumentList '--compact-public-source-probe' -Wait -PassThru -NoNewWindow
+          if (Test-Path 'artifacts/Compact-Public-Source-Probe/public-source-probe.txt') {
+            Get-Content 'artifacts/Compact-Public-Source-Probe/public-source-probe.txt'
+          }
+          if ($result.ExitCode -ne 0) { throw "Informational public-source probe exit=$($result.ExitCode)" }
+
       - name: Verify candidate package contents
         shell: pwsh
         run: |
@@ -267,5 +278,13 @@ jobs:
         with:
           name: GGman-Live-Compact-Visual-Checks
           path: artifacts/Live-Compact-Checks/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GGman-Compact-Public-Source-Probe
+          path: artifacts/Compact-Public-Source-Probe/
           if-no-files-found: warn
           retention-days: 7

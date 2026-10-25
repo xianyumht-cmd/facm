@@ -23,6 +23,13 @@ namespace FACM
         private static void Main(string[] args)
         {
 #if GLASS_WORKBENCH_PREVIEW
+            if (HasArgument(args, "--compact-public-source-probe"))
+            {
+                Environment.ExitCode = CompactLiveSourceProbe.Run(
+                    System.IO.Path.Combine(Environment.CurrentDirectory,
+                        "artifacts", "Compact-Public-Source-Probe"));
+                return;
+            }
             if (HasArgument(args, "--compact-live-pilot-smoke"))
             {
                 Application.EnableVisualStyles();

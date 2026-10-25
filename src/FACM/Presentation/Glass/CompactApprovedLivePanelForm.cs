@@ -50,7 +50,7 @@ namespace FACM.Presentation.Glass
             _modeIsMayhem = isMayhem;
             var normalizedRole = CompactRiftRoleService.Normalize(role);
             _expectedRankingMode = isMayhem ? "mayhem" :
-                string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal) ? "aram" :
+                string.Equals(modeName, "普通大乱斗", StringComparison.Ordinal) ? "aram" : // ui-text-contract: allow - canonical mode isolation label
                 normalizedRole != null ? "rift:" + normalizedRole : null; // ui-text-contract: allow - approved mode-isolation contract fixture
             _modeHasRanking = _expectedRankingMode != null;
             _liveRanking = null;
