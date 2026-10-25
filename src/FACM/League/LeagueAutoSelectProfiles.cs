@@ -73,6 +73,40 @@ namespace FACM.League
             return "default";
         }
 
+        internal static string LocalAssignedRole(IDictionary<string, object> session)
+        {
+            if (session == null) return null;
+            object local, members;
+            if (!session.TryGetValue("localPlayerCellId", out local) ||
+                !session.TryGetValue("myTeam", out members)) return null;
+            int cellId;
+            try { cellId = Convert.ToInt32(local); }
+            catch (FormatException) { return null; }
+            catch (InvalidCastException) { return null; }
+            catch (OverflowException) { return null; }
+            var team = members as object[];
+            if (team == null) return null;
+            foreach (var value in team)
+            {
+                var player = value as Dictionary<string, object>;
+                object cell, assigned;
+                int current;
+                if (player == null || !player.TryGetValue("cellId", out cell) ||
+                    !int.TryParse(Convert.ToString(cell), out current) || current != cellId ||
+                    !player.TryGetValue("assignedPosition", out assigned)) continue;
+                switch ((Convert.ToString(assigned) ?? string.Empty).Trim().ToUpperInvariant())
+                {
+                    case "TOP": return "top";
+                    case "JUNGLE": case "JG": return "jungle";
+                    case "MIDDLE": case "MID": return "middle";
+                    case "BOTTOM": case "BOT": case "ADC": return "bottom";
+                    case "UTILITY": case "SUPPORT": case "SUP": return "support";
+                    default: return null;
+                }
+            }
+            return null;
+        }
+
         internal static List<int> Candidates(IReadOnlyList<LeagueAutoSelectProfile> profiles,
             string mode, string role, bool pick, int legacyDefault)
         {

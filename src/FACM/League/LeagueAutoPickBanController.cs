@@ -8,7 +8,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
-using FACM.Presentation.Glass;
 using FACM.Services;
 
 namespace FACM.League
@@ -379,7 +378,7 @@ namespace FACM.League
                             QueueId = ReadInt(root, "queueId"),
                             LocalCellId = myCell,
                             GameMode = ReadString(root, "gameMode"),
-                            Role = CompactRiftRoleService.FromChampSelect(root),
+                            Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadInt((Dictionary<string, object>)root["timer"],
                                 "adjustedTimeLeftInPhase")
                         };

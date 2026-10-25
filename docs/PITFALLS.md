@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Production code must not depend on optional Glass preview files (2026-10-25)
+
+The first mode/role auto-select CI on `6ab1410d` failed `CS0234` because the new native League controller referenced `FACM.Presentation.Glass.CompactRiftRoleService`. The regular net48 GGman build deliberately removes `Presentation\Glass\**\*.cs` from compilation unless `UseGlassWorkbenchPreview=true`; the preview-only Glass build had not yet completed. Extract or maintain common domain logic under always-compiled `FACM.League` ownership. In this case, parse the local player's `myTeam`/`assignedPosition` directly in the native League preference service, with no visual dependency or extra Gameflow monitor. Confirm both ordinary and optional Glass Windows CI; a single preview-success path would not establish the normal lightweight executable.
+
 ## Avoid capturing WinForms context in synchronously invoked async smoke suites (2026-10-25)
 
 The first native ChampSelect pick/ban candidate compiled and passed `--league-dashboard-test` alone, but the Windows performance-contract suite hung when it invoked the same validator again. Both build workflows timed out in the project's 120-second self-test `Exec` after `[performance-smoke] START league-dashboard`; no C# compiler error occurred. The new smoke validator synchronously called `GetAwaiter().GetResult()` on an async test that awaited cancellation of a fake clock task. With a WinForms synchronization context installed by the performance suite, the test continuation attempted to resume on the blocked context, causing a deadlock. Use `ConfigureAwait(false)` in all asynchronous test continuations consumed synchronously; do not mask a hang by increasing the CI timeout. The follow-up commit `4f525deb` passed both Windows Build and Glass Candidate, including `[performance-smoke] OK league-dashboard` on its second invocation.

@@ -82,6 +82,11 @@ namespace FACM.League
                     LeagueAutoSelectProfiles.ModeFor(450, "ARAM") == "aram" &&
                     LeagueAutoSelectProfiles.ModeFor(3270, "ARAM") == "mayhem",
                 "Auto-select modes must use the existing ARAM/Mayhem policy.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(SessionWithRole("pick", 6, "UTILITY")))?.Role
+                    == "support" &&
+                    LeagueAutoPickBanController.ParseCurrentAction(Bytes(SessionWithRole("pick", 6, "FILL")))?.Role
+                    == null,
+                "Only a known locally assigned lane is valid for role-specific profiles.");
             var fallback = LeagueAutoSelectProfiles.Candidates(decoded, "rift", "top", true, 2);
             Require(fallback.Count == 3 && fallback[0] == 67 && fallback[1] == 22 && fallback[2] == 2,
                 "Lane-specific priority and basic-choice fallback are not ordered.");
