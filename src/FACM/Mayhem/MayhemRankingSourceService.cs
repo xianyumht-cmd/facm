@@ -160,7 +160,7 @@ namespace FACM.Mayhem
             var rows = new List<MayhemTopChampion>();
             var fixture = "<h1>Patch 26.20</h1><table><thead><tr><th>Rank</th>" +
                 "<th>Champion</th><th>Win Rate</th><th>Tier</th></tr></thead><tbody>";
-            for (var i = 1; i <= 10; i++)
+            for (var i = 1; i <= 17; i++)
             {
                 var name = "Champion" + i;
                 rows.Add(new MayhemTopChampion { Rank = i, Name = name,
@@ -170,7 +170,9 @@ namespace FACM.Mayhem
             }
             fixture += "</tbody></table>";
             var parsed = ParseAramgg(fixture);
-            if (!IsComplete(parsed) || parsed.TopTen[9].Name != "Champion10" ||
+            if (!IsComplete(parsed) || !IsExpandedValid(parsed) ||
+                FindRank(parsed, "Champion16").Rank != 16 ||
+                parsed.TopTen[9].Name != "Champion10" ||
                 !SamePatch(parsed.Patch, "16.20"))
                 throw new InvalidOperationException("ARAMGG ranking parser or patch aliases changed.");
 

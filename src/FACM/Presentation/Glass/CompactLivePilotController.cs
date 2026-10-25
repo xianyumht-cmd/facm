@@ -119,6 +119,7 @@ namespace FACM.Presentation.Glass
             int generation;
             var token = NewRequest(out generation);
             _localChampionId = 0;
+            _manualChampionOverride = false;
             _lastBenchNamesSignature = null;
             _panel.UpdateGameMode("识别模式中", false);
             _ = RefreshModeAsync(generation, token);
