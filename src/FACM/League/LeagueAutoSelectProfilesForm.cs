@@ -27,6 +27,7 @@ namespace FACM.League
         private readonly NumericUpDown _delay;
         private readonly CheckBox _benchSwap;
         private readonly CheckBox _benchUpgrade;
+        private readonly CheckBox _autoTrade;
         private readonly NumericUpDown _benchDelay;
         private readonly Label _status;
         private bool _binding;
@@ -121,6 +122,8 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
             _benchUpgrade = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade),
                 ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            _autoTrade = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedTrade),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
             var benchDelayLabel = new Label { Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchDelay),
                 AutoSize = true, ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 8, 8, 5) };
             _benchDelay = new NumericUpDown { Minimum = 0, Maximum = 15, DecimalPlaces = 1,
@@ -128,6 +131,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 5, 6, 5) };
             benchRow.Controls.Add(_benchSwap);
             benchRow.Controls.Add(_benchUpgrade);
+            benchRow.Controls.Add(_autoTrade);
             benchRow.Controls.Add(benchDelayLabel);
             benchRow.Controls.Add(_benchDelay);
             root.Controls.Add(benchRow, 1, 7);
@@ -158,6 +162,7 @@ namespace FACM.League
             _delay.ValueChanged += StrategyChanged;
             _benchSwap.CheckedChanged += BenchChanged;
             _benchUpgrade.CheckedChanged += BenchChanged;
+            _autoTrade.CheckedChanged += BenchChanged;
             _benchDelay.ValueChanged += BenchChanged;
             _mode.SelectedIndex = 0;
             _role.SelectedIndex = 0;
@@ -242,9 +247,11 @@ namespace FACM.League
                 var benchSettingsVisible = _action.SelectedIndex == 0 && _mode.SelectedIndex != 1;
                 _benchSwap.Enabled = benchSettingsVisible;
                 _benchUpgrade.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _autoTrade.Enabled = benchSettingsVisible;
                 _benchDelay.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
                 _benchSwap.Checked = profile.BenchAutoSwapEnabled;
                 _benchUpgrade.Checked = profile.BenchPreferHigherPriority;
+                _autoTrade.Checked = profile.BenchHandleTradeEnabled;
                 _benchDelay.Value = profile.BenchSwapDelayMs / 1000m;
             }
             finally { _binding = false; }
@@ -311,6 +318,7 @@ namespace FACM.League
             var profile = CurrentProfile(true);
             profile.BenchAutoSwapEnabled = _benchSwap.Checked;
             profile.BenchPreferHigherPriority = _benchUpgrade.Checked;
+            profile.BenchHandleTradeEnabled = _autoTrade.Checked;
             profile.BenchSwapDelayMs = (int)(_benchDelay.Value * 1000);
             _benchUpgrade.Enabled = _benchSwap.Checked;
             _benchDelay.Enabled = _benchSwap.Checked;

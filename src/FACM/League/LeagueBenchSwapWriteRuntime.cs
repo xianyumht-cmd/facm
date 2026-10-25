@@ -21,10 +21,17 @@ namespace FACM.League
             CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, IDisposable
+    internal interface ILeagueChampionTradeWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryAnswerAsync(
+            int tradeId, bool accept, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, IDisposable
     {
         internal const string LegacySwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
         internal const string TeamBuilderSwapPathPrefix = "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/";
+        internal const string ChampionTradePathPrefix = "/lol-champ-select/v1/session/champion-swaps/";
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -35,13 +42,27 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TrySwapAsync(
+        public Task<LeagueClientWriteResponse> TrySwapAsync(
             int championId,
             LeagueBenchSwapRoute route,
             CancellationToken cancellationToken)
         {
             if (!IsValidChampionIdForSmokeTest(championId))
                 throw new ArgumentOutOfRangeException(nameof(championId), "Champion id must be positive.");
+
+            return SendBodylessPostAsync(BuildPathForSmokeTest(championId, route), cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryAnswerAsync(
+            int tradeId, bool accept, CancellationToken cancellationToken)
+        {
+            if (tradeId <= 0) throw new ArgumentOutOfRangeException(nameof(tradeId));
+            return SendBodylessPostAsync(BuildTradePathForSmokeTest(tradeId, accept), cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> SendBodylessPostAsync(
+            string path, CancellationToken cancellationToken)
+        {
 
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
@@ -61,7 +82,7 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var request = new HttpRequestMessage(HttpMethod.Post, BuildPathForSmokeTest(championId, route)))
+                    using (var request = new HttpRequestMessage(HttpMethod.Post, path))
                     using (var response = await lease.Client.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
@@ -112,6 +133,12 @@ namespace FACM.League
             return (route == LeagueBenchSwapRoute.TeamBuilder
                 ? TeamBuilderSwapPathPrefix
                 : LegacySwapPathPrefix) + championId;
+        }
+
+        internal static string BuildTradePathForSmokeTest(int tradeId, bool accept)
+        {
+            if (tradeId <= 0) return string.Empty;
+            return ChampionTradePathPrefix + tradeId + (accept ? "/accept" : "/decline");
         }
 
         public void Dispose()

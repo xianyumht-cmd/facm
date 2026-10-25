@@ -17,6 +17,7 @@ namespace FACM.League
         public int BanDelayMs { get; set; }
         public bool BenchAutoSwapEnabled { get; set; }
         public bool BenchPreferHigherPriority { get; set; }
+        public bool BenchHandleTradeEnabled { get; set; }
         public int BenchSwapDelayMs { get; set; } = 2900;
     }
 

@@ -12,6 +12,12 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-25 — Akari incoming champion-trade candidate (Draft #357)
+
+The next source-backed behavior from pinned Akari `auto-select/trade-controller.ts` is implemented as an **opt-in** per-ARAM/Mayhem-profile setting in the same native priority editor. When enabled with auto-pick, the phase-owned `LeagueAutoPickBanController` reads `/lol-champ-select/v1/ongoing-champion-swap` on its pre-existing 2-second cadence, considers only a valid incoming `CHAMPION` offer, then accepts a priority upgrade or declines an undesirable offer. The request ID, offered champion and unchanged local held champion/phase are rechecked immediately before one typed accept/decline POST. Trade ID de-duplication prevents repeated POSTs. The new typed trade writer reuses the existing bench writer's **same authenticated LCU session and HttpClient pool**; no independent network worker is created. This automation defaults off, and malformed/stale/unknown offers never trigger a trade write. The behavior is separate from the existing manual hero swap.
+
+Offline fake-LCU tests now include exact trade routes, valid incoming-only parsing, accepted higher-priority offer, declined lower-priority offer, changed trade ID and zero extra LCU requests when the option is off. Chinese LOL success, Tencent alternate trade shapes, final timing calibration and end-to-end CPU/RAM remain pending the owner's single final field-test round. No release/merge or floating compact geometry change.
+
 ## 2026-10-25 — Akari candidate bench auto-swap on existing selection owner (Draft #357)
 
 With the preceding priority-profile commit's four workflows all green at GitHub HEAD `3fa5c03d`, the next code candidate extends `LeagueAutoPickBanController` to opt-in **automatic ARAM / Mayhem bench swaps**, matching the priority and delayed handoff concepts of pinned Akari `auto-select/bench-controller.ts`. It uses the **same already-running, ChampSelect-scoped 2-second selection task** and the already-authenticated `ILeagueBenchSwapWriteApi` implemented for manual bench swapping. No second Gameflow listener, new HttpClient pool, Electron bridge or new compact UI layout exists.

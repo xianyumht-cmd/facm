@@ -91,7 +91,8 @@ namespace FACM.AppHost.Modules
             _reconnect = new LeagueGameflowReconnectController(_leagueClient, (ILeagueGameflowReconnectWriteApi)_leagueClient);
             _reconnect.Configure(AutoReconnectEnabled);
             _autoSelect = new LeagueAutoPickBanController(_leagueClient,
-                (ILeagueChampSelectActionWriteApi)_leagueClient, (ILeagueBenchSwapWriteApi)_leagueClient);
+                (ILeagueChampSelectActionWriteApi)_leagueClient, (ILeagueBenchSwapWriteApi)_leagueClient,
+                (ILeagueChampionTradeWriteApi)_leagueClient);
             ConfigureAutoSelect();
 
             _dashboard.GameflowStateChanged += HandleGameflowState;

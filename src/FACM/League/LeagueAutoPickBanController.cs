@@ -43,16 +43,24 @@ namespace FACM.League
         internal void BlockUncertainWrite() { _blocked = true; }
     }
 
+    internal sealed class LeagueChampionTradeRequest
+    {
+        public int Id { get; set; }
+        public int RequestedChampionId { get; set; }
+    }
+
     internal sealed class LeagueAutoPickBanController : IDisposable
     {
         internal const string SessionPath = "/lol-champ-select/v1/session";
         internal const string PickablePath = "/lol-champ-select/v1/pickable-champion-ids";
         internal const string BannablePath = "/lol-champ-select/v1/bannable-champion-ids";
+        internal const string OngoingChampionTradePath = "/lol-champ-select/v1/ongoing-champion-swap";
         internal static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
 
         private readonly ILeagueClientApi _read;
         private readonly ILeagueChampSelectActionWriteApi _write;
         private readonly ILeagueBenchSwapWriteApi _benchWrite;
+        private readonly ILeagueChampionTradeWriteApi _tradeWrite;
         private readonly ILeagueMatchmakingClock _clock;
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
@@ -67,13 +75,20 @@ namespace FACM.League
         private bool _disposed;
 
         public LeagueAutoPickBanController(ILeagueClientApi read, ILeagueChampSelectActionWriteApi write)
-            : this(read, write, null, new LeagueMatchmakingSystemClock())
+            : this(read, write, null, null, new LeagueMatchmakingSystemClock())
         {
         }
 
         public LeagueAutoPickBanController(ILeagueClientApi read,
             ILeagueChampSelectActionWriteApi write, ILeagueBenchSwapWriteApi benchWrite)
-            : this(read, write, benchWrite, new LeagueMatchmakingSystemClock())
+            : this(read, write, benchWrite, null, new LeagueMatchmakingSystemClock())
+        {
+        }
+
+        public LeagueAutoPickBanController(ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write, ILeagueBenchSwapWriteApi benchWrite,
+            ILeagueChampionTradeWriteApi tradeWrite)
+            : this(read, write, benchWrite, tradeWrite, new LeagueMatchmakingSystemClock())
         {
         }
 
@@ -81,7 +96,7 @@ namespace FACM.League
             ILeagueClientApi read,
             ILeagueChampSelectActionWriteApi write,
             ILeagueMatchmakingClock clock)
-            : this(read, write, null, clock)
+            : this(read, write, null, null, clock)
         {
         }
 
@@ -90,10 +105,21 @@ namespace FACM.League
             ILeagueChampSelectActionWriteApi write,
             ILeagueBenchSwapWriteApi benchWrite,
             ILeagueMatchmakingClock clock)
+            : this(read, write, benchWrite, null, clock)
+        {
+        }
+
+        internal LeagueAutoPickBanController(
+            ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write,
+            ILeagueBenchSwapWriteApi benchWrite,
+            ILeagueChampionTradeWriteApi tradeWrite,
+            ILeagueMatchmakingClock clock)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _benchWrite = benchWrite;
+            _tradeWrite = tradeWrite;
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
@@ -233,6 +259,9 @@ namespace FACM.League
             var action = ParseCurrentAction(session);
             if (action == null)
             {
+                if (pick && _tradeWrite != null &&
+                    await TryTradeAsync(episode, session, profiles, pickId,
+                        attempted, reported, trace).ConfigureAwait(false)) return;
                 // Bench swaps happen after the draft's pick action is over. Reuse this same
                 // already-read ChampSelect response and phase-scoped task, never another poller.
                 if (pick && _benchWrite != null)
@@ -315,6 +344,100 @@ namespace FACM.League
                 locked == null ? "failed_unavailable" :
                 locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,
                 watch.ElapsedMilliseconds);
+        }
+
+        private async Task<bool> TryTradeAsync(CancellationTokenSource episode, byte[] session,
+            IReadOnlyList<LeagueAutoSelectProfile> profiles, int pickId,
+            HashSet<string> attempted, HashSet<string> reported, string trace)
+        {
+            var state = LeagueLiveDataService.ParseBenchPayload(session);
+            if (!state.SessionAvailable || !state.BenchEnabled || state.LocalChampionId <= 0 ||
+                !LeagueQueueModePolicy.IsBaseAram(state.QueueId, state.GameMode) &&
+                !LeagueQueueModePolicy.IsAramMayhem(state.QueueId, state.GameMode) ||
+                !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase)) return false;
+
+            var mode = LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
+            if (!profile.BenchHandleTradeEnabled) return false;
+
+            // Only profiles with explicitly enabled trade handling generate this extra read;
+            // all observation still happens in the same phase-scoped selection task.
+            var response = await _read.TryGetBytesAsync(OngoingChampionTradePath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return true;
+            if (response == null)
+            {
+                RecordOnce(reported, trace, "trade", "unavailable");
+                return true; // Do not auto-swap the bench while trade status is unknown.
+            }
+            var incoming = ParseIncomingChampionTrade(response);
+            if (incoming == null) return false;
+            var key = "trade:" + incoming.Id;
+            if (!attempted.Add(key)) return true;
+            var priorities = LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId);
+            var accept = SelectBenchTarget(priorities, state.LocalChampionId,
+                new[] { incoming.RequestedChampionId }, profile.BenchPreferHigherPriority) == incoming.RequestedChampionId;
+            var watch = Stopwatch.StartNew();
+            var delay = LimitDelay(profile.PickDelayMs, state.TimerMillisecondsLeft);
+            if (delay > 0)
+            {
+                CompactTraceLog.Record(trace, "autoselect-trade", "delay", "scheduled", 0);
+                await _clock.Delay(TimeSpan.FromMilliseconds(delay), episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return true;
+            }
+
+            var confirmedSession = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return true;
+            var current = LeagueLiveDataService.ParseBenchPayload(confirmedSession);
+            if (!SameBenchIdentity(state, current) || current.LocalChampionId != state.LocalChampionId)
+            {
+                CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "phase_or_hero_changed",
+                    watch.ElapsedMilliseconds);
+                return true;
+            }
+            var freshTrade = await _read.TryGetBytesAsync(OngoingChampionTradePath, episode.Token).ConfigureAwait(false);
+            if (!IsCurrent(episode)) return true;
+            var incomingNow = ParseIncomingChampionTrade(freshTrade);
+            if (incomingNow == null || incomingNow.Id != incoming.Id ||
+                incomingNow.RequestedChampionId != incoming.RequestedChampionId)
+            {
+                CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "trade_changed",
+                    watch.ElapsedMilliseconds);
+                return true;
+            }
+            CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "ok", watch.ElapsedMilliseconds);
+            var written = await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false);
+            CompactTraceLog.Record(trace, "autoselect-trade", "write",
+                written == null ? "failed_unavailable" :
+                written.IsSuccessStatusCode ? (accept ? "accept_submitted" : "decline_submitted") :
+                "failed_http_" + written.StatusCode,
+                watch.ElapsedMilliseconds);
+            return true;
+        }
+
+        internal static LeagueChampionTradeRequest ParseIncomingChampionTrade(byte[] response)
+        {
+            if (response == null || response.Length == 0 || response.Length > 32768) return null;
+            try
+            {
+                var data = new JavaScriptSerializer().DeserializeObject(
+                    Encoding.UTF8.GetString(response)) as Dictionary<string, object>;
+                object initiatedByLocal;
+                if (data == null || ReadString(data, "state") != "RECEIVED" ||
+                    ReadString(data, "type") != "CHAMPION" ||
+                    !data.TryGetValue("initiatedByLocalPlayer", out initiatedByLocal) ||
+                    !(initiatedByLocal is bool) || (bool)initiatedByLocal) return null;
+                var id = ReadInt(data, "id");
+                var champion = ReadInt(data, "requesterChampionId");
+                return id > 0 && champion > 0 && champion <= 10000
+                    ? new LeagueChampionTradeRequest { Id = id, RequestedChampionId = champion }
+                    : null;
+            }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            catch (FormatException) { }
+            catch (InvalidCastException) { }
+            return null;
         }
 
         private async Task TryBenchSwapAsync(CancellationTokenSource episode, byte[] session,
