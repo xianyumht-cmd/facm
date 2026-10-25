@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateInvalidAndStaleInvitations();
             ValidateCancelledPreflight();
             ValidateLeaderPromotion();
+            ValidateLeaderRoomNotice();
             ValidateDisabledByDefault();
             LeagueFriendInvitationSmokeTest.Validate();
         }
@@ -200,6 +201,50 @@ namespace FACM.League
             Require(write.Calls.Count == 1, "Non-leader must not promote another member.");
         }
 
+        private static void ValidateLeaderRoomNotice()
+        {
+            var leader = "{\"partyId\":\"party-notice\",\"localMember\":{\"summonerId\":10,\"isLeader\":true}," +
+                "\"members\":[{\"summonerId\":20,\"ready\":true}]}";
+            var conversation = "[{\"type\":\"customGame\",\"id\":\"room-leader@party\"}]";
+            var read = new Read();
+            var write = new Write();
+            read.Set(LeagueLobbyInvitationController.LobbyPath, leader);
+            read.Set(LeagueFriendInvitationController.ConversationsPath, conversation);
+            using (var controller = new LeagueLobbyInvitationController(read, write, write))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Run(controller, "Lobby");
+                Require(write.Calls.Count == 1 && write.Notices.SequenceEqual(new[]
+                    { "room-leader@party|已发起队长转让" }),
+                    "Successful automatic leader promotion must announce at most once to its custom-game room.");
+            }
+
+            read = new Read();
+            write = new Write();
+            read.SetSequence(LeagueLobbyInvitationController.LobbyPath, leader, leader,
+                leader.Replace("party-notice", "party-replaced"));
+            read.Set(LeagueFriendInvitationController.ConversationsPath, conversation);
+            using (var controller = new LeagueLobbyInvitationController(read, write, write))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Require(write.Calls.Count == 1 && write.Notices.Count == 0,
+                    "Changed lobby identity after promotion must suppress a stale room announcement.");
+            }
+
+            read = new Read();
+            write = new Write { Status = 500 };
+            read.Set(LeagueLobbyInvitationController.LobbyPath, leader);
+            using (var controller = new LeagueLobbyInvitationController(read, write, write))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Require(write.Notices.Count == 0,
+                    "Rejected promotion must not announce a successful leader change.");
+            }
+        }
+
         private static void ValidateDisabledByDefault()
         {
             var read = new Read();
@@ -257,14 +302,24 @@ namespace FACM.League
             }
         }
 
-        private sealed class Write : ILeagueMatchmakingWriteApi
+        private sealed class Write : ILeagueMatchmakingWriteApi, ILeagueLobbyNoticeWriteApi
         {
             internal readonly List<string> Calls = new List<string>();
+            internal readonly List<string> Notices = new List<string>();
+            internal int Status = 204;
             public Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(method + " " + path);
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = Status, Body = new byte[0] });
+            }
+
+            public Task<LeagueClientWriteResponse> TrySendNoticeAsync(
+                string conversationId, string message, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Notices.Add(conversationId + "|" + message);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 201, Body = new byte[0] });
             }
         }
     }

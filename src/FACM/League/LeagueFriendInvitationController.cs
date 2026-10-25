@@ -253,7 +253,7 @@ namespace FACM.League
                 (notice != null && notice.IsSuccessStatusCode ? "submitted" : "unverified"));
         }
 
-        private string ParseCustomGameConversation(byte[] bytes)
+        internal static string ParseCustomGameConversation(byte[] bytes)
         {
             if (bytes == null || bytes.Length > 256 * 1024) return null;
             object parsed;

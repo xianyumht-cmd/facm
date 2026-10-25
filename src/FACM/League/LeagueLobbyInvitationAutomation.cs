@@ -115,6 +115,7 @@ namespace FACM.League
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
         private readonly ILeagueMatchmakingWriteApi _write;
+        private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private readonly HashSet<string> _attemptedInvitations = new HashSet<string>(StringComparer.Ordinal);
         private Dictionary<string, string> _policies = LeagueInvitationPolicies.Parse(null);
@@ -129,9 +130,14 @@ namespace FACM.League
         private bool _disposed;
 
         internal LeagueLobbyInvitationController(ILeagueClientApi read, ILeagueMatchmakingWriteApi write)
+            : this(read, write, null) { }
+
+        internal LeagueLobbyInvitationController(
+            ILeagueClientApi read, ILeagueMatchmakingWriteApi write, ILeagueLobbyNoticeWriteApi notices)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
+            _notices = notices;
         }
 
         internal void Configure(bool handleInvitations, bool skipWhenAway, string policiesJson, bool autoSkipLeader)
@@ -295,6 +301,24 @@ namespace FACM.League
             cancellationToken.ThrowIfCancellationRequested();
             AppLog.Info("League auto skip leader: " +
                 (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+            if (response == null || !response.IsSuccessStatusCode || _notices == null ||
+                string.IsNullOrEmpty(lobby.PartyId)) return;
+            var room = LeagueFriendInvitationController.ParseCustomGameConversation(
+                await _read.TryGetBytesAsync(LeagueFriendInvitationController.ConversationsPath, cancellationToken)
+                    .ConfigureAwait(false));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (room == null) return;
+            var postPromotion = ParseLeader(await _read.TryGetBytesAsync(LobbyPath, cancellationToken)
+                .ConfigureAwait(false));
+            cancellationToken.ThrowIfCancellationRequested();
+            if (postPromotion == null || postPromotion.PartyId != lobby.PartyId ||
+                postPromotion.SelfSummonerId != lobby.SelfSummonerId) return;
+            lock (_sync)
+                if (!IsLeaderEnabledLocked()) return;
+            var notice = await _notices.TrySendNoticeAsync(
+                room, "已发起队长转让", cancellationToken).ConfigureAwait(false);
+            AppLog.Info("League auto skip leader room notice: " +
+                (notice != null && notice.IsSuccessStatusCode ? "submitted" : "unverified"));
         }
 
         internal List<LeagueReceivedInvitation> ParseInvitations(byte[] bytes)
