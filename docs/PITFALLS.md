@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Synthetic LCU readbacks must persist every field under verification (2026-10-26)
+
+The new presence mutation contention fixture correctly serialized two whole-document writes, but its fake `/lol-chat/v1/me` implementation recorded the changed ranked tier while always reconstructing the old division `II`. The rank writer deliberately verifies both tier and division after each successful PUT, so Windows host smoke marked the result `overridden` and failed both regular and Glass builds at source commit `d9fe9a93`. The correction stores the `rankedLeagueDivision` field from PUT and returns that stored value on subsequent GETs. Keep fake LCU snapshots fully faithful to the fields a tested writer modifies; a test harness can falsely report a data race when its own readback drops a valid update. Never weaken production read-after-write checks to silence a synthetic failure.
+
 ## Akari outgoing lobby invitation uses an object array, not raw summoner IDs (2026-10-26)
 
 Pinned `lobby.postInvitation(summonerIds)` in v1.5.1 maps each summoner ID to `{toSummonerId:id}` before POSTing to `/lol-lobby/v2/lobby/invitations`. The controller's apparent call `postInvitation([id])` does **not** mean the on-wire body is `[id]`. Trace the typed HTTP wrapper before implementing an LCU writer and keep this route separate from existing bodyless incoming-invitation accept/decline calls. An invite queue also must not automatically clear merely because the Gameflow phase becomes `Matchmaking` or `ReadyCheck` while a lobby is still active. Use a lobby identity fence and final re-read; never rely solely on cached friend availability.
