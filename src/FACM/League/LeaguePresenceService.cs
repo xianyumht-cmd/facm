@@ -249,6 +249,23 @@ namespace FACM.League
             string division,
             CancellationToken cancellationToken)
         {
+            return await ApplyRankedStatusCoreAsync(queue, tier, division, null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        internal Task<LeaguePresenceRankedApplyResult> ApplyRankedStatusIfUnchangedAsync(
+            string queue, string tier, string division, LeaguePresenceSnapshot expectedCurrent,
+            CancellationToken cancellationToken)
+        {
+            if (expectedCurrent == null || !expectedCurrent.Connected)
+                return Task.FromResult(new LeaguePresenceRankedApplyResult { Status = "unavailable" });
+            return ApplyRankedStatusCoreAsync(queue, tier, division, expectedCurrent, cancellationToken);
+        }
+
+        private async Task<LeaguePresenceRankedApplyResult> ApplyRankedStatusCoreAsync(
+            string queue, string tier, string division, LeaguePresenceSnapshot expectedCurrent,
+            CancellationToken cancellationToken)
+        {
             string normalizedQueue;
             string normalizedTier;
             string normalizedDivision;
@@ -273,6 +290,17 @@ namespace FACM.League
                     Tier = normalizedTier,
                     Division = normalizedDivision
                 };
+            }
+
+            if (expectedCurrent != null)
+            {
+                var current = ToSnapshot(root);
+                if (!SameRankedStatus(current, expectedCurrent))
+                    return new LeaguePresenceRankedApplyResult
+                    {
+                        Status = "overridden", Queue = normalizedQueue,
+                        Tier = normalizedTier, Division = normalizedDivision
+                    };
             }
 
             ApplyRankedStatus(root, normalizedQueue, normalizedTier, normalizedDivision);
@@ -531,6 +559,14 @@ namespace FACM.League
                 return false;
             return IsApexTier(tier) ||
                    string.Equals(snapshot.RankedLeagueDivision ?? string.Empty, division ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static bool SameRankedStatus(LeaguePresenceSnapshot first, LeaguePresenceSnapshot second)
+        {
+            return first != null && second != null && first.Connected && second.Connected &&
+                string.Equals(first.RankedLeagueQueue ?? string.Empty, second.RankedLeagueQueue ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(first.RankedLeagueTier ?? string.Empty, second.RankedLeagueTier ?? string.Empty, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(first.RankedLeagueDivision ?? string.Empty, second.RankedLeagueDivision ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         }
 
         private static void SetGameStatus(Dictionary<string, object> root, string gameStatus)

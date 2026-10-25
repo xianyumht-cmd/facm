@@ -33,6 +33,10 @@ namespace FACM.Services
         public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; }
         public bool LeagueAutoLoginStatusMessageEnabled { get; set; }
         public string LeagueAutoLoginStatusMessage { get; set; }
+        public bool LeagueAutoLoginRankedStatusEnabled { get; set; }
+        public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
+        public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
+        public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -72,6 +76,10 @@ namespace FACM.Services
                 LeagueAutoAramTeamSideVisibleToTeam = settings.LeagueAutoAramTeamSideVisibleToTeam,
                 LeagueAutoLoginStatusMessageEnabled = settings.LeagueAutoLoginStatusMessageEnabled,
                 LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(settings.LeagueAutoLoginStatusMessage),
+                LeagueAutoLoginRankedStatusEnabled = settings.LeagueAutoLoginRankedStatusEnabled,
+                LeagueAutoLoginRankedQueue = settings.LeagueAutoLoginRankedQueue,
+                LeagueAutoLoginRankedTier = settings.LeagueAutoLoginRankedTier,
+                LeagueAutoLoginRankedDivision = settings.LeagueAutoLoginRankedDivision,
                 LeagueAutoMatchmakingMinPartySize = settings.LeagueAutoMatchmakingMinPartySize,
                 LeagueAutoMatchmakingStartDelayMs = settings.LeagueAutoMatchmakingStartDelayMs,
                 LeagueAutoAcceptDelayMs = settings.LeagueAutoAcceptDelayMs,
@@ -114,6 +122,16 @@ namespace FACM.Services
             settings.LeagueAutoAramTeamSideVisibleToTeam = LeagueAutoAramTeamSideVisibleToTeam;
             settings.LeagueAutoLoginStatusMessageEnabled = LeagueAutoLoginStatusMessageEnabled;
             settings.LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(LeagueAutoLoginStatusMessage);
+            string rankedQueue;
+            string rankedTier;
+            string rankedDivision;
+            var validRank = FACM.League.LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                LeagueAutoLoginRankedQueue, LeagueAutoLoginRankedTier, LeagueAutoLoginRankedDivision,
+                out rankedQueue, out rankedTier, out rankedDivision);
+            settings.LeagueAutoLoginRankedStatusEnabled = LeagueAutoLoginRankedStatusEnabled && validRank;
+            settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
+            settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
+            settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoMatchmakingMinPartySize = LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = LeagueAutoAcceptDelayMs;

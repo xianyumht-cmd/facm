@@ -17,6 +17,9 @@ namespace FACM.League
             ValidateOneRestorePerConnection();
             ValidateManualChangesWin();
             ValidateAlreadyCorrectDoesNotWrite();
+            ValidateRankedRestoreAndCombinedFields();
+            ValidateRankedManualChangesWin();
+            ValidateRankedAlreadyCorrectDoesNotWrite();
         }
 
         private static void ValidateSettings()
@@ -45,6 +48,34 @@ namespace FACM.League
             catch (System.IO.InvalidDataException) { }
             Require(LeagueLoginStatusRestoreController.NormalizeSavedMessage("a\nb\rc\0d") == "a b cd",
                 "Login signature must be single-line and strip NUL.");
+
+            Require(!settings.LeagueAutoLoginRankedStatusEnabled, "Login ranked appearance must default off.");
+            var ranked = new AppSettings();
+            ranked.LeagueAutoLoginRankedStatusEnabled = true;
+            ranked.LeagueAutoLoginRankedQueue = "RANKED_FLEX_SR";
+            ranked.LeagueAutoLoginRankedTier = "EMERALD";
+            ranked.LeagueAutoLoginRankedDivision = "III";
+            var parsed = AppSettings.ParseLines(ranked.BuildLinesForSmokeTest());
+            Require(parsed.LeagueAutoLoginRankedStatusEnabled &&
+                parsed.LeagueAutoLoginRankedQueue == "RANKED_FLEX_SR" &&
+                parsed.LeagueAutoLoginRankedTier == "EMERALD" &&
+                parsed.LeagueAutoLoginRankedDivision == "III", "Login rank INI roundtrip failed.");
+            var cloudRank = CloudSettingsSnapshot.Capture(ranked);
+            var afterCloud = new AppSettings();
+            cloudRank.ApplyTo(afterCloud);
+            Require(afterCloud.LeagueAutoLoginRankedStatusEnabled &&
+                afterCloud.LeagueAutoLoginRankedDivision == "III", "Login rank cloud roundtrip failed.");
+            GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = cloudRank });
+            cloudRank.LeagueAutoLoginRankedTier = "FAKE_TIER";
+            try
+            {
+                GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = cloudRank });
+                throw new InvalidOperationException("Invalid login rank was accepted in portable settings.");
+            }
+            catch (System.IO.InvalidDataException) { }
+            cloudRank.ApplyTo(afterCloud);
+            Require(!afterCloud.LeagueAutoLoginRankedStatusEnabled,
+                "Invalid cloud rank must disable automatic restore.");
         }
 
         private static void ValidateOffByDefault()
@@ -112,6 +143,95 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateRankedRestoreAndCombinedFields()
+        {
+            var api = new Presence();
+            using (var controller = NewController(api))
+            {
+                controller.Configure(false, string.Empty, true, "RANKED_FLEX_SR", "DIAMOND", "IV");
+                Run(controller);
+                Run(controller);
+                Require(api.Writes == 1 && api.Current == "原始签名" &&
+                    api.RankedQueue == "RANKED_FLEX_SR" && api.RankedTier == "DIAMOND" &&
+                    api.RankedDivision == "IV" && api.Reads == 5,
+                    "Ranked-only restore must preserve signature and write once.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = false, Phase = "None" });
+                api.RankedTier = "SILVER";
+                Run(controller);
+                Require(api.Writes == 2 && api.RankedTier == "DIAMOND",
+                    "New login should allow one new ranked restore.");
+            }
+
+            api = new Presence();
+            using (var controller = NewController(api))
+            {
+                controller.Configure(true, "统一签名", true, "RANKED_SOLO_5x5", "MASTER", "I");
+                Run(controller);
+                Require(api.Writes == 2 && api.Reads == 8 && api.Current == "统一签名" &&
+                    api.RankedTier == "MASTER" && api.RankedDivision == string.Empty,
+                    "Combined login restore must serialize both writes and omit apex division.");
+                Run(controller);
+                Require(api.Writes == 2 && api.Reads == 8,
+                    "Completed combined restore must not repeat writes or reads.");
+            }
+        }
+
+        private static void ValidateRankedManualChangesWin()
+        {
+            var api = new Presence();
+            api.BeforeRead = count => { if (count == 2) api.RankedTier = "EMERALD"; };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(false, string.Empty, true, "RANKED_SOLO_5x5", "DIAMOND", "I");
+                Run(controller);
+                Require(api.Writes == 0 && api.RankedTier == "EMERALD",
+                    "Manual rank change during settle must prevent restore.");
+            }
+
+            api = new Presence();
+            api.BeforeRead = count => { if (count == 3) api.RankedTier = "EMERALD"; };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(false, string.Empty, true, "RANKED_SOLO_5x5", "DIAMOND", "I");
+                Run(controller);
+                Require(api.Writes == 0 && api.RankedTier == "EMERALD",
+                    "Final ranked prewrite comparison must detect user changes.");
+            }
+
+            api = new Presence();
+            api.BeforeRead = count => { if (count == 2) api.Current = "手动更新"; };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(true, "签名目标", true, "RANKED_SOLO_5x5", "DIAMOND", "I");
+                Run(controller);
+                Require(api.Writes == 1 && api.Current == "手动更新" && api.RankedTier == "DIAMOND",
+                    "A manual signature change should not prevent an independent unchanged rank restore.");
+            }
+
+            api = new Presence();
+            api.BeforeRead = count => { if (count == 6) api.RankedTier = "PLATINUM"; };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(true, "签名目标", true, "RANKED_SOLO_5x5", "DIAMOND", "I");
+                Run(controller);
+                Require(api.Writes == 1 && api.Current == "签名目标" && api.RankedTier == "PLATINUM",
+                    "A rank change after signature write must abort only the later ranked write.");
+            }
+        }
+
+        private static void ValidateRankedAlreadyCorrectDoesNotWrite()
+        {
+            var api = new Presence { RankedTier = "DIAMOND", RankedDivision = "I" };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(false, string.Empty, true, "RANKED_SOLO_5x5", "DIAMOND", "I");
+                Run(controller);
+                Run(controller);
+                Require(api.Writes == 0 && api.Reads == 2,
+                    "Already-correct ranked appearance must not write or poll again.");
+            }
+        }
+
         private static LeagueLoginStatusRestoreController NewController(Presence api)
         {
             return new LeagueLoginStatusRestoreController(
@@ -132,6 +252,9 @@ namespace FACM.League
         private sealed class Presence : ILeagueClientApi, ILeaguePresenceWriteApi
         {
             internal string Current = "原始签名";
+            internal string RankedQueue = "RANKED_SOLO_5x5";
+            internal string RankedTier = "GOLD";
+            internal string RankedDivision = "II";
             internal int Reads;
             internal int Writes;
             internal Action<int> BeforeRead;
@@ -147,7 +270,14 @@ namespace FACM.League
                     { "availability", "chat" },
                     { "statusMessage", Current },
                     { "name", "test" },
-                    { "lol", new Dictionary<string, object> { { "gameStatus", "outOfGame" } } }
+                    { "lol", new Dictionary<string, object>
+                        {
+                            { "gameStatus", "outOfGame" },
+                            { "rankedLeagueQueue", RankedQueue },
+                            { "rankedLeagueTier", RankedTier },
+                            { "rankedLeagueDivision", RankedDivision }
+                        }
+                    }
                 });
                 return Task.FromResult(Encoding.UTF8.GetBytes(json));
             }
@@ -159,6 +289,10 @@ namespace FACM.League
                 Require(root != null && (string)root["availability"] == "chat", "Restore changed unrelated presence.");
                 Writes++;
                 Current = (string)root["statusMessage"];
+                var lol = root["lol"] as Dictionary<string, object>;
+                RankedQueue = (string)lol["rankedLeagueQueue"];
+                RankedTier = (string)lol["rankedLeagueTier"];
+                RankedDivision = lol.ContainsKey("rankedLeagueDivision") ? (string)lol["rankedLeagueDivision"] : string.Empty;
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = Array.Empty<byte>() });
             }
         }

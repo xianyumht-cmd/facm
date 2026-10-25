@@ -53,6 +53,10 @@ namespace FACM.Services
         public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; } = false;
         public bool LeagueAutoLoginStatusMessageEnabled { get; set; } = false;
         public string LeagueAutoLoginStatusMessage { get; set; } = string.Empty;
+        public bool LeagueAutoLoginRankedStatusEnabled { get; set; } = false;
+        public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
+        public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
+        public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
@@ -177,6 +181,10 @@ namespace FACM.Services
                 "LeagueAutoAramTeamSideVisibleToTeam=" + LeagueAutoAramTeamSideVisibleToTeam,
                 "LeagueAutoLoginStatusMessageEnabled=" + LeagueAutoLoginStatusMessageEnabled,
                 "LeagueAutoLoginStatusMessage=" + Sanitize(LeagueLoginStatusRestoreController.NormalizeSavedMessage(LeagueAutoLoginStatusMessage)),
+                "LeagueAutoLoginRankedStatusEnabled=" + LeagueAutoLoginRankedStatusEnabled,
+                "LeagueAutoLoginRankedQueue=" + Sanitize(LeagueAutoLoginRankedQueue),
+                "LeagueAutoLoginRankedTier=" + Sanitize(LeagueAutoLoginRankedTier),
+                "LeagueAutoLoginRankedDivision=" + Sanitize(LeagueAutoLoginRankedDivision),
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
@@ -423,6 +431,10 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoAramTeamSideVisibleToTeam", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideVisibleToTeam = flag;
             else if (key.Equals("LeagueAutoLoginStatusMessageEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoLoginStatusMessageEnabled = flag;
             else if (key.Equals("LeagueAutoLoginStatusMessage", StringComparison.OrdinalIgnoreCase) && value.Length <= LeaguePresenceService.MaximumStatusMessageLength) result.LeagueAutoLoginStatusMessage = LeagueLoginStatusRestoreController.NormalizeSavedMessage(value);
+            else if (key.Equals("LeagueAutoLoginRankedStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoLoginRankedStatusEnabled = flag;
+            else if (key.Equals("LeagueAutoLoginRankedQueue", StringComparison.OrdinalIgnoreCase) && value.Length <= 32) result.LeagueAutoLoginRankedQueue = value;
+            else if (key.Equals("LeagueAutoLoginRankedTier", StringComparison.OrdinalIgnoreCase) && value.Length <= 20) result.LeagueAutoLoginRankedTier = value;
+            else if (key.Equals("LeagueAutoLoginRankedDivision", StringComparison.OrdinalIgnoreCase) && value.Length <= 4) result.LeagueAutoLoginRankedDivision = value;
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));
@@ -452,6 +464,21 @@ namespace FACM.Services
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
             result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(result.LeagueAutoHonorStrategy);
             result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(result.LeagueInvitationStrategies);
+            string rankedQueue;
+            string rankedTier;
+            string rankedDivision;
+            if (!LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                result.LeagueAutoLoginRankedQueue, result.LeagueAutoLoginRankedTier,
+                result.LeagueAutoLoginRankedDivision, out rankedQueue, out rankedTier, out rankedDivision))
+            {
+                result.LeagueAutoLoginRankedStatusEnabled = false;
+                rankedQueue = "RANKED_SOLO_5x5";
+                rankedTier = "CHALLENGER";
+                rankedDivision = string.Empty;
+            }
+            result.LeagueAutoLoginRankedQueue = rankedQueue;
+            result.LeagueAutoLoginRankedTier = rankedTier;
+            result.LeagueAutoLoginRankedDivision = rankedDivision;
             if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
                 result.LeagueChampionSpellPresets = string.Empty;
             if ((result.LeagueChampionRunePresets ?? string.Empty).Length > 7500)

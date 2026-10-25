@@ -6,7 +6,7 @@ using FACM.Services;
 
 namespace FACM.League
 {
-    // A single opt-in chat-ready restore per connected episode, using the existing presence writer.
+    // One chat-ready automation task per connected episode owns both presence-field restores.
     internal sealed class LeagueLoginStatusRestoreController : IDisposable
     {
         private static readonly long RetryTicks = Math.Max(1, Stopwatch.Frequency * 3);
@@ -19,9 +19,14 @@ namespace FACM.League
         private int _generation;
         private bool _connected;
         private bool _enabled;
+        private bool _signatureEnabled;
+        private bool _rankedEnabled;
         private bool _completed;
         private bool _disposed;
         private string _message = string.Empty;
+        private string _queue = "RANKED_SOLO_5x5";
+        private string _tier = "CHALLENGER";
+        private string _division = string.Empty;
 
         internal LeagueLoginStatusRestoreController(LeaguePresenceService presence)
             : this(presence, TimeSpan.FromSeconds(2)) { }
@@ -40,13 +45,32 @@ namespace FACM.League
 
         internal void Configure(bool enabled, string message)
         {
+            Configure(enabled, message, false, "RANKED_SOLO_5x5", "CHALLENGER", "I");
+        }
+
+        internal void Configure(bool signatureEnabled, string message, bool rankedEnabled,
+            string queue, string tier, string division)
+        {
             var normalized = NormalizeSavedMessage(message);
+            string safeQueue;
+            string safeTier;
+            string safeDivision;
+            var validRank = LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                queue, tier, division, out safeQueue, out safeTier, out safeDivision);
+            if (!validRank) rankedEnabled = false;
             CancellationTokenSource previous;
             lock (_sync)
             {
-                if (_disposed || (_enabled == enabled && _message == normalized)) return;
-                _enabled = enabled;
+                if (_disposed || (_signatureEnabled == signatureEnabled && _message == normalized &&
+                    _rankedEnabled == rankedEnabled && _queue == safeQueue &&
+                    _tier == safeTier && _division == safeDivision)) return;
+                _enabled = signatureEnabled || rankedEnabled;
+                _signatureEnabled = signatureEnabled;
+                _rankedEnabled = rankedEnabled;
                 _message = normalized;
+                _queue = safeQueue;
+                _tier = safeTier;
+                _division = safeDivision;
                 _generation++;
                 _completed = false;
                 _lastAttempt = 0;
@@ -90,11 +114,19 @@ namespace FACM.League
                 _active = active;
                 var generation = _generation;
                 var message = _message;
-                _running = Task.Run(() => RunAsync(active, generation, message));
+                var signatureEnabled = _signatureEnabled;
+                var rankedEnabled = _rankedEnabled;
+                var queue = _queue;
+                var tier = _tier;
+                var division = _division;
+                _running = Task.Run(() => RunAsync(active, generation, signatureEnabled, message,
+                    rankedEnabled, queue, tier, division));
             }
         }
 
-        private async Task RunAsync(CancellationTokenSource active, int generation, string message)
+        private async Task RunAsync(CancellationTokenSource active, int generation,
+            bool signatureEnabled, string message, bool rankedEnabled,
+            string queue, string tier, string division)
         {
             try
             {
@@ -109,17 +141,28 @@ namespace FACM.League
                 var current = settled.StatusMessage ?? string.Empty;
                 lock (_sync)
                 {
-                    if (!IsCurrent(generation, message)) return;
+                    if (!IsCurrent(generation)) return;
                     // Never fight a manual or client-side change made during chat readiness.
                     _completed = true;
                 }
-                if (!string.Equals(before, current, StringComparison.Ordinal) ||
-                    string.Equals(current, message, StringComparison.Ordinal)) return;
+                if (signatureEnabled && string.Equals(before, current, StringComparison.Ordinal) &&
+                    !string.Equals(current, message, StringComparison.Ordinal))
+                {
+                    active.Token.ThrowIfCancellationRequested();
+                    var result = await _presence.ApplyStatusMessageIfUnchangedAsync(message, current, active.Token)
+                        .ConfigureAwait(false);
+                    AppLog.Info("League login signature restore: " + (result == null ? "unverified" : result.Status));
+                }
 
-                active.Token.ThrowIfCancellationRequested();
-                var result = await _presence.ApplyStatusMessageIfUnchangedAsync(message, current, active.Token)
-                    .ConfigureAwait(false);
-                AppLog.Info("League login signature restore: " + (result == null ? "unverified" : result.Status));
+                if (rankedEnabled && LeaguePresenceService.SameRankedStatus(first, settled) &&
+                    !IsDesiredRank(settled, queue, tier, division))
+                {
+                    active.Token.ThrowIfCancellationRequested();
+                    var result = await _presence.ApplyRankedStatusIfUnchangedAsync(
+                        queue, tier, division, settled, active.Token).ConfigureAwait(false);
+                    AppLog.Info("League login displayed-rank restore: " +
+                        (result == null ? "unverified" : result.Status));
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -134,10 +177,20 @@ namespace FACM.League
             }
         }
 
-        private bool IsCurrent(int generation, string message)
+        private static bool IsDesiredRank(LeaguePresenceSnapshot current, string queue, string tier, string division)
+        {
+            if (current == null || !current.Connected) return false;
+            if (!string.Equals(current.RankedLeagueQueue ?? string.Empty, queue, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(current.RankedLeagueTier ?? string.Empty, tier, StringComparison.OrdinalIgnoreCase))
+                return false;
+            return tier == "MASTER" || tier == "GRANDMASTER" || tier == "CHALLENGER" ||
+                string.Equals(current.RankedLeagueDivision ?? string.Empty, division, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsCurrent(int generation)
         {
             return !_disposed && _enabled && _connected && !_completed &&
-                _generation == generation && _message == message;
+                _generation == generation;
         }
 
         private static void Cancel(CancellationTokenSource source)

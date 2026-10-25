@@ -74,6 +74,15 @@ namespace FACM.League
         public const string LoginSignatureAuto = "LeagueEfficiencyLoginSignatureAuto";
         public const string LoginSignatureAutoHint = "LeagueEfficiencyLoginSignatureAutoHint";
         public const string LoginSignatureSaved = "LeagueEfficiencyLoginSignatureSaved";
+        public const string LoginRankAuto = "LeagueEfficiencyLoginRankAuto";
+        public const string LoginRankAutoHint = "LeagueEfficiencyLoginRankAutoHint";
+        public const string LoginRankQueue = "LeagueEfficiencyLoginRankQueue";
+        public const string LoginRankQueueHint = "LeagueEfficiencyLoginRankQueueHint";
+        public const string LoginRankTier = "LeagueEfficiencyLoginRankTier";
+        public const string LoginRankTierHint = "LeagueEfficiencyLoginRankTierHint";
+        public const string LoginRankDivision = "LeagueEfficiencyLoginRankDivision";
+        public const string LoginRankDivisionHint = "LeagueEfficiencyLoginRankDivisionHint";
+        public const string LoginRankSaved = "LeagueEfficiencyLoginRankSaved";
         public const string LobbyInvitationSaved = "LeagueEfficiencyLobbyInvitationSaved";
         public const string FriendInviteOpen = "LeagueEfficiencyFriendInviteOpen";
         public const string FriendInviteTitle = "LeagueEfficiencyFriendInviteTitle";
@@ -223,13 +232,22 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AramTeamSideHint, "仅限大乱斗、海克斯大乱斗选人阶段，在聊天窗口提示自己的阵营；默认关闭。" },
             { LeagueEfficiencyUiTextKeys.AramTeamSideVisible, "让队友也看见阵营提示" },
             { LeagueEfficiencyUiTextKeys.AramTeamSideVisibleHint, "开启后会向选人聊天室发普通消息，队友可见；关闭时使用仅本地提示。" },
-            { LeagueEfficiencyUiTextKeys.LoginSignatureSection, "登录签名" },
+            { LeagueEfficiencyUiTextKeys.LoginSignatureSection, "登录显示设置" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureText, "保存登录签名" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureTextHint, "填入希望登录后显示的游戏签名并保存；这里的文字仅用于您主动开启的自动恢复。" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureSave, "保存" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureAuto, "登录后自动恢复签名" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureAutoHint, "聊天服务就绪后延迟约 2 秒，仅尝试一次；若期间签名已被改动，则不覆盖。默认关闭。" },
             { LeagueEfficiencyUiTextKeys.LoginSignatureSaved, "登录签名设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.LoginRankAuto, "登录后自动恢复展示段位" },
+            { LeagueEfficiencyUiTextKeys.LoginRankAutoHint, "聊天就绪后恢复你保存的展示段位，至多写一次；检测到期间手动更改就放弃。与签名共用登录检测，默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.LoginRankQueue, "展示段位队列" },
+            { LeagueEfficiencyUiTextKeys.LoginRankQueueHint, "选择要展示段位的游戏队列，支持单排、灵活组排及其他客户端队列。" },
+            { LeagueEfficiencyUiTextKeys.LoginRankTier, "展示段位等级" },
+            { LeagueEfficiencyUiTextKeys.LoginRankTierHint, "选择要恢复的段位；大师及以上不需要填写小段。" },
+            { LeagueEfficiencyUiTextKeys.LoginRankDivision, "展示段位小段" },
+            { LeagueEfficiencyUiTextKeys.LoginRankDivisionHint, "选择 I / II / III / IV；大师、宗师与王者不会发送小段。" },
+            { LeagueEfficiencyUiTextKeys.LoginRankSaved, "登录展示段位设置已保存。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
             { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
             { LeagueEfficiencyUiTextKeys.FriendInviteTitle, "GGman · 好友邀请排队" },

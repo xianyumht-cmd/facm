@@ -27,6 +27,10 @@ namespace FACM.League
         private readonly CheckBox _aramTeamSideVisibleToTeam;
         private readonly TextBox _loginSignature;
         private readonly CheckBox _autoLoginSignature;
+        private readonly CheckBox _autoLoginRanked;
+        private readonly ComboBox _loginRankQueue;
+        private readonly ComboBox _loginRankTier;
+        private readonly ComboBox _loginRankDivision;
         private readonly CheckBox _autoHandleInvitations;
         private readonly CheckBox _skipInvitationsWhenAway;
         private readonly CheckBox _autoSkipLeader;
@@ -108,6 +112,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            for (var row = 0; row < 4; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowCount = root.RowStyles.Count;
 
@@ -342,6 +347,23 @@ namespace FACM.League
                 T(LeagueEfficiencyUiTextKeys.LoginSignatureAuto),
                 T(LeagueEfficiencyUiTextKeys.LoginSignatureAutoHint), _module.AutoLoginStatusMessageEnabled);
             _autoLoginSignature.CheckedChanged += LoginSignatureSettingChanged;
+            _autoLoginRanked = AddAutomationRow(root, 38,
+                T(LeagueEfficiencyUiTextKeys.LoginRankAuto),
+                T(LeagueEfficiencyUiTextKeys.LoginRankAutoHint), _module.AutoLoginRankedStatusEnabled);
+            _loginRankQueue = AddChoiceRow(root, 39, T(LeagueEfficiencyUiTextKeys.LoginRankQueue),
+                T(LeagueEfficiencyUiTextKeys.LoginRankQueueHint), LeaguePresenceService.RankedQueues.ToArray(),
+                RankIndex(LeaguePresenceService.RankedQueues, _module.AutoLoginRankedQueue));
+            _loginRankTier = AddChoiceRow(root, 40, T(LeagueEfficiencyUiTextKeys.LoginRankTier),
+                T(LeagueEfficiencyUiTextKeys.LoginRankTierHint), LeaguePresenceService.RankedTiers.ToArray(),
+                RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier));
+            _loginRankDivision = AddChoiceRow(root, 41, T(LeagueEfficiencyUiTextKeys.LoginRankDivision),
+                T(LeagueEfficiencyUiTextKeys.LoginRankDivisionHint), LeaguePresenceService.RankedDivisions.ToArray(),
+                RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision));
+            _autoLoginRanked.CheckedChanged += LoginRankSettingChanged;
+            _loginRankQueue.SelectedIndexChanged += LoginRankSettingChanged;
+            _loginRankTier.SelectedIndexChanged += LoginRankSettingChanged;
+            _loginRankDivision.SelectedIndexChanged += LoginRankSettingChanged;
+            UpdateRankSettingControlStates();
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -760,6 +782,34 @@ namespace FACM.League
             _status.Text = T(LeagueEfficiencyUiTextKeys.LoginSignatureSaved);
         }
 
+        private static int RankIndex(System.Collections.Generic.IReadOnlyList<string> choices, string value)
+        {
+            for (var index = 0; index < choices.Count; index++)
+                if (string.Equals(choices[index], value, StringComparison.OrdinalIgnoreCase)) return index;
+            return 0;
+        }
+
+        private void UpdateRankSettingControlStates()
+        {
+            var enabled = _autoLoginRanked.Checked;
+            _loginRankQueue.Enabled = enabled;
+            _loginRankTier.Enabled = enabled;
+            var tier = _loginRankTier.SelectedItem as string;
+            _loginRankDivision.Enabled = enabled && tier != "MASTER" &&
+                tier != "GRANDMASTER" && tier != "CHALLENGER";
+        }
+
+        private void LoginRankSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            UpdateRankSettingControlStates();
+            _module.UpdateLoginRankedStatus(_autoLoginRanked.Checked,
+                _loginRankQueue.SelectedItem as string, _loginRankTier.SelectedItem as string,
+                _loginRankDivision.SelectedItem as string);
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.LoginRankSaved);
+        }
+
         private void RefreshInvitationAction()
         {
             var gameType = _invitationGameType == null ? null : _invitationGameType.SelectedItem as string;
@@ -787,6 +837,7 @@ namespace FACM.League
                     RefreshInvitationSettingsFromModule();
                     RefreshAramTeamSideSettingsFromModule();
                     RefreshLoginSignatureSettingsFromModule();
+                    RefreshLoginRankSettingsFromModule();
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -837,6 +888,21 @@ namespace FACM.League
             {
                 _loginSignature.Text = _module.AutoLoginStatusMessage;
                 _autoLoginSignature.Checked = _module.AutoLoginStatusMessageEnabled;
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshLoginRankSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoLoginRanked.Checked = _module.AutoLoginRankedStatusEnabled;
+                _loginRankQueue.SelectedIndex = RankIndex(LeaguePresenceService.RankedQueues, _module.AutoLoginRankedQueue);
+                _loginRankTier.SelectedIndex = RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier);
+                _loginRankDivision.SelectedIndex = RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision);
+                UpdateRankSettingControlStates();
             }
             finally { _loading = false; }
         }

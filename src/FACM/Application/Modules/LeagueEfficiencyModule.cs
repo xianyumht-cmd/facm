@@ -146,6 +146,10 @@ namespace FACM.AppHost.Modules
         public bool AutoAramTeamSideVisibleToTeam { get { return _settingsModule.Settings.LeagueAutoAramTeamSideVisibleToTeam; } }
         public bool AutoLoginStatusMessageEnabled { get { return _settingsModule.Settings.LeagueAutoLoginStatusMessageEnabled; } }
         public string AutoLoginStatusMessage { get { return _settingsModule.Settings.LeagueAutoLoginStatusMessage ?? string.Empty; } }
+        public bool AutoLoginRankedStatusEnabled { get { return _settingsModule.Settings.LeagueAutoLoginRankedStatusEnabled; } }
+        public string AutoLoginRankedQueue { get { return _settingsModule.Settings.LeagueAutoLoginRankedQueue; } }
+        public string AutoLoginRankedTier { get { return _settingsModule.Settings.LeagueAutoLoginRankedTier; } }
+        public string AutoLoginRankedDivision { get { return _settingsModule.Settings.LeagueAutoLoginRankedDivision; } }
         public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
@@ -246,9 +250,28 @@ namespace FACM.AppHost.Modules
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
         }
 
+        public void UpdateLoginRankedStatus(bool enabled, string queue, string tier, string division)
+        {
+            ThrowIfDisposed();
+            string safeQueue;
+            string safeTier;
+            string safeDivision;
+            if (!LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                queue, tier, division, out safeQueue, out safeTier, out safeDivision))
+                throw new ArgumentException("Invalid automatic displayed-rank setting.");
+            _settingsModule.Settings.LeagueAutoLoginRankedStatusEnabled = enabled;
+            _settingsModule.Settings.LeagueAutoLoginRankedQueue = safeQueue;
+            _settingsModule.Settings.LeagueAutoLoginRankedTier = safeTier;
+            _settingsModule.Settings.LeagueAutoLoginRankedDivision = safeDivision;
+            _settingsModule.Settings.Save();
+            ConfigureLoginSignature();
+            _loginSignature?.Observe(_dashboard.CurrentGameflowState);
+        }
+
         private void ConfigureLoginSignature()
         {
-            _loginSignature?.Configure(AutoLoginStatusMessageEnabled, AutoLoginStatusMessage);
+            _loginSignature?.Configure(AutoLoginStatusMessageEnabled, AutoLoginStatusMessage,
+                AutoLoginRankedStatusEnabled, AutoLoginRankedQueue, AutoLoginRankedTier, AutoLoginRankedDivision);
         }
 
         public void UpdateInvitationSettings(bool handleInvitations, bool skipWhenAway, string policiesJson, bool autoSkipLeader)

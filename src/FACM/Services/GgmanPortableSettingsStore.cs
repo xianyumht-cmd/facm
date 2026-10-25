@@ -50,6 +50,7 @@ namespace FACM.Services
                 (s.LeagueAutoLoginStatusMessage != null &&
                  (s.LeagueAutoLoginStatusMessage.Length > FACM.League.LeaguePresenceService.MaximumStatusMessageLength ||
                   s.LeagueAutoLoginStatusMessage != FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage))) ||
+                !ValidLoginRank(s) ||
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
@@ -66,6 +67,20 @@ namespace FACM.Services
                  s.LeagueAutoMatchmakingStopPolicy != "fixed" &&
                  s.LeagueAutoMatchmakingStopPolicy != "estimated"))
                 throw new InvalidDataException("软件偏好包含不合法的自动化参数。");
+        }
+
+        private static bool ValidLoginRank(CloudSettingsSnapshot settings)
+        {
+            if (settings == null) return false;
+            string queue;
+            string tier;
+            string division;
+            return FACM.League.LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                settings.LeagueAutoLoginRankedQueue, settings.LeagueAutoLoginRankedTier,
+                settings.LeagueAutoLoginRankedDivision, out queue, out tier, out division) ||
+                (!settings.LeagueAutoLoginRankedStatusEnabled &&
+                 string.IsNullOrEmpty(settings.LeagueAutoLoginRankedQueue) &&
+                 string.IsNullOrEmpty(settings.LeagueAutoLoginRankedTier));
         }
 
         internal static string Restore(GgmanPortableSettingsProfile data, AppSettings settings)
@@ -106,6 +121,16 @@ namespace FACM.Services
             settings.LeagueAutoAramTeamSideVisibleToTeam = s.LeagueAutoAramTeamSideVisibleToTeam;
             settings.LeagueAutoLoginStatusMessageEnabled = s.LeagueAutoLoginStatusMessageEnabled;
             settings.LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage);
+            string rankedQueue;
+            string rankedTier;
+            string rankedDivision;
+            var validRank = FACM.League.LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                s.LeagueAutoLoginRankedQueue, s.LeagueAutoLoginRankedTier, s.LeagueAutoLoginRankedDivision,
+                out rankedQueue, out rankedTier, out rankedDivision);
+            settings.LeagueAutoLoginRankedStatusEnabled = s.LeagueAutoLoginRankedStatusEnabled && validRank;
+            settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
+            settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
+            settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = s.LeagueAutoAcceptDelayMs;
