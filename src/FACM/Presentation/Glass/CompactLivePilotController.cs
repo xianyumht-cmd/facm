@@ -9,6 +9,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
 using FACM.Mayhem;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.Presentation.Glass
@@ -29,6 +30,13 @@ namespace FACM.Presentation.Glass
         private int _generation;
         private int _rankRequestGeneration = -1;
         private string _mode = "模式未识别";
+        private string _observedPhase;
+        private DateTime _lastChampionRefreshUtc;
+        private int _localChampionId;
+        private bool _manualChampionOverride;
+        private string _lastBenchNamesSignature;
+        private Dictionary<int, string> _nameCache = new Dictionary<int, string>();
+        private DateTime _nameCacheLoadedUtc;
 
         internal CompactLivePilotController(MainForm owner, ILeagueClientApi league, Action<Form> placePanel)
         {
@@ -40,7 +48,7 @@ namespace FACM.Presentation.Glass
             _panel.PlacementRequested += delegate { _placePanel(_panel); };
             _panel.PageOpened += HandlePageOpened;
             _panel.NavigationRequested += OpenExistingFunction;
-            _panel.ChampionSelected += champion => QueryChampion(champion);
+            _panel.ChampionSelected += champion => { _manualChampionOverride = true; QueryChampion(champion); };
             _panel.ModeRefreshRequested += delegate { RefreshMode(); };
         }
 
@@ -56,6 +64,25 @@ namespace FACM.Presentation.Glass
             _panel.BringToFront();
             _panel.Activate();
             RefreshMode();
+        }
+
+        // Consumes the canonical Gameflow owner; no second periodic monitor.
+        internal void ObserveGameflowState(LeagueDashboardPhaseState state)
+        {
+            if (_disposed || !_panel.Visible || state == null || !state.Connected) return;
+            var phase = state.Phase ?? string.Empty;
+            if (!string.Equals(_observedPhase, phase, StringComparison.OrdinalIgnoreCase))
+            {
+                _observedPhase = phase;
+                RefreshMode();
+                return;
+            }
+            if (!_mayhem || state.Activity != LeagueActivityLevel.ChampSelect || _work == null)
+                return;
+            if (DateTime.UtcNow - _lastChampionRefreshUtc < TimeSpan.FromSeconds(2.0))
+                return;
+            _lastChampionRefreshUtc = DateTime.UtcNow;
+            _ = FindCurrentChampionAsync(_generation, _work.Token);
         }
 
         internal void Hide()
@@ -90,6 +117,8 @@ namespace FACM.Presentation.Glass
             if (_disposed || !_panel.Visible) return;
             int generation;
             var token = NewRequest(out generation);
+            _localChampionId = 0;
+            _lastBenchNamesSignature = null;
             _panel.UpdateGameMode("识别模式中", false);
             _ = RefreshModeAsync(generation, token);
         }
@@ -229,10 +258,29 @@ namespace FACM.Presentation.Glass
 
                     // One local LCU metadata read resolves all visible bench names without
                     // N overseas champion-icon or champion-name requests.
-                    var summary = await _league.TryGetBytesAsync(
-                        "/lol-game-data/assets/v1/champion-summary.json",
-                        bounded.Token).ConfigureAwait(false);
-                    var namesById = ParseChampionSummary(summary);
+                    Dictionary<int, string> namesById;
+                    lock (_nameCache)
+                        namesById = new Dictionary<int, string>(_nameCache);
+                    var needsNames = DateTime.UtcNow - _nameCacheLoadedUtc > TimeSpan.FromMinutes(10) ||
+                        (selectedId > 0 && !namesById.ContainsKey(selectedId)) ||
+                        benchIds.Exists(id => !namesById.ContainsKey(id));
+                    if (needsNames)
+                    {
+                        var summary = await _league.TryGetBytesAsync(
+                            "/lol-game-data/assets/v1/champion-summary.json",
+                            bounded.Token).ConfigureAwait(false);
+                        var fresh = ParseChampionSummary(summary);
+                        if (fresh.Count > 0)
+                        {
+                            lock (_nameCache)
+                            {
+                                _nameCache.Clear();
+                                foreach (var pair in fresh) _nameCache[pair.Key] = pair.Value;
+                                _nameCacheLoadedUtc = DateTime.UtcNow;
+                            }
+                            namesById = fresh;
+                        }
+                    }
                     var quickNames = new List<string>();
                     foreach (var id in benchIds)
                     {
@@ -243,11 +291,25 @@ namespace FACM.Presentation.Glass
                     namesById.TryGetValue(selectedId, out selectedName);
                     OnUi(delegate
                     {
-                        if (!IsCurrent(modeGeneration) || !_mayhem ||
-                            heroAtStart != _championGeneration) return;
-                        _panel.UpdateQuickChampions(quickNames);
-                        if (!string.IsNullOrWhiteSpace(selectedName))
-                            _panel.UpdateSelectedChampionName(selectedName);
+                        if (!IsCurrent(modeGeneration) || !_mayhem) return;
+                        var signature = string.Join("|", quickNames);
+                        if (!string.Equals(signature, _lastBenchNamesSignature, StringComparison.Ordinal))
+                        {
+                            _lastBenchNamesSignature = signature;
+                            _panel.UpdateQuickChampions(quickNames);
+                        }
+                        if (selectedId > 0 && selectedId != _localChampionId)
+                        {
+                            var previouslySelected = _localChampionId;
+                            _localChampionId = selectedId;
+                            if (previouslySelected > 0) _manualChampionOverride = false;
+                            if (!_manualChampionOverride && heroAtStart == _championGeneration &&
+                                !string.IsNullOrWhiteSpace(selectedName))
+                            {
+                                _panel.UpdateSelectedChampionName(selectedName);
+                                // No extra query if only the bench changed.
+                            }
+                        }
                     });
                 }
             }

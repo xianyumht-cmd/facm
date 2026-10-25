@@ -478,7 +478,7 @@ namespace FACM.Presentation.Glass
                     throw new InvalidOperationException("Quick bench placeholders contain fake champions.");
                 sample.AllChampions = new List<FACM.Mayhem.MayhemTopChampion>(sample.TopTen);
                 sample.AllChampions.Add(new FACM.Mayhem.MayhemTopChampion {
-                    Rank = 11, Name = "薇恩", Slug = "vayne", WinRate = 45.2, Tier = null
+                    Rank = 11, Name = "薇恩", Slug = "vayne", WinRate = 45.2, Tier = null // ui-text-contract: allow - deterministic non-user-facing rank-only smoke fixture
                 }); // ui-text-contract: allow - rank-only fixture
                 view.UpdateGameMode("普通大乱斗", false); // ui-text-contract: allow - deterministic non-user-facing rank fixture
                 view.UpdateRanking(sample, "not applicable");

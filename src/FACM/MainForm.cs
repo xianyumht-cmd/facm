@@ -233,6 +233,9 @@ namespace FACM
                 return;
             }
 
+#if GLASS_WORKBENCH_PREVIEW
+            if (_compactPilot != null) _compactPilot.ObserveGameflowState(state);
+#endif
             var action = _gameflowVisibility.Observe(state, IsDesktopEntryVisible());
             if (action == DesktopEntryGameflowAction.Hide)
             {
