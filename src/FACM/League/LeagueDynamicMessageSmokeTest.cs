@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -12,6 +13,7 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            ValidatePlayerTags();
             ValidateAggregation();
             ValidatePremadeInference();
             ValidateJungleTimeline();
@@ -21,6 +23,47 @@ namespace FACM.League
             ValidateMissingHistoryAsync().GetAwaiter().GetResult();
             ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidatePlayerTags()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "ggman-player-tags-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new LeaguePlayerTagStore(directory);
+                Require(store.ReadTags("self", "HN1", "HN1").Count == 0,
+                    "Empty local player tag storage must not create phantom records.");
+                store.SetTag("self", "ally", "HN1", "HN1", "常用队友");
+                Require(store.ReadTags("self", "hn1", "hn1")["ally"] == "常用队友" &&
+                    store.ReadTags("other", "HN1", "HN1").Count == 0 &&
+                    store.ReadTags("self", "HN2", "HN1").Count == 0 &&
+                    store.ReadTags("self", "HN1", "HN2").Count == 0,
+                    "Player tags must be scoped to own account, region and platform.");
+                store.SetTag("self", "ally", "HN1", "HN1", "记住这位");
+                var reloaded = new LeaguePlayerTagStore(directory);
+                Require(reloaded.ReadTags("self", "HN1", "HN1")["ally"] == "记住这位",
+                    "Player tag edits must survive a process restart.");
+                store.SetTag("self", "ally", "HN1", "HN1", "");
+                Require(reloaded.ReadTags("self", "HN1", "HN1").Count == 0,
+                    "Clearing a player tag must remove the scoped record.");
+                bool rejected = false;
+                try { store.SetTag("self", "self", "HN1", "HN1", "self-tag"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Self-player tags must be rejected.");
+                rejected = false;
+                try { store.SetTag("self", "ally", "HN1", "HN1", "invalid\u0001tag"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Control characters must not enter player tags.");
+                store.SetTag("self", "ally", "HN1", "HN1", "unchanged");
+                var path = Path.Combine(directory, "league-player-tags.json");
+                File.WriteAllText(path, "{broken json", Encoding.UTF8);
+                rejected = false;
+                try { store.SetTag("self", "ally", "HN1", "HN1", "overwritten"); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected && File.ReadAllText(path, Encoding.UTF8).Contains("broken json"),
+                    "Invalid player tag storage must fail without overwriting the damaged file.");
+            }
+            finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
         }
 
         private static void ValidateAggregation()

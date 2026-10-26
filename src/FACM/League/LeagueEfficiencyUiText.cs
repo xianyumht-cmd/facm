@@ -207,6 +207,12 @@ namespace FACM.League
         public const string DynamicCombinedNames = "LeagueEfficiencyDynamicCombinedNames";
         public const string DynamicCurrentChampion = "LeagueEfficiencyDynamicCurrentChampion";
         public const string DynamicSaved = "LeagueEfficiencyDynamicSaved";
+        public const string DynamicTagEdit = "LeagueEfficiencyDynamicTagEdit";
+        public const string DynamicTagRemove = "LeagueEfficiencyDynamicTagRemove";
+        public const string DynamicTagTitle = "LeagueEfficiencyDynamicTagTitle";
+        public const string DynamicTagCancel = "LeagueEfficiencyDynamicTagCancel";
+        public const string DynamicTagSaved = "LeagueEfficiencyDynamicTagSaved";
+        public const string DynamicTagUnavailable = "LeagueEfficiencyDynamicTagUnavailable";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -462,6 +468,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicCombinedNames, "英雄名与玩家名" },
             { LeagueEfficiencyUiTextKeys.DynamicCurrentChampion, "只统计当前英雄" },
             { LeagueEfficiencyUiTextKeys.DynamicSaved, "动态消息选项已保存。" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagEdit, "标记玩家…" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagRemove, "清除标记" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagTitle, "玩家标记（仅保存在本机）" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagCancel, "取消" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagSaved, "玩家标记已保存到本机。" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagUnavailable, "玩家标记保存失败，请检查本地数据文件。" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

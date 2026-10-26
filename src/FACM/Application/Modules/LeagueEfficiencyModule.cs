@@ -51,6 +51,7 @@ namespace FACM.AppHost.Modules
         private readonly SettingsModule _settingsModule;
         private readonly LeagueClientModule _leagueClient;
         private readonly LeagueDashboardModule _dashboard;
+        private readonly LeaguePlayerTagStore _playerTags;
         private readonly object _honorSync = new object();
         private readonly object _junglePrefetchSync = new object();
         private LeagueNativeHotkeyService _hotkeys;
@@ -86,6 +87,7 @@ namespace FACM.AppHost.Modules
             _settingsModule = settingsModule ?? throw new ArgumentNullException(nameof(settingsModule));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+            _playerTags = LeaguePlayerTagStore.CreateDefault();
         }
 
         public string Id { get { return ModuleId; } }
@@ -242,6 +244,28 @@ namespace FACM.AppHost.Modules
         {
             ThrowIfDisposed();
             return _dynamicMessages.EnsureHistoriesAsync(snapshot, selected, token);
+        }
+
+        public IReadOnlyDictionary<string, string> ReadPlayerTags(LeagueDynamicMessageSnapshot snapshot)
+        {
+            ThrowIfDisposed();
+            var session = _leagueClient.CurrentSession;
+            return snapshot != null && snapshot.Session != null && session != null && snapshot.Session.Matches(session)
+                ? _playerTags.ReadTags(snapshot.SelfPuuid, session.Region, session.PlatformId)
+                : new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+
+        public async Task<bool> UpdatePlayerTagAsync(LeagueDynamicMessageSnapshot snapshot,
+            string playerPuuid, string tag, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            if (snapshot == null || snapshot.Session == null || !LeagueDynamicMessageService.SafePuuid(playerPuuid) ||
+                !snapshot.Players.Any(p => p != null && p.Player != null && p.Player.PuuId == playerPuuid) ||
+                !await _dynamicMessages.IsCurrentAsync(snapshot, token).ConfigureAwait(false)) return false;
+            var session = _leagueClient.CurrentSession;
+            if (session == null || !snapshot.Session.Matches(session)) return false;
+            _playerTags.SetTag(snapshot.SelfPuuid, playerPuuid, session.Region, session.PlatformId, tag);
+            return true;
         }
 
         public Task<bool> LoadJungleMessagesAsync(LeagueDynamicMessageSnapshot snapshot, string selectedPuuid, CancellationToken token)

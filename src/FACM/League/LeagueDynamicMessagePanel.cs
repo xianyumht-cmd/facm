@@ -19,6 +19,7 @@ namespace FACM.League
         private readonly LeagueDynamicMessageOptions _options;
         private readonly ComboBox _target, _names;
         private readonly CheckedListBox _players, _groups, _jungle;
+        private readonly ContextMenuStrip _tagMenu;
         private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
@@ -123,11 +124,46 @@ namespace FACM.League
             var content = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             _players = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
-                ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicSelectPlayers) };
+                ForeColor = FacmDesignSystem.Text, HorizontalScrollbar = true,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicSelectPlayers) };
             _groups = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups) };
             _jungle = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
-                ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.JungleTab) };
+                ForeColor = FacmDesignSystem.Text, HorizontalScrollbar = true,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.JungleTab) };
+            var tagMenu = new ContextMenuStrip();
+            _tagMenu = tagMenu;
+            var editTag = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagEdit));
+            var removeTag = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagRemove));
+            _players.ContextMenuStrip = tagMenu;
+            _jungle.ContextMenuStrip = tagMenu;
+            _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
+            _jungle.MouseDown += (sender, e) => SelectContextPlayer(_jungle, e);
+            tagMenu.Opening += (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                e.Cancel = _busy || _snapshot == null || choice == null || choice.Player == null ||
+                    choice.Player.Player == null || !LeagueDynamicMessageService.SafePuuid(choice.Player.Player.PuuId) ||
+                    string.Equals(choice.Player.Player.PuuId, _snapshot.SelfPuuid, StringComparison.Ordinal);
+                removeTag.Enabled = !e.Cancel && !string.IsNullOrEmpty(choice.Tag);
+            };
+            editTag.Click += async (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                if (choice == null) return;
+                var snapshot = _snapshot;
+                using (var dialog = CreateTagDialog(choice.Tag))
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                    var input = dialog.Controls.OfType<TextBox>().First();
+                    await SetPlayerTagAsync(snapshot, choice, input.Text);
+                }
+            };
+            removeTag.Click += async (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                if (choice != null) await SetPlayerTagAsync(_snapshot, choice, string.Empty);
+            };
             _selectionTabs = new TabControl { Dock = DockStyle.Fill };
             var playerTab = new TabPage(T(LeagueEfficiencyUiTextKeys.DynamicPlayer));
             playerTab.Controls.Add(_players);
@@ -215,10 +251,17 @@ namespace FACM.League
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)
                 {
+                    IReadOnlyDictionary<string, string> tags;
+                    try { tags = _module.ReadPlayerTags(snapshot); }
+                    catch (System.IO.InvalidDataException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
+                    catch (System.IO.IOException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
+                    catch (System.UnauthorizedAccessException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
                     foreach (var player in snapshot.Players)
                     {
-                        _players.Items.Add(new PlayerChoice(player), selected == null || selected.Contains(player.Player.PuuId));
-                        _jungle.Items.Add(new PlayerChoice(player), false);
+                        string tag;
+                        tags.TryGetValue(player.Player.PuuId, out tag);
+                        _players.Items.Add(new PlayerChoice(player) { Tag = tag }, selected == null || selected.Contains(player.Player.PuuId));
+                        _jungle.Items.Add(new PlayerChoice(player) { Tag = tag }, false);
                     }
                     RebuildPremadeGroups(snapshot, false);
                 }
@@ -354,6 +397,52 @@ namespace FACM.League
                     (string.IsNullOrEmpty(Shortcut(index)) ? T(LeagueEfficiencyUiTextKeys.Disabled) : Shortcut(index));
         }
 
+        private static void SelectContextPlayer(CheckedListBox list, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right) return;
+            list.SelectedIndex = list.IndexFromPoint(e.Location);
+        }
+
+        private Form CreateTagDialog(string currentTag)
+        {
+            var dialog = new Form { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTitle), Width = 370, Height = 157,
+                StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog,
+                MinimizeBox = false, MaximizeBox = false, ShowInTaskbar = false,
+                BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text };
+            var input = new TextBox { Left = 12, Top = 16, Width = 330,
+                MaxLength = LeaguePlayerTagStore.MaximumTagLength, Text = currentTag ?? string.Empty };
+            var save = new Button { Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave),
+                DialogResult = DialogResult.OK, Left = 182, Top = 58, Width = 75 };
+            var cancel = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
+                DialogResult = DialogResult.Cancel, Left = 267, Top = 58, Width = 75 };
+            dialog.Controls.Add(input); dialog.Controls.Add(save); dialog.Controls.Add(cancel);
+            dialog.AcceptButton = save; dialog.CancelButton = cancel;
+            return dialog;
+        }
+
+        private async Task SetPlayerTagAsync(LeagueDynamicMessageSnapshot snapshot, PlayerChoice choice, string tag)
+        {
+            if (_busy || snapshot == null || !ReferenceEquals(_snapshot, snapshot) ||
+                choice == null || choice.Player == null || choice.Player.Player == null) return;
+            var puuid = choice.Player.Player.PuuId;
+            _busy = true;
+            _load.Enabled = false; _loadJungle.Enabled = false; _send.Enabled = false;
+            try
+            {
+                var saved = await _module.UpdatePlayerTagAsync(snapshot, puuid, tag, _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                if (!saved) { _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded); return; }
+                foreach (var item in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>())
+                    .Where(p => p.Player != null && p.Player.Player != null && p.Player.Player.PuuId == puuid))
+                    item.Tag = (tag ?? string.Empty).Trim();
+                _players.Refresh(); _jungle.Refresh();
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagSaved);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagUnavailable); }
+            finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
+        }
+
         private string Shortcut(int index)
         {
             if (IsJungle) return index == 0 ? _options.JungleFriendlyShortcut : index == 1 ? _options.JungleEnemyShortcut : _options.JungleAllShortcut;
@@ -383,16 +472,18 @@ namespace FACM.League
             }
         }
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
-        protected override void Dispose(bool disposing) { if (disposing && !IsDisposed) { _module.DynamicMessageContextChanged -= HandleContextChanged; _lifetime.Cancel(); _lifetime.Dispose(); _snapshot = null; } base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if (disposing && !IsDisposed) { _module.DynamicMessageContextChanged -= HandleContextChanged; _lifetime.Cancel(); _lifetime.Dispose(); _tagMenu.Dispose(); _snapshot = null; } base.Dispose(disposing); }
 
         private sealed class PlayerChoice
         {
             internal readonly LeagueDynamicMessagePlayer Player;
+            internal string Tag;
             internal PlayerChoice(LeagueDynamicMessagePlayer player) { Player = player; }
             public override string ToString()
             {
                 return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
-                    " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer));
+                    " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer)) +
+                    (string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]");
             }
         }
 
