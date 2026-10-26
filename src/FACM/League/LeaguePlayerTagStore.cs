@@ -71,6 +71,37 @@ namespace FACM.League
             }
         }
 
+        internal IReadOnlyList<LeaguePlayerTagRecord> ReadAllTags()
+        {
+            lock (_sync)
+            {
+                return ReadState().Players.OrderByDescending(p => p.UpdatedUtc)
+                    .ThenBy(p => p.Puuid, StringComparer.Ordinal)
+                    .Select(Copy).ToArray();
+            }
+        }
+
+        internal bool TryEditStoredTag(LeaguePlayerTagRecord expected, string tag)
+        {
+            if (expected == null || !ValidPuuid(expected.SelfPuuid) || !ValidPuuid(expected.Puuid) ||
+                !ValidRegion(expected.Region) || !ValidRegion(expected.PlatformId)) return false;
+            tag = (tag ?? string.Empty).Trim();
+            if (tag.Length > MaximumTagLength || tag.Any(char.IsControl))
+                throw new ArgumentException("Invalid player tag.", nameof(tag));
+            lock (_sync)
+            {
+                var state = ReadState();
+                var record = state.Players.FirstOrDefault(p => Key(p) == Key(expected));
+                if (record == null || record.Tag != expected.Tag || record.UpdatedUtc != expected.UpdatedUtc)
+                    return false;
+                if (tag == record.Tag) return true;
+                if (tag.Length == 0) state.Players.Remove(record);
+                else { record.Tag = tag; record.UpdatedUtc = DateTime.UtcNow; }
+                SaveState(state);
+                return true;
+            }
+        }
+
         internal void SetTag(string selfPuuid, string playerPuuid, string region, string platformId, string tag)
         {
             if (!ValidPuuid(selfPuuid) || !ValidPuuid(playerPuuid) ||
@@ -206,6 +237,12 @@ namespace FACM.League
         {
             return player.SelfPuuid + "|" + NormalizeRegion(player.Region) + "|" +
                 NormalizeRegion(player.PlatformId) + "|" + player.Puuid;
+        }
+
+        private static LeaguePlayerTagRecord Copy(LeaguePlayerTagRecord p)
+        {
+            return new LeaguePlayerTagRecord { Puuid = p.Puuid, SelfPuuid = p.SelfPuuid,
+                Region = p.Region, PlatformId = p.PlatformId, Tag = p.Tag, UpdatedUtc = p.UpdatedUtc };
         }
 
         private static string CheckedExchangePath(string path)

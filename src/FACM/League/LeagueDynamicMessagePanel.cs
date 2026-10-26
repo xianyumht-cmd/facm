@@ -64,6 +64,8 @@ namespace FACM.League
             var tagTools = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTools),
                 Tone = FacmButtonTone.Secondary };
             _exchangeMenu = new ContextMenuStrip();
+            _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse)).Click += (sender, e) => BrowseTags();
+            _exchangeMenu.Items.Add(new ToolStripSeparator());
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
             tagTools.Click += (sender, e) => _exchangeMenu.Show(tagTools, new Point(0, tagTools.Height));
@@ -431,6 +433,18 @@ namespace FACM.League
                     _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagImported).Replace("{0}", count.ToString());
                 }
                 catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagExchangeFailed); }
+            }
+        }
+
+        private void BrowseTags()
+        {
+            if (_busy || IsDisposed) return;
+            using (var dialog = new LeaguePlayerTagBrowserDialog(_module, _ui))
+                dialog.ShowDialog(this);
+            if (_snapshot != null)
+            {
+                try { RefreshTagLabels(); }
+                catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagUnavailable); }
             }
         }
 

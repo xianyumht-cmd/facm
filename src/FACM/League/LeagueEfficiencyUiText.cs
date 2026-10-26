@@ -214,6 +214,17 @@ namespace FACM.League
         public const string DynamicTagSaved = "LeagueEfficiencyDynamicTagSaved";
         public const string DynamicTagUnavailable = "LeagueEfficiencyDynamicTagUnavailable";
         public const string DynamicTagTools = "LeagueEfficiencyDynamicTagTools";
+        public const string DynamicTagBrowse = "LeagueEfficiencyDynamicTagBrowse";
+        public const string DynamicTagSearch = "LeagueEfficiencyDynamicTagSearch";
+        public const string DynamicTagTarget = "LeagueEfficiencyDynamicTagTarget";
+        public const string DynamicTagSelf = "LeagueEfficiencyDynamicTagSelf";
+        public const string DynamicTagRegion = "LeagueEfficiencyDynamicTagRegion";
+        public const string DynamicTagUpdated = "LeagueEfficiencyDynamicTagUpdated";
+        public const string DynamicTagPrevious = "LeagueEfficiencyDynamicTagPrevious";
+        public const string DynamicTagNext = "LeagueEfficiencyDynamicTagNext";
+        public const string DynamicTagPage = "LeagueEfficiencyDynamicTagPage";
+        public const string DynamicTagDeleteConfirm = "LeagueEfficiencyDynamicTagDeleteConfirm";
+        public const string DynamicTagChanged = "LeagueEfficiencyDynamicTagChanged";
         public const string DynamicTagImport = "LeagueEfficiencyDynamicTagImport";
         public const string DynamicTagExport = "LeagueEfficiencyDynamicTagExport";
         public const string DynamicTagImported = "LeagueEfficiencyDynamicTagImported";
@@ -490,6 +501,17 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicTagSaved, "玩家标记已保存到本机。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagUnavailable, "玩家标记保存失败，请检查本地数据文件。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagTools, "标记管理" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagBrowse, "查看所有标记…" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagSearch, "搜索标记或玩家编号：" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagTarget, "玩家编号" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagSelf, "标记者编号" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagRegion, "区服 / 平台" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagUpdated, "修改时间" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagPrevious, "上一页" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagNext, "下一页" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagPage, "第 {0}/{1} 页 · 共 {2} 条" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagDeleteConfirm, "确定删除选中玩家的本地标记？" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagChanged, "记录已变化，请重新选择。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagImport, "导入 Akari 标记 JSON…" },
             { LeagueEfficiencyUiTextKeys.DynamicTagExport, "导出 Akari 标记 JSON…" },
             { LeagueEfficiencyUiTextKeys.DynamicTagImported, "已导入 {0} 条玩家标记。" },

@@ -67,12 +67,28 @@ namespace FACM.League
                 Require(store.ImportAkariJson(exchange) == 1 &&
                     store.ReadTags("self", "HN1", "HN1")["ally"] == "unchanged",
                     "Import must merge scoped tags and preserve exported values.");
+                store.SetTag("other", "enemy", "HN2", "HN2", "不同账号的标记");
+                var browserRecords = reloaded.ReadAllTags();
+                Require(browserRecords.Count == 2 && browserRecords.Any(p => p.SelfPuuid == "other" &&
+                    p.Puuid == "enemy" && p.Region == "HN2") &&
+                    browserRecords.Any(p => p.SelfPuuid == "self" && p.Puuid == "ally" && p.Tag == "unchanged"),
+                    "The local tag browser must enumerate every stored account without a live lobby.");
+                var expected = browserRecords.Single(p => p.SelfPuuid == "self");
+                Require(reloaded.TryEditStoredTag(expected, "重新标记") &&
+                    store.ReadTags("self", "HN1", "HN1")["ally"] == "重新标记" &&
+                    !reloaded.TryEditStoredTag(expected, "过期覆盖"),
+                    "Browser edits must preserve scope and reject stale records.");
+                var fresh = reloaded.ReadAllTags().Single(p => p.SelfPuuid == "self");
+                Require(reloaded.TryEditStoredTag(fresh, "") &&
+                    store.ReadTags("self", "HN1", "HN1").Count == 0 &&
+                    reloaded.ReadAllTags().Count == 1,
+                    "Browser deletion must remove only the selected scoped tag.");
                 var invalidExchange = Path.Combine(directory, "invalid-tags.json");
                 File.WriteAllText(invalidExchange, exported.Replace("league-akari-tagged-players", "different-schema"), Encoding.UTF8);
                 rejected = false;
                 try { store.ImportAkariJson(invalidExchange); }
                 catch (InvalidDataException) { rejected = true; }
-                Require(rejected && store.ReadTags("self", "HN1", "HN1")["ally"] == "unchanged",
+                Require(rejected && store.ReadTags("other", "HN2", "HN2")["enemy"] == "不同账号的标记",
                     "A foreign player tag file must not mutate valid local tags.");
                 var path = Path.Combine(directory, "league-player-tags.json");
                 File.WriteAllText(path, "{broken json", Encoding.UTF8);

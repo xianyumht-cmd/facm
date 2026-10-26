@@ -273,6 +273,18 @@ namespace FACM.AppHost.Modules
             return _playerTags.ExportAkariJson(path);
         }
 
+        public IReadOnlyList<LeaguePlayerTagRecord> ReadStoredPlayerTags()
+        {
+            ThrowIfDisposed();
+            return _playerTags.ReadAllTags();
+        }
+
+        public bool TryEditStoredPlayerTag(LeaguePlayerTagRecord expected, string tag)
+        {
+            ThrowIfDisposed();
+            return _playerTags.TryEditStoredTag(expected, tag);
+        }
+
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid)
         {
