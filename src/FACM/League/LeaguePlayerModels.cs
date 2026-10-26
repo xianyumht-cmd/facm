@@ -33,6 +33,10 @@ namespace FACM.League
         public string GameMode { get; set; }
         public int QueueId { get; set; }
         public int ChampionId { get; set; }
+        public int MapId { get; set; }
+        public int TeamId { get; set; }
+        public int ParticipantId { get; set; }
+        public bool HasSmite { get; set; }
         public string ChampionName { get; set; }
         public int Kills { get; set; }
         public int Deaths { get; set; }

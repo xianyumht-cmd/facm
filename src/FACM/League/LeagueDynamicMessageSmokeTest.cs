@@ -14,6 +14,7 @@ namespace FACM.League
         {
             ValidateAggregation();
             ValidatePremadeInference();
+            ValidateJungleTimeline();
             ValidateLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
         }
@@ -34,6 +35,9 @@ namespace FACM.League
             Require(page.Matches[0].SameTeamPuuids != null &&
                 page.Matches[0].SameTeamPuuids.SequenceEqual(new[] { "enemy", "self" }),
                 "Historical same-team identities were not derived from participant team IDs.");
+            Require(page.Matches[0].MapId == 11 && page.Matches[0].TeamId == 100 &&
+                page.Matches[0].ParticipantId == 1 && page.Matches[0].HasSmite,
+                "Jungle timeline identity and Rift/Smite metadata were not retained.");
             var snapshot = new LeagueDynamicMessageSnapshot();
             snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true, History = page,
                 Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 }, ChampionName = "Alpha" });
@@ -130,6 +134,34 @@ namespace FACM.League
                 "History without a verified source-player identity produced false premade evidence.");
         }
 
+        private static void ValidateJungleTimeline()
+        {
+            var timeline = "{\"frames\":[" +
+                "{\"events\":[{\"type\":\"ELITE_MONSTER_KILL\",\"timestamp\":300000,\"killerId\":1,\"killerTeamId\":100,\"monsterType\":\"DRAGON\"}]}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3500,\"y\":10000}}}}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3600,\"y\":11000},\"level\":3,\"minionsKilled\":2,\"jungleMinionsKilled\":13}}," +
+                "\"events\":[{\"type\":\"CHAMPION_KILL\",\"timestamp\":170000,\"killerId\":1,\"position\":{\"x\":3600,\"y\":11000}}]}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":8000,\"y\":8000}}}," +
+                "\"events\":[{\"type\":\"CHAMPION_KILL\",\"timestamp\":210000,\"killerId\":3,\"assistingParticipantIds\":[1],\"position\":{\"x\":8000,\"y\":8000}}]}]}";
+            var sample = LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 7, 64, 1, 100, 11, true);
+            Require(sample != null && sample.FirstCamp == "blue" && sample.FirstCampSide == "blue" &&
+                sample.TopGanks == 1 && sample.MidGanks == 1 && sample.TopWeight > sample.MidWeight &&
+                sample.Level3Gank && sample.Level4Gank && sample.FirstDragonWon == true &&
+                sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d,
+                "Pinned Akari jungle timeline calculations diverged on camp, lanes, early ganks or objectives.");
+            Require(LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 12, true) == null &&
+                LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 11, false) == null,
+                "Non-Rift or non-jungle matches must not produce jungle analysis.");
+            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(new[] { sample, sample });
+            Require(aggregate != null && aggregate.Games == 1 && aggregate.Level3GankRate == 1d &&
+                aggregate.AverageDragons == 1d && aggregate.FirstDragonRate == 1d &&
+                aggregate.FirstCamps["blue/normal/blue"] == 1,
+                "Jungle aggregation must deduplicate games and retain source-rate denominators.");
+            Require(LeagueJungleTimelineAnalysis.Parse(Bytes("{"), 9, 64, 1, 100, 11, true) == null,
+                "Malformed timeline unexpectedly produced a game result.");
+        }
+
         private static async Task ValidateLoadingAsync()
         {
             var fake = new Fake();
@@ -223,10 +255,10 @@ namespace FACM.League
 
         private static string Match(int id, int kills, int assists, int deaths, int damage, int cs, int vision, bool win)
         {
-            return "{\"gameId\":" + id + ",\"gameDuration\":1200,\"participantIdentities\":[" +
+            return "{\"gameId\":" + id + ",\"mapId\":11,\"gameDuration\":1200,\"participantIdentities\":[" +
                 "{\"participantId\":1,\"player\":{\"puuid\":\"self\",\"summonerId\":1}}," +
                 "{\"participantId\":2,\"player\":{\"puuid\":\"enemy\",\"summonerId\":2}}],\"participants\":[" +
-                "{\"participantId\":1,\"teamId\":100,\"championId\":" + (id == 1 ? 77 : 88) + ",\"stats\":{\"kills\":" + kills +
+                "{\"participantId\":1,\"teamId\":100,\"spell1Id\":11,\"championId\":" + (id == 1 ? 77 : 88) + ",\"stats\":{\"kills\":" + kills +
                 ",\"assists\":" + assists + ",\"deaths\":" + deaths + ",\"win\":" + (win ? "true" : "false") +
                 ",\"totalDamageDealtToChampions\":" + damage + ",\"totalDamageTaken\":200,\"goldEarned\":10000,\"totalMinionsKilled\":" + cs +
                 ",\"neutralMinionsKilled\":0,\"visionScore\":" + vision + ",\"teamPosition\":\"TOP\"}}," +
