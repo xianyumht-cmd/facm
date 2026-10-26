@@ -111,11 +111,24 @@ namespace FACM.League
         private readonly Func<LeagueDashboardPhaseState> _phase;
         private readonly object _sync = new object();
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
+        private const int MaximumJungleCachePlayers = 20;
+        private static readonly TimeSpan JungleCacheLifetime = TimeSpan.FromMinutes(10);
+        private readonly Dictionary<string, JungleCacheEntry> _jungleCache =
+            new Dictionary<string, JungleCacheEntry>(StringComparer.Ordinal);
+        private LeagueClientSession _jungleCacheSession;
+        private string _jungleCacheSelfPuuid;
         private CancellationTokenSource _active;
         private bool _disposed;
         private string _observedPhase;
         private string _selectionKey;
         private HashSet<string> _selected;
+
+        private sealed class JungleCacheEntry
+        {
+            internal string HistoryKey;
+            internal DateTime LoadedUtc;
+            internal IReadOnlyList<LeagueJungleTimelineSample> Samples;
+        }
 
         internal LeagueDynamicMessageService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
             Func<LeagueClientSession> session, Func<LeagueDashboardPhaseState> phase)
@@ -150,6 +163,7 @@ namespace FACM.League
                 entered = true;
                 var me = await _players.LoadProfileAsync(true, active.Token).ConfigureAwait(false);
                 if (me == null || string.IsNullOrEmpty(me.PuuId) || !Current(session, phase.Phase)) return null;
+                SetJungleCacheScope(session, me.PuuId);
                 var roster = await ReadRosterAsync(phase.Phase, active.Token).ConfigureAwait(false);
                 var own = roster.Players.FirstOrDefault(p => p.PuuId == me.PuuId);
                 if (own == null || roster.Players.Count > 20 || roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Any(g => g.Count() != 1)) return null;
@@ -178,6 +192,7 @@ namespace FACM.League
                                 player.History = await _players.EnrichChampionNamesAsync(new LeaguePlayerProfile { PuuId = row.PuuId },
                                     player.History, playerTimeout.Token).ConfigureAwait(false);
                             player.ChampionName = player.History?.Matches.FirstOrDefault(m => m.ChampionId == row.ChampionId)?.ChampionName;
+                            player.JungleSamples = CachedJungle(row.PuuId, player.History);
                         }
                         catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
                     }
@@ -226,6 +241,8 @@ namespace FACM.League
                 await _gate.WaitAsync(active.Token).ConfigureAwait(false);
                 entered = true;
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                player.JungleSamples = CachedJungle(puuid, player.History);
+                if (player.JungleSamples != null) return true;
                 var samples = new List<LeagueJungleTimelineSample>();
                 var historyProfile = new LeaguePlayerProfile { PuuId = puuid, SummonerId = player.Player.SummonerId };
                 foreach (var item in player.History.Matches.Where(m => m != null && m.GameId > 0)
@@ -262,7 +279,8 @@ namespace FACM.League
                 }
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
                 active.Token.ThrowIfCancellationRequested();
-                player.JungleSamples = samples;
+                player.JungleSamples = samples.ToArray();
+                CacheJungle(puuid, player.History, player.JungleSamples);
                 return true;
             }
             catch (OperationCanceledException) { return false; }
@@ -279,6 +297,67 @@ namespace FACM.League
             lock (_sync) if (_disposed) return false;
             var current = _phase();
             return current != null && current.Connected && current.Phase == phase && session.Matches(_session());
+        }
+
+        private void SetJungleCacheScope(LeagueClientSession session, string selfPuuid)
+        {
+            lock (_sync)
+            {
+                if (_jungleCacheSession != null && _jungleCacheSession.Matches(session) &&
+                    string.Equals(_jungleCacheSelfPuuid, selfPuuid, StringComparison.Ordinal)) return;
+                _jungleCache.Clear();
+                _jungleCacheSession = session;
+                _jungleCacheSelfPuuid = selfPuuid;
+            }
+        }
+
+        private static string JungleHistoryKey(LeaguePlayerMatchPage history)
+        {
+            if (history == null) return null;
+            return string.Join("|", history.Matches.Where(m => m != null && m.GameId > 0)
+                .Select(m => m.GameId.ToString() + ":" + m.ChampionId.ToString())
+                .Distinct(StringComparer.Ordinal).OrderBy(key => key, StringComparer.Ordinal)
+                .Take(LeaguePlayerDataService.MaximumMatchCount));
+        }
+
+        private IReadOnlyList<LeagueJungleTimelineSample> CachedJungle(string puuid, LeaguePlayerMatchPage history)
+        {
+            var historyKey = JungleHistoryKey(history);
+            if (historyKey == null) return null;
+            lock (_sync)
+            {
+                JungleCacheEntry entry;
+                if (!_jungleCache.TryGetValue(puuid, out entry)) return null;
+                if (DateTime.UtcNow - entry.LoadedUtc > JungleCacheLifetime ||
+                    !string.Equals(entry.HistoryKey, historyKey, StringComparison.Ordinal))
+                {
+                    _jungleCache.Remove(puuid);
+                    return null;
+                }
+                return entry.Samples;
+            }
+        }
+
+        private void CacheJungle(string puuid, LeaguePlayerMatchPage history, IReadOnlyList<LeagueJungleTimelineSample> samples)
+        {
+            if (samples == null || samples.Count == 0 || samples.Count > LeaguePlayerDataService.MaximumMatchCount) return;
+            var historyKey = JungleHistoryKey(history);
+            if (historyKey == null) return;
+            lock (_sync)
+            {
+                if (_disposed) return;
+                if (_jungleCache.Count >= MaximumJungleCachePlayers && !_jungleCache.ContainsKey(puuid))
+                {
+                    var oldest = _jungleCache.OrderBy(entry => entry.Value.LoadedUtc).First().Key;
+                    _jungleCache.Remove(oldest);
+                }
+                _jungleCache[puuid] = new JungleCacheEntry
+                {
+                    HistoryKey = historyKey,
+                    LoadedUtc = DateTime.UtcNow,
+                    Samples = samples.ToArray()
+                };
+            }
         }
 
         private async Task<LeagueLiveSnapshot> ReadRosterAsync(string phase, CancellationToken token)
@@ -387,7 +466,14 @@ namespace FACM.League
 
         public void Dispose()
         {
-            lock (_sync) { _disposed = true; _active?.Cancel(); }
+            lock (_sync)
+            {
+                _disposed = true;
+                _active?.Cancel();
+                _jungleCache.Clear();
+                _jungleCacheSession = null;
+                _jungleCacheSelfPuuid = null;
+            }
         }
     }
 }

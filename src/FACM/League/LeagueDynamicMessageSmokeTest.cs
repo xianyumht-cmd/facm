@@ -298,17 +298,51 @@ namespace FACM.League
                 Require(samples != null && samples.Count == 2 && samples[0].GameId == 1 &&
                     fake.Paths.Count(p => p.Contains("game-timelines")) == 2 && fake.MaxConcurrent == 1,
                     "On-demand jungle timelines must use one bounded authenticated client request at a time.");
-                var reads = fake.Paths.Count;
                 Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
                     fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
                     "Already loaded jungle samples were downloaded again.");
+                var refreshed = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(refreshed != null && refreshed.Players[0].JungleSamples != null &&
+                    refreshed.Players[0].JungleSamples.Count == 2 &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "Fresh previews must reuse matching current-account jungle timelines.");
+                phase.Phase = "InProgress";
+                service.Observe(phase);
+                var inGame = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(inGame != null && inGame.Players[0].JungleSamples != null &&
+                    inGame.Players[0].JungleSamples.Count == 2 &&
+                    await service.LoadJungleAsync(inGame, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "ChampSelect to InProgress must preserve reusable player history without repeat timeline GETs.");
+                fake.ChangeHistory = true;
+                var changedHistory = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(changedHistory != null && changedHistory.Players[0].JungleSamples == null,
+                    "Changed match history reused stale cached jungle data.");
+                fake.ChangeHistory = false;
+                var recached = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(recached != null && await service.LoadJungleAsync(recached, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Jungle samples could not be refreshed after a history change.");
+                fake.ProfilePuuid = "enemy";
+                var switchedAccount = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedAccount != null && switchedAccount.SelfPuuid == "enemy" &&
+                    switchedAccount.Players[0].JungleSamples == null,
+                    "Signed-in summoner change did not clear the timeline cache.");
+                fake.ProfilePuuid = "self";
+                var switchedBack = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedBack != null && switchedBack.Players[0].JungleSamples == null,
+                    "Returning to a previous account resurrected an old cache scope.");
+                phase.Phase = "ChampSelect";
+                service.Observe(phase);
                 snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
                 Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
-                    fake.Paths.Count == reads + 2, "Expired jungle snapshots made new data requests.");
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 4, "Expired jungle snapshots made new timeline requests.");
                 snapshot.CreatedUtc = DateTime.UtcNow;
                 session = Session("different");
                 Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false),
                     "Account change reused previous jungle samples.");
+                var replacement = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(replacement != null && replacement.Players[0].JungleSamples == null,
+                    "LCU session replacement did not invalidate previously loaded jungle samples.");
             }
             var incomplete = new Fake { IncompleteHistory = true };
             session = Session("detail");
@@ -398,6 +432,8 @@ namespace FACM.League
             internal int RosterReads, MaxConcurrent;
             private int _concurrent;
             internal bool ChangeRoster;
+            internal bool ChangeHistory;
+            internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
             internal Action<string> OnRead;
             public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
@@ -408,7 +444,8 @@ namespace FACM.League
                 {
                     await Task.Delay(1, token).ConfigureAwait(false);
                     OnRead?.Invoke(path); token.ThrowIfCancellationRequested();
-                    if (path == LeagueDashboardDetailsService.SummonerPath) return Bytes("{\"puuid\":\"self\",\"summonerId\":1}");
+                    if (path == LeagueDashboardDetailsService.SummonerPath)
+                        return Bytes("{\"puuid\":\"" + ProfilePuuid + "\",\"summonerId\":1}");
                     if (path == LeagueLiveDataService.ChampSelectSessionPath)
                     {
                         RosterReads++;
@@ -416,8 +453,13 @@ namespace FACM.League
                             "\"theirTeam\":[{\"cellId\":5,\"puuid\":\"enemy\",\"summonerId\":2,\"gameName\":\"Enemy\",\"championId\":" +
                             (ChangeRoster && RosterReads > 1 ? 88 : 99) + "}]}");
                     }
+                    if (path == LeagueLiveDataService.GameflowSessionPath)
+                        return Bytes("{\"phase\":\"InProgress\",\"gameData\":{\"gameId\":100,\"teamOne\":[" +
+                            "{\"puuid\":\"self\",\"summonerId\":1,\"championId\":77}],\"teamTwo\":[" +
+                            "{\"puuid\":\"enemy\",\"summonerId\":2,\"championId\":99}]}}");
                     if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
-                        "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}" : History());
+                        "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}" : ChangeHistory ?
+                        "{\"games\":{\"games\":[" + Match(3, 1, 4, 0, 200, 130, 15, false) + "]}}" : History());
                     if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
                     if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
                         return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
