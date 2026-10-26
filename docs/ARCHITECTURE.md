@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Akari v1.5.1 invitation-wait policy (Draft #357)
+
+`LeagueMatchmakingAutomationController` receives the native, default-on `autoMatchmakingWaitForInvitees` preference through `LeagueEfficiencyModule`. The same already-read LCU Lobby invitation states determine whether a Pending invite blocks queue entry. Disabling the wait does not bypass leader/start/real-member gates. Changing it during a Lobby episode cancels/restarts the existing phase-scoped observer, without a new loop or client. INI and recovery persist the flag; portable and cloud snapshots use a nullable field so restoring an older cloud snapshot retains Akari's default-on behavior. Quick Tools shares a single compact row for auto matchmaking and invitation waiting; saving cloud settings while the page is open refreshes both controls.
+
 ## Akari v1.5.1 queue-stop policy ownership (Draft #357)
 
 `LeagueMatchmakingStopController` remains owned by `LeagueEfficiencyModule` and activated only through the shared Gameflow phase feed. Both optional stop strategies require the authenticated LCU search to remain `Searching` and use effective queue time excluding low-priority penalty. The fixed-duration policy reads current queue time once, delays until the outstanding configured duration and checks again at its deadline; it does not add a periodic one-second loop. The estimated policy retains its existing phase-scoped polling cadence. Immediately before any DELETE, both strategies reread the current search state and threshold. Cancellation, account/phase change and final readback stay with the existing writer; no additional client, socket or persistent worker is introduced. No real CN LCU timing or low-end performance acceptance has yet occurred.

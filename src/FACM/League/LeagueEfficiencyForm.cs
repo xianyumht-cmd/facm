@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly ComboBox _honorStrategy;
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
+        private readonly CheckBox _waitForInvitees;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
         private readonly CheckBox _autoAramTeamSide;
@@ -212,8 +213,25 @@ namespace FACM.League
 
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.NextGameSection)), 0, 9);
             _autoSearch = AddAutomationRow(root, 10, T(LeagueEfficiencyUiTextKeys.AutoMatchmaking), T(LeagueEfficiencyUiTextKeys.AutoMatchmakingHint), _module.AutoMatchmakingEnabled);
+            var searchRow = (TableLayoutPanel)_autoSearch.Parent;
+            searchRow.ColumnCount = 2;
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+            foreach (Control child in searchRow.Controls)
+                if (searchRow.GetRow(child) == 1) searchRow.SetColumnSpan(child, 2);
+            _waitForInvitees = new FacmToggleSwitch
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.WaitForInvitees),
+                Checked = _module.AutoMatchmakingWaitForInvitees,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.WaitForInvitees)
+            };
+            WireHelp(_waitForInvitees, T(LeagueEfficiencyUiTextKeys.WaitForInviteesHint));
+            searchRow.Controls.Add(_waitForInvitees, 1, 0);
             _autoAccept = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
+            _waitForInvitees.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
             _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, string.Empty);
             _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, string.Empty);
@@ -724,7 +742,8 @@ namespace FACM.League
                 Decimal.ToInt32(_matchmakingDelaySeconds.Value * 1000m),
                 Decimal.ToInt32(_acceptDelaySeconds.Value * 1000m),
                 SelectedStopPolicy(),
-                Decimal.ToInt32(_stopAfterSeconds.Value * 1000m));
+                Decimal.ToInt32(_stopAfterSeconds.Value * 1000m),
+                _waitForInvitees.Checked);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
@@ -876,6 +895,7 @@ namespace FACM.League
                 // actual settings object on the UI thread instead of retaining stale strategies.
                 BeginInvoke(new Action(delegate
                 {
+                    RefreshMatchmakingSettingsFromModule();
                     RefreshInvitationSettingsFromModule();
                     RefreshAramTeamSideSettingsFromModule();
                     RefreshLoginSignatureSettingsFromModule();
@@ -886,6 +906,28 @@ namespace FACM.League
             }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
+        }
+
+        private void RefreshMatchmakingSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoSearch.Checked = _module.AutoMatchmakingEnabled;
+                _waitForInvitees.Checked = _module.AutoMatchmakingWaitForInvitees;
+                _autoAccept.Checked = _module.AutoAcceptEnabled;
+                _minPartySize.Value = Math.Max(_minPartySize.Minimum, Math.Min(_minPartySize.Maximum, _module.AutoMatchmakingMinPartySize));
+                _matchmakingDelaySeconds.Value = Math.Max(_matchmakingDelaySeconds.Minimum,
+                    Math.Min(_matchmakingDelaySeconds.Maximum, _module.AutoMatchmakingStartDelayMs / 1000m));
+                _acceptDelaySeconds.Value = Math.Max(_acceptDelaySeconds.Minimum,
+                    Math.Min(_acceptDelaySeconds.Maximum, _module.AutoAcceptDelayMs / 1000m));
+                _stopPolicy.SelectedIndex = StopPolicyIndex(_module.AutoMatchmakingStopPolicy);
+                _stopAfterSeconds.Value = Math.Max(_stopAfterSeconds.Minimum,
+                    Math.Min(_stopAfterSeconds.Maximum, _module.AutoMatchmakingStopAfterMs / 1000m));
+            }
+            finally { _loading = false; }
+            UpdateMatchmakingControlStates();
         }
 
         private void RefreshInvitationSettingsFromModule()
@@ -1124,6 +1166,7 @@ namespace FACM.League
         private void UpdateMatchmakingControlStates()
         {
             var autoSearch = _autoSearch != null && _autoSearch.Checked;
+            if (_waitForInvitees != null) _waitForInvitees.Enabled = autoSearch;
             if (_minPartySize != null) _minPartySize.Enabled = autoSearch;
             if (_matchmakingDelaySeconds != null) _matchmakingDelaySeconds.Enabled = autoSearch;
             if (_stopPolicy != null) _stopPolicy.Enabled = autoSearch;

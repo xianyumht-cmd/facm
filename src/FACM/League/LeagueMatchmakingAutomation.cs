@@ -59,17 +59,27 @@ namespace FACM.League
 
         public bool IsEligibleFor(int minimumPartySize)
         {
+            return IsEligibleFor(minimumPartySize, true);
+        }
+
+        public bool IsEligibleFor(int minimumPartySize, bool waitForInvitees)
+        {
             var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
-            return CanStartActivity && IsLeader && !HasPendingInvitations && RealMemberCount >= minimum;
+            return CanStartActivity && IsLeader && (!waitForInvitees || !HasPendingInvitations) && RealMemberCount >= minimum;
         }
 
         public string BlockReasonFor(int minimumPartySize)
+        {
+            return BlockReasonFor(minimumPartySize, true);
+        }
+
+        public string BlockReasonFor(int minimumPartySize, bool waitForInvitees)
         {
             var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
             if (!CanStartActivity) return "cannot-start";
             if (!IsLeader) return "not-leader";
             if (RealMemberCount <= 0) return "no-members";
-            if (HasPendingInvitations) return "waiting-for-invitees";
+            if (waitForInvitees && HasPendingInvitations) return "waiting-for-invitees";
             if (RealMemberCount < minimum) return "party-below-minimum-" + minimum.ToString();
             return null;
         }
@@ -111,6 +121,7 @@ namespace FACM.League
         private bool _acceptAttemptedThisReadyCheck;
         private bool _autoSearch;
         private bool _autoAccept;
+        private bool _waitForInvitees = true;
         private int _minimumPartySize = 1;
         private int _searchStartDelayMs;
         private int _acceptDelayMs;
@@ -133,7 +144,7 @@ namespace FACM.League
 
         public void Configure(bool autoSearch, bool autoAccept)
         {
-            Configure(autoSearch, autoAccept, 1, 0, 0);
+            Configure(autoSearch, autoAccept, 1, 0, 0, true);
         }
 
         public void Configure(
@@ -142,6 +153,17 @@ namespace FACM.League
             int minimumPartySize,
             int searchStartDelayMs,
             int acceptDelayMs)
+        {
+            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, true);
+        }
+
+        public void Configure(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs,
+            bool waitForInvitees)
         {
             minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
             searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
@@ -154,7 +176,8 @@ namespace FACM.League
                 if (_disposed) return;
                 var wasAutoSearch = _autoSearch;
                 var wasAutoAccept = _autoAccept;
-                var lobbyPolicyChanged = _minimumPartySize != minimumPartySize || _searchStartDelayMs != searchStartDelayMs;
+                var lobbyPolicyChanged = _minimumPartySize != minimumPartySize ||
+                    _searchStartDelayMs != searchStartDelayMs || _waitForInvitees != waitForInvitees;
                 var readyPolicyChanged = _acceptDelayMs != acceptDelayMs;
 
                 restartLobby = autoSearch && IsPhase("Lobby") && (!wasAutoSearch || lobbyPolicyChanged);
@@ -173,6 +196,7 @@ namespace FACM.League
                 _autoSearch = autoSearch;
                 _autoAccept = autoAccept;
                 _minimumPartySize = minimumPartySize;
+                _waitForInvitees = waitForInvitees;
                 _searchStartDelayMs = searchStartDelayMs;
                 _acceptDelayMs = acceptDelayMs;
             }
@@ -281,10 +305,16 @@ namespace FACM.League
                 LogSearchDiagnostic("lobby-unavailable");
                 return false;
             }
-            var minimumPartySize = GetMinimumPartySize();
-            if (!lobby.IsEligibleFor(minimumPartySize))
+            int minimumPartySize;
+            bool waitForInvitees;
+            lock (_sync)
             {
-                LogSearchDiagnostic(lobby.BlockReasonFor(minimumPartySize) ?? "not-eligible");
+                minimumPartySize = _minimumPartySize;
+                waitForInvitees = _waitForInvitees;
+            }
+            if (!lobby.IsEligibleFor(minimumPartySize, waitForInvitees))
+            {
+                LogSearchDiagnostic(lobby.BlockReasonFor(minimumPartySize, waitForInvitees) ?? "not-eligible");
                 return false;
             }
 
@@ -473,8 +503,8 @@ namespace FACM.League
                 if (string.IsNullOrWhiteSpace(id)) id = ReadString(member, "summonerId");
                 if (!string.IsNullOrWhiteSpace(id)) output.MemberIds.Add(id.Trim());
             }
-            // Pending outgoing invitations are part of the same already-read
-            // Lobby snapshot. Do not start a queue while invited members can join.
+            // Pending outgoing invitations are part of the same already-read Lobby snapshot;
+            // eligibility decides whether they block according to the saved user policy.
             output.HasPendingInvitations = EnumerateDictionaries(ReadValue(root, "invitations"))
                 .Any(invitation => string.Equals(ReadString(invitation, "state"),
                     "Pending", StringComparison.OrdinalIgnoreCase));
@@ -504,11 +534,6 @@ namespace FACM.League
             if (string.Equals(_lastSearchDiagnostic, reason, StringComparison.Ordinal)) return;
             _lastSearchDiagnostic = reason;
             AppLog.Info("League auto matchmaking: skip/" + reason);
-        }
-
-        private int GetMinimumPartySize()
-        {
-            lock (_sync) return _minimumPartySize;
         }
 
         private TimeSpan GetSearchStartDelay()

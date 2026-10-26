@@ -112,6 +112,7 @@ namespace FACM.Services
             settings.LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(s.LeagueAutoHonorStrategy);
             settings.LeagueAutoReturnLobbyEnabled = s.LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = s.LeagueAutoMatchmakingEnabled;
+            settings.LeagueAutoMatchmakingWaitForInvitees = s.LeagueAutoMatchmakingWaitForInvitees ?? true;
             settings.LeagueAutoAcceptEnabled = s.LeagueAutoAcceptEnabled;
             settings.LeagueAutoHandleInvitationsEnabled = s.LeagueAutoHandleInvitationsEnabled;
             settings.LeagueSkipInvitationsWhenAway = s.LeagueSkipInvitationsWhenAway;

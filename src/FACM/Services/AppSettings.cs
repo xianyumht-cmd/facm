@@ -43,6 +43,7 @@ namespace FACM.Services
         public string LeagueAutoHonorStrategy { get; set; } = LeagueHonorStrategy.PreferLobbyMember;
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
+        public bool LeagueAutoMatchmakingWaitForInvitees { get; set; } = true;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
         public bool LeagueAutoHandleInvitationsEnabled { get; set; } = false;
         public bool LeagueSkipInvitationsWhenAway { get; set; } = false;
@@ -175,6 +176,7 @@ namespace FACM.Services
                 "LeagueAutoHonorStrategy=" + LeagueHonorStrategy.Normalize(LeagueAutoHonorStrategy),
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
+                "LeagueAutoMatchmakingWaitForInvitees=" + LeagueAutoMatchmakingWaitForInvitees,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
                 "LeagueAutoHandleInvitationsEnabled=" + LeagueAutoHandleInvitationsEnabled,
                 "LeagueSkipInvitationsWhenAway=" + LeagueSkipInvitationsWhenAway,
@@ -429,6 +431,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoHonorStrategy", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(value);
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
+            else if (key.Equals("LeagueAutoMatchmakingWaitForInvitees", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingWaitForInvitees = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
             else if (key.Equals("LeagueAutoHandleInvitationsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHandleInvitationsEnabled = flag;
             else if (key.Equals("LeagueSkipInvitationsWhenAway", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueSkipInvitationsWhenAway = flag;

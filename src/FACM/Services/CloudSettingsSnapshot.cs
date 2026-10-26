@@ -24,6 +24,7 @@ namespace FACM.Services
         public string LeagueAutoHonorStrategy { get; set; }
         public bool LeagueAutoReturnLobbyEnabled { get; set; }
         public bool LeagueAutoMatchmakingEnabled { get; set; }
+        public bool? LeagueAutoMatchmakingWaitForInvitees { get; set; }
         public bool LeagueAutoAcceptEnabled { get; set; }
         public bool LeagueAutoHandleInvitationsEnabled { get; set; }
         public bool LeagueSkipInvitationsWhenAway { get; set; } = false;
@@ -71,6 +72,7 @@ namespace FACM.Services
                 LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(settings.LeagueAutoHonorStrategy),
                 LeagueAutoReturnLobbyEnabled = settings.LeagueAutoReturnLobbyEnabled,
                 LeagueAutoMatchmakingEnabled = settings.LeagueAutoMatchmakingEnabled,
+                LeagueAutoMatchmakingWaitForInvitees = settings.LeagueAutoMatchmakingWaitForInvitees,
                 LeagueAutoAcceptEnabled = settings.LeagueAutoAcceptEnabled,
                 LeagueAutoHandleInvitationsEnabled = settings.LeagueAutoHandleInvitationsEnabled,
                 LeagueSkipInvitationsWhenAway = settings.LeagueSkipInvitationsWhenAway,
@@ -121,6 +123,7 @@ namespace FACM.Services
             settings.LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(LeagueAutoHonorStrategy);
             settings.LeagueAutoReturnLobbyEnabled = LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = LeagueAutoMatchmakingEnabled;
+            settings.LeagueAutoMatchmakingWaitForInvitees = LeagueAutoMatchmakingWaitForInvitees ?? true;
             settings.LeagueAutoAcceptEnabled = LeagueAutoAcceptEnabled;
             settings.LeagueAutoHandleInvitationsEnabled = LeagueAutoHandleInvitationsEnabled;
             settings.LeagueSkipInvitationsWhenAway = LeagueSkipInvitationsWhenAway;
@@ -198,6 +201,7 @@ namespace FACM.Services
                 "PetStyleId=" + AnimalPetCatalog.DefaultPetId,
                 "AnimalPetEnabled=True",
                 "LeagueAutoMatchmakingEnabled=True",
+                "LeagueAutoMatchmakingWaitForInvitees=False",
                 "LeagueAutoAcceptEnabled=True",
                 "LeagueAutoMatchmakingMinPartySize=3",
                 "LeagueAutoMatchmakingStartDelayMs=1200",
@@ -211,7 +215,7 @@ namespace FACM.Services
             });
             var snapshot = Capture(settings);
             if (snapshot.AutoUpdateEnabled || !snapshot.AnimalPetEnabled ||
-                !snapshot.LeagueAutoMatchmakingEnabled || snapshot.LeagueAutoMatchmakingMinPartySize != 3 ||
+                !snapshot.LeagueAutoMatchmakingEnabled || snapshot.LeagueAutoMatchmakingWaitForInvitees != false || snapshot.LeagueAutoMatchmakingMinPartySize != 3 ||
                 snapshot.LeagueAutoMatchmakingStartDelayMs != 1200 || snapshot.LeagueAutoAcceptDelayMs != 800 ||
                 snapshot.LeagueAutoMatchmakingStopAfterMs != 45000 || snapshot.LeagueRuntimeCompanionPinned ||
                 !snapshot.LeagueRuntimeCompanionCollapsed || !snapshot.LeagueCloudRankingEnabled)
@@ -220,7 +224,7 @@ namespace FACM.Services
             var roundTrip = new AppSettings();
             snapshot.ApplyTo(roundTrip);
             if (roundTrip.AutoUpdateEnabled || !roundTrip.AnimalPetEnabled ||
-                !roundTrip.LeagueAutoMatchmakingEnabled || roundTrip.LeagueAutoMatchmakingMinPartySize != 3 ||
+                !roundTrip.LeagueAutoMatchmakingEnabled || roundTrip.LeagueAutoMatchmakingWaitForInvitees || roundTrip.LeagueAutoMatchmakingMinPartySize != 3 ||
                 roundTrip.LeagueAutoMatchmakingStartDelayMs != 1200 || roundTrip.LeagueAutoAcceptDelayMs != 800 ||
                 roundTrip.LeagueAutoMatchmakingStopAfterMs != 45000 || roundTrip.LeagueRuntimeCompanionPinned ||
                 !roundTrip.LeagueRuntimeCompanionCollapsed || !roundTrip.LeagueCloudRankingEnabled)
@@ -228,6 +232,10 @@ namespace FACM.Services
 
             if (string.IsNullOrWhiteSpace(CreateHash(snapshot)))
                 throw new InvalidOperationException("Cloud settings snapshot hash is empty.");
+            snapshot.LeagueAutoMatchmakingWaitForInvitees = null;
+            snapshot.ApplyTo(roundTrip);
+            if (!roundTrip.LeagueAutoMatchmakingWaitForInvitees)
+                throw new InvalidOperationException("Legacy cloud snapshot must preserve default invitation waiting.");
         }
     }
 }

@@ -38,17 +38,23 @@ namespace FACM.League
             var settings = new AppSettings();
             Require(!settings.LeagueAutoMatchmakingEnabled && !settings.LeagueAutoAcceptEnabled,
                 "Legacy settings must default Gate 7 OFF.");
+            Require(settings.LeagueAutoMatchmakingWaitForInvitees,
+                "Absent invitation-wait setting must retain Akari's default wait policy.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptEnabled=True");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingWaitForInvitees=False");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingMinPartySize=4");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingStartDelayMs=2500");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptDelayMs=750");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Gate 7 settings did not parse.");
+            Require(!settings.LeagueAutoMatchmakingWaitForInvitees,
+                "Invitation-wait preference did not parse.");
             Require(settings.LeagueAutoMatchmakingMinPartySize == 4 && settings.LeagueAutoMatchmakingStartDelayMs == 2500 && settings.LeagueAutoAcceptDelayMs == 750,
                 "Akari-style matchmaking policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLinesForSmokeTest());
             Require(serialized.Contains("LeagueAutoMatchmakingEnabled=True"), "Auto-matchmaking setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingWaitForInvitees=False"), "Invitation-wait setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingMinPartySize=4"), "Minimum-party setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingStartDelayMs=2500"), "Matchmaking delay setting did not serialize.");
@@ -188,6 +194,41 @@ namespace FACM.League
 
             AssertLobbyBlocked(pending.Replace("Pending", "pEnDiNg"),
                 "Pending invitation state matching must be case-insensitive");
+            var noWaitRead = new FakeReadApi();
+            noWaitRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var noWaitWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(noWaitRead, noWaitWrite, new FakeClock()))
+            {
+                controller.Configure(false, false, 1, 0, 0, false);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(noWaitWrite.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Disabling invitation waiting must allow an otherwise eligible lobby to queue.");
+            }
+            var switchRead = new FakeReadApi();
+            switchRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var switchWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(switchRead, switchWrite, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 0, 0, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Thread.Sleep(40);
+                Require(switchWrite.Calls.Count == 0, "Default invitation waiting must block automatic queue entry.");
+                controller.Configure(true, false, 1, 0, 0, false);
+                Require(switchWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "Changing invitation-wait policy must restart the existing Lobby observer.");
+                Require(switchWrite.Calls.Count == 1,
+                    "Invitation policy change caused duplicate matchmaking writes.");
+            }
+            var noWaitMinRead = new FakeReadApi();
+            noWaitMinRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var noWaitMinWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(noWaitMinRead, noWaitMinWrite, new FakeClock()))
+            {
+                controller.Configure(false, false, 2, 0, 0, false);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(noWaitMinWrite.Calls.Count == 0,
+                    "Disabling invitation waiting must not bypass the configured minimum party size.");
+            }
             var irrelevant = baseline.Replace("\"restrictions\":",
                 "\"invitations\":[{\"state\":\"Declined\"}],\"restrictions\":");
             var secondRead = new FakeReadApi();
