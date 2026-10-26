@@ -212,6 +212,34 @@ namespace FACM.League
                 parsed.JungleNameStrategy == "preferChampionName" &&
                 LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").JungleShowCurrentChampion,
                 "Jungle preferences did not roundtrip or default like pinned Akari 1.5.1.");
+            options.FriendlyShortcut = "Ctrl+F5";
+            options.JungleFriendlyShortcut = "Ctrl+F6";
+            options.JungleEnemyShortcut = "Ctrl+F7";
+            options.JungleAllShortcut = "Ctrl+F8";
+            options.PremadeFriendlyShortcut = "Ctrl+F9";
+            options.PremadeEnemyShortcut = "Ctrl+F10";
+            options.PremadeAllShortcut = "Ctrl+F11";
+            var shortcuts = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(shortcuts.JungleAllShortcut == "Ctrl+F8" && shortcuts.PremadeEnemyShortcut == "Ctrl+F10" &&
+                shortcuts.FriendlyShortcut == "Ctrl+F5", "Independent preset shortcut groups were not persisted.");
+            options.PremadeAllShortcut = options.JungleAllShortcut;
+            var rejected = false;
+            try { LeagueDynamicMessageOptions.Save(options); }
+            catch (ArgumentException) { rejected = true; }
+            Require(rejected, "A repeated binding across preset groups must be rejected.");
+            Require(LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").JungleAllShortcut == "" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeFriendlyShortcut == "",
+                "Legacy options must leave the new shortcut groups disabled.");
+            var targetSnapshot = new LeagueDynamicMessageSnapshot();
+            targetSnapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "ally" } });
+            targetSnapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy" } });
+            Require(LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "friendly").SetEquals(new[] { "ally" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy").SetEquals(new[] { "enemy" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "all").Count == 2 &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "invalid").Count == 0,
+                "Shortcut target selection must respect the current roster and side.");
         }
 
         private static async Task ValidateLoadingAsync()

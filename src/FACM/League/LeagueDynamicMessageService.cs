@@ -37,6 +37,12 @@ namespace FACM.League
         public string FriendlyShortcut { get; set; } = "";
         public string EnemyShortcut { get; set; } = "";
         public string AllShortcut { get; set; } = "";
+        public string JungleFriendlyShortcut { get; set; } = "";
+        public string JungleEnemyShortcut { get; set; } = "";
+        public string JungleAllShortcut { get; set; } = "";
+        public string PremadeFriendlyShortcut { get; set; } = "";
+        public string PremadeEnemyShortcut { get; set; } = "";
+        public string PremadeAllShortcut { get; set; } = "";
 
         internal static LeagueDynamicMessageOptions Parse(string json)
         {
@@ -63,7 +69,9 @@ namespace FACM.League
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.JungleNameStrategy)) return false;
             var bindings = new List<string>();
-            foreach (var shortcut in new[] { options.FriendlyShortcut, options.EnemyShortcut, options.AllShortcut })
+            foreach (var shortcut in new[] { options.FriendlyShortcut, options.EnemyShortcut, options.AllShortcut,
+                options.JungleFriendlyShortcut, options.JungleEnemyShortcut, options.JungleAllShortcut,
+                options.PremadeFriendlyShortcut, options.PremadeEnemyShortcut, options.PremadeAllShortcut })
             {
                 LeagueHotkeyBinding binding;
                 string error;
@@ -329,6 +337,15 @@ namespace FACM.League
             lock (_sync)
                 return snapshot != null && _selectionKey == snapshot.Phase + ":" + snapshot.RosterKey && _selected != null
                     ? new HashSet<string>(_selected, StringComparer.Ordinal) : null;
+        }
+
+        internal static ISet<string> TargetPlayers(LeagueDynamicMessageSnapshot snapshot, string target)
+        {
+            if (snapshot == null || (target != "friendly" && target != "enemy" && target != "all"))
+                return new HashSet<string>(StringComparer.Ordinal);
+            return new HashSet<string>(snapshot.Players.Where(p => p.Player != null &&
+                (target == "all" || target == "friendly" && p.Friendly || target == "enemy" && !p.Friendly))
+                .Select(p => p.Player.PuuId).Where(SafePuuid), StringComparer.Ordinal);
         }
 
         internal async Task<bool> SendAsync(LeagueDynamicMessageSnapshot snapshot, IReadOnlyList<string> lines, int interval,

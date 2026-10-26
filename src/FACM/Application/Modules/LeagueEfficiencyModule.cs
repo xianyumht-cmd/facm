@@ -17,6 +17,8 @@ namespace FACM.AppHost.Modules
         public const string CloseLobbyAction = "close-lobby";
         public const string QuickMessageActionPrefix = "quick-message-";
         public const string DynamicMessagePrefix = "dynamic-rating-";
+        public const string JungleMessagePrefix = "dynamic-jungle-";
+        public const string PremadeMessagePrefix = "dynamic-premade-";
         public const string QuickMessageCancelAction = "quick-message-cancel";
 
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
@@ -37,7 +39,13 @@ namespace FACM.AppHost.Modules
             { QuickMessageCancelAction, 0x5A17 },
             { DynamicMessagePrefix + "friendly", 0x5A18 },
             { DynamicMessagePrefix + "enemy", 0x5A19 },
-            { DynamicMessagePrefix + "all", 0x5A1A }
+            { DynamicMessagePrefix + "all", 0x5A1A },
+            { JungleMessagePrefix + "friendly", 0x5A1B },
+            { JungleMessagePrefix + "enemy", 0x5A1C },
+            { JungleMessagePrefix + "all", 0x5A1D },
+            { PremadeMessagePrefix + "friendly", 0x5A1E },
+            { PremadeMessagePrefix + "enemy", 0x5A1F },
+            { PremadeMessagePrefix + "all", 0x5A20 }
         };
 
         private readonly SettingsModule _settingsModule;
@@ -65,6 +73,7 @@ namespace FACM.AppHost.Modules
         private string _dynamicObservedPhase;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
+        private int _presetShortcutRunning;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -261,14 +270,50 @@ namespace FACM.AppHost.Modules
                 SendQuickMessageAsync(line, cancellation), token);
         }
 
-        private async Task SendDynamicShortcutAsync(string target)
+        private async Task SendPresetShortcutAsync(string preset, string target)
         {
             if (target != "friendly" && target != "enemy" && target != "all") return;
-            var options = LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson);
-            options.Target = target;
-            var snapshot = await LoadDynamicMessagesAsync(CancellationToken.None).ConfigureAwait(false);
-            if (snapshot != null) await SendDynamicMessagesAsync(snapshot, options,
-                _dynamicMessages.Selection(snapshot), CancellationToken.None).ConfigureAwait(false);
+            if (Interlocked.Exchange(ref _presetShortcutRunning, 1) != 0) return;
+            try
+            {
+                using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(110)))
+                {
+                    var options = LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson);
+                    options.Target = target;
+                    var snapshot = await LoadDynamicMessagesAsync(deadline.Token).ConfigureAwait(false);
+                    if (snapshot == null || _disposed) return;
+                    if (preset == "rating")
+                    {
+                        await SendDynamicMessagesAsync(snapshot, options,
+                            _dynamicMessages.Selection(snapshot), deadline.Token).ConfigureAwait(false);
+                    }
+                    else if (preset == "premade")
+                    {
+                        var groups = LeaguePremadeInference.Infer(snapshot).Select(LeaguePremadeMessageFormatter.GroupKey);
+                        await SendPremadeMessagesAsync(snapshot, options,
+                            new HashSet<string>(groups, StringComparer.Ordinal), deadline.Token).ConfigureAwait(false);
+                    }
+                    else if (preset == "jungle")
+                    {
+                        var selected = LeagueDynamicMessageService.TargetPlayers(snapshot, target);
+                        foreach (var player in snapshot.Players.Where(p => p.Player != null && selected.Contains(p.Player.PuuId)))
+                        {
+                            if (deadline.IsCancellationRequested || _disposed) return;
+                            if (player.History == null) return;
+                            if (player.History.Matches.Count == 0)
+                            {
+                                player.JungleSamples = Array.Empty<LeagueJungleTimelineSample>();
+                                continue;
+                            }
+                            if (!await LoadJungleMessagesAsync(snapshot, player.Player.PuuId, deadline.Token).ConfigureAwait(false))
+                                return;
+                        }
+                        await SendJungleMessagesAsync(snapshot, options, selected, deadline.Token).ConfigureAwait(false);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { }
+            finally { Interlocked.Exchange(ref _presetShortcutRunning, 0); }
         }
 
         public Task<bool> SendQuickMessageAsync(string message, CancellationToken token)
@@ -619,12 +664,18 @@ namespace FACM.AppHost.Modules
             requested[QuickMessageCancelAction] = cancel;
             var dynamicOptions = LeagueDynamicMessageOptions.Parse(dynamicJson ?? DynamicMessageOptionsJson);
             var dynamicKeys = new[] { dynamicOptions.FriendlyShortcut, dynamicOptions.EnemyShortcut, dynamicOptions.AllShortcut };
+            var jungleKeys = new[] { dynamicOptions.JungleFriendlyShortcut, dynamicOptions.JungleEnemyShortcut, dynamicOptions.JungleAllShortcut };
+            var premadeKeys = new[] { dynamicOptions.PremadeFriendlyShortcut, dynamicOptions.PremadeEnemyShortcut, dynamicOptions.PremadeAllShortcut };
             var targets = new[] { "friendly", "enemy", "all" };
             for (var index = 0; index < targets.Length; index++)
             {
                 LeagueHotkeyBinding binding;
                 if (!LeagueHotkeyBinding.TryParse(dynamicKeys[index], out binding, out error)) return false;
                 requested[DynamicMessagePrefix + targets[index]] = binding;
+                if (!LeagueHotkeyBinding.TryParse(jungleKeys[index], out binding, out error)) return false;
+                requested[JungleMessagePrefix + targets[index]] = binding;
+                if (!LeagueHotkeyBinding.TryParse(premadeKeys[index], out binding, out error)) return false;
+                requested[PremadeMessagePrefix + targets[index]] = binding;
             }
             if (!_hotkeys.TryApply(requested, out error)) return false;
 
@@ -692,7 +743,11 @@ namespace FACM.AppHost.Modules
                 _dynamicMessages?.Cancel();
             }
             else if (action != null && action.StartsWith(DynamicMessagePrefix, StringComparison.Ordinal))
-                SendDynamicShortcutAsync(action.Substring(DynamicMessagePrefix.Length)).Forget("League dynamic message shortcut");
+                SendPresetShortcutAsync("rating", action.Substring(DynamicMessagePrefix.Length)).Forget("League dynamic message shortcut");
+            else if (action != null && action.StartsWith(JungleMessagePrefix, StringComparison.Ordinal))
+                SendPresetShortcutAsync("jungle", action.Substring(JungleMessagePrefix.Length)).Forget("League jungle message shortcut");
+            else if (action != null && action.StartsWith(PremadeMessagePrefix, StringComparison.Ordinal))
+                SendPresetShortcutAsync("premade", action.Substring(PremadeMessagePrefix.Length)).Forget("League premade message shortcut");
             else if (action != null && action.StartsWith(QuickMessageActionPrefix, StringComparison.Ordinal))
             {
                 int slot;

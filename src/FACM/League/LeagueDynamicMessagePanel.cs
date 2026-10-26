@@ -23,6 +23,7 @@ namespace FACM.League
         private readonly TextBox _preview;
         private readonly Label _status;
         private readonly Button _load, _loadJungle, _send;
+        private readonly Button[] _shortcutButtons = new Button[3];
         private LeagueDynamicMessageSnapshot _snapshot;
         private bool _binding;
         private bool _busy;
@@ -106,6 +107,7 @@ namespace FACM.League
                 var target = index;
                 var label = new[] { T(LeagueEfficiencyUiTextKeys.DynamicFriendly), T(LeagueEfficiencyUiTextKeys.DynamicEnemy), T(LeagueEfficiencyUiTextKeys.DynamicAll) }[index];
                 var button = new FacmActionButton { Width = 170, Height = 30, Tone = FacmButtonTone.Secondary };
+                _shortcutButtons[index] = button;
                 Action refresh = () => button.Text = label + "：" + (string.IsNullOrEmpty(Shortcut(target)) ? T(LeagueEfficiencyUiTextKeys.Disabled) : Shortcut(target));
                 refresh();
                 button.Click += delegate
@@ -149,6 +151,7 @@ namespace FACM.League
                 jungleMetrics.Visible = IsJungle;
                 _loadJungle.Visible = IsJungle;
                 _binding = false;
+                RefreshShortcuts();
                 RefreshPreview();
             };
             content.Controls.Add(_selectionTabs, 0, 0); content.Controls.Add(_preview, 1, 0); root.Controls.Add(content, 0, 4);
@@ -295,8 +298,42 @@ namespace FACM.League
             catch (InvalidOperationException) { }
         }
 
-        private string Shortcut(int index) { return index == 0 ? _options.FriendlyShortcut : index == 1 ? _options.EnemyShortcut : _options.AllShortcut; }
-        private void SetShortcut(int index, string value) { if (index == 0) _options.FriendlyShortcut = value; else if (index == 1) _options.EnemyShortcut = value; else _options.AllShortcut = value; }
+        private void RefreshShortcuts()
+        {
+            var labels = new[] { T(LeagueEfficiencyUiTextKeys.DynamicFriendly), T(LeagueEfficiencyUiTextKeys.DynamicEnemy), T(LeagueEfficiencyUiTextKeys.DynamicAll) };
+            for (var index = 0; index < _shortcutButtons.Length; index++)
+                _shortcutButtons[index].Text = labels[index] + "：" +
+                    (string.IsNullOrEmpty(Shortcut(index)) ? T(LeagueEfficiencyUiTextKeys.Disabled) : Shortcut(index));
+        }
+
+        private string Shortcut(int index)
+        {
+            if (IsJungle) return index == 0 ? _options.JungleFriendlyShortcut : index == 1 ? _options.JungleEnemyShortcut : _options.JungleAllShortcut;
+            if (IsPremade) return index == 0 ? _options.PremadeFriendlyShortcut : index == 1 ? _options.PremadeEnemyShortcut : _options.PremadeAllShortcut;
+            return index == 0 ? _options.FriendlyShortcut : index == 1 ? _options.EnemyShortcut : _options.AllShortcut;
+        }
+
+        private void SetShortcut(int index, string value)
+        {
+            if (IsJungle)
+            {
+                if (index == 0) _options.JungleFriendlyShortcut = value;
+                else if (index == 1) _options.JungleEnemyShortcut = value;
+                else _options.JungleAllShortcut = value;
+            }
+            else if (IsPremade)
+            {
+                if (index == 0) _options.PremadeFriendlyShortcut = value;
+                else if (index == 1) _options.PremadeEnemyShortcut = value;
+                else _options.PremadeAllShortcut = value;
+            }
+            else
+            {
+                if (index == 0) _options.FriendlyShortcut = value;
+                else if (index == 1) _options.EnemyShortcut = value;
+                else _options.AllShortcut = value;
+            }
+        }
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
         protected override void Dispose(bool disposing) { if (disposing && !IsDisposed) { _module.DynamicMessageContextChanged -= HandleContextChanged; _lifetime.Cancel(); _lifetime.Dispose(); _snapshot = null; } base.Dispose(disposing); }
 
