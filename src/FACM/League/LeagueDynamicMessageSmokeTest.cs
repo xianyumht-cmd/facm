@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
             ValidateLoadingAsync().GetAwaiter().GetResult();
+            ValidateMissingHistoryAsync().GetAwaiter().GetResult();
             ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
         }
@@ -261,8 +262,8 @@ namespace FACM.League
             snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
                 Player = new LeagueLivePlayerRow { PuuId = "unavailable", Position = "JUNGLE" } });
             Require(LeagueDynamicMessageService.JunglePrefetchOrder(snapshot).Select(p => p.Player.PuuId)
-                .SequenceEqual(new[] { "allyjungle", "enemyjungle", "allytop" }),
-                "Known jungle positions must be prioritized without querying players with unavailable history.");
+                .SequenceEqual(new[] { "allyjungle", "enemyjungle", "unavailable", "allytop" }),
+                "Known jungle positions must be prioritized while still including missing-history players for recovery.");
             Require(LeagueDynamicMessageService.TargetPlayers(snapshot, "enemy").SetEquals(new[] { "enemyjungle", "unavailable" }),
                 "Enemy-only prefetch must not select friendly player identities.");
         }
@@ -380,6 +381,47 @@ namespace FACM.League
                     snapshot.Players[0].JungleSamples.Count == 1 &&
                     incomplete.Paths.Contains("/lol-match-history/v1/games/1"),
                     "On-demand jungle analysis did not resolve missing participant identity from game detail.");
+            }
+        }
+
+        private static async Task ValidateMissingHistoryAsync()
+        {
+            var fake = new Fake();
+            var session = Session("history-recovery");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.All(p => p.History != null),
+                    "The history-recovery fixture did not initialize its roster.");
+                snapshot.Players[0].History = null;
+                var before = fake.Paths.Count(p => p.Contains("/self/matches?"));
+                Require(await service.EnsureHistoriesAsync(snapshot, new HashSet<string> { "self" }, CancellationToken.None)
+                    .ConfigureAwait(false) && snapshot.Players[0].History != null &&
+                    fake.Paths.Count(p => p.Contains("/self/matches?")) == before + 1 && fake.MaxConcurrent == 1,
+                    "An explicitly selected player with missing initial history was not recovered with serialized reads.");
+
+                var jungle = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(jungle != null, "Missing-history jungle fixture lost its live roster.");
+                jungle.Players[0].History = null;
+                jungle.Players[0].JungleSamples = null;
+                Require(await service.LoadJungleAsync(jungle, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    jungle.Players[0].History != null && jungle.Players[0].JungleSamples != null &&
+                    jungle.Players[0].JungleSamples.Count == 2,
+                    "Jungle loading must refill missing history before timeline analysis.");
+
+                var stale = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                stale.Players[0].History = null;
+                stale.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                before = fake.Paths.Count;
+                Require(!await service.EnsureHistoriesAsync(stale, new HashSet<string> { "self" },
+                    CancellationToken.None).ConfigureAwait(false) && fake.Paths.Count == before,
+                    "An expired roster was allowed to recover histories or issue network requests.");
+                stale.CreatedUtc = DateTime.UtcNow;
+                session = Session("another-account-session");
+                before = fake.Paths.Count;
+                Require(!await service.LoadJungleAsync(stale, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count == before, "A replaced client session recovered stale jungle history.");
             }
         }
 

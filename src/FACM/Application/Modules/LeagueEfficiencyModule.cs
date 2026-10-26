@@ -288,33 +288,30 @@ namespace FACM.AppHost.Modules
                     options.Target = target;
                     var snapshot = await LoadDynamicMessagesAsync(deadline.Token).ConfigureAwait(false);
                     if (snapshot == null || _disposed) return;
+                    var selectedPlayers = LeagueDynamicMessageService.TargetPlayers(snapshot, target);
                     if (preset == "rating")
                     {
+                        if (!await _dynamicMessages.EnsureHistoriesAsync(snapshot, selectedPlayers, deadline.Token).ConfigureAwait(false)) return;
                         await SendDynamicMessagesAsync(snapshot, options,
-                            _dynamicMessages.Selection(snapshot), deadline.Token).ConfigureAwait(false);
+                            selectedPlayers, deadline.Token).ConfigureAwait(false);
                     }
                     else if (preset == "premade")
                     {
+                        if (!await _dynamicMessages.EnsureHistoriesAsync(snapshot, selectedPlayers, deadline.Token).ConfigureAwait(false)) return;
                         var groups = LeaguePremadeInference.Infer(snapshot).Select(LeaguePremadeMessageFormatter.GroupKey);
                         await SendPremadeMessagesAsync(snapshot, options,
                             new HashSet<string>(groups, StringComparer.Ordinal), deadline.Token).ConfigureAwait(false);
                     }
                     else if (preset == "jungle")
                     {
-                        var selected = LeagueDynamicMessageService.TargetPlayers(snapshot, target);
-                        foreach (var player in snapshot.Players.Where(p => p.Player != null && selected.Contains(p.Player.PuuId)))
+                        foreach (var player in LeagueDynamicMessageService.JunglePrefetchOrder(snapshot)
+                            .Where(p => selectedPlayers.Contains(p.Player.PuuId)))
                         {
                             if (deadline.IsCancellationRequested || _disposed) return;
-                            if (player.History == null) return;
-                            if (player.History.Matches.Count == 0)
-                            {
-                                player.JungleSamples = Array.Empty<LeagueJungleTimelineSample>();
-                                continue;
-                            }
                             if (!await LoadJungleMessagesAsync(snapshot, player.Player.PuuId, deadline.Token).ConfigureAwait(false))
                                 return;
                         }
-                        await SendJungleMessagesAsync(snapshot, options, selected, deadline.Token).ConfigureAwait(false);
+                        await SendJungleMessagesAsync(snapshot, options, selectedPlayers, deadline.Token).ConfigureAwait(false);
                     }
                 }
             }
@@ -801,8 +798,12 @@ namespace FACM.AppHost.Modules
                 foreach (var player in LeagueDynamicMessageService.JunglePrefetchOrder(snapshot))
                 {
                     token.ThrowIfCancellationRequested();
-                    if (!selected.Contains(player.Player.PuuId) || player.History.Matches.Count == 0) continue;
-                    if (!await LoadJungleMessagesAsync(snapshot, player.Player.PuuId, token).ConfigureAwait(false)) break;
+                    if (!selected.Contains(player.Player.PuuId)) continue;
+                    if (!await LoadJungleMessagesAsync(snapshot, player.Player.PuuId, token).ConfigureAwait(false))
+                    {
+                        if (token.IsCancellationRequested) break;
+                        continue;
+                    }
                     completed++;
                 }
                 if (!token.IsCancellationRequested)
