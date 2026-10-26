@@ -236,6 +236,7 @@ namespace FACM.Services
         public const string LeagueDashboardWaitingClient = "LeagueDashboardWaitingClient";
         public const string LeagueDashboardUnknown = "LeagueDashboardUnknown";
         public const string LeagueDashboardLastUpdated = "LeagueDashboardLastUpdated";
+        public const string LeagueDashboardRespawnCountdown = "LeagueDashboardRespawnCountdown";
 
         public const string LeaguePersonalStatsWindowTitle = "LeaguePersonalStatsWindowTitle";
         public const string LeaguePersonalStatsTitle = "LeaguePersonalStatsTitle";

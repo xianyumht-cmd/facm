@@ -72,6 +72,7 @@ namespace FACM
             LeagueMatchmakingAutomationSmokeTest.Validate();
             LeagueMatchmakingStopSmokeTest.Validate();
             LeagueGameflowReconnectSmokeTest.Validate();
+            LeagueRespawnTimerSmokeTest.Validate();
             LeagueAutoPickBanSmokeTest.Validate();
 
             var budgets = new PerformanceBudgetProvider();

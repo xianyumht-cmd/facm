@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Akari 1.5.1 in-game respawn source (Draft #357)
+
+`LeagueRespawnTimerReader` is a form-scoped, read-only HTTP client limited to `https://127.0.0.1:2999/liveclientdata/playerlist`, separate from the authenticated League Client transport. It disables proxy use and never globally changes certificate policy; response size/time are bounded. `LeagueRespawnTimerProjection` maps the returned list onto the current Dashboard account's Riot ID (legacy `summonerName` only when Riot ID is absent), derives current/initial death seconds, and rejects missing, malformed and cross-identity observations. `LeagueDashboardForm` owns and disposes the reader and a 1-second WinForms timer, started only while its status view is visible during `InProgress`. It shares the existing Dashboard phase snapshot and does not own a second Gameflow monitor or a game-wide background worker. The current UI is a small Dashboard line, not the final always-visible in-game Akari widget.
+
 ## Akari v1.5.1 lobby source preflight and immediate room notice (Draft #357)
 
 `LeagueMatchmakingAutomationController` performs a one-off authenticated Gameflow-session and matchmaking-search-errors preflight **only for an otherwise eligible, not-already-claimed Lobby**, matching the pinned Akari custom-game and remaining-penalty vetoes. It does not run a permanent watcher. The existing phase and fingerprint write claim still fences retries. If custom-room announcements are explicitly enabled, a zero-delay start claims a separate per-Lobby notice fingerprint before sending one immediate `celebration` message through the existing room writer; the regular countdown remains phase-bound. Missing/partial LCU reads never invent custom-game or penalty status; regional correctness is subject to the owner's final live verification.

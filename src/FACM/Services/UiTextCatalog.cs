@@ -242,6 +242,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueDashboardWaitingClient, "正在等待英雄联盟客户端..."),
             Pair(UiTextKeys.LeagueDashboardUnknown, "暂未读取"),
             Pair(UiTextKeys.LeagueDashboardLastUpdated, "最后更新"),
+            Pair(UiTextKeys.LeagueDashboardRespawnCountdown, "复活倒计时  {0} 秒"),
 
             Pair(UiTextKeys.LeaguePersonalStatsWindowTitle, "GGman · 我的档案"),
             Pair(UiTextKeys.LeaguePersonalStatsTitle, "我的 GGman"),
