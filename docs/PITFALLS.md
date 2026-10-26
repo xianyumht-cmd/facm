@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Win32 INPUT must include the complete native union
+
+The original native quick-message implementation declared only KEYBDINPUT inside INPUT's managed union. On x64 this yields a 32-byte INPUT, but Win32's union also contains the larger MOUSEINPUT member, making INPUT 40 bytes (28 on x86). Passing the shorter cbSize to SendInput can fail even though compilation and fake-input behavior tests pass. Keep the full union layout and architecture-specific size/offset regression. The authoritative layout is [Microsoft's INPUT definition](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input). This correction validates ABI shape only; it does not establish real Tencent foreground/input delivery.
+
 ## Synthetic LCU readbacks must persist every field under verification (2026-10-26)
 
 The new presence mutation contention fixture correctly serialized two whole-document writes, but its fake `/lol-chat/v1/me` implementation recorded the changed ranked tier while always reconstructing the old division `II`. The rank writer deliberately verifies both tier and division after each successful PUT, so Windows host smoke marked the result `overridden` and failed both regular and Glass builds at source commit `d9fe9a93`. The correction stores the `rankedLeagueDivision` field from PUT and returns that stored value on subsequent GETs. Keep fake LCU snapshots fully faithful to the fields a tested writer modifies; a test harness can falsely report a data race when its own readback drops a valid update. Never weaken production read-after-write checks to silence a synthetic failure.

@@ -65,6 +65,7 @@ namespace FACM.Services
             "LeagueAutoReplyText",
             "LeagueLockOfflineStatusEnabled",
             "LeagueRespawnOverlayEnabled",
+            "LeagueDynamicMessageOptions",
             "LeagueQuickMessagePresets",
             "LeagueQuickMessageHotkeys",
             "LeagueQuickMessageIntervalMs",

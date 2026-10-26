@@ -139,7 +139,13 @@ namespace FACM.League
                 AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
             root.Controls.Add(_status, 0, 7);
             for (var index = 0; index < _shortcutButtons.Length; index++) UpdateShortcutLabel(index);
-            Controls.Add(root);
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var fixedPage = new TabPage(T(LeagueEfficiencyUiTextKeys.QuickMessageFixedTab));
+            fixedPage.Controls.Add(root);
+            var dynamicPage = new TabPage(T(LeagueEfficiencyUiTextKeys.DynamicOpen));
+            dynamicPage.Controls.Add(new LeagueDynamicMessagePanel(module, ui, _lifetime.Token));
+            tabs.TabPages.Add(fixedPage); tabs.TabPages.Add(dynamicPage);
+            Controls.Add(tabs);
             FormClosed += delegate { _lifetime.Cancel(); _lifetime.Dispose(); };
         }
 

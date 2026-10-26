@@ -14,6 +14,7 @@ namespace FACM.League
         {
             ValidateAggregation();
             ValidateLoadingAsync().GetAwaiter().GetResult();
+            ValidateBatchAsync().GetAwaiter().GetResult();
         }
 
         private static void ValidateAggregation()
@@ -90,6 +91,51 @@ namespace FACM.League
                 Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null && fake.Paths.Count == reads,
                     "Unavailable game analysis must not poll from the Lobby.");
             }
+        }
+
+        private static async Task ValidateBatchAsync()
+        {
+            var fake = new Fake();
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            var session = Session("batch");
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                service.Select(snapshot, new[] { "enemy", "not-in-roster" });
+                Require(service.Selection(snapshot).SetEquals(new[] { "enemy" }), "Player selection escaped the active roster.");
+                var calls = 0;
+                Require(await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 2,
+                    "Bounded dynamic batch did not reuse the provided line sender.");
+                calls = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; phase.Phase = "Lobby"; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 1,
+                    "Phase departure continued the dynamic batch.");
+                phase.Phase = "ChampSelect"; calls = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; service.Cancel(); return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 1,
+                    "Explicit cancellation continued the dynamic batch.");
+                calls = 0; fake.ChangeRoster = true;
+                Require(!await service.SendAsync(snapshot, new[] { "stale" }, 0, (line, token) =>
+                { calls++; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 0,
+                    "Stale roster bypassed the final batch preflight.");
+                service.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" });
+                Require(service.Selection(snapshot) == null, "Player identities survived their phase selection scope.");
+            }
+            var options = new LeagueDynamicMessageOptions { EnemyShortcut = "Ctrl+F6", Target = "enemy", VisionScore = true };
+            var settings = new FACM.Services.AppSettings { LeagueDynamicMessageOptions = LeagueDynamicMessageOptions.Save(options) };
+            var parsed = FACM.Services.AppSettings.ParseLines(settings.BuildLinesForSmokeTest());
+            Require(LeagueDynamicMessageOptions.Parse(parsed.LeagueDynamicMessageOptions).EnemyShortcut == "Ctrl+F6",
+                "Dynamic shortcuts failed INI persistence.");
+            var restored = new FACM.Services.AppSettings();
+            FACM.Services.CloudSettingsSnapshot.Capture(settings).ApplyTo(restored);
+            var restoredOptions = LeagueDynamicMessageOptions.Parse(restored.LeagueDynamicMessageOptions);
+            Require(restoredOptions.Target == "enemy" && restoredOptions.VisionScore && restoredOptions.EnemyShortcut == "Ctrl+F6",
+                "Dynamic options failed cloud persistence.");
+            var rejected = false;
+            try { LeagueDynamicMessageOptions.Save(new LeagueDynamicMessageOptions { EnemyShortcut = "F6", AllShortcut = "F6" }); }
+            catch (ArgumentException) { rejected = true; }
+            Require(rejected, "Duplicate dynamic shortcuts must fail before registration.");
         }
 
         private static LeagueClientSession Session(string key) { return new LeagueClientSession("fixture", 1, 12345, key, "https", "smoke"); }

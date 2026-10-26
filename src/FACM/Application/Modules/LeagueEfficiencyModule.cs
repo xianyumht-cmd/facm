@@ -16,6 +16,7 @@ namespace FACM.AppHost.Modules
         public const string ExitGameAction = "exit-game";
         public const string CloseLobbyAction = "close-lobby";
         public const string QuickMessageActionPrefix = "quick-message-";
+        public const string DynamicMessagePrefix = "dynamic-rating-";
         public const string QuickMessageCancelAction = "quick-message-cancel";
 
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
@@ -33,7 +34,10 @@ namespace FACM.AppHost.Modules
             { QuickMessageActionPrefix + "2", 0x5A14 },
             { QuickMessageActionPrefix + "3", 0x5A15 },
             { QuickMessageActionPrefix + "4", 0x5A16 },
-            { QuickMessageCancelAction, 0x5A17 }
+            { QuickMessageCancelAction, 0x5A17 },
+            { DynamicMessagePrefix + "friendly", 0x5A18 },
+            { DynamicMessagePrefix + "enemy", 0x5A19 },
+            { DynamicMessagePrefix + "all", 0x5A1A }
         };
 
         private readonly SettingsModule _settingsModule;
@@ -56,6 +60,9 @@ namespace FACM.AppHost.Modules
         private LeagueRespawnOverlayHost _respawnOverlay;
         private LeagueInGameMessageSender _inGameMessages;
         private string _appliedQuickMessageHotkeys;
+        private string _appliedDynamicOptions;
+        private LeagueDynamicMessageService _dynamicMessages;
+        private string _dynamicObservedPhase;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -71,6 +78,7 @@ namespace FACM.AppHost.Modules
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
         public event Action<LeagueHonorAttemptStatus> HonorStatusChanged;
+        public event Action DynamicMessageContextChanged;
 
         public LeagueHonorAttemptStatus LastHonorStatus
         {
@@ -133,6 +141,8 @@ namespace FACM.AppHost.Modules
             ConfigureAutoReply();
             _respawnOverlay = new LeagueRespawnOverlayHost(_leagueClient, () => _leagueClient.CurrentSession);
             _respawnOverlay.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
+            _dynamicMessages = new LeagueDynamicMessageService(_leagueClient, _dashboard.BudgetProvider,
+                () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -192,6 +202,47 @@ namespace FACM.AppHost.Modules
             _settingsModule.Settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, interval));
             _settingsModule.Settings.Save();
             return true;
+        }
+
+        public string DynamicMessageOptionsJson { get { return LeagueDynamicMessageOptions.Save(LeagueDynamicMessageOptions.Parse(_settingsModule.Settings.LeagueDynamicMessageOptions)); } }
+
+        public bool TrySaveDynamicMessageOptions(LeagueDynamicMessageOptions options, out string error)
+        {
+            ThrowIfDisposed();
+            var json = LeagueDynamicMessageOptions.Save(options);
+            if (!TryApplyBindings(ExitGameHotkey, CloseLobbyHotkey, QuickMessageHotkeysJson, false, out error, json)) return false;
+            _settingsModule.Settings.LeagueDynamicMessageOptions = json;
+            _settingsModule.Settings.Save();
+            return true;
+        }
+
+        public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.LoadAsync(token);
+        }
+
+        public ISet<string> DynamicSelection(LeagueDynamicMessageSnapshot snapshot) { return _dynamicMessages?.Selection(snapshot); }
+        public void SelectDynamicPlayers(LeagueDynamicMessageSnapshot snapshot, IEnumerable<string> selected) { _dynamicMessages?.Select(snapshot, selected); }
+
+        public Task<bool> SendDynamicMessagesAsync(LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessageOptions options,
+            ISet<string> selected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            var lines = LeagueDynamicMessageFormatter.Build(snapshot, options, selected);
+            return _dynamicMessages.SendAsync(snapshot, lines, QuickMessageIntervalMs, (line, cancellation) =>
+                snapshot.Phase == "InProgress" ? _inGameMessages.SendAsync(line, QuickMessageIntervalMs, cancellation) :
+                SendQuickMessageAsync(line, cancellation), token);
+        }
+
+        private async Task SendDynamicShortcutAsync(string target)
+        {
+            if (target != "friendly" && target != "enemy" && target != "all") return;
+            var options = LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson);
+            options.Target = target;
+            var snapshot = await LoadDynamicMessagesAsync(CancellationToken.None).ConfigureAwait(false);
+            if (snapshot != null) await SendDynamicMessagesAsync(snapshot, options,
+                _dynamicMessages.Selection(snapshot), CancellationToken.None).ConfigureAwait(false);
         }
 
         public Task<bool> SendQuickMessageAsync(string message, CancellationToken token)
@@ -388,7 +439,8 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed || _lobbyInvitations == null || !ReferenceEquals(settings, _settingsModule.Settings)) return;
             var quickKeys = LeagueQuickMessageHotkeys.NormalizeJson(settings.LeagueQuickMessageHotkeys);
-            if (!string.Equals(quickKeys, _appliedQuickMessageHotkeys, StringComparison.Ordinal))
+            if (!string.Equals(quickKeys, _appliedQuickMessageHotkeys, StringComparison.Ordinal) ||
+                !string.Equals(DynamicMessageOptionsJson, _appliedDynamicOptions, StringComparison.Ordinal))
             {
                 string hotkeyError;
                 if (!TryApplyBindings(ExitGameHotkey, CloseLobbyHotkey, quickKeys, false, out hotkeyError))
@@ -516,7 +568,7 @@ namespace FACM.AppHost.Modules
             return TryApplyBindings(exitGame, closeLobby, QuickMessageHotkeysJson, persist, out error);
         }
 
-        private bool TryApplyBindings(string exitGame, string closeLobby, string quickJson, bool persist, out string error)
+        private bool TryApplyBindings(string exitGame, string closeLobby, string quickJson, bool persist, out string error, string dynamicJson = null)
         {
             ThrowIfDisposed();
             LeagueHotkeyBinding exitBinding;
@@ -539,8 +591,18 @@ namespace FACM.AppHost.Modules
             LeagueHotkeyBinding cancel;
             if (!LeagueHotkeyBinding.TryParse(quick[LeagueQuickMessagePresets.SlotCount], out cancel, out error)) return false;
             requested[QuickMessageCancelAction] = cancel;
+            var dynamicOptions = LeagueDynamicMessageOptions.Parse(dynamicJson ?? DynamicMessageOptionsJson);
+            var dynamicKeys = new[] { dynamicOptions.FriendlyShortcut, dynamicOptions.EnemyShortcut, dynamicOptions.AllShortcut };
+            var targets = new[] { "friendly", "enemy", "all" };
+            for (var index = 0; index < targets.Length; index++)
+            {
+                LeagueHotkeyBinding binding;
+                if (!LeagueHotkeyBinding.TryParse(dynamicKeys[index], out binding, out error)) return false;
+                requested[DynamicMessagePrefix + targets[index]] = binding;
+            }
             if (!_hotkeys.TryApply(requested, out error)) return false;
 
+            _appliedDynamicOptions = LeagueDynamicMessageOptions.Save(dynamicOptions);
             _appliedQuickMessageHotkeys = LeagueQuickMessageHotkeys.NormalizeJson(quickJson);
 
             if (persist)
@@ -569,6 +631,14 @@ namespace FACM.AppHost.Modules
         private void HandleGameflowState(LeagueDashboardPhaseState state)
         {
             if (_disposed) return;
+            _dynamicMessages?.Observe(state);
+            var dynamicPhase = state != null && state.Connected ? state.Phase : null;
+            if (_dynamicObservedPhase != dynamicPhase)
+            {
+                _dynamicObservedPhase = dynamicPhase;
+                try { DynamicMessageContextChanged?.Invoke(); }
+                catch (Exception exception) { AppLog.Info("Dynamic message view skipped: " + exception.GetType().Name); }
+            }
             if (state == null || !state.Connected || state.Phase != "InProgress") _inGameMessages?.Cancel();
             if (_postGame != null) _postGame.Observe(state);
             if (_matchmaking != null) _matchmaking.Observe(state);
@@ -591,7 +661,12 @@ namespace FACM.AppHost.Modules
             else if (string.Equals(action, CloseLobbyAction, StringComparison.Ordinal))
                 RunQuietly(_actions.CloseLobbyAsync(), "League close-lobby hotkey");
             else if (string.Equals(action, QuickMessageCancelAction, StringComparison.Ordinal))
+            {
                 _inGameMessages?.Cancel();
+                _dynamicMessages?.Cancel();
+            }
+            else if (action != null && action.StartsWith(DynamicMessagePrefix, StringComparison.Ordinal))
+                SendDynamicShortcutAsync(action.Substring(DynamicMessagePrefix.Length)).Forget("League dynamic message shortcut");
             else if (action != null && action.StartsWith(QuickMessageActionPrefix, StringComparison.Ordinal))
             {
                 int slot;
@@ -635,6 +710,8 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            DynamicMessageContextChanged = null;
+            _dynamicMessages?.Dispose();
             _autoReply?.Dispose();
             _respawnOverlay?.Dispose();
             _inGameMessages?.Dispose();

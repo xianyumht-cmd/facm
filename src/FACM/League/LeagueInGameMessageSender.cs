@@ -32,6 +32,27 @@ namespace FACM.League
         private struct InputUnion
         {
             [FieldOffset(0)] internal KeyboardInput Keyboard;
+            [FieldOffset(0)] internal MouseInput Mouse;
+            [FieldOffset(0)] internal HardwareInput Hardware;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MouseInput
+        {
+            internal int X;
+            internal int Y;
+            internal uint MouseData;
+            internal uint Flags;
+            internal uint Time;
+            internal UIntPtr ExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct HardwareInput
+        {
+            internal uint Message;
+            internal ushort Low;
+            internal ushort High;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -69,6 +90,12 @@ namespace FACM.League
         }
 
         private static bool Down(int key) { return (GetAsyncKeyState(key) & 0x8000) != 0; }
+
+        internal static bool HasNativeInputLayoutForSmokeTest()
+        {
+            return Marshal.SizeOf(typeof(Input)) == (IntPtr.Size == 8 ? 40 : 28) &&
+                Marshal.OffsetOf(typeof(Input), "Data").ToInt64() == (IntPtr.Size == 8 ? 8 : 4);
+        }
 
         public bool TryPressEnter()
         {
@@ -113,7 +140,7 @@ namespace FACM.League
             _phase = phase ?? throw new ArgumentNullException(nameof(phase));
         }
 
-        internal async Task<bool> SendAsync(string text, int intervalMilliseconds)
+        internal async Task<bool> SendAsync(string text, int intervalMilliseconds, CancellationToken cancellationToken = default(CancellationToken))
         {
             var normalized = LeagueQuickMessagePresets.NormalizeMessage(text);
             if (normalized.Length == 0 || intervalMilliseconds < 0 || intervalMilliseconds > 5000) return false;
@@ -122,7 +149,7 @@ namespace FACM.League
             {
                 if (_disposed) return false;
                 _active?.Cancel();
-                current = new CancellationTokenSource();
+                current = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 _active = current;
             }
             try

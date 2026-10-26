@@ -10,6 +10,8 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            Require(LeagueNativeGameMessageInput.HasNativeInputLayoutForSmokeTest(),
+                "Native INPUT size/alignment must match Win32 on the current architecture.");
             ValidateSettings();
             ValidateSendingAsync().GetAwaiter().GetResult();
         }
@@ -62,6 +64,13 @@ namespace FACM.League
                 Require(!await sender.SendAsync("cancelled", 0).ConfigureAwait(false) &&
                     string.Join("|", input.Actions) == "enter",
                     "Cancellation after opening chat must suppress text and closing Enter.");
+                input.Actions.Clear();
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    input.AfterEnter = () => cancellation.Cancel();
+                    Require(!await sender.SendAsync("external cancellation", 0, cancellation.Token).ConfigureAwait(false) &&
+                        string.Join("|", input.Actions) == "enter", "Parent request cancellation did not stop native input.");
+                }
                 input.AfterEnter = null;
                 input.Actions.Clear();
                 input.AfterText = () => phase.Phase = "EndOfGame";

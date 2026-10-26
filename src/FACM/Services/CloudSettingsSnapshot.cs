@@ -49,6 +49,7 @@ namespace FACM.Services
         public string LeagueAutoReplyText { get; set; }
         public bool LeagueLockOfflineStatusEnabled { get; set; }
         public bool LeagueRespawnOverlayEnabled { get; set; }
+        public string LeagueDynamicMessageOptions { get; set; }
         public string LeagueQuickMessagePresets { get; set; }
         public string LeagueQuickMessageHotkeys { get; set; }
         public int? LeagueQuickMessageIntervalMs { get; set; }
@@ -104,6 +105,7 @@ namespace FACM.Services
                 LeagueAutoSelectProfiles = settings.LeagueAutoSelectProfiles,
                 LeagueAutoReplyEnabled = settings.LeagueAutoReplyEnabled,
                 LeagueRespawnOverlayEnabled = settings.LeagueRespawnOverlayEnabled,
+                LeagueDynamicMessageOptions = FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(settings.LeagueDynamicMessageOptions)),
                 LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(settings.LeagueQuickMessagePresets),
                 LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(settings.LeagueQuickMessageHotkeys),
                 LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, settings.LeagueQuickMessageIntervalMs)),
@@ -172,6 +174,7 @@ namespace FACM.Services
                 FACM.League.LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles));
             settings.LeagueAutoReplyEnabled = LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = LeagueRespawnOverlayEnabled;
+            settings.LeagueDynamicMessageOptions = FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions));
             settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets);
             settings.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(LeagueQuickMessageHotkeys);
             settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, LeagueQuickMessageIntervalMs ?? 500));

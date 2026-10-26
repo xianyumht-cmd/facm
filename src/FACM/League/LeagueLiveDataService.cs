@@ -195,6 +195,7 @@ namespace FACM.League
 
             snapshot.GameId = ReadLong(data, "gameId");
             snapshot.QueueId = ReadInt(data, "queueId");
+            snapshot.GameId = ReadLong(data, "gameId");
             snapshot.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             snapshot.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");
 

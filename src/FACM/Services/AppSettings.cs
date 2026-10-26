@@ -64,6 +64,7 @@ namespace FACM.Services
         public string LeagueAutoReplyText { get; set; } = "";
         public bool LeagueLockOfflineStatusEnabled { get; set; } = false;
         public bool LeagueRespawnOverlayEnabled { get; set; } = false;
+        public string LeagueDynamicMessageOptions { get; set; } = string.Empty;
         public string LeagueQuickMessagePresets { get; set; } = string.Empty;
         public string LeagueQuickMessageHotkeys { get; set; } = string.Empty;
         public int LeagueQuickMessageIntervalMs { get; set; } = 500;
@@ -202,6 +203,7 @@ namespace FACM.Services
                 "LeagueAutoReplyText=" + Sanitize(LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText)),
                 "LeagueLockOfflineStatusEnabled=" + LeagueLockOfflineStatusEnabled,
                 "LeagueRespawnOverlayEnabled=" + LeagueRespawnOverlayEnabled,
+                "LeagueDynamicMessageOptions=" + FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions)),
                 "LeagueQuickMessagePresets=" + FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets),
                 "LeagueQuickMessageHotkeys=" + FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(LeagueQuickMessageHotkeys),
                 "LeagueQuickMessageIntervalMs=" + Math.Max(0, Math.Min(5000, LeagueQuickMessageIntervalMs)).ToString(CultureInfo.InvariantCulture),
@@ -462,6 +464,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReplyText", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoReplyText = LeagueAutoReplyController.NormalizeText(value);
             else if (key.Equals("LeagueLockOfflineStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueLockOfflineStatusEnabled = flag;
             else if (key.Equals("LeagueRespawnOverlayEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRespawnOverlayEnabled = flag;
+            else if (key.Equals("LeagueDynamicMessageOptions", StringComparison.OrdinalIgnoreCase)) result.LeagueDynamicMessageOptions = FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(value));
             else if (key.Equals("LeagueQuickMessagePresets", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(value);
             else if (key.Equals("LeagueQuickMessageHotkeys", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(value);
             else if (key.Equals("LeagueQuickMessageIntervalMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out number)) result.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, number));

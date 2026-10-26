@@ -25,6 +25,9 @@ namespace FACM.League
         public bool DamageGoldEfficiency { get; set; }
         public bool MainChampions { get; set; } = true;
         public bool MainPositions { get; set; } = true;
+        public string FriendlyShortcut { get; set; } = "";
+        public string EnemyShortcut { get; set; } = "";
+        public string AllShortcut { get; set; } = "";
 
         internal static LeagueDynamicMessageOptions Parse(string json)
         {
@@ -46,8 +49,17 @@ namespace FACM.League
 
         private static bool Valid(LeagueDynamicMessageOptions options)
         {
-            return options != null && new[] { "friendly", "enemy", "all" }.Contains(options.Target) &&
-                new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy);
+            if (options == null || !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
+                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy)) return false;
+            var bindings = new List<string>();
+            foreach (var shortcut in new[] { options.FriendlyShortcut, options.EnemyShortcut, options.AllShortcut })
+            {
+                LeagueHotkeyBinding binding;
+                string error;
+                if (shortcut != null && shortcut.Length > 100 || !LeagueHotkeyBinding.TryParse(shortcut, out binding, out error)) return false;
+                if (binding.Enabled) bindings.Add(binding.ToString());
+            }
+            return bindings.Distinct(StringComparer.OrdinalIgnoreCase).Count() == bindings.Count;
         }
     }
 
@@ -67,6 +79,7 @@ namespace FACM.League
         internal string SelfPuuid;
         internal LeagueClientSession Session;
         internal DateTime CreatedUtc;
+        internal int UnavailableIdentityCount;
     }
 
     internal sealed class LeagueDynamicMessageService : IDisposable
@@ -80,6 +93,9 @@ namespace FACM.League
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private CancellationTokenSource _active;
         private bool _disposed;
+        private string _observedPhase;
+        private string _selectionKey;
+        private HashSet<string> _selected;
 
         internal LeagueDynamicMessageService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
             Func<LeagueClientSession> session, Func<LeagueDashboardPhaseState> phase)
@@ -89,6 +105,7 @@ namespace FACM.League
             _live = new LeagueLiveDataService(client, budgets);
             _session = session;
             _phase = phase;
+            _observedPhase = phase()?.Phase;
         }
 
         internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token)
@@ -105,6 +122,7 @@ namespace FACM.League
                 _active = active;
             }
             var entered = false;
+            var deadline = DateTime.UtcNow.AddSeconds(15);
             try
             {
                 active.CancelAfter(TimeSpan.FromSeconds(15));
@@ -116,25 +134,33 @@ namespace FACM.League
                 var own = roster.Players.FirstOrDefault(p => p.PuuId == me.PuuId);
                 if (own == null || roster.Players.Count > 20 || roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Any(g => g.Count() != 1)) return null;
                 var snapshot = new LeagueDynamicMessageSnapshot { Phase = phase.Phase, Session = session,
-                    SelfPuuid = me.PuuId, RosterKey = RosterKey(roster), CreatedUtc = DateTime.UtcNow };
+                    SelfPuuid = me.PuuId, RosterKey = RosterKey(roster), CreatedUtc = DateTime.UtcNow,
+                    UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
+                    snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
+                foreach (var player in snapshot.Players)
                 {
-                    var player = new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side };
-                    snapshot.Players.Add(player);
                     if (!Current(session, phase.Phase)) return null;
-                    try
+                    var remaining = deadline - DateTime.UtcNow - TimeSpan.FromSeconds(4);
+                    if (remaining <= TimeSpan.Zero) break;
+                    var row = player.Player;
+                    using (var playerTimeout = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
                     {
-                        player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
-                            SummonerId = row.SummonerId }, 0, LeaguePlayerDataService.MaximumMatchCount, false, active.Token).ConfigureAwait(false);
-                        if (player.History != null && player.History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
-                            player.History.Matches.RemoveRange(LeaguePlayerDataService.MaximumMatchCount,
-                                player.History.Matches.Count - LeaguePlayerDataService.MaximumMatchCount);
-                        if (player.History != null)
-                            player.History = await _players.EnrichChampionNamesAsync(new LeaguePlayerProfile { PuuId = row.PuuId },
-                                player.History, active.Token).ConfigureAwait(false);
-                        player.ChampionName = player.History?.Matches.FirstOrDefault(m => m.ChampionId == row.ChampionId)?.ChampionName;
+                        playerTimeout.CancelAfter(remaining < TimeSpan.FromSeconds(2) ? remaining : TimeSpan.FromSeconds(2));
+                        try
+                        {
+                            player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
+                                SummonerId = row.SummonerId }, 0, LeaguePlayerDataService.MaximumMatchCount, false, playerTimeout.Token).ConfigureAwait(false);
+                            if (player.History != null && player.History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
+                                player.History.Matches.RemoveRange(LeaguePlayerDataService.MaximumMatchCount,
+                                    player.History.Matches.Count - LeaguePlayerDataService.MaximumMatchCount);
+                            if (player.History != null)
+                                player.History = await _players.EnrichChampionNamesAsync(new LeaguePlayerProfile { PuuId = row.PuuId },
+                                    player.History, playerTimeout.Token).ConfigureAwait(false);
+                            player.ChampionName = player.History?.Matches.FirstOrDefault(m => m.ChampionId == row.ChampionId)?.ChampionName;
+                        }
+                        catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
                     }
-                    catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
                 }
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return null;
                 active.Token.ThrowIfCancellationRequested();
@@ -178,7 +204,7 @@ namespace FACM.League
 
         internal static string RosterKey(LeagueLiveSnapshot roster)
         {
-            return string.Join("|", roster.Players.OrderBy(p => p.PuuId, StringComparer.Ordinal)
+            return roster.GameId + ":" + roster.QueueId + "|" + string.Join("|", roster.Players.OrderBy(p => p.PuuId, StringComparer.Ordinal)
                 .Select(p => p.PuuId + ":" + p.Side + ":" + p.ChampionId));
         }
 
@@ -191,6 +217,74 @@ namespace FACM.League
         internal void Cancel()
         {
             lock (_sync) _active?.Cancel();
+        }
+
+        internal void Observe(LeagueDashboardPhaseState state)
+        {
+            var phase = state != null && state.Connected ? state.Phase : null;
+            lock (_sync)
+            {
+                if (_observedPhase == phase) return;
+                _observedPhase = phase;
+                _selectionKey = null;
+                _selected = null;
+                _active?.Cancel();
+            }
+        }
+
+        internal void Select(LeagueDynamicMessageSnapshot snapshot, IEnumerable<string> selected)
+        {
+            if (snapshot == null) return;
+            var allowed = new HashSet<string>(snapshot.Players.Select(p => p.Player.PuuId), StringComparer.Ordinal);
+            lock (_sync)
+            {
+                _selectionKey = snapshot.Phase + ":" + snapshot.RosterKey;
+                _selected = new HashSet<string>((selected ?? Array.Empty<string>()).Where(allowed.Contains).Take(20), StringComparer.Ordinal);
+            }
+        }
+
+        internal ISet<string> Selection(LeagueDynamicMessageSnapshot snapshot)
+        {
+            lock (_sync)
+                return snapshot != null && _selectionKey == snapshot.Phase + ":" + snapshot.RosterKey && _selected != null
+                    ? new HashSet<string>(_selected, StringComparer.Ordinal) : null;
+        }
+
+        internal async Task<bool> SendAsync(LeagueDynamicMessageSnapshot snapshot, IReadOnlyList<string> lines, int interval,
+            Func<string, CancellationToken, Task<bool>> sendLine, CancellationToken token)
+        {
+            if (lines == null || lines.Count == 0 || lines.Count > 100 || interval < 0 || interval > 5000 ||
+                lines.Any(line => string.IsNullOrEmpty(line) || line.Length > LeagueQuickMessagePresets.MaximumMessageLength || line.Any(char.IsControl))) return false;
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromMilliseconds(Math.Min(600000, lines.Count * (interval + 1000L) + 5000)));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                for (var index = 0; index < lines.Count; index++)
+                {
+                    active.Token.ThrowIfCancellationRequested();
+                    if (!Current(snapshot.Session, snapshot.Phase) || !await sendLine(lines[index], active.Token).ConfigureAwait(false)) return false;
+                    if (index + 1 < lines.Count) await Task.Delay(interval, active.Token).ConfigureAwait(false);
+                }
+                return true;
+            }
+            catch (OperationCanceledException) { return false; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
         }
 
         public void Dispose()

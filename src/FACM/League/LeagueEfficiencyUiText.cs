@@ -170,6 +170,11 @@ namespace FACM.League
         public const string ProfileModeBot = "LeagueEfficiencyProfileModeBot";
         public const string ProfileModeCustom = "LeagueEfficiencyProfileModeCustom";
         public const string AdvancedGroupEnabled = "LeagueEfficiencyAdvancedGroupEnabled";
+        public const string QuickMessageFixedTab = "LeagueEfficiencyQuickMessageFixedTab";
+        public const string DynamicKda = "LeagueEfficiencyDynamicKda";
+        public const string DynamicPartial = "LeagueEfficiencyDynamicPartial";
+        public const string DynamicGameHint = "LeagueEfficiencyDynamicGameHint";
+        public const string DynamicShortcutHint = "LeagueEfficiencyDynamicShortcutHint";
         public const string DynamicOpen = "LeagueEfficiencyDynamicOpen";
         public const string DynamicLoad = "LeagueEfficiencyDynamicLoad";
         public const string DynamicSend = "LeagueEfficiencyDynamicSend";
@@ -288,7 +293,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.RespawnOverlaySaved, "复活倒计时设置已保存。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageOpen, "快捷消息预设…" },
             { LeagueEfficiencyUiTextKeys.QuickMessageTitle, "GGman · 快捷消息" },
-            { LeagueEfficiencyUiTextKeys.QuickMessageHint, "保存四条常用消息；房间/选人可点发送，游戏内须使用预设快捷键。每条最多四行、300 字。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageHint, "常用消息与动态战绩摘要；房间/选人可点发送，游戏内使用快捷键。固定消息每条最多四行、300 字。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSave, "保存四条预设" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSend, "发送" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSaved, "四条预设已保存。" },
@@ -405,6 +410,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.ProfileModeBot, "人机模式" },
             { LeagueEfficiencyUiTextKeys.ProfileModeCustom, "自定义对局" },
             { LeagueEfficiencyUiTextKeys.AdvancedGroupEnabled, "启用本组当前操作" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageFixedTab, "固定消息" },
+            { LeagueEfficiencyUiTextKeys.DynamicKda, "KDA" },
+            { LeagueEfficiencyUiTextKeys.DynamicPartial, "部分玩家身份或战绩暂不可用，请查看预览中的提示。" },
+            { LeagueEfficiencyUiTextKeys.DynamicGameHint, "游戏内请保存选项并使用己方、敌方或双方快捷键发送，确保游戏处于前台。" },
+            { LeagueEfficiencyUiTextKeys.DynamicShortcutHint, "快捷键：点击设置、右键清除，保存后生效。游戏内发送前请切回游戏窗口。" },
             { LeagueEfficiencyUiTextKeys.DynamicOpen, "动态对局消息" },
             { LeagueEfficiencyUiTextKeys.DynamicLoad, "读取当前对局" },
             { LeagueEfficiencyUiTextKeys.DynamicSend, "发送已选摘要" },
