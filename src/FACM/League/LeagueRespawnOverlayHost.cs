@@ -123,7 +123,6 @@ namespace FACM.League
             if (owner == null || owner.IsDisposed || !owner.IsHandleCreated) return;
             try { owner.BeginInvoke(new Action(ApplyUiState)); }
             catch (InvalidOperationException) { }
-            catch (ObjectDisposedException) { }
         }
 
         private void ApplyUiState()
