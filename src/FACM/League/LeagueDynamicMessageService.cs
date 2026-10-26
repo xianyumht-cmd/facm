@@ -12,6 +12,7 @@ namespace FACM.League
     {
         public string Target { get; set; } = "all";
         public string NameStrategy { get; set; } = "preferChampionName";
+        public string PremadeNameStrategy { get; set; } = "preferName";
         public bool ShowCurrentChampion { get; set; }
         public bool WinRate { get; set; } = true;
         public bool Kda { get; set; } = true;
@@ -50,7 +51,8 @@ namespace FACM.League
         private static bool Valid(LeagueDynamicMessageOptions options)
         {
             if (options == null || !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
-                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy)) return false;
+                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
+                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy)) return false;
             var bindings = new List<string>();
             foreach (var shortcut in new[] { options.FriendlyShortcut, options.EnemyShortcut, options.AllShortcut })
             {

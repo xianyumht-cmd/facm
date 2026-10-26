@@ -82,6 +82,42 @@ namespace FACM.League
             var groups = LeaguePremadeInference.Infer(snapshot);
             Require(groups.Count == 1 && groups[0].SequenceEqual(new[] { "ally", "self" }),
                 "Premade inference must count distinct same-team games and never mix current opposing sides.");
+            self.Player.GameName = "Self"; ally.Player.GameName = "Ally";
+            var options = new LeagueDynamicMessageOptions { Target = "friendly", PremadeNameStrategy = "preferName" };
+            var lines = LeaguePremadeMessageFormatter.Build(snapshot, options);
+            Require(lines.Count == 1 && lines[0].Contains("Ally") && lines[0].Contains("Self") &&
+                !lines[0].Contains("Enemy"), "Premade preview must describe only the chosen current side.");
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options,
+                new HashSet<string>(StringComparer.Ordinal)).Count == 0,
+                "An empty premade selection must not dispatch a message.");
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options,
+                new HashSet<string> { "not-a-current-group" }).Count == 0,
+                "Arbitrary group IDs must not enter an outgoing message.");
+            options.Target = "enemy";
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).Count == 0,
+                "No-evidence opposing groups must not be represented as confirmed negatives.");
+            options.Target = "all";
+            self.Player.GameName = "/cmd\n" + new string('x', 300);
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).All(line =>
+                line.Length <= LeagueQuickMessagePresets.MaximumMessageLength && !line.Any(char.IsControl) &&
+                !line.StartsWith("/", StringComparison.Ordinal)),
+                "Premade output must be bounded and reject command/control character injection.");
+            var large = new LeagueDynamicMessageSnapshot();
+            var ids = Enumerable.Range(0, 20).Select(index => "member" + index).ToArray();
+            foreach (var id in ids)
+                large.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                    Player = new LeagueLivePlayerRow { PuuId = id, GameName = new string('M', 80) },
+                    History = new LeaguePlayerMatchPage() });
+            for (var game = 1; game <= 5; game++)
+                large.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = ids });
+            var largeLines = LeaguePremadeMessageFormatter.Build(large, options);
+            Require(largeLines.Count == 1 && largeLines[0].Length <= LeagueQuickMessagePresets.MaximumMessageLength &&
+                largeLines[0].Contains("["), "Large inferred groups must fit in chat without silently disappearing.");
+            var saved = LeagueDynamicMessageOptions.Save(options);
+            Require(LeagueDynamicMessageOptions.Parse(saved).PremadeNameStrategy == "preferName" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeNameStrategy == "preferName",
+                "Premade name strategy must persist and remain backward-compatible with old settings.");
             Require(LeaguePremadeInference.Infer(snapshot, 6).Count == 0,
                 "Duplicate source histories counted one historical game more than once.");
             ally.Friendly = false;

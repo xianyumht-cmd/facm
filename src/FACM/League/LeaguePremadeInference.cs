@@ -71,4 +71,56 @@ namespace FACM.League
             return result;
         }
     }
+
+    internal static class LeaguePremadeMessageFormatter
+    {
+        internal static string GroupKey(IEnumerable<string> members)
+        {
+            return string.Join("|", members.OrderBy(id => id, StringComparer.Ordinal));
+        }
+
+        internal static IReadOnlyList<string> Build(LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessageOptions options,
+            ISet<string> selectedGroups = null)
+        {
+            var lines = new List<string>();
+            if (snapshot == null || options == null) return lines;
+            var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
+                LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            var groups = LeaguePremadeInference.Infer(snapshot).Select(g => new
+            {
+                Key = GroupKey(g),
+                Players = g.Select(id => byId[id]).ToArray(),
+                Friendly = byId[g[0]].Friendly
+            }).Where(g => (selectedGroups == null || selectedGroups.Contains(g.Key)) &&
+                (options.Target == "all" || options.Target == "friendly" && g.Friendly ||
+                    options.Target == "enemy" && !g.Friendly)).OrderByDescending(g => g.Friendly).ThenBy(g => g.Key).ToList();
+            var championCounts = groups.SelectMany(g => g.Players).Where(p => p.Player.ChampionId > 0)
+                .GroupBy(p => p.Player.ChampionId).ToDictionary(g => g.Key, g => g.Count());
+            foreach (var side in new[] { true, false })
+            {
+                var prefix = LeagueEfficiencyText.Get(null, side ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                    LeagueEfficiencyUiTextKeys.DynamicEnemy) + LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.PremadeMessageTitle) + "：";
+                var line = prefix;
+                foreach (var group in groups.Where(g => g.Friendly == side))
+                {
+                    var names = group.Players.Select(p => LeagueDynamicMessageFormatter.DisplayName(p,
+                        options.PremadeNameStrategy, championCounts)).ToArray();
+                    var nameLimit = Math.Min(40, Math.Max(1, (LeagueQuickMessagePresets.MaximumMessageLength -
+                        prefix.Length - 2 - Math.Max(0, names.Length - 1)) / Math.Max(1, names.Length)));
+                    var part = "[" + string.Join("、", names.Select(name => name.Length > nameLimit ? name.Substring(0, nameLimit) : name)) + "]";
+                    var addition = line == prefix ? part : "；" + part;
+                    if (line.Length + addition.Length > LeagueQuickMessagePresets.MaximumMessageLength)
+                    {
+                        lines.Add(line);
+                        line = prefix + part;
+                    }
+                    else line += addition;
+                }
+                if (line != prefix) lines.Add(line);
+            }
+            return lines;
+        }
+    }
 }

@@ -18,7 +18,8 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime;
         private readonly LeagueDynamicMessageOptions _options;
         private readonly ComboBox _target, _names;
-        private readonly CheckedListBox _players;
+        private readonly CheckedListBox _players, _groups;
+        private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
         private readonly Button _load, _send;
@@ -94,16 +95,42 @@ namespace FACM.League
             content.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180)); content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             _players = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicSelectPlayers) };
+            _groups = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups) };
+            _selectionTabs = new TabControl { Dock = DockStyle.Fill };
+            var playerTab = new TabPage(T(LeagueEfficiencyUiTextKeys.DynamicPlayer));
+            playerTab.Controls.Add(_players);
+            var groupTab = new TabPage(T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups));
+            groupTab.Controls.Add(_groups);
+            _selectionTabs.TabPages.Add(playerTab); _selectionTabs.TabPages.Add(groupTab);
             _preview = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
             _players.ItemCheck += delegate { if (!_binding && IsHandleCreated) BeginInvoke(new Action(RefreshPreview)); };
-            content.Controls.Add(_players, 0, 0); content.Controls.Add(_preview, 1, 0); root.Controls.Add(content, 0, 4);
+            _groups.ItemCheck += delegate { if (!_binding && IsHandleCreated) BeginInvoke(new Action(RefreshPreview)); };
+            _selectionTabs.SelectedIndexChanged += delegate
+            {
+                _binding = true;
+                var strategy = IsPremade ? _options.PremadeNameStrategy : _options.NameStrategy;
+                _names.SelectedIndex = Math.Max(0, Array.IndexOf(new[] { "preferName", "preferChampionName", "championNameWithName" }, strategy));
+                _binding = false;
+                RefreshPreview();
+            };
+            content.Controls.Add(_selectionTabs, 0, 0); content.Controls.Add(_preview, 1, 0); root.Controls.Add(content, 0, 4);
             _status = new Label { Dock = DockStyle.Fill, Text = T(LeagueEfficiencyUiTextKeys.DynamicShortcutHint), AutoEllipsis = true };
             root.Controls.Add(_status, 0, 5); Controls.Add(root);
             _module.DynamicMessageContextChanged += HandleContextChanged;
             _target.SelectedIndexChanged += delegate { _options.Target = new[] { "friendly", "enemy", "all" }[Math.Max(0, _target.SelectedIndex)]; RefreshPreview(); };
-            _names.SelectedIndexChanged += delegate { _options.NameStrategy = new[] { "preferName", "preferChampionName", "championNameWithName" }[Math.Max(0, _names.SelectedIndex)]; RefreshPreview(); };
+            _names.SelectedIndexChanged += delegate
+            {
+                if (_binding) return;
+                var strategy = new[] { "preferName", "preferChampionName", "championNameWithName" }[Math.Max(0, _names.SelectedIndex)];
+                if (IsPremade) _options.PremadeNameStrategy = strategy;
+                else _options.NameStrategy = strategy;
+                RefreshPreview();
+            };
         }
+
+        private bool IsPremade { get { return _selectionTabs.SelectedIndex == 1; } }
 
         private ComboBox Choice(string[] values)
         {
@@ -118,11 +145,19 @@ namespace FACM.League
             {
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token);
                 if (IsDisposed) return;
-                _snapshot = snapshot; _binding = true; _players.Items.Clear();
+                _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)
+                {
                     foreach (var player in snapshot.Players)
                         _players.Items.Add(new PlayerChoice(player), selected == null || selected.Contains(player.Player.PuuId));
+                    var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
+                        LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                        .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                        .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+                    foreach (var group in LeaguePremadeInference.Infer(snapshot).OrderByDescending(g => byId[g[0]].Friendly))
+                        _groups.Items.Add(new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount)), true);
+                }
                 _binding = false; RefreshPreview();
                 _status.Text = T(snapshot == null ? LeagueEfficiencyUiTextKeys.DynamicUnavailable :
                     snapshot.UnavailableIdentityCount > 0 || snapshot.Players.Any(p => p.History == null) ? LeagueEfficiencyUiTextKeys.DynamicPartial :
@@ -138,14 +173,20 @@ namespace FACM.League
             return new HashSet<string>(_players.CheckedItems.Cast<PlayerChoice>().Select(p => p.Player.Player.PuuId), StringComparer.Ordinal);
         }
 
+        private HashSet<string> SelectedGroups()
+        {
+            return new HashSet<string>(_groups.CheckedItems.Cast<PremadeChoice>().Select(g => g.Key), StringComparer.Ordinal);
+        }
+
         private void RefreshPreview()
         {
             if (_binding || IsDisposed || _preview == null) return;
-            var selected = Selected();
-            _module.SelectDynamicPlayers(_snapshot, selected);
-            var lines = LeagueDynamicMessageFormatter.Build(_snapshot, _options, selected);
-            _preview.Text = string.Join(Environment.NewLine, lines);
-            _send.Enabled = lines.Count > 0 && _snapshot.Phase != "InProgress";
+            var lines = IsPremade ? LeaguePremadeMessageFormatter.Build(_snapshot, _options, SelectedGroups()) :
+                LeagueDynamicMessageFormatter.Build(_snapshot, _options, Selected());
+            if (!IsPremade) _module.SelectDynamicPlayers(_snapshot, Selected());
+            _preview.Text = lines.Count == 0 && IsPremade && _snapshot != null ?
+                T(LeagueEfficiencyUiTextKeys.PremadeNoGroups) : string.Join(Environment.NewLine, lines);
+            _send.Enabled = lines.Count > 0 && _snapshot != null && _snapshot.Phase != "InProgress";
         }
 
         private async Task SendAsync()
@@ -153,7 +194,8 @@ namespace FACM.League
             _send.Enabled = false; _load.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicSending);
             try
             {
-                var sent = await _module.SendDynamicMessagesAsync(_snapshot, _options, Selected(), _lifetime.Token);
+                var sent = IsPremade ? await _module.SendPremadeMessagesAsync(_snapshot, _options, SelectedGroups(), _lifetime.Token) :
+                    await _module.SendDynamicMessagesAsync(_snapshot, _options, Selected(), _lifetime.Token);
                 if (!IsDisposed) _status.Text = T(sent ? LeagueEfficiencyUiTextKeys.QuickMessageSent : LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
             }
             catch (OperationCanceledException) { }
@@ -169,7 +211,7 @@ namespace FACM.League
                 BeginInvoke(new Action(delegate
                 {
                     if (IsDisposed) return;
-                    _snapshot = null; _binding = true; _players.Items.Clear(); _binding = false;
+                    _snapshot = null; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _binding = false;
                     _preview.Clear(); _send.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
                 }));
             }
@@ -191,6 +233,20 @@ namespace FACM.League
                 return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
                     " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer));
             }
+        }
+
+        private sealed class PremadeChoice
+        {
+            internal readonly string Key;
+            private readonly string _label;
+            internal PremadeChoice(string[] members, IDictionary<string, LeagueDynamicMessagePlayer> players, string countFormat)
+            {
+                Key = LeaguePremadeMessageFormatter.GroupKey(members);
+                var names = members.Select(id => LeagueDynamicMessageFormatter.DisplayName(players[id], "preferName",
+                    new Dictionary<int, int>()));
+                _label = countFormat.Replace("{0}", members.Length.ToString()) + " · " + string.Join(" / ", names);
+            }
+            public override string ToString() { return _label; }
         }
     }
 }

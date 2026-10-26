@@ -209,6 +209,10 @@ namespace FACM.League
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
+        public const string PremadeSelectGroups = "LeagueEfficiencyPremadeSelectGroups";
+        public const string PremadeGroupCount = "LeagueEfficiencyPremadeGroupCount";
+        public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
+        public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
         public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
         public const string ProfileModeRift = "LeagueEfficiencyProfileModeRift";
         public const string ProfileModeAram = "LeagueEfficiencyProfileModeAram";
@@ -449,6 +453,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },
+            { LeagueEfficiencyUiTextKeys.PremadeSelectGroups, "疑似组队" },
+            { LeagueEfficiencyUiTextKeys.PremadeGroupCount, "{0} 人同队记录" },
+            { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少五局），不能判定无人组队。" },
+            { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
             { LeagueEfficiencyUiTextKeys.ProfileModeRift, "召唤师峡谷" },
             { LeagueEfficiencyUiTextKeys.ProfileModeAram, "普通大乱斗" },
