@@ -59,6 +59,20 @@ namespace FACM.League
                     reloaded.ReadPlayer("self", "enemy", "HN1", "HN1").Count == 0 &&
                     reloaded.ReadPlayer("self", "ally", "HN1", "HN1").Count == 1,
                     "Deleting one player's encounter must not remove another player's record.");
+                Require(reloaded.SaveGame(12346, "self", "HN1", "HN1", "CLASSIC", new[] { "self", "enemy" }) == 1 &&
+                    reloaded.SaveGame(12347, "self", "HN1", "HN1", "ARAM", new[] { "self", "enemy" }) == 1 &&
+                    reloaded.SaveGame(12348, "self", "HN1", "HN1", "ARAM", new[] { "self", "enemy" }) == 1,
+                    "Encounter query fixture could not write all games.");
+                var page1 = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 2);
+                var page2 = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 2, 2);
+                Require(page1.Total == 3 && page1.Records.Select(p => p.GameId).SequenceEqual(new long[] { 12348, 12347 }) &&
+                    page2.Total == 3 && page2.Records.Single().GameId == 12346,
+                    "Encountered-game paging or newest-first ordering differs from the source query.");
+                var filtered = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "ARAM", false);
+                Require(filtered.Total == 2 && filtered.Records.Select(p => p.GameId).SequenceEqual(new long[] { 12347, 12348 }) &&
+                    reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "AR").Total == 0 &&
+                    reloaded.QueryPlayer("other", "enemy", "HN1", "HN1").Total == 0,
+                    "Encountered-game filters must be exact and remain scoped to the signed-in account.");
                 bool rejected = false;
                 try { reloaded.SaveGame(99, "self", "HN1", "HN1", "queue-450", new[] { "ally", "enemy" }); }
                 catch (ArgumentException) { rejected = true; }

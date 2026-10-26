@@ -239,6 +239,11 @@ namespace FACM.League
         public const string DynamicEncounterQueue = "LeagueEfficiencyDynamicEncounterQueue";
         public const string DynamicEncounterDate = "LeagueEfficiencyDynamicEncounterDate";
         public const string DynamicEncounterUnavailable = "LeagueEfficiencyDynamicEncounterUnavailable";
+        public const string DynamicEncounterFilter = "LeagueEfficiencyDynamicEncounterFilter";
+        public const string DynamicEncounterOrderNewest = "LeagueEfficiencyDynamicEncounterOrderNewest";
+        public const string DynamicEncounterOrderOldest = "LeagueEfficiencyDynamicEncounterOrderOldest";
+        public const string DynamicEncounterApply = "LeagueEfficiencyDynamicEncounterApply";
+        public const string DynamicEncounterPage = "LeagueEfficiencyDynamicEncounterPage";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -526,6 +531,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterQueue, "队列" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterDate, "记录时间" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterUnavailable, "相遇记录读取或删除失败，请检查本地记录文件。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterFilter, "队列类型：" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterOrderNewest, "最新在前" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterOrderOldest, "最早在前" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterApply, "筛选" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterPage, "第 {0}/{1} 页 · 共 {2} 条" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

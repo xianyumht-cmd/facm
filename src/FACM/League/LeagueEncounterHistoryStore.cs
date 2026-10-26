@@ -25,6 +25,14 @@ namespace FACM.League
         public List<LeagueEncounterRecord> Games { get; set; } = new List<LeagueEncounterRecord>();
     }
 
+    internal sealed class LeagueEncounterHistoryPage
+    {
+        public IReadOnlyList<LeagueEncounterRecord> Records { get; set; }
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+    }
+
     // Encounter metadata stays on this computer, separate from cloud preferences and tagged-player exchange.
     internal sealed class LeagueEncounterHistoryStore
     {
@@ -81,16 +89,35 @@ namespace FACM.League
         internal IReadOnlyList<LeagueEncounterRecord> ReadPlayer(string selfPuuid, string playerPuuid,
             string region, string platformId, int maximum = 40)
         {
+            return QueryPlayer(selfPuuid, playerPuuid, region, platformId, 1, maximum).Records;
+        }
+
+        // Mirrors Akari's player-scoped encountered-game query: optional exact queue.type,
+        // stable time ordering and bounded pagination. Never returns another account's data.
+        internal LeagueEncounterHistoryPage QueryPlayer(string selfPuuid, string playerPuuid,
+            string region, string platformId, int page = 1, int pageSize = 40,
+            string queueType = null, bool newestFirst = true)
+        {
+            page = Math.Max(1, Math.Min(10000, page));
+            pageSize = Math.Max(1, Math.Min(100, pageSize));
+            var result = new LeagueEncounterHistoryPage { Page = page, PageSize = pageSize,
+                Records = new LeagueEncounterRecord[0] };
             if (!ValidPuuid(selfPuuid) || !ValidPuuid(playerPuuid) || !ValidRegion(region) || !ValidRegion(platformId))
-                return new LeagueEncounterRecord[0];
-            maximum = Math.Max(1, Math.Min(100, maximum));
+                return result;
+            if (queueType != null && (queueType.Length > 64 || queueType.Any(char.IsControl)))
+                return result;
             var scopeRegion = Normalize(region);
             var scopePlatform = Normalize(platformId);
             lock (_sync)
             {
-                return ReadState().Games.Where(p => p.SelfPuuid == selfPuuid && p.Puuid == playerPuuid &&
-                    p.Region == scopeRegion && p.PlatformId == scopePlatform)
-                    .OrderByDescending(p => p.UpdatedUtc).Take(maximum).ToArray();
+                var matches = ReadState().Games.Where(p => p.SelfPuuid == selfPuuid && p.Puuid == playerPuuid &&
+                    p.Region == scopeRegion && p.PlatformId == scopePlatform &&
+                    (string.IsNullOrEmpty(queueType) || p.QueueType == queueType));
+                var sorted = newestFirst ? matches.OrderByDescending(p => p.UpdatedUtc).ThenByDescending(p => p.GameId) :
+                    matches.OrderBy(p => p.UpdatedUtc).ThenBy(p => p.GameId);
+                result.Total = matches.Count();
+                result.Records = sorted.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+                return result;
             }
         }
 

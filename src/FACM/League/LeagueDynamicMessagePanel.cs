@@ -481,59 +481,10 @@ namespace FACM.League
         {
             if (_busy || snapshot == null || !ReferenceEquals(snapshot, _snapshot) ||
                 choice.Player == null || choice.Player.Player == null) return;
-            var playerPuuid = choice.Player.Player.PuuId;
-            IReadOnlyList<LeagueEncounterRecord> records;
-            try { records = _module.ReadPlayerEncounters(snapshot, playerPuuid); }
-            catch (Exception) { _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterUnavailable); return; }
-
-            using (var dialog = new Form { Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterTitle),
-                Width = 550, Height = 320, StartPosition = FormStartPosition.CenterParent,
-                BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text, ShowInTaskbar = false })
-            {
-                var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
-                    Padding = new Padding(12) };
-                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-                var list = new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
-                    HideSelection = false, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
-                    ForeColor = FacmDesignSystem.Text };
-                list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterGame), 140);
-                list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterQueue), 100);
-                list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterDate), 250);
-                foreach (var record in records)
-                {
-                    var row = new ListViewItem(record.GameId.ToString()) { Tag = record };
-                    row.SubItems.Add(record.QueueType);
-                    row.SubItems.Add(record.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"));
-                    list.Items.Add(row);
-                }
-                var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-                var close = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagCancel), Width = 80, Height = 30 };
-                close.Click += (sender, e) => dialog.Close();
-                var delete = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterDelete),
-                    Width = 130, Height = 30, Enabled = false };
-                list.SelectedIndexChanged += (sender, e) => delete.Enabled = list.SelectedItems.Count == 1;
-                delete.Click += (sender, e) =>
-                {
-                    if (list.SelectedItems.Count != 1 || !ReferenceEquals(snapshot, _snapshot)) return;
-                    var record = list.SelectedItems[0].Tag as LeagueEncounterRecord;
-                    if (record == null || MessageBox.Show(dialog, T(LeagueEfficiencyUiTextKeys.DynamicEncounterConfirm),
-                        T(LeagueEfficiencyUiTextKeys.DynamicEncounterTitle), MessageBoxButtons.YesNo,
-                        MessageBoxIcon.Question) != DialogResult.Yes) return;
-                    try
-                    {
-                        if (_module.DeletePlayerEncounter(snapshot, playerPuuid, record.GameId))
-                            list.Items.Remove(list.SelectedItems[0]);
-                    }
-                    catch (Exception) { _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterUnavailable); }
-                };
-                footer.Controls.Add(close); footer.Controls.Add(delete);
-                if (records.Count == 0)
-                    footer.Controls.Add(new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterEmpty) });
-                layout.Controls.Add(list, 0, 0); layout.Controls.Add(footer, 0, 1);
-                dialog.Controls.Add(layout);
+            using (var dialog = new LeagueEncounterHistoryBrowserDialog(_module, _ui,
+                snapshot, choice.Player.Player.PuuId,
+                () => !IsDisposed && ReferenceEquals(snapshot, _snapshot)))
                 dialog.ShowDialog(this);
-            }
         }
 
         private Form CreateTagDialog(string currentTag)

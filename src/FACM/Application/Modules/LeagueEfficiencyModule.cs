@@ -297,13 +297,21 @@ namespace FACM.AppHost.Modules
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid)
         {
+            return QueryPlayerEncounters(snapshot, playerPuuid, 1, 40).Records;
+        }
+
+        public LeagueEncounterHistoryPage QueryPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
+            string playerPuuid, int page, int pageSize, string queueType = null, bool newestFirst = true)
+        {
             ThrowIfDisposed();
             var session = _leagueClient.CurrentSession;
             if (snapshot == null || snapshot.Session == null || session == null ||
                 !snapshot.Session.Matches(session) || !LeagueDynamicMessageService.SafePuuid(playerPuuid) ||
                 !snapshot.Players.Any(p => p != null && p.Player != null && p.Player.PuuId == playerPuuid))
-                return new LeagueEncounterRecord[0];
-            return _encounterHistory.ReadPlayer(snapshot.SelfPuuid, playerPuuid, session.Region, session.PlatformId);
+                return new LeagueEncounterHistoryPage { Records = new LeagueEncounterRecord[0],
+                    Page = page, PageSize = pageSize };
+            return _encounterHistory.QueryPlayer(snapshot.SelfPuuid, playerPuuid, session.Region,
+                session.PlatformId, page, pageSize, queueType, newestFirst);
         }
 
         public bool DeletePlayerEncounter(LeagueDynamicMessageSnapshot snapshot, string playerPuuid, long gameId)
