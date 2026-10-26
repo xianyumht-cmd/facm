@@ -16,6 +16,7 @@ namespace FACM.League
             ValidatePremadeInference();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
+            ValidateJunglePrefetch();
             ValidateLoadingAsync().GetAwaiter().GetResult();
             ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
@@ -240,6 +241,30 @@ namespace FACM.League
                 LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "all").Count == 2 &&
                 LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "invalid").Count == 0,
                 "Shortcut target selection must respect the current roster and side.");
+        }
+
+        private static void ValidateJunglePrefetch()
+        {
+            var options = new LeagueDynamicMessageOptions();
+            Require(!LeagueDynamicMessageService.JunglePrefetchEnabled(options),
+                "Default-disabled jungle shortcuts must not schedule timeline background reads.");
+            options.JungleEnemyShortcut = "Ctrl+F8";
+            Require(LeagueDynamicMessageService.JunglePrefetchEnabled(options),
+                "An enabled jungle target shortcut must opt into timeline prefetch.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "allytop", Position = "TOP" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemyjungle", Role = "JUNGLE" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "allyjungle", Position = "jungle" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "unavailable", Position = "JUNGLE" } });
+            Require(LeagueDynamicMessageService.JunglePrefetchOrder(snapshot).Select(p => p.Player.PuuId)
+                .SequenceEqual(new[] { "allyjungle", "enemyjungle", "allytop" }),
+                "Known jungle positions must be prioritized without querying players with unavailable history.");
+            Require(LeagueDynamicMessageService.TargetPlayers(snapshot, "enemy").SetEquals(new[] { "enemyjungle", "unavailable" }),
+                "Enemy-only prefetch must not select friendly player identities.");
         }
 
         private static async Task ValidateLoadingAsync()

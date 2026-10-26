@@ -427,6 +427,21 @@ namespace FACM.League
                 .Select(p => p.Player.PuuId).Where(SafePuuid), StringComparer.Ordinal);
         }
 
+        internal static bool JunglePrefetchEnabled(LeagueDynamicMessageOptions options)
+        {
+            return options != null && (!string.IsNullOrEmpty(options.JungleFriendlyShortcut) ||
+                !string.IsNullOrEmpty(options.JungleEnemyShortcut) || !string.IsNullOrEmpty(options.JungleAllShortcut));
+        }
+
+        internal static IReadOnlyList<LeagueDynamicMessagePlayer> JunglePrefetchOrder(LeagueDynamicMessageSnapshot snapshot)
+        {
+            return snapshot == null ? Array.Empty<LeagueDynamicMessagePlayer>() : snapshot.Players
+                .Where(p => p != null && p.Player != null && SafePuuid(p.Player.PuuId) && p.History != null)
+                .OrderByDescending(p => string.Equals(p.Player.Position, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.Player.Role, "JUNGLE", StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(p => p.Friendly).ToArray();
+        }
+
         internal async Task<bool> SendAsync(LeagueDynamicMessageSnapshot snapshot, IReadOnlyList<string> lines, int interval,
             Func<string, CancellationToken, Task<bool>> sendLine, CancellationToken token)
         {

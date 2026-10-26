@@ -52,6 +52,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly LeagueDashboardModule _dashboard;
         private readonly object _honorSync = new object();
+        private readonly object _junglePrefetchSync = new object();
         private LeagueNativeHotkeyService _hotkeys;
         private LeagueEfficiencyActionService _actions;
         private LeaguePostGameAutomationController _postGame;
@@ -74,6 +75,10 @@ namespace FACM.AppHost.Modules
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private int _presetShortcutRunning;
+        private CancellationTokenSource _junglePrefetchCancellation;
+        private bool _junglePrefetchAttempted;
+        private int _junglePrefetchAttempts;
+        private DateTime _junglePrefetchLastAttemptUtc;
         private bool _disposed;
 
         public LeagueEfficiencyModule(SettingsModule settingsModule, LeagueClientModule leagueClient, LeagueDashboardModule dashboard)
@@ -169,6 +174,7 @@ namespace FACM.AppHost.Modules
                 _loginSignature.Observe(current);
                 _autoReply.Observe(current);
                 _respawnOverlay.Observe(current);
+                ConfigureJunglePrefetch(current);
             }
         }
 
@@ -534,6 +540,7 @@ namespace FACM.AppHost.Modules
             _offlineLock?.Configure(LockOfflineStatusEnabled);
             ConfigureAutoReply();
             _respawnOverlay?.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
+            ConfigureJunglePrefetch(_dashboard.CurrentGameflowState);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -709,6 +716,7 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _dynamicMessages?.Observe(state);
+            ConfigureJunglePrefetch(state);
             var dynamicPhase = state != null && state.Connected ? state.Phase : null;
             if (_dynamicObservedPhase != dynamicPhase)
             {
@@ -728,6 +736,94 @@ namespace FACM.AppHost.Modules
             if (_loginSignature != null) _loginSignature.Observe(state);
             _autoReply?.Observe(state);
             _respawnOverlay?.Observe(state);
+        }
+
+        private void ConfigureJunglePrefetch(LeagueDashboardPhaseState state)
+        {
+            var options = LeagueDynamicMessageOptions.Parse(_appliedDynamicOptions);
+            var eligible = !_disposed && _dynamicMessages != null && state != null && state.Connected &&
+                state.Phase == "ChampSelect" && LeagueDynamicMessageService.JunglePrefetchEnabled(options);
+            CancellationTokenSource toCancel = null;
+            CancellationTokenSource toStart = null;
+            CancellationToken startToken = CancellationToken.None;
+            lock (_junglePrefetchSync)
+            {
+                if (!eligible)
+                {
+                    toCancel = _junglePrefetchCancellation;
+                    _junglePrefetchCancellation = null;
+                    _junglePrefetchAttempted = false;
+                    _junglePrefetchAttempts = 0;
+                    _junglePrefetchLastAttemptUtc = DateTime.MinValue;
+                }
+                else if (!_junglePrefetchAttempted && _junglePrefetchAttempts < 2 &&
+                    DateTime.UtcNow - _junglePrefetchLastAttemptUtc >= TimeSpan.FromSeconds(5))
+                {
+                    _junglePrefetchAttempted = true;
+                    _junglePrefetchAttempts++;
+                    _junglePrefetchLastAttemptUtc = DateTime.UtcNow;
+                    _junglePrefetchCancellation = toStart = new CancellationTokenSource(TimeSpan.FromSeconds(110));
+                    startToken = toStart.Token;
+                }
+            }
+            if (toCancel != null)
+            {
+                try { toCancel.Cancel(); }
+                catch (ObjectDisposedException) { }
+            }
+            if (toStart != null)
+                Task.Run(() => PrefetchJungleAsync(toStart, options, startToken)).Forget("League jungle history prefetch");
+        }
+
+        private async Task PrefetchJungleAsync(CancellationTokenSource owner, LeagueDynamicMessageOptions options, CancellationToken token)
+        {
+            var retryUnavailableRoster = false;
+            try
+            {
+                var snapshot = await LoadDynamicMessagesAsync(token).ConfigureAwait(false);
+                if (snapshot == null)
+                {
+                    retryUnavailableRoster = !token.IsCancellationRequested;
+                    return;
+                }
+                if (snapshot.Phase != "ChampSelect" || token.IsCancellationRequested) return;
+                var selected = new HashSet<string>(StringComparer.Ordinal);
+                if (!string.IsNullOrEmpty(options.JungleAllShortcut))
+                    selected.UnionWith(LeagueDynamicMessageService.TargetPlayers(snapshot, "all"));
+                else
+                {
+                    if (!string.IsNullOrEmpty(options.JungleFriendlyShortcut))
+                        selected.UnionWith(LeagueDynamicMessageService.TargetPlayers(snapshot, "friendly"));
+                    if (!string.IsNullOrEmpty(options.JungleEnemyShortcut))
+                        selected.UnionWith(LeagueDynamicMessageService.TargetPlayers(snapshot, "enemy"));
+                }
+                var completed = 0;
+                foreach (var player in LeagueDynamicMessageService.JunglePrefetchOrder(snapshot))
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (!selected.Contains(player.Player.PuuId) || player.History.Matches.Count == 0) continue;
+                    if (!await LoadJungleMessagesAsync(snapshot, player.Player.PuuId, token).ConfigureAwait(false)) break;
+                    completed++;
+                }
+                if (!token.IsCancellationRequested)
+                    AppLog.Info("League jungle history prefetch: " + completed + " player(s) prepared.");
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) when (_disposed) { }
+            catch (Exception exception)
+            {
+                AppLog.Warning("League jungle history prefetch stopped: " + exception.GetType().Name);
+            }
+            finally
+            {
+                lock (_junglePrefetchSync)
+                    if (ReferenceEquals(_junglePrefetchCancellation, owner))
+                    {
+                        _junglePrefetchCancellation = null;
+                        if (retryUnavailableRoster) _junglePrefetchAttempted = false;
+                    }
+                owner.Dispose();
+            }
         }
 
         private void HandleHotkey(string action)
@@ -791,6 +887,19 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            CancellationTokenSource junglePrefetch;
+            lock (_junglePrefetchSync)
+            {
+                junglePrefetch = _junglePrefetchCancellation;
+                _junglePrefetchCancellation = null;
+                _junglePrefetchAttempted = false;
+                _junglePrefetchAttempts = 0;
+            }
+            if (junglePrefetch != null)
+            {
+                try { junglePrefetch.Cancel(); }
+                catch (ObjectDisposedException) { }
+            }
             DynamicMessageContextChanged = null;
             _dynamicMessages?.Dispose();
             _autoReply?.Dispose();
