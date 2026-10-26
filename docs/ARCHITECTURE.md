@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Akari v1.5.1 lobby source preflight and immediate room notice (Draft #357)
+
+`LeagueMatchmakingAutomationController` performs a one-off authenticated Gameflow-session and matchmaking-search-errors preflight **only for an otherwise eligible, not-already-claimed Lobby**, matching the pinned Akari custom-game and remaining-penalty vetoes. It does not run a permanent watcher. The existing phase and fingerprint write claim still fences retries. If custom-room announcements are explicitly enabled, a zero-delay start claims a separate per-Lobby notice fingerprint before sending one immediate `celebration` message through the existing room writer; the regular countdown remains phase-bound. Missing/partial LCU reads never invent custom-game or penalty status; regional correctness is subject to the owner's final live verification.
+
 ## Akari v1.5.1 room countdown messages (Draft #357)
 
 `LeagueMatchmakingAutomationController` optionally announces scheduled queue-start countdowns using the existing per-Lobby cancellation token and `ILeagueLobbyNoticeWriteApi` capability already shared by friend-invitation chat. Only an explicitly enabled setting and positive start delay permit 1-second countdown ticks. Each outbound message reads a unique safe `customGame` conversation and rechecks the current Lobby fingerprint/leader before the narrowly authorized `celebration` POST. Mid-countdown cancellation is best-effort and bounded with a fresh short timeout, but is suppressed if the room or permission cannot be confirmed. No extra permanent Gameflow owner, thread, event socket or idle polling is introduced; the disabled code path is the original single delay. Local and cloud/portable snapshots persist the opt-in flag.

@@ -105,6 +105,7 @@ namespace FACM.League
     {
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string SearchStatePath = "/lol-matchmaking/v1/search";
+        internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
         private static readonly TimeSpan LobbyObserveInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ReadyObserveInterval = TimeSpan.FromMilliseconds(500);
 
@@ -119,6 +120,7 @@ namespace FACM.League
         private string _phase;
         private string _lastSearchFingerprint;
         private string _lastSearchDiagnostic;
+        private string _lastImmediateRoomNoticeFingerprint;
         private bool _acceptAttemptedThisReadyCheck;
         private bool _autoSearch;
         private bool _autoAccept;
@@ -247,6 +249,7 @@ namespace FACM.League
                     {
                         _lastSearchFingerprint = null;
                         _lastSearchDiagnostic = null;
+                        _lastImmediateRoomNoticeFingerprint = null;
                     }
                     CancelLobbyLocked();
                 }
@@ -434,6 +437,37 @@ namespace FACM.League
             cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
+                if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    LogSearchDiagnosticLocked("already-attempted");
+                    return false;
+                }
+            }
+
+            var sourceBlock = await ReadSourceQueueBlockAsync(cancellationToken).ConfigureAwait(false);
+            if (sourceBlock != null)
+            {
+                LogSearchDiagnostic(sourceBlock);
+                return false;
+            }
+
+            if (RoomNoticesEnabled() && GetSearchStartDelay() == TimeSpan.Zero)
+            {
+                var announce = false;
+                lock (_sync)
+                {
+                    if (_lastImmediateRoomNoticeFingerprint != fingerprint)
+                    {
+                        _lastImmediateRoomNoticeFingerprint = fingerprint;
+                        announce = true;
+                    }
+                }
+                if (announce)
+                    await SendRoomNoticeAsync(fingerprint, "即将自动排队", false, cancellationToken).ConfigureAwait(false);
+            }
+
+            lock (_sync)
+            {
                 if (_disposed || !_autoSearch || !IsPhase("Lobby")) return false;
                 if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
                 {
@@ -496,6 +530,25 @@ namespace FACM.League
                             ? (reconciled ? "success/reconciled-queue-state" : "success")
                             : "failed/status-" + (response == null ? "none" : response.StatusCode.ToString())));
             return ok;
+        }
+
+        private async Task<string> ReadSourceQueueBlockAsync(CancellationToken token)
+        {
+            var gameflow = ParseObject(await _read.TryGetBytesAsync(GameflowSessionPath, token).ConfigureAwait(false));
+            if (ReadBool(ReadDictionary(gameflow, "gameData"), "isCustomGame"))
+                return "custom-game";
+
+            var search = ParseObject(await _read.TryGetBytesAsync(SearchStatePath, token).ConfigureAwait(false));
+            foreach (var error in EnumerateDictionaries(ReadValue(search, "errors")))
+            {
+                var raw = ReadValue(error, "penaltyTimeRemaining");
+                double seconds;
+                if (raw != null && double.TryParse(Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture),
+                    System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds) &&
+                    seconds > 0d && !double.IsInfinity(seconds))
+                    return "waiting-for-penalty-time";
+            }
+            return null;
         }
 
         private void StartReadyObserver()

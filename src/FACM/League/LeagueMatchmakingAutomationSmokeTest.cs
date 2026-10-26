@@ -17,6 +17,8 @@ namespace FACM.League
             ValidateImmediatePhaseReaction();
             ValidateAkariStyleAutomationPolicies();
             ValidatePendingInvitationWait();
+            ValidateSourceQueueGuards();
+            ValidateZeroDelayRoomNotice();
             ValidateRoomCountdownNotices();
             ValidateRoomCountdownCancellation();
             ValidateTencentLobbyWithoutOptionalFields();
@@ -247,6 +249,55 @@ namespace FACM.League
                 "An already declined invitation must not block automatic matchmaking.");
         }
 
+        private static void ValidateSourceQueueGuards()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueMatchmakingAutomationController.GameflowSessionPath,
+                "{\"gameData\":{\"isCustomGame\":true}}");
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, "{\"errors\":[]}");
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0, "Custom gameflow session must not enter matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.GameflowSessionPath,
+                    "{\"gameData\":{\"isCustomGame\":false}}");
+                read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                    "{\"errors\":[{\"penaltyTimeRemaining\":7}]}");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0, "Active queue penalty must defer matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                    "{\"errors\":[{\"penaltyTimeRemaining\":0}]}");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1, "Cleared penalty must allow an otherwise eligible Lobby to queue.");
+            }
+        }
+
+        private static void ValidateZeroDelayRoomNotice()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 0, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(write.WaitForCall(TimeSpan.FromSeconds(1)), "Immediate queue entry was blocked by room announcement.");
+                Require(notices.Messages.Count == 1 && notices.Messages.Single().Contains("即将自动排队"),
+                    "Zero-delay room notice must announce once before the queue write.");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(notices.Messages.Count == 1, "Same Lobby must not repeat immediate room announcement.");
+            }
+        }
+
         private static void ValidateRoomCountdownNotices()
         {
             var read = new FakeReadApi();
@@ -421,8 +472,8 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
                     "Ambiguous matchmaking write was not attempted exactly once.");
-                Require(read.RequestCount == 2,
-                    "Ambiguous matchmaking write did not perform exactly one authoritative queue-state reconciliation read.");
+                Require(read.Paths.Count(path => path == LeagueMatchmakingAutomationController.SearchStatePath) == 2,
+                    "Ambiguous matchmaking write must read penalty state once and reconcile queue state once.");
 
                 write.ReturnNull = false;
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -591,11 +642,14 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public readonly System.Collections.Concurrent.ConcurrentQueue<string> Paths =
+                new System.Collections.Concurrent.ConcurrentQueue<string>();
             public void Set(string path, string json) { _responses[path] = Encoding.UTF8.GetBytes(json); }
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref RequestCount);
+                Paths.Enqueue(path);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);
