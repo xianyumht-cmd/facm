@@ -213,6 +213,12 @@ namespace FACM.League
         public const string DynamicTagCancel = "LeagueEfficiencyDynamicTagCancel";
         public const string DynamicTagSaved = "LeagueEfficiencyDynamicTagSaved";
         public const string DynamicTagUnavailable = "LeagueEfficiencyDynamicTagUnavailable";
+        public const string DynamicTagTools = "LeagueEfficiencyDynamicTagTools";
+        public const string DynamicTagImport = "LeagueEfficiencyDynamicTagImport";
+        public const string DynamicTagExport = "LeagueEfficiencyDynamicTagExport";
+        public const string DynamicTagImported = "LeagueEfficiencyDynamicTagImported";
+        public const string DynamicTagExported = "LeagueEfficiencyDynamicTagExported";
+        public const string DynamicTagExchangeFailed = "LeagueEfficiencyDynamicTagExchangeFailed";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -474,6 +480,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicTagCancel, "取消" },
             { LeagueEfficiencyUiTextKeys.DynamicTagSaved, "玩家标记已保存到本机。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagUnavailable, "玩家标记保存失败，请检查本地数据文件。" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagTools, "标记管理" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagImport, "导入 Akari 标记 JSON…" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagExport, "导出 Akari 标记 JSON…" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagImported, "已导入 {0} 条玩家标记。" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagExported, "已导出 {0} 条玩家标记。" },
+            { LeagueEfficiencyUiTextKeys.DynamicTagExchangeFailed, "标记文件导入或导出失败，请检查 JSON 格式和文件权限。" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

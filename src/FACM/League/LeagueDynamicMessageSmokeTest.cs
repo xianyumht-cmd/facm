@@ -55,6 +55,24 @@ namespace FACM.League
                 catch (ArgumentException) { rejected = true; }
                 Require(rejected, "Control characters must not enter player tags.");
                 store.SetTag("self", "ally", "HN1", "HN1", "unchanged");
+                var exchange = Path.Combine(directory, "akari-tags.json");
+                Require(store.ExportAkariJson(exchange) == 1,
+                    "Player tag export must include exactly the locally stored records.");
+                var exported = File.ReadAllText(exchange, Encoding.UTF8);
+                Require(exported.Contains("\"type\":\"league-akari-tagged-players\"") &&
+                    exported.Contains("\"databaseVersion\":15") && exported.Contains("\"rsoPlatformId\":\"HN1\""),
+                    "Player tag export must match Akari 1.5.1's interchange schema.");
+                store.SetTag("self", "ally", "HN1", "HN1", "modified");
+                Require(store.ImportAkariJson(exchange) == 1 &&
+                    store.ReadTags("self", "HN1", "HN1")["ally"] == "unchanged",
+                    "Import must merge scoped tags and preserve exported values.");
+                var invalidExchange = Path.Combine(directory, "invalid-tags.json");
+                File.WriteAllText(invalidExchange, exported.Replace("league-akari-tagged-players", "different-schema"), Encoding.UTF8);
+                rejected = false;
+                try { store.ImportAkariJson(invalidExchange); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected && store.ReadTags("self", "HN1", "HN1")["ally"] == "unchanged",
+                    "A foreign player tag file must not mutate valid local tags.");
                 var path = Path.Combine(directory, "league-player-tags.json");
                 File.WriteAllText(path, "{broken json", Encoding.UTF8);
                 rejected = false;

@@ -24,11 +24,30 @@ namespace FACM.League
         public List<LeaguePlayerTagRecord> Players { get; set; } = new List<LeaguePlayerTagRecord>();
     }
 
+    // These field names intentionally match Akari 1.5.1's JSON exchange schema.
+    internal sealed class AkariTaggedPlayerDocument
+    {
+        public int databaseVersion { get; set; }
+        public string type { get; set; }
+        public List<AkariTaggedPlayerEntry> data { get; set; }
+    }
+
+    internal sealed class AkariTaggedPlayerEntry
+    {
+        public string puuid { get; set; }
+        public string selfPuuid { get; set; }
+        public string region { get; set; }
+        public string rsoPlatformId { get; set; }
+        public string tag { get; set; }
+    }
+
     // Intentionally separate from AppSettings and CloudSettingsSnapshot: player notes stay local.
     internal sealed class LeaguePlayerTagStore
     {
         private const int MaximumEntries = 3000;
         private const int MaximumFileBytes = 1024 * 1024;
+        private const int AkariDatabaseVersion = 15;
+        private const string AkariExchangeType = "league-akari-tagged-players";
         internal const int MaximumTagLength = 120;
         private readonly string _path;
         private readonly object _sync = new object();
@@ -87,6 +106,64 @@ namespace FACM.League
             }
         }
 
+        internal int ExportAkariJson(string destination)
+        {
+            var target = CheckedExchangePath(destination);
+            if (string.Equals(target, _path, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Export cannot replace the application's player tag store.", nameof(destination));
+            lock (_sync)
+            {
+                var records = ReadState().Players;
+                var document = new AkariTaggedPlayerDocument { databaseVersion = AkariDatabaseVersion,
+                    type = AkariExchangeType, data = records.Select(p => new AkariTaggedPlayerEntry
+                    {
+                        puuid = p.Puuid, selfPuuid = p.SelfPuuid, region = p.Region,
+                        rsoPlatformId = p.PlatformId, tag = p.Tag
+                    }).ToList() };
+                var json = _json.Serialize(document);
+                if (Encoding.UTF8.GetByteCount(json) > MaximumFileBytes)
+                    throw new InvalidOperationException("Player tag exchange limit reached.");
+                WriteAtomic(target, json);
+                return records.Count;
+            }
+        }
+
+        internal int ImportAkariJson(string source)
+        {
+            var path = CheckedExchangePath(source);
+            if (new FileInfo(path).Length > MaximumFileBytes)
+                throw new InvalidDataException("Player tag exchange is too large.");
+            AkariTaggedPlayerDocument document;
+            try { document = _json.Deserialize<AkariTaggedPlayerDocument>(File.ReadAllText(path, Encoding.UTF8)); }
+            catch (ArgumentException error) { throw new InvalidDataException("Invalid tagged player exchange.", error); }
+            catch (InvalidOperationException error) { throw new InvalidDataException("Invalid tagged player exchange.", error); }
+            if (document == null || document.type != AkariExchangeType ||
+                document.databaseVersion < 1 || document.databaseVersion > AkariDatabaseVersion ||
+                document.data == null || document.data.Count > MaximumEntries ||
+                document.data.Any(p => p == null || !ValidPuuid(p.puuid) || !ValidPuuid(p.selfPuuid) ||
+                    p.puuid == p.selfPuuid || !ValidRegion(p.region) || !ValidRegion(p.rsoPlatformId) ||
+                    string.IsNullOrWhiteSpace(p.tag) || p.tag.Length > MaximumTagLength || p.tag.Any(char.IsControl)))
+                throw new InvalidDataException("Invalid tagged player exchange.");
+            var incoming = document.data.Select(p => new LeaguePlayerTagRecord
+            {
+                Puuid = p.puuid, SelfPuuid = p.selfPuuid, Region = NormalizeRegion(p.region),
+                PlatformId = NormalizeRegion(p.rsoPlatformId), Tag = p.tag, UpdatedUtc = DateTime.UtcNow
+            }).ToList();
+            if (incoming.GroupBy(Key, StringComparer.Ordinal).Any(g => g.Count() > 1))
+                throw new InvalidDataException("Duplicate player tags in exchange.");
+            lock (_sync)
+            {
+                var state = ReadState();
+                var records = state.Players.ToDictionary(Key, StringComparer.Ordinal);
+                foreach (var player in incoming) records[Key(player)] = player;
+                if (records.Count > MaximumEntries) throw new InvalidOperationException("Player tag limit reached.");
+                state.Players = records.Values.OrderBy(p => p.SelfPuuid, StringComparer.Ordinal)
+                    .ThenBy(p => p.Puuid, StringComparer.Ordinal).ToList();
+                if (incoming.Count > 0) SaveState(state);
+                return incoming.Count;
+            }
+        }
+
         private LeaguePlayerTagState ReadState()
         {
             if (!File.Exists(_path)) return new LeaguePlayerTagState();
@@ -99,8 +176,7 @@ namespace FACM.League
                 state.Players.Any(p => p == null || !ValidPuuid(p.SelfPuuid) || !ValidPuuid(p.Puuid) ||
                     !ValidRegion(p.Region) || !ValidRegion(p.PlatformId) || string.IsNullOrWhiteSpace(p.Tag) ||
                     p.Tag.Length > MaximumTagLength || p.Tag.Any(char.IsControl)) ||
-                state.Players.GroupBy(p => p.SelfPuuid + "|" + p.Region + "|" + p.PlatformId + "|" + p.Puuid,
-                    StringComparer.Ordinal).Any(g => g.Count() != 1))
+                state.Players.GroupBy(Key, StringComparer.Ordinal).Any(g => g.Count() != 1))
                 throw new InvalidDataException("Player tag file contains invalid records.");
             return state;
         }
@@ -109,16 +185,33 @@ namespace FACM.League
         {
             var body = _json.Serialize(state);
             if (Encoding.UTF8.GetByteCount(body) > MaximumFileBytes) throw new InvalidOperationException("Player tag file size limit reached.");
-            var directory = Path.GetDirectoryName(_path);
+            WriteAtomic(_path, body);
+        }
+
+        private static void WriteAtomic(string path, string body)
+        {
+            var directory = Path.GetDirectoryName(path);
             Directory.CreateDirectory(directory);
-            var temporary = _path + ".tmp-" + Guid.NewGuid().ToString("N");
+            var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
             try
             {
                 File.WriteAllText(temporary, body, new UTF8Encoding(false));
-                if (File.Exists(_path)) File.Replace(temporary, _path, _path + ".bak", true);
-                else File.Move(temporary, _path);
+                if (File.Exists(path)) File.Replace(temporary, path, path + ".bak", true);
+                else File.Move(temporary, path);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        }
+
+        private static string Key(LeaguePlayerTagRecord player)
+        {
+            return player.SelfPuuid + "|" + NormalizeRegion(player.Region) + "|" +
+                NormalizeRegion(player.PlatformId) + "|" + player.Puuid;
+        }
+
+        private static string CheckedExchangePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("File path is required.", nameof(path));
+            return Path.GetFullPath(path);
         }
 
         private static bool SameScope(LeaguePlayerTagRecord item, string selfPuuid, string region, string platformId)

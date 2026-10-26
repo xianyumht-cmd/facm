@@ -20,6 +20,7 @@ namespace FACM.League
         private readonly ComboBox _target, _names;
         private readonly CheckedListBox _players, _groups, _jungle;
         private readonly ContextMenuStrip _tagMenu;
+        private readonly ContextMenuStrip _exchangeMenu;
         private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
@@ -54,12 +55,18 @@ namespace FACM.League
                 RefreshPreview();
             };
             choices.Controls.Add(champion); root.Controls.Add(choices, 0, 0);
-            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill };
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
             _load = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicLoad), Tone = FacmButtonTone.Secondary };
             _loadJungle = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.JungleLoad),
                 Enabled = false, Visible = false, Tone = FacmButtonTone.Secondary };
             _send = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicSend), Enabled = false, Tone = FacmButtonTone.Primary };
             var save = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave), Tone = FacmButtonTone.Secondary };
+            var tagTools = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTools),
+                Tone = FacmButtonTone.Secondary };
+            _exchangeMenu = new ContextMenuStrip();
+            _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
+            _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
+            tagTools.Click += (sender, e) => _exchangeMenu.Show(tagTools, new Point(0, tagTools.Height));
             _load.Click += async delegate { await LoadAsync(); };
             _loadJungle.Click += async delegate { await LoadJungleAsync(); };
             _send.Click += async delegate { await SendAsync(); };
@@ -68,7 +75,8 @@ namespace FACM.League
                 string error;
                 _status.Text = _module.TrySaveDynamicMessageOptions(_options, out error) ? T(LeagueEfficiencyUiTextKeys.DynamicSaved) : error;
             };
-            actions.Controls.Add(_load); actions.Controls.Add(_loadJungle); actions.Controls.Add(save); actions.Controls.Add(_send);
+            actions.Controls.Add(_load); actions.Controls.Add(_loadJungle); actions.Controls.Add(save);
+            actions.Controls.Add(tagTools); actions.Controls.Add(_send);
             root.Controls.Add(actions, 0, 1);
             var metrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
             var properties = new[] { "WinRate", "Kda", "SoloKills", "VisionScore", "ChampionDamageShare", "DamageTakenShare",
@@ -403,6 +411,52 @@ namespace FACM.League
             list.SelectedIndex = list.IndexFromPoint(e.Location);
         }
 
+        private void ImportTags()
+        {
+            if (_busy || IsDisposed) return;
+            using (var dialog = new OpenFileDialog { Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*",
+                CheckFileExists = true, Multiselect = false })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    var count = _module.ImportPlayerTags(dialog.FileName);
+                    RefreshTagLabels();
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagImported).Replace("{0}", count.ToString());
+                }
+                catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagExchangeFailed); }
+            }
+        }
+
+        private void ExportTags()
+        {
+            if (_busy || IsDisposed) return;
+            using (var dialog = new SaveFileDialog { Filter = "JSON 文件 (*.json)|*.json", DefaultExt = "json",
+                FileName = "GGman-player-tags.json", OverwritePrompt = true })
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    var count = _module.ExportPlayerTags(dialog.FileName);
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagExported).Replace("{0}", count.ToString());
+                }
+                catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicTagExchangeFailed); }
+            }
+        }
+
+        private void RefreshTagLabels()
+        {
+            if (_snapshot == null) return;
+            var tags = _module.ReadPlayerTags(_snapshot);
+            foreach (var item in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>()))
+            {
+                string tag;
+                item.Tag = item.Player != null && item.Player.Player != null &&
+                    tags.TryGetValue(item.Player.Player.PuuId, out tag) ? tag : string.Empty;
+            }
+            _players.Refresh(); _jungle.Refresh();
+        }
+
         private Form CreateTagDialog(string currentTag)
         {
             var dialog = new Form { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTitle), Width = 370, Height = 157,
@@ -472,7 +526,7 @@ namespace FACM.League
             }
         }
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }
-        protected override void Dispose(bool disposing) { if (disposing && !IsDisposed) { _module.DynamicMessageContextChanged -= HandleContextChanged; _lifetime.Cancel(); _lifetime.Dispose(); _tagMenu.Dispose(); _snapshot = null; } base.Dispose(disposing); }
+        protected override void Dispose(bool disposing) { if (disposing && !IsDisposed) { _module.DynamicMessageContextChanged -= HandleContextChanged; _lifetime.Cancel(); _lifetime.Dispose(); _tagMenu.Dispose(); _exchangeMenu.Dispose(); _snapshot = null; } base.Dispose(disposing); }
 
         private sealed class PlayerChoice
         {

@@ -255,6 +255,18 @@ namespace FACM.AppHost.Modules
                 : new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
+        public int ImportPlayerTags(string path)
+        {
+            ThrowIfDisposed();
+            return _playerTags.ImportAkariJson(path);
+        }
+
+        public int ExportPlayerTags(string path)
+        {
+            ThrowIfDisposed();
+            return _playerTags.ExportAkariJson(path);
+        }
+
         public async Task<bool> UpdatePlayerTagAsync(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid, string tag, CancellationToken token)
         {
