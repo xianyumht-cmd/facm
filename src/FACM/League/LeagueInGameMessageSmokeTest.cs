@@ -46,26 +46,26 @@ namespace FACM.League
             var input = new Input();
             using (var sender = new LeagueInGameMessageSender(input, () => phase))
             {
-                Require(await sender.SendAsync("hello\nworld", 0) &&
+                Require(await sender.SendAsync("hello\nworld", 0).ConfigureAwait(false) &&
                     string.Join("|", input.Actions) == "enter|hello|enter|enter|world|enter",
                     "User-triggered in-game messages must dispatch one Enter/text/Enter group per line.");
                 input.Actions.Clear();
                 input.Foreground = false;
-                Require(!await sender.SendAsync("blocked", 0) && input.Actions.Count == 0,
+                Require(!await sender.SendAsync("blocked", 0).ConfigureAwait(false) && input.Actions.Count == 0,
                     "Foreground loss must block native typing.");
                 input.Foreground = true;
                 phase.Phase = "Lobby";
-                Require(!await sender.SendAsync("blocked", 0) && input.Actions.Count == 0,
+                Require(!await sender.SendAsync("blocked", 0).ConfigureAwait(false) && input.Actions.Count == 0,
                     "Non-game phases must not issue native input.");
                 phase.Phase = "InProgress";
                 input.AfterEnter = () => sender.Cancel();
-                Require(!await sender.SendAsync("cancelled", 0) &&
+                Require(!await sender.SendAsync("cancelled", 0).ConfigureAwait(false) &&
                     string.Join("|", input.Actions) == "enter",
                     "Cancellation after opening chat must suppress text and closing Enter.");
                 input.AfterEnter = null;
                 input.Actions.Clear();
                 input.AfterText = () => phase.Phase = "EndOfGame";
-                Require(!await sender.SendAsync("phase changed", 0) &&
+                Require(!await sender.SendAsync("phase changed", 0).ConfigureAwait(false) &&
                     string.Join("|", input.Actions) == "enter|phase changed",
                     "Gameflow departure must stop the remaining native input.");
             }
