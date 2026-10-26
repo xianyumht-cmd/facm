@@ -177,6 +177,7 @@ namespace FACM.League
         public const string DynamicShortcutHint = "LeagueEfficiencyDynamicShortcutHint";
         public const string DynamicOpen = "LeagueEfficiencyDynamicOpen";
         public const string DynamicLoad = "LeagueEfficiencyDynamicLoad";
+        public const string DynamicCompleteMissing = "LeagueEfficiencyDynamicCompleteMissing";
         public const string DynamicSend = "LeagueEfficiencyDynamicSend";
         public const string DynamicLoading = "LeagueEfficiencyDynamicLoading";
         public const string DynamicReady = "LeagueEfficiencyDynamicReady";
@@ -431,6 +432,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicShortcutHint, "快捷键：点击设置、右键清除，保存后生效。游戏内发送前请切回游戏窗口。" },
             { LeagueEfficiencyUiTextKeys.DynamicOpen, "动态对局消息" },
             { LeagueEfficiencyUiTextKeys.DynamicLoad, "读取当前对局" },
+            { LeagueEfficiencyUiTextKeys.DynamicCompleteMissing, "补齐缺失战绩" },
             { LeagueEfficiencyUiTextKeys.DynamicSend, "发送已选摘要" },
             { LeagueEfficiencyUiTextKeys.DynamicLoading, "正在读取当前对局与近期战绩…" },
             { LeagueEfficiencyUiTextKeys.DynamicReady, "已生成预览。请选择玩家及显示项后发送；游戏内请先切回游戏窗口。" },

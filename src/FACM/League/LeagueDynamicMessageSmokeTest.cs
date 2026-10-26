@@ -395,10 +395,16 @@ namespace FACM.League
                 Require(snapshot != null && snapshot.Players.All(p => p.History != null),
                     "The history-recovery fixture did not initialize its roster.");
                 snapshot.Players[0].History = null;
+                Require(LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "friendly") &&
+                    !LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "enemy") &&
+                    LeagueDynamicMessageService.SelectedNeedsHistory(snapshot, new HashSet<string> { "self" }) &&
+                    !LeagueDynamicMessageService.SelectedNeedsHistory(snapshot, new HashSet<string> { "enemy" }),
+                    "Missing-history send guards must distinguish selected players and target sides.");
                 var before = fake.Paths.Count(p => p.Contains("/self/matches?"));
                 Require(await service.EnsureHistoriesAsync(snapshot, new HashSet<string> { "self" }, CancellationToken.None)
                     .ConfigureAwait(false) && snapshot.Players[0].History != null &&
-                    fake.Paths.Count(p => p.Contains("/self/matches?")) == before + 1 && fake.MaxConcurrent == 1,
+                    fake.Paths.Count(p => p.Contains("/self/matches?")) == before + 1 && fake.MaxConcurrent == 1 &&
+                    !LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "friendly"),
                     "An explicitly selected player with missing initial history was not recovered with serialized reads.");
 
                 var jungle = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);

@@ -182,11 +182,33 @@ namespace FACM.League
         private async Task LoadAsync()
         {
             if (_busy) return;
+            var recover = _snapshot != null && DateTime.UtcNow - _snapshot.CreatedUtc < TimeSpan.FromMinutes(2) &&
+                LeagueDynamicMessageService.TargetNeedsHistory(_snapshot, _options.Target);
             _busy = true;
             _load.Enabled = false; _loadJungle.Enabled = false; _send.Enabled = false;
             _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
             try
             {
+                if (recover)
+                {
+                    var current = _snapshot;
+                    using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                    {
+                        deadline.CancelAfter(TimeSpan.FromSeconds(110));
+                        var completed = await _module.CompleteDynamicHistoriesAsync(current,
+                            LeagueDynamicMessageService.TargetPlayers(current, _options.Target), deadline.Token);
+                        if (IsDisposed || !ReferenceEquals(_snapshot, current)) return;
+                        if (completed)
+                        {
+                            _binding = true;
+                            try { RebuildPremadeGroups(current, true); }
+                            finally { _binding = false; }
+                        }
+                        _status.Text = T(completed ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                            LeagueEfficiencyUiTextKeys.DynamicPartial);
+                    }
+                    return;
+                }
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token);
                 if (IsDisposed) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
@@ -198,12 +220,7 @@ namespace FACM.League
                         _players.Items.Add(new PlayerChoice(player), selected == null || selected.Contains(player.Player.PuuId));
                         _jungle.Items.Add(new PlayerChoice(player), false);
                     }
-                    var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
-                        LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
-                        .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
-                        .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-                    foreach (var group in LeaguePremadeInference.Infer(snapshot).OrderByDescending(g => byId[g[0]].Friendly))
-                        _groups.Items.Add(new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount)), true);
+                    RebuildPremadeGroups(snapshot, false);
                 }
                 _binding = false; RefreshPreview();
                 _status.Text = T(snapshot == null ? LeagueEfficiencyUiTextKeys.DynamicUnavailable :
@@ -213,6 +230,23 @@ namespace FACM.League
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
             finally { if (!IsDisposed) { _busy = false; _binding = false; _load.Enabled = true; RefreshPreview(); } }
+        }
+
+        private void RebuildPremadeGroups(LeagueDynamicMessageSnapshot snapshot, bool preserveSelection)
+        {
+            var existing = preserveSelection ? new HashSet<string>(_groups.Items.Cast<PremadeChoice>()
+                .Select(g => g.Key), StringComparer.Ordinal) : new HashSet<string>(StringComparer.Ordinal);
+            var checkedGroups = preserveSelection ? SelectedGroups() : new HashSet<string>(StringComparer.Ordinal);
+            _groups.Items.Clear();
+            var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
+                LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            foreach (var group in LeaguePremadeInference.Infer(snapshot).OrderByDescending(g => byId[g[0]].Friendly))
+            {
+                var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount));
+                _groups.Items.Add(choice, !existing.Contains(choice.Key) || checkedGroups.Contains(choice.Key));
+            }
         }
 
         private HashSet<string> Selected()
@@ -262,12 +296,26 @@ namespace FACM.League
                 T(LeagueEfficiencyUiTextKeys.JungleSelectHint) : string.Join(Environment.NewLine, lines);
             _loadJungle.Enabled = !_busy && IsJungle && _snapshot != null &&
                 _jungle.CheckedItems.Cast<PlayerChoice>().Any(p => p.Player.JungleSamples == null);
-            _send.Enabled = !_busy && lines.Count > 0 && lines.Count <= 100 && _snapshot != null && _snapshot.Phase != "InProgress";
+            _load.Text = _snapshot != null && DateTime.UtcNow - _snapshot.CreatedUtc < TimeSpan.FromMinutes(2) &&
+                LeagueDynamicMessageService.TargetNeedsHistory(_snapshot, _options.Target) ?
+                T(LeagueEfficiencyUiTextKeys.DynamicCompleteMissing) : T(LeagueEfficiencyUiTextKeys.DynamicLoad);
+            var incomplete = _snapshot != null && (IsPremade ?
+                LeagueDynamicMessageService.TargetNeedsHistory(_snapshot, _options.Target) : !IsJungle &&
+                LeagueDynamicMessageService.SelectedNeedsHistory(_snapshot, Selected()));
+            _send.Enabled = !_busy && !incomplete && lines.Count > 0 && lines.Count <= 100 &&
+                _snapshot != null && _snapshot.Phase != "InProgress";
         }
 
         private async Task SendAsync()
         {
             if (_busy) return;
+            if (_snapshot != null && (IsPremade &&
+                LeagueDynamicMessageService.TargetNeedsHistory(_snapshot, _options.Target) ||
+                !IsPremade && !IsJungle && LeagueDynamicMessageService.SelectedNeedsHistory(_snapshot, Selected())))
+            {
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicPartial);
+                return;
+            }
             _busy = true;
             _send.Enabled = false; _load.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicSending);
             try

@@ -237,6 +237,13 @@ namespace FACM.AppHost.Modules
             return _dynamicMessages.LoadAsync(token);
         }
 
+        public Task<bool> CompleteDynamicHistoriesAsync(LeagueDynamicMessageSnapshot snapshot,
+            ISet<string> selected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.EnsureHistoriesAsync(snapshot, selected, token);
+        }
+
         public Task<bool> LoadJungleMessagesAsync(LeagueDynamicMessageSnapshot snapshot, string selectedPuuid, CancellationToken token)
         {
             ThrowIfDisposed();
@@ -250,6 +257,7 @@ namespace FACM.AppHost.Modules
             ISet<string> selected, CancellationToken token)
         {
             ThrowIfDisposed();
+            if (LeagueDynamicMessageService.SelectedNeedsHistory(snapshot, selected)) return Task.FromResult(false);
             var lines = LeagueDynamicMessageFormatter.Build(snapshot, options, selected);
             return _dynamicMessages.SendAsync(snapshot, lines, QuickMessageIntervalMs, (line, cancellation) =>
                 snapshot.Phase == "InProgress" ? _inGameMessages.SendAsync(line, QuickMessageIntervalMs, cancellation) :
@@ -260,6 +268,8 @@ namespace FACM.AppHost.Modules
             ISet<string> selectedGroups, CancellationToken token)
         {
             ThrowIfDisposed();
+            if (options != null && LeagueDynamicMessageService.TargetNeedsHistory(snapshot, options.Target))
+                return Task.FromResult(false);
             var lines = LeaguePremadeMessageFormatter.Build(snapshot, options, selectedGroups);
             return _dynamicMessages.SendAsync(snapshot, lines, QuickMessageIntervalMs, (line, cancellation) =>
                 snapshot.Phase == "InProgress" ? _inGameMessages.SendAsync(line, QuickMessageIntervalMs, cancellation) :

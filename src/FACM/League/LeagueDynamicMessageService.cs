@@ -492,6 +492,17 @@ namespace FACM.League
                 .Select(p => p.Player.PuuId).Where(SafePuuid), StringComparer.Ordinal);
         }
 
+        internal static bool TargetNeedsHistory(LeagueDynamicMessageSnapshot snapshot, string target)
+        {
+            return SelectedNeedsHistory(snapshot, TargetPlayers(snapshot, target));
+        }
+
+        internal static bool SelectedNeedsHistory(LeagueDynamicMessageSnapshot snapshot, ISet<string> selected)
+        {
+            return snapshot != null && selected != null && snapshot.Players.Any(p => p.Player != null &&
+                selected.Contains(p.Player.PuuId) && p.History == null);
+        }
+
         internal static bool JunglePrefetchEnabled(LeagueDynamicMessageOptions options)
         {
             return options != null && (!string.IsNullOrEmpty(options.JungleFriendlyShortcut) ||
