@@ -116,7 +116,7 @@ namespace FACM.AppHost.Modules
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
             _offlineLock.Configure(LockOfflineStatusEnabled);
             _autoReply = new LeagueAutoReplyController(_leagueClient, (ILeaguePrivateChatWriteApi)_leagueClient,
-                () => _leagueClient.CurrentSession);
+                () => _leagueClient.CurrentSession, _offlineLock);
             ConfigureAutoReply();
             AppSettings.Saved += HandleAppSettingsSaved;
 
@@ -133,7 +133,6 @@ namespace FACM.AppHost.Modules
                 _friendInvitations.Observe(current);
                 _aramSide.Observe(current);
                 _loginSignature.Observe(current);
-                _offlineLock.Observe(current);
                 _autoReply.Observe(current);
             }
         }
@@ -294,7 +293,7 @@ namespace FACM.AppHost.Modules
 
         private void ConfigureAutoReply()
         {
-            _autoReply?.Configure(AutoReplyEnabled, AutoReplyAwayOnly, AutoReplyText);
+            _autoReply?.Configure(AutoReplyEnabled, AutoReplyAwayOnly, AutoReplyText, LockOfflineStatusEnabled);
             _autoReply?.Observe(_dashboard.CurrentGameflowState);
         }
 
@@ -304,7 +303,7 @@ namespace FACM.AppHost.Modules
             _settingsModule.Settings.LeagueLockOfflineStatusEnabled = enabled;
             _settingsModule.Settings.Save();
             _offlineLock?.Configure(enabled);
-            _offlineLock?.Observe(_dashboard.CurrentGameflowState);
+            ConfigureAutoReply();
         }
 
         private void ConfigureLoginSignature()
@@ -492,7 +491,6 @@ namespace FACM.AppHost.Modules
             if (_friendInvitations != null) _friendInvitations.Observe(state);
             if (_aramSide != null) _aramSide.Observe(state);
             if (_loginSignature != null) _loginSignature.Observe(state);
-            if (_offlineLock != null) _offlineLock.Observe(state);
             _autoReply?.Observe(state);
         }
 

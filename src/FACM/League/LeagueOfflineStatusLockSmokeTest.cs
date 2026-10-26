@@ -22,6 +22,7 @@ namespace FACM.League
             cloud.ApplyTo(restored);
             Require(restored.LeagueLockOfflineStatusEnabled, "Offline lock cloud roundtrip failed.");
             GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = cloud });
+            ValidateDirectEvents();
 
             var api = new Presence();
             using (var controller = NewController(api))
@@ -78,6 +79,41 @@ namespace FACM.League
                 Observe(controller, true);
                 Require(api.Writes == 0 && api.Availability == "dnd",
                     "Offline lock must abandon a correction when availability changed before PUT.");
+            }
+        }
+
+        private static void ValidateDirectEvents()
+        {
+            var api = new Presence();
+            using (var controller = NewController(api))
+            {
+                controller.Configure(true);
+                controller.ObserveConnection(new LeagueDashboardPhaseState { Connected = true });
+                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Reads == 0, "Presence event baseline must not poll LCU.");
+                api.Availability = "away";
+                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1 && api.Availability == "offline", "Direct offline-to-away event did not correct.");
+                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1, "Duplicate presence event rewrote status.");
+                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                controller.ObserveEventAsync("dnd", CancellationToken.None).GetAwaiter().GetResult();
+                api.Availability = "chat";
+                controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1, "Intervening DND state must break the offline transition.");
+                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                controller.ResetEventBaseline();
+                controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1, "Reconnected stream reused an old offline baseline.");
+                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                api.Availability = "dnd";
+                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1, "Manual presence change must veto event correction.");
+                controller.Configure(false);
+                var reads = api.Reads;
+                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Reads == reads, "Disabled event correction performed reads.");
             }
         }
 

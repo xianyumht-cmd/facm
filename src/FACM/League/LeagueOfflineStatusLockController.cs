@@ -39,6 +39,20 @@ namespace FACM.League
 
         internal void Observe(LeagueDashboardPhaseState state)
         {
+            ObserveConnection(state);
+            if (state == null || !state.Connected) return;
+            lock (_sync)
+            {
+                if (_disposed || !_enabled || !_connected || _active != null) return;
+                var active = new CancellationTokenSource();
+                _active = active;
+                var generation = _generation;
+                _running = Task.Run(() => RunAsync(active, generation));
+            }
+        }
+
+        internal void ObserveConnection(LeagueDashboardPhaseState state)
+        {
             var connected = state != null && state.Connected;
             CancellationTokenSource previous = null;
             lock (_sync)
@@ -54,17 +68,31 @@ namespace FACM.League
                 }
             }
             Cancel(previous);
-            if (!connected) return;
+        }
 
+        internal void ResetEventBaseline()
+        {
+            lock (_sync) _lastAvailability = null;
+        }
+
+        internal async Task ObserveEventAsync(string availability, CancellationToken token)
+        {
+            int generation;
+            bool correct;
             lock (_sync)
             {
-                // The dashboard is already polling Gameflow. This feature owns no timer.
-                if (_disposed || !_enabled || !_connected || _active != null) return;
-                var active = new CancellationTokenSource();
-                _active = active;
-                var generation = _generation;
-                _running = Task.Run(() => RunAsync(active, generation));
+                if (_disposed || !_enabled || !_connected) return;
+                generation = _generation;
+                correct = _lastAvailability == "offline" && (availability == "away" || availability == "chat");
+                _lastAvailability = availability;
             }
+            if (!correct) return;
+            token.ThrowIfCancellationRequested();
+            var current = await _presence.ReadAsync(token).ConfigureAwait(false);
+            if (!current.Connected || current.Availability != availability) return;
+            lock (_sync) if (!IsCurrent(generation)) return;
+            var result = await _presence.ApplyIfAvailabilityUnchangedAsync(LeaguePresenceMode.Offline, availability, token).ConfigureAwait(false);
+            AppLog.Info("League offline event lock: " + (result == null ? "unverified" : result.Status));
         }
 
         private async Task RunAsync(CancellationTokenSource active, int generation)

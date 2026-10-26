@@ -18,19 +18,21 @@ namespace FACM.League
         private readonly ILeagueClientApi _reader;
         private readonly ILeaguePrivateChatWriteApi _writer;
         private readonly Func<LeagueClientSession> _session;
+        private readonly LeagueOfflineStatusLockController _offlineLock;
         private readonly object _sync = new object();
         private CancellationTokenSource _active;
         private Task _running;
         private LeagueClientSession _observed;
-        private bool _enabled, _awayOnly, _disposed;
+        private bool _enabled, _awayOnly, _lockOffline, _disposed;
         private string _text = "";
         private DateTime _retryAfter;
         private readonly HashSet<string> _seen = new HashSet<string>(StringComparer.Ordinal);
         private readonly Queue<string> _seenOrder = new Queue<string>();
 
-        internal LeagueAutoReplyController(ILeagueClientApi reader, ILeaguePrivateChatWriteApi writer, Func<LeagueClientSession> session)
+        internal LeagueAutoReplyController(ILeagueClientApi reader, ILeaguePrivateChatWriteApi writer, Func<LeagueClientSession> session,
+            LeagueOfflineStatusLockController offlineLock = null)
         {
-            _reader = reader; _writer = writer; _session = session;
+            _reader = reader; _writer = writer; _session = session; _offlineLock = offlineLock;
         }
 
         internal static string NormalizeText(string text)
@@ -40,13 +42,13 @@ namespace FACM.League
             return text.Trim();
         }
 
-        internal void Configure(bool enabled, bool awayOnly, string text)
+        internal void Configure(bool enabled, bool awayOnly, string text, bool lockOffline = false)
         {
             text = NormalizeText(text);
             lock (_sync)
             {
-                if (_enabled == enabled && _awayOnly == awayOnly && _text == text) return;
-                _enabled = enabled; _awayOnly = awayOnly; _text = text;
+                if (_enabled == enabled && _awayOnly == awayOnly && _text == text && _lockOffline == lockOffline) return;
+                _enabled = enabled; _awayOnly = awayOnly; _text = text; _lockOffline = lockOffline;
                 _active?.Cancel();
             }
         }
@@ -56,7 +58,8 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
-                var session = state != null && state.Connected && _enabled && _text.Length > 0 ? _session() : null;
+                _offlineLock?.ObserveConnection(state);
+                var session = state != null && state.Connected && (_enabled && _text.Length > 0 || _lockOffline) ? _session() : null;
                 if (session == null || _observed != null && !_observed.Matches(session)) _active?.Cancel();
                 if (_running != null && !_running.IsCompleted || session == null || DateTime.UtcNow < _retryAfter) return;
                 if (_observed == null || !_observed.Matches(session)) { _seen.Clear(); _seenOrder.Clear(); }
@@ -65,12 +68,26 @@ namespace FACM.League
                 var active = _active;
                 var text = _text;
                 var away = _awayOnly;
+                var replyEnabled = _enabled && text.Length > 0;
+                var lockOffline = _lockOffline;
                 _running = Task.Run(async () =>
                 {
                     try
                     {
+                        _offlineLock?.ResetEventBaseline();
                         await LeagueChatEventStream.RunAsync(session, (message, token) =>
-                            ProcessAsync(session, message, text, away, token), active.Token).ConfigureAwait(false);
+                        {
+                            if (!session.Matches(_session())) { active.Cancel(); return Task.CompletedTask; }
+                            if (message.Availability != null)
+                                return lockOffline && _offlineLock != null ? _offlineLock.ObserveEventAsync(message.Availability, token) : Task.CompletedTask;
+                            return replyEnabled ? ProcessAsync(session, message, text, away, token) : Task.CompletedTask;
+                        }, active.Token, async token =>
+                        {
+                            if (!lockOffline || _offlineLock == null) return;
+                            var presence = await ReadAsync("/lol-chat/v1/me", token).ConfigureAwait(false);
+                            if (session.Matches(_session()))
+                                await _offlineLock.ObserveEventAsync(LeagueChatEventStream.Text(presence, "availability"), token).ConfigureAwait(false);
+                        }).ConfigureAwait(false);
                     }
                     catch (Exception exception)
                     {

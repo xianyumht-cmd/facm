@@ -34,6 +34,10 @@ namespace FACM.League
             Require(LeagueChatEventStream.TryParse(frame, out message) && message.SenderId == 22, "LCU message envelope rejected.");
             Require(LeagueChatEventStream.TryParse(frame.Replace("friend@chat", "friend%40chat"), out message) &&
                 message.ConversationId == "friend@chat", "Encoded conversation segment failed.");
+            Require(LeagueChatEventStream.TryParse("[8,\"OnJsonApiEvent\",{\"eventType\":\"Update\",\"uri\":\"/lol-chat/v1/me\",\"data\":{\"availability\":\"dnd\"}}]", out message) &&
+                message.Availability == "dnd", "Presence events must retain intervening status transitions.");
+            Require(LeagueChatEventStream.TryParse("[8,\"OnJsonApiEvent\",{\"eventType\":\"Delete\",\"uri\":\"/lol-chat/v1/me\",\"data\":null}]", out message) &&
+                message.Availability == "", "Deleted presence must clear its baseline.");
             foreach (var bad in new[] { frame.Replace("Create", "Update"), frame.Replace("Create", "Delete"),
                 frame.Replace("false", "true"), frame.Replace("\"chat\"", "\"celebration\""),
                 frame.Replace("friend@chat", ".."), frame.Replace("friend@chat", "x%2fy"), frame.Replace("22", "0"),

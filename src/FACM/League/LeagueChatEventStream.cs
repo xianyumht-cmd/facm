@@ -19,6 +19,7 @@ namespace FACM.League
         internal string ConversationId;
         internal string MessageId;
         internal long SenderId;
+        internal string Availability;
     }
 
     internal static class LeagueChatEventStream
@@ -26,7 +27,8 @@ namespace FACM.League
         // net48 has no per-ClientWebSocket certificate callback. Keep the self-signed
         // certificate exception on this loopback TLS stream, never on the process.
         internal static async Task RunAsync(LeagueClientSession session,
-            Func<LeagueChatMessageEvent, CancellationToken, Task> receive, CancellationToken token)
+            Func<LeagueChatMessageEvent, CancellationToken, Task> receive, CancellationToken token,
+            Func<CancellationToken, Task> ready = null)
         {
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             using (var tcp = new TcpClient())
@@ -61,6 +63,7 @@ namespace FACM.League
                     {
                         var subscription = Encoding.UTF8.GetBytes("[5,\"OnJsonApiEvent\"]");
                         await socket.SendAsync(new ArraySegment<byte>(subscription), WebSocketMessageType.Text, true, token).ConfigureAwait(false);
+                        if (ready != null) await ready(token).ConfigureAwait(false);
                         await ReadMessagesAsync(socket, receive, token).ConfigureAwait(false);
                     }
                 }
@@ -119,16 +122,24 @@ namespace FACM.League
                 if (envelope == null || envelope.Length != 3 || Convert.ToString(envelope[0]) != "8" ||
                     Convert.ToString(envelope[1]) != "OnJsonApiEvent") return false;
                 var root = envelope[2] as Dictionary<string, object>;
-                if (Text(root, "eventType") != "Create") return false;
+                var eventType = Text(root, "eventType");
                 var uri = Text(root, "uri");
+                object raw;
+                var data = root != null && root.TryGetValue("data", out raw) ? raw as Dictionary<string, object> : null;
+                if (uri == "/lol-chat/v1/me" && (eventType == "Create" || eventType == "Update" || eventType == "Delete"))
+                {
+                    var availability = eventType == "Delete" ? "" : Text(data, "availability");
+                    if (availability.Length > 32) return false;
+                    message = new LeagueChatMessageEvent { Availability = availability };
+                    return true;
+                }
+                if (eventType != "Create") return false;
                 var parts = uri.Split('/');
                 if (parts.Length != 7 || parts[1] != "lol-chat" || parts[2] != "v1" || parts[3] != "conversations" ||
                     parts[5] != "messages") return false;
                 var conversationId = Uri.UnescapeDataString(parts[4]);
                 var messageId = Uri.UnescapeDataString(parts[6]);
                 if (!SafeId(conversationId) || !SafeId(messageId)) return false;
-                object raw;
-                var data = root.TryGetValue("data", out raw) ? raw as Dictionary<string, object> : null;
                 long senderId;
                 if (Text(data, "type") != "chat" || Text(data, "isHistorical").Equals("True", StringComparison.OrdinalIgnoreCase) ||
                     !long.TryParse(Text(data, "fromSummonerId"), out senderId) || senderId <= 0) return false;

@@ -262,7 +262,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.ReplyAwayHint, "开启后，只有大厅当前状态为离开时才自动回复。" },
             { LeagueEfficiencyUiTextKeys.ReplyText, "自动回复内容" },
             { LeagueEfficiencyUiTextKeys.OfflineLock, "维持离线显示" },
-            { LeagueEfficiencyUiTextKeys.OfflineLockHint, "已观察到离线后，若大厅将状态改回在线或离开，会再次核实并恢复离线。复用大厅检测频率，关闭时不读取状态；默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.OfflineLockHint, "已观察到离线后，若大厅将状态改回在线或离开，会通过状态事件再次核实并恢复离线；默认关闭。" },
             { LeagueEfficiencyUiTextKeys.OfflineLockSaved, "离线显示设置已保存。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSaved, "组队和邀请设置已保存。" },
             { LeagueEfficiencyUiTextKeys.FriendInviteOpen, "好友上线后自动邀请…" },
