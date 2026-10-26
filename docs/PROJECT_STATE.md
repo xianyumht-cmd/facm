@@ -12,6 +12,10 @@
 - release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-10-26 — Akari v1.5.1 estimated matchmaking stop correction (Draft #357)
+
+Current source candidate compares the pinned `auto-gameflow/matchmaking-controller.ts` with the existing `LeagueMatchmakingStopController`. Estimated cancellation now requires the active `Searching` state and excludes `lowPriorityData.penaltyTime` from elapsed queue duration; malformed penalty or missing state fails closed. Immediately before the narrowly allowed DELETE, the same phase-owned episode rereads the authoritative search state and rechecks the estimated threshold. This adds no timer, LCU session or separate polling owner. Synthetic smoke covers penalty crossing, transitioned/unknown states and invalid data. **CI and real Tencent acceptance are pending until the candidate head workflows finish.** Fixed-duration parity (Akari measures actual queue time after penalty, whereas the native controller currently uses an episode timer) and optional chat countdown announcements remain mandatory subsequent slices. Preserve PR #357 Draft and the signed 3.5.78 release.
+
 ## 2026-10-26 — Native LCU private-message auto-reply and direct offline events (Draft #357 candidate)
 
 **Verified checkpoint `55ed780cb89b0848e334307d7d7efe84e8797ac6`: all four GitHub workflows passed:** [Windows Build #40280761054](https://github.com/xianyumht-cmd/facm/actions/runs/40280761054), [Glass Candidate #40280761031](https://github.com/xianyumht-cmd/facm/actions/runs/40280761031), [UI Text #40280761073](https://github.com/xianyumht-cmd/facm/actions/runs/40280761073), and [Mayhem Source #40280761036](https://github.com/xianyumht-cmd/facm/actions/runs/40280761036). This verifies private-reply source/smoke, not real Tencent delivery.
