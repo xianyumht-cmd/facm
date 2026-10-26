@@ -52,6 +52,8 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly LeagueDashboardModule _dashboard;
         private readonly LeaguePlayerTagStore _playerTags;
+        private readonly LeagueEncounterHistoryStore _encounterHistory;
+        private LeagueEncounterHistoryRecorder _encounterRecorder;
         private readonly object _honorSync = new object();
         private readonly object _junglePrefetchSync = new object();
         private LeagueNativeHotkeyService _hotkeys;
@@ -88,6 +90,7 @@ namespace FACM.AppHost.Modules
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
             _playerTags = LeaguePlayerTagStore.CreateDefault();
+            _encounterHistory = LeagueEncounterHistoryStore.CreateDefault();
         }
 
         public string Id { get { return ModuleId; } }
@@ -159,6 +162,8 @@ namespace FACM.AppHost.Modules
             _respawnOverlay.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
             _dynamicMessages = new LeagueDynamicMessageService(_leagueClient, _dashboard.BudgetProvider,
                 () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState);
+            _encounterRecorder = new LeagueEncounterHistoryRecorder(_leagueClient, _dashboard.BudgetProvider,
+                () => _leagueClient.CurrentSession, _encounterHistory);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -176,6 +181,7 @@ namespace FACM.AppHost.Modules
                 _loginSignature.Observe(current);
                 _autoReply.Observe(current);
                 _respawnOverlay.Observe(current);
+                _encounterRecorder.Observe(current);
                 ConfigureJunglePrefetch(current);
             }
         }
@@ -265,6 +271,29 @@ namespace FACM.AppHost.Modules
         {
             ThrowIfDisposed();
             return _playerTags.ExportAkariJson(path);
+        }
+
+        public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
+            string playerPuuid)
+        {
+            ThrowIfDisposed();
+            var session = _leagueClient.CurrentSession;
+            if (snapshot == null || snapshot.Session == null || session == null ||
+                !snapshot.Session.Matches(session) || !LeagueDynamicMessageService.SafePuuid(playerPuuid) ||
+                !snapshot.Players.Any(p => p != null && p.Player != null && p.Player.PuuId == playerPuuid))
+                return new LeagueEncounterRecord[0];
+            return _encounterHistory.ReadPlayer(snapshot.SelfPuuid, playerPuuid, session.Region, session.PlatformId);
+        }
+
+        public bool DeletePlayerEncounter(LeagueDynamicMessageSnapshot snapshot, string playerPuuid, long gameId)
+        {
+            ThrowIfDisposed();
+            var session = _leagueClient.CurrentSession;
+            if (snapshot == null || snapshot.Session == null || session == null ||
+                !snapshot.Session.Matches(session) || !LeagueDynamicMessageService.SafePuuid(playerPuuid) ||
+                !snapshot.Players.Any(p => p != null && p.Player != null && p.Player.PuuId == playerPuuid)) return false;
+            return _encounterHistory.DeleteGame(gameId, snapshot.SelfPuuid, playerPuuid,
+                session.Region, session.PlatformId);
         }
 
         public async Task<bool> UpdatePlayerTagAsync(LeagueDynamicMessageSnapshot snapshot,
@@ -758,6 +787,7 @@ namespace FACM.AppHost.Modules
         private void HandleGameflowState(LeagueDashboardPhaseState state)
         {
             if (_disposed) return;
+            _encounterRecorder?.Observe(state);
             _dynamicMessages?.Observe(state);
             ConfigureJunglePrefetch(state);
             var dynamicPhase = state != null && state.Connected ? state.Phase : null;
@@ -949,6 +979,7 @@ namespace FACM.AppHost.Modules
             }
             DynamicMessageContextChanged = null;
             _dynamicMessages?.Dispose();
+            _encounterRecorder?.Dispose();
             _autoReply?.Dispose();
             _respawnOverlay?.Dispose();
             _inGameMessages?.Dispose();

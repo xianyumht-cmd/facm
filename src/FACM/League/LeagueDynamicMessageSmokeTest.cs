@@ -14,6 +14,7 @@ namespace FACM.League
         internal static void Validate()
         {
             ValidatePlayerTags();
+            LeagueEncounterHistorySmokeTest.Validate();
             ValidateAggregation();
             ValidatePremadeInference();
             ValidateJungleTimeline();

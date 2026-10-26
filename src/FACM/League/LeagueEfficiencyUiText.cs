@@ -219,6 +219,15 @@ namespace FACM.League
         public const string DynamicTagImported = "LeagueEfficiencyDynamicTagImported";
         public const string DynamicTagExported = "LeagueEfficiencyDynamicTagExported";
         public const string DynamicTagExchangeFailed = "LeagueEfficiencyDynamicTagExchangeFailed";
+        public const string DynamicEncounterHistory = "LeagueEfficiencyDynamicEncounterHistory";
+        public const string DynamicEncounterTitle = "LeagueEfficiencyDynamicEncounterTitle";
+        public const string DynamicEncounterEmpty = "LeagueEfficiencyDynamicEncounterEmpty";
+        public const string DynamicEncounterDelete = "LeagueEfficiencyDynamicEncounterDelete";
+        public const string DynamicEncounterConfirm = "LeagueEfficiencyDynamicEncounterConfirm";
+        public const string DynamicEncounterGame = "LeagueEfficiencyDynamicEncounterGame";
+        public const string DynamicEncounterQueue = "LeagueEfficiencyDynamicEncounterQueue";
+        public const string DynamicEncounterDate = "LeagueEfficiencyDynamicEncounterDate";
+        public const string DynamicEncounterUnavailable = "LeagueEfficiencyDynamicEncounterUnavailable";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -486,6 +495,15 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicTagImported, "已导入 {0} 条玩家标记。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagExported, "已导出 {0} 条玩家标记。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagExchangeFailed, "标记文件导入或导出失败，请检查 JSON 格式和文件权限。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterHistory, "历史相遇记录…" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTitle, "与此玩家相遇的历史对局（仅本机）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterEmpty, "尚无本机历史相遇记录" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterDelete, "删除选中记录" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterConfirm, "确定删除此条本机相遇记录？" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterGame, "对局编号" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterQueue, "队列" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterDate, "记录时间" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterUnavailable, "相遇记录读取或删除失败，请检查本地记录文件。" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },
