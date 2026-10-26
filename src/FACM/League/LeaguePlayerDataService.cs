@@ -417,8 +417,35 @@ namespace FACM.League
                 GoldShare = TeamShare(game, participant, "goldEarned"),
                 KillParticipation = TeamShare(game, participant, "kills", true),
                 DamageGoldEfficiency = Ratio(Metric(stats, "totalDamageDealtToChampions"), Metric(stats, "goldEarned")),
+                SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static string[] SameTeamPuuids(Dictionary<string, object> game, Dictionary<string, object> participant,
+            int participantId, LeaguePlayerProfile profile)
+        {
+            if (participant == null || participantId <= 0 || profile == null || string.IsNullOrEmpty(profile.PuuId)) return null;
+            var teamId = ReadInt(participant, "teamId");
+            if (teamId <= 0) return null;
+            var teamMembers = ReadObjects(game, "participants").Where(row => ReadInt(row, "teamId") == teamId)
+                .Select(row => ReadInt(row, "participantId")).Where(id => id > 0).Distinct().Take(11).ToArray();
+            if (teamMembers.Length < 2 || teamMembers.Length > 10 || !teamMembers.Contains(participantId)) return null;
+            var identities = new Dictionary<int, string>();
+            foreach (var identity in ReadObjects(game, "participantIdentities"))
+            {
+                var id = ReadInt(identity, "participantId");
+                var puuid = ReadString(ReadObject(identity, "player"), "puuid");
+                if (!teamMembers.Contains(id)) continue;
+                if (string.IsNullOrEmpty(puuid) || puuid.Length > 128 ||
+                    puuid.Any(c => !char.IsLetterOrDigit(c) && c != '-' && c != '_') || identities.ContainsKey(id)) return null;
+                identities[id] = puuid;
+            }
+            string own;
+            if (!identities.TryGetValue(participantId, out own) || !string.Equals(own, profile.PuuId, StringComparison.OrdinalIgnoreCase)) return null;
+            var members = teamMembers.Where(identities.ContainsKey).Select(id => identities[id])
+                .Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(id => id, StringComparer.Ordinal).ToArray();
+            return members.Length >= 2 ? members : null;
         }
 
         private static double? Metric(Dictionary<string, object> source, string key)
@@ -605,6 +632,7 @@ namespace FACM.League
                     GoldShare = match.GoldShare,
                     KillParticipation = match.KillParticipation,
                     DamageGoldEfficiency = match.DamageGoldEfficiency,
+                    SameTeamPuuids = match.SameTeamPuuids == null ? null : (string[])match.SameTeamPuuids.Clone(),
                     ParticipantResolved = match.ParticipantResolved
                 });
             }

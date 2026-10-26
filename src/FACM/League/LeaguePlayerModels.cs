@@ -49,6 +49,8 @@ namespace FACM.League
         public double? GoldShare { get; set; }
         public double? KillParticipation { get; set; }
         public double? DamageGoldEfficiency { get; set; }
+        // Available only when the match includes verified participant identities and team IDs.
+        public string[] SameTeamPuuids { get; set; }
 
     }
 

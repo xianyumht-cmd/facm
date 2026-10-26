@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Historical premade inference source (Akari 1.5.1 Draft #357)
+
+`LeaguePlayerDataService` extracts same-team historical identities only from participant/team-ID-correlated LCU match details and carries a bounded per-match PUUID array through its existing in-memory cloned pages. `LeaguePremadeInference` is a pure projection over a user-requested `LeagueDynamicMessageSnapshot`: it counts distinct known game IDs per same-current-side pair, uses the source's default five-match cutoff and merges connected pairs into candidate groups. No new requests, database, session owner, timer or background activity are added. Incomplete or untrusted identity data cannot create positive group evidence. Native premade preset UI and the final Tencent provider check remain future integration work.
+
 ## On-demand dynamic rating message data
 
 `LeagueDynamicMessageService` composes the existing Live parser and Player history/cache owners over the shared authenticated LCU read capability. It creates no monitor or thread, performs sequential bounded reads only after an explicit request, and retains a bounded in-memory snapshot. A replacement request or phase/session/roster change invalidates the operation; sending revalidates the snapshot and serializes user-triggered line dispatch through existing chat/native senders. Optional per-match team-share statistics are parsed and cloned by the existing Player service. `LeagueDynamicMessageFormatter` provides deterministic source-pinned rating presentation without owning networking or input. The existing Quick Message form hosts `LeagueDynamicMessagePanel`, preserving fixed slots and their shortcuts. Dynamic options/three target shortcuts persist as bounded preferences; selected player IDs are held only for the matching phase/roster and clear on phase change. All network/input work cancels through existing Gameflow and module lifetime ownership.

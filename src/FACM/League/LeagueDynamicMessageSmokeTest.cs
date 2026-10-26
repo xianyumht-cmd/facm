@@ -13,6 +13,7 @@ namespace FACM.League
         internal static void Validate()
         {
             ValidateAggregation();
+            ValidatePremadeInference();
             ValidateLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
         }
@@ -30,6 +31,9 @@ namespace FACM.League
                 page.Matches[0].ChampionDamageShare == 0.3 && page.Matches[0].GoldShare == 0.5 &&
                 page.Matches[0].KillParticipation == 0.8 && page.Matches[0].DamageGoldEfficiency == 0.03,
                 "Participant/team metric parsing diverged from the pinned formulas.");
+            Require(page.Matches[0].SameTeamPuuids != null &&
+                page.Matches[0].SameTeamPuuids.SequenceEqual(new[] { "enemy", "self" }),
+                "Historical same-team identities were not derived from participant team IDs.");
             var snapshot = new LeagueDynamicMessageSnapshot();
             snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true, History = page,
                 Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 }, ChampionName = "Alpha" });
@@ -54,6 +58,40 @@ namespace FACM.League
             options.NameStrategy = "preferName";
             Require(LeagueDynamicMessageFormatter.Build(snapshot, options).All(l => !l.StartsWith("/", StringComparison.Ordinal) &&
                 !l.Any(char.IsControl) && l.Length <= LeagueQuickMessagePresets.MaximumMessageLength), "Names injected a command, control or oversized line.");
+        }
+
+        private static void ValidatePremadeInference()
+        {
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            var self = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "self" }, History = new LeaguePlayerMatchPage() };
+            var ally = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "ally" }, History = new LeaguePlayerMatchPage() };
+            var enemy = new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy" }, History = new LeaguePlayerMatchPage() };
+            snapshot.Players.Add(self); snapshot.Players.Add(ally); snapshot.Players.Add(enemy);
+            for (var game = 1; game <= 5; game++)
+            {
+                self.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "self", "ally", "enemy" } });
+                ally.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "self", "ally" } });
+            }
+            self.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1,
+                SameTeamPuuids = new[] { "self", "ally" } });
+            var groups = LeaguePremadeInference.Infer(snapshot);
+            Require(groups.Count == 1 && groups[0].SequenceEqual(new[] { "ally", "self" }),
+                "Premade inference must count distinct same-team games and never mix current opposing sides.");
+            Require(LeaguePremadeInference.Infer(snapshot, 6).Count == 0,
+                "Duplicate source histories counted one historical game more than once.");
+            ally.Friendly = false;
+            Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
+                "An opposing current-side player was incorrectly inferred as a premade member.");
+            ally.Friendly = true;
+            foreach (var match in self.History.Matches) match.SameTeamPuuids = new[] { "ally" };
+            ally.History.Matches.Clear();
+            Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
+                "History without a verified source-player identity produced false premade evidence.");
         }
 
         private static async Task ValidateLoadingAsync()
