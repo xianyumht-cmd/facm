@@ -54,6 +54,7 @@ namespace FACM.AppHost.Modules
         private readonly LeaguePlayerTagStore _playerTags;
         private readonly LeagueEncounterHistoryStore _encounterHistory;
         private LeagueEncounterHistoryRecorder _encounterRecorder;
+        private LeagueTaggedPlayerReminderController _tagReminders;
         private readonly object _honorSync = new object();
         private readonly object _junglePrefetchSync = new object();
         private LeagueNativeHotkeyService _hotkeys;
@@ -164,6 +165,9 @@ namespace FACM.AppHost.Modules
                 () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState);
             _encounterRecorder = new LeagueEncounterHistoryRecorder(_leagueClient, _dashboard.BudgetProvider,
                 () => _leagueClient.CurrentSession, _encounterHistory);
+            _tagReminders = new LeagueTaggedPlayerReminderController(_leagueClient,
+                (ILeagueTaggedPlayerNoticeWriteApi)_leagueClient, () => _leagueClient.CurrentSession,
+                _playerTags, _dashboard.BudgetProvider);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -182,6 +186,7 @@ namespace FACM.AppHost.Modules
                 _autoReply.Observe(current);
                 _respawnOverlay.Observe(current);
                 _encounterRecorder.Observe(current);
+                _tagReminders.Observe(current);
                 ConfigureJunglePrefetch(current);
             }
         }
@@ -264,7 +269,9 @@ namespace FACM.AppHost.Modules
         public int ImportPlayerTags(string path)
         {
             ThrowIfDisposed();
-            return _playerTags.ImportAkariJson(path);
+            var count = _playerTags.ImportAkariJson(path);
+            if (count > 0) _tagReminders?.TagsChanged();
+            return count;
         }
 
         public int ExportPlayerTags(string path)
@@ -282,7 +289,9 @@ namespace FACM.AppHost.Modules
         public bool TryEditStoredPlayerTag(LeaguePlayerTagRecord expected, string tag)
         {
             ThrowIfDisposed();
-            return _playerTags.TryEditStoredTag(expected, tag);
+            var changed = _playerTags.TryEditStoredTag(expected, tag);
+            if (changed) _tagReminders?.TagsChanged();
+            return changed;
         }
 
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
@@ -318,6 +327,7 @@ namespace FACM.AppHost.Modules
             var session = _leagueClient.CurrentSession;
             if (session == null || !snapshot.Session.Matches(session)) return false;
             _playerTags.SetTag(snapshot.SelfPuuid, playerPuuid, session.Region, session.PlatformId, tag);
+            _tagReminders?.TagsChanged();
             return true;
         }
 
@@ -800,6 +810,7 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _encounterRecorder?.Observe(state);
+            _tagReminders?.Observe(state);
             _dynamicMessages?.Observe(state);
             ConfigureJunglePrefetch(state);
             var dynamicPhase = state != null && state.Connected ? state.Phase : null;
@@ -993,6 +1004,7 @@ namespace FACM.AppHost.Modules
             _dynamicMessages?.Dispose();
             _encounterRecorder?.Dispose();
             _autoReply?.Dispose();
+            _tagReminders?.Dispose();
             _respawnOverlay?.Dispose();
             _inGameMessages?.Dispose();
             AppSettings.Saved -= HandleAppSettingsSaved;

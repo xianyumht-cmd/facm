@@ -42,7 +42,13 @@ namespace FACM.League
             LeagueClientSession session, string conversationId, string message, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, IDisposable
+    internal interface ILeagueTaggedPlayerNoticeWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendTaggedNoticeAsync(
+            LeagueClientSession session, string conversationId, string message, CancellationToken token);
+    }
+
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -117,6 +123,26 @@ namespace FACM.League
             return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
                 new JavaScriptSerializer().Serialize(new { body = message, fromPid = "", fromSummonerId = 0,
                     id = conversationId, isHistorical = false, timestamp = "", type = "chat" }), token, session);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendTaggedNoticeAsync(
+            LeagueClientSession session, string conversationId, string message, CancellationToken token)
+        {
+            if (session == null) throw new ArgumentException("Authenticated client session required.", nameof(session));
+            return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
+                BuildTaggedNoticeJson(conversationId, message), token, session);
+        }
+
+        internal static string BuildTaggedNoticeJson(string conversationId, string message)
+        {
+            if (!IsSafeChampionSelectConversationId(conversationId) ||
+                !LeagueTaggedPlayerReminderController.SafeReminder(message))
+                throw new ArgumentException("Invalid tagged-player reminder.");
+            return new JavaScriptSerializer().Serialize(new
+            {
+                body = message, fromPid = "", fromSummonerId = 0,
+                id = conversationId, isHistorical = false, timestamp = "", type = "celebration"
+            });
         }
 
         internal static bool IsSafeChampionSelectConversationId(string id)
