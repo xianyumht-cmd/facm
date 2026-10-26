@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Globalization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -406,8 +408,54 @@ namespace FACM.League
                 Assists = stats == null ? 0 : ReadInt(stats, "assists"),
                 CreepScore = stats == null ? 0 : ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"),
                 Win = stats != null && ReadBool(stats, "win"),
+                StatisticsAvailable = stats != null && stats.ContainsKey("win") && stats.ContainsKey("kills") && stats.ContainsKey("deaths") && stats.ContainsKey("assists"),
+                Position = MatchPosition(participant),
+                SoloKills = Metric(ReadObject(stats, "challenges"), "soloKills"),
+                VisionScore = Metric(stats, "visionScore"),
+                ChampionDamageShare = TeamShare(game, participant, "totalDamageDealtToChampions"),
+                DamageTakenShare = TeamShare(game, participant, "totalDamageTaken"),
+                GoldShare = TeamShare(game, participant, "goldEarned"),
+                KillParticipation = TeamShare(game, participant, "kills", true),
+                DamageGoldEfficiency = Ratio(Metric(stats, "totalDamageDealtToChampions"), Metric(stats, "goldEarned")),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static double? Metric(Dictionary<string, object> source, string key)
+        {
+            object value;
+            double number;
+            return source != null && source.TryGetValue(key, out value) && value != null &&
+                double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture, out number) &&
+                !double.IsNaN(number) && !double.IsInfinity(number) && number >= 0 ? (double?)number : null;
+        }
+
+        private static double? Ratio(double? numerator, double? denominator)
+        {
+            return numerator.HasValue && denominator.HasValue ? numerator.Value / Math.Max(1, denominator.Value) : (double?)null;
+        }
+
+        private static double? TeamShare(Dictionary<string, object> game, Dictionary<string, object> participant, string key, bool participation = false)
+        {
+            if (participant == null || !participant.ContainsKey("teamId")) return null;
+            var members = ReadObjects(game, "participants").Where(p => ReadInt(p, "teamId") == ReadInt(participant, "teamId")).ToList();
+            var values = members.Select(p => Metric(ReadObject(p, "stats"), key)).ToList();
+            if (values.Count == 0 || values.Any(v => !v.HasValue)) return null;
+            var stats = ReadObject(participant, "stats");
+            var value = Metric(stats, key);
+            if (participation) value += Metric(stats, "assists");
+            return Ratio(value, values.Sum(v => v.Value));
+        }
+
+        private static string MatchPosition(Dictionary<string, object> participant)
+        {
+            var stats = ReadObject(participant, "stats");
+            var explicitPosition = ReadString(stats, "teamPosition");
+            if (!string.IsNullOrEmpty(explicitPosition)) return explicitPosition;
+            var timeline = ReadObject(participant, "timeline");
+            var lane = ReadString(timeline, "lane");
+            if (lane == "BOTTOM" && ReadString(timeline, "role") == "DUO_SUPPORT") return "UTILITY";
+            return lane;
         }
 
         private void CachePage(string puuId, LeaguePlayerMatchPage page)
@@ -548,6 +596,15 @@ namespace FACM.League
                     Assists = match.Assists,
                     CreepScore = match.CreepScore,
                     Win = match.Win,
+                    StatisticsAvailable = match.StatisticsAvailable,
+                    Position = match.Position,
+                    SoloKills = match.SoloKills,
+                    VisionScore = match.VisionScore,
+                    ChampionDamageShare = match.ChampionDamageShare,
+                    DamageTakenShare = match.DamageTakenShare,
+                    GoldShare = match.GoldShare,
+                    KillParticipation = match.KillParticipation,
+                    DamageGoldEfficiency = match.DamageGoldEfficiency,
                     ParticipantResolved = match.ParticipantResolved
                 });
             }

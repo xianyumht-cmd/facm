@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## On-demand dynamic rating message data
+
+`LeagueDynamicMessageService` composes the existing Live parser and Player history/cache owners over the shared authenticated LCU read capability. It creates no monitor or thread, performs sequential bounded reads only after an explicit request, and retains a bounded in-memory snapshot. A replacement request or phase/session/roster change invalidates the operation; sending must revalidate the snapshot. Optional per-match team-share statistics are parsed and cloned by the existing Player service. `LeagueDynamicMessageFormatter` provides deterministic source-pinned rating presentation without owning networking or input. The initial foundation is not a new public feature until native options, preview and existing guarded senders are connected.
+
 ## Automatic-selection queue context and calibrated delays
 
 The existing `LeagueAutoPickBanController` enriches its bounded ChampSelect response with a sequential authenticated Gameflow session read. `LeagueAutoSelectContext` matches the pinned builtin groups by game mode, queue type and custom flag; each final write revalidates that combined context. Intent, bench and trade handling share this same phase owner and context fence. No additional Gameflow subscriber, timer or permanent network service is introduced. Native profiles retain legacy fallback keys while adding nine source groups and per-action opt-outs. Finite phase timestamps calibrate both staged delays; unknown/infinite timers preserve the configured delay. Profile settings are bounded to 72 unique mode/role keys and 32 KiB, and participate in recovery, portable/cloud settings and live controller reconfiguration.

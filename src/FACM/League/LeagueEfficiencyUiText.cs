@@ -170,6 +170,40 @@ namespace FACM.League
         public const string ProfileModeBot = "LeagueEfficiencyProfileModeBot";
         public const string ProfileModeCustom = "LeagueEfficiencyProfileModeCustom";
         public const string AdvancedGroupEnabled = "LeagueEfficiencyAdvancedGroupEnabled";
+        public const string DynamicOpen = "LeagueEfficiencyDynamicOpen";
+        public const string DynamicLoad = "LeagueEfficiencyDynamicLoad";
+        public const string DynamicSend = "LeagueEfficiencyDynamicSend";
+        public const string DynamicLoading = "LeagueEfficiencyDynamicLoading";
+        public const string DynamicReady = "LeagueEfficiencyDynamicReady";
+        public const string DynamicUnavailable = "LeagueEfficiencyDynamicUnavailable";
+        public const string DynamicNoChampion = "LeagueEfficiencyDynamicNoChampion";
+        public const string DynamicNoMatches = "LeagueEfficiencyDynamicNoMatches";
+        public const string DynamicNoChampionMatches = "LeagueEfficiencyDynamicNoChampionMatches";
+        public const string DynamicPlayer = "LeagueEfficiencyDynamicPlayer";
+        public const string DynamicMatchCount = "LeagueEfficiencyDynamicMatchCount";
+        public const string DynamicWinRate = "LeagueEfficiencyDynamicWinRate";
+        public const string DynamicSoloKills = "LeagueEfficiencyDynamicSoloKills";
+        public const string DynamicVision = "LeagueEfficiencyDynamicVision";
+        public const string DynamicDamage = "LeagueEfficiencyDynamicDamage";
+        public const string DynamicTaken = "LeagueEfficiencyDynamicTaken";
+        public const string DynamicGold = "LeagueEfficiencyDynamicGold";
+        public const string DynamicCs = "LeagueEfficiencyDynamicCs";
+        public const string DynamicParticipation = "LeagueEfficiencyDynamicParticipation";
+        public const string DynamicEfficiency = "LeagueEfficiencyDynamicEfficiency";
+        public const string DynamicChampions = "LeagueEfficiencyDynamicChampions";
+        public const string DynamicPositions = "LeagueEfficiencyDynamicPositions";
+        public const string DynamicNoMain = "LeagueEfficiencyDynamicNoMain";
+        public const string DynamicFriendly = "LeagueEfficiencyDynamicFriendly";
+        public const string DynamicEnemy = "LeagueEfficiencyDynamicEnemy";
+        public const string DynamicAll = "LeagueEfficiencyDynamicAll";
+        public const string DynamicNames = "LeagueEfficiencyDynamicNames";
+        public const string DynamicChampionNames = "LeagueEfficiencyDynamicChampionNames";
+        public const string DynamicCombinedNames = "LeagueEfficiencyDynamicCombinedNames";
+        public const string DynamicCurrentChampion = "LeagueEfficiencyDynamicCurrentChampion";
+        public const string DynamicSaved = "LeagueEfficiencyDynamicSaved";
+        public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
+        public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
+        public const string DynamicSending = "LeagueEfficiencyDynamicSending";
         public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
         public const string ProfileModeRift = "LeagueEfficiencyProfileModeRift";
         public const string ProfileModeAram = "LeagueEfficiencyProfileModeAram";
@@ -371,6 +405,40 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.ProfileModeBot, "人机模式" },
             { LeagueEfficiencyUiTextKeys.ProfileModeCustom, "自定义对局" },
             { LeagueEfficiencyUiTextKeys.AdvancedGroupEnabled, "启用本组当前操作" },
+            { LeagueEfficiencyUiTextKeys.DynamicOpen, "动态对局消息" },
+            { LeagueEfficiencyUiTextKeys.DynamicLoad, "读取当前对局" },
+            { LeagueEfficiencyUiTextKeys.DynamicSend, "发送已选摘要" },
+            { LeagueEfficiencyUiTextKeys.DynamicLoading, "正在读取当前对局与近期战绩…" },
+            { LeagueEfficiencyUiTextKeys.DynamicReady, "已生成预览。请选择玩家及显示项后发送；游戏内请先切回游戏窗口。" },
+            { LeagueEfficiencyUiTextKeys.DynamicUnavailable, "数据暂不可用" },
+            { LeagueEfficiencyUiTextKeys.DynamicNoChampion, "尚未选择英雄" },
+            { LeagueEfficiencyUiTextKeys.DynamicNoMatches, "暂无近期记录" },
+            { LeagueEfficiencyUiTextKeys.DynamicNoChampionMatches, "此英雄暂无近期记录" },
+            { LeagueEfficiencyUiTextKeys.DynamicPlayer, "玩家" },
+            { LeagueEfficiencyUiTextKeys.DynamicMatchCount, "近{0}场" },
+            { LeagueEfficiencyUiTextKeys.DynamicWinRate, "胜率" },
+            { LeagueEfficiencyUiTextKeys.DynamicSoloKills, "场均单杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicVision, "场均视野" },
+            { LeagueEfficiencyUiTextKeys.DynamicDamage, "伤害占比" },
+            { LeagueEfficiencyUiTextKeys.DynamicTaken, "承伤占比" },
+            { LeagueEfficiencyUiTextKeys.DynamicGold, "经济占比" },
+            { LeagueEfficiencyUiTextKeys.DynamicCs, "场均补刀/分" },
+            { LeagueEfficiencyUiTextKeys.DynamicParticipation, "参团率" },
+            { LeagueEfficiencyUiTextKeys.DynamicEfficiency, "伤害经济比" },
+            { LeagueEfficiencyUiTextKeys.DynamicChampions, "主玩英雄" },
+            { LeagueEfficiencyUiTextKeys.DynamicPositions, "主玩位置" },
+            { LeagueEfficiencyUiTextKeys.DynamicNoMain, "暂无稳定主玩英雄" },
+            { LeagueEfficiencyUiTextKeys.DynamicFriendly, "己方" },
+            { LeagueEfficiencyUiTextKeys.DynamicEnemy, "敌方" },
+            { LeagueEfficiencyUiTextKeys.DynamicAll, "双方" },
+            { LeagueEfficiencyUiTextKeys.DynamicNames, "玩家名称" },
+            { LeagueEfficiencyUiTextKeys.DynamicChampionNames, "优先英雄名" },
+            { LeagueEfficiencyUiTextKeys.DynamicCombinedNames, "英雄名与玩家名" },
+            { LeagueEfficiencyUiTextKeys.DynamicCurrentChampion, "只统计当前英雄" },
+            { LeagueEfficiencyUiTextKeys.DynamicSaved, "动态消息选项已保存。" },
+            { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
+            { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
+            { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },
             { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
             { LeagueEfficiencyUiTextKeys.ProfileModeRift, "召唤师峡谷" },
             { LeagueEfficiencyUiTextKeys.ProfileModeAram, "普通大乱斗" },

@@ -1,0 +1,149 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using FACM.Performance;
+
+namespace FACM.League
+{
+    internal static class LeagueDynamicMessageSmokeTest
+    {
+        internal static void Validate()
+        {
+            ValidateAggregation();
+            ValidateLoadingAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidateAggregation()
+        {
+            var options = new LeagueDynamicMessageOptions { NameStrategy = "preferName", CsPerMinute = true,
+                ChampionDamageShare = true, GoldShare = true, VisionScore = true, KillParticipation = true,
+                DamageGoldEfficiency = true };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).GoldShare &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"bad\"}").Target == "all", "Dynamic option validation failed.");
+            var service = new LeaguePlayerDataService(new Fake(), new PerformanceBudgetProvider());
+            var page = service.ParseMatchPage(Bytes(History()), new LeaguePlayerProfile { PuuId = "self", SummonerId = 1 }, 0, 20);
+            Require(page.Matches.Count == 2 && page.Matches[0].StatisticsAvailable &&
+                page.Matches[0].ChampionDamageShare == 0.3 && page.Matches[0].GoldShare == 0.5 &&
+                page.Matches[0].KillParticipation == 0.8 && page.Matches[0].DamageGoldEfficiency == 0.03,
+                "Participant/team metric parsing diverged from the pinned formulas.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true, History = page,
+                Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 }, ChampionName = "Alpha" });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy", GameName = "Enemy", ChampionId = 77 }, ChampionName = "Alpha" });
+            var lines = LeagueDynamicMessageFormatter.Build(snapshot, options);
+            Require(lines.Count == 2 && lines[0].Contains("KDA 9.00") && lines[0].Contains("50%") &&
+                lines[0].Contains("6.0") && lines[0].Contains("40%") && lines[0].Contains("15.0"),
+                "Rating lines must aggregate total KDA and mean per-game shares correctly.");
+            Require(lines[1].Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicUnavailable)) &&
+                !lines[1].Contains("0%"), "Unavailable history was represented as zero statistics.");
+            options.Target = "friendly"; options.ShowCurrentChampion = true;
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options).Single().Contains("KDA 4.00"),
+                "Current-champion selection did not filter the sample.");
+            options.Target = "all"; options.ShowCurrentChampion = false; options.NameStrategy = "preferChampionName";
+            var duplicates = LeagueDynamicMessageFormatter.Build(snapshot, options);
+            Require(duplicates[0].StartsWith("Self", StringComparison.Ordinal) && duplicates[1].StartsWith("Enemy", StringComparison.Ordinal),
+                "Duplicate champion names must fall back to player identity.");
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options, new HashSet<string>()).Count == 0,
+                "Empty player selection unexpectedly generated outgoing lines.");
+            snapshot.Players[0].Player.GameName = "/command\nextra";
+            options.NameStrategy = "preferName";
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options).All(l => !l.StartsWith("/", StringComparison.Ordinal) &&
+                !l.Any(char.IsControl) && l.Length <= LeagueQuickMessagePresets.MaximumMessageLength), "Names injected a command, control or oversized line.");
+        }
+
+        private static async Task ValidateLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("first");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                Require(fake.Paths.Count == 0, "Dynamic messages started background network work.");
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 && snapshot.Players.All(p => p.History != null) &&
+                    snapshot.Players[0].Friendly && !snapshot.Players[1].Friendly && fake.MaxConcurrent == 1,
+                    "Both-team loading must use bounded sequential shared LCU reads.");
+                snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                var reads = fake.Paths.Count;
+                Require(!await service.IsCurrentAsync(snapshot, CancellationToken.None).ConfigureAwait(false) && fake.Paths.Count == reads,
+                    "Expired previews must be rejected before additional requests.");
+                fake.OnRead = path => { if (path.Contains("/matches?")) session = Session("replacement"); };
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null,
+                    "Account/session replacement retained an old analysis snapshot.");
+                fake.OnRead = null; session = Session("first"); fake.RosterReads = 0; fake.ChangeRoster = true;
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null,
+                    "Changed champion roster retained a stale preview.");
+                fake.ChangeRoster = false;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    fake.OnRead = path => cancellation.Cancel();
+                    var cancelled = false;
+                    try { await service.LoadAsync(cancellation.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled, "Closing/replacing generation did not cancel shared LCU requests.");
+                }
+                fake.OnRead = null; phase.Phase = "Lobby"; reads = fake.Paths.Count;
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null && fake.Paths.Count == reads,
+                    "Unavailable game analysis must not poll from the Lobby.");
+            }
+        }
+
+        private static LeagueClientSession Session(string key) { return new LeagueClientSession("fixture", 1, 12345, key, "https", "smoke"); }
+        private static byte[] Bytes(string text) { return Encoding.UTF8.GetBytes(text); }
+        private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+
+        private static string History()
+        {
+            return "{\"games\":{\"games\":[" + Match(1, 3, 5, 2, 300, 120, 10, true) + "," + Match(2, 7, 3, 0, 500, 120, 20, false) + "]}}";
+        }
+
+        private static string Match(int id, int kills, int assists, int deaths, int damage, int cs, int vision, bool win)
+        {
+            return "{\"gameId\":" + id + ",\"gameDuration\":1200,\"participantIdentities\":[" +
+                "{\"participantId\":1,\"player\":{\"puuid\":\"self\",\"summonerId\":1}}," +
+                "{\"participantId\":2,\"player\":{\"puuid\":\"enemy\",\"summonerId\":2}}],\"participants\":[" +
+                "{\"participantId\":1,\"teamId\":100,\"championId\":" + (id == 1 ? 77 : 88) + ",\"stats\":{\"kills\":" + kills +
+                ",\"assists\":" + assists + ",\"deaths\":" + deaths + ",\"win\":" + (win ? "true" : "false") +
+                ",\"totalDamageDealtToChampions\":" + damage + ",\"totalDamageTaken\":200,\"goldEarned\":10000,\"totalMinionsKilled\":" + cs +
+                ",\"neutralMinionsKilled\":0,\"visionScore\":" + vision + ",\"teamPosition\":\"TOP\"}}," +
+                "{\"participantId\":2,\"teamId\":100,\"championId\":99,\"stats\":{\"kills\":" + (10 - kills) +
+                ",\"assists\":1,\"deaths\":1,\"win\":true,\"totalDamageDealtToChampions\":" + (1000 - damage) +
+                ",\"totalDamageTaken\":800,\"goldEarned\":10000}}]}";
+        }
+
+        private sealed class Fake : ILeagueClientApi
+        {
+            internal readonly List<string> Paths = new List<string>();
+            internal int RosterReads, MaxConcurrent;
+            private int _concurrent;
+            internal bool ChangeRoster;
+            internal Action<string> OnRead;
+            public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested(); Paths.Add(path);
+                MaxConcurrent = Math.Max(MaxConcurrent, Interlocked.Increment(ref _concurrent));
+                try
+                {
+                    await Task.Delay(1, token).ConfigureAwait(false);
+                    OnRead?.Invoke(path); token.ThrowIfCancellationRequested();
+                    if (path == LeagueDashboardDetailsService.SummonerPath) return Bytes("{\"puuid\":\"self\",\"summonerId\":1}");
+                    if (path == LeagueLiveDataService.ChampSelectSessionPath)
+                    {
+                        RosterReads++;
+                        return Bytes("{\"localPlayerCellId\":0,\"myTeam\":[{\"cellId\":0,\"puuid\":\"self\",\"summonerId\":1,\"gameName\":\"Self\",\"championId\":77}]," +
+                            "\"theirTeam\":[{\"cellId\":5,\"puuid\":\"enemy\",\"summonerId\":2,\"gameName\":\"Enemy\",\"championId\":" +
+                            (ChangeRoster && RosterReads > 1 ? 88 : 99) + "}]}");
+                    }
+                    if (path.Contains("/matches?")) return Bytes(History());
+                    if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes("[]");
+                    throw new InvalidOperationException("Unexpected dynamic analysis route.");
+                }
+                finally { Interlocked.Decrement(ref _concurrent); }
+            }
+        }
+    }
+}

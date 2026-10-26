@@ -13,6 +13,7 @@ namespace FACM.League
 
         internal static void Validate()
         {
+            LeagueDynamicMessageSmokeTest.Validate();
             ValidatePresets();
             ValidateSending().GetAwaiter().GetResult();
             LeagueInGameMessageSmokeTest.Validate();

@@ -27,6 +27,8 @@ namespace FACM.AppHost.Modules
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
+        internal PerformanceBudgetProvider BudgetProvider { get { return _performance.Budgets; } }
+
         public event Action<LeagueDashboardPhaseState> GameflowStateChanged;
 
         public LeagueDashboardPhaseState CurrentGameflowState

@@ -40,6 +40,16 @@ namespace FACM.League
         public int CreepScore { get; set; }
         public bool Win { get; set; }
         public bool ParticipantResolved { get; set; }
+        public bool StatisticsAvailable { get; set; }
+        public string Position { get; set; }
+        public double? SoloKills { get; set; }
+        public double? VisionScore { get; set; }
+        public double? ChampionDamageShare { get; set; }
+        public double? DamageTakenShare { get; set; }
+        public double? GoldShare { get; set; }
+        public double? KillParticipation { get; set; }
+        public double? DamageGoldEfficiency { get; set; }
+
     }
 
     internal sealed class LeaguePlayerChampionStat
