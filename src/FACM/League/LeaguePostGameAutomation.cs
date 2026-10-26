@@ -91,6 +91,7 @@ namespace FACM.League
         internal const string VoteCompletionPath = "/lol-honor-v2/v1/vote-completion";
         internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
         internal const string EndOfGamePartyPath = "/lol-lobby/v2/party/eog-status";
+        internal const string CurrentSequenceEventPath = "/lol-pre-end-of-game/v1/currentSequenceEvent";
         private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(600);
         private static readonly TimeSpan BallotWaitLimit = TimeSpan.FromSeconds(12);
         private static readonly TimeSpan[] VerificationDelays =
@@ -110,6 +111,8 @@ namespace FACM.League
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _cycleCancellation;
         private CancellationTokenSource _honorCancellation;
+        private CancellationTokenSource _missionCancellation;
+        private bool _missionAttempted;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoHonor;
         private string _honorStrategy = LeagueHonorStrategy.PreferLobbyMember;
@@ -160,6 +163,7 @@ namespace FACM.League
                     !string.Equals(_honorStrategy, LeagueHonorStrategy.Normalize(honorStrategy), StringComparison.Ordinal);
                 _autoHonor = autoHonor;
                 _autoReturn = autoReturn;
+                if (!autoReturn) CancelMissionLocked();
                 _honorStrategy = LeagueHonorStrategy.Normalize(honorStrategy);
                 if (!_autoHonor && !_autoReturn)
                     CancelCycleLocked();
@@ -170,6 +174,8 @@ namespace FACM.League
 
         public void Observe(LeagueDashboardPhaseState state)
         {
+            var mission = TryObserveMission(state);
+            if (mission != null) mission.Forget("League pre-end-of-game sequence");
             string phase;
             CancellationToken token;
             if (!TryBeginCycle(state, out phase, out token)) return;
@@ -178,10 +184,89 @@ namespace FACM.League
 
         internal async Task ObserveForSmokeTestAsync(LeagueDashboardPhaseState state)
         {
+            var mission = TryObserveMission(state);
+            if (mission != null) await mission.ConfigureAwait(false);
             string phase;
             CancellationToken token;
             if (!TryBeginCycle(state, out phase, out token)) return;
             await RunCycleAsync(phase, token).ConfigureAwait(false);
+        }
+
+        private Task TryObserveMission(LeagueDashboardPhaseState state)
+        {
+            var inPreEnd = state != null && state.Connected &&
+                string.Equals(state.Phase, "PreEndOfGame", StringComparison.OrdinalIgnoreCase);
+            var inPostGame = state != null && state.Connected && IsPostGamePhase(state.Phase);
+            CancellationTokenSource request;
+            lock (_sync)
+            {
+                if (_disposed) return null;
+                if (!inPreEnd || !_autoReturn)
+                {
+                    CancelMissionLocked();
+                    if (!inPostGame) _missionAttempted = false;
+                    return null;
+                }
+                if (_missionAttempted || _missionCancellation != null) return null;
+                request = new CancellationTokenSource();
+                _missionCancellation = request;
+            }
+            return TryCompleteMissionAsync(request);
+        }
+
+        private async Task TryCompleteMissionAsync(CancellationTokenSource request)
+        {
+            try
+            {
+                var token = request.Token;
+                if (!IsCurrentMission(request)) return;
+                var first = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                if (!IsMissionCelebration(first)) return;
+                var current = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                if (!IsMissionCelebration(current)) return;
+                lock (_sync)
+                {
+                    if (!IsCurrentMissionLocked(request)) return;
+                    _missionAttempted = true;
+                }
+                token.ThrowIfCancellationRequested();
+                var response = await _write.TrySendAsync("POST",
+                    LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath, null, token).ConfigureAwait(false);
+                AppLog.Info("League pre-end-of-game sequence: " +
+                    (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    if (ReferenceEquals(_missionCancellation, request)) _missionCancellation = null;
+                }
+                request.Dispose();
+            }
+        }
+
+        private bool IsCurrentMission(CancellationTokenSource request)
+        {
+            lock (_sync) return IsCurrentMissionLocked(request);
+        }
+
+        private bool IsCurrentMissionLocked(CancellationTokenSource request)
+        {
+            return !_disposed && _autoReturn && !_missionAttempted &&
+                   ReferenceEquals(_missionCancellation, request) && !request.IsCancellationRequested;
+        }
+
+        private static bool IsMissionCelebration(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 32768) return false;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 32768 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                return string.Equals(ReadString(root, "name"), "missions-celebration", StringComparison.Ordinal);
+            }
+            catch { return false; }
         }
 
         internal async Task RunCycleForSmokeTestAsync(
@@ -1055,6 +1140,15 @@ namespace FACM.League
             catch { }
         }
 
+        private void CancelMissionLocked()
+        {
+            var request = _missionCancellation;
+            _missionCancellation = null;
+            if (request == null) return;
+            try { request.Cancel(); }
+            catch (ObjectDisposedException) { }
+        }
+
         private void CancelCycleLocked()
         {
             var cancellation = _cycleCancellation;
@@ -1075,6 +1169,7 @@ namespace FACM.League
                 if (_disposed) return;
                 _disposed = true;
                 CancelCycleLocked();
+                CancelMissionLocked();
                 HonorAttemptCompleted = null;
             }
         }

@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Akari v1.5.1 pre-end sequence completion (Draft #357)
+
+`LeaguePostGameAutomationController` owns the `missions-celebration` completion adjunct when auto return to Lobby is enabled. Existing Gameflow observations alone trigger a bounded two-read attempt in connected `PreEndOfGame`; a fresh matching `currentSequenceEvent` and unchanged phase/configuration are required before one narrow POST through `LeaguePostGameWriteApiClient`. Cancellation and an in-flight/attempted guard prevent stale or duplicate submissions. Disabling automatic return generates no sequence traffic; this does not add a persistent event socket or timer. It intentionally has Gameflow-observation latency compared with the pinned Akari WAMP event, which remains to be verified in the final Tencent acceptance.
+
 ## Akari v1.5.1 invitation-wait policy (Draft #357)
 
 `LeagueMatchmakingAutomationController` receives the native, default-on `autoMatchmakingWaitForInvitees` preference through `LeagueEfficiencyModule`. The same already-read LCU Lobby invitation states determine whether a Pending invite blocks queue entry. Disabling the wait does not bypass leader/start/real-member gates. Changing it during a Lobby episode cancels/restarts the existing phase-scoped observer, without a new loop or client. INI and recovery persist the flag; portable and cloud snapshots use a nullable field so restoring an older cloud snapshot retains Akari's default-on behavior. Quick Tools shares a single compact row for auto matchmaking and invitation waiting; saving cloud settings while the page is open refreshes both controls.

@@ -30,6 +30,8 @@ namespace FACM.League
             ValidateHonorDisableCancelsInFlightButPreservesReturn();
             ValidateExactlyOnceCycle();
             ValidateReturnOnly();
+            ValidateMissionCelebration();
+            ValidateMissionChangedBeforeWrite();
             ValidatePhaseContract();
         }
 
@@ -43,6 +45,10 @@ namespace FACM.League
                 "Gate 6 transport blocked ballot submit.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.PlayAgainPath),
                 "Gate 6 transport blocked play-again.");
+            Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                "Gate 6 transport blocked the pinned pre-end-of-game completion.");
+            Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-pre-end-of-game/v1/complete/other"),
+                "Gate 6 transport must not accept arbitrary sequence-event completion.");
             Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-matchmaking/v1/ready-check/accept"),
                 "Gate 6 transport must hard-block ready-check accept.");
             Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("PATCH", "/lol-champ-select/v1/session/actions/1"),
@@ -465,6 +471,53 @@ namespace FACM.League
                 "PreEndOfGame return-only delay changed unexpectedly.");
         }
 
+        private static void ValidateMissionCelebration()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\"name\":\"missions-celebration\"}");
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, false);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(read.RequestCount == 0 && write.Calls.Count == 0,
+                    "Disabled auto return must incur zero sequence reads and writes.");
+
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(read.RequestCount == 2, "Mission completion must confirm the current event before writing.");
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
+                    "Mission celebration must be completed once alongside automatic return.");
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
+                    "Repeated post-game observations must not repeat mission completion.");
+            }
+        }
+
+        private static void ValidateMissionChangedBeforeWrite()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\"name\":\"missions-celebration\"}");
+            read.OnRead = (path, count) =>
+                path == LeaguePostGameAutomationController.CurrentSequenceEventPath && count == 2
+                    ? Bytes("{\"name\":\"other\"}") : null;
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                    "A changed sequence event must not be completed using stale state.");
+                controller.Configure(false, false);
+                controller.ObserveForSmokeTestAsync(State("Lobby")).GetAwaiter().GetResult();
+                Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                    "Disabling return or leaving post-game must not schedule mission completion.");
+            }
+        }
+
         private static void ValidatePhaseContract()
         {
             Require(LeaguePostGameAutomationController.IsPostGamePhase("WaitingForStats"), "WaitingForStats must be post-game.");
@@ -531,6 +584,7 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public Func<string, int, byte[]> OnRead;
 
             public void Set(string path, string json) { _responses[path] = Bytes(json); }
             public void Set(string path, byte[] bytes) { _responses[path] = bytes; }
@@ -539,6 +593,8 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 RequestCount++;
+                var overrideResult = OnRead == null ? null : OnRead(path, RequestCount);
+                if (overrideResult != null) return Task.FromResult(overrideResult);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);
