@@ -43,6 +43,7 @@ namespace FACM.Services
         public bool LeagueAutoReplyAwayOnly { get; set; }
         public string LeagueAutoReplyText { get; set; }
         public bool LeagueLockOfflineStatusEnabled { get; set; }
+        public bool LeagueRespawnOverlayEnabled { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -89,6 +90,7 @@ namespace FACM.Services
                 LeagueAutoLoginRankedTier = settings.LeagueAutoLoginRankedTier,
                 LeagueAutoLoginRankedDivision = settings.LeagueAutoLoginRankedDivision,
                 LeagueAutoReplyEnabled = settings.LeagueAutoReplyEnabled,
+                LeagueRespawnOverlayEnabled = settings.LeagueRespawnOverlayEnabled,
                 LeagueAutoReplyAwayOnly = settings.LeagueAutoReplyAwayOnly,
                 LeagueAutoReplyText = settings.LeagueAutoReplyText,
                 LeagueLockOfflineStatusEnabled = settings.LeagueLockOfflineStatusEnabled,
@@ -147,6 +149,7 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoReplyEnabled = LeagueAutoReplyEnabled;
+            settings.LeagueRespawnOverlayEnabled = LeagueRespawnOverlayEnabled;
             settings.LeagueAutoReplyAwayOnly = LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = LeagueLockOfflineStatusEnabled;

@@ -25,6 +25,7 @@ namespace FACM.League
         private readonly CheckBox _roomNotices;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
+        private readonly CheckBox _respawnOverlay;
         private readonly CheckBox _autoAramTeamSide;
         private readonly CheckBox _aramTeamSideVisibleToTeam;
         private readonly TextBox _loginSignature;
@@ -121,6 +122,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             for (var row = 0; row < 3; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Insert(root.RowStyles.Count - 1, new RowStyle(SizeType.Absolute, 82));
             root.RowCount = root.RowStyles.Count;
 
             root.Controls.Add(new Label
@@ -425,6 +427,16 @@ namespace FACM.League
             _autoReply.CheckedChanged += ReplySettingChanged;
             _replyAway.CheckedChanged += ReplySettingChanged;
             _replyText.Leave += ReplySettingChanged;
+
+            _respawnOverlay = AddAutomationRow(root, 46, T(LeagueEfficiencyUiTextKeys.RespawnOverlay),
+                T(LeagueEfficiencyUiTextKeys.RespawnOverlayHint), _module.RespawnOverlayEnabled);
+            _respawnOverlay.CheckedChanged += delegate
+            {
+                if (_loading) return;
+                _module.UpdateRespawnOverlayEnabled(_respawnOverlay.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.RespawnOverlaySaved);
+            };
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -921,6 +933,7 @@ namespace FACM.League
                     RefreshLoginRankSettingsFromModule();
                     RefreshOfflineLockSettingsFromModule();
                     RefreshReplySettingsFromModule();
+                    RefreshRespawnOverlayFromModule();
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -1029,6 +1042,15 @@ namespace FACM.League
                 _replyAway.Checked = _module.AutoReplyAwayOnly;
                 _replyText.Text = _module.AutoReplyText;
             }
+            finally { _loading = false; }
+        }
+
+        private void RefreshRespawnOverlayFromModule()
+        {
+            if (IsDisposed || Disposing || _loading ||
+                _respawnOverlay.Checked == _module.RespawnOverlayEnabled) return;
+            _loading = true;
+            try { _respawnOverlay.Checked = _module.RespawnOverlayEnabled; }
             finally { _loading = false; }
         }
 

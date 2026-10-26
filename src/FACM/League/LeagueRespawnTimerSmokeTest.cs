@@ -7,6 +7,33 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            var settings = new FACM.Services.AppSettings();
+            Require(!settings.LeagueRespawnOverlayEnabled, "Respawn overlay must default off.");
+            settings.LeagueRespawnOverlayEnabled = true;
+            var local = FACM.Services.AppSettings.ParseLines(settings.BuildLinesForSmokeTest());
+            Require(local.LeagueRespawnOverlayEnabled, "Respawn overlay INI setting failed to roundtrip.");
+            var cloud = FACM.Services.CloudSettingsSnapshot.Capture(settings);
+            var restored = new FACM.Services.AppSettings();
+            cloud.ApplyTo(restored);
+            Require(restored.LeagueRespawnOverlayEnabled, "Respawn overlay cloud setting failed to roundtrip.");
+            var inGame = new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" };
+            Require(LeagueRespawnOverlayHost.ShouldRun(true, inGame) &&
+                !LeagueRespawnOverlayHost.ShouldRun(false, inGame) &&
+                !LeagueRespawnOverlayHost.ShouldRun(true, new LeagueDashboardPhaseState { Connected = true, Phase = "Reconnect" }) &&
+                !LeagueRespawnOverlayHost.ShouldRun(true, new LeagueDashboardPhaseState { Connected = false, Phase = "InProgress" }),
+                "Respawn overlay Gameflow gate became active outside connected gameplay.");
+            Require(LeagueRespawnOverlayVisibility.IsGameProcess("League of Legends") &&
+                !LeagueRespawnOverlayVisibility.IsGameProcess("LeagueClientUx") &&
+                !LeagueRespawnOverlayVisibility.IsGameProcess("Explorer"),
+                "Respawn overlay foreground process allowlist was broadened.");
+            Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes(
+                "{\"gameName\":\"玩家\",\"tagLine\":\"CN1\",\"displayName\":\"旧名称\"}")) == "玩家#CN1",
+                "Current summoner Riot ID was not preferred.");
+            Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes(
+                "{\"displayName\":\"旧名称\"}")) == "旧名称",
+                "Legacy summoner display name was discarded.");
+            Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes("[]")) == null,
+                "Malformed summoner account was accepted.");
             var alive = Sample("[{\"riotId\":\"玩家#CN1\",\"summonerName\":\"旧名称\",\"isDead\":false,\"respawnTimer\":0}]", "玩家#CN1", null);
             Require(alive != null && !alive.IsDead, "Living player's respawn state was not cleared.");
 

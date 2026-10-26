@@ -46,6 +46,7 @@ namespace FACM.AppHost.Modules
         private LeagueLoginStatusRestoreController _loginSignature;
         private LeagueOfflineStatusLockController _offlineLock;
         private LeagueAutoReplyController _autoReply;
+        private LeagueRespawnOverlayHost _respawnOverlay;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -119,6 +120,8 @@ namespace FACM.AppHost.Modules
             _autoReply = new LeagueAutoReplyController(_leagueClient, (ILeaguePrivateChatWriteApi)_leagueClient,
                 () => _leagueClient.CurrentSession, _offlineLock);
             ConfigureAutoReply();
+            _respawnOverlay = new LeagueRespawnOverlayHost(_leagueClient, () => _leagueClient.CurrentSession);
+            _respawnOverlay.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -135,6 +138,7 @@ namespace FACM.AppHost.Modules
                 _aramSide.Observe(current);
                 _loginSignature.Observe(current);
                 _autoReply.Observe(current);
+                _respawnOverlay.Observe(current);
             }
         }
 
@@ -161,6 +165,15 @@ namespace FACM.AppHost.Modules
         public string AutoLoginRankedTier { get { return _settingsModule.Settings.LeagueAutoLoginRankedTier; } }
         public string AutoLoginRankedDivision { get { return _settingsModule.Settings.LeagueAutoLoginRankedDivision; } }
         public bool LockOfflineStatusEnabled { get { return _settingsModule.Settings.LeagueLockOfflineStatusEnabled; } }
+        public bool RespawnOverlayEnabled { get { return _settingsModule.Settings.LeagueRespawnOverlayEnabled; } }
+
+        public void UpdateRespawnOverlayEnabled(bool enabled)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueRespawnOverlayEnabled = enabled;
+            _settingsModule.Settings.Save();
+            _respawnOverlay?.Configure(enabled, _dashboard.CurrentGameflowState);
+        }
         public bool AutoHandleInvitationsEnabled { get { return _settingsModule.Settings.LeagueAutoHandleInvitationsEnabled; } }
         public bool SkipInvitationsWhenAway { get { return _settingsModule.Settings.LeagueSkipInvitationsWhenAway; } }
         public bool AutoSkipLeaderEnabled { get { return _settingsModule.Settings.LeagueAutoSkipLeaderEnabled; } }
@@ -354,6 +367,7 @@ namespace FACM.AppHost.Modules
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
             _offlineLock?.Configure(LockOfflineStatusEnabled);
             ConfigureAutoReply();
+            _respawnOverlay?.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -504,6 +518,7 @@ namespace FACM.AppHost.Modules
             if (_aramSide != null) _aramSide.Observe(state);
             if (_loginSignature != null) _loginSignature.Observe(state);
             _autoReply?.Observe(state);
+            _respawnOverlay?.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -539,6 +554,7 @@ namespace FACM.AppHost.Modules
             if (_disposed) return;
             _disposed = true;
             _autoReply?.Dispose();
+            _respawnOverlay?.Dispose();
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_loginSignature != null)

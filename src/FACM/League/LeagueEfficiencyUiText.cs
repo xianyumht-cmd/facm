@@ -48,6 +48,9 @@ namespace FACM.League
         public const string AutoAcceptHint = "LeagueEfficiencyAutoAcceptHint";
         public const string AutoReconnect = "LeagueEfficiencyAutoReconnect";
         public const string AutoReconnectHint = "LeagueEfficiencyAutoReconnectHint";
+        public const string RespawnOverlay = "LeagueEfficiencyRespawnOverlay";
+        public const string RespawnOverlayHint = "LeagueEfficiencyRespawnOverlayHint";
+        public const string RespawnOverlaySaved = "LeagueEfficiencyRespawnOverlaySaved";
         public const string LobbyInvitationSection = "LeagueEfficiencyLobbyInvitationSection";
         public const string HandleInvitations = "LeagueEfficiencyHandleInvitations";
         public const string HandleInvitationsHint = "LeagueEfficiencyHandleInvitationsHint";
@@ -225,6 +228,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AutoAcceptHint, "匹配成功后自动接受一次；已经接受或你主动拒绝时不会反复操作。" },
             { LeagueEfficiencyUiTextKeys.AutoReconnect, "断线后自动重连" },
             { LeagueEfficiencyUiTextKeys.AutoReconnectHint, "游戏客户端进入重连状态后等待 10 秒，再确认状态并尝试重连一次；离开该状态或关闭开关就取消。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.RespawnOverlay, "游戏内复活倒计时" },
+            { LeagueEfficiencyUiTextKeys.RespawnOverlayHint, "对局中阵亡时显示轻量悬浮倒计时；只读取本机游戏接口，不抢游戏焦点。默认关闭。" },
+            { LeagueEfficiencyUiTextKeys.RespawnOverlaySaved, "复活倒计时设置已保存。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSection, "组队与邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitations, "自动处理收到的组队邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitationsHint, "按下方模式策略接受或拒绝邀请。所有模式默认忽略；关闭时不处理邀请。" },

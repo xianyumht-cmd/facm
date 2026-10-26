@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-26 — Respawn display uses an opt-in native game-only overlay
+
+Implement Akari 1.5.1's self respawn countdown with a compact click-through WinForms overlay, not a WebView or injected game component. To protect low-end machines and prevent surprising on-screen content, default the switch off, reuse one Gameflow owner, start the local 1 Hz read only during active connected gameplay, show only while the League game is foreground, and release the reader on phase exit. Save the preference with existing local/cloud/portable settings; do not store game/player data. Source-level CI is not a substitute for real Tencent client and Windows display acceptance. Keep the Draft PR unmerged and production updater unchanged.
+
 ## 2026-10-26 — Scope scheduled friend invites to one active lobby, without personal cloud data
 
 Mirror the pinned Akari v1.5.1 behavior with a native on-demand searchable friend selector and single-use queue bound to current `partyId` plus self summoner ID. Keep only at most five friend PUUIDs in process and clear on lobby exit/change; do not add settings, identity retention or cloud tables. Use the existing Gameflow owner, run conditional three-second checks only with outstanding selections, re-read online status and permission before a single POST, and suppress retries after an attempted send. Extend the existing matchmaking LCU transport through a separate typed outgoing-invite method instead of granting JSON-capable writes to every caller. A League lobby may persist through Matchmaking/ReadyCheck; source parity must follow actual lobby ownership rather than assuming only `Lobby` is valid. This does not authorize a production update before consolidated human acceptance.

@@ -59,6 +59,7 @@ namespace FACM.Services
             "LeagueAutoReplyAwayOnly",
             "LeagueAutoReplyText",
             "LeagueLockOfflineStatusEnabled",
+            "LeagueRespawnOverlayEnabled",
             "LeagueAutoMatchmakingMinPartySize",
             "LeagueAutoMatchmakingStartDelayMs",
             "LeagueAutoAcceptDelayMs",

@@ -134,6 +134,7 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
+            settings.LeagueRespawnOverlayEnabled = s.LeagueRespawnOverlayEnabled;
             settings.LeagueAutoReplyAwayOnly = s.LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(s.LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = s.LeagueLockOfflineStatusEnabled;

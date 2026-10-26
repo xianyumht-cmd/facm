@@ -18,6 +18,26 @@ namespace FACM.League
 
     internal static class LeagueRespawnTimerProjection
     {
+        internal static string ReadCurrentAccount(byte[] currentSummoner)
+        {
+            if (currentSummoner == null || currentSummoner.Length == 0 || currentSummoner.Length > 65536)
+                return null;
+            try
+            {
+                var data = new JavaScriptSerializer { MaxJsonLength = 65536, RecursionLimit = 12 }
+                    .DeserializeObject(Encoding.UTF8.GetString(currentSummoner)) as Dictionary<string, object>;
+                if (data == null) return null;
+                var gameName = ReadString(data, "gameName");
+                var tagLine = ReadString(data, "tagLine");
+                if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(tagLine))
+                    return gameName.Trim() + "#" + tagLine.Trim();
+                var displayName = ReadString(data, "displayName");
+                return string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
         internal static LeagueRespawnTimerSample Project(byte[] playerList, string accountName, LeagueRespawnTimerSample previous)
         {
             if (playerList == null || playerList.Length == 0 || playerList.Length > 131072 ||
