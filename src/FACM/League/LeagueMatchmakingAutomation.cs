@@ -111,6 +111,7 @@ namespace FACM.League
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
         private readonly ILeagueMatchmakingWriteApi _write;
+        private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly ILeagueMatchmakingClock _clock;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _lobbyCancellation;
@@ -122,13 +123,14 @@ namespace FACM.League
         private bool _autoSearch;
         private bool _autoAccept;
         private bool _waitForInvitees = true;
+        private bool _roomNotices;
         private int _minimumPartySize = 1;
         private int _searchStartDelayMs;
         private int _acceptDelayMs;
         private bool _disposed;
 
         public LeagueMatchmakingAutomationController(ILeagueClientApi read, ILeagueMatchmakingWriteApi write)
-            : this(read, write, new LeagueMatchmakingSystemClock())
+            : this(read, write, null, new LeagueMatchmakingSystemClock())
         {
         }
 
@@ -136,9 +138,19 @@ namespace FACM.League
             ILeagueClientApi read,
             ILeagueMatchmakingWriteApi write,
             ILeagueMatchmakingClock clock)
+            : this(read, write, null, clock)
+        {
+        }
+
+        internal LeagueMatchmakingAutomationController(
+            ILeagueClientApi read,
+            ILeagueMatchmakingWriteApi write,
+            ILeagueLobbyNoticeWriteApi notices,
+            ILeagueMatchmakingClock clock)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
+            _notices = notices;
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
@@ -154,7 +166,7 @@ namespace FACM.League
             int searchStartDelayMs,
             int acceptDelayMs)
         {
-            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, true);
+            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, true, false);
         }
 
         public void Configure(
@@ -164,6 +176,18 @@ namespace FACM.League
             int searchStartDelayMs,
             int acceptDelayMs,
             bool waitForInvitees)
+        {
+            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, waitForInvitees, false);
+        }
+
+        public void Configure(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs,
+            bool waitForInvitees,
+            bool roomNotices)
         {
             minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
             searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
@@ -177,7 +201,8 @@ namespace FACM.League
                 var wasAutoSearch = _autoSearch;
                 var wasAutoAccept = _autoAccept;
                 var lobbyPolicyChanged = _minimumPartySize != minimumPartySize ||
-                    _searchStartDelayMs != searchStartDelayMs || _waitForInvitees != waitForInvitees;
+                    _searchStartDelayMs != searchStartDelayMs || _waitForInvitees != waitForInvitees ||
+                    _roomNotices != roomNotices;
                 var readyPolicyChanged = _acceptDelayMs != acceptDelayMs;
 
                 restartLobby = autoSearch && IsPhase("Lobby") && (!wasAutoSearch || lobbyPolicyChanged);
@@ -197,6 +222,7 @@ namespace FACM.League
                 _autoAccept = autoAccept;
                 _minimumPartySize = minimumPartySize;
                 _waitForInvitees = waitForInvitees;
+                _roomNotices = roomNotices;
                 _searchStartDelayMs = searchStartDelayMs;
                 _acceptDelayMs = acceptDelayMs;
             }
@@ -283,17 +309,103 @@ namespace FACM.League
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
             var initialDelay = GetSearchStartDelay();
-            if (initialDelay > TimeSpan.Zero)
+            string announcedFingerprint = null;
+            try
             {
-                AppLog.Info("League auto matchmaking: wait/start-delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
-                await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+                if (initialDelay > TimeSpan.Zero)
+                {
+                    AppLog.Info("League auto matchmaking: wait/start-delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
+                    if (RoomNoticesEnabled())
+                        announcedFingerprint = await RunRoomCountdownAsync(initialDelay, cancellationToken).ConfigureAwait(false);
+                    else
+                        await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+                }
+                while (IsSearchActive())
+                {
+                    var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
+                    if (success) return;
+                    await _clock.Delay(LobbyObserveInterval, cancellationToken).ConfigureAwait(false);
+                }
             }
-            while (IsSearchActive())
+            catch (OperationCanceledException)
             {
-                var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
-                if (success) return;
-                await _clock.Delay(LobbyObserveInterval, cancellationToken).ConfigureAwait(false);
+                if (announcedFingerprint != null && RoomNoticesEnabled())
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                    {
+                        try { await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消", true, timeout.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                }
+                throw;
             }
+        }
+
+        private async Task<string> RunRoomCountdownAsync(TimeSpan duration, CancellationToken token)
+        {
+            var remaining = (int)Math.Ceiling(duration.TotalMilliseconds);
+            string announcedFingerprint = null;
+            try
+            {
+                while (remaining > 0 && IsSearchActive())
+                {
+                    var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, token).ConfigureAwait(false));
+                    int minimum;
+                    bool wait;
+                    lock (_sync) { minimum = _minimumPartySize; wait = _waitForInvitees; }
+                    if (lobby == null || !lobby.IsEligibleFor(minimum, wait) ||
+                        (announcedFingerprint != null && announcedFingerprint != lobby.Fingerprint))
+                    {
+                        if (announcedFingerprint != null && lobby != null && lobby.Fingerprint == announcedFingerprint)
+                            await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消：房间条件发生变化", true, token).ConfigureAwait(false);
+                        await _clock.Delay(TimeSpan.FromMilliseconds(remaining), token).ConfigureAwait(false);
+                        return null;
+                    }
+                    var seconds = (int)Math.Ceiling(remaining / 1000d);
+                    if (await SendRoomNoticeAsync(lobby.Fingerprint, "将在 " + seconds + " 秒后自动排队", false, token).ConfigureAwait(false))
+                        announcedFingerprint = lobby.Fingerprint;
+                    var step = Math.Min(1000, remaining);
+                    await _clock.Delay(TimeSpan.FromMilliseconds(step), token).ConfigureAwait(false);
+                    remaining -= step;
+                }
+                return announcedFingerprint;
+            }
+            catch (OperationCanceledException)
+            {
+                if (announcedFingerprint != null && RoomNoticesEnabled())
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                    {
+                        try { await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消", true, timeout.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                }
+                throw;
+            }
+        }
+
+        private async Task<bool> SendRoomNoticeAsync(string fingerprint, string message, bool cancellation, CancellationToken token)
+        {
+            if (_notices == null || string.IsNullOrEmpty(fingerprint) || !RoomNoticesEnabled()) return false;
+            var room = LeagueFriendInvitationController.ParseCustomGameConversation(
+                await _read.TryGetBytesAsync(LeagueFriendInvitationController.ConversationsPath, token).ConfigureAwait(false));
+            if (room == null) return false;
+            var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, token).ConfigureAwait(false));
+            if (lobby == null || lobby.Fingerprint != fingerprint || !lobby.IsLeader) return false;
+            lock (_sync)
+            {
+                if (_disposed || !_roomNotices || !IsPhase("Lobby") || (!cancellation && !_autoSearch)) return false;
+            }
+            token.ThrowIfCancellationRequested();
+            var response = await _notices.TrySendNoticeAsync(room, message, token).ConfigureAwait(false);
+            AppLog.Info("League matchmaking room notice: " +
+                (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+            return response != null && response.IsSuccessStatusCode;
+        }
+
+        private bool RoomNoticesEnabled()
+        {
+            lock (_sync) return !_disposed && _roomNotices && _notices != null;
         }
 
         private async Task<bool> EvaluateLobbyAsync(CancellationToken cancellationToken)

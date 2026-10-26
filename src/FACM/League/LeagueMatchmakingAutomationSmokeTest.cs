@@ -17,6 +17,8 @@ namespace FACM.League
             ValidateImmediatePhaseReaction();
             ValidateAkariStyleAutomationPolicies();
             ValidatePendingInvitationWait();
+            ValidateRoomCountdownNotices();
+            ValidateRoomCountdownCancellation();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
@@ -40,9 +42,12 @@ namespace FACM.League
                 "Legacy settings must default Gate 7 OFF.");
             Require(settings.LeagueAutoMatchmakingWaitForInvitees,
                 "Absent invitation-wait setting must retain Akari's default wait policy.");
+            Require(!settings.LeagueAutoMatchmakingRoomNotices,
+                "Room countdown notices must default off.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingWaitForInvitees=False");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingRoomNotices=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingMinPartySize=4");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingStartDelayMs=2500");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptDelayMs=750");
@@ -50,11 +55,13 @@ namespace FACM.League
                 "Gate 7 settings did not parse.");
             Require(!settings.LeagueAutoMatchmakingWaitForInvitees,
                 "Invitation-wait preference did not parse.");
+            Require(settings.LeagueAutoMatchmakingRoomNotices, "Room-notice preference did not parse.");
             Require(settings.LeagueAutoMatchmakingMinPartySize == 4 && settings.LeagueAutoMatchmakingStartDelayMs == 2500 && settings.LeagueAutoAcceptDelayMs == 750,
                 "Akari-style matchmaking policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLinesForSmokeTest());
             Require(serialized.Contains("LeagueAutoMatchmakingEnabled=True"), "Auto-matchmaking setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingWaitForInvitees=False"), "Invitation-wait setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingRoomNotices=True"), "Room-notice setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingMinPartySize=4"), "Minimum-party setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingStartDelayMs=2500"), "Matchmaking delay setting did not serialize.");
@@ -238,6 +245,63 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(secondWrite.Calls.Count == 1,
                 "An already declined invitation must not block automatic matchmaking.");
+        }
+
+        private static void ValidateRoomCountdownNotices()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 2500, 0, true, false);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(write.WaitForCall(TimeSpan.FromSeconds(1)), "Disabled room notices changed queue startup.");
+                Require(notices.Messages.Count == 0, "Room notices must remain completely silent by default.");
+            }
+
+            var enabledWrite = new FakeWriteApi();
+            var enabledNotices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, enabledWrite, enabledNotices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 2500, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(enabledWrite.WaitForCall(TimeSpan.FromSeconds(1)), "Countdown must not prevent queue startup.");
+                Require(enabledNotices.Messages.Count == 3 &&
+                    enabledNotices.Messages.First().Contains("3 秒") &&
+                    enabledNotices.Messages.Last().Contains("1 秒"),
+                    "The optional room countdown must follow the configured seconds without extra timers.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Matchmaking" });
+                Require(enabledNotices.Messages.Count == 3, "Leaving Lobby must not emit a false cancellation after queue startup.");
+            }
+        }
+
+        private static void ValidateRoomCountdownCancellation()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            var clock = new FakeClock { BlockFirstDelay = true };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, clock))
+            {
+                controller.Configure(true, false, 1, 4000, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count == 1, 1000),
+                    "Room countdown did not emit its initial message.");
+                controller.Configure(false, false, 1, 4000, 0, true, true);
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count == 2, 1000),
+                    "Cancelling an announced countdown must send one room notification.");
+                Require(notices.Messages.Last().Contains("已取消") && write.Calls.Count == 0,
+                    "Cancellation must suppress the matchmaking POST and avoid duplicate chat writes.");
+            }
         }
 
         private static void ValidateEligibleLobbyExactlyOnce()
@@ -603,14 +667,30 @@ namespace FACM.League
         private sealed class FakeClock : ILeagueMatchmakingClock
         {
             public int DelayCalls;
+            public bool BlockFirstDelay;
             public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays = new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
 
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref DelayCalls);
+                var number = Interlocked.Increment(ref DelayCalls);
                 Delays.Enqueue(delay);
+                if (BlockFirstDelay && number == 1) return Task.Delay(Timeout.Infinite, cancellationToken);
                 return Task.Delay(1, cancellationToken);
+            }
+        }
+
+        private sealed class FakeRoomNoticeApi : ILeagueLobbyNoticeWriteApi
+        {
+            public readonly System.Collections.Concurrent.ConcurrentQueue<string> Messages =
+                new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+            public Task<LeagueClientWriteResponse> TrySendNoticeAsync(string conversationId, string message, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (conversationId != "room-1") throw new InvalidOperationException("Room notice used the wrong conversation.");
+                Messages.Enqueue(message);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
             }
         }
     }

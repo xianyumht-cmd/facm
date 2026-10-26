@@ -41,6 +41,7 @@ namespace FACM.Services
             "LeagueAutoReturnLobbyEnabled",
             "LeagueAutoMatchmakingEnabled",
             "LeagueAutoMatchmakingWaitForInvitees",
+            "LeagueAutoMatchmakingRoomNotices",
             "LeagueAutoAcceptEnabled",
             "LeagueAutoHandleInvitationsEnabled",
             "LeagueSkipInvitationsWhenAway",

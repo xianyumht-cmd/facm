@@ -113,6 +113,7 @@ namespace FACM.Services
             settings.LeagueAutoReturnLobbyEnabled = s.LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = s.LeagueAutoMatchmakingEnabled;
             settings.LeagueAutoMatchmakingWaitForInvitees = s.LeagueAutoMatchmakingWaitForInvitees ?? true;
+            settings.LeagueAutoMatchmakingRoomNotices = s.LeagueAutoMatchmakingRoomNotices;
             settings.LeagueAutoAcceptEnabled = s.LeagueAutoAcceptEnabled;
             settings.LeagueAutoHandleInvitationsEnabled = s.LeagueAutoHandleInvitationsEnabled;
             settings.LeagueSkipInvitationsWhenAway = s.LeagueSkipInvitationsWhenAway;

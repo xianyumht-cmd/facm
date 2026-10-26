@@ -22,6 +22,7 @@ namespace FACM.League
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
         private readonly CheckBox _waitForInvitees;
+        private readonly CheckBox _roomNotices;
         private readonly CheckBox _autoAccept;
         private readonly CheckBox _autoReconnect;
         private readonly CheckBox _autoAramTeamSide;
@@ -230,9 +231,26 @@ namespace FACM.League
             WireHelp(_waitForInvitees, T(LeagueEfficiencyUiTextKeys.WaitForInviteesHint));
             searchRow.Controls.Add(_waitForInvitees, 1, 0);
             _autoAccept = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
+            var acceptRow = (TableLayoutPanel)_autoAccept.Parent;
+            acceptRow.ColumnCount = 2;
+            acceptRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+            acceptRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+            foreach (Control child in acceptRow.Controls)
+                if (acceptRow.GetRow(child) == 1) acceptRow.SetColumnSpan(child, 2);
+            _roomNotices = new FacmToggleSwitch
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNotices),
+                Checked = _module.AutoMatchmakingRoomNotices,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNotices)
+            };
+            WireHelp(_roomNotices, T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNoticesHint));
+            acceptRow.Controls.Add(_roomNotices, 1, 0);
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
             _waitForInvitees.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
+            _roomNotices.CheckedChanged += MatchmakingSettingChanged;
             _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, string.Empty);
             _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, string.Empty);
             _acceptDelaySeconds = AddNumberRow(root, 14, T(LeagueEfficiencyUiTextKeys.AcceptDelay), T(LeagueEfficiencyUiTextKeys.AcceptDelayHint), 0m, 15m, 0.5m, _module.AutoAcceptDelayMs / 1000m, string.Empty);
@@ -743,7 +761,8 @@ namespace FACM.League
                 Decimal.ToInt32(_acceptDelaySeconds.Value * 1000m),
                 SelectedStopPolicy(),
                 Decimal.ToInt32(_stopAfterSeconds.Value * 1000m),
-                _waitForInvitees.Checked);
+                _waitForInvitees.Checked,
+                _roomNotices.Checked);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
         }
@@ -916,6 +935,7 @@ namespace FACM.League
             {
                 _autoSearch.Checked = _module.AutoMatchmakingEnabled;
                 _waitForInvitees.Checked = _module.AutoMatchmakingWaitForInvitees;
+                _roomNotices.Checked = _module.AutoMatchmakingRoomNotices;
                 _autoAccept.Checked = _module.AutoAcceptEnabled;
                 _minPartySize.Value = Math.Max(_minPartySize.Minimum, Math.Min(_minPartySize.Maximum, _module.AutoMatchmakingMinPartySize));
                 _matchmakingDelaySeconds.Value = Math.Max(_matchmakingDelaySeconds.Minimum,
@@ -1167,6 +1187,7 @@ namespace FACM.League
         {
             var autoSearch = _autoSearch != null && _autoSearch.Checked;
             if (_waitForInvitees != null) _waitForInvitees.Enabled = autoSearch;
+            if (_roomNotices != null) _roomNotices.Enabled = autoSearch;
             if (_minPartySize != null) _minPartySize.Enabled = autoSearch;
             if (_matchmakingDelaySeconds != null) _matchmakingDelaySeconds.Enabled = autoSearch;
             if (_stopPolicy != null) _stopPolicy.Enabled = autoSearch;

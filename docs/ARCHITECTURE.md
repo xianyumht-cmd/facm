@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Akari v1.5.1 room countdown messages (Draft #357)
+
+`LeagueMatchmakingAutomationController` optionally announces scheduled queue-start countdowns using the existing per-Lobby cancellation token and `ILeagueLobbyNoticeWriteApi` capability already shared by friend-invitation chat. Only an explicitly enabled setting and positive start delay permit 1-second countdown ticks. Each outbound message reads a unique safe `customGame` conversation and rechecks the current Lobby fingerprint/leader before the narrowly authorized `celebration` POST. Mid-countdown cancellation is best-effort and bounded with a fresh short timeout, but is suppressed if the room or permission cannot be confirmed. No extra permanent Gameflow owner, thread, event socket or idle polling is introduced; the disabled code path is the original single delay. Local and cloud/portable snapshots persist the opt-in flag.
+
 ## Akari v1.5.1 pre-end sequence completion (Draft #357)
 
 `LeaguePostGameAutomationController` owns the `missions-celebration` completion adjunct when auto return to Lobby is enabled. Existing Gameflow observations alone trigger a bounded two-read attempt in connected `PreEndOfGame`; a fresh matching `currentSequenceEvent` and unchanged phase/configuration are required before one narrow POST through `LeaguePostGameWriteApiClient`. Cancellation and an in-flight/attempted guard prevent stale or duplicate submissions. Disabling automatic return generates no sequence traffic; this does not add a persistent event socket or timer. It intentionally has Gameflow-observation latency compared with the pinned Akari WAMP event, which remains to be verified in the final Tencent acceptance.

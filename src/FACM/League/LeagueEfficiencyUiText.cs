@@ -162,6 +162,8 @@ namespace FACM.League
         public const string MinPartySize = "LeagueEfficiencyMinPartySize";
         public const string WaitForInvitees = "LeagueEfficiencyWaitForInvitees";
         public const string WaitForInviteesHint = "LeagueEfficiencyWaitForInviteesHint";
+        public const string MatchmakingRoomNotices = "LeagueEfficiencyMatchmakingRoomNotices";
+        public const string MatchmakingRoomNoticesHint = "LeagueEfficiencyMatchmakingRoomNoticesHint";
         public const string MinPartySizeHint = "LeagueEfficiencyMinPartySizeHint";
         public const string MatchmakingDelay = "LeagueEfficiencyMatchmakingDelay";
         public const string MatchmakingDelayHint = "LeagueEfficiencyMatchmakingDelayHint";
@@ -337,6 +339,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.MinPartySize, "自动排队最低人数（人）" },
             { LeagueEfficiencyUiTextKeys.WaitForInvitees, "等待受邀玩家" },
             { LeagueEfficiencyUiTextKeys.WaitForInviteesHint, "开启：还有待回应的大厅邀请时暂不开始排队。关闭：仅按队长资格、人数等条件决定；默认开启。" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingRoomNotices, "房间倒计时播报" },
+            { LeagueEfficiencyUiTextKeys.MatchmakingRoomNoticesHint, "开启后，排队前等待期间每秒向当前自定义房间发送倒计时；取消排队时发一次提示。仅在可确认自己是队长的房间内发送，默认关闭。" },
             { LeagueEfficiencyUiTextKeys.MinPartySizeHint, "只有当前大厅真人数量达到这个值时才自动开始排队；1-5 人。" },
             { LeagueEfficiencyUiTextKeys.MatchmakingDelay, "排队前等待（秒）" },
             { LeagueEfficiencyUiTextKeys.MatchmakingDelayHint, "进入大厅并满足条件后等待一段时间再开始排队；期间离开大厅会立即取消。" },

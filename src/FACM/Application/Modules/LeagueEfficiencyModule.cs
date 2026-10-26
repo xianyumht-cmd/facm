@@ -92,8 +92,9 @@ namespace FACM.AppHost.Modules
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled, AutoHonorStrategy);
 
             var matchmakingWriter = (ILeagueMatchmakingWriteApi)_leagueClient;
-            _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, matchmakingWriter);
-            _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees);
+            _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, matchmakingWriter,
+                (ILeagueLobbyNoticeWriteApi)_leagueClient, new LeagueMatchmakingSystemClock());
+            _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees, AutoMatchmakingRoomNotices);
             _matchmakingStop = new LeagueMatchmakingStopController(_leagueClient, matchmakingWriter);
             ConfigureMatchmakingStopController();
             _reconnect = new LeagueGameflowReconnectController(_leagueClient, (ILeagueGameflowReconnectWriteApi)_leagueClient);
@@ -194,6 +195,7 @@ namespace FACM.AppHost.Modules
         public string AutoSelectProfilesJson { get { return _settingsModule.Settings.LeagueAutoSelectProfiles; } }
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public bool AutoMatchmakingWaitForInvitees { get { return _settingsModule.Settings.LeagueAutoMatchmakingWaitForInvitees; } }
+        public bool AutoMatchmakingRoomNotices { get { return _settingsModule.Settings.LeagueAutoMatchmakingRoomNotices; } }
         public int AutoMatchmakingStartDelayMs { get { return _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs; } }
         public int AutoAcceptDelayMs { get { return _settingsModule.Settings.LeagueAutoAcceptDelayMs; } }
         public string AutoMatchmakingStopPolicy { get { return LeagueMatchmakingStopPolicyCodec.Normalize(_settingsModule.Settings.LeagueAutoMatchmakingStopPolicy); } }
@@ -340,7 +342,7 @@ namespace FACM.AppHost.Modules
             // Cloud restore updates the same Settings object. Pick up restored preferences without
             // requiring the user to close/reopen the game client or Quick Tools.
             _matchmaking?.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize,
-                AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees);
+                AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees, AutoMatchmakingRoomNotices);
             _matchmaking?.Observe(_dashboard.CurrentGameflowState);
             ConfigureMatchmakingStopController();
             _matchmakingStop?.Observe(_dashboard.CurrentGameflowState);
@@ -410,7 +412,8 @@ namespace FACM.AppHost.Modules
             int acceptDelayMs,
             string stopPolicy,
             int stopAfterMs,
-            bool waitForInvitees)
+            bool waitForInvitees,
+            bool roomNotices)
         {
             ThrowIfDisposed();
             minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
@@ -420,6 +423,7 @@ namespace FACM.AppHost.Modules
             stopAfterMs = Math.Max(1000, Math.Min(600000, stopAfterMs));
             _settingsModule.Settings.LeagueAutoMatchmakingEnabled = autoSearch;
             _settingsModule.Settings.LeagueAutoMatchmakingWaitForInvitees = waitForInvitees;
+            _settingsModule.Settings.LeagueAutoMatchmakingRoomNotices = roomNotices;
             _settingsModule.Settings.LeagueAutoAcceptEnabled = autoAccept;
             _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize = minimumPartySize;
             _settingsModule.Settings.LeagueAutoMatchmakingStartDelayMs = searchStartDelayMs;
@@ -428,7 +432,7 @@ namespace FACM.AppHost.Modules
             _settingsModule.Settings.LeagueAutoMatchmakingStopAfterMs = stopAfterMs;
             _settingsModule.Settings.Save();
             if (_matchmaking != null)
-                _matchmaking.Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, waitForInvitees);
+                _matchmaking.Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, waitForInvitees, roomNotices);
             ConfigureMatchmakingStopController();
 
             var current = _dashboard.CurrentGameflowState;
