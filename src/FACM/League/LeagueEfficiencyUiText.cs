@@ -161,6 +161,15 @@ namespace FACM.League
         public const string AdvancedBenchDelay = "LeagueEfficiencyAdvancedBenchDelay";
         public const string AdvancedSave = "LeagueEfficiencyAdvancedSave";
         public const string AdvancedCancel = "LeagueEfficiencyAdvancedCancel";
+        public const string ProfileModeRanked = "LeagueEfficiencyProfileModeRanked";
+        public const string ProfileModeNormal = "LeagueEfficiencyProfileModeNormal";
+        public const string ProfileModeCherry = "LeagueEfficiencyProfileModeCherry";
+        public const string ProfileModeUrf = "LeagueEfficiencyProfileModeUrf";
+        public const string ProfileModeOneForAll = "LeagueEfficiencyProfileModeOneForAll";
+        public const string ProfileModeUltbook = "LeagueEfficiencyProfileModeUltbook";
+        public const string ProfileModeBot = "LeagueEfficiencyProfileModeBot";
+        public const string ProfileModeCustom = "LeagueEfficiencyProfileModeCustom";
+        public const string AdvancedGroupEnabled = "LeagueEfficiencyAdvancedGroupEnabled";
         public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
         public const string ProfileModeRift = "LeagueEfficiencyProfileModeRift";
         public const string ProfileModeAram = "LeagueEfficiencyProfileModeAram";
@@ -353,6 +362,15 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
             { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeRanked, "排位模式" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeNormal, "普通模式" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeCherry, "斗魂竞技场" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeUrf, "无限火力" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeOneForAll, "克隆模式" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeUltbook, "终极魔典" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeBot, "人机模式" },
+            { LeagueEfficiencyUiTextKeys.ProfileModeCustom, "自定义对局" },
+            { LeagueEfficiencyUiTextKeys.AdvancedGroupEnabled, "启用本组当前操作" },
             { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
             { LeagueEfficiencyUiTextKeys.ProfileModeRift, "召唤师峡谷" },
             { LeagueEfficiencyUiTextKeys.ProfileModeAram, "普通大乱斗" },

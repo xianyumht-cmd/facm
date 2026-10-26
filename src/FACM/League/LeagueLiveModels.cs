@@ -50,6 +50,8 @@ namespace FACM.League
 
     internal sealed class LeagueBenchQuickPickState
     {
+        public string AutoSelectGroup { get; set; }
+        public string AutoSelectContext { get; set; }
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();

@@ -250,6 +250,8 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
+            state.AutoSelectGroup = ReadString(data, "autoSelectGroup");
+            state.AutoSelectContext = ReadString(data, "autoSelectContext");
             state.QueueId = ReadInt(data, "queueId");
             state.GameMode = FirstNonEmpty(ReadString(data, "gameMode"), ReadString(data, "gameModeName"));
             state.LocalPlayerCellId = ReadInt(data, "localPlayerCellId");

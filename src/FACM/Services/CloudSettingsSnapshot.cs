@@ -39,6 +39,11 @@ namespace FACM.Services
         public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
         public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
         public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
+        public bool LeagueAutoPickEnabled { get; set; }
+        public bool LeagueAutoBanEnabled { get; set; }
+        public int LeagueAutoPickChampionId { get; set; }
+        public int LeagueAutoBanChampionId { get; set; }
+        public string LeagueAutoSelectProfiles { get; set; }
         public bool LeagueAutoReplyEnabled { get; set; }
         public bool LeagueAutoReplyAwayOnly { get; set; }
         public string LeagueAutoReplyText { get; set; }
@@ -92,6 +97,11 @@ namespace FACM.Services
                 LeagueAutoLoginRankedQueue = settings.LeagueAutoLoginRankedQueue,
                 LeagueAutoLoginRankedTier = settings.LeagueAutoLoginRankedTier,
                 LeagueAutoLoginRankedDivision = settings.LeagueAutoLoginRankedDivision,
+                LeagueAutoPickEnabled = settings.LeagueAutoPickEnabled,
+                LeagueAutoBanEnabled = settings.LeagueAutoBanEnabled,
+                LeagueAutoPickChampionId = settings.LeagueAutoPickChampionId,
+                LeagueAutoBanChampionId = settings.LeagueAutoBanChampionId,
+                LeagueAutoSelectProfiles = settings.LeagueAutoSelectProfiles,
                 LeagueAutoReplyEnabled = settings.LeagueAutoReplyEnabled,
                 LeagueRespawnOverlayEnabled = settings.LeagueRespawnOverlayEnabled,
                 LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(settings.LeagueQuickMessagePresets),
@@ -154,6 +164,12 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
+            settings.LeagueAutoPickEnabled = LeagueAutoPickEnabled;
+            settings.LeagueAutoBanEnabled = LeagueAutoBanEnabled;
+            settings.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, LeagueAutoPickChampionId));
+            settings.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, LeagueAutoBanChampionId));
+            settings.LeagueAutoSelectProfiles = FACM.League.LeagueAutoSelectProfiles.Serialize(
+                FACM.League.LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles));
             settings.LeagueAutoReplyEnabled = LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = LeagueRespawnOverlayEnabled;
             settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets);

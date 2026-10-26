@@ -22,6 +22,9 @@ namespace FACM.League
         public int LocalCellId { get; set; }
         public string GameMode { get; set; }
         public string Role { get; set; }
+        public string Group { get; set; }
+        public string ContextKey { get; set; }
+        public Dictionary<string, object> Timer { get; set; }
         public int TimeLeftMs { get; set; }
         public HashSet<int> TeammateIntentIds { get; set; } = new HashSet<int>();
     }
@@ -289,7 +292,7 @@ namespace FACM.League
                 banId = _banId;
                 profiles = _profiles;
             }
-            var session = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var session = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
             if (session == null)
             {
@@ -322,11 +325,11 @@ namespace FACM.League
             }
             var isPick = string.Equals(action.Type, "pick", StringComparison.Ordinal);
             if (action.Completed || isPick && !pick || !isPick && !ban) return;
-            var mode = LeagueAutoSelectProfiles.ModeFor(action.QueueId, action.GameMode);
+            var mode = action.Group ?? LeagueAutoSelectProfiles.ModeFor(action.QueueId, action.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, action.Role);
             var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, action.Role, isPick,
                 isPick ? pickId : banId);
-            if (candidates.Count == 0) return;
+            if (candidates.Count == 0 || isPick && !profile.PickEnabled || !isPick && !profile.BanEnabled) return;
             if (action.ChampionId > 0 && !candidates.Contains(action.ChampionId))
             {
                 RecordOnce(reported, trace, "turn", "manual_choice");
@@ -352,7 +355,7 @@ namespace FACM.League
 
             var strategy = isPick ? profile.PickStrategy : profile.BanStrategy;
             var delayMs = isPick ? profile.PickDelayMs : profile.BanDelayMs;
-            delayMs = LimitDelay(delayMs, action.TimeLeftMs);
+            delayMs = LeagueAutoSelectContext.PhaseDelay(delayMs, false, action.Timer, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (delayMs > 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "delay", "scheduled", 0);
@@ -382,9 +385,12 @@ namespace FACM.League
             if (strategy != "show-and-lock-in" || result == null || !result.IsSuccessStatusCode ||
                 !IsCurrent(episode)) return;
 
-            // Show and lock are separate LCU state transitions. Allow the client to register the show.
-            await _clock.Delay(TimeSpan.FromMilliseconds(Math.Max(2000, delayMs)), episode.Token)
-                .ConfigureAwait(false);
+            var shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
+            var shown = ParseCurrentAction(shownBytes);
+            if (shown == null || shown.Id != action.Id || shown.ContextKey != action.ContextKey) return;
+            var lockDelay = LeagueAutoSelectContext.PhaseDelay(isPick ? profile.PickDelayMs : profile.BanDelayMs,
+                true, shown.Timer, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            if (lockDelay > 0) await _clock.Delay(TimeSpan.FromMilliseconds(lockDelay), episode.Token).ConfigureAwait(false);
             if (!await CheckPreflightAsync(episode, action, desired,
                     profile.IgnoreTeammateIntent).ConfigureAwait(false))
             {
@@ -405,9 +411,9 @@ namespace FACM.League
         {
             var intent = ParsePickIntentAction(session);
             if (intent == null || intent.ChampionId > 0) return false;
-            var mode = LeagueAutoSelectProfiles.ModeFor(intent.QueueId, intent.GameMode);
+            var mode = intent.Group ?? LeagueAutoSelectProfiles.ModeFor(intent.QueueId, intent.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, intent.Role);
-            if (!profile.ShowPickIntent) return false;
+            if (!profile.PickEnabled || !profile.ShowPickIntent) return false;
             var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, intent.Role, true, pickId);
             if (candidates.Count == 0) return true;
 
@@ -423,17 +429,17 @@ namespace FACM.League
             }
             if (!attempted.Add("intent:" + intent.Id)) return true;
             var watch = Stopwatch.StartNew();
-            var delay = LimitDelay(profile.PickDelayMs, intent.TimeLeftMs);
+            var delay = LeagueAutoSelectContext.PhaseDelay(profile.PickDelayMs, false, intent.Timer, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (delay > 0)
             {
                 await _clock.Delay(TimeSpan.FromMilliseconds(delay), episode.Token).ConfigureAwait(false);
                 if (!IsCurrent(episode)) return true;
             }
-            var freshBytes = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var freshBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return true;
             var fresh = ParsePickIntentAction(freshBytes);
             if (fresh == null || fresh.Id != intent.Id || fresh.LocalCellId != intent.LocalCellId ||
-                fresh.QueueId != intent.QueueId || fresh.GameMode != intent.GameMode ||
+                fresh.QueueId != intent.QueueId || fresh.GameMode != intent.GameMode || fresh.ContextKey != intent.ContextKey ||
                 fresh.Role != intent.Role || fresh.ChampionId != 0 ||
                 ParseCurrentAction(freshBytes) != null ||
                 !profile.IgnoreTeammateIntent && fresh.TeammateIntentIds.Contains(desired))
@@ -484,6 +490,9 @@ namespace FACM.League
                             LocalCellId = cell,
                             QueueId = ReadInt(root, "queueId"),
                             GameMode = ReadString(root, "gameMode"),
+                            Group = ReadString(root, "autoSelectGroup"),
+                            ContextKey = ReadString(root, "autoSelectContext"),
+                            Timer = LeagueAutoSelectContext.Dictionary(root, "timer"),
                             Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadTimerRemaining(root)
                         };
@@ -530,9 +539,9 @@ namespace FACM.League
                 !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase)) return false;
 
-            var mode = LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
+            var mode = state.AutoSelectGroup ?? LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
-            if (!profile.BenchHandleTradeEnabled) return false;
+            if (!profile.PickEnabled || !profile.BenchHandleTradeEnabled) return false;
 
             // Only profiles with explicitly enabled trade handling generate this extra read;
             // all observation still happens in the same phase-scoped selection task.
@@ -559,7 +568,7 @@ namespace FACM.League
                 if (!IsCurrent(episode)) return true;
             }
 
-            var confirmedSession = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var confirmedSession = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return true;
             var current = LeagueLiveDataService.ParseBenchPayload(confirmedSession);
             if (!SameBenchIdentity(state, current) || current.LocalChampionId != state.LocalChampionId)
@@ -626,9 +635,9 @@ namespace FACM.League
                 !string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase) &&
                 !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase)) return;
 
-            var mode = LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
+            var mode = state.AutoSelectGroup ?? LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
-            if (!profile.BenchAutoSwapEnabled) return;
+            if (!profile.PickEnabled || !profile.BenchAutoSwapEnabled) return;
             guard.ObserveBench(state.ChampionIds, Stopwatch.GetTimestamp());
             if (!guard.AcceptObservedChampion(state.LocalChampionId))
             {
@@ -657,7 +666,7 @@ namespace FACM.League
 
             // A single bounded fresh read verifies both the user's held champion and the
             // bench listing. An intervening manual swap or phase change cancels this write.
-            var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var confirmation = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
             var fresh = await ReadBenchAsync(confirmation, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
@@ -680,7 +689,7 @@ namespace FACM.League
             // Do not retry the POST when the client has acknowledged it but state has not settled.
             // A confirmed new champion is the only permitted continuation of an automatic sequence.
             await _clock.Delay(TimeSpan.FromMilliseconds(250), episode.Token).ConfigureAwait(false);
-            var result = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var result = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
             var settled = await ReadBenchAsync(result, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
@@ -714,6 +723,8 @@ namespace FACM.League
                 fallback.LocalChampionId != primary.LocalChampionId) return primary;
             fallback.QueueId = primary.QueueId;
             fallback.GameMode = primary.GameMode;
+            fallback.AutoSelectGroup = primary.AutoSelectGroup;
+            fallback.AutoSelectContext = primary.AutoSelectContext;
             fallback.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
             if (string.IsNullOrWhiteSpace(fallback.TimerPhase)) fallback.TimerPhase = primary.TimerPhase;
             if (fallback.TimerMillisecondsLeft <= 0) fallback.TimerMillisecondsLeft = primary.TimerMillisecondsLeft;
@@ -742,6 +753,7 @@ namespace FACM.League
         {
             return expected.SessionAvailable && fresh.SessionAvailable && fresh.BenchEnabled &&
                 expected.QueueId == fresh.QueueId && expected.GameMode == fresh.GameMode &&
+                expected.AutoSelectContext == fresh.AutoSelectContext &&
                 expected.LocalPlayerCellId == fresh.LocalPlayerCellId &&
                 expected.SwapRoute == fresh.SwapRoute &&
                 (string.Equals(fresh.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase) ||
@@ -759,16 +771,24 @@ namespace FACM.League
             CancellationTokenSource episode, LeagueAutoSelectAction expected, int desired,
             bool ignoreTeammateIntent)
         {
-            var confirmation = await _read.TryGetBytesAsync(SessionPath, episode.Token).ConfigureAwait(false);
+            var confirmation = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return false;
             var fresh = ParseCurrentAction(confirmation);
             return fresh != null && fresh.Id == expected.Id && fresh.Type == expected.Type &&
                 fresh.LocalCellId == expected.LocalCellId &&
                 fresh.QueueId == expected.QueueId && fresh.Role == expected.Role &&
-                fresh.GameMode == expected.GameMode && !fresh.Completed &&
+                fresh.GameMode == expected.GameMode && fresh.ContextKey == expected.ContextKey && !fresh.Completed &&
                 (fresh.ChampionId == 0 || fresh.ChampionId == desired) &&
                 (fresh.Type != "pick" || fresh.ChampionId == desired ||
                  !fresh.TeammateIntentIds.Contains(desired) || ignoreTeammateIntent);
+        }
+
+        private async Task<byte[]> ReadSelectionSessionAsync(CancellationToken token)
+        {
+            var selection = await _read.TryGetBytesAsync(SessionPath, token).ConfigureAwait(false);
+            if (selection == null) return null;
+            var gameflow = await _read.TryGetBytesAsync(LeagueLiveDataService.GameflowSessionPath, token).ConfigureAwait(false);
+            return LeagueAutoSelectContext.Bind(selection, gameflow);
         }
 
         private static int LimitDelay(int configuredMs, int timeLeftMs)
@@ -861,6 +881,9 @@ namespace FACM.League
                             QueueId = ReadInt(root, "queueId"),
                             LocalCellId = myCell,
                             GameMode = ReadString(root, "gameMode"),
+                            Group = ReadString(root, "autoSelectGroup"),
+                            ContextKey = ReadString(root, "autoSelectContext"),
+                            Timer = LeagueAutoSelectContext.Dictionary(root, "timer"),
                             Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadInt((Dictionary<string, object>)root["timer"],
                                 "adjustedTimeLeftInPhase")

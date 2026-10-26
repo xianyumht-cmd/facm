@@ -9,6 +9,8 @@ namespace FACM.League
     {
         public string Mode { get; set; } = "default";
         public string Role { get; set; } = "default";
+        public bool PickEnabled { get; set; } = true;
+        public bool BanEnabled { get; set; } = true;
         public List<int> Picks { get; set; } = new List<int>();
         public List<int> Bans { get; set; } = new List<int>();
         public string PickStrategy { get; set; } = "lock-in-immediately";
@@ -25,10 +27,10 @@ namespace FACM.League
 
     internal static class LeagueAutoSelectProfiles
     {
-        internal static readonly string[] Modes = { "default", "rift", "aram", "mayhem" };
+        internal static readonly string[] Modes = { "default", "rift", "aram", "mayhem", "ranked", "normal", "cherry", "urf", "oneforall", "ultbook", "bot", "custom" };
         internal static readonly string[] Roles = { "default", "top", "jungle", "middle", "bottom", "support" };
         internal static readonly string[] Strategies = { "lock-in-immediately", "show-and-lock-in", "just-show" };
-        private const int MaxSerializedLength = 8192;
+        internal const int MaxSerializedLength = 32768;
 
         internal static IReadOnlyList<LeagueAutoSelectProfile> Parse(string value)
         {
@@ -38,7 +40,7 @@ namespace FACM.League
             {
                 var parsed = new JavaScriptSerializer { MaxJsonLength = MaxSerializedLength }
                     .Deserialize<List<LeagueAutoSelectProfile>>(value);
-                if (parsed == null || parsed.Count > 24) return Array.Empty<LeagueAutoSelectProfile>();
+                if (parsed == null || parsed.Count > 72) return Array.Empty<LeagueAutoSelectProfile>();
                 var unique = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var profile in parsed)
                 {
@@ -59,7 +61,7 @@ namespace FACM.League
         {
             var copy = profiles == null ? new List<LeagueAutoSelectProfile>() :
                 profiles.ToList();
-            if (copy.Count > 24 || copy.Any(p => !Valid(p)) ||
+            if (copy.Count > 72 || copy.Any(p => !Valid(p)) ||
                 copy.Select(p => p.Mode + ":" + p.Role).Distinct(StringComparer.Ordinal).Count() != copy.Count)
                 throw new ArgumentException("Invalid automatic-selection profile configuration.");
             copy = copy.OrderBy(p => Array.IndexOf(Modes, p.Mode))
@@ -117,8 +119,7 @@ namespace FACM.League
             string mode, string role, bool pick, int legacyDefault)
         {
             var ordered = new List<int>();
-            var keys = new[] { (mode ?? "default") + ":" + (role ?? "default"),
-                (mode ?? "default") + ":default", "default:default" };
+            var keys = ProfileKeys(mode, role);
             foreach (var key in keys.Distinct(StringComparer.Ordinal))
             {
                 var profile = profiles == null ? null : profiles.FirstOrDefault(p => p.Mode + ":" + p.Role == key);
@@ -133,14 +134,29 @@ namespace FACM.League
         internal static LeagueAutoSelectProfile ResolveStrategy(IReadOnlyList<LeagueAutoSelectProfile> profiles,
             string mode, string role)
         {
-            var keys = new[] { (mode ?? "default") + ":" + (role ?? "default"),
-                (mode ?? "default") + ":default", "default:default" };
+            var keys = ProfileKeys(mode, role);
             foreach (var key in keys.Distinct(StringComparer.Ordinal))
             {
                 var match = profiles == null ? null : profiles.FirstOrDefault(p => p.Mode + ":" + p.Role == key);
                 if (match != null) return match;
             }
             return new LeagueAutoSelectProfile();
+        }
+
+        private static IEnumerable<string> ProfileKeys(string mode, string role)
+        {
+            mode = mode ?? "default";
+            role = role ?? "default";
+            if (mode != "rift" && mode != "ranked" && mode != "custom") role = "default";
+            yield return mode + ":" + role;
+            yield return mode + ":default";
+            if (mode == "ranked" || mode == "normal")
+            {
+                yield return "rift:" + role;
+                yield return "rift:default";
+            }
+            if (mode == "mayhem") yield return "aram:default";
+            yield return "default:default";
         }
 
         private static bool Valid(LeagueAutoSelectProfile profile)

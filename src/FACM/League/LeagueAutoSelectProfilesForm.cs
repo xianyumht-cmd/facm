@@ -25,6 +25,7 @@ namespace FACM.League
         private readonly ComboBox _strategy;
         private readonly ListBox _priority;
         private readonly NumericUpDown _delay;
+        private readonly CheckBox _groupEnabled;
         private readonly CheckBox _benchSwap;
         private readonly CheckBox _showIntent;
         private readonly CheckBox _ignoreIntent;
@@ -69,7 +70,11 @@ namespace FACM.League
             _mode = AddChoice(root, 1, LeagueEfficiencyUiTextKeys.AdvancedMode,
                 new[] { T(LeagueEfficiencyUiTextKeys.ProfileModeDefault),
                     T(LeagueEfficiencyUiTextKeys.ProfileModeRift), T(LeagueEfficiencyUiTextKeys.ProfileModeAram),
-                    T(LeagueEfficiencyUiTextKeys.ProfileModeMayhem) });
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeMayhem),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeRanked), T(LeagueEfficiencyUiTextKeys.ProfileModeNormal),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeCherry), T(LeagueEfficiencyUiTextKeys.ProfileModeUrf),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeOneForAll), T(LeagueEfficiencyUiTextKeys.ProfileModeUltbook),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeBot), T(LeagueEfficiencyUiTextKeys.ProfileModeCustom) });
             _role = AddChoice(root, 2, LeagueEfficiencyUiTextKeys.AdvancedRole,
                 new[] { T(LeagueEfficiencyUiTextKeys.ProfileRoleDefault),
                     T(LeagueEfficiencyUiTextKeys.ProfileRoleTop), T(LeagueEfficiencyUiTextKeys.ProfileRoleJungle),
@@ -115,7 +120,12 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text
             };
             root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedDelay), 0, 6);
-            root.Controls.Add(_delay, 1, 6);
+            var delayRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+            _groupEnabled = new CheckBox { Text = T(LeagueEfficiencyUiTextKeys.AdvancedGroupEnabled),
+                AutoSize = true, ForeColor = FacmDesignSystem.Text, Margin = new Padding(18, 6, 0, 0) };
+            delayRow.Controls.Add(_delay);
+            delayRow.Controls.Add(_groupEnabled);
+            root.Controls.Add(delayRow, 1, 6);
 
             root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedIntentControls), 0, 7);
             var intentRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
@@ -172,6 +182,7 @@ namespace FACM.League
             _action.SelectedIndexChanged += ContextChanged;
             _strategy.SelectedIndexChanged += StrategyChanged;
             _delay.ValueChanged += StrategyChanged;
+            _groupEnabled.CheckedChanged += StrategyChanged;
             _showIntent.CheckedChanged += IntentChanged;
             _ignoreIntent.CheckedChanged += IntentChanged;
             _benchSwap.CheckedChanged += BenchChanged;
@@ -233,10 +244,22 @@ namespace FACM.League
             return profile == null ? null : _action.SelectedIndex == 1 ? profile.Bans : profile.Picks;
         }
 
+        private bool IsRoleMode()
+        {
+            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
+            return mode == "rift" || mode == "ranked" || mode == "custom";
+        }
+
+        private bool IsBenchMode()
+        {
+            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
+            return mode == "default" || mode == "aram" || mode == "mayhem";
+        }
+
         private void ContextChanged(object sender, EventArgs e)
         {
             if (_binding) return;
-            _role.Enabled = _mode.SelectedIndex == 1;
+            _role.Enabled = IsRoleMode();
             if (!_role.Enabled && _role.SelectedIndex != 0)
             {
                 _role.SelectedIndex = 0;
@@ -257,12 +280,13 @@ namespace FACM.League
                 var profile = CurrentProfile(false) ?? new LeagueAutoSelectProfile();
                 var strategy = _action.SelectedIndex == 1 ? profile.BanStrategy : profile.PickStrategy;
                 _strategy.SelectedIndex = Math.Max(0, Array.IndexOf(LeagueAutoSelectProfiles.Strategies, strategy));
+                _groupEnabled.Checked = _action.SelectedIndex == 1 ? profile.BanEnabled : profile.PickEnabled;
                 _delay.Value = (_action.SelectedIndex == 1 ? profile.BanDelayMs : profile.PickDelayMs) / 1000m;
                 _showIntent.Checked = profile.ShowPickIntent;
                 _ignoreIntent.Checked = profile.IgnoreTeammateIntent;
                 _showIntent.Enabled = _action.SelectedIndex == 0;
                 _ignoreIntent.Enabled = _action.SelectedIndex == 0 && profile.ShowPickIntent;
-                var benchSettingsVisible = _action.SelectedIndex == 0 && _mode.SelectedIndex != 1;
+                var benchSettingsVisible = _action.SelectedIndex == 0 && IsBenchMode();
                 _benchSwap.Enabled = benchSettingsVisible;
                 _benchUpgrade.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
                 _autoTrade.Enabled = benchSettingsVisible;
@@ -320,11 +344,13 @@ namespace FACM.League
             var profile = CurrentProfile(true);
             if (_action.SelectedIndex == 1)
             {
+                profile.BanEnabled = _groupEnabled.Checked;
                 profile.BanStrategy = LeagueAutoSelectProfiles.Strategies[_strategy.SelectedIndex];
                 profile.BanDelayMs = (int)(_delay.Value * 1000);
             }
             else
             {
+                profile.PickEnabled = _groupEnabled.Checked;
                 profile.PickStrategy = LeagueAutoSelectProfiles.Strategies[_strategy.SelectedIndex];
                 profile.PickDelayMs = (int)(_delay.Value * 1000);
             }
@@ -332,7 +358,7 @@ namespace FACM.League
 
         private void BenchChanged(object sender, EventArgs e)
         {
-            if (_binding || _action.SelectedIndex != 0 || _mode.SelectedIndex == 1) return;
+            if (_binding || _action.SelectedIndex != 0 || !IsBenchMode()) return;
             var profile = CurrentProfile(true);
             profile.BenchAutoSwapEnabled = _benchSwap.Checked;
             profile.BenchPreferHigherPriority = _benchUpgrade.Checked;

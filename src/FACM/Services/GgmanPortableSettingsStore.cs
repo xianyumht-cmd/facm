@@ -133,6 +133,12 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
+            settings.LeagueAutoPickEnabled = s.LeagueAutoPickEnabled;
+            settings.LeagueAutoBanEnabled = s.LeagueAutoBanEnabled;
+            settings.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, s.LeagueAutoPickChampionId));
+            settings.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, s.LeagueAutoBanChampionId));
+            settings.LeagueAutoSelectProfiles = FACM.League.LeagueAutoSelectProfiles.Serialize(
+                FACM.League.LeagueAutoSelectProfiles.Parse(s.LeagueAutoSelectProfiles));
             settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = s.LeagueRespawnOverlayEnabled;
             settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(s.LeagueQuickMessagePresets);

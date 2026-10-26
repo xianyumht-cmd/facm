@@ -401,6 +401,7 @@ namespace FACM.AppHost.Modules
             _matchmaking?.Observe(_dashboard.CurrentGameflowState);
             ConfigureMatchmakingStopController();
             _matchmakingStop?.Observe(_dashboard.CurrentGameflowState);
+            ConfigureAutoSelect();
             ConfigureLobbyInvitations();
             _lobbyInvitations.Observe(_dashboard.CurrentGameflowState);
             ConfigureAramTeamSide();
