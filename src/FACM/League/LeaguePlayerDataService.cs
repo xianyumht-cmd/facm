@@ -182,6 +182,21 @@ namespace FACM.League
             return result;
         }
 
+        internal async Task<LeaguePlayerMatchSummary> LoadMatchDetailAsync(
+            LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || gameId <= 0) return null;
+            await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var bytes = await _client.TryGetBytesAsync(
+                    "/lol-match-history/v1/games/" + gameId, cancellationToken).ConfigureAwait(false);
+                var match = ParseMatch(ParseObject(bytes), profile);
+                return match != null && match.GameId == gameId && match.ParticipantResolved ? match : null;
+            }
+            finally { _requestGate.Release(); }
+        }
+
         public async Task<LeaguePlayerMatchPage> EnrichChampionNamesAsync(
             LeaguePlayerProfile profile,
             LeaguePlayerMatchPage page,

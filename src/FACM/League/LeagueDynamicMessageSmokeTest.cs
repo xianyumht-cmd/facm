@@ -16,6 +16,7 @@ namespace FACM.League
             ValidatePremadeInference();
             ValidateJungleTimeline();
             ValidateLoadingAsync().GetAwaiter().GetResult();
+            ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
         }
 
@@ -199,6 +200,51 @@ namespace FACM.League
             }
         }
 
+        private static async Task ValidateJungleLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("jungle");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].JungleSamples == null &&
+                    !fake.Paths.Any(p => p.Contains("game-timelines")),
+                    "Jungle timeline requests ran without explicit selection.");
+                Require(!await service.LoadJungleAsync(snapshot, "missing", CancellationToken.None).ConfigureAwait(false),
+                    "A non-roster jungle identity was accepted.");
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Explicit jungle timeline load rejected current roster and session.");
+                var samples = snapshot.Players[0].JungleSamples;
+                Require(samples != null && samples.Count == 2 && samples[0].GameId == 1 &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2 && fake.MaxConcurrent == 1,
+                    "On-demand jungle timelines must use one bounded authenticated client request at a time.");
+                var reads = fake.Paths.Count;
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "Already loaded jungle samples were downloaded again.");
+                snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count == reads + 2, "Expired jungle snapshots made new data requests.");
+                snapshot.CreatedUtc = DateTime.UtcNow;
+                session = Session("different");
+                Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Account change reused previous jungle samples.");
+            }
+            var incomplete = new Fake { IncompleteHistory = true };
+            session = Session("detail");
+            using (var service = new LeagueDynamicMessageService(incomplete, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].History.Matches[0].ParticipantId == 0,
+                    "Fixture did not preserve an unresolved match summary.");
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    snapshot.Players[0].JungleSamples.Count == 1 &&
+                    incomplete.Paths.Contains("/lol-match-history/v1/games/1"),
+                    "On-demand jungle analysis did not resolve missing participant identity from game detail.");
+            }
+        }
+
         private static async Task ValidateBatchAsync()
         {
             var fake = new Fake();
@@ -273,6 +319,7 @@ namespace FACM.League
             internal int RosterReads, MaxConcurrent;
             private int _concurrent;
             internal bool ChangeRoster;
+            internal bool IncompleteHistory;
             internal Action<string> OnRead;
             public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
@@ -290,7 +337,11 @@ namespace FACM.League
                             "\"theirTeam\":[{\"cellId\":5,\"puuid\":\"enemy\",\"summonerId\":2,\"gameName\":\"Enemy\",\"championId\":" +
                             (ChangeRoster && RosterReads > 1 ? 88 : 99) + "}]}");
                     }
-                    if (path.Contains("/matches?")) return Bytes(History());
+                    if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
+                        "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}" : History());
+                    if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
+                    if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
+                        return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
                     if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes("[]");
                     throw new InvalidOperationException("Unexpected dynamic analysis route.");
                 }

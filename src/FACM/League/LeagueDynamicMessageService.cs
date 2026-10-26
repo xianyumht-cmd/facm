@@ -71,6 +71,7 @@ namespace FACM.League
         internal LeaguePlayerMatchPage History;
         internal bool Friendly;
         internal string ChampionName;
+        internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -185,6 +186,75 @@ namespace FACM.League
             var me = await _players.LoadProfileAsync(true, token).ConfigureAwait(false);
             return Current(snapshot.Session, snapshot.Phase) && me != null && me.PuuId == snapshot.SelfPuuid &&
                 snapshot.RosterKey == RosterKey(roster);
+        }
+
+        internal async Task<bool> LoadJungleAsync(LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid)) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player != null && p.Player.PuuId == puuid);
+            if (player == null || player.History == null || player.History.Matches.Count == 0) return false;
+            if (player.JungleSamples != null) return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(65));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                var samples = new List<LeagueJungleTimelineSample>();
+                var historyProfile = new LeaguePlayerProfile { PuuId = puuid, SummonerId = player.Player.SummonerId };
+                foreach (var item in player.History.Matches.Where(m => m != null && m.GameId > 0)
+                    .GroupBy(m => m.GameId).Select(g => g.First()).Take(LeaguePlayerDataService.MaximumMatchCount))
+                {
+                    active.Token.ThrowIfCancellationRequested();
+                    if (!Current(snapshot.Session, snapshot.Phase)) return false;
+                    if (item.MapId != 0 && item.MapId != 11) continue;
+                    var match = item;
+                    if (!match.ParticipantResolved || match.ParticipantId < 1 || match.TeamId == 0 || match.MapId == 0)
+                    {
+                        using (var detailDeadline = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                        {
+                            detailDeadline.CancelAfter(TimeSpan.FromSeconds(3));
+                            try { match = await _players.LoadMatchDetailAsync(historyProfile, item.GameId, detailDeadline.Token).ConfigureAwait(false); }
+                            catch (OperationCanceledException) when (!active.IsCancellationRequested) { continue; }
+                        }
+                    }
+                    if (match == null || match.MapId != 11 || match.ParticipantId < 1 ||
+                        !(match.HasSmite || string.Equals(match.Position, "JUNGLE", StringComparison.OrdinalIgnoreCase))) continue;
+                    using (var timelineDeadline = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                    {
+                        timelineDeadline.CancelAfter(TimeSpan.FromSeconds(3));
+                        try
+                        {
+                            var data = await _client.TryGetBytesAsync(
+                                "/lol-match-history/v1/game-timelines/" + match.GameId, timelineDeadline.Token).ConfigureAwait(false);
+                            var parsed = LeagueJungleTimelineAnalysis.Parse(data, match.GameId, match.ChampionId,
+                                match.ParticipantId, match.TeamId, match.MapId, true);
+                            if (parsed != null) samples.Add(parsed);
+                        }
+                        catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
+                    }
+                }
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                active.Token.ThrowIfCancellationRequested();
+                player.JungleSamples = samples;
+                return true;
+            }
+            catch (OperationCanceledException) { return false; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
         }
 
         private bool Current(LeagueClientSession session, string phase)
