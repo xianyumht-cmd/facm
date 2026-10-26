@@ -60,6 +60,9 @@ namespace FACM.League
         public const string QuickMessageSent = "LeagueQuickMessageSent";
         public const string QuickMessageUnavailable = "LeagueQuickMessageUnavailable";
         public const string QuickMessageInvalid = "LeagueQuickMessageInvalid";
+        public const string QuickMessageShortcut = "LeagueQuickMessageShortcut";
+        public const string QuickMessageCancel = "LeagueQuickMessageCancel";
+        public const string QuickMessageInterval = "LeagueQuickMessageInterval";
         public const string LobbyInvitationSection = "LeagueEfficiencyLobbyInvitationSection";
         public const string HandleInvitations = "LeagueEfficiencyHandleInvitations";
         public const string HandleInvitationsHint = "LeagueEfficiencyHandleInvitationsHint";
@@ -242,13 +245,16 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.RespawnOverlaySaved, "复活倒计时设置已保存。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageOpen, "快捷消息预设…" },
             { LeagueEfficiencyUiTextKeys.QuickMessageTitle, "GGman · 快捷消息" },
-            { LeagueEfficiencyUiTextKeys.QuickMessageHint, "保存四条常用消息，可在房间或选人阶段手动发送。每条最多四行、300 字；游戏内键盘发送尚未启用。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageHint, "保存四条常用消息；房间/选人可点发送，游戏内须使用预设快捷键。每条最多四行、300 字。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSave, "保存四条预设" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSend, "发送" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSaved, "四条预设已保存。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageSent, "消息已提交到当前聊天室。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageUnavailable, "当前无法确认可发送的聊天室，未发送消息。" },
             { LeagueEfficiencyUiTextKeys.QuickMessageInvalid, "消息为空或超出四行、300 字的限制。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageShortcut, "发送快捷键" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageCancel, "取消发送" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageInterval, "逐行间隔（毫秒）" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSection, "组队与邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitations, "自动处理收到的组队邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitationsHint, "按下方模式策略接受或拒绝邀请。所有模式默认忽略；关闭时不处理邀请。" },

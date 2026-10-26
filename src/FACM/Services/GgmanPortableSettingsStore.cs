@@ -136,6 +136,8 @@ namespace FACM.Services
             settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = s.LeagueRespawnOverlayEnabled;
             settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(s.LeagueQuickMessagePresets);
+            settings.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(s.LeagueQuickMessageHotkeys);
+            settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, s.LeagueQuickMessageIntervalMs ?? 500));
             settings.LeagueAutoReplyAwayOnly = s.LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(s.LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = s.LeagueLockOfflineStatusEnabled;

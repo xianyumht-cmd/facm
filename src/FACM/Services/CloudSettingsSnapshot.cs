@@ -45,6 +45,8 @@ namespace FACM.Services
         public bool LeagueLockOfflineStatusEnabled { get; set; }
         public bool LeagueRespawnOverlayEnabled { get; set; }
         public string LeagueQuickMessagePresets { get; set; }
+        public string LeagueQuickMessageHotkeys { get; set; }
+        public int? LeagueQuickMessageIntervalMs { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -93,6 +95,8 @@ namespace FACM.Services
                 LeagueAutoReplyEnabled = settings.LeagueAutoReplyEnabled,
                 LeagueRespawnOverlayEnabled = settings.LeagueRespawnOverlayEnabled,
                 LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(settings.LeagueQuickMessagePresets),
+                LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(settings.LeagueQuickMessageHotkeys),
+                LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, settings.LeagueQuickMessageIntervalMs)),
                 LeagueAutoReplyAwayOnly = settings.LeagueAutoReplyAwayOnly,
                 LeagueAutoReplyText = settings.LeagueAutoReplyText,
                 LeagueLockOfflineStatusEnabled = settings.LeagueLockOfflineStatusEnabled,
@@ -153,6 +157,8 @@ namespace FACM.Services
             settings.LeagueAutoReplyEnabled = LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = LeagueRespawnOverlayEnabled;
             settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets);
+            settings.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(LeagueQuickMessageHotkeys);
+            settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, LeagueQuickMessageIntervalMs ?? 500));
             settings.LeagueAutoReplyAwayOnly = LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = LeagueLockOfflineStatusEnabled;

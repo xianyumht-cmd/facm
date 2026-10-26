@@ -15,6 +15,7 @@ namespace FACM.League
         {
             ValidatePresets();
             ValidateSending().GetAwaiter().GetResult();
+            LeagueInGameMessageSmokeTest.Validate();
         }
 
         private static void ValidatePresets()

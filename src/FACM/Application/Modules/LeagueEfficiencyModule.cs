@@ -15,6 +15,8 @@ namespace FACM.AppHost.Modules
         public const string ModuleId = "league-efficiency";
         public const string ExitGameAction = "exit-game";
         public const string CloseLobbyAction = "close-lobby";
+        public const string QuickMessageActionPrefix = "quick-message-";
+        public const string QuickMessageCancelAction = "quick-message-cancel";
 
         private static readonly IReadOnlyList<string> ModuleDependencies = new[]
         {
@@ -26,7 +28,12 @@ namespace FACM.AppHost.Modules
         private static readonly Dictionary<string, int> ActionIds = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             { ExitGameAction, 0x5A11 },
-            { CloseLobbyAction, 0x5A12 }
+            { CloseLobbyAction, 0x5A12 },
+            { QuickMessageActionPrefix + "1", 0x5A13 },
+            { QuickMessageActionPrefix + "2", 0x5A14 },
+            { QuickMessageActionPrefix + "3", 0x5A15 },
+            { QuickMessageActionPrefix + "4", 0x5A16 },
+            { QuickMessageCancelAction, 0x5A17 }
         };
 
         private readonly SettingsModule _settingsModule;
@@ -47,6 +54,8 @@ namespace FACM.AppHost.Modules
         private LeagueOfflineStatusLockController _offlineLock;
         private LeagueAutoReplyController _autoReply;
         private LeagueRespawnOverlayHost _respawnOverlay;
+        private LeagueInGameMessageSender _inGameMessages;
+        private string _appliedQuickMessageHotkeys;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -77,6 +86,8 @@ namespace FACM.AppHost.Modules
                 throw new InvalidOperationException("Settings module must initialize before League Efficiency.");
 
             _actions = new LeagueEfficiencyActionService();
+            _inGameMessages = new LeagueInGameMessageSender(new LeagueNativeGameMessageInput(),
+                () => _dashboard.CurrentGameflowState);
             _hotkeys = new LeagueNativeHotkeyService(ActionIds);
             _hotkeys.HotkeyPressed += HandleHotkey;
 
@@ -168,12 +179,19 @@ namespace FACM.AppHost.Modules
         public bool RespawnOverlayEnabled { get { return _settingsModule.Settings.LeagueRespawnOverlayEnabled; } }
 
         public string QuickMessagePresetsJson { get { return _settingsModule.Settings.LeagueQuickMessagePresets; } }
+        public string QuickMessageHotkeysJson { get { return _settingsModule.Settings.LeagueQuickMessageHotkeys; } }
+        public int QuickMessageIntervalMs { get { return _settingsModule.Settings.LeagueQuickMessageIntervalMs; } }
 
-        public void SaveQuickMessagePresets(string json)
+        public bool TrySaveQuickMessageSettings(string presets, string hotkeys, int interval, out string error)
         {
             ThrowIfDisposed();
-            _settingsModule.Settings.LeagueQuickMessagePresets = LeagueQuickMessagePresets.NormalizeJson(json);
+            var normalizedKeys = LeagueQuickMessageHotkeys.NormalizeJson(hotkeys);
+            if (!TryApplyBindings(ExitGameHotkey, CloseLobbyHotkey, normalizedKeys, false, out error)) return false;
+            _settingsModule.Settings.LeagueQuickMessageHotkeys = normalizedKeys;
+            _settingsModule.Settings.LeagueQuickMessagePresets = LeagueQuickMessagePresets.NormalizeJson(presets);
+            _settingsModule.Settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, interval));
             _settingsModule.Settings.Save();
+            return true;
         }
 
         public Task<bool> SendQuickMessageAsync(string message, CancellationToken token)
@@ -369,6 +387,13 @@ namespace FACM.AppHost.Modules
         private void HandleAppSettingsSaved(AppSettings settings)
         {
             if (_disposed || _lobbyInvitations == null || !ReferenceEquals(settings, _settingsModule.Settings)) return;
+            var quickKeys = LeagueQuickMessageHotkeys.NormalizeJson(settings.LeagueQuickMessageHotkeys);
+            if (!string.Equals(quickKeys, _appliedQuickMessageHotkeys, StringComparison.Ordinal))
+            {
+                string hotkeyError;
+                if (!TryApplyBindings(ExitGameHotkey, CloseLobbyHotkey, quickKeys, false, out hotkeyError))
+                    AppLog.Warning("League quick-message hotkey settings could not be applied: " + hotkeyError);
+            }
             // Cloud restore updates the same Settings object. Pick up restored preferences without
             // requiring the user to close/reopen the game client or Quick Tools.
             _matchmaking?.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize,
@@ -487,6 +512,11 @@ namespace FACM.AppHost.Modules
 
         private bool TryApplyBindings(string exitGame, string closeLobby, bool persist, out string error)
         {
+            return TryApplyBindings(exitGame, closeLobby, QuickMessageHotkeysJson, persist, out error);
+        }
+
+        private bool TryApplyBindings(string exitGame, string closeLobby, string quickJson, bool persist, out string error)
+        {
             ThrowIfDisposed();
             LeagueHotkeyBinding exitBinding;
             LeagueHotkeyBinding lobbyBinding;
@@ -498,12 +528,25 @@ namespace FACM.AppHost.Modules
                 { ExitGameAction, exitBinding },
                 { CloseLobbyAction, lobbyBinding }
             };
+            var quick = LeagueQuickMessageHotkeys.Parse(quickJson);
+            for (var i = 0; i < LeagueQuickMessagePresets.SlotCount; i++)
+            {
+                LeagueHotkeyBinding binding;
+                if (!LeagueHotkeyBinding.TryParse(quick[i], out binding, out error)) return false;
+                requested[QuickMessageActionPrefix + (i + 1)] = binding;
+            }
+            LeagueHotkeyBinding cancel;
+            if (!LeagueHotkeyBinding.TryParse(quick[LeagueQuickMessagePresets.SlotCount], out cancel, out error)) return false;
+            requested[QuickMessageCancelAction] = cancel;
             if (!_hotkeys.TryApply(requested, out error)) return false;
+
+            _appliedQuickMessageHotkeys = LeagueQuickMessageHotkeys.NormalizeJson(quickJson);
 
             if (persist)
             {
                 _settingsModule.Settings.LeagueExitGameHotkey = exitBinding.ToString();
                 _settingsModule.Settings.LeagueCloseLobbyHotkey = lobbyBinding.ToString();
+                _settingsModule.Settings.LeagueQuickMessageHotkeys = _appliedQuickMessageHotkeys;
                 _settingsModule.Settings.Save();
             }
             return true;
@@ -525,6 +568,7 @@ namespace FACM.AppHost.Modules
         private void HandleGameflowState(LeagueDashboardPhaseState state)
         {
             if (_disposed) return;
+            if (state == null || !state.Connected || state.Phase != "InProgress") _inGameMessages?.Cancel();
             if (_postGame != null) _postGame.Observe(state);
             if (_matchmaking != null) _matchmaking.Observe(state);
             if (_matchmakingStop != null) _matchmakingStop.Observe(state);
@@ -545,6 +589,26 @@ namespace FACM.AppHost.Modules
                 RunQuietly(_actions.ExitGameAsync(), "League exit-game hotkey");
             else if (string.Equals(action, CloseLobbyAction, StringComparison.Ordinal))
                 RunQuietly(_actions.CloseLobbyAsync(), "League close-lobby hotkey");
+            else if (string.Equals(action, QuickMessageCancelAction, StringComparison.Ordinal))
+                _inGameMessages?.Cancel();
+            else if (action != null && action.StartsWith(QuickMessageActionPrefix, StringComparison.Ordinal))
+            {
+                int slot;
+                if (int.TryParse(action.Substring(QuickMessageActionPrefix.Length), out slot) &&
+                    slot > 0 && slot <= LeagueQuickMessagePresets.SlotCount)
+                    SendSavedQuickMessageAsync(slot - 1).Forget("League quick-message shortcut");
+            }
+        }
+
+        private async Task SendSavedQuickMessageAsync(int index)
+        {
+            var text = LeagueQuickMessagePresets.Parse(QuickMessagePresetsJson)[index];
+            if (string.IsNullOrEmpty(text) || _disposed) return;
+            var phase = _dashboard.CurrentGameflowState;
+            if (phase != null && phase.Connected && phase.Phase == "InProgress")
+                await _inGameMessages.SendAsync(text, QuickMessageIntervalMs).ConfigureAwait(false);
+            else
+                await SendQuickMessageAsync(text, CancellationToken.None).ConfigureAwait(false);
         }
 
         private static async void RunQuietly(Task<LeagueEfficiencyActionResult> task, string operation)
@@ -572,6 +636,7 @@ namespace FACM.AppHost.Modules
             _disposed = true;
             _autoReply?.Dispose();
             _respawnOverlay?.Dispose();
+            _inGameMessages?.Dispose();
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_loginSignature != null)

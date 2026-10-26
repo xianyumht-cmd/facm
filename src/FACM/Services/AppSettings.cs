@@ -65,6 +65,8 @@ namespace FACM.Services
         public bool LeagueLockOfflineStatusEnabled { get; set; } = false;
         public bool LeagueRespawnOverlayEnabled { get; set; } = false;
         public string LeagueQuickMessagePresets { get; set; } = string.Empty;
+        public string LeagueQuickMessageHotkeys { get; set; } = string.Empty;
+        public int LeagueQuickMessageIntervalMs { get; set; } = 500;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
@@ -201,6 +203,8 @@ namespace FACM.Services
                 "LeagueLockOfflineStatusEnabled=" + LeagueLockOfflineStatusEnabled,
                 "LeagueRespawnOverlayEnabled=" + LeagueRespawnOverlayEnabled,
                 "LeagueQuickMessagePresets=" + FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets),
+                "LeagueQuickMessageHotkeys=" + FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(LeagueQuickMessageHotkeys),
+                "LeagueQuickMessageIntervalMs=" + Math.Max(0, Math.Min(5000, LeagueQuickMessageIntervalMs)).ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
@@ -459,6 +463,8 @@ namespace FACM.Services
             else if (key.Equals("LeagueLockOfflineStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueLockOfflineStatusEnabled = flag;
             else if (key.Equals("LeagueRespawnOverlayEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRespawnOverlayEnabled = flag;
             else if (key.Equals("LeagueQuickMessagePresets", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(value);
+            else if (key.Equals("LeagueQuickMessageHotkeys", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(value);
+            else if (key.Equals("LeagueQuickMessageIntervalMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out number)) result.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, number));
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));
