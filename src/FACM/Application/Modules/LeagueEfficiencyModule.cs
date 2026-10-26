@@ -45,6 +45,7 @@ namespace FACM.AppHost.Modules
         private LeagueAramTeamSideController _aramSide;
         private LeagueLoginStatusRestoreController _loginSignature;
         private LeagueOfflineStatusLockController _offlineLock;
+        private LeagueAutoReplyController _autoReply;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoSelectTemporarilyDisabled;
         private bool _disposed;
@@ -114,6 +115,9 @@ namespace FACM.AppHost.Modules
             _offlineLock = new LeagueOfflineStatusLockController(
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
             _offlineLock.Configure(LockOfflineStatusEnabled);
+            _autoReply = new LeagueAutoReplyController(_leagueClient, (ILeaguePrivateChatWriteApi)_leagueClient,
+                () => _leagueClient.CurrentSession);
+            ConfigureAutoReply();
             AppSettings.Saved += HandleAppSettingsSaved;
 
             _dashboard.GameflowStateChanged += HandleGameflowState;
@@ -130,6 +134,7 @@ namespace FACM.AppHost.Modules
                 _aramSide.Observe(current);
                 _loginSignature.Observe(current);
                 _offlineLock.Observe(current);
+                _autoReply.Observe(current);
             }
         }
 
@@ -274,6 +279,25 @@ namespace FACM.AppHost.Modules
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
         }
 
+        public bool AutoReplyEnabled { get { return _settingsModule.Settings.LeagueAutoReplyEnabled; } }
+        public bool AutoReplyAwayOnly { get { return _settingsModule.Settings.LeagueAutoReplyAwayOnly; } }
+        public string AutoReplyText { get { return _settingsModule.Settings.LeagueAutoReplyText ?? ""; } }
+
+        public void UpdateAutoReply(bool enabled, bool awayOnly, string text)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueAutoReplyEnabled = enabled;
+            _settingsModule.Settings.LeagueAutoReplyAwayOnly = awayOnly;
+            _settingsModule.Settings.LeagueAutoReplyText = LeagueAutoReplyController.NormalizeText(text);
+            _settingsModule.Settings.Save();
+        }
+
+        private void ConfigureAutoReply()
+        {
+            _autoReply?.Configure(AutoReplyEnabled, AutoReplyAwayOnly, AutoReplyText);
+            _autoReply?.Observe(_dashboard.CurrentGameflowState);
+        }
+
         public void UpdateLockOfflineStatus(bool enabled)
         {
             ThrowIfDisposed();
@@ -322,6 +346,7 @@ namespace FACM.AppHost.Modules
             ConfigureLoginSignature();
             _loginSignature?.Observe(_dashboard.CurrentGameflowState);
             _offlineLock?.Configure(LockOfflineStatusEnabled);
+            ConfigureAutoReply();
         }
 
         public Task<IReadOnlyList<LeagueProfileChampionOption>> LoadChampionsAsync(System.Threading.CancellationToken cancellationToken)
@@ -468,6 +493,7 @@ namespace FACM.AppHost.Modules
             if (_aramSide != null) _aramSide.Observe(state);
             if (_loginSignature != null) _loginSignature.Observe(state);
             if (_offlineLock != null) _offlineLock.Observe(state);
+            _autoReply?.Observe(state);
         }
 
         private void HandleHotkey(string action)
@@ -502,6 +528,7 @@ namespace FACM.AppHost.Modules
         {
             if (_disposed) return;
             _disposed = true;
+            _autoReply?.Dispose();
             AppSettings.Saved -= HandleAppSettingsSaved;
             _dashboard.GameflowStateChanged -= HandleGameflowState;
             if (_loginSignature != null)

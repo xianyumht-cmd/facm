@@ -28,6 +28,7 @@ namespace FACM.League
             LeagueLoginStatusRestoreSmokeTest.Validate();
             LeagueOfflineStatusLockSmokeTest.Validate();
             LeaguePresenceMutationSmokeTest.Validate();
+            LeagueAutoReplySmokeTest.Validate();
         }
 
         private static void ValidatePayloadPreservesUnrelatedPresenceFields()

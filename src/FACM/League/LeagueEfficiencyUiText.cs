@@ -83,6 +83,11 @@ namespace FACM.League
         public const string LoginRankDivision = "LeagueEfficiencyLoginRankDivision";
         public const string LoginRankDivisionHint = "LeagueEfficiencyLoginRankDivisionHint";
         public const string LoginRankSaved = "LeagueEfficiencyLoginRankSaved";
+        public const string AutoReply = "LeagueEfficiencyAutoReply";
+        public const string AutoReplyHint = "LeagueEfficiencyAutoReplyHint";
+        public const string ReplyAway = "LeagueEfficiencyReplyAway";
+        public const string ReplyAwayHint = "LeagueEfficiencyReplyAwayHint";
+        public const string ReplyText = "LeagueEfficiencyReplyText";
         public const string OfflineLock = "LeagueEfficiencyOfflineLock";
         public const string OfflineLockHint = "LeagueEfficiencyOfflineLockHint";
         public const string OfflineLockSaved = "LeagueEfficiencyOfflineLockSaved";
@@ -251,6 +256,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.LoginRankDivision, "展示段位小段" },
             { LeagueEfficiencyUiTextKeys.LoginRankDivisionHint, "选择 I / II / III / IV；大师、宗师与王者不会发送小段。" },
             { LeagueEfficiencyUiTextKeys.LoginRankSaved, "登录展示段位设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.AutoReply, "私聊自动回复" },
+            { LeagueEfficiencyUiTextKeys.AutoReplyHint, "收到新的私聊时发送已保存的回复，默认关闭；离开输入框后保存，最多500字。" },
+            { LeagueEfficiencyUiTextKeys.ReplyAway, "仅离开时回复" },
+            { LeagueEfficiencyUiTextKeys.ReplyAwayHint, "开启后，只有大厅当前状态为离开时才自动回复。" },
+            { LeagueEfficiencyUiTextKeys.ReplyText, "自动回复内容" },
             { LeagueEfficiencyUiTextKeys.OfflineLock, "维持离线显示" },
             { LeagueEfficiencyUiTextKeys.OfflineLockHint, "已观察到离线后，若大厅将状态改回在线或离开，会再次核实并恢复离线。复用大厅检测频率，关闭时不读取状态；默认关闭。" },
             { LeagueEfficiencyUiTextKeys.OfflineLockSaved, "离线显示设置已保存。" },

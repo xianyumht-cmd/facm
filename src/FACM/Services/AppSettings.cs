@@ -57,6 +57,9 @@ namespace FACM.Services
         public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
         public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
         public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
+        public bool LeagueAutoReplyEnabled { get; set; } = false;
+        public bool LeagueAutoReplyAwayOnly { get; set; } = false;
+        public string LeagueAutoReplyText { get; set; } = "";
         public bool LeagueLockOfflineStatusEnabled { get; set; } = false;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
@@ -186,6 +189,9 @@ namespace FACM.Services
                 "LeagueAutoLoginRankedQueue=" + Sanitize(LeagueAutoLoginRankedQueue),
                 "LeagueAutoLoginRankedTier=" + Sanitize(LeagueAutoLoginRankedTier),
                 "LeagueAutoLoginRankedDivision=" + Sanitize(LeagueAutoLoginRankedDivision),
+                "LeagueAutoReplyEnabled=" + LeagueAutoReplyEnabled,
+                "LeagueAutoReplyAwayOnly=" + LeagueAutoReplyAwayOnly,
+                "LeagueAutoReplyText=" + Sanitize(LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText)),
                 "LeagueLockOfflineStatusEnabled=" + LeagueLockOfflineStatusEnabled,
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
@@ -437,6 +443,9 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoLoginRankedQueue", StringComparison.OrdinalIgnoreCase) && value.Length <= 32) result.LeagueAutoLoginRankedQueue = value;
             else if (key.Equals("LeagueAutoLoginRankedTier", StringComparison.OrdinalIgnoreCase) && value.Length <= 20) result.LeagueAutoLoginRankedTier = value;
             else if (key.Equals("LeagueAutoLoginRankedDivision", StringComparison.OrdinalIgnoreCase) && value.Length <= 4) result.LeagueAutoLoginRankedDivision = value;
+            else if (key.Equals("LeagueAutoReplyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReplyEnabled = flag;
+            else if (key.Equals("LeagueAutoReplyAwayOnly", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReplyAwayOnly = flag;
+            else if (key.Equals("LeagueAutoReplyText", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoReplyText = LeagueAutoReplyController.NormalizeText(value);
             else if (key.Equals("LeagueLockOfflineStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueLockOfflineStatusEnabled = flag;
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;

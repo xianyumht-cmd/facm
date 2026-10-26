@@ -32,6 +32,8 @@ namespace FACM.League
         private readonly ComboBox _loginRankTier;
         private readonly ComboBox _loginRankDivision;
         private readonly CheckBox _offlineLock;
+        private readonly CheckBox _autoReply, _replyAway;
+        private readonly TextBox _replyText;
         private readonly CheckBox _autoHandleInvitations;
         private readonly CheckBox _skipInvitationsWhenAway;
         private readonly CheckBox _autoSkipLeader;
@@ -115,6 +117,7 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             for (var row = 0; row < 4; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            for (var row = 0; row < 3; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowCount = root.RowStyles.Count;
 
@@ -375,6 +378,17 @@ namespace FACM.League
                 _status.ForeColor = FacmDesignSystem.Success;
                 _status.Text = T(LeagueEfficiencyUiTextKeys.OfflineLockSaved);
             };
+
+            _autoReply = AddAutomationRow(root, 43, T(LeagueEfficiencyUiTextKeys.AutoReply),
+                T(LeagueEfficiencyUiTextKeys.AutoReplyHint), _module.AutoReplyEnabled);
+            _replyAway = AddAutomationRow(root, 44, T(LeagueEfficiencyUiTextKeys.ReplyAway),
+                T(LeagueEfficiencyUiTextKeys.ReplyAwayHint), _module.AutoReplyAwayOnly);
+            _replyText = AddTextSettingRow(root, 45, T(LeagueEfficiencyUiTextKeys.ReplyText),
+                T(LeagueEfficiencyUiTextKeys.AutoReplyHint), _module.AutoReplyText);
+            _replyText.MaxLength = 500;
+            _autoReply.CheckedChanged += ReplySettingChanged;
+            _replyAway.CheckedChanged += ReplySettingChanged;
+            _replyText.Leave += ReplySettingChanged;
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
@@ -738,6 +752,23 @@ namespace FACM.League
                 _aramTeamSideVisibleToTeam.Enabled = _autoAramTeamSide != null && _autoAramTeamSide.Checked;
         }
 
+        private TextBox AddTextSettingRow(TableLayoutPanel parent, int row, string title, string hint, string value)
+        {
+            var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Margin = new Padding(0, 4, 0, 4), BackColor = FacmDesignSystem.Surface, Padding = new Padding(12, 7, 12, 7) };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            panel.Controls.Add(CreateSettingDescription(title, hint), 0, 0);
+            var input = new TextBox { Text = value, Dock = DockStyle.Fill, Margin = new Padding(4, 14, 4, 4),
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle, AccessibleName = title };
+            panel.Controls.Add(input, 1, 0);
+            WireHelp(panel, hint);
+            WireHelp(input, hint);
+            parent.Controls.Add(panel, 0, row);
+            return input;
+        }
+
         private TextBox AddLoginSignatureRow(TableLayoutPanel parent, int row)
         {
             var panel = new TableLayoutPanel
@@ -850,6 +881,7 @@ namespace FACM.League
                     RefreshLoginSignatureSettingsFromModule();
                     RefreshLoginRankSettingsFromModule();
                     RefreshOfflineLockSettingsFromModule();
+                    RefreshReplySettingsFromModule();
                 }));
             }
             catch (ObjectDisposedException) { }
@@ -915,6 +947,25 @@ namespace FACM.League
                 _loginRankTier.SelectedIndex = RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier);
                 _loginRankDivision.SelectedIndex = RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision);
                 UpdateRankSettingControlStates();
+            }
+            finally { _loading = false; }
+        }
+
+        private void ReplySettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            _module.UpdateAutoReply(_autoReply.Checked, _replyAway.Checked, _replyText.Text);
+        }
+
+        private void RefreshReplySettingsFromModule()
+        {
+            if (_loading || _replyText.Focused) return;
+            _loading = true;
+            try
+            {
+                _autoReply.Checked = _module.AutoReplyEnabled;
+                _replyAway.Checked = _module.AutoReplyAwayOnly;
+                _replyText.Text = _module.AutoReplyText;
             }
             finally { _loading = false; }
         }

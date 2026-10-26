@@ -131,6 +131,9 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
             settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
+            settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
+            settings.LeagueAutoReplyAwayOnly = s.LeagueAutoReplyAwayOnly;
+            settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(s.LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = s.LeagueLockOfflineStatusEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
