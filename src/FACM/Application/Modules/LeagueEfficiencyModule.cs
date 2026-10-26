@@ -251,6 +251,16 @@ namespace FACM.AppHost.Modules
                 SendQuickMessageAsync(line, cancellation), token);
         }
 
+        public Task<bool> SendJungleMessagesAsync(LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessageOptions options,
+            ISet<string> selectedPlayers, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            var lines = LeagueJungleMessageFormatter.Build(snapshot, options, selectedPlayers);
+            return _dynamicMessages.SendAsync(snapshot, lines, QuickMessageIntervalMs, (line, cancellation) =>
+                snapshot.Phase == "InProgress" ? _inGameMessages.SendAsync(line, QuickMessageIntervalMs, cancellation) :
+                SendQuickMessageAsync(line, cancellation), token);
+        }
+
         private async Task SendDynamicShortcutAsync(string target)
         {
             if (target != "friendly" && target != "enemy" && target != "all") return;

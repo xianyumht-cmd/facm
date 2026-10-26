@@ -13,6 +13,14 @@ namespace FACM.League
         public string Target { get; set; } = "all";
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
+        public string JungleNameStrategy { get; set; } = "preferChampionName";
+        public bool JungleShowCurrentChampion { get; set; } = true;
+        public bool JungleActivityPreference { get; set; } = true;
+        public bool JungleFirstClearDistribution { get; set; } = true;
+        public bool JungleEarlyGank { get; set; } = true;
+        public bool JungleDragonControl { get; set; } = true;
+        public bool JungleMonsterControl { get; set; } = true;
+        public bool JungleMainChampions { get; set; } = true;
         public bool ShowCurrentChampion { get; set; }
         public bool WinRate { get; set; } = true;
         public bool Kda { get; set; } = true;
@@ -52,7 +60,8 @@ namespace FACM.League
         {
             if (options == null || !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
-                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy)) return false;
+                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy) ||
+                !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.JungleNameStrategy)) return false;
             var bindings = new List<string>();
             foreach (var shortcut in new[] { options.FriendlyShortcut, options.EnemyShortcut, options.AllShortcut })
             {

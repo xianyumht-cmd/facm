@@ -18,13 +18,14 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime;
         private readonly LeagueDynamicMessageOptions _options;
         private readonly ComboBox _target, _names;
-        private readonly CheckedListBox _players, _groups;
+        private readonly CheckedListBox _players, _groups, _jungle;
         private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
-        private readonly Button _load, _send;
+        private readonly Button _load, _loadJungle, _send;
         private LeagueDynamicMessageSnapshot _snapshot;
         private bool _binding;
+        private bool _busy;
 
         internal LeagueDynamicMessagePanel(LeagueEfficiencyModule module, UiTextCatalog ui, CancellationToken token)
         {
@@ -43,20 +44,30 @@ namespace FACM.League
             _names.SelectedIndex = Array.IndexOf(new[] { "preferName", "preferChampionName", "championNameWithName" }, _options.NameStrategy);
             choices.Controls.Add(_target); choices.Controls.Add(_names);
             var champion = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicCurrentChampion), Checked = _options.ShowCurrentChampion };
-            champion.CheckedChanged += delegate { _options.ShowCurrentChampion = champion.Checked; RefreshPreview(); };
+            champion.CheckedChanged += delegate
+            {
+                if (_binding) return;
+                if (IsJungle) _options.JungleShowCurrentChampion = champion.Checked;
+                else _options.ShowCurrentChampion = champion.Checked;
+                RefreshPreview();
+            };
             choices.Controls.Add(champion); root.Controls.Add(choices, 0, 0);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill };
             _load = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicLoad), Tone = FacmButtonTone.Secondary };
+            _loadJungle = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.JungleLoad),
+                Enabled = false, Visible = false, Tone = FacmButtonTone.Secondary };
             _send = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicSend), Enabled = false, Tone = FacmButtonTone.Primary };
             var save = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave), Tone = FacmButtonTone.Secondary };
             _load.Click += async delegate { await LoadAsync(); };
+            _loadJungle.Click += async delegate { await LoadJungleAsync(); };
             _send.Click += async delegate { await SendAsync(); };
             save.Click += delegate
             {
                 string error;
                 _status.Text = _module.TrySaveDynamicMessageOptions(_options, out error) ? T(LeagueEfficiencyUiTextKeys.DynamicSaved) : error;
             };
-            actions.Controls.Add(_load); actions.Controls.Add(save); actions.Controls.Add(_send); root.Controls.Add(actions, 0, 1);
+            actions.Controls.Add(_load); actions.Controls.Add(_loadJungle); actions.Controls.Add(save); actions.Controls.Add(_send);
+            root.Controls.Add(actions, 0, 1);
             var metrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
             var properties = new[] { "WinRate", "Kda", "SoloKills", "VisionScore", "ChampionDamageShare", "DamageTakenShare",
                 "GoldShare", "CsPerMinute", "KillParticipation", "DamageGoldEfficiency", "MainChampions", "MainPositions" };
@@ -72,7 +83,23 @@ namespace FACM.League
                 check.CheckedChanged += delegate { property.SetValue(_options, check.Checked, null); RefreshPreview(); };
                 metrics.Controls.Add(check);
             }
-            root.Controls.Add(metrics, 0, 2);
+            var metricsHost = new Panel { Dock = DockStyle.Fill };
+            metricsHost.Controls.Add(metrics);
+            var jungleMetrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, Visible = false };
+            var jungleProperties = new[] { "JungleActivityPreference", "JungleFirstClearDistribution", "JungleEarlyGank",
+                "JungleDragonControl", "JungleMonsterControl", "JungleMainChampions" };
+            var jungleKeys = new[] { LeagueEfficiencyUiTextKeys.JungleActivity, LeagueEfficiencyUiTextKeys.JungleFirstClear,
+                LeagueEfficiencyUiTextKeys.JungleEarlyGank, LeagueEfficiencyUiTextKeys.JungleDragon,
+                LeagueEfficiencyUiTextKeys.JungleMonsters, LeagueEfficiencyUiTextKeys.JungleChampions };
+            for (var index = 0; index < jungleProperties.Length; index++)
+            {
+                var property = typeof(LeagueDynamicMessageOptions).GetProperty(jungleProperties[index]);
+                var check = new CheckBox { AutoSize = true, Text = T(jungleKeys[index]), Checked = (bool)property.GetValue(_options, null) };
+                check.CheckedChanged += delegate { property.SetValue(_options, check.Checked, null); RefreshPreview(); };
+                jungleMetrics.Controls.Add(check);
+            }
+            metricsHost.Controls.Add(jungleMetrics);
+            root.Controls.Add(metricsHost, 0, 2);
             var shortcuts = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = false };
             for (var index = 0; index < 3; index++)
             {
@@ -97,21 +124,30 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicSelectPlayers) };
             _groups = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups) };
+            _jungle = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.JungleTab) };
             _selectionTabs = new TabControl { Dock = DockStyle.Fill };
             var playerTab = new TabPage(T(LeagueEfficiencyUiTextKeys.DynamicPlayer));
             playerTab.Controls.Add(_players);
             var groupTab = new TabPage(T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups));
             groupTab.Controls.Add(_groups);
-            _selectionTabs.TabPages.Add(playerTab); _selectionTabs.TabPages.Add(groupTab);
+            var jungleTab = new TabPage(T(LeagueEfficiencyUiTextKeys.JungleTab));
+            jungleTab.Controls.Add(_jungle);
+            _selectionTabs.TabPages.Add(playerTab); _selectionTabs.TabPages.Add(groupTab); _selectionTabs.TabPages.Add(jungleTab);
             _preview = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
             _players.ItemCheck += delegate { if (!_binding && IsHandleCreated) BeginInvoke(new Action(RefreshPreview)); };
             _groups.ItemCheck += delegate { if (!_binding && IsHandleCreated) BeginInvoke(new Action(RefreshPreview)); };
+            _jungle.ItemCheck += delegate { if (!_binding && IsHandleCreated) BeginInvoke(new Action(RefreshPreview)); };
             _selectionTabs.SelectedIndexChanged += delegate
             {
                 _binding = true;
-                var strategy = IsPremade ? _options.PremadeNameStrategy : _options.NameStrategy;
+                var strategy = IsPremade ? _options.PremadeNameStrategy : IsJungle ? _options.JungleNameStrategy : _options.NameStrategy;
                 _names.SelectedIndex = Math.Max(0, Array.IndexOf(new[] { "preferName", "preferChampionName", "championNameWithName" }, strategy));
+                champion.Checked = IsJungle ? _options.JungleShowCurrentChampion : _options.ShowCurrentChampion;
+                metrics.Visible = !IsJungle;
+                jungleMetrics.Visible = IsJungle;
+                _loadJungle.Visible = IsJungle;
                 _binding = false;
                 RefreshPreview();
             };
@@ -125,12 +161,14 @@ namespace FACM.League
                 if (_binding) return;
                 var strategy = new[] { "preferName", "preferChampionName", "championNameWithName" }[Math.Max(0, _names.SelectedIndex)];
                 if (IsPremade) _options.PremadeNameStrategy = strategy;
+                else if (IsJungle) _options.JungleNameStrategy = strategy;
                 else _options.NameStrategy = strategy;
                 RefreshPreview();
             };
         }
 
         private bool IsPremade { get { return _selectionTabs.SelectedIndex == 1; } }
+        private bool IsJungle { get { return _selectionTabs.SelectedIndex == 2; } }
 
         private ComboBox Choice(string[] values)
         {
@@ -140,17 +178,23 @@ namespace FACM.League
 
         private async Task LoadAsync()
         {
-            _load.Enabled = false; _send.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+            if (_busy) return;
+            _busy = true;
+            _load.Enabled = false; _loadJungle.Enabled = false; _send.Enabled = false;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
             try
             {
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token);
                 if (IsDisposed) return;
-                _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear();
+                _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)
                 {
                     foreach (var player in snapshot.Players)
+                    {
                         _players.Items.Add(new PlayerChoice(player), selected == null || selected.Contains(player.Player.PuuId));
+                        _jungle.Items.Add(new PlayerChoice(player), false);
+                    }
                     var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
                         LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
                         .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
@@ -165,7 +209,7 @@ namespace FACM.League
             }
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
-            finally { if (!IsDisposed) { _binding = false; _load.Enabled = true; } }
+            finally { if (!IsDisposed) { _busy = false; _binding = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
         private HashSet<string> Selected()
@@ -178,29 +222,61 @@ namespace FACM.League
             return new HashSet<string>(_groups.CheckedItems.Cast<PremadeChoice>().Select(g => g.Key), StringComparer.Ordinal);
         }
 
+        private HashSet<string> SelectedJungle()
+        {
+            return new HashSet<string>(_jungle.CheckedItems.Cast<PlayerChoice>().Select(p => p.Player.Player.PuuId), StringComparer.Ordinal);
+        }
+
+        private async Task LoadJungleAsync()
+        {
+            if (_busy || _snapshot == null || !IsJungle) return;
+            var snapshot = _snapshot;
+            var next = _jungle.CheckedItems.Cast<PlayerChoice>().FirstOrDefault(choice => choice.Player.JungleSamples == null);
+            if (next == null) return;
+            _busy = true;
+            _load.Enabled = false; _loadJungle.Enabled = false; _send.Enabled = false;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.JungleLoading);
+            try
+            {
+                var loaded = await _module.LoadJungleMessagesAsync(snapshot, next.Player.Player.PuuId, _lifetime.Token);
+                if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))
+                    _status.Text = T(loaded ? LeagueEfficiencyUiTextKeys.DynamicReady : LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
+            finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
+        }
+
         private void RefreshPreview()
         {
             if (_binding || IsDisposed || _preview == null) return;
-            var lines = IsPremade ? LeaguePremadeMessageFormatter.Build(_snapshot, _options, SelectedGroups()) :
+            var lines = IsPremade ? LeaguePremadeMessageFormatter.Build(_snapshot, _options, SelectedGroups()) : IsJungle ?
+                LeagueJungleMessageFormatter.Build(_snapshot, _options, SelectedJungle()) :
                 LeagueDynamicMessageFormatter.Build(_snapshot, _options, Selected());
-            if (!IsPremade) _module.SelectDynamicPlayers(_snapshot, Selected());
+            if (!IsPremade && !IsJungle) _module.SelectDynamicPlayers(_snapshot, Selected());
             _preview.Text = lines.Count == 0 && IsPremade && _snapshot != null ?
-                T(LeagueEfficiencyUiTextKeys.PremadeNoGroups) : string.Join(Environment.NewLine, lines);
-            _send.Enabled = lines.Count > 0 && _snapshot != null && _snapshot.Phase != "InProgress";
+                T(LeagueEfficiencyUiTextKeys.PremadeNoGroups) : lines.Count == 0 && IsJungle && _snapshot != null ?
+                T(LeagueEfficiencyUiTextKeys.JungleSelectHint) : string.Join(Environment.NewLine, lines);
+            _loadJungle.Enabled = !_busy && IsJungle && _snapshot != null &&
+                _jungle.CheckedItems.Cast<PlayerChoice>().Any(p => p.Player.JungleSamples == null);
+            _send.Enabled = !_busy && lines.Count > 0 && lines.Count <= 100 && _snapshot != null && _snapshot.Phase != "InProgress";
         }
 
         private async Task SendAsync()
         {
+            if (_busy) return;
+            _busy = true;
             _send.Enabled = false; _load.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicSending);
             try
             {
-                var sent = IsPremade ? await _module.SendPremadeMessagesAsync(_snapshot, _options, SelectedGroups(), _lifetime.Token) :
+                var sent = IsPremade ? await _module.SendPremadeMessagesAsync(_snapshot, _options, SelectedGroups(), _lifetime.Token) : IsJungle ?
+                    await _module.SendJungleMessagesAsync(_snapshot, _options, SelectedJungle(), _lifetime.Token) :
                     await _module.SendDynamicMessagesAsync(_snapshot, _options, Selected(), _lifetime.Token);
                 if (!IsDisposed) _status.Text = T(sent ? LeagueEfficiencyUiTextKeys.QuickMessageSent : LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
             }
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
-            finally { if (!IsDisposed) { _load.Enabled = true; RefreshPreview(); } }
+            finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
         private void HandleContextChanged()
@@ -211,7 +287,7 @@ namespace FACM.League
                 BeginInvoke(new Action(delegate
                 {
                     if (IsDisposed) return;
-                    _snapshot = null; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _binding = false;
+                    _snapshot = null; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); _binding = false;
                     _preview.Clear(); _send.Enabled = false; _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
                 }));
             }

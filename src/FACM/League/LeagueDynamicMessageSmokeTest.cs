@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateAggregation();
             ValidatePremadeInference();
             ValidateJungleTimeline();
+            ValidateJungleFormatter();
             ValidateLoadingAsync().GetAwaiter().GetResult();
             ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
@@ -161,6 +162,56 @@ namespace FACM.League
                 "Jungle aggregation must deduplicate games and retain source-rate denominators.");
             Require(LeagueJungleTimelineAnalysis.Parse(Bytes("{"), 9, 64, 1, 100, 11, true) == null,
                 "Malformed timeline unexpectedly produced a game result.");
+        }
+
+        private static void ValidateJungleFormatter()
+        {
+            var player = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 },
+                ChampionName = "Alpha", History = new LeaguePlayerMatchPage(),
+                JungleSamples = new[]
+                {
+                    new LeagueJungleTimelineSample { GameId = 1, ChampionId = 77, TeamId = 100,
+                        TopWeight = 6, MidWeight = 2, TotalWeight = 8, FirstCamp = "blue", FirstCampSide = "blue",
+                        Level3Gank = true, FirstDragonWon = true, Dragons = 2, Voidgrubs = 3 },
+                    new LeagueJungleTimelineSample { GameId = 2, ChampionId = 77, TeamId = 100,
+                        TopWeight = 2, BotWeight = 6, TotalWeight = 8, FirstCamp = "red", FirstCampSide = "red",
+                        Level4Gank = true, FirstDragonWon = false, Dragons = 1, Heralds = 1 }
+                }
+            };
+            player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 77, ChampionName = "Alpha" });
+            player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 77, ChampionName = "Alpha" });
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(player);
+            var options = new LeagueDynamicMessageOptions();
+            var selected = new HashSet<string> { "self" };
+            var lines = LeagueJungleMessageFormatter.Build(snapshot, options, selected);
+            Require(lines.Count > 0 && lines[0].StartsWith("Alpha：打野样本2场", StringComparison.Ordinal) &&
+                string.Join(" ", lines).Contains("蓝方常规开野50%") &&
+                string.Join(" ", lines).Contains("首龙控制50%") &&
+                string.Join(" ", lines).Contains("三级抓人50%"),
+                "The current-champion jungle preset omitted a source-derived metric or first-clear distribution.");
+            options.JungleShowCurrentChampion = false;
+            lines = LeagueJungleMessageFormatter.Build(snapshot, options, selected);
+            Require(string.Join(" ", lines).Contains("常用打野Alpha") &&
+                !string.Join(" ", lines).Contains("蓝方常规开野"),
+                "Global jungle formatting must show main champions instead of current-champion first clears.");
+            options.Target = "enemy";
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Count == 0,
+                "Jungle target filtering included an opposing-side player.");
+            options.Target = "all";
+            player.JungleSamples = null;
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Count == 0,
+                "Unavailable timelines were misrepresented as confirmed zero jungle games.");
+            player.JungleSamples = new[] { new LeagueJungleTimelineSample { GameId = 3, ChampionId = 99, TeamId = 200 } };
+            options.JungleShowCurrentChampion = true;
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Single().Contains("暂无打野记录"),
+                "Current champion filtering unexpectedly reused another champion's jungle games.");
+            var parsed = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(parsed.JungleShowCurrentChampion && parsed.JungleFirstClearDistribution &&
+                parsed.JungleNameStrategy == "preferChampionName" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").JungleShowCurrentChampion,
+                "Jungle preferences did not roundtrip or default like pinned Akari 1.5.1.");
         }
 
         private static async Task ValidateLoadingAsync()

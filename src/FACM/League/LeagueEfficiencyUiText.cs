@@ -213,6 +213,16 @@ namespace FACM.League
         public const string PremadeGroupCount = "LeagueEfficiencyPremadeGroupCount";
         public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
         public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
+        public const string JungleTab = "LeagueEfficiencyJungleTab";
+        public const string JungleLoad = "LeagueEfficiencyJungleLoad";
+        public const string JungleLoading = "LeagueEfficiencyJungleLoading";
+        public const string JungleSelectHint = "LeagueEfficiencyJungleSelectHint";
+        public const string JungleActivity = "LeagueEfficiencyJungleActivity";
+        public const string JungleFirstClear = "LeagueEfficiencyJungleFirstClear";
+        public const string JungleEarlyGank = "LeagueEfficiencyJungleEarlyGank";
+        public const string JungleDragon = "LeagueEfficiencyJungleDragon";
+        public const string JungleMonsters = "LeagueEfficiencyJungleMonsters";
+        public const string JungleChampions = "LeagueEfficiencyJungleChampions";
         public const string ProfileModeDefault = "LeagueEfficiencyProfileModeDefault";
         public const string ProfileModeRift = "LeagueEfficiencyProfileModeRift";
         public const string ProfileModeAram = "LeagueEfficiencyProfileModeAram";
@@ -457,6 +467,16 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeGroupCount, "{0} 人同队记录" },
             { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少五局），不能判定无人组队。" },
             { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
+            { LeagueEfficiencyUiTextKeys.JungleTab, "打野分析" },
+            { LeagueEfficiencyUiTextKeys.JungleLoad, "读取所选打野" },
+            { LeagueEfficiencyUiTextKeys.JungleLoading, "正在读取所选玩家的打野时间线…" },
+            { LeagueEfficiencyUiTextKeys.JungleSelectHint, "勾选玩家后点击读取所选打野，可逐个读取；数据加载完毕后生成预览。" },
+            { LeagueEfficiencyUiTextKeys.JungleActivity, "抓线偏好" },
+            { LeagueEfficiencyUiTextKeys.JungleFirstClear, "开野分布" },
+            { LeagueEfficiencyUiTextKeys.JungleEarlyGank, "三级/四级抓人" },
+            { LeagueEfficiencyUiTextKeys.JungleDragon, "控龙" },
+            { LeagueEfficiencyUiTextKeys.JungleMonsters, "史诗野怪" },
+            { LeagueEfficiencyUiTextKeys.JungleChampions, "常用打野英雄" },
             { LeagueEfficiencyUiTextKeys.ProfileModeDefault, "默认" },
             { LeagueEfficiencyUiTextKeys.ProfileModeRift, "召唤师峡谷" },
             { LeagueEfficiencyUiTextKeys.ProfileModeAram, "普通大乱斗" },
