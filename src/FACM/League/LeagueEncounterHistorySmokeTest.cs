@@ -17,11 +17,15 @@ namespace FACM.League
             var game = new LeagueLiveSnapshot();
             new LeagueLiveDataService(new StubClient(), new PerformanceBudgetProvider()).ApplyCurrentGame(game,
                 Encoding.UTF8.GetBytes("{\"phase\":\"InProgress\",\"gameData\":{\"gameId\":12345," +
-                    "\"queue\":{\"id\":450},\"teamOne\":[{\"puuid\":\"self\"},{\"puuid\":\"ally\"}]," +
+                    "\"queue\":{\"id\":450,\"type\":\"ARAM\"},\"teamOne\":[{\"puuid\":\"self\"},{\"puuid\":\"ally\"}]," +
                     "\"teamTwo\":[{\"puuid\":\"enemy\"}]}}"));
             var capture = LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" });
             Require(capture != null && capture.GameId == 12345 && capture.Participants.Length == 3 &&
-                capture.QueueType == "queue-450", "End-of-game encounter projection lost the pinned game identity.");
+                capture.QueueType == "ARAM", "Encountered-game queue type must match the authenticated gameflow session.");
+            game.QueueType = null;
+            Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" }).QueueType == "queue-450",
+                "Older gameflow payloads without queue.type should preserve the bounded fallback.");
+            game.QueueType = "ARAM";
             Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "stranger" }) == null,
                 "Encounter projection must not record a game without the signed-in player.");
             game.Phase = "EndOfGame";

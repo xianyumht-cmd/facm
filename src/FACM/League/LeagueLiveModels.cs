@@ -30,6 +30,7 @@ namespace FACM.League
         public long GameId { get; set; }
         public int QueueId { get; set; }
         public string QueueName { get; set; }
+        public string QueueType { get; set; }
         public int MapId { get; set; }
         public string MapName { get; set; }
         public string GameMode { get; set; }

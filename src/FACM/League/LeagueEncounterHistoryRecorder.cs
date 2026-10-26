@@ -28,7 +28,10 @@ namespace FACM.League
                 participants.Any(p => !LeagueDynamicMessageService.SafePuuid(p)) ||
                 participants.Distinct(StringComparer.Ordinal).Count() != participants.Length ||
                 !participants.Contains(account.PuuId, StringComparer.Ordinal)) return null;
-            var queue = game.QueueId > 0 ? "queue-" + game.QueueId : game.GameMode;
+            // Akari 1.5.1 records gameflow.session.gameData.queue.type. Preserve the
+            // previous numeric/mode fallback for gameflow responses without that field.
+            var queue = !string.IsNullOrWhiteSpace(game.QueueType) ? game.QueueType :
+                game.QueueId > 0 ? "queue-" + game.QueueId : game.GameMode;
             if (string.IsNullOrWhiteSpace(queue) || queue.Length > 64 || queue.Any(char.IsControl)) return null;
             return new LeagueEncounterCapture { Session = session, GameId = game.GameId,
                 SelfPuuid = account.PuuId, Region = session.Region, PlatformId = session.PlatformId,

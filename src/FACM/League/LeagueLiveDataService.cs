@@ -302,6 +302,7 @@ namespace FACM.League
             var queue = ReadDictionary(gameData, "queue");
             snapshot.QueueId = ReadInt(queue, "id");
             snapshot.QueueName = FirstNonEmpty(ReadString(queue, "name"), ReadString(queue, "shortName"));
+            snapshot.QueueType = ReadString(queue, "type");
             if (string.IsNullOrWhiteSpace(snapshot.GameMode))
                 snapshot.GameMode = FirstNonEmpty(ReadString(queue, "gameMode"), ReadString(gameData, "gameName"));
 
