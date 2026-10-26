@@ -11,6 +11,7 @@ namespace FACM.League
         {
             ValidatePolicyCodec();
             ValidateSearchStateProjection();
+            ValidateFixedDurationThreshold();
             ValidateReadyCheckFence();
             ValidateWriteFence();
             AppSettings.ValidateMatchmakingStopPreferencesForSmokeTest();
@@ -86,6 +87,35 @@ namespace FACM.League
                 "Matchmaking stop controller could remain armed in ReadyCheck.");
             Require(!LeagueMatchmakingStopController.IsMatchmakingForSmokeTest("Lobby", LeagueActivityLevel.Client),
                 "Matchmaking stop controller remained armed in Lobby.");
+        }
+
+        private static void ValidateFixedDurationThreshold()
+        {
+            var normal = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":100}"));
+            Require(normal != null && LeagueMatchmakingStopController.FixedStopRemaining(normal, 120000) == TimeSpan.FromSeconds(20),
+                "Fixed stop did not account for existing actual queue time.");
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(normal, 120000),
+                "Fixed stop fired before its queue-duration threshold.");
+
+            var penalized = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":170,\"lowPriorityData\":{\"penaltyTime\":60}}"));
+            Require(penalized != null && LeagueMatchmakingStopController.FixedStopRemaining(penalized, 120000) == TimeSpan.FromSeconds(10),
+                "Fixed stop counted the low-priority penalty as searchable queue time.");
+            penalized.TimeInQueueSeconds = 180;
+            Require(LeagueMatchmakingStopController.ShouldStopForFixed(penalized, 120000),
+                "Fixed stop missed the exact post-penalty duration threshold.");
+
+            penalized.SearchState = "Found";
+            Require(!LeagueMatchmakingStopController.FixedStopRemaining(penalized, 120000).HasValue,
+                "Fixed stop remained eligible after search-state transition.");
+            penalized.SearchState = "Searching";
+            penalized.PenaltyTimeSeconds = -1;
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(penalized, 120000),
+                "Fixed stop accepted invalid low-priority penalty time.");
+            normal.TimeInQueueSeconds = null;
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(normal, 120000),
+                "Fixed stop guessed a queue duration when time data was unavailable.");
         }
 
         private static void ValidateWriteFence()

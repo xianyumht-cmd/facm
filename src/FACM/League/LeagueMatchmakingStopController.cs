@@ -59,16 +59,21 @@ namespace FACM.League
             get { return string.Equals(SearchState, "Searching", StringComparison.OrdinalIgnoreCase); }
         }
 
-        public bool HasUsableEstimate
+        public bool HasUsableQueueTime
         {
             get
             {
                 return IsCurrentlyInQueue && IsSearching &&
                        TimeInQueueSeconds.HasValue && TimeInQueueSeconds.Value >= 0d &&
-                       EstimatedQueueTimeSeconds.HasValue && EstimatedQueueTimeSeconds.Value > 0d &&
+                       !double.IsNaN(TimeInQueueSeconds.Value) && !double.IsInfinity(TimeInQueueSeconds.Value) &&
                        PenaltyTimeSeconds >= 0d && !double.IsNaN(PenaltyTimeSeconds) &&
                        !double.IsInfinity(PenaltyTimeSeconds);
             }
+        }
+
+        public bool HasUsableEstimate
+        {
+            get { return HasUsableQueueTime && EstimatedQueueTimeSeconds.HasValue && EstimatedQueueTimeSeconds.Value > 0d; }
         }
     }
 
@@ -200,11 +205,19 @@ namespace FACM.League
         {
             try
             {
-                await Task.Delay(Math.Max(1000, delayMs), cancellationToken).ConfigureAwait(false);
-                if (!IsCurrentMatchmakingEpisode(generation)) return;
-                var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
-                if (state == null || !state.IsCurrentlyInQueue) return;
-                await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
+                while (!cancellationToken.IsCancellationRequested && IsCurrentMatchmakingEpisode(generation))
+                {
+                    var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
+                    var remaining = FixedStopRemaining(state, delayMs);
+                    if (!remaining.HasValue) return;
+                    if (remaining.Value > TimeSpan.Zero)
+                    {
+                        await Task.Delay(remaining.Value, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    if (await TryStopAsync(generation, cancellationToken).ConfigureAwait(false)) return;
+                    await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -243,10 +256,12 @@ namespace FACM.League
         private async Task<bool> TryStopAsync(int generation, CancellationToken cancellationToken)
         {
             LeagueMatchmakingStopPolicy policy;
+            int fixedStopAfterMs;
             lock (_sync)
             {
                 if (!IsCurrentMatchmakingEpisodeLocked(generation) || _stopConfirmed) return _stopConfirmed;
                 policy = _policy;
+                fixedStopAfterMs = _fixedStopAfterMs;
             }
 
             // The Gameflow phase can lag behind an LCU search-state transition.
@@ -254,7 +269,8 @@ namespace FACM.League
             var before = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
             if (!IsCurrentMatchmakingEpisode(generation) || before == null ||
                 !before.IsCurrentlyInQueue || !before.IsSearching ||
-                (policy == LeagueMatchmakingStopPolicy.EstimatedTime && !ShouldStopForEstimate(before)))
+                (policy == LeagueMatchmakingStopPolicy.EstimatedTime && !ShouldStopForEstimate(before)) ||
+                (policy == LeagueMatchmakingStopPolicy.FixedTime && !ShouldStopForFixed(before, fixedStopAfterMs)))
                 return false;
 
             LeagueClientWriteResponse response = null;
@@ -342,6 +358,20 @@ namespace FACM.League
         {
             return state != null && state.HasUsableEstimate &&
                    state.TimeInQueueSeconds.Value - state.PenaltyTimeSeconds >= state.EstimatedQueueTimeSeconds.Value;
+        }
+
+        internal static TimeSpan? FixedStopRemaining(LeagueMatchmakingSearchState state, int fixedStopAfterMs)
+        {
+            if (state == null || !state.HasUsableQueueTime) return null;
+            var limitMs = Math.Max(1000, Math.Min(600000, fixedStopAfterMs));
+            var actualQueueMs = Math.Max(0d, state.TimeInQueueSeconds.Value - state.PenaltyTimeSeconds) * 1000d;
+            return TimeSpan.FromMilliseconds(Math.Ceiling(Math.Max(0d, limitMs - actualQueueMs)));
+        }
+
+        internal static bool ShouldStopForFixed(LeagueMatchmakingSearchState state, int fixedStopAfterMs)
+        {
+            var remaining = FixedStopRemaining(state, fixedStopAfterMs);
+            return remaining.HasValue && remaining.Value == TimeSpan.Zero;
         }
 
         private static string ReadString(IDictionary<string, object> root, string key)
