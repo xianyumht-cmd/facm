@@ -36,7 +36,13 @@ namespace FACM.League
             string conversationId, string message, bool visibleToTeam, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, IDisposable
+    internal interface ILeagueQuickMessageWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendQuickMessageAsync(
+            LeagueClientSession session, string conversationId, string message, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -99,6 +105,17 @@ namespace FACM.League
                 throw new ArgumentException("Invalid private reply.");
             return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
                 new JavaScriptSerializer().Serialize(new { body = text, fromPid = "", fromSummonerId = 0,
+                    id = conversationId, isHistorical = false, timestamp = "", type = "chat" }), token, session);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendQuickMessageAsync(
+            LeagueClientSession session, string conversationId, string message, CancellationToken token)
+        {
+            if (session == null || !IsSafeConversationId(conversationId) ||
+                LeagueQuickMessagePresets.NormalizeMessage(message) != message || message.Length == 0)
+                throw new ArgumentException("Invalid quick message.");
+            return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
+                new JavaScriptSerializer().Serialize(new { body = message, fromPid = "", fromSummonerId = 0,
                     id = conversationId, isHistorical = false, timestamp = "", type = "chat" }), token, session);
         }
 

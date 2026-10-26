@@ -135,6 +135,7 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = s.LeagueRespawnOverlayEnabled;
+            settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(s.LeagueQuickMessagePresets);
             settings.LeagueAutoReplyAwayOnly = s.LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(s.LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = s.LeagueLockOfflineStatusEnabled;

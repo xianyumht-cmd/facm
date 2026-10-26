@@ -438,6 +438,17 @@ namespace FACM.League
                 _status.Text = T(LeagueEfficiencyUiTextKeys.RespawnOverlaySaved);
             };
 
+            root.RowStyles.Insert(47, new RowStyle(SizeType.Absolute, 66));
+            root.RowCount = root.RowStyles.Count;
+            var quickMessages = CreateButton(T(LeagueEfficiencyUiTextKeys.QuickMessageOpen), 240, FacmButtonTone.Secondary);
+            quickMessages.Margin = new Padding(0, 8, 0, 8);
+            quickMessages.Click += delegate
+            {
+                using (var dialog = new LeagueQuickMessageForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            WireHelp(quickMessages, T(LeagueEfficiencyUiTextKeys.QuickMessageHint));
+            root.Controls.Add(quickMessages, 0, 47);
+
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;

@@ -167,6 +167,23 @@ namespace FACM.AppHost.Modules
         public bool LockOfflineStatusEnabled { get { return _settingsModule.Settings.LeagueLockOfflineStatusEnabled; } }
         public bool RespawnOverlayEnabled { get { return _settingsModule.Settings.LeagueRespawnOverlayEnabled; } }
 
+        public string QuickMessagePresetsJson { get { return _settingsModule.Settings.LeagueQuickMessagePresets; } }
+
+        public void SaveQuickMessagePresets(string json)
+        {
+            ThrowIfDisposed();
+            _settingsModule.Settings.LeagueQuickMessagePresets = LeagueQuickMessagePresets.NormalizeJson(json);
+            _settingsModule.Settings.Save();
+        }
+
+        public Task<bool> SendQuickMessageAsync(string message, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            var sender = new LeagueQuickMessageSender(_leagueClient, (ILeagueQuickMessageWriteApi)_leagueClient,
+                () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState);
+            return sender.SendChatAsync(message, token);
+        }
+
         public void UpdateRespawnOverlayEnabled(bool enabled)
         {
             ThrowIfDisposed();

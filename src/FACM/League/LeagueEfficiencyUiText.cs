@@ -51,6 +51,15 @@ namespace FACM.League
         public const string RespawnOverlay = "LeagueEfficiencyRespawnOverlay";
         public const string RespawnOverlayHint = "LeagueEfficiencyRespawnOverlayHint";
         public const string RespawnOverlaySaved = "LeagueEfficiencyRespawnOverlaySaved";
+        public const string QuickMessageOpen = "LeagueQuickMessageOpen";
+        public const string QuickMessageTitle = "LeagueQuickMessageTitle";
+        public const string QuickMessageHint = "LeagueQuickMessageHint";
+        public const string QuickMessageSave = "LeagueQuickMessageSave";
+        public const string QuickMessageSend = "LeagueQuickMessageSend";
+        public const string QuickMessageSaved = "LeagueQuickMessageSaved";
+        public const string QuickMessageSent = "LeagueQuickMessageSent";
+        public const string QuickMessageUnavailable = "LeagueQuickMessageUnavailable";
+        public const string QuickMessageInvalid = "LeagueQuickMessageInvalid";
         public const string LobbyInvitationSection = "LeagueEfficiencyLobbyInvitationSection";
         public const string HandleInvitations = "LeagueEfficiencyHandleInvitations";
         public const string HandleInvitationsHint = "LeagueEfficiencyHandleInvitationsHint";
@@ -231,6 +240,15 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.RespawnOverlay, "游戏内复活倒计时" },
             { LeagueEfficiencyUiTextKeys.RespawnOverlayHint, "对局中阵亡时显示轻量悬浮倒计时；只读取本机游戏接口，不抢游戏焦点。默认关闭。" },
             { LeagueEfficiencyUiTextKeys.RespawnOverlaySaved, "复活倒计时设置已保存。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageOpen, "快捷消息预设…" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageTitle, "GGman · 快捷消息" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageHint, "保存四条常用消息，可在房间或选人阶段手动发送。每条最多四行、300 字；游戏内键盘发送尚未启用。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageSave, "保存四条预设" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageSend, "发送" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageSaved, "四条预设已保存。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageSent, "消息已提交到当前聊天室。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageUnavailable, "当前无法确认可发送的聊天室，未发送消息。" },
+            { LeagueEfficiencyUiTextKeys.QuickMessageInvalid, "消息为空或超出四行、300 字的限制。" },
             { LeagueEfficiencyUiTextKeys.LobbyInvitationSection, "组队与邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitations, "自动处理收到的组队邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitationsHint, "按下方模式策略接受或拒绝邀请。所有模式默认忽略；关闭时不处理邀请。" },

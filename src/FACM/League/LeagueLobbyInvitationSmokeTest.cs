@@ -24,6 +24,7 @@ namespace FACM.League
             ValidateDisabledByDefault();
             LeagueFriendInvitationSmokeTest.Validate();
             LeagueAramTeamSideSmokeTest.Validate();
+            LeagueQuickMessageSmokeTest.Validate();
         }
 
         private static void ValidateSettingsAndCloud()

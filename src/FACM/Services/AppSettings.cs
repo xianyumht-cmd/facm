@@ -64,6 +64,7 @@ namespace FACM.Services
         public string LeagueAutoReplyText { get; set; } = "";
         public bool LeagueLockOfflineStatusEnabled { get; set; } = false;
         public bool LeagueRespawnOverlayEnabled { get; set; } = false;
+        public string LeagueQuickMessagePresets { get; set; } = string.Empty;
         public bool LeagueAutoPickEnabled { get; set; } = false;
         public bool LeagueAutoBanEnabled { get; set; } = false;
         public int LeagueAutoPickChampionId { get; set; } = 0;
@@ -199,6 +200,7 @@ namespace FACM.Services
                 "LeagueAutoReplyText=" + Sanitize(LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText)),
                 "LeagueLockOfflineStatusEnabled=" + LeagueLockOfflineStatusEnabled,
                 "LeagueRespawnOverlayEnabled=" + LeagueRespawnOverlayEnabled,
+                "LeagueQuickMessagePresets=" + FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets),
                 "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
                 "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
                 "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
@@ -456,6 +458,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueAutoReplyText", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoReplyText = LeagueAutoReplyController.NormalizeText(value);
             else if (key.Equals("LeagueLockOfflineStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueLockOfflineStatusEnabled = flag;
             else if (key.Equals("LeagueRespawnOverlayEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRespawnOverlayEnabled = flag;
+            else if (key.Equals("LeagueQuickMessagePresets", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(value);
             else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
             else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
             else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));

@@ -44,6 +44,7 @@ namespace FACM.Services
         public string LeagueAutoReplyText { get; set; }
         public bool LeagueLockOfflineStatusEnabled { get; set; }
         public bool LeagueRespawnOverlayEnabled { get; set; }
+        public string LeagueQuickMessagePresets { get; set; }
         public int LeagueAutoMatchmakingMinPartySize { get; set; }
         public int LeagueAutoMatchmakingStartDelayMs { get; set; }
         public int LeagueAutoAcceptDelayMs { get; set; }
@@ -91,6 +92,7 @@ namespace FACM.Services
                 LeagueAutoLoginRankedDivision = settings.LeagueAutoLoginRankedDivision,
                 LeagueAutoReplyEnabled = settings.LeagueAutoReplyEnabled,
                 LeagueRespawnOverlayEnabled = settings.LeagueRespawnOverlayEnabled,
+                LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(settings.LeagueQuickMessagePresets),
                 LeagueAutoReplyAwayOnly = settings.LeagueAutoReplyAwayOnly,
                 LeagueAutoReplyText = settings.LeagueAutoReplyText,
                 LeagueLockOfflineStatusEnabled = settings.LeagueLockOfflineStatusEnabled,
@@ -150,6 +152,7 @@ namespace FACM.Services
             settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
             settings.LeagueAutoReplyEnabled = LeagueAutoReplyEnabled;
             settings.LeagueRespawnOverlayEnabled = LeagueRespawnOverlayEnabled;
+            settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets);
             settings.LeagueAutoReplyAwayOnly = LeagueAutoReplyAwayOnly;
             settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText);
             settings.LeagueLockOfflineStatusEnabled = LeagueLockOfflineStatusEnabled;
