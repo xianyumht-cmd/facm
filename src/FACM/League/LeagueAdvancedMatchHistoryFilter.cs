@@ -17,6 +17,12 @@ namespace FACM.League
         DurationBetween,
         IsWin,
         IsLoss,
+        IsNormalLoss,
+        IsSurrenderLoss,
+        IsRemake,
+        IsAbort,
+        IsMatchedGame,
+        IsPveGame,
         HasChampion,
         HasPlayer,
         KillsBetween,
@@ -84,6 +90,16 @@ namespace FACM.League
     internal sealed class LeagueAdvancedMatchHistoryFilter
     {
         private enum Evidence { No, Yes, Unknown }
+
+        // Akari 1.5.1 league-client/match-history.ts: PvE queues, including legacy modes.
+        private static readonly HashSet<int> PveQueues = new HashSet<int>
+        {
+            31, 32, 33, 34, 35, 36, 52, 800, 801, 810, 820, 830, 831, 832,
+            840, 841, 842, 850, 851, 852, 860, 870, 880, 890, 2000, 2010, 2020,
+            90, 91, 92, 950, 951, 960, 961, 981, 982, 990,
+            1030, 1031, 1032, 1040, 1041, 1050, 1051, 1060, 1061, 1070, 1071,
+            1800, 1810, 1820, 1830, 1840, 1850, 1860, 1870, 1880, 1890
+        };
 
         private const int MaximumNodes = 40;
         private const int MaximumDepth = 7;
@@ -170,6 +186,12 @@ namespace FACM.League
                 {
                     case LeagueAdvancedMatchKind.IsWin:
                     case LeagueAdvancedMatchKind.IsLoss:
+                    case LeagueAdvancedMatchKind.IsNormalLoss:
+                    case LeagueAdvancedMatchKind.IsSurrenderLoss:
+                    case LeagueAdvancedMatchKind.IsRemake:
+                    case LeagueAdvancedMatchKind.IsAbort:
+                    case LeagueAdvancedMatchKind.IsMatchedGame:
+                    case LeagueAdvancedMatchKind.IsPveGame:
                         break;
                     case LeagueAdvancedMatchKind.IsQueue:
                     case LeagueAdvancedMatchKind.IsMap:
@@ -418,9 +440,22 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.DurationBetween:
                     return match.GameDurationSeconds <= 0 ? Evidence.Unknown : InRange(node.Value, match.GameDurationSeconds);
                 case LeagueAdvancedMatchKind.IsWin:
-                    return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown : Match(match.Win);
+                    return ResultEvidence(match, "win");
                 case LeagueAdvancedMatchKind.IsLoss:
-                    return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown : Match(!match.Win);
+                    return ResultEvidence(match, "loss");
+                case LeagueAdvancedMatchKind.IsNormalLoss:
+                    return LossEvidence(match, false);
+                case LeagueAdvancedMatchKind.IsSurrenderLoss:
+                    return LossEvidence(match, true);
+                case LeagueAdvancedMatchKind.IsRemake:
+                    return ResultEvidence(match, "remake");
+                case LeagueAdvancedMatchKind.IsAbort:
+                    return ResultEvidence(match, "abort");
+                case LeagueAdvancedMatchKind.IsMatchedGame:
+                    return string.IsNullOrWhiteSpace(root.GameType) ? Evidence.Unknown :
+                        Match(string.Equals(root.GameType, "MATCHED_GAME", StringComparison.Ordinal));
+                case LeagueAdvancedMatchKind.IsPveGame:
+                    return root.QueueId <= 0 ? Evidence.Unknown : Match(PveQueues.Contains(root.QueueId));
                 case LeagueAdvancedMatchKind.HasChampion:
                     if (participantScope)
                         return match.ChampionId <= 0 ? Evidence.Unknown : Match(match.ChampionId == ParseId(node.Value));
@@ -504,6 +539,23 @@ namespace FACM.League
                 default:
                     return Evidence.Unknown;
             }
+        }
+
+        private static Evidence ResultEvidence(LeaguePlayerMatchSummary subject, string expected)
+        {
+            if (!subject.ParticipantResolved) return Evidence.Unknown;
+            if (!string.IsNullOrEmpty(subject.WinResult))
+                return Match(string.Equals(subject.WinResult, expected, StringComparison.Ordinal));
+            if (expected == "win" || expected == "loss")
+                return subject.StatisticsAvailable ? Match(subject.Win == (expected == "win")) : Evidence.Unknown;
+            return Evidence.Unknown;
+        }
+
+        private static Evidence LossEvidence(LeaguePlayerMatchSummary subject, bool surrendered)
+        {
+            var loss = ResultEvidence(subject, "loss");
+            if (loss != Evidence.Yes) return loss;
+            return subject.IsSurrender.HasValue ? Match(subject.IsSurrender.Value == surrendered) : Evidence.Unknown;
         }
 
         private static Evidence MatchSlot(int[] values, string expression, int slotCount)

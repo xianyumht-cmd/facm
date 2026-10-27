@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateAdvancedParticipantEquipmentFilters();
             ValidateAdvancedRelativeMetricFilters();
             ValidateAdvancedParticipantScopes();
+            ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
@@ -658,6 +659,93 @@ namespace FACM.League
                 Group(LeagueAdvancedMatchKind.Anyone,
                     Predicate(LeagueAdvancedMatchKind.IsWin), Predicate(LeagueAdvancedMatchKind.IsLoss))),
                 out filter, out error), "Quantifier scopes must accept exactly one child expression.");
+        }
+
+        private static void ValidateAdvancedGameResults()
+        {
+            // Pinned Akari 1.5.1 win-result.ts: abort > remake > early surrender > win > loss.
+            // LCU statistics nest participant flags under stats; other providers put them on the participant.
+            var games = "{\"games\":{\"games\":[" +
+                OutcomeGame(9101, "MATCHED_GAME", 420, "\"win\":true", null) + "," +
+                OutcomeGame(9102, "CUSTOM_GAME", 450,
+                    "\"win\":false,\"gameEndedInSurrender\":false", null) + "," +
+                OutcomeGame(9103, "MATCHED_GAME", 420,
+                    "\"win\":false,\"gameEndedInSurrender\":true,\"teamEarlySurrendered\":true", null) + "," +
+                OutcomeGame(9104, "MATCHED_GAME", 420,
+                    "\"win\":false,\"gameEndedInEarlySurrender\":true", null) + "," +
+                OutcomeGame(9105, "MATCHED_GAME", 420, "\"win\":true",
+                    "\"endOfGameResult\":\"Abort_Afk\"") + "," +
+                OutcomeGame(9106, null, 0, "\"kills\":2", null) + "," +
+                OutcomeGame(9107, "MATCHED_GAME", 830, "\"win\":true", null) + "," +
+                OutcomeGame(9108, "MATCHED_GAME", 420, "\"win\":false", null) + "]}}";
+            var service = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", games, null),
+                new PerformanceBudgetProvider());
+            var profile = service.LoadProfileAsync(true, CancellationToken.None).GetAwaiter().GetResult();
+            var page = service.LoadRecentMatchesAsync(profile, 0, 10, true, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(page != null && page.Matches.Count == 8,
+                "All source-shaped game-result fixtures must parse in one bounded LCU page.");
+            var byId = page.Matches.ToDictionary(m => m.GameId);
+            Require(byId[9101].WinResult == "win" && byId[9102].WinResult == "loss" &&
+                    byId[9102].IsSurrender == false && byId[9103].IsSurrender == true &&
+                    byId[9104].WinResult == "remake" && byId[9105].WinResult == "abort" &&
+                    byId[9105].IsSurrender == false && byId[9106].WinResult == null &&
+                    !byId[9108].IsSurrender.HasValue,
+                "Outcome classification and missing surrender evidence must respect the source precedence.");
+
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            var cases = new[]
+            {
+                new { Kind = LeagueAdvancedMatchKind.IsWin, Ids = new long[] { 9101, 9107 } },
+                new { Kind = LeagueAdvancedMatchKind.IsLoss, Ids = new long[] { 9102, 9103, 9108 } },
+                new { Kind = LeagueAdvancedMatchKind.IsNormalLoss, Ids = new long[] { 9102 } },
+                new { Kind = LeagueAdvancedMatchKind.IsSurrenderLoss, Ids = new long[] { 9103 } },
+                new { Kind = LeagueAdvancedMatchKind.IsRemake, Ids = new long[] { 9104 } },
+                new { Kind = LeagueAdvancedMatchKind.IsAbort, Ids = new long[] { 9105 } },
+                new { Kind = LeagueAdvancedMatchKind.IsMatchedGame,
+                    Ids = new long[] { 9101, 9103, 9104, 9105, 9107, 9108 } },
+                new { Kind = LeagueAdvancedMatchKind.IsPveGame, Ids = new long[] { 9107 } }
+            };
+            foreach (var item in cases)
+            {
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                        Predicate(item.Kind)), out filter, out error),
+                    "Result condition should compile without user input: " + item.Kind);
+                Require(LeagueAdvancedMatchHistoryFilter.Apply(page.Matches, filter)
+                        .Select(m => m.GameId).OrderBy(id => id).SequenceEqual(item.Ids),
+                    "Source outcome/game-type/queue classification diverged: " + item.Kind);
+            }
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Group(LeagueAdvancedMatchKind.Not,
+                        Predicate(LeagueAdvancedMatchKind.IsNormalLoss))), out filter, out error) &&
+                    !filter.Matches(byId[9108]) && filter.Matches(byId[9103]),
+                "NOT cannot infer a normal loss from absent surrender data.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Group(LeagueAdvancedMatchKind.Not,
+                        Predicate(LeagueAdvancedMatchKind.IsRemake))), out filter, out error) &&
+                    !filter.Matches(byId[9106]),
+                "NOT must preserve unknown outcome evidence.");
+            var cached = service.TryGetCachedPage();
+            Require(cached.Matches.Any(m => m.GameId == 9104 && m.WinResult == "remake") &&
+                    cached.Matches.Any(m => m.GameId == 9103 && m.IsSurrender == true),
+                "The page cache clone must retain source result and surrender classification.");
+            var group = Group(LeagueAdvancedMatchKind.And,
+                Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                    Predicate(LeagueAdvancedMatchKind.IsSurrenderLoss)));
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(group, out filter, out error) &&
+                    filter.Matches(byId[9103]) && !filter.Matches(byId[9101]),
+                "Result predicates must operate on the selected participant in quantified groups.");
+        }
+
+        private static string OutcomeGame(long id, string type, int queue, string stats, string extra)
+        {
+            return "{\"gameId\":" + id + ",\"queueId\":" + queue +
+                (type == null ? "" : ",\"gameType\":\"" + type + "\"") +
+                (extra == null ? "" : "," + extra) +
+                ",\"participants\":[{\"participantId\":1,\"teamId\":100,\"championId\":22," +
+                "\"stats\":{" + stats + "}}],\"participantIdentities\":[{" +
+                "\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]}";
         }
 
         private static void ValidateRiotPlayerSearch()

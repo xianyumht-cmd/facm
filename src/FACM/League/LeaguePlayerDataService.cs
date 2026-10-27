@@ -871,6 +871,7 @@ namespace FACM.League
                 GameCreationLocal = ResolveCreationLocal(game),
                 GameDurationSeconds = ReadInt(game, "gameDuration"),
                 GameMode = ReadString(game, "gameMode"),
+                GameType = ReadString(game, "gameType"),
                 QueueId = ReadInt(game, "queueId"),
                 ChampionId = participant == null ? 0 : ReadInt(participant, "championId"),
                 MapId = ReadInt(game, "mapId"),
@@ -882,6 +883,8 @@ namespace FACM.League
                 Assists = stats == null ? 0 : ReadInt(stats, "assists"),
                 CreepScore = stats == null ? 0 : ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"),
                 Win = stats != null && ReadBool(stats, "win"),
+                WinResult = ResolveWinResult(game, participant, stats),
+                IsSurrender = ResolveSurrender(game, participant, stats),
                 StatisticsAvailable = stats != null && stats.ContainsKey("win") && stats.ContainsKey("kills") && stats.ContainsKey("deaths") && stats.ContainsKey("assists"),
                 Position = MatchPosition(participant),
                 SoloKills = Metric(ReadObject(stats, "challenges"), "soloKills"),
@@ -918,6 +921,45 @@ namespace FACM.League
                 AugmentIds = ReadOptionalSlots(stats, "playerAugment", 1, 6),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static string ResolveWinResult(Dictionary<string, object> game,
+            Dictionary<string, object> participant, Dictionary<string, object> stats)
+        {
+            var end = ReadString(game, "endOfGameResult");
+            if (!string.IsNullOrEmpty(end) && end.StartsWith("Abort_", StringComparison.Ordinal))
+                return "abort";
+            if (ReadParticipantBool(participant, stats, "gameEndedInEarlySurrender") == true)
+                return "remake";
+            if (ReadParticipantBool(participant, stats, "teamEarlySurrendered") == true)
+                return "loss";
+            var won = ReadParticipantBool(participant, stats, "win");
+            return won.HasValue ? (won.Value ? "win" : "loss") : null;
+        }
+
+        private static bool? ResolveSurrender(Dictionary<string, object> game,
+            Dictionary<string, object> participant, Dictionary<string, object> stats)
+        {
+            var end = ReadString(game, "endOfGameResult");
+            if (!string.IsNullOrEmpty(end) && end.StartsWith("Abort_", StringComparison.Ordinal))
+                return false;
+            if (ReadParticipantBool(participant, stats, "gameEndedInEarlySurrender") == true ||
+                ReadParticipantBool(participant, stats, "teamEarlySurrendered") == true)
+                return true;
+            if (ReadParticipantBool(participant, stats, "win") == true) return false;
+            return ReadParticipantBool(participant, stats, "gameEndedInSurrender");
+        }
+
+        private static bool? ReadParticipantBool(Dictionary<string, object> participant,
+            Dictionary<string, object> stats, string key)
+        {
+            object value;
+            bool result;
+            if (participant != null && participant.TryGetValue(key, out value))
+                return value != null && bool.TryParse(Convert.ToString(value), out result) ? (bool?)result : null;
+            if (stats != null && stats.TryGetValue(key, out value))
+                return value != null && bool.TryParse(Convert.ToString(value), out result) ? (bool?)result : null;
+            return null;
         }
 
         private static LeaguePlayerMatchSummary[] BuildParticipantRoster(Dictionary<string, object> game)
@@ -1331,6 +1373,7 @@ namespace FACM.League
                     GameCreationLocal = match.GameCreationLocal,
                     GameDurationSeconds = match.GameDurationSeconds,
                     GameMode = match.GameMode,
+                    GameType = match.GameType,
                     QueueId = match.QueueId,
                     ChampionId = match.ChampionId,
                     MapId = match.MapId,
@@ -1344,6 +1387,8 @@ namespace FACM.League
                     Assists = match.Assists,
                     CreepScore = match.CreepScore,
                     Win = match.Win,
+                    WinResult = match.WinResult,
+                    IsSurrender = match.IsSurrender,
                     StatisticsAvailable = match.StatisticsAvailable,
                     Position = match.Position,
                     SoloKills = match.SoloKills,

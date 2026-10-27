@@ -306,6 +306,12 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedDuration = "LeaguePlayerAdvancedDuration";
         public const string LeaguePlayerAdvancedWin = "LeaguePlayerAdvancedWin";
         public const string LeaguePlayerAdvancedLoss = "LeaguePlayerAdvancedLoss";
+        public const string LeaguePlayerAdvancedNormalLoss = "LeaguePlayerAdvancedNormalLoss";
+        public const string LeaguePlayerAdvancedSurrenderLoss = "LeaguePlayerAdvancedSurrenderLoss";
+        public const string LeaguePlayerAdvancedRemake = "LeaguePlayerAdvancedRemake";
+        public const string LeaguePlayerAdvancedAbort = "LeaguePlayerAdvancedAbort";
+        public const string LeaguePlayerAdvancedMatched = "LeaguePlayerAdvancedMatched";
+        public const string LeaguePlayerAdvancedPve = "LeaguePlayerAdvancedPve";
         public const string LeaguePlayerAdvancedChampion = "LeaguePlayerAdvancedChampion";
         public const string LeaguePlayerAdvancedPlayer = "LeaguePlayerAdvancedPlayer";
         public const string LeaguePlayerAdvancedKills = "LeaguePlayerAdvancedKills";

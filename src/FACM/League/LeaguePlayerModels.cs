@@ -31,6 +31,7 @@ namespace FACM.League
         public DateTime GameCreationLocal { get; set; }
         public int GameDurationSeconds { get; set; }
         public string GameMode { get; set; }
+        public string GameType { get; set; }
         public int QueueId { get; set; }
         public int ChampionId { get; set; }
         public int MapId { get; set; }
@@ -44,6 +45,9 @@ namespace FACM.League
         public int Assists { get; set; }
         public int CreepScore { get; set; }
         public bool Win { get; set; }
+        // Source-classified outcome: win, loss, remake or abort; null means unavailable.
+        public string WinResult { get; set; }
+        public bool? IsSurrender { get; set; }
         public bool ParticipantResolved { get; set; }
         public bool StatisticsAvailable { get; set; }
         public string Position { get; set; }

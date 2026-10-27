@@ -19,6 +19,12 @@ namespace FACM.League
             LeagueAdvancedMatchKind.DurationBetween,
             LeagueAdvancedMatchKind.IsWin,
             LeagueAdvancedMatchKind.IsLoss,
+            LeagueAdvancedMatchKind.IsNormalLoss,
+            LeagueAdvancedMatchKind.IsSurrenderLoss,
+            LeagueAdvancedMatchKind.IsRemake,
+            LeagueAdvancedMatchKind.IsAbort,
+            LeagueAdvancedMatchKind.IsMatchedGame,
+            LeagueAdvancedMatchKind.IsPveGame,
             LeagueAdvancedMatchKind.HasChampion,
             LeagueAdvancedMatchKind.HasPlayer,
             LeagueAdvancedMatchKind.KillsBetween,
@@ -219,6 +225,12 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.DurationBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDuration);
                 case LeagueAdvancedMatchKind.IsWin: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedWin);
                 case LeagueAdvancedMatchKind.IsLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedLoss);
+                case LeagueAdvancedMatchKind.IsNormalLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNormalLoss);
+                case LeagueAdvancedMatchKind.IsSurrenderLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSurrenderLoss);
+                case LeagueAdvancedMatchKind.IsRemake: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRemake);
+                case LeagueAdvancedMatchKind.IsAbort: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAbort);
+                case LeagueAdvancedMatchKind.IsMatchedGame: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMatched);
+                case LeagueAdvancedMatchKind.IsPveGame: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPve);
                 case LeagueAdvancedMatchKind.HasChampion: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedChampion);
                 case LeagueAdvancedMatchKind.HasPlayer: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayer);
                 case LeagueAdvancedMatchKind.KillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedKills);
@@ -268,7 +280,7 @@ namespace FACM.League
                 return name + ": " + (string.IsNullOrEmpty(node.Value) ?
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnterValue) : node.Value);
             return LeagueAdvancedMatchNode.IsGroup(node.Kind) ||
-                node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
+                IsResultCondition(node.Kind) ?
                 name : name + ": " + (string.IsNullOrEmpty(node.Value) ?
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnterValue) : node.Value);
         }
@@ -277,6 +289,15 @@ namespace FACM.League
         {
             return kind == LeagueAdvancedMatchKind.Player ||
                 kind == LeagueAdvancedMatchKind.Allies || kind == LeagueAdvancedMatchKind.Enemies;
+        }
+
+        private static bool IsResultCondition(LeagueAdvancedMatchKind kind)
+        {
+            return kind == LeagueAdvancedMatchKind.IsWin || kind == LeagueAdvancedMatchKind.IsLoss ||
+                kind == LeagueAdvancedMatchKind.IsNormalLoss ||
+                kind == LeagueAdvancedMatchKind.IsSurrenderLoss ||
+                kind == LeagueAdvancedMatchKind.IsRemake || kind == LeagueAdvancedMatchKind.IsAbort ||
+                kind == LeagueAdvancedMatchKind.IsMatchedGame || kind == LeagueAdvancedMatchKind.IsPveGame;
         }
 
         private static TreeNode BuildTreeNode(LeagueAdvancedMatchNode node)
@@ -344,15 +365,14 @@ namespace FACM.League
                 var condition = node != null && !LeagueAdvancedMatchNode.IsGroup(node.Kind);
                 var scopedIdentity = node != null && IsScopedIdentityGroup(node.Kind);
                 _conditionType.Enabled = condition;
-                _conditionValue.Enabled = scopedIdentity || condition && node.Kind != LeagueAdvancedMatchKind.IsWin &&
-                    node.Kind != LeagueAdvancedMatchKind.IsLoss;
+                _conditionValue.Enabled = scopedIdentity || condition && !IsResultCondition(node.Kind);
                 _conditionType.SelectedIndex = condition ? Array.IndexOf(ConditionKinds, node.Kind) : -1;
                 _conditionValue.Text = condition || scopedIdentity ? node.Value ?? string.Empty : string.Empty;
                 _inputHint.Text = scopedIdentity ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScopeHint) :
                     !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsGameMode ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedModeHint) :
                     node.Kind == LeagueAdvancedMatchKind.HasPlayer ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayerHint) :
-                    node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
+                    IsResultCondition(node.Kind) ?
                         UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedResultHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsQueue || node.Kind == LeagueAdvancedMatchKind.IsMap ||
                     node.Kind == LeagueAdvancedMatchKind.HasChampion ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedIdHint) :
