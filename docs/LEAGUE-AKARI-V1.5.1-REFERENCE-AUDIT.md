@@ -2,6 +2,8 @@
 
 ## Selected-match rune/augment presentation continuation
 
+**Verified executable `ba3ce66576cf076660fd744361ebbba82537c180`:** Windows Build #40562083106, Glass #40562083390, UI Text #40562082980 and Mayhem Source #40562083288 all passed. No live Tencent session or visual/DPI acceptance is implied.
+
 Pinned Akari 1.5.1 `src/renderer-shared/components/match-card/tabs/MatchCardRunesTab.vue` renders rune trees and per-participant selections, while `widgets/TeamTable.vue` shows up to six augments; `src/shared/http-api-axios-helper/league-client/game-data.ts` reads `perkstyles.json` and `cherry-augments.json`, and `src/renderer-shared/providers/game-resource/akari.ts` uses `nameTRA`, `rarity` and `augmentSmallIconPath`. GGman's native participant selection now divides slots 0–3 and 4–5, displays style names with IDs as honest fallback, and provides named/ranked augment labels and local icons from these two LCU catalogs. Metadata remains optional; a missing locale/provider response leaves raw IDs and cached base items/spells/perks intact. No extra polling or persistent runtime. Fixture coverage includes path allowlisting, unknown rarity/name, source-cache upgrade/reuse and gameflow maintenance suppression. This remains *presentation subset parity*: Akari rune `var1..var3` end-of-game descriptions, stat perks, standalone full-size rune tab and exact Cherry participant arrangements are not yet ported, nor is Tencent Win10 acceptance proven. Keep Draft PR #357.
 
 ## Cherry subgroup verified checkpoint
