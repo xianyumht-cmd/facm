@@ -39,7 +39,8 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
-            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets, _leagueClient);
+            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets,
+                _leagueClient, _leagueClient);
             _replay = new LeagueEncounterReplayService(_leagueClient,
                 (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
         }

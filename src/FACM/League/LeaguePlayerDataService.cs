@@ -22,7 +22,8 @@ namespace FACM.League
         private readonly ILeagueClientApi _client;
         private readonly ILeagueRiotAliasLookupApi _riotAliases;
         private readonly PerformanceBudgetProvider _budgets;
-        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 };
+        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+        private readonly ILeagueSgpMatchHistoryApi _sgpHistory;
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
         private LeaguePlayerProfile _cachedProfile;
         private DateTime _profileCachedUtc = DateTime.MinValue;
@@ -35,11 +36,12 @@ namespace FACM.League
         private DateTime _matchBuildCatalogCachedUtc = DateTime.MinValue;
 
         public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
-            ILeagueRiotAliasLookupApi riotAliases = null)
+            ILeagueRiotAliasLookupApi riotAliases = null, ILeagueSgpMatchHistoryApi sgpHistory = null)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _riotAliases = riotAliases;
+            _sgpHistory = sgpHistory;
         }
 
         internal static bool TryParseRiotId(string text, out string gameName, out string tagLine)
@@ -128,6 +130,9 @@ namespace FACM.League
                             "&endIndex=" + (startIndex + count - 1);
                         var page = ParseMatchPage(await _client.TryGetBytesAsync(historyPath, timeout.Token)
                             .ConfigureAwait(false), profile, startIndex, count);
+                        if (page == null)
+                            page = await TryLoadSgpPageAsync(profile, startIndex, count, timeout.Token)
+                                .ConfigureAwait(false);
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
                         if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
@@ -310,6 +315,20 @@ namespace FACM.League
                                "/matches?begIndex=" + startIndex + "&endIndex=" + endIndex;
                     var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
                     var page = ParseMatchPage(bytes, profile, startIndex, count);
+                    if (page == null && _sgpHistory != null)
+                    {
+                        timeout.CancelAfter(TimeSpan.FromSeconds(8));
+                        var before = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                        if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            return null;
+                        page = await TryLoadSgpPageAsync(profile, startIndex, count, timeout.Token)
+                            .ConfigureAwait(false);
+                        var after = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                        if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            return null;
+                    }
                     if (page != null) CachePage(profile.PuuId, page);
                     return page;
                 }
@@ -380,6 +399,9 @@ namespace FACM.League
                                 "&endIndex=" + (startIndex + settings.CountPerIteration - 1);
                             var page = ParseMatchPage(await _client.TryGetBytesAsync(path, timeout.Token)
                                 .ConfigureAwait(false), target, startIndex, settings.CountPerIteration);
+                            if (page == null)
+                                page = await TryLoadSgpPageAsync(target, startIndex,
+                                    settings.CountPerIteration, timeout.Token).ConfigureAwait(false);
                             if (page == null)
                             {
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
@@ -883,6 +905,87 @@ namespace FACM.League
             {
                 var summary = ParseMatch(item, profile);
                 if (summary != null) page.Matches.Add(summary);
+            }
+            return page;
+        }
+
+        private async Task<LeaguePlayerMatchPage> TryLoadSgpPageAsync(
+            LeaguePlayerProfile target, int startIndex, int count, CancellationToken token)
+        {
+            if (_sgpHistory == null || target == null || !IsSafePuuid(target.PuuId)) return null;
+            var bytes = await _sgpHistory.TryGetSummaryAsync(target.PuuId, startIndex, count, token)
+                .ConfigureAwait(false);
+            return ParseSgpMatchPage(bytes, target, startIndex, count);
+        }
+
+        internal LeaguePlayerMatchPage ParseSgpMatchPage(byte[] bytes,
+            LeaguePlayerProfile target, int startIndex, int count)
+        {
+            if (target == null || !IsSafePuuid(target.PuuId) || startIndex < 0 ||
+                count < 1 || count > MaximumRemoteMatchPageCount) return null;
+            var root = ParseObject(bytes);
+            if (root == null || !root.ContainsKey("games") || root["games"] == null ||
+                root["games"] is string || root["games"] is IDictionary ||
+                !(root["games"] is IEnumerable)) return null;
+            var page = new LeaguePlayerMatchPage
+            {
+                StartIndex = startIndex,
+                RequestedCount = count
+            };
+            var seenGames = new HashSet<long>();
+            foreach (var item in ReadObjects(root, "games").Take(count))
+            {
+                var source = ReadObject(item, "json");
+                if (source == null || ReadLong(source, "gameId") <= 0) continue;
+                var participants = ReadObjects(source, "participants").Take(21).ToList();
+                if (participants.Count == 0 || participants.Count > 20) continue;
+                var normalized = new Dictionary<string, object>(source);
+                var rows = new List<Dictionary<string, object>>();
+                var identities = new List<Dictionary<string, object>>();
+                var ids = new HashSet<int>();
+                foreach (var participant in participants)
+                {
+                    var id = ReadInt(participant, "participantId");
+                    if (id <= 0 || !ids.Add(id)) break;
+                    var row = new Dictionary<string, object>(participant);
+                    var stats = new Dictionary<string, object>(participant);
+                    var perks = ReadObject(participant, "perks");
+                    var nextPerk = 0;
+                    foreach (var style in ReadObjects(perks, "styles").Take(2))
+                    {
+                        var description = ReadString(style, "description");
+                        if (string.Equals(description, "primaryStyle", StringComparison.OrdinalIgnoreCase))
+                            stats["perkPrimaryStyle"] = ReadInt(style, "style");
+                        else if (string.Equals(description, "subStyle", StringComparison.OrdinalIgnoreCase))
+                            stats["perkSubStyle"] = ReadInt(style, "style");
+                        foreach (var selection in ReadObjects(style, "selections").Take(4))
+                        {
+                            if (nextPerk == 6) break;
+                            stats["perk" + nextPerk++] = ReadInt(selection, "perk");
+                        }
+                    }
+                    row["stats"] = stats;
+                    rows.Add(row);
+                    var player = new Dictionary<string, object>
+                    {
+                        { "puuid", ReadString(participant, "puuid") },
+                        { "gameName", ReadString(participant, "riotIdGameName") },
+                        { "tagLine", ReadString(participant, "riotIdTagline") },
+                        { "summonerName", ReadString(participant, "summonerName") },
+                        { "summonerId", ReadLong(participant, "summonerId") }
+                    };
+                    identities.Add(new Dictionary<string, object>
+                    {
+                        { "participantId", id }, { "player", player }
+                    });
+                }
+                if (rows.Count != participants.Count) continue;
+                normalized["participants"] = rows;
+                normalized["participantIdentities"] = identities;
+                var summary = ParseMatch(normalized, target);
+                if (summary != null && summary.ParticipantResolved && summary.GameId > 0 &&
+                    seenGames.Add(summary.GameId))
+                    page.Matches.Add(summary);
             }
             return page;
         }

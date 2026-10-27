@@ -31,6 +31,7 @@ namespace FACM.League
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
+            ValidateSgpHistoryFallback();
             ValidateMatchHistoryCollection();
             ValidatePaginationBoundary();
             ValidateCancellation();
@@ -966,6 +967,100 @@ namespace FACM.League
             Require(changed.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
                 .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.AccountChanged,
                 "A completed Riot lookup must not publish data after account replacement.");
+        }
+
+        private static void ValidateSgpHistoryFallback()
+        {
+            Uri endpoint;
+            var session = new LeagueClientSession("LeagueClientUx", 1, 12345, "local-secret",
+                "https", "test", "HN10", "TENCENT");
+            Require(LeagueSgpMatchHistoryApiClient.TryResolveTencentEndpoint(session,
+                    "target-puuid", 20, 10, out endpoint) &&
+                    endpoint.AbsoluteUri == "https://hn10-k8s-sgp.lol.qq.com:21019/" +
+                        "match-history-query/v1/products/lol/player/target-puuid/SUMMARY?startIndex=20&count=10" &&
+                    !LeagueSgpMatchHistoryApiClient.TryResolveTencentEndpoint(session,
+                        "target/unsafe", 0, 10, out endpoint) &&
+                    !LeagueSgpMatchHistoryApiClient.TryResolveTencentEndpoint(session,
+                        "target-puuid", int.MaxValue, 10, out endpoint) &&
+                    !LeagueSgpMatchHistoryApiClient.TryResolveTencentEndpoint(new LeagueClientSession(
+                        "LeagueClientUx", 1, 12345, "local-secret", "https", "test", "NA1", "NA"),
+                        "target-puuid", 0, 10, out endpoint),
+                "The regional transport must construct only bounded, trusted Tencent endpoints.");
+            Require(LeagueSgpMatchHistoryApiClient.ReadEntitlementsToken(
+                    Encoding.UTF8.GetBytes("{\"accessToken\":\"opaque-token\"}")) == "opaque-token" &&
+                    LeagueSgpMatchHistoryApiClient.ReadEntitlementsToken(
+                        Encoding.UTF8.GetBytes("{\"accessToken\":\"bad\\nheader\"}")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ReadEntitlementsToken(
+                        Encoding.UTF8.GetBytes("{\"token\":\"not-an-access-token\"}")) == null,
+                "SGP must require an explicit valid Entitlements access token and reject header injection.");
+
+            const string source = "{\"games\":[{\"metadata\":{\"match_id\":\"HN10_601\"},\"json\":{\"gameId\":601," +
+                "\"gameCreation\":1778860291493,\"gameDuration\":1380,\"queueId\":450,\"gameMode\":\"ARAM\"," +
+                "\"participants\":[{\"participantId\":1,\"puuid\":\"target-puuid\",\"riotIdGameName\":\"Opponent\"," +
+                "\"riotIdTagline\":\"CN1\",\"teamId\":100,\"championId\":99,\"win\":true," +
+                "\"kills\":11,\"deaths\":2,\"assists\":9,\"item0\":3031,\"spell1Id\":4,\"spell2Id\":6," +
+                "\"playerAugment1\":1337,\"perks\":{\"styles\":[{\"description\":\"primaryStyle\"," +
+                "\"style\":8000,\"selections\":[{\"perk\":8005}]},{\"description\":\"subStyle\"," +
+                "\"style\":8100,\"selections\":[{\"perk\":8139}]}]}},{\"participantId\":2," +
+                "\"puuid\":\"teammate\",\"teamId\":100,\"championId\":22,\"win\":true,\"kills\":3," +
+                "\"deaths\":4,\"assists\":8}]}}]}";
+            var target = new LeaguePlayerProfile { PuuId = "target-puuid" };
+            var sgp = new FakeSgpHistory(source);
+            var parser = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"target-puuid\"}", "{}", null),
+                new PerformanceBudgetProvider());
+            var page = parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(source), target, 0, 10);
+            Require(page != null && page.Matches.Count == 1 && page.Matches[0].GameId == 601 &&
+                    page.Matches[0].ParticipantResolved && page.Matches[0].StatisticsAvailable &&
+                    page.Matches[0].Kills == 11 && page.Matches[0].Win &&
+                    page.Matches[0].ItemIds[0] == 3031 && page.Matches[0].SpellIds[0] == 4 &&
+                    page.Matches[0].AugmentIds[0] == 1337 && page.Matches[0].PerkIds[0] == 8005 &&
+                    page.Matches[0].PerkIds[1] == 8139 && page.Matches[0].PerkStyleIds[0] == 8000 &&
+                    page.Matches[0].MatchPlayers.Length == 2 &&
+                    page.Matches[0].SameTeamPuuids.Contains("teammate"),
+                "SGP flat participant data must retain identity, results and loadout after normalization.");
+            Require(parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes("{\"games\":{}}"), target, 0, 10) == null &&
+                    parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(source),
+                        new LeaguePlayerProfile { PuuId = "other" }, 0, 10).Matches.Count == 0,
+                "An invalid SGP envelope or another player's rows must not be presented as target statistics.");
+
+            var profiles = new Dictionary<string, string> { { "target-puuid", "{\"puuid\":\"target-puuid\"}" } };
+            var local = new FixtureApi("{\"puuid\":\"self\"}", string.Empty, null, null, profiles);
+            var service = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(), null, sgp);
+            var result = service.LoadRemotePlayerHistoryAsync(new LeaguePlayerProfile { PuuId = "self" },
+                "target-puuid", CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Status == LeagueRiotPlayerSearchStatus.Found && result.Page.Matches.Count == 1 &&
+                    sgp.Reads == 1 && sgp.LastTarget == "target-puuid" &&
+                    CountPath(local.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
+                    service.TryGetCachedPage() == null,
+                "A missing remote LCU history must use one bounded regional fallback with both self fences.");
+            var replaced = new FixtureApi("{\"puuid\":\"self\"}", string.Empty, null, null, profiles)
+            {
+                SecondProfile = "{\"puuid\":\"switched\"}"
+            };
+            var rejected = new LeaguePlayerDataService(replaced, new PerformanceBudgetProvider(), null,
+                new FakeSgpHistory(source)).LoadRemotePlayerHistoryAsync(
+                    new LeaguePlayerProfile { PuuId = "self" }, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(rejected.Status == LeagueRiotPlayerSearchStatus.AccountChanged && rejected.Page == null,
+                "Regional history results must be dropped when the signed-in account changes mid-request.");
+        }
+
+        private sealed class FakeSgpHistory : ILeagueSgpMatchHistoryApi
+        {
+            private readonly byte[] _source;
+            internal int Reads;
+            internal string LastTarget;
+
+            internal FakeSgpHistory(string source) { _source = Encoding.UTF8.GetBytes(source); }
+
+            public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
+                CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Reads++;
+                LastTarget = targetPuuid;
+                return Task.FromResult(_source);
+            }
         }
 
         private static void ValidateRemotePlayerHistory()
