@@ -1,5 +1,22 @@
 # League Akari v1.5.1 — Version-locked implementation research
 
+## Consolidated continuation checkpoint
+
+Executable source `02d842ee0088292737f555c355a68b2ed9e58d18` passed Windows Build #40542644028, Glass #40542644098, UI Text #40542644267 and Mayhem Source #40542643887. Job logs confirm Player/Dashboard smoke and the full performance contract. No live Tencent or native visual acceptance is implied.
+
+| Pinned capability | Current native candidate | Remaining boundary |
+|---|---|---|
+| SGP catalog/authentication | All 26 built-in entries, explicit path overrides, two transient token types, bounded history/profile/SUMMARY/DETAILS routes | Remote config/discovery refresh; live service availability |
+| Regional Player history | Region/source controls, target-correlated profile, regular paging and filtered collection | Full tabs/profile/ranked/mastery/analysis parity; region-specific runtime proof |
+| Match summary/detail | One shared scoreboard, teams/objectives/builds, target-checked sparse completion and source provenance | Full detailed stat/rune/augment presentation and Cherry grouping |
+| Timelines and events | Lazy LCU/selected SGP reads, participant/type filters, virtual chronology and growth lists | Event map and received/dealt death-damage drilldowns: **next task** |
+| Time comparisons | Five source metrics, selectable players/team averages, timestamps/hover, missing-value gaps | Cherry subteam identity/placement and real-client visual acceptance |
+| Build/frame progression | >30s purchase groups, EVOLVE-aware skill levels, both anvils, 23 slider-selected attributes | Icon/layout fidelity and actual source-field coverage |
+| Replay | Current-region LCU path with regional game-ID rejection | Regional SGP replay stream/download/launch integration |
+| Lifecycle/reliability | Account/session/region fences, independent fallback deadline, session-bound quick caches and late-enrichment rejection | Consolidated repeated-session, account-switch and native resource acceptance |
+
+The remaining source-wide automation/messaging/utility matrix below must be reconciled against earlier implementations before work resumes there; older historical “missing” statements are not proof of current absence. Full parity is not declared.
+
 ## Active timeline continuation — source contracts and verification
 
 Pinned `league-client/match-history.ts#getTimeline`, `sgp/match-history-query.ts#getGameDetailsByGameId` and `match-history/frames.ts` distinguish local timelines, regional DETAILS and SUMMARY. The native scoreboard lazily loads the selected source under owner/session fences and shows virtual event, growth and build lists. `ec4c285a1e73c10fb99aec240a8e92923c9d675c` passed all four workflows. The five pinned `MatchCardDiffLineChart.vue` metrics, selectable players/team averages, hover values and GDI rendering passed all four at `78a7bf0ead7b30e74cc0d85dea661de05781df0d`.
