@@ -194,6 +194,25 @@ namespace FACM.League
                     result.Teams[1].Win == false && result.Teams[1].BaronKills == 0 &&
                     result.Teams[1].HordeKills == null,
                     "Team summaries must aggregate verified participants while preserving objective zero versus absent.");
+                Require(result.Teams[0].FirstBaron == true && result.Teams[0].FirstDragon == true &&
+                    result.Teams[0].FirstTower == true && result.Teams[0].FirstInhibitor == false &&
+                    result.Teams[0].Bans != null && result.Teams[0].Bans.Count == 2 &&
+                    result.Teams[0].Bans[0].ChampionId == 22 && result.Teams[0].Bans[0].PickTurn == 1 &&
+                    result.Teams[0].Bans[1].ChampionId == 99 && result.Teams[0].Bans[1].PickTurn == 3 &&
+                    result.ChampionNames != null && result.ChampionNames[22] == "Ashe" &&
+                    result.Teams[1].FirstDragon == false && result.Teams[1].Bans != null &&
+                    result.Teams[1].Bans.Count == 0,
+                    "Team bans and first-objective flags must use the same verified game and cached hero names.");
+                Func<string, string> t = key => LeagueEfficiencyText.Get(null, key);
+                var teamDetails = LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                    result.Teams[0], result.ChampionNames, t);
+                Require(teamDetails.Contains("Ashe (#22)") && teamDetails.Contains("顺位 1") &&
+                    teamDetails.Contains("首大龙 是") && teamDetails.Contains("首水晶 否") &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        result.Teams[0], null, t).Contains("#22") &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        result.Teams[1], null, t).Contains("禁用英雄：无"),
+                    "Team detail formatting must show localized bans and first-objective ownership.");
                 api.ReturnZeroTeamMetrics = true;
                 var completeMetrics = await reader.ReadAsync(record, token.Token);
                 Require(completeMetrics.Status == LeagueEncounterMatchDetailStatus.Ready &&
@@ -212,16 +231,34 @@ namespace FACM.League
                 var missingTeams = await reader.ReadAsync(record, token.Token);
                 Require(missingTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     missingTeams.Teams.Count == 2 && missingTeams.Teams[0].Kills == 8 &&
-                    missingTeams.Teams[0].BaronKills == null && missingTeams.Teams[1].DragonKills == null,
+                    missingTeams.Teams[0].BaronKills == null && missingTeams.Teams[1].DragonKills == null &&
+                    missingTeams.Teams[0].Bans == null && missingTeams.Teams[0].FirstBaron == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        missingTeams.Teams[0], null, t).Contains("禁用英雄：未知"),
                     "Missing team metadata must not discard real participant scores or invent objective zeroes.");
                 api.ReturnMissingTeams = false;
                 api.ReturnDuplicateTeams = true;
                 var duplicateTeams = await reader.ReadAsync(record, token.Token);
                 Require(duplicateTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     duplicateTeams.Teams[0].Kills == 8 && duplicateTeams.Teams[0].BaronKills == null &&
+                    duplicateTeams.Teams[0].FirstBaron == null && duplicateTeams.Teams[0].Bans == null &&
                     duplicateTeams.Teams[1].DragonKills == 1,
                     "Ambiguous team metadata must not attach objectives to the wrong team.");
                 api.ReturnDuplicateTeams = false;
+                api.ReturnMalformedFirst = true;
+                var malformedFirst = await reader.ReadAsync(record, token.Token);
+                Require(malformedFirst.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    malformedFirst.Teams[0].FirstBaron == null && malformedFirst.Teams[0].FirstDragon == true,
+                    "An invalid first-objective flag must not be converted to a false claim.");
+                api.ReturnMalformedFirst = false;
+                api.ReturnMalformedBans = true;
+                var malformedBans = await reader.ReadAsync(record, token.Token);
+                Require(malformedBans.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    malformedBans.Teams[1].Bans == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        malformedBans.Teams[1], null, t).Contains("禁用英雄：未知"),
+                    "Malformed ban lists must stay unknown rather than falsely reporting no bans.");
+                api.ReturnMalformedBans = false;
                 api.ReturnConflictingWin = true;
                 var conflictingWin = await reader.ReadAsync(record, token.Token);
                 Require(conflictingWin.Status == LeagueEncounterMatchDetailStatus.Ready &&
@@ -277,6 +314,8 @@ namespace FACM.League
             internal bool ReturnConflictingWin;
             internal bool ReturnZeroTeamMetrics;
             internal bool ReturnInvalidTeamMetrics;
+            internal bool ReturnMalformedFirst;
+            internal bool ReturnMalformedBans;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
             internal Action AfterChampionRead;
@@ -323,10 +362,18 @@ namespace FACM.League
                     var otherParticipantId = ReturnMalformedRoster ? 1 : 2;
                     var teams = ReturnMissingTeams ? "" : ",\"teams\":[{\"teamId\":100," +
                         "\"baronKills\":1,\"dragonKills\":2,\"towerKills\":6," +
-                        "\"hordeKills\":3,\"riftHeraldKills\":0,\"inhibitorKills\":2}," +
-                        "{\"teamId\":200,\"baronKills\":0,\"dragonKills\":1,\"towerKills\":2}]";
+                        "\"hordeKills\":3,\"riftHeraldKills\":0,\"inhibitorKills\":2," +
+                        "\"firstBaron\":true,\"firstDargon\":true,\"firstTower\":true," +
+                        "\"firstInhibitor\":false,\"bans\":[{\"championId\":22,\"pickTurn\":1}," +
+                        "{\"championId\":99,\"pickTurn\":3},{\"championId\":-1,\"pickTurn\":5}]}," +
+                        "{\"teamId\":200,\"baronKills\":0,\"dragonKills\":1,\"towerKills\":2," +
+                        "\"firstBaron\":false,\"firstDragon\":false,\"bans\":[]}]";
                     if (ReturnDuplicateTeams)
                         teams = teams.Replace("{\"teamId\":200", "{\"teamId\":100,\"baronKills\":9},{\"teamId\":200");
+                    if (ReturnMalformedFirst)
+                        teams = teams.Replace("\"firstBaron\":true", "\"firstBaron\":\"invalid\"");
+                    if (ReturnMalformedBans)
+                        teams = teams.Replace("\"bans\":[]", "\"bans\":\"invalid\"");
                     var allyMetrics = ReturnZeroTeamMetrics
                         ? ",\"totalDamageDealtToChampions\":0,\"goldEarned\":0"
                         : ReturnInvalidTeamMetrics ? ",\"totalDamageDealtToChampions\":null,\"goldEarned\":\"invalid\"" : "";

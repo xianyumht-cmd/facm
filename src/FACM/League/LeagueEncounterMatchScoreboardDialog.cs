@@ -15,6 +15,7 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
         private readonly ToolTip _tooltips = new ToolTip();
+        private readonly ToolTip _teamTooltips = new ToolTip();
         private CancellationTokenSource _selectionCancellation;
         private int _selectionVersion;
 
@@ -56,22 +57,6 @@ namespace FACM.League
             teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             var scores = detail.Teams;
-            if (scores != null)
-            {
-                teams.RowCount = Math.Max(1, (scores.Count + 1) / 2);
-                for (var i = 0; i < teams.RowCount; i++)
-                    teams.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
-                for (var i = 0; i < scores.Count; i++)
-                {
-                    var text = FormatTeamScore(scores[i], t);
-                    var card = new Label { Dock = DockStyle.Fill, Text = text,
-                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
-                        Padding = new Padding(9, 5, 9, 3), AutoEllipsis = true,
-                        AccessibleName = text, Margin = new Padding(3) };
-                    teams.Controls.Add(card, i % 2, i / 2);
-                    _tooltips.SetToolTip(card, text);
-                }
-            }
             layout.Controls.Add(teams, 0, 1);
 
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
@@ -117,6 +102,34 @@ namespace FACM.League
                     .Replace("{5}", style)
                     .Replace("{6}", FormatIds(player.AugmentIds, "—"));
             };
+            if (scores != null)
+            {
+                teams.RowCount = Math.Max(1, (scores.Count + 1) / 2);
+                for (var i = 0; i < teams.RowCount; i++)
+                    teams.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+                for (var i = 0; i < scores.Count; i++)
+                {
+                    var team = scores[i];
+                    var text = FormatTeamScore(team, t);
+                    var fullText = FormatTeamDetails(team, detail.ChampionNames, t);
+                    var card = new Button { Dock = DockStyle.Fill, Text = text + "\r\n" +
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect),
+                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                        FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft,
+                        Padding = new Padding(9, 5, 9, 3), AutoEllipsis = true,
+                        AccessibleName = text, AccessibleDescription = fullText,
+                        Cursor = Cursors.Hand, Margin = new Padding(3) };
+                    card.FlatAppearance.BorderSize = 0;
+                    card.Click += (sender, e) =>
+                    {
+                        if (rows.SelectedItems.Count > 0) rows.SelectedItems[0].Selected = false;
+                        else showSelection(null);
+                        selectedDetails.Text = fullText;
+                    };
+                    teams.Controls.Add(card, i % 2, i / 2);
+                    _teamTooltips.SetToolTip(card, fullText);
+                }
+            }
             rows.SelectedIndexChanged += (sender, e) =>
                 showSelection(rows.SelectedItems.Count == 1
                     ? rows.SelectedItems[0].Tag as LeaguePlayerMatchParticipant : null);
@@ -172,6 +185,7 @@ namespace FACM.League
                 foreach (var bitmap in _ownedIcons) bitmap.Dispose();
                 _ownedIcons.Clear();
                 _tooltips.Dispose();
+                _teamTooltips.Dispose();
                 _lifetime.Dispose();
             };
         }
@@ -195,6 +209,38 @@ namespace FACM.League
                 .Replace("{8}", count(team.BaronKills)).Replace("{9}", count(team.DragonKills))
                 .Replace("{10}", count(team.TowerKills)).Replace("{11}", count(team.RiftHeraldKills))
                 .Replace("{12}", count(team.InhibitorKills)).Replace("{13}", count(team.HordeKills));
+        }
+
+        internal static string FormatTeamDetails(LeagueMatchTeamScore team,
+            IDictionary<int, string> championNames, Func<string, string> t)
+        {
+            string bans;
+            if (team.Bans == null) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown);
+            else if (team.Bans.Count == 0) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNone);
+            else
+            {
+                var names = new List<string>();
+                foreach (var ban in team.Bans)
+                {
+                    string name;
+                    var display = championNames != null && championNames.TryGetValue(ban.ChampionId, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name + " (#" + ban.ChampionId + ")" : "#" + ban.ChampionId;
+                    if (ban.PickTurn.HasValue)
+                        display += t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBanTurn)
+                            .Replace("{0}", ban.PickTurn.Value.ToString());
+                    names.Add(display);
+                }
+                bans = string.Join(" / ", names);
+            }
+            Func<bool?, string> flag = value => !value.HasValue
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown)
+                : value.Value ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamYes)
+                    : t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNo);
+            return FormatTeamScore(team, t) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBans).Replace("{0}", bans) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamFirsts)
+                    .Replace("{0}", flag(team.FirstBaron)).Replace("{1}", flag(team.FirstDragon))
+                    .Replace("{2}", flag(team.FirstTower)).Replace("{3}", flag(team.FirstInhibitor));
         }
 
         private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,

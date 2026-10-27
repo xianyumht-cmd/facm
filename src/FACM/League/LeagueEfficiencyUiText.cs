@@ -276,6 +276,14 @@ namespace FACM.League
         public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
         public const string DynamicEncounterTeamUnknownResult = "LeagueEfficiencyDynamicEncounterTeamUnknownResult";
         public const string DynamicEncounterTeamSummary = "LeagueEfficiencyDynamicEncounterTeamSummary";
+        public const string DynamicEncounterTeamInspect = "LeagueEfficiencyDynamicEncounterTeamInspect";
+        public const string DynamicEncounterTeamUnknown = "LeagueEfficiencyDynamicEncounterTeamUnknown";
+        public const string DynamicEncounterTeamNone = "LeagueEfficiencyDynamicEncounterTeamNone";
+        public const string DynamicEncounterTeamYes = "LeagueEfficiencyDynamicEncounterTeamYes";
+        public const string DynamicEncounterTeamNo = "LeagueEfficiencyDynamicEncounterTeamNo";
+        public const string DynamicEncounterTeamBanTurn = "LeagueEfficiencyDynamicEncounterTeamBanTurn";
+        public const string DynamicEncounterTeamBans = "LeagueEfficiencyDynamicEncounterTeamBans";
+        public const string DynamicEncounterTeamFirsts = "LeagueEfficiencyDynamicEncounterTeamFirsts";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -600,6 +608,14 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknownResult, "结果未确认" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamSummary, "{0} · {1} · {2}人 · K/D/A {3}/{4}/{5}\r\n伤害 {6} · 金币 {7}\r\n大龙 {8} · 小龙 {9} · 塔 {10} · 先锋 {11} · 水晶 {12} · 巢虫 {13}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect, "点击查看禁用与首目标" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown, "未知" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNone, "无" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamYes, "是" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNo, "否" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBanTurn, "（顺位 {0}）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBans, "禁用英雄：{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamFirsts, "首大龙 {0} · 首小龙 {1} · 首塔 {2} · 首水晶 {3}" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

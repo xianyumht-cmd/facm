@@ -90,7 +90,14 @@ namespace FACM.League
         public LeaguePlayerMatchSummary Match { get; set; }
         public List<LeaguePlayerMatchParticipant> Participants { get; set; }
         public List<LeagueMatchTeamScore> Teams { get; set; }
+        public Dictionary<int, string> ChampionNames { get; set; }
         public LeagueBuildAdvisorCatalog BuildCatalog { get; set; }
+    }
+
+    internal sealed class LeagueMatchTeamBan
+    {
+        public int ChampionId { get; set; }
+        public int? PickTurn { get; set; }
     }
 
     internal sealed class LeagueMatchTeamScore
@@ -109,6 +116,11 @@ namespace FACM.League
         public int? RiftHeraldKills { get; set; }
         public int? InhibitorKills { get; set; }
         public int? HordeKills { get; set; }
+        public bool? FirstBaron { get; set; }
+        public bool? FirstDragon { get; set; }
+        public bool? FirstTower { get; set; }
+        public bool? FirstInhibitor { get; set; }
+        public List<LeagueMatchTeamBan> Bans { get; set; }
     }
 
     internal sealed class LeaguePlayerChampionStat

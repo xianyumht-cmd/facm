@@ -19,6 +19,7 @@ namespace FACM.League
         internal LeaguePlayerMatchSummary Match;
         internal System.Collections.Generic.List<LeaguePlayerMatchParticipant> Participants;
         internal System.Collections.Generic.List<LeagueMatchTeamScore> Teams;
+        internal System.Collections.Generic.Dictionary<int, string> ChampionNames;
         internal LeagueBuildAdvisorCatalog BuildCatalog;
     }
 
@@ -77,6 +78,7 @@ namespace FACM.League
                         Status = LeagueEncounterMatchDetailStatus.Ready,
                         Match = breakdown.Match, Participants = breakdown.Participants,
                         Teams = breakdown.Teams,
+                        ChampionNames = breakdown.ChampionNames,
                         BuildCatalog = breakdown.BuildCatalog
                     };
                 }

@@ -225,6 +225,7 @@ namespace FACM.League
             var names = await LoadChampionNamesAsync(cancellationToken).ConfigureAwait(false);
             if (names != null)
             {
+                breakdown.ChampionNames = names;
                 foreach (var participant in breakdown.Participants)
                 {
                     string name;
@@ -378,7 +379,12 @@ namespace FACM.League
                     TowerKills = ReadOptionalCount(team, "towerKills"),
                     RiftHeraldKills = ReadOptionalCount(team, "riftHeraldKills"),
                     InhibitorKills = ReadOptionalCount(team, "inhibitorKills"),
-                    HordeKills = ReadOptionalCount(team, "hordeKills")
+                    HordeKills = ReadOptionalCount(team, "hordeKills"),
+                    FirstBaron = ReadOptionalBool(team, "firstBaron"),
+                    FirstDragon = ReadOptionalBool(team, "firstDargon") ?? ReadOptionalBool(team, "firstDragon"),
+                    FirstTower = ReadOptionalBool(team, "firstTower"),
+                    FirstInhibitor = ReadOptionalBool(team, "firstInhibitor"),
+                    Bans = ParseTeamBans(team)
                 });
             }
             return scores;
@@ -391,6 +397,40 @@ namespace FACM.League
             return source != null && source.TryGetValue(key, out value) && value != null &&
                 int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out parsed) && parsed >= 0
                 ? (int?)parsed : null;
+        }
+
+        private static bool? ReadOptionalBool(Dictionary<string, object> source, string key)
+        {
+            object value;
+            if (source == null || !source.TryGetValue(key, out value) || value == null) return null;
+            if (value is bool) return (bool)value;
+            bool result;
+            var text = value as string;
+            return text != null && bool.TryParse(text, out result) ? (bool?)result : null;
+        }
+
+        private static List<LeagueMatchTeamBan> ParseTeamBans(Dictionary<string, object> team)
+        {
+            object value;
+            if (team == null || !team.TryGetValue("bans", out value) ||
+                value == null || value is string || !(value is IEnumerable)) return null;
+            var result = new List<LeagueMatchTeamBan>();
+            var scanned = 0;
+            foreach (var entry in (IEnumerable)value)
+            {
+                if (++scanned > 10) return null;
+                var ban = entry as Dictionary<string, object>;
+                object rawChampionId;
+                int championId;
+                if (ban == null || !ban.TryGetValue("championId", out rawChampionId) ||
+                    rawChampionId == null || !int.TryParse(
+                        Convert.ToString(rawChampionId, CultureInfo.InvariantCulture), out championId)) return null;
+                if (championId <= 0) continue;
+                var pickTurn = ReadOptionalCount(ban, "pickTurn");
+                result.Add(new LeagueMatchTeamBan { ChampionId = championId,
+                    PickTurn = pickTurn.HasValue && pickTurn.Value > 0 ? pickTurn : null });
+            }
+            return result;
         }
 
         private static string SafeDisplayName(string name)
