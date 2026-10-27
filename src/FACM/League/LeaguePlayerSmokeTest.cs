@@ -31,6 +31,7 @@ namespace FACM.League
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
+            LeagueSgpSmokeTest.Validate();
             ValidateSgpHistoryFallback();
             ValidateMatchHistoryCollection();
             ValidatePaginationBoundary();
@@ -1014,7 +1015,7 @@ namespace FACM.League
                     page.Matches[0].Kills == 11 && page.Matches[0].Win &&
                     page.Matches[0].ItemIds[0] == 3031 && page.Matches[0].SpellIds[0] == 4 &&
                     page.Matches[0].AugmentIds[0] == 1337 && page.Matches[0].PerkIds[0] == 8005 &&
-                    page.Matches[0].PerkIds[1] == 8139 && page.Matches[0].PerkStyleIds[0] == 8000 &&
+                    page.Matches[0].PerkIds[4] == 8139 && page.Matches[0].PerkIds[1] == -1 && page.Matches[0].PerkStyleIds[0] == 8000 &&
                     page.Matches[0].MatchPlayers.Length == 2 &&
                     page.Matches[0].SameTeamPuuids.Contains("teammate"),
                 "SGP flat participant data must retain identity, results and loadout after normalization.");
@@ -1022,6 +1023,14 @@ namespace FACM.League
                     parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(source),
                         new LeaguePlayerProfile { PuuId = "other" }, 0, 10).Matches.Count == 0,
                 "An invalid SGP envelope or another player's rows must not be presented as target statistics.");
+
+            var detailService = new LeaguePlayerDataService(
+                new FixtureApi("{\"puuid\":\"self\"}", "{}", null), new PerformanceBudgetProvider(), null, sgp);
+            var detail = detailService.LoadMatchDetailAsync(target, 601, CancellationToken.None).GetAwaiter().GetResult();
+            Require(detail != null && detail.GameId == 601 && detail.Kills == 11 && detail.PerkIds[4] == 8139,
+                "A missing LCU game must hydrate its selected SGP summary through the same participant projection.");
+            Require(detailService.LoadMatchDetailAsync(target, 602, CancellationToken.None).GetAwaiter().GetResult() == null,
+                "An SGP response for another game ID must not be used as selected-game detail.");
 
             var profiles = new Dictionary<string, string> { { "target-puuid", "{\"puuid\":\"target-puuid\"}" } };
             var local = new FixtureApi("{\"puuid\":\"self\"}", string.Empty, null, null, profiles);
@@ -1053,8 +1062,26 @@ namespace FACM.League
 
             internal FakeSgpHistory(string source) { _source = Encoding.UTF8.GetBytes(source); }
 
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token, string serverId = null)
+            {
+                var root = new System.Web.Script.Serialization.JavaScriptSerializer()
+                    .DeserializeObject(Encoding.UTF8.GetString(_source)) as Dictionary<string, object>;
+                return Task.FromResult(Encoding.UTF8.GetBytes(new System.Web.Script.Serialization.JavaScriptSerializer()
+                    .Serialize(((object[])root["games"])[0])));
+            }
+
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token, string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
+            public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token, string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
             public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
-                CancellationToken cancellationToken)
+                CancellationToken cancellationToken, string serverId = null)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Reads++;

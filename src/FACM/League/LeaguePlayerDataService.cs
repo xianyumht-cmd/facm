@@ -523,9 +523,8 @@ namespace FACM.League
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var bytes = await _client.TryGetBytesAsync(
-                    "/lol-match-history/v1/games/" + gameId, cancellationToken).ConfigureAwait(false);
-                var match = ParseMatch(ParseObject(bytes), profile);
+                var game = await LoadGameAsync(profile, gameId, cancellationToken).ConfigureAwait(false);
+                var match = ParseMatch(game, profile);
                 return match != null && match.GameId == gameId && match.ParticipantResolved ? match : null;
             }
             finally { _requestGate.Release(); }
@@ -539,9 +538,7 @@ namespace FACM.League
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var bytes = await _client.TryGetBytesAsync(
-                    "/lol-match-history/v1/games/" + gameId, cancellationToken).ConfigureAwait(false);
-                var game = ParseObject(bytes);
+                var game = await LoadGameAsync(profile, gameId, cancellationToken).ConfigureAwait(false);
                 var match = ParseMatch(game, profile);
                 if (match == null || match.GameId != gameId || !match.ParticipantResolved || !match.StatisticsAvailable)
                     return null;
@@ -935,59 +932,107 @@ namespace FACM.League
             var seenGames = new HashSet<long>();
             foreach (var item in ReadObjects(root, "games").Take(count))
             {
-                var source = ReadObject(item, "json");
-                if (source == null || ReadLong(source, "gameId") <= 0) continue;
-                var participants = ReadObjects(source, "participants").Take(21).ToList();
-                if (participants.Count == 0 || participants.Count > 20) continue;
-                var normalized = new Dictionary<string, object>(source);
-                var rows = new List<Dictionary<string, object>>();
-                var identities = new List<Dictionary<string, object>>();
-                var ids = new HashSet<int>();
-                foreach (var participant in participants)
-                {
-                    var id = ReadInt(participant, "participantId");
-                    if (id <= 0 || !ids.Add(id)) break;
-                    var row = new Dictionary<string, object>(participant);
-                    var stats = new Dictionary<string, object>(participant);
-                    var perks = ReadObject(participant, "perks");
-                    var nextPerk = 0;
-                    foreach (var style in ReadObjects(perks, "styles").Take(2))
-                    {
-                        var description = ReadString(style, "description");
-                        if (string.Equals(description, "primaryStyle", StringComparison.OrdinalIgnoreCase))
-                            stats["perkPrimaryStyle"] = ReadInt(style, "style");
-                        else if (string.Equals(description, "subStyle", StringComparison.OrdinalIgnoreCase))
-                            stats["perkSubStyle"] = ReadInt(style, "style");
-                        foreach (var selection in ReadObjects(style, "selections").Take(4))
-                        {
-                            if (nextPerk == 6) break;
-                            stats["perk" + nextPerk++] = ReadInt(selection, "perk");
-                        }
-                    }
-                    row["stats"] = stats;
-                    rows.Add(row);
-                    var player = new Dictionary<string, object>
-                    {
-                        { "puuid", ReadString(participant, "puuid") },
-                        { "gameName", ReadString(participant, "riotIdGameName") },
-                        { "tagLine", ReadString(participant, "riotIdTagline") },
-                        { "summonerName", ReadString(participant, "summonerName") },
-                        { "summonerId", ReadLong(participant, "summonerId") }
-                    };
-                    identities.Add(new Dictionary<string, object>
-                    {
-                        { "participantId", id }, { "player", player }
-                    });
-                }
-                if (rows.Count != participants.Count) continue;
-                normalized["participants"] = rows;
-                normalized["participantIdentities"] = identities;
+                var normalized = NormalizeSgpGame(item);
+                if (normalized == null) continue;
                 var summary = ParseMatch(normalized, target);
                 if (summary != null && summary.ParticipantResolved && summary.GameId > 0 &&
                     seenGames.Add(summary.GameId))
                     page.Matches.Add(summary);
             }
             return page;
+        }
+
+        internal static Dictionary<string, object> NormalizeSgpGame(Dictionary<string, object> item)
+        {
+            var source = ReadObject(item, "json");
+            if (source == null || ReadLong(source, "gameId") <= 0) return null;
+            var participants = ReadObjects(source, "participants").Take(21).ToList();
+            if (participants.Count == 0 || participants.Count > 20) return null;
+            var normalized = new Dictionary<string, object>(source);
+            var rows = new List<Dictionary<string, object>>();
+            var identities = new List<Dictionary<string, object>>();
+            var ids = new HashSet<int>();
+            var puuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var participant in participants)
+            {
+                var id = ReadInt(participant, "participantId");
+                var puuid = ReadString(participant, "puuid");
+                if (id <= 0 || !ids.Add(id) || (!string.IsNullOrEmpty(puuid) && !puuids.Add(puuid))) return null;
+                var row = new Dictionary<string, object>(participant);
+                var stats = new Dictionary<string, object>(participant);
+                var perks = ReadObject(participant, "perks");
+                var styles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var style in ReadObjects(perks, "styles").Take(2))
+                {
+                    var description = ReadString(style, "description");
+                    if (description == null || !styles.Add(description)) continue;
+                    var primary = string.Equals(description, "primaryStyle", StringComparison.OrdinalIgnoreCase);
+                    var secondary = string.Equals(description, "subStyle", StringComparison.OrdinalIgnoreCase);
+                    if (!primary && !secondary) continue;
+                    object styleId;
+                    if (style.TryGetValue("style", out styleId))
+                        stats[primary ? "perkPrimaryStyle" : "perkSubStyle"] = styleId;
+                    var slot = primary ? 0 : 4;
+                    foreach (var selection in ReadObjects(style, "selections").Take(primary ? 4 : 2))
+                    {
+                        object perk;
+                        if (selection.TryGetValue("perk", out perk)) stats["perk" + slot] = perk;
+                        slot++;
+                    }
+                }
+                row["stats"] = stats;
+                rows.Add(row);
+                var player = new Dictionary<string, object>
+                {
+                    { "puuid", puuid },
+                    { "gameName", ReadString(participant, "riotIdGameName") },
+                    { "tagLine", ReadString(participant, "riotIdTagline") },
+                    { "summonerName", ReadString(participant, "summonerName") },
+                    { "summonerId", ReadLong(participant, "summonerId") }
+                };
+                identities.Add(new Dictionary<string, object> { { "participantId", id }, { "player", player } });
+            }
+            normalized["participants"] = rows;
+            normalized["participantIdentities"] = identities;
+            var teams = new List<Dictionary<string, object>>();
+            foreach (var sourceTeam in ReadObjects(source, "teams").Take(20))
+            {
+                var team = new Dictionary<string, object>(sourceTeam);
+                var objectives = ReadObject(sourceTeam, "objectives");
+                foreach (var pair in new[] { new[] { "baron", "Baron" }, new[] { "dragon", "Dragon" },
+                    new[] { "tower", "Tower" }, new[] { "inhibitor", "Inhibitor" },
+                    new[] { "riftHerald", "RiftHerald" }, new[] { "horde", "Horde" } })
+                {
+                    var objective = ReadObject(objectives, pair[0]);
+                    object value;
+                    if (objective != null && objective.TryGetValue("kills", out value)) team[pair[0] + "Kills"] = value;
+                    if (objective != null && objective.TryGetValue("first", out value)) team["first" + pair[1]] = value;
+                }
+                teams.Add(team);
+            }
+            normalized["teams"] = teams;
+            return normalized;
+        }
+
+        private async Task<Dictionary<string, object>> LoadGameAsync(LeaguePlayerProfile profile,
+            long gameId, CancellationToken token, string serverId = null)
+        {
+            var game = string.IsNullOrEmpty(serverId) ? ParseObject(await _client.TryGetBytesAsync(
+                "/lol-match-history/v1/games/" + gameId, token).ConfigureAwait(false)) : null;
+            var match = ParseMatch(game, profile);
+            if (match != null && match.GameId == gameId && match.ParticipantResolved && match.StatisticsAvailable)
+                return game;
+            if (_sgpHistory == null) return null;
+            var before = ParseProfile(await _client.TryGetBytesAsync(
+                LeagueDashboardDetailsService.SummonerPath, token).ConfigureAwait(false));
+            if (before == null || !IsSafePuuid(before.PuuId)) return null;
+            game = NormalizeSgpGame(ParseObject(await _sgpHistory.TryGetGameSummaryAsync(
+                gameId, token, serverId).ConfigureAwait(false)));
+            var after = ParseProfile(await _client.TryGetBytesAsync(
+                LeagueDashboardDetailsService.SummonerPath, token).ConfigureAwait(false));
+            if (after == null || !string.Equals(before.PuuId, after.PuuId, StringComparison.Ordinal) ||
+                ReadLong(game, "gameId") != gameId) return null;
+            return game;
         }
 
         internal Dictionary<int, string> ParseChampionSummary(byte[] bytes)

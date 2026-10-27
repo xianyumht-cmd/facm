@@ -79,11 +79,29 @@ namespace FACM.AppHost.Modules
         }
 
         Task<byte[]> ILeagueSgpMatchHistoryApi.TryGetSummaryAsync(
-            string targetPuuid, int startIndex, int count, CancellationToken cancellationToken)
+            string targetPuuid, int startIndex, int count, CancellationToken cancellationToken, string serverId)
         {
             var api = _sgpHistory;
             return api == null ? Task.FromResult<byte[]>(null) :
-                api.TryGetSummaryAsync(targetPuuid, startIndex, count, cancellationToken);
+                api.TryGetSummaryAsync(targetPuuid, startIndex, count, cancellationToken, serverId);
+        }
+
+        Task<byte[]> ILeagueSgpMatchHistoryApi.TryGetGameSummaryAsync(long gameId, CancellationToken token, string serverId)
+        {
+            var api = _sgpHistory;
+            return api == null ? Task.FromResult<byte[]>(null) : api.TryGetGameSummaryAsync(gameId, token, serverId);
+        }
+
+        Task<byte[]> ILeagueSgpMatchHistoryApi.TryGetGameDetailsAsync(long gameId, CancellationToken token, string serverId)
+        {
+            var api = _sgpHistory;
+            return api == null ? Task.FromResult<byte[]>(null) : api.TryGetGameDetailsAsync(gameId, token, serverId);
+        }
+
+        Task<byte[]> ILeagueSgpMatchHistoryApi.TryGetSummonerAsync(string puuid, CancellationToken token, string serverId)
+        {
+            var api = _sgpHistory;
+            return api == null ? Task.FromResult<byte[]>(null) : api.TryGetSummonerAsync(puuid, token, serverId);
         }
 
         public Task<LeagueClientWriteResponse> TrySendJsonAsync(string method, string path, string json, CancellationToken cancellationToken)
