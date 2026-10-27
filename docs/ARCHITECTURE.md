@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Selected Player profile details
+
+`LeaguePlayerDataService` now has a profile-details partial that shares its existing request semaphore and authenticated client. A user-triggered overview reads the selected target profile, same-region ranked stats and cosmetic profile between current-account/session fences. Optional endpoint attempts have independent four-second deadlines inside an overall bounded request. Full mastery is a separate lazy GET, validates returned PUUIDs and unique positive champion IDs, and returns a sorted bounded snapshot. No snapshot is stored in the signed-in quick caches. `LeaguePlayerProfileDialog` freezes target, region and originating session, clears stale results, cancels on close and reuses native tabs/lists/search. Existing self and remote-history controls open the same dialog; no worker, timer, HTTP client or package is added.
+
 ## Selected-match rune detail projection (Draft #357)
 
 Verified at executable `0c8fdc786df0c05baa77e294ab22006e89b5d789` by Windows Build, Glass, UI Text and Mayhem Source CI. Live Tencent/Win10 acceptance remains pending.

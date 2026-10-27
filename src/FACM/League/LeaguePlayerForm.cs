@@ -267,6 +267,17 @@ namespace FACM.League
                     _profile.PuuId, _profile.AccountName, _currentSession, _replay, _loadDetail, _loadAsset)) dialog.ShowDialog(this);
             };
             _filterPanel.Controls.Add(_browseHistoryButton);
+            var profileDetails = new Button { Text = _ui.Get(UiTextKeys.LeagueProfileDetailsTitle),
+                Size = new Size(110, 26), FlatStyle = FlatStyle.Flat,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            profileDetails.FlatAppearance.BorderSize = 0;
+            profileDetails.Click += (sender, e) =>
+            {
+                if (_profile == null || _loading) return;
+                using (var dialog = new LeaguePlayerProfileDialog(_service, _ui, _profile.PuuId,
+                    _profile.PuuId, _profile.AccountName, _currentSession?.Invoke(), _currentSession)) dialog.ShowDialog(this);
+            };
+            _filterPanel.Controls.Add(profileDetails);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
             _playerSearch.TextChanged += (sender, e) =>
             {

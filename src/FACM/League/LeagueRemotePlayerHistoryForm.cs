@@ -144,6 +144,15 @@ namespace FACM.League
             sourceRow.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerHistorySource), Width = 40,
                 Height = 27, ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft });
             sourceRow.Controls.Add(_historySource);
+            var profileDetails = PageButton(UiTextKeys.LeagueProfileDetailsTitle, 110);
+            profileDetails.Click += (sender, args) =>
+            {
+                if (_loading || _replayRunning || _collectionCancellation != null) return;
+                using (var dialog = new LeaguePlayerProfileDialog(_service, _ui, _expected.PuuId,
+                    _puuid, _fallbackName, _currentSession?.Invoke(), _currentSession,
+                    SelectedServerId(), (LeaguePlayerHistorySource)_historySource.SelectedIndex)) dialog.ShowDialog(this);
+            };
+            sourceRow.Controls.Add(profileDetails);
             _historySource.SelectedIndexChanged += async (sender, args) =>
             {
                 if (!_updatingSource && !_loading && Visible) await LoadPageAsync(0, _count);

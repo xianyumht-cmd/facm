@@ -1,3 +1,7 @@
+## Active Player profile/ranked/mastery continuation
+
+Pinned `player-tab/data/{summoner,ranked-stats,champion-mastery,summoner-profile}.ts`, `RankedPane.vue` and `ChampionMasteryModal.vue` establish same-region ranked/cosmetics/mastery restrictions, solo/flex queueMap-to-queues fallback and the complete mastery-list GET. Native profile details now implement those routes/presentation with missing-field preservation, selected-target isolation and explicit cross-region unavailable states. Both self and remote regional history reach the same native dialog. Tests are source-shaped; Windows execution is pending. Top-eight mastery POST/score, profile artwork/challenges and postgame ranked refresh remain next work, not completed by this first profile batch.
+
 # League Akari v1.5.1 — Version-locked implementation research
 
 ## Rune effects and stat-shard continuation (Windows CI verified)

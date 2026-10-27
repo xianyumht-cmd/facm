@@ -12,7 +12,7 @@ using FACM.Services;
 
 namespace FACM.League
 {
-    internal sealed class LeaguePlayerDataService
+    internal sealed partial class LeaguePlayerDataService
     {
         internal const int InitialMatchCount = 10;
         internal const int MaximumMatchCount = 20;
