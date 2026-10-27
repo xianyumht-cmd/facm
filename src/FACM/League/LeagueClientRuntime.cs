@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -127,6 +128,19 @@ namespace FACM.League
                 session = null;
                 return false;
             }
+        }
+
+        internal static bool TryParseRiotClientCommandLine(string commandLine, out LeagueClientSession session)
+        {
+            session = null;
+            var portText = ReadArgument(commandLine, "--riotclient-app-port");
+            var token = ReadArgument(commandLine, "--riotclient-auth-token");
+            int port;
+            if (!int.TryParse(portText, out port) || port <= 0 || port > 65535 ||
+                string.IsNullOrEmpty(token) || token.Length > 512 ||
+                token.Any(c => c < '!' || c > '~' || c == '"' || c == '\\')) return false;
+            session = new LeagueClientSession("RiotClient", 0, port, token, "https", "riot-ux-command-line");
+            return true;
         }
 
         public static string CreateBasicAuthorizationParameter(LeagueClientSession session)
@@ -317,8 +331,16 @@ namespace FACM.League
 
         private readonly object _sync = new object();
         private readonly List<Entry> _retired = new List<Entry>();
+        private readonly TimeSpan _timeout;
+        private readonly bool _disableProxy;
         private Entry _current;
         private bool _disposed;
+
+        internal LeagueSessionHttpClientPool(TimeSpan? timeout = null, bool disableProxy = false)
+        {
+            _timeout = timeout ?? TimeSpan.FromSeconds(2);
+            _disableProxy = disableProxy;
+        }
 
         public Lease Acquire(LeagueClientSession session)
         {
@@ -360,14 +382,14 @@ namespace FACM.League
             }
         }
 
-        private static HttpClient CreateClient(LeagueClientSession session)
+        private HttpClient CreateClient(LeagueClientSession session)
         {
-            var handler = new HttpClientHandler();
+            var handler = new HttpClientHandler { UseProxy = !_disableProxy };
             handler.ServerCertificateCustomValidationCallback = delegate { return true; };
             var client = new HttpClient(handler)
             {
                 BaseAddress = session.BaseUri,
-                Timeout = TimeSpan.FromSeconds(2)
+                Timeout = _timeout
             };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
                 "Basic",

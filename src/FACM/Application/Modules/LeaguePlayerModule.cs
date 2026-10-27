@@ -36,7 +36,7 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
-            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets);
+            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets, _leagueClient);
         }
 
         public Form CreatePlayerForm(UiTextCatalog ui)

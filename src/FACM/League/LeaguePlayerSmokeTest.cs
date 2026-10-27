@@ -16,6 +16,7 @@ namespace FACM.League
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
+            ValidateRiotPlayerSearch();
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
@@ -181,6 +182,83 @@ namespace FACM.League
             Require(filter.Matches(edge, now), "Three-hour history boundary must be inclusive.");
             edge.GameCreationLocal = DateTime.MinValue;
             Require(!filter.Matches(edge, now), "Unknown historical timestamps cannot pass a dated filter.");
+        }
+
+        private static void ValidateRiotPlayerSearch()
+        {
+            string name;
+            string tag;
+            Require(LeaguePlayerDataService.TryParseRiotId("  Example Name # CN1  ", out name, out tag) &&
+                    name == "Example Name" && tag == "CN1",
+                "Riot ID lookup must require and trim both exact name and tag components.");
+            Require(!LeaguePlayerDataService.TryParseRiotId("MissingTag", out name, out tag) &&
+                    !LeaguePlayerDataService.TryParseRiotId("Name##Tag", out name, out tag) &&
+                    !LeaguePlayerDataService.TryParseRiotId("Name#", out name, out tag) &&
+                    !LeaguePlayerDataService.TryParseRiotId("Bad\nName#Tag", out name, out tag),
+                "Invalid Riot IDs must never be sent to the local Riot Client.");
+
+            const string current = "{\"puuid\":\"current-account\"}";
+            const string alias = "[{\"puuid\":\"target-puuid\",\"alias\":{\"game_name\":\"Example Name\",\"tag_line\":\"CN1\"}}]";
+            var details = new Dictionary<string, string> { { "target-puuid", "{\"puuid\":\"target-puuid\"}" } };
+            var api = new FixtureApi(current, "{}", null, null, details);
+            var riot = new FakeRiotAliases(alias);
+            var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(), riot);
+            Require(service.ParseRiotAliasPuuid(Encoding.UTF8.GetBytes(alias), "Example Name", "CN1") == "target-puuid",
+                "Exact Riot Client alias-to-PUUID parsing changed unexpectedly.");
+            Require(service.ParseRiotAliasPuuid(Encoding.UTF8.GetBytes(alias), "Other", "CN1") == null &&
+                    service.ParseRiotAliasPuuid(Encoding.UTF8.GetBytes("not-json"), "Example Name", "CN1") == null &&
+                    service.ParseRiotAliasPuuid(Encoding.UTF8.GetBytes("[{\"puuid\":\"bad/identifier\",\"alias\":{\"game_name\":\"Example Name\",\"tag_line\":\"CN1\"}}]"), "Example Name", "CN1") == null,
+                "Unrelated, malformed or unsafe aliases must not pass the identity gate.");
+            var conflicting = "[{\"puuid\":\"target-puuid\",\"alias\":{\"game_name\":\"Example Name\",\"tag_line\":\"CN1\"}}," +
+                "{\"puuid\":\"other-puuid\",\"alias\":{\"game_name\":\"Example Name\",\"tag_line\":\"CN1\"}}]";
+            Require(service.ParseRiotAliasPuuid(Encoding.UTF8.GetBytes(conflicting), "Example Name", "CN1") == null,
+                "Ambiguous duplicate Riot aliases must never guess the target PUUID.");
+
+            var expected = new LeaguePlayerProfile { PuuId = "current-account" };
+            var result = service.SearchRiotIdAsync(expected, " Example Name #CN1 ", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(result.Status == LeagueRiotPlayerSearchStatus.Found && result.Player != null &&
+                    result.Player.PuuId == "target-puuid" && result.Player.PlayerName == "Example Name#CN1" &&
+                    riot.Calls == 1 && riot.LastName == "Example Name" && riot.LastTag == "CN1" &&
+                    CountPath(api.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
+                    CountPath(api.Paths, "/lol-summoner/v2/summoners/puuid/target-puuid") == 1,
+                "Explicit Riot ID lookup must validate alias, LCU PUUID detail and unchanged signed-in account.");
+
+            var beforeInvalid = riot.Calls;
+            Require(service.SearchRiotIdAsync(expected, "NameWithoutTag", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.InvalidQuery &&
+                    riot.Calls == beforeInvalid,
+                "Malformed player search must not dispatch an authenticated Riot request.");
+            riot.SetAlias("[]");
+            Require(service.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.NotFound,
+                "Riot Client empty alias lists must be distinguished from unavailable transport.");
+            riot.SetAlias(null);
+            Require(service.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable,
+                "Disconnected Riot Client must fail without creating an identity.");
+
+            var staleApi = new FixtureApi("{\"puuid\":\"other-account\"}", "{}", null, null, details);
+            var staleRiot = new FakeRiotAliases(alias);
+            var stale = new LeaguePlayerDataService(staleApi, new PerformanceBudgetProvider(), staleRiot);
+            Require(stale.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.AccountChanged && staleRiot.Calls == 0,
+                "An account changed before lookup must not send a Riot Client request.");
+            var mismatchApi = new FixtureApi(current, "{}", null, null,
+                new Dictionary<string, string> { { "target-puuid", "{\"puuid\":\"unrelated\"}" } });
+            var mismatch = new LeaguePlayerDataService(mismatchApi, new PerformanceBudgetProvider(), new FakeRiotAliases(alias));
+            Require(mismatch.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.NotFound,
+                "LCU detail for a different PUUID must not become a selectable Riot player.");
+
+            var changedApi = new FixtureApi(current, "{}", null, null, details)
+            {
+                SecondProfile = "{\"puuid\":\"other-account\"}"
+            };
+            var changed = new LeaguePlayerDataService(changedApi, new PerformanceBudgetProvider(), new FakeRiotAliases(alias));
+            Require(changed.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A completed Riot lookup must not publish data after account replacement.");
         }
 
         private static void ValidateProgressiveEnrichmentBudget()
@@ -355,8 +433,11 @@ namespace FACM.League
             private readonly byte[] _history;
             private readonly byte[] _championSummary;
             private readonly Dictionary<long, byte[]> _details = new Dictionary<long, byte[]>();
+            private readonly Dictionary<string, byte[]> _summoners = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            private int _profileReads;
 
-            public FixtureApi(string profile, string history, Dictionary<long, string> details, string championSummary = null)
+            public FixtureApi(string profile, string history, Dictionary<long, string> details, string championSummary = null,
+                Dictionary<string, string> summoners = null)
             {
                 _profile = Encoding.UTF8.GetBytes(profile ?? string.Empty);
                 _history = Encoding.UTF8.GetBytes(history ?? string.Empty);
@@ -365,19 +446,30 @@ namespace FACM.League
                 {
                     foreach (var pair in details) _details[pair.Key] = Encoding.UTF8.GetBytes(pair.Value ?? string.Empty);
                 }
+                if (summoners != null)
+                    foreach (var entry in summoners) _summoners[entry.Key] = Encoding.UTF8.GetBytes(entry.Value);
                 Paths = new List<string>();
             }
 
             public List<string> Paths { get; private set; }
+            public string SecondProfile { get; set; }
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Paths.Add(path);
                 if (string.Equals(path, LeagueDashboardDetailsService.SummonerPath, StringComparison.Ordinal))
-                    return Task.FromResult(_profile);
+                    return Task.FromResult(++_profileReads > 1 && SecondProfile != null
+                        ? Encoding.UTF8.GetBytes(SecondProfile) : _profile);
                 if (string.Equals(path, LeaguePlayerDataService.ChampionSummaryPath, StringComparison.Ordinal))
                     return Task.FromResult(_championSummary);
+                const string summonerPrefix = "/lol-summoner/v2/summoners/puuid/";
+                if (path != null && path.StartsWith(summonerPrefix, StringComparison.Ordinal))
+                {
+                    byte[] summoner;
+                    return Task.FromResult(_summoners.TryGetValue(path.Substring(summonerPrefix.Length), out summoner)
+                        ? summoner : null);
+                }
                 const string detailPrefix = "/lol-match-history/v1/games/";
                 if (path != null && path.StartsWith(detailPrefix, StringComparison.Ordinal))
                 {
@@ -390,6 +482,26 @@ namespace FACM.League
                 if (path != null && path.StartsWith("/lol-match-history/", StringComparison.Ordinal))
                     return Task.FromResult(_history);
                 return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private sealed class FakeRiotAliases : ILeagueRiotAliasLookupApi
+        {
+            private byte[] _response;
+            internal int Calls;
+            internal string LastName;
+            internal string LastTag;
+
+            internal FakeRiotAliases(string json) { SetAlias(json); }
+            internal void SetAlias(string json) { _response = json == null ? null : Encoding.UTF8.GetBytes(json); }
+
+            public Task<byte[]> TryLookupAsync(string gameName, string tagLine, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Calls++;
+                LastName = gameName;
+                LastTag = tagLine;
+                return Task.FromResult(_response);
             }
         }
     }

@@ -35,11 +35,14 @@ namespace FACM.League
         private readonly CheckedListBox _playerChecks;
         private readonly ToolStripTextBox _championSearch;
         private readonly ToolStripTextBox _playerSearch;
+        private readonly Button _playerLookupButton;
+        private readonly ToolStripLabel _playerLookupStatus;
         private readonly ToolStripDropDown _championMenu;
         private readonly ToolStripDropDown _playerMenu;
         private readonly HashSet<int> _selectedChampions = new HashSet<int>();
         private readonly HashSet<string> _selectedPlayers = new HashSet<string>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _selectedPlayerNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _remotePlayers = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _loadMoreButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -49,6 +52,7 @@ namespace FACM.League
         private LeaguePlayerProfile _profile;
         private bool _loading;
         private bool _loadingChampionOptions;
+        private bool _loadingPlayerLookup;
         private bool _hasMore;
         private int _requestedCount = LeaguePlayerDataService.InitialMatchCount;
 
@@ -190,10 +194,26 @@ namespace FACM.League
                 UpdateFilterChoices(_loadedPage);
                 ApplySimpleFilter();
             });
+            _playerLookupButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLookup),
+                Size = new Size(236, 26), FlatStyle = FlatStyle.Flat,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            _playerLookupButton.FlatAppearance.BorderSize = 0;
+            _playerLookupStatus = new ToolStripLabel { AutoSize = false, Size = new Size(236, 24),
+                TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.TextMuted };
+            _playerMenu.Items.Insert(2, new ToolStripControlHost(_playerLookupButton)
+            {
+                AutoSize = false, Size = _playerLookupButton.Size, Padding = Padding.Empty, Margin = Padding.Empty
+            });
+            _playerMenu.Items.Insert(3, _playerLookupStatus);
+            _playerLookupButton.Click += async (sender, e) => await SearchRemotePlayerAsync();
             _filterPanel.Controls.Add(_playerFilter);
             _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
-            _playerSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
+            _playerSearch.TextChanged += (sender, e) =>
+            {
+                _playerLookupStatus.Text = string.Empty;
+                UpdateFilterChoices(_loadedPage);
+            };
             _championChecks.ItemCheck += (sender, e) =>
             {
                 if (_updatingFilterChoices) return;
@@ -323,6 +343,9 @@ namespace FACM.League
                 search.BackColor = FacmDesignSystem.Surface;
                 search.ForeColor = FacmDesignSystem.Text;
             }
+            _playerLookupButton.BackColor = FacmDesignSystem.SurfaceRaised;
+            _playerLookupButton.ForeColor = FacmDesignSystem.Text;
+            _playerLookupStatus.ForeColor = FacmDesignSystem.TextMuted;
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
             _accountLabel.ForeColor = FacmDesignSystem.Text;
             _statusLabel.ForeColor = FacmDesignSystem.TextMuted;
@@ -596,15 +619,65 @@ namespace FACM.League
             ApplySimpleFilter();
         }
 
+        private async Task SearchRemotePlayerAsync()
+        {
+            if (_loadingPlayerLookup || IsDisposed || _lifetime.IsCancellationRequested) return;
+            _loadingPlayerLookup = true;
+            _playerLookupButton.Enabled = false;
+            _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
+            var profile = _profile;
+            var query = _playerSearch.Text;
+            try
+            {
+                var result = await _service.SearchRiotIdAsync(profile, query, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested ||
+                    profile == null || _profile == null ||
+                    !string.Equals(query, _playerSearch.Text, StringComparison.Ordinal) ||
+                    !string.Equals(profile.PuuId, _profile.PuuId, StringComparison.Ordinal)) return;
+                switch (result.Status)
+                {
+                    case LeagueRiotPlayerSearchStatus.Found:
+                        if (result.Player == null || string.IsNullOrEmpty(result.Player.PuuId)) break;
+                        if (_remotePlayers.Count >= 10 && !_remotePlayers.ContainsKey(result.Player.PuuId))
+                            _remotePlayers.Clear();
+                        _remotePlayers[result.Player.PuuId] = result.Player.PlayerName;
+                        UpdateFilterChoices(_loadedPage);
+                        _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteFound);
+                        break;
+                    case LeagueRiotPlayerSearchStatus.InvalidQuery:
+                        _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteInvalid);
+                        break;
+                    case LeagueRiotPlayerSearchStatus.NotFound:
+                        _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteNotFound);
+                        break;
+                    case LeagueRiotPlayerSearchStatus.AccountChanged:
+                        _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
+                        break;
+                    default:
+                        _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteUnavailable);
+                        break;
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { if (!IsDisposed) _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteUnavailable); }
+            finally
+            {
+                _loadingPlayerLookup = false;
+                if (!IsDisposed) _playerLookupButton.Enabled = true;
+            }
+        }
+
         private void ResetFilterChoices()
         {
             _selectedChampions.Clear();
             _selectedPlayers.Clear();
             _selectedPlayerNames.Clear();
+            _remotePlayers.Clear();
             _championMenu.Close();
             _playerMenu.Close();
             _championSearch.Text = string.Empty;
             _playerSearch.Text = string.Empty;
+            _playerLookupStatus.Text = string.Empty;
             _winFilter.SelectedIndex = 0;
             _timeFilter.SelectedIndex = 0;
             UpdateFilterChoices(null);
@@ -651,6 +724,9 @@ namespace FACM.League
                                 players[player.PuuId] = string.IsNullOrWhiteSpace(player.PlayerName) ? null : player.PlayerName;
                 }
             }
+            foreach (var remote in _remotePlayers)
+                if (!players.ContainsKey(remote.Key) || players[remote.Key] == null)
+                    players[remote.Key] = remote.Value;
             foreach (var id in _selectedChampions)
                 if (!known.ContainsKey(id)) known[id] = "#" + id;
             foreach (var puuid in _selectedPlayers)

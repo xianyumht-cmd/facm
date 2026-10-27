@@ -289,6 +289,13 @@ namespace FACM.Services
         public const string LeaguePlayerFilterClear = "LeaguePlayerFilterClear";
         public const string LeaguePlayerFilterSearchChampion = "LeaguePlayerFilterSearchChampion";
         public const string LeaguePlayerFilterSearchPlayer = "LeaguePlayerFilterSearchPlayer";
+        public const string LeaguePlayerRemoteLookup = "LeaguePlayerRemoteLookup";
+        public const string LeaguePlayerRemoteLoading = "LeaguePlayerRemoteLoading";
+        public const string LeaguePlayerRemoteFound = "LeaguePlayerRemoteFound";
+        public const string LeaguePlayerRemoteInvalid = "LeaguePlayerRemoteInvalid";
+        public const string LeaguePlayerRemoteNotFound = "LeaguePlayerRemoteNotFound";
+        public const string LeaguePlayerRemoteAccountChanged = "LeaguePlayerRemoteAccountChanged";
+        public const string LeaguePlayerRemoteUnavailable = "LeaguePlayerRemoteUnavailable";
         public const string LeaguePlayerFilter3Hours = "LeaguePlayerFilter3Hours";
         public const string LeaguePlayerFilter12Hours = "LeaguePlayerFilter12Hours";
         public const string LeaguePlayerFilter24Hours = "LeaguePlayerFilter24Hours";

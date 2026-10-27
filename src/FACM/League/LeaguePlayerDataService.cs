@@ -19,6 +19,7 @@ namespace FACM.League
         private static readonly TimeSpan ChampionMetadataCacheDuration = TimeSpan.FromMinutes(30);
         private readonly object _cacheSync = new object();
         private readonly ILeagueClientApi _client;
+        private readonly ILeagueRiotAliasLookupApi _riotAliases;
         private readonly PerformanceBudgetProvider _budgets;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 };
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
@@ -32,10 +33,122 @@ namespace FACM.League
         private LeagueBuildAdvisorCatalog _cachedMatchBuildCatalog;
         private DateTime _matchBuildCatalogCachedUtc = DateTime.MinValue;
 
-        public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
+        public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
+            ILeagueRiotAliasLookupApi riotAliases = null)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
+            _riotAliases = riotAliases;
+        }
+
+        internal static bool TryParseRiotId(string text, out string gameName, out string tagLine)
+        {
+            gameName = null;
+            tagLine = null;
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            var separator = text.IndexOf('#');
+            if (separator <= 0 || separator != text.LastIndexOf('#')) return false;
+            var name = text.Substring(0, separator).Trim();
+            var tag = text.Substring(separator + 1).Trim();
+            if (name.Length == 0 || name.Length > 32 || tag.Length == 0 || tag.Length > 16 ||
+                name.Any(char.IsControl) || tag.Any(char.IsControl)) return false;
+            gameName = name;
+            tagLine = tag;
+            return true;
+        }
+
+        internal string ParseRiotAliasPuuid(byte[] bytes, string gameName, string tagLine)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 64 * 1024) return null;
+            try
+            {
+                var root = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as IEnumerable;
+                if (root == null || root is string) return null;
+                string found = null;
+                var count = 0;
+                foreach (var value in root)
+                {
+                    if (++count > 16) return null;
+                    var row = value as Dictionary<string, object>;
+                    var alias = ReadObject(row, "alias");
+                    var name = ReadString(alias, "game_name");
+                    var tag = ReadString(alias, "tag_line");
+                    if (!string.Equals(name, gameName, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(tag, tagLine, StringComparison.OrdinalIgnoreCase)) continue;
+                    var puuid = ReadString(row, "puuid");
+                    if (string.IsNullOrEmpty(puuid) || puuid.Length > 128 ||
+                        puuid.Any(c => !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                            (c >= '0' && c <= '9') || c == '-' || c == '_'))) return null;
+                    if (found != null && !string.Equals(found, puuid, StringComparison.Ordinal)) return null;
+                    found = puuid;
+                }
+                return found;
+            }
+            catch (Exception) { return null; }
+        }
+
+        internal async Task<LeagueRiotPlayerSearchResult> SearchRiotIdAsync(
+            LeaguePlayerProfile expected, string riotId, CancellationToken cancellationToken)
+        {
+            string gameName;
+            string tagLine;
+            if (!TryParseRiotId(riotId, out gameName, out tagLine))
+                return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.InvalidQuery };
+            if (_riotAliases == null || expected == null || string.IsNullOrEmpty(expected.PuuId))
+                return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(10));
+                try
+                {
+                    var before = ParseProfile(await _client.TryGetBytesAsync(
+                        LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                    if (before == null || string.IsNullOrEmpty(before.PuuId))
+                        return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                    if (!string.Equals(before.PuuId, expected.PuuId, StringComparison.Ordinal))
+                        return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
+
+                    string foundPuuid;
+                    LeaguePlayerProfile resolved;
+                    await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                    try
+                    {
+                        var aliases = await _riotAliases.TryLookupAsync(gameName, tagLine, timeout.Token)
+                            .ConfigureAwait(false);
+                        if (aliases == null)
+                            return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                        foundPuuid = ParseRiotAliasPuuid(aliases, gameName, tagLine);
+                        if (foundPuuid == null)
+                            return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                        var path = "/lol-summoner/v2/summoners/puuid/" + Uri.EscapeDataString(foundPuuid);
+                        resolved = ParseProfile(await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false));
+                        if (resolved == null || !string.Equals(foundPuuid, resolved.PuuId, StringComparison.Ordinal))
+                            return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                    }
+                    finally { _requestGate.Release(); }
+
+                    var after = ParseProfile(await _client.TryGetBytesAsync(
+                        LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                    if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
+                        return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
+                    return new LeagueRiotPlayerSearchResult
+                    {
+                        Status = LeagueRiotPlayerSearchStatus.Found,
+                        Player = new LeaguePlayerMatchIdentity
+                        {
+                            PuuId = foundPuuid,
+                            PlayerName = SafeDisplayName(gameName + "#" + tagLine)
+                        }
+                    };
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                }
+                catch (Exception) { return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable }; }
+            }
         }
 
         public LeaguePlayerProfile TryGetCachedProfile()

@@ -8,12 +8,13 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
         private LeagueClientSessionProvider _sessions;
         private LeagueClientApiClient _api;
+        private LeagueRiotAliasLookupApiClient _riotAlias;
         private LeagueClientWriteApiClient _writer;
         private LeaguePostGameWriteApiClient _postGameWriter;
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
@@ -43,6 +44,7 @@ namespace FACM.AppHost.Modules
             if (_api != null) return;
             _sessions = new LeagueClientSessionProvider(_discovery);
             _api = new LeagueClientApiClient(_sessions);
+            _riotAlias = new LeagueRiotAliasLookupApiClient(_sessions);
             _writer = new LeagueClientWriteApiClient(_sessions);
             _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
@@ -62,6 +64,14 @@ namespace FACM.AppHost.Modules
         {
             var api = _api;
             return api == null ? Task.FromResult<byte[]>(null) : api.TryGetBytesAsync(path, cancellationToken);
+        }
+
+        Task<byte[]> ILeagueRiotAliasLookupApi.TryLookupAsync(
+            string gameName, string tagLine, CancellationToken cancellationToken)
+        {
+            var api = _riotAlias;
+            return api == null ? Task.FromResult<byte[]>(null) :
+                api.TryLookupAsync(gameName, tagLine, cancellationToken);
         }
 
         public Task<LeagueClientWriteResponse> TrySendJsonAsync(string method, string path, string json, CancellationToken cancellationToken)
@@ -255,6 +265,7 @@ namespace FACM.AppHost.Modules
             var postGameWriter = _postGameWriter;
             var writer = _writer;
             var api = _api;
+            var riotAlias = _riotAlias;
             _uxRepairWriter = null;
             _emoteLoadoutWriter = null;
             _challengePreferencesWriter = null;
@@ -268,6 +279,7 @@ namespace FACM.AppHost.Modules
             _postGameWriter = null;
             _writer = null;
             _api = null;
+            _riotAlias = null;
             _sessions = null;
             if (uxRepairWriter != null) uxRepairWriter.Dispose();
             if (emoteLoadoutWriter != null) emoteLoadoutWriter.Dispose();
@@ -282,6 +294,7 @@ namespace FACM.AppHost.Modules
             if (postGameWriter != null) postGameWriter.Dispose();
             if (writer != null) writer.Dispose();
             if (api != null) api.Dispose();
+            if (riotAlias != null) riotAlias.Dispose();
         }
     }
 }

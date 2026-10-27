@@ -68,6 +68,21 @@ namespace FACM.League
         public string PlayerName { get; set; }
     }
 
+    internal enum LeagueRiotPlayerSearchStatus
+    {
+        Found,
+        InvalidQuery,
+        Unavailable,
+        NotFound,
+        AccountChanged
+    }
+
+    internal sealed class LeagueRiotPlayerSearchResult
+    {
+        public LeagueRiotPlayerSearchStatus Status { get; set; }
+        public LeaguePlayerMatchIdentity Player { get; set; }
+    }
+
     internal sealed class LeaguePlayerMatchParticipant
     {
         public int ParticipantId { get; set; }
