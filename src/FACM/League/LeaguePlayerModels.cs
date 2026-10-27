@@ -83,6 +83,13 @@ namespace FACM.League
         public LeaguePlayerMatchIdentity Player { get; set; }
     }
 
+    internal sealed class LeagueRemotePlayerHistoryResult
+    {
+        public LeagueRiotPlayerSearchStatus Status { get; set; }
+        public LeaguePlayerProfile Profile { get; set; }
+        public LeaguePlayerMatchPage Page { get; set; }
+    }
+
     internal sealed class LeaguePlayerMatchParticipant
     {
         public int ParticipantId { get; set; }

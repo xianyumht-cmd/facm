@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Keep remote Player history out of current-account caches
+
+Implement Akari's same-region remote summoner drill-down through one explicitly opened native read-only window and the existing authenticated LCU reader, without creating a second Player module, cache or polling owner. Enforce signed-in account identity before/after the bounded target request and reject target PUUID/detail mismatches. The current Player page's profile/history caches always belong to the locally signed-in account, so a remote query must parse into a temporary result only; the dialog owns cancellation and discards stale results. Remote SGP and larger history browsing will extend this explicit path later without changing current-account cache ownership. This is a Draft PR capability, not authorization to release before Tencent/Win10 acceptance.
+
 ## 2026-10-26 — Respawn display uses an opt-in native game-only overlay
 
 Implement Akari 1.5.1's self respawn countdown with a compact click-through WinForms overlay, not a WebView or injected game component. To protect low-end machines and prevent surprising on-screen content, default the switch off, reuse one Gameflow owner, start the local 1 Hz read only during active connected gameplay, show only while the League game is foreground, and release the reader on phase exit. Save the preference with existing local/cloud/portable settings; do not store game/player data. Source-level CI is not a substitute for real Tencent client and Windows display acceptance. Keep the Draft PR unmerged and production updater unchanged.

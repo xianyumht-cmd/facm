@@ -36,6 +36,7 @@ namespace FACM.League
         private readonly ToolStripTextBox _championSearch;
         private readonly ToolStripTextBox _playerSearch;
         private readonly Button _playerLookupButton;
+        private readonly Button _playerHistoryButton;
         private readonly ToolStripLabel _playerLookupStatus;
         private readonly ToolStripDropDown _championMenu;
         private readonly ToolStripDropDown _playerMenu;
@@ -53,6 +54,8 @@ namespace FACM.League
         private bool _loading;
         private bool _loadingChampionOptions;
         private bool _loadingPlayerLookup;
+        private string _lastRemotePlayerPuuid;
+        private string _lastRemotePlayerName;
         private bool _hasMore;
         private int _requestedCount = LeaguePlayerDataService.InitialMatchCount;
 
@@ -198,20 +201,32 @@ namespace FACM.League
                 Size = new Size(236, 26), FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
             _playerLookupButton.FlatAppearance.BorderSize = 0;
+            _playerHistoryButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteHistoryAction),
+                Size = new Size(236, 26), FlatStyle = FlatStyle.Flat, Enabled = false,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            _playerHistoryButton.FlatAppearance.BorderSize = 0;
             _playerLookupStatus = new ToolStripLabel { AutoSize = false, Size = new Size(236, 24),
                 TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.TextMuted };
             _playerMenu.Items.Insert(2, new ToolStripControlHost(_playerLookupButton)
             {
                 AutoSize = false, Size = _playerLookupButton.Size, Padding = Padding.Empty, Margin = Padding.Empty
             });
-            _playerMenu.Items.Insert(3, _playerLookupStatus);
+            _playerMenu.Items.Insert(3, new ToolStripControlHost(_playerHistoryButton)
+            {
+                AutoSize = false, Size = _playerHistoryButton.Size, Padding = Padding.Empty, Margin = Padding.Empty
+            });
+            _playerMenu.Items.Insert(4, _playerLookupStatus);
             _playerLookupButton.Click += async (sender, e) => await SearchRemotePlayerAsync();
+            _playerHistoryButton.Click += (sender, e) => OpenRemotePlayerHistory();
             _filterPanel.Controls.Add(_playerFilter);
             _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
             _playerSearch.TextChanged += (sender, e) =>
             {
                 _playerLookupStatus.Text = string.Empty;
+                _lastRemotePlayerPuuid = null;
+                _lastRemotePlayerName = null;
+                _playerHistoryButton.Enabled = false;
                 UpdateFilterChoices(_loadedPage);
             };
             _championChecks.ItemCheck += (sender, e) =>
@@ -345,6 +360,8 @@ namespace FACM.League
             }
             _playerLookupButton.BackColor = FacmDesignSystem.SurfaceRaised;
             _playerLookupButton.ForeColor = FacmDesignSystem.Text;
+            _playerHistoryButton.BackColor = FacmDesignSystem.SurfaceRaised;
+            _playerHistoryButton.ForeColor = FacmDesignSystem.Text;
             _playerLookupStatus.ForeColor = FacmDesignSystem.TextMuted;
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
             _accountLabel.ForeColor = FacmDesignSystem.Text;
@@ -624,6 +641,9 @@ namespace FACM.League
             if (_loadingPlayerLookup || IsDisposed || _lifetime.IsCancellationRequested) return;
             _loadingPlayerLookup = true;
             _playerLookupButton.Enabled = false;
+            _playerHistoryButton.Enabled = false;
+            _lastRemotePlayerPuuid = null;
+            _lastRemotePlayerName = null;
             _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
             var profile = _profile;
             var query = _playerSearch.Text;
@@ -641,6 +661,9 @@ namespace FACM.League
                         if (_remotePlayers.Count >= 10 && !_remotePlayers.ContainsKey(result.Player.PuuId))
                             _remotePlayers.Clear();
                         _remotePlayers[result.Player.PuuId] = result.Player.PlayerName;
+                        _lastRemotePlayerPuuid = result.Player.PuuId;
+                        _lastRemotePlayerName = result.Player.PlayerName;
+                        _playerHistoryButton.Enabled = true;
                         UpdateFilterChoices(_loadedPage);
                         _playerLookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteFound);
                         break;
@@ -667,12 +690,25 @@ namespace FACM.League
             }
         }
 
+        private void OpenRemotePlayerHistory()
+        {
+            if (IsDisposed || _profile == null || string.IsNullOrEmpty(_lastRemotePlayerPuuid)) return;
+            var puuid = _lastRemotePlayerPuuid;
+            var name = _lastRemotePlayerName;
+            _playerMenu.Close();
+            using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile, puuid, name))
+                dialog.ShowDialog(this);
+        }
+
         private void ResetFilterChoices()
         {
             _selectedChampions.Clear();
             _selectedPlayers.Clear();
             _selectedPlayerNames.Clear();
             _remotePlayers.Clear();
+            _lastRemotePlayerPuuid = null;
+            _lastRemotePlayerName = null;
+            _playerHistoryButton.Enabled = false;
             _championMenu.Close();
             _playerMenu.Close();
             _championSearch.Text = string.Empty;

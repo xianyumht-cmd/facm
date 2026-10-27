@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
             ValidateRiotPlayerSearch();
+            ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
@@ -26,6 +27,12 @@ namespace FACM.League
 
         private static void ValidatePlayerPageLayout()
         {
+            foreach (var width in new[] { 540, 680, 960 })
+            {
+                var columns = LeagueRemotePlayerHistoryForm.ResolveColumnWidthsForSmokeTest(width);
+                Require(columns.Length == 5 && columns.All(value => value > 0) && columns.Sum() == width,
+                    "Remote player history columns must scale without clipping at compact native widths.");
+            }
             Require(LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", "卡莎") &&
                     LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", " 145 ") &&
                     LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Opponent#CN1", "puuid-Example-ZZ", "example"),
@@ -261,6 +268,63 @@ namespace FACM.League
                 "A completed Riot lookup must not publish data after account replacement.");
         }
 
+        private static void ValidateRemotePlayerHistory()
+        {
+            const string current = "{\"puuid\":\"current-account\"}";
+            const string target = "{\"puuid\":\"target-puuid\",\"gameName\":\"Opponent\",\"tagLine\":\"CN1\",\"summonerLevel\":128}";
+            const string history = "{\"games\":{\"games\":[{\"gameId\":54321,\"gameMode\":\"ARAM\",\"participantIdentities\":[{\"participantId\":2,\"player\":{\"puuid\":\"target-puuid\"}}],\"participants\":[{\"participantId\":2,\"championId\":99,\"stats\":{\"win\":true,\"kills\":12,\"deaths\":3,\"assists\":18}}]}]}}";
+            var profiles = new Dictionary<string, string> { { "target-puuid", target } };
+            var histories = new Dictionary<string, string> { { "target-puuid", history } };
+            var api = new FixtureApi(current, "{}", null, null, profiles, histories);
+            var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider());
+            var expected = new LeaguePlayerProfile { PuuId = "current-account" };
+            var result = service.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(result.Status == LeagueRiotPlayerSearchStatus.Found && result.Profile.AccountName == "Opponent#CN1" &&
+                    result.Profile.SummonerLevel == 128 && result.Page.Matches.Count == 1 &&
+                    result.Page.Matches[0].GameId == 54321 && result.Page.Matches[0].ParticipantResolved &&
+                    result.Page.Matches[0].Kills == 12 && result.Page.Matches[0].ChampionId == 99 &&
+                    service.TryGetCachedPage() == null && service.TryGetCachedProfile() == null,
+                "Remote profile/history must parse target records without poisoning own-account caches.");
+            Require(CountPath(api.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
+                    CountPath(api.Paths, "/lol-summoner/v2/summoners/puuid/target-puuid") == 1 &&
+                    CountPath(api.Paths, "/lol-match-history/v1/products/lol/target-puuid/matches?begIndex=0&endIndex=9") == 1,
+                "One explicit remote view must use the bounded target LCU route between two self-profile fences.");
+
+            var before = api.Paths.Count;
+            Require(service.LoadRemotePlayerHistoryAsync(expected, "not/valid", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable &&
+                    api.Paths.Count == before,
+                "Untrusted remote player IDs must not become LCU URL paths.");
+            var wrongAccount = new FixtureApi("{\"puuid\":\"another-account\"}", "{}", null, null, profiles, histories);
+            var preflight = new LeaguePlayerDataService(wrongAccount, new PerformanceBudgetProvider());
+            Require(preflight.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.AccountChanged &&
+                    CountPath(wrongAccount.Paths, "/lol-summoner/v2/summoners/puuid/target-puuid") == 0,
+                "Remote history must stop before target reads when the signed-in account has changed.");
+            var changedApi = new FixtureApi(current, "{}", null, null, profiles, histories)
+            {
+                SecondProfile = "{\"puuid\":\"another-account\"}"
+            };
+            var changed = new LeaguePlayerDataService(changedApi, new PerformanceBudgetProvider());
+            var switched = changed.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(switched.Status == LeagueRiotPlayerSearchStatus.AccountChanged && switched.Profile == null &&
+                    switched.Page == null && changed.TryGetCachedPage() == null,
+                "Completed remote history cannot escape an account switch or enter the local player cache.");
+            var missing = new LeaguePlayerDataService(new FixtureApi(current, "{}", null, null,
+                new Dictionary<string, string> { { "target-puuid", "{\"puuid\":\"different\"}" } }, histories),
+                new PerformanceBudgetProvider());
+            Require(missing.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.NotFound,
+                "An LCU target detail mismatch cannot be used for remote history.");
+            var unavailable = new LeaguePlayerDataService(new FixtureApi(current, "{}", null, null, profiles),
+                new PerformanceBudgetProvider());
+            Require(unavailable.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable,
+                "Missing remote history must report unavailable instead of an empty successful page.");
+        }
+
         private static void ValidateProgressiveEnrichmentBudget()
         {
             var profile = new LeaguePlayerProfile { PuuId = "puuid-current", SummonerId = 9001 };
@@ -434,10 +498,11 @@ namespace FACM.League
             private readonly byte[] _championSummary;
             private readonly Dictionary<long, byte[]> _details = new Dictionary<long, byte[]>();
             private readonly Dictionary<string, byte[]> _summoners = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            private readonly Dictionary<string, byte[]> _remoteHistories = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             private int _profileReads;
 
             public FixtureApi(string profile, string history, Dictionary<long, string> details, string championSummary = null,
-                Dictionary<string, string> summoners = null)
+                Dictionary<string, string> summoners = null, Dictionary<string, string> remoteHistories = null)
             {
                 _profile = Encoding.UTF8.GetBytes(profile ?? string.Empty);
                 _history = Encoding.UTF8.GetBytes(history ?? string.Empty);
@@ -448,6 +513,8 @@ namespace FACM.League
                 }
                 if (summoners != null)
                     foreach (var entry in summoners) _summoners[entry.Key] = Encoding.UTF8.GetBytes(entry.Value);
+                if (remoteHistories != null)
+                    foreach (var entry in remoteHistories) _remoteHistories[entry.Key] = Encoding.UTF8.GetBytes(entry.Value);
                 Paths = new List<string>();
             }
 
@@ -480,7 +547,20 @@ namespace FACM.League
                         : Task.FromResult<byte[]>(null);
                 }
                 if (path != null && path.StartsWith("/lol-match-history/", StringComparison.Ordinal))
+                {
+                    const string remotePrefix = "/lol-match-history/v1/products/lol/";
+                    if (path.StartsWith(remotePrefix, StringComparison.Ordinal))
+                    {
+                        var end = path.IndexOf("/matches?", remotePrefix.Length, StringComparison.Ordinal);
+                        if (end >= 0)
+                        {
+                            byte[] remote;
+                            if (_remoteHistories.TryGetValue(path.Substring(remotePrefix.Length,
+                                end - remotePrefix.Length), out remote)) return Task.FromResult(remote);
+                        }
+                    }
                     return Task.FromResult(_history);
+                }
                 return Task.FromResult<byte[]>(null);
             }
         }

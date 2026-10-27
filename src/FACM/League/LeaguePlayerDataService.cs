@@ -76,15 +76,78 @@ namespace FACM.League
                     if (!string.Equals(name, gameName, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(tag, tagLine, StringComparison.OrdinalIgnoreCase)) continue;
                     var puuid = ReadString(row, "puuid");
-                    if (string.IsNullOrEmpty(puuid) || puuid.Length > 128 ||
-                        puuid.Any(c => !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                            (c >= '0' && c <= '9') || c == '-' || c == '_'))) return null;
+                    if (!IsSafePuuid(puuid)) return null;
                     if (found != null && !string.Equals(found, puuid, StringComparison.Ordinal)) return null;
                     found = puuid;
                 }
                 return found;
             }
             catch (Exception) { return null; }
+        }
+
+        private static bool IsSafePuuid(string puuid)
+        {
+            return !string.IsNullOrEmpty(puuid) && puuid.Length <= 128 &&
+                puuid.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                    (c >= '0' && c <= '9') || c == '-' || c == '_');
+        }
+
+        internal async Task<LeagueRemotePlayerHistoryResult> LoadRemotePlayerHistoryAsync(
+            LeaguePlayerProfile expected, string targetPuuid, CancellationToken cancellationToken)
+        {
+            if (expected == null || !IsSafePuuid(expected.PuuId) || !IsSafePuuid(targetPuuid))
+                return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(12));
+                try
+                {
+                    await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                    try
+                    {
+                        var before = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                        if (before == null || string.IsNullOrEmpty(before.PuuId))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                        if (!string.Equals(before.PuuId, expected.PuuId, StringComparison.Ordinal))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
+
+                        var profilePath = "/lol-summoner/v2/summoners/puuid/" + Uri.EscapeDataString(targetPuuid);
+                        var profile = ParseProfile(await _client.TryGetBytesAsync(profilePath, timeout.Token)
+                            .ConfigureAwait(false));
+                        if (profile == null || !string.Equals(profile.PuuId, targetPuuid, StringComparison.Ordinal))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+
+                        var historyPath = "/lol-match-history/v1/products/lol/" +
+                            Uri.EscapeDataString(targetPuuid) + "/matches?begIndex=0&endIndex=9";
+                        var page = ParseMatchPage(await _client.TryGetBytesAsync(historyPath, timeout.Token)
+                            .ConfigureAwait(false), profile, 0, InitialMatchCount);
+                        var after = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                        if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
+                        if (page == null)
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                        return new LeagueRemotePlayerHistoryResult
+                        {
+                            Status = LeagueRiotPlayerSearchStatus.Found,
+                            Profile = profile,
+                            Page = page
+                        };
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                }
+                catch (Exception)
+                {
+                    return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                }
+            }
         }
 
         internal async Task<LeagueRiotPlayerSearchResult> SearchRiotIdAsync(
