@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using FACM.Mayhem;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -17,6 +19,7 @@ namespace FACM.AppHost.Modules
         private readonly PerformanceModule _performance;
         private LeaguePlayerDataService _service;
         private LeagueEncounterReplayService _replay;
+        private LeagueEncounterMatchDetailService _details;
 
         public LeaguePlayerModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
@@ -41,6 +44,7 @@ namespace FACM.AppHost.Modules
         {
             _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets,
                 _leagueClient, _leagueClient, () => _leagueClient.CurrentSession);
+            _details = new LeagueEncounterMatchDetailService(_service, () => _leagueClient.CurrentSession);
             _replay = new LeagueEncounterReplayService(_leagueClient,
                 (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
         }
@@ -50,7 +54,15 @@ namespace FACM.AppHost.Modules
             if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
             return new LeaguePlayerForm(_service, ui, () => _leagueClient.CurrentSession,
                 (expected, self, target, match, token) => ExecuteHistoryReplayAsync(
-                    expected, self, target, match, token));
+                    expected, self, target, match, token),
+                (expected, self, target, match, token) => _details.ReadHistoryAsync(expected, self, target, match, token),
+                LoadMatchAssetAsync);
+        }
+
+        private Task<Bitmap> LoadMatchAssetAsync(string reference, CancellationToken token)
+        {
+            return LeagueEfficiencyModule.IsSafeEncounterAssetReference(reference)
+                ? MayhemImageCache.GetAsync(reference, _leagueClient, token) : Task.FromResult<Bitmap>(null);
         }
 
         private async Task<LeagueEncounterReplayResult> ExecuteHistoryReplayAsync(
@@ -72,7 +84,8 @@ namespace FACM.AppHost.Modules
                         match = await _service.LoadMatchDetailAsync(
                             new LeaguePlayerProfile { PuuId = targetPuuid }, selected.GameId,
                             deadline.Token, selected.SgpServerId,
-                            selected.DataSource == LeaguePlayerHistorySource.Sgp).ConfigureAwait(false);
+                            selected.DataSource == LeaguePlayerHistorySource.Sgp,
+                            selected.PreferredSource != LeaguePlayerHistorySource.Lcu).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -100,6 +113,7 @@ namespace FACM.AppHost.Modules
         {
             _service = null;
             _replay = null;
+            _details = null;
         }
     }
 }

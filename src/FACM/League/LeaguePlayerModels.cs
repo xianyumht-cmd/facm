@@ -34,6 +34,7 @@ namespace FACM.League
 
     internal sealed class LeaguePlayerMatchSummary
     {
+        public LeaguePlayerHistorySource PreferredSource { get; set; }
         public LeaguePlayerHistorySource DataSource { get; set; }
         public string SgpServerId { get; set; }
         public long GameId { get; set; }

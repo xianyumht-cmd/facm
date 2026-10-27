@@ -17,6 +17,10 @@ namespace FACM.League
         private readonly Func<LeagueClientSession> _currentSession;
         private readonly Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
             CancellationToken, Task<LeagueEncounterReplayResult>> _replay;
+        private readonly Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+            CancellationToken, Task<LeagueEncounterMatchDetailResult>> _loadDetail;
+        private readonly Func<string, CancellationToken, Task<Bitmap>> _loadAsset;
+        private readonly Button _detailButton;
         private readonly Label _accountLabel;
         private readonly Panel _accountSurface;
         private readonly Panel _accountAccent;
@@ -76,12 +80,17 @@ namespace FACM.League
         public LeaguePlayerForm(LeaguePlayerDataService service, UiTextCatalog ui,
             Func<LeagueClientSession> currentSession = null,
             Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
-                CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
+                CancellationToken, Task<LeagueEncounterReplayResult>> replay = null,
+            Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+                CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail = null,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _currentSession = currentSession;
             _replay = replay;
+            _loadDetail = loadDetail;
+            _loadAsset = loadAsset;
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
@@ -240,6 +249,13 @@ namespace FACM.League
             _playerHistoryButton.Click += (sender, e) => OpenRemotePlayerHistory();
             _filterPanel.Controls.Add(_playerFilter);
             _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
+            _detailButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetail),
+                Size = new Size(90, 26), FlatStyle = FlatStyle.Flat, Enabled = false,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            _detailButton.FlatAppearance.BorderSize = 0;
+            _detailButton.Click += async (sender, e) => await ShowSelectedDetailAsync();
+            _matchesList.DoubleClick += async (sender, e) => await ShowSelectedDetailAsync();
+            _filterPanel.Controls.Add(_detailButton);
             _browseHistoryButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerHistoryBrowse),
                 Size = new Size(126, 26), FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
@@ -248,7 +264,7 @@ namespace FACM.League
             {
                 if (_profile == null || _loading) return;
                 using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile,
-                    _profile.PuuId, _profile.AccountName, _currentSession, _replay)) dialog.ShowDialog(this);
+                    _profile.PuuId, _profile.AccountName, _currentSession, _replay, _loadDetail, _loadAsset)) dialog.ShowDialog(this);
             };
             _filterPanel.Controls.Add(_browseHistoryButton);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
@@ -931,7 +947,7 @@ namespace FACM.League
             var name = _lastRemotePlayerName;
             _playerMenu.Close();
             using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile, puuid, name,
-                _currentSession, _replay))
+                _currentSession, _replay, _loadDetail, _loadAsset))
                 dialog.ShowDialog(this);
         }
 
@@ -952,10 +968,53 @@ namespace FACM.League
         {
             if (_replayButton == null || IsDisposed) return;
             var selected = SelectedReplayMatch();
+            _detailButton.Enabled = !_loading && !_replayRunning && _loadDetail != null &&
+                selected != null && selected.GameId > 0 && SessionMatches(_pageSession);
             _replayButton.Enabled = !_loading && !_replayRunning && _replay != null &&
                 LeagueEncounterReplayService.CanOfferHistoryReplay(_pageSession,
                     _currentSession == null ? null : _currentSession(),
                     _profile == null ? null : _profile.PuuId, selected);
+        }
+
+        private async Task ShowSelectedDetailAsync()
+        {
+            var selected = SelectedReplayMatch();
+            var session = _pageSession;
+            var owner = _profile == null ? null : _profile.PuuId;
+            if (selected == null || _loading || _replayRunning || _loadDetail == null ||
+                string.IsNullOrEmpty(owner) || !SessionMatches(session)) return;
+            _replayRunning = true;
+            UpdateReplayButton();
+            _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading);
+            try
+            {
+                var detail = await _loadDetail(session, owner, owner, selected, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(session) ||
+                    !ReferenceEquals(selected, SelectedReplayMatch())) return;
+                if (detail == null || detail.Status != LeagueEncounterMatchDetailStatus.Ready)
+                {
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+                    return;
+                }
+                using (var dialog = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset,
+                    _replay != null && LeagueEncounterReplayService.CanOfferHistoryReplay(session,
+                        _currentSession?.Invoke(), owner, detail.Match)
+                        ? (Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>>)
+                            ((match, token) => _replay(session, owner, owner, match, token)) : null))
+                    dialog.ShowDialog(this);
+                if (!IsDisposed) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailReady);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+            }
+            finally
+            {
+                _replayRunning = false;
+                if (!IsDisposed) UpdateReplayButton();
+            }
         }
 
         private async Task ReplaySelectedAsync()

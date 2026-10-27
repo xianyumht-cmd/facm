@@ -475,17 +475,17 @@ namespace FACM.League
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var current = result.Matches[index];
-                    if (current == null || current.ParticipantResolved || current.GameId <= 0) continue;
+                    if (current == null || (current.ParticipantResolved && current.StatisticsAvailable) || current.GameId <= 0) continue;
 
-                    byte[] bytes;
+                    Dictionary<string, object> fullGame;
                     try
                     {
                         await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
                         try
                         {
-                            bytes = await _client.TryGetBytesAsync(
-                                "/lol-match-history/v1/games/" + current.GameId,
-                                timeout.Token).ConfigureAwait(false);
+                            fullGame = await LoadGameAsync(profile, current.GameId, timeout.Token,
+                                current.SgpServerId, current.DataSource == LeaguePlayerHistorySource.Sgp)
+                                .ConfigureAwait(false);
                         }
                         finally
                         {
@@ -498,9 +498,9 @@ namespace FACM.League
                         break;
                     }
 
-                    var fullGame = ParseObject(bytes);
                     var enriched = ParseMatch(fullGame, profile);
-                    if (enriched == null || !enriched.ParticipantResolved) continue;
+                    if (enriched == null || enriched.GameId != current.GameId ||
+                        !enriched.ParticipantResolved || !enriched.StatisticsAvailable) continue;
                     result.Matches[index] = enriched;
                     changed = true;
                 }
@@ -512,13 +512,13 @@ namespace FACM.League
 
         internal async Task<LeaguePlayerMatchSummary> LoadMatchDetailAsync(
             LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken,
-            string serverId = null, bool sgpOnly = false)
+            string serverId = null, bool sgpOnly = false, bool allowSgpFallback = true)
         {
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || gameId <= 0) return null;
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var game = await LoadGameAsync(profile, gameId, cancellationToken, serverId, sgpOnly).ConfigureAwait(false);
+                var game = await LoadGameAsync(profile, gameId, cancellationToken, serverId, sgpOnly, allowSgpFallback).ConfigureAwait(false);
                 var match = ParseMatch(game, profile);
                 return match != null && match.GameId == gameId && match.ParticipantResolved ? match : null;
             }
@@ -527,14 +527,14 @@ namespace FACM.League
 
         internal async Task<LeaguePlayerMatchBreakdown> LoadMatchBreakdownAsync(
             LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken,
-            string serverId = null, bool sgpOnly = false)
+            string serverId = null, bool sgpOnly = false, bool allowSgpFallback = true)
         {
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || gameId <= 0) return null;
             LeaguePlayerMatchBreakdown breakdown;
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var game = await LoadGameAsync(profile, gameId, cancellationToken, serverId, sgpOnly).ConfigureAwait(false);
+                var game = await LoadGameAsync(profile, gameId, cancellationToken, serverId, sgpOnly, allowSgpFallback).ConfigureAwait(false);
                 var match = ParseMatch(game, profile);
                 if (match == null || match.GameId != gameId || !match.ParticipantResolved || !match.StatisticsAvailable)
                     return null;
@@ -912,10 +912,45 @@ namespace FACM.League
                     "/matches?begIndex=" + startIndex + "&endIndex=" + (startIndex + count - 1);
                 var page = ParseMatchPage(await _client.TryGetBytesAsync(path, token).ConfigureAwait(false),
                     target, startIndex, count);
-                if (page != null || source == LeaguePlayerHistorySource.Lcu) return page;
+                if (page != null)
+                    return await HydrateSparsePageAsync(target, page, token, source).ConfigureAwait(false);
+                if (source == LeaguePlayerHistorySource.Lcu) return null;
             }
             if (source == LeaguePlayerHistorySource.Lcu) return null;
-            return await TryLoadSgpPageAsync(target, startIndex, count, token, serverId).ConfigureAwait(false);
+            var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId).ConfigureAwait(false);
+            return await HydrateSparsePageAsync(target, regional, token, source).ConfigureAwait(false);
+        }
+
+        private async Task<LeaguePlayerMatchPage> HydrateSparsePageAsync(LeaguePlayerProfile target,
+            LeaguePlayerMatchPage page, CancellationToken token, LeaguePlayerHistorySource source)
+        {
+            if (page == null) return null;
+            foreach (var match in page.Matches) if (match != null) match.PreferredSource = source;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    for (var index = 0; index < page.Matches.Count; index++)
+                    {
+                        var current = page.Matches[index];
+                        if (current == null || current.GameId <= 0 ||
+                            (current.ParticipantResolved && current.StatisticsAvailable)) continue;
+                        var game = await LoadGameAsync(target, current.GameId, deadline.Token,
+                            current.SgpServerId, current.DataSource == LeaguePlayerHistorySource.Sgp,
+                            source != LeaguePlayerHistorySource.Lcu).ConfigureAwait(false);
+                        var hydrated = ParseMatch(game, target);
+                        if (hydrated != null && hydrated.GameId == current.GameId &&
+                            hydrated.ParticipantResolved && hydrated.StatisticsAvailable)
+                        {
+                            hydrated.PreferredSource = source;
+                            page.Matches[index] = hydrated;
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); }
+            }
+            return page;
         }
 
         private async Task<LeaguePlayerProfile> LoadTargetProfileAsync(string targetPuuid,
@@ -1061,14 +1096,14 @@ namespace FACM.League
         }
 
         private async Task<Dictionary<string, object>> LoadGameAsync(LeaguePlayerProfile profile,
-            long gameId, CancellationToken token, string serverId = null, bool sgpOnly = false)
+            long gameId, CancellationToken token, string serverId = null, bool sgpOnly = false, bool allowSgpFallback = true)
         {
             var game = !sgpOnly && string.IsNullOrEmpty(serverId) ? ParseObject(await _client.TryGetBytesAsync(
                 "/lol-match-history/v1/games/" + gameId, token).ConfigureAwait(false)) : null;
             var match = ParseMatch(game, profile);
             if (match != null && match.GameId == gameId && match.ParticipantResolved && match.StatisticsAvailable)
                 return game;
-            if (_sgpHistory == null) return null;
+            if (_sgpHistory == null || !allowSgpFallback) return null;
             var before = ParseProfile(await _client.TryGetBytesAsync(
                 LeagueDashboardDetailsService.SummonerPath, token).ConfigureAwait(false));
             if (before == null || !IsSafePuuid(before.PuuId)) return null;
@@ -1691,6 +1726,7 @@ namespace FACM.League
             if (match == null) return null;
             return new LeaguePlayerMatchSummary
                 {
+                    PreferredSource = match.PreferredSource,
                     DataSource = match.DataSource,
                     SgpServerId = match.SgpServerId,
                     GameId = match.GameId,

@@ -33,6 +33,7 @@ namespace FACM.League
             ValidateRemotePlayerHistory();
             LeagueSgpSmokeTest.Validate();
             ValidateSgpHistoryFallback();
+            ValidateHistoryDetailsAndSparseCompletion();
             ValidateMatchHistoryCollection();
             ValidatePaginationBoundary();
             ValidateCancellation();
@@ -1068,6 +1069,16 @@ namespace FACM.League
             Require(collected.Status == LeagueMatchCollectionStatus.Completed && collected.Page.Matches.Count == 1 &&
                 collected.Page.Matches[0].SgpServerId == "TENCENT_HN1" && regionalService.TryGetCachedPage() == null,
                 "Regional collection must retain its selected server and never update the current-account page cache.");
+            var detailSession = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
+            var regionalReader = new LeagueEncounterMatchDetailService(regionalService, () => detailSession);
+            var regionalDetail = regionalReader.ReadHistoryAsync(detailSession, "self", "target-puuid",
+                regionalResult.Page.Matches[0], CancellationToken.None).GetAwaiter().GetResult();
+            Require(regionalDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                regionalDetail.Match.SgpServerId == "TENCENT_HN1" && regionalDetail.Participants.Count == 2 &&
+                regionalDetail.Participants.Single(p => p.IsTarget).PerkIds[4] == 8139 &&
+                !regionalLocal.Paths.Any(path => path.StartsWith("/lol-match-history/", StringComparison.Ordinal)),
+                "Cross-region scoreboard reads must keep the selected SGP route and reuse its normalized participant builds.");
+
             var localOnlyFallback = new FakeSgpHistory(source);
             var localOnly = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", "", null, null, profiles),
                 new PerformanceBudgetProvider(), null, localOnlyFallback).LoadRemotePlayerHistoryAsync(
@@ -1130,6 +1141,43 @@ namespace FACM.League
                 LastServer = serverId;
                 return Task.FromResult(_source);
             }
+        }
+
+        private static void ValidateHistoryDetailsAndSparseCompletion()
+        {
+            const string own = "{\"puuid\":\"self\"}";
+            const string targetProfile = "{\"puuid\":\"target\"}";
+            const string sparse = "{\"games\":{\"games\":[{\"gameId\":701,\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"target\"}}],\"participants\":[{\"participantId\":1,\"championId\":22}]}]}}";
+            const string complete = "{\"gameId\":701,\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"target\"}}],\"participants\":[{\"participantId\":1,\"championId\":22,\"teamId\":100,\"stats\":{\"win\":true,\"kills\":9,\"deaths\":2,\"assists\":4}}]}";
+            var profiles = new Dictionary<string, string> { { "target", targetProfile } };
+            var histories = new Dictionary<string, string> { { "target", sparse } };
+            var api = new FixtureApi(own, "", new Dictionary<long, string> { { 701, complete } }, null, profiles, histories);
+            var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider());
+            var expected = new LeaguePlayerProfile { PuuId = "self" };
+            var result = service.LoadRemotePlayerHistoryAsync(expected, "target", CancellationToken.None,
+                0, 10, LeaguePlayerHistorySource.Lcu).GetAwaiter().GetResult();
+            Require(result.Status == LeagueRiotPlayerSearchStatus.Found && result.Page.Matches.Count == 1 &&
+                result.Page.Matches[0].StatisticsAvailable && result.Page.Matches[0].Kills == 9 &&
+                CountPath(api.Paths, "/lol-match-history/v1/games/701") == 1 && service.TryGetCachedPage() == null,
+                "A sparse explicit history page must complete its same-game statistics once before filtering, without cache pollution.");
+            var session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
+            var reader = new LeagueEncounterMatchDetailService(service, () => session);
+            var detail = reader.ReadHistoryAsync(session, "self", "target", result.Page.Matches[0], CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(detail.Status == LeagueEncounterMatchDetailStatus.Ready && detail.Participants.Count == 1 &&
+                detail.Participants[0].IsTarget && detail.Match.Kills == 9,
+                "Ordinary Player history must use the existing account-checked scoreboard reader for its exact target.");
+            Require(reader.ReadHistoryAsync(session, "other-account", "target", result.Page.Matches[0], CancellationToken.None)
+                .GetAwaiter().GetResult().Status == LeagueEncounterMatchDetailStatus.WrongAccount,
+                "A stale Player page cannot read selected-match details as another signed-in owner.");
+            var wrongGameApi = new FixtureApi(own, "", new Dictionary<long, string>
+                { { 701, complete.Replace("701", "999") } }, null, profiles, histories);
+            var retained = new LeaguePlayerDataService(wrongGameApi, new PerformanceBudgetProvider())
+                .LoadRemotePlayerHistoryAsync(expected, "target", CancellationToken.None,
+                    0, 10, LeaguePlayerHistorySource.Lcu).GetAwaiter().GetResult();
+            Require(retained.Status == LeagueRiotPlayerSearchStatus.Found &&
+                retained.Page.Matches[0].GameId == 701 && !retained.Page.Matches[0].StatisticsAvailable,
+                "Mismatched completion IDs must retain the original unknown summary rather than inventing target statistics.");
         }
 
         private static void ValidateRemotePlayerHistory()

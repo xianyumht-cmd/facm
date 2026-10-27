@@ -413,6 +413,10 @@ namespace FACM.Services
         public const string LeaguePlayerCollectStopped = "LeaguePlayerCollectStopped";
         public const string LeaguePlayerCollectUnavailable = "LeaguePlayerCollectUnavailable";
         public const string LeaguePlayerCollectBackToPage = "LeaguePlayerCollectBackToPage";
+        public const string LeaguePlayerMatchDetail = "LeaguePlayerMatchDetail";
+        public const string LeaguePlayerMatchDetailLoading = "LeaguePlayerMatchDetailLoading";
+        public const string LeaguePlayerMatchDetailUnavailable = "LeaguePlayerMatchDetailUnavailable";
+        public const string LeaguePlayerMatchDetailReady = "LeaguePlayerMatchDetailReady";
         public const string LeaguePlayerHistoryBrowse = "LeaguePlayerHistoryBrowse";
         public const string LeaguePlayerHistorySource = "LeaguePlayerHistorySource";
         public const string LeaguePlayerHistorySourceAuto = "LeaguePlayerHistorySourceAuto";

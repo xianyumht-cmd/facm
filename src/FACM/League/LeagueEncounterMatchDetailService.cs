@@ -32,12 +32,37 @@ namespace FACM.League
         internal LeagueEncounterMatchDetailService(ILeagueClientApi client,
             PerformanceBudgetProvider budgets, Func<LeagueClientSession> session)
         {
-            _players = new LeaguePlayerDataService(client, budgets);
+            _players = new LeaguePlayerDataService(client, budgets, null, client as ILeagueSgpMatchHistoryApi, session);
             _session = session ?? throw new ArgumentNullException(nameof(session));
         }
 
-        internal async Task<LeagueEncounterMatchDetailResult> ReadAsync(
-            LeagueEncounterRecord record, CancellationToken token)
+        internal LeagueEncounterMatchDetailService(LeaguePlayerDataService players, Func<LeagueClientSession> session)
+        {
+            _players = players ?? throw new ArgumentNullException(nameof(players));
+            _session = session ?? throw new ArgumentNullException(nameof(session));
+        }
+
+        internal Task<LeagueEncounterMatchDetailResult> ReadHistoryAsync(LeagueClientSession expected,
+            string selfPuuid, string targetPuuid, LeaguePlayerMatchSummary selected, CancellationToken token)
+        {
+            if (!LeagueEncounterReplayService.SessionMatches(expected, _session()))
+                return Task.FromResult(Result(LeagueEncounterMatchDetailStatus.NoClient));
+            if (selected == null || selected.GameId <= 0)
+                return Task.FromResult(Result(LeagueEncounterMatchDetailStatus.Unavailable));
+            var record = new LeagueEncounterRecord { SelfPuuid = selfPuuid, Puuid = targetPuuid,
+                GameId = selected.GameId, Region = expected.Region, PlatformId = expected.PlatformId };
+            return ReadCoreAsync(record, token, selected.SgpServerId,
+                selected.DataSource == LeaguePlayerHistorySource.Sgp,
+                selected.PreferredSource != LeaguePlayerHistorySource.Lcu);
+        }
+
+        internal Task<LeagueEncounterMatchDetailResult> ReadAsync(LeagueEncounterRecord record, CancellationToken token)
+        {
+            return ReadCoreAsync(record, token, null, false, true);
+        }
+
+        private async Task<LeagueEncounterMatchDetailResult> ReadCoreAsync(
+            LeagueEncounterRecord record, CancellationToken token, string serverId, bool sgpOnly, bool allowSgpFallback)
         {
             var initial = _session();
             if (initial == null) return Result(LeagueEncounterMatchDetailStatus.NoClient);
@@ -62,7 +87,7 @@ namespace FACM.League
                         return Result(LeagueEncounterMatchDetailStatus.WrongAccount);
 
                     var breakdown = await _players.LoadMatchBreakdownAsync(
-                        new LeaguePlayerProfile { PuuId = record.Puuid }, record.GameId, deadline.Token)
+                        new LeaguePlayerProfile { PuuId = record.Puuid }, record.GameId, deadline.Token, serverId, sgpOnly, allowSgpFallback)
                         .ConfigureAwait(false);
                     if (!IsSameSession(initial)) return Result(LeagueEncounterMatchDetailStatus.NoClient);
                     if (breakdown == null || breakdown.Match == null || breakdown.Match.GameId != record.GameId)
