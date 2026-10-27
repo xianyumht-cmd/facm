@@ -215,6 +215,9 @@ namespace FACM.League
         public const string DynamicTagUnavailable = "LeagueEfficiencyDynamicTagUnavailable";
         public const string DynamicTagTools = "LeagueEfficiencyDynamicTagTools";
         public const string DynamicTagBrowse = "LeagueEfficiencyDynamicTagBrowse";
+        public const string DynamicSavedPlayerAll = "LeagueEfficiencyDynamicSavedPlayerAll";
+        public const string DynamicSavedPlayerMetCount = "LeagueEfficiencyDynamicSavedPlayerMetCount";
+        public const string DynamicSavedPlayerLastMet = "LeagueEfficiencyDynamicSavedPlayerLastMet";
         public const string DynamicTagSearch = "LeagueEfficiencyDynamicTagSearch";
         public const string DynamicTagTarget = "LeagueEfficiencyDynamicTagTarget";
         public const string DynamicTagSelf = "LeagueEfficiencyDynamicTagSelf";
@@ -507,6 +510,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicTagUnavailable, "玩家标记保存失败，请检查本地数据文件。" },
             { LeagueEfficiencyUiTextKeys.DynamicTagTools, "标记管理" },
             { LeagueEfficiencyUiTextKeys.DynamicTagBrowse, "查看所有标记…" },
+            { LeagueEfficiencyUiTextKeys.DynamicSavedPlayerAll, "全部历史玩家（含未标记）" },
+            { LeagueEfficiencyUiTextKeys.DynamicSavedPlayerMetCount, "相遇次数" },
+            { LeagueEfficiencyUiTextKeys.DynamicSavedPlayerLastMet, "最近相遇" },
             { LeagueEfficiencyUiTextKeys.DynamicTagSearch, "搜索标记或玩家编号：" },
             { LeagueEfficiencyUiTextKeys.DynamicTagTarget, "玩家编号" },
             { LeagueEfficiencyUiTextKeys.DynamicTagSelf, "标记者编号" },

@@ -92,6 +92,19 @@ namespace FACM.League
             return QueryPlayer(selfPuuid, playerPuuid, region, platformId, 1, maximum).Records;
         }
 
+        internal IReadOnlyList<LeagueEncounterRecord> ReadAll()
+        {
+            lock (_sync)
+            {
+                return ReadState().Games.Select(p => new LeagueEncounterRecord
+                {
+                    GameId = p.GameId, SelfPuuid = p.SelfPuuid, Puuid = p.Puuid,
+                    Region = p.Region, PlatformId = p.PlatformId, QueueType = p.QueueType,
+                    UpdatedUtc = p.UpdatedUtc
+                }).ToArray();
+            }
+        }
+
         // Mirrors Akari's player-scoped encountered-game query: optional exact queue.type,
         // stable time ordering and bounded pagination. Never returns another account's data.
         internal LeagueEncounterHistoryPage QueryPlayer(string selfPuuid, string playerPuuid,

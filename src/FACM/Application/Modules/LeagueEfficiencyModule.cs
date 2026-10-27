@@ -286,6 +286,12 @@ namespace FACM.AppHost.Modules
             return _playerTags.ReadAllTags();
         }
 
+        public IReadOnlyList<LeagueSavedPlayerOverviewRecord> ReadSavedPlayerOverview()
+        {
+            ThrowIfDisposed();
+            return LeagueSavedPlayerOverview.Build(_playerTags.ReadAllTags(), _encounterHistory.ReadAll());
+        }
+
         public bool TryEditStoredPlayerTag(LeaguePlayerTagRecord expected, string tag)
         {
             ThrowIfDisposed();
