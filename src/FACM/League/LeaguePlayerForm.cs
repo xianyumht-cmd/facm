@@ -41,6 +41,7 @@ namespace FACM.League
         private readonly ToolStripTextBox _playerSearch;
         private readonly Button _playerLookupButton;
         private readonly Button _playerHistoryButton;
+        private readonly Button _browseHistoryButton;
         private readonly ToolStripLabel _playerLookupStatus;
         private readonly ToolStripDropDown _championMenu;
         private readonly ToolStripDropDown _playerMenu;
@@ -239,6 +240,17 @@ namespace FACM.League
             _playerHistoryButton.Click += (sender, e) => OpenRemotePlayerHistory();
             _filterPanel.Controls.Add(_playerFilter);
             _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
+            _browseHistoryButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerHistoryBrowse),
+                Size = new Size(126, 26), FlatStyle = FlatStyle.Flat,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            _browseHistoryButton.FlatAppearance.BorderSize = 0;
+            _browseHistoryButton.Click += (sender, e) =>
+            {
+                if (_profile == null || _loading) return;
+                using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile,
+                    _profile.PuuId, _profile.AccountName, _currentSession, _replay)) dialog.ShowDialog(this);
+            };
+            _filterPanel.Controls.Add(_browseHistoryButton);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
             _playerSearch.TextChanged += (sender, e) =>
             {
@@ -871,7 +883,7 @@ namespace FACM.League
             var query = _playerSearch.Text;
             try
             {
-                var result = await _service.SearchRiotIdAsync(profile, query, _lifetime.Token);
+                var result = await _service.SearchRiotIdAsync(profile, query, _lifetime.Token, true);
                 if (IsDisposed || _lifetime.IsCancellationRequested ||
                     profile == null || _profile == null ||
                     !string.Equals(query, _playerSearch.Text, StringComparison.Ordinal) ||
@@ -1231,6 +1243,7 @@ namespace FACM.League
             _loadMoreButton.Enabled = !loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
             _filterPanel.Enabled = !loading;
             _collectButton.Enabled = !loading && _profile != null && HasCollectionFilter();
+            _browseHistoryButton.Enabled = !loading && _profile != null;
             _stopCollectButton.Enabled = _collectionCancellation != null &&
                 !_collectionCancellation.IsCancellationRequested;
             UpdateReplayButton();

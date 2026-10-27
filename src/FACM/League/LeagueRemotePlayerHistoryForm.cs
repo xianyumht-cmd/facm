@@ -28,6 +28,9 @@ namespace FACM.League
         private readonly Button _collectButton;
         private readonly Button _stopCollectButton;
         private readonly ComboBox _pageSize;
+        private readonly ComboBox _historySource;
+        private readonly ComboBox _historyRegion;
+        private bool _updatingSource;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
         private readonly Button _goToPage;
@@ -100,6 +103,44 @@ namespace FACM.League
             _replayButton = PageButton(UiTextKeys.LeaguePlayerReplayAction, 142);
             _replayButton.Enabled = false;
             _replayButton.Click += async (sender, args) => await ReplaySelectedAsync();
+
+            var sourceRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas, Padding = Padding.Empty
+            };
+            _historySource = new ComboBox { Width = 136, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerHistorySource) };
+            foreach (var key in new[] { UiTextKeys.LeaguePlayerHistorySourceAuto,
+                UiTextKeys.LeaguePlayerHistorySourceLcu, UiTextKeys.LeaguePlayerHistorySourceSgp })
+                _historySource.Items.Add(_ui.Get(key));
+            _historySource.SelectedIndex = 0;
+            _historyRegion = new ComboBox { Width = 174, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerHistoryRegion) };
+            _historyRegion.Items.Add(new LeagueSgpServer { Name = _ui.Get(UiTextKeys.LeaguePlayerHistoryCurrentRegion) });
+            var initialSession = _currentSession?.Invoke();
+            foreach (var server in LeagueSgpMatchHistoryApiClient.AvailableServers(initialSession))
+                if (server.Id != LeagueSgpMatchHistoryApiClient.CurrentServerId(initialSession)) _historyRegion.Items.Add(server);
+            _historyRegion.SelectedIndex = 0;
+            sourceRow.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerHistoryRegion), Width = 40,
+                Height = 27, ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft });
+            sourceRow.Controls.Add(_historyRegion);
+            sourceRow.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerHistorySource), Width = 40,
+                Height = 27, ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft });
+            sourceRow.Controls.Add(_historySource);
+            _historySource.SelectedIndexChanged += async (sender, args) =>
+            {
+                if (!_updatingSource && !_loading && Visible) await LoadPageAsync(0, _count);
+            };
+            _historyRegion.SelectedIndexChanged += async (sender, args) =>
+            {
+                _updatingSource = true;
+                if (_historyRegion.SelectedIndex > 0) _historySource.SelectedIndex = (int)LeaguePlayerHistorySource.Sgp;
+                _updatingSource = false;
+                if (!_loading && Visible) await LoadPageAsync(0, _count);
+            };
 
             var filterRow = new FlowLayoutPanel
             {
@@ -197,11 +238,12 @@ namespace FACM.League
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(20, 14, 20, 20),
-                ColumnCount = 1, RowCount = 5, BackColor = FacmDesignSystem.Canvas
+                ColumnCount = 1, RowCount = 6, BackColor = FacmDesignSystem.Canvas
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
@@ -212,9 +254,10 @@ namespace FACM.League
             heading.Controls.Add(_replayButton, 1, 0);
             layout.Controls.Add(heading, 0, 0);
             layout.Controls.Add(_statusLabel, 0, 1);
-            layout.Controls.Add(filterRow, 0, 2);
-            layout.Controls.Add(_matches, 0, 3);
-            layout.Controls.Add(footer, 0, 4);
+            layout.Controls.Add(sourceRow, 0, 2);
+            layout.Controls.Add(filterRow, 0, 3);
+            layout.Controls.Add(_matches, 0, 4);
+            layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
 
             UpdatePageButtons();
@@ -283,6 +326,8 @@ namespace FACM.League
             _goToPage.Enabled = _loaded && !_loading && regularPage;
             _pageNumber.Enabled = _loaded && !_loading && regularPage;
             _retryPage.Enabled = !_loading;
+            _historySource.Enabled = !_loading && !_replayRunning && _historyRegion.SelectedIndex == 0;
+            _historyRegion.Enabled = !_loading && !_replayRunning && _historyRegion.Items.Count > 1;
             _retryPage.Text = _ui.Get(regularPage ? UiTextKeys.LeaguePlayerRemoteRetry :
                 UiTextKeys.LeaguePlayerCollectBackToPage);
             _retryPage.Width = regularPage ? 52 : 80;
@@ -410,7 +455,8 @@ namespace FACM.League
             try
             {
                 var result = await _service.CollectMatchesAsync(_expected, target, settings,
-                    simple, advanced, progress, cancellation.Token);
+                    simple, advanced, progress, cancellation.Token,
+                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId());
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (!SessionMatches(session) || result.Status == LeagueMatchCollectionStatus.AccountChanged ||
                     !string.Equals(target.PuuId, _targetProfile == null ? null : _targetProfile.PuuId,
@@ -493,19 +539,36 @@ namespace FACM.League
             }
         }
 
+        private string SelectedServerId()
+        {
+            return (_historyRegion.SelectedItem as LeagueSgpServer)?.Id;
+        }
+
         private async Task LoadPageAsync(int startIndex, int count)
         {
             if (_loading || IsDisposed || _lifetime.IsCancellationRequested) return;
             var expectedSession = _currentSession == null ? null : _currentSession();
             _pageSession = null;
+            _activePage = null;
+            _collectionResult = null;
+            _targetProfile = null;
+            _matches.Items.Clear();
+            _loaded = false;
             _loading = true;
             _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
             UpdatePageButtons();
             try
             {
                 var result = await _service.LoadRemotePlayerHistoryAsync(_expected, _puuid,
-                    _lifetime.Token, startIndex, count);
+                    _lifetime.Token, startIndex, count,
+                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId());
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (!SessionMatches(expectedSession))
+                {
+                    _playerLabel.Text = string.Empty;
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
+                    return;
+                }
                 if (result.Status != LeagueRiotPlayerSearchStatus.Found)
                 {
                     if (result.Status == LeagueRiotPlayerSearchStatus.AccountChanged)

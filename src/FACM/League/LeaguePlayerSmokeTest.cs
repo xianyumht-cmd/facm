@@ -1042,6 +1042,44 @@ namespace FACM.League
                     CountPath(local.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
                     service.TryGetCachedPage() == null,
                 "A missing remote LCU history must use one bounded regional fallback with both self fences.");
+            var regionalLocal = new FixtureApi("{\"puuid\":\"self\"}", "", null);
+            var regional = new FakeSgpHistory(source)
+            {
+                Summoner = "[{\"puuid\":\"target-puuid\",\"id\":88,\"name\":\"Regional Name\",\"level\":321,\"profileIconId\":17}]"
+            };
+            var regionalService = new LeaguePlayerDataService(regionalLocal, new PerformanceBudgetProvider(), null, regional);
+            var regionalResult = regionalService.LoadRemotePlayerHistoryAsync(new LeaguePlayerProfile { PuuId = "self" },
+                "target-puuid", CancellationToken.None, 20, 10, LeaguePlayerHistorySource.Sgp, "TENCENT_HN1")
+                .GetAwaiter().GetResult();
+            Require(regionalResult.Status == LeagueRiotPlayerSearchStatus.Found &&
+                regionalResult.Profile.SummonerId == 88 && regionalResult.Profile.SummonerLevel == 321 &&
+                regionalResult.Page.StartIndex == 20 && regionalResult.Page.Matches[0].SgpServerId == "TENCENT_HN1" &&
+                regionalResult.Page.Matches[0].DataSource == LeaguePlayerHistorySource.Sgp &&
+                regional.LastServer == "TENCENT_HN1" && regionalLocal.Paths.All(path =>
+                    path == LeagueDashboardDetailsService.SummonerPath),
+                "An explicit regional page must resolve its profile and history from SGP without a local target lookup.");
+            Require(regionalService.ParseSgpSummoner(Encoding.UTF8.GetBytes(
+                "[{\"puuid\":\"someone-else\"}]"), "target-puuid") == null,
+                "Regional profile responses must correlate the exact requested PUUID.");
+            var collected = regionalService.CollectMatchesAsync(new LeaguePlayerProfile { PuuId = "self" }, target,
+                new LeagueMatchCollectionSettings { CountPerIteration = 1, ExpectedCount = 1, MaxIterations = 1 },
+                new LeagueSimpleMatchHistoryFilter { ChampionIds = new[] { 99 } }, null, null,
+                CancellationToken.None, LeaguePlayerHistorySource.Sgp, "TENCENT_HN1").GetAwaiter().GetResult();
+            Require(collected.Status == LeagueMatchCollectionStatus.Completed && collected.Page.Matches.Count == 1 &&
+                collected.Page.Matches[0].SgpServerId == "TENCENT_HN1" && regionalService.TryGetCachedPage() == null,
+                "Regional collection must retain its selected server and never update the current-account page cache.");
+            var localOnlyFallback = new FakeSgpHistory(source);
+            var localOnly = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", "", null, null, profiles),
+                new PerformanceBudgetProvider(), null, localOnlyFallback).LoadRemotePlayerHistoryAsync(
+                    new LeaguePlayerProfile { PuuId = "self" }, "target-puuid", CancellationToken.None,
+                    0, 10, LeaguePlayerHistorySource.Lcu).GetAwaiter().GetResult();
+            Require(localOnly.Status == LeagueRiotPlayerSearchStatus.Unavailable && localOnlyFallback.Reads == 0,
+                "An explicit LCU source must report unavailable without silently changing the selected provider.");
+            var localSession = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
+            Require(!LeagueEncounterReplayService.CanOfferHistoryReplay(localSession, localSession, "self",
+                regionalResult.Page.Matches[0]),
+                "A remote-region game ID must never be submitted to the current-region LCU replay API.");
+
             var replaced = new FixtureApi("{\"puuid\":\"self\"}", string.Empty, null, null, profiles)
             {
                 SecondProfile = "{\"puuid\":\"switched\"}"
@@ -1059,6 +1097,8 @@ namespace FACM.League
             private readonly byte[] _source;
             internal int Reads;
             internal string LastTarget;
+            internal string LastServer;
+            internal string Summoner;
 
             internal FakeSgpHistory(string source) { _source = Encoding.UTF8.GetBytes(source); }
 
@@ -1077,7 +1117,8 @@ namespace FACM.League
 
             public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token, string serverId = null)
             {
-                return Task.FromResult<byte[]>(null);
+                LastServer = serverId;
+                return Task.FromResult(Summoner == null ? null : Encoding.UTF8.GetBytes(Summoner));
             }
 
             public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
@@ -1086,6 +1127,7 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 Reads++;
                 LastTarget = targetPuuid;
+                LastServer = serverId;
                 return Task.FromResult(_source);
             }
         }

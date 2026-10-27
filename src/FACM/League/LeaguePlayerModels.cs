@@ -3,6 +3,13 @@ using System.Collections.Generic;
 
 namespace FACM.League
 {
+    internal enum LeaguePlayerHistorySource
+    {
+        Automatic,
+        Lcu,
+        Sgp
+    }
+
     internal sealed class LeaguePlayerProfile
     {
         public string PuuId { get; set; }
@@ -27,6 +34,8 @@ namespace FACM.League
 
     internal sealed class LeaguePlayerMatchSummary
     {
+        public LeaguePlayerHistorySource DataSource { get; set; }
+        public string SgpServerId { get; set; }
         public long GameId { get; set; }
         public DateTime GameCreationLocal { get; set; }
         public int GameDurationSeconds { get; set; }

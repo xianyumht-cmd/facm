@@ -193,7 +193,10 @@ namespace FACM.League
         {
             return SessionMatches(expected, current) &&
                 LeagueDynamicMessageService.SafePuuid(selfPuuid) &&
-                match != null && match.GameId > 0;
+                match != null && match.GameId > 0 &&
+                (match.DataSource != LeaguePlayerHistorySource.Sgp ||
+                    (!string.IsNullOrEmpty(match.SgpServerId) && string.Equals(match.SgpServerId,
+                        LeagueSgpMatchHistoryApiClient.CurrentServerId(expected), StringComparison.OrdinalIgnoreCase)));
         }
 
         private Dictionary<string, object> Parse(byte[] bytes)

@@ -40,7 +40,7 @@ namespace FACM.AppHost.Modules
         public void Initialize()
         {
             _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets,
-                _leagueClient, _leagueClient);
+                _leagueClient, _leagueClient, () => _leagueClient.CurrentSession);
             _replay = new LeagueEncounterReplayService(_leagueClient,
                 (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
         }
@@ -71,7 +71,8 @@ namespace FACM.AppHost.Modules
                     {
                         match = await _service.LoadMatchDetailAsync(
                             new LeaguePlayerProfile { PuuId = targetPuuid }, selected.GameId,
-                            deadline.Token).ConfigureAwait(false);
+                            deadline.Token, selected.SgpServerId,
+                            selected.DataSource == LeaguePlayerHistorySource.Sgp).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException)
                     {
