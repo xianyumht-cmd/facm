@@ -52,7 +52,7 @@ namespace FACM.League
         {
             var profileJson = "{\"puuid\":\"puuid-current\",\"summonerId\":9001,\"accountId\":8001,\"gameName\":\"Player\",\"tagLine\":\"CQ100\",\"displayName\":\"Player\",\"summonerLevel\":321,\"profileIconId\":12}";
             var historyJson = "{\"accountId\":8001,\"platformId\":\"CQ100\",\"games\":{\"gameCount\":42,\"gameIndexBegin\":0,\"gameIndexEnd\":1,\"games\":[" +
-                "{\"gameId\":10001,\"gameCreation\":1700000000000,\"gameDuration\":1260,\"gameMode\":\"ARAM\",\"queueId\":450,\"participantIdentities\":[{\"participantId\":3,\"player\":{\"puuid\":\"puuid-current\",\"summonerId\":9001}}],\"participants\":[{\"participantId\":3,\"championId\":145,\"stats\":{\"kills\":8,\"deaths\":4,\"assists\":12,\"totalMinionsKilled\":44,\"neutralMinionsKilled\":3,\"win\":true}},{\"participantId\":4,\"championId\":99}]} ," +
+                "{\"gameId\":10001,\"gameCreation\":1700000000000,\"gameDuration\":1260,\"gameMode\":\"ARAM\",\"queueId\":450,\"participantIdentities\":[{\"participantId\":3,\"player\":{\"puuid\":\"puuid-current\",\"summonerId\":9001,\"gameName\":\"Self\",\"tagLine\":\"CQ100\"}},{\"participantId\":4,\"player\":{\"puuid\":\"puuid-opponent\",\"gameName\":\"Opponent\",\"tagLine\":\"TEST\"}}],\"participants\":[{\"participantId\":3,\"championId\":145,\"stats\":{\"kills\":8,\"deaths\":4,\"assists\":12,\"totalMinionsKilled\":44,\"neutralMinionsKilled\":3,\"win\":true}},{\"participantId\":4,\"championId\":99}]} ," +
                 "{\"gameId\":10002,\"gameCreation\":1700001000000,\"gameDuration\":1800,\"gameMode\":\"CLASSIC\",\"queueId\":420,\"participantIdentities\":[{\"participantId\":7,\"player\":{\"summonerId\":9001}}],\"participants\":[{\"participantId\":7,\"championId\":22,\"stats\":{\"kills\":2,\"deaths\":7,\"assists\":5,\"totalMinionsKilled\":151,\"neutralMinionsKilled\":0,\"win\":false}}]}" +
                 "]}}";
 
@@ -75,16 +75,34 @@ namespace FACM.League
             Require(first.CreepScore == 47 && first.Win, "CS/result parsing changed unexpectedly.");
             Require(first.MatchChampionIds != null && first.MatchChampionIds.SequenceEqual(new[] { 145, 99 }),
                 "Champion filter must read all known champions from the one existing history response.");
+            Require(first.MatchPlayers != null && first.MatchPlayers.Length == 2 &&
+                    first.MatchPlayers[0].PuuId == "puuid-current" && first.MatchPlayers[0].PlayerName == "Self#CQ100" &&
+                    first.MatchPlayers[1].PuuId == "puuid-opponent",
+                "Participant filtering must correlate verified identities across the complete game roster.");
             var second = page.Matches[1];
             Require(second.ParticipantResolved && !second.Win && second.QueueId == 420, "Summoner-ID participant fallback changed unexpectedly.");
             Require(second.MatchChampionIds != null && second.MatchChampionIds.SequenceEqual(new[] { 22 }),
                 "Different-match champion-roster filters must stay isolated.");
+            Require(second.MatchPlayers == null, "A participant with no PUUID is not positive filter evidence.");
             var cached = service.TryGetCachedPage();
             Require(cached != null && cached.Matches[0].MatchChampionIds.SequenceEqual(new[] { 145, 99 }),
                 "The Player cache must retain match-wide champion evidence.");
             cached.Matches[0].MatchChampionIds[0] = 999;
+            cached.Matches[0].MatchPlayers[0].PuuId = "mutated";
             Require(service.TryGetCachedPage().Matches[0].MatchChampionIds[0] == 145,
                 "Filtered match champion arrays must not mutate the shared Player cache.");
+            Require(service.TryGetCachedPage().Matches[0].MatchPlayers[0].PuuId == "puuid-current",
+                "Filtered match participant objects must not mutate the shared Player cache.");
+
+            var duplicateIds = "{\"games\":{\"games\":[{\"participants\":[{\"participantId\":1}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"unique\"}},{\"participantId\":1,\"player\":{\"puuid\":\"ambiguous\"}}]}]}}";
+            var invalidPage = service.ParseMatchPage(Encoding.UTF8.GetBytes(duplicateIds), profile, 0, 10);
+            Require(invalidPage.Matches[0].MatchPlayers == null,
+                "Conflicting participant identities must not create guessed player membership.");
+            var duplicatePuuids = "{\"games\":{\"games\":[{\"participants\":[{\"participantId\":1},{\"participantId\":2}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"same\"}},{\"participantId\":2,\"player\":{\"puuid\":\"same\"}}]}]}}";
+            Require(service.ParseMatchPage(Encoding.UTF8.GetBytes(duplicatePuuids), profile, 0, 10)
+                .Matches[0].MatchPlayers == null, "One PUUID cannot prove membership for two different participants.");
         }
 
         private static void ValidateSourceSimpleFilters()
@@ -93,9 +111,12 @@ namespace FACM.League
             var matches = new[]
             {
                 new LeaguePlayerMatchSummary { GameId = 1, Win = true, StatisticsAvailable = true,
-                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-2), MatchChampionIds = new[] { 22, 99 } },
+                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-2), MatchChampionIds = new[] { 22, 99 },
+                    MatchPlayers = new[] { new LeaguePlayerMatchIdentity { PuuId = "self" },
+                        new LeaguePlayerMatchIdentity { PuuId = "other" } } },
                 new LeaguePlayerMatchSummary { GameId = 2, Win = false, StatisticsAvailable = true,
-                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-10), MatchChampionIds = new[] { 22 } },
+                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-10), MatchChampionIds = new[] { 22 },
+                    MatchPlayers = new[] { new LeaguePlayerMatchIdentity { PuuId = "self" } } },
                 new LeaguePlayerMatchSummary { GameId = 3, Win = true, StatisticsAvailable = true,
                     ParticipantResolved = true, GameCreationLocal = now.AddDays(-8), MatchChampionIds = null },
                 new LeaguePlayerMatchSummary { GameId = 4, Win = false, StatisticsAvailable = false,
@@ -112,6 +133,20 @@ namespace FACM.League
             Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
                 .SequenceEqual(new long[] { 1 }),
                 "Source simple filters must intersect win, inclusive time range and all selected champion IDs.");
+            filter.PlayerPuuids = new[] { "self", "other" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1 }),
+                "All selected PUUIDs must match across the game roster, combined with every champion/result/time condition.");
+            filter.PlayerPuuids = new[] { "SELF" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Count == 0,
+                "Akari PUUID identity predicates use exact case-sensitive membership.");
+            filter.PlayerPuuids = new[] { "self", "missing" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Count == 0,
+                "Unknown player membership must not satisfy a positive player condition.");
+            filter.PlayerPuuids = new[] { "" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Count == 0,
+                "An invalid selected PUUID must fail closed.");
+            filter.PlayerPuuids = null;
             filter.WinLoss = LeagueMatchWinLossFilter.Loss;
             filter.TimeRange = LeagueMatchTimeRangeFilter.Last12Hours;
             filter.ChampionIds = new[] { 22 };

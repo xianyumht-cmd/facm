@@ -686,6 +686,7 @@ namespace FACM.League
                 DamageGoldEfficiency = Ratio(Metric(stats, "totalDamageDealtToChampions"), Metric(stats, "goldEarned")),
                 SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
                 MatchChampionIds = MatchChampionIds(game),
+                MatchPlayers = MatchPlayerIdentities(game),
                 ParticipantResolved = participant != null
             };
         }
@@ -695,6 +696,38 @@ namespace FACM.League
             var ids = ReadObjects(game, "participants").Select(p => ReadInt(p, "championId"))
                 .Where(id => id > 0).Distinct().Take(21).ToArray();
             return ids.Length > 0 && ids.Length <= 20 ? ids : null;
+        }
+
+        private static LeaguePlayerMatchIdentity[] MatchPlayerIdentities(Dictionary<string, object> game)
+        {
+            var participantIds = ReadObjects(game, "participants").Select(p => ReadInt(p, "participantId")).ToArray();
+            if (participantIds.Length == 0 || participantIds.Length > 20 ||
+                participantIds.Any(id => id <= 0) || participantIds.Distinct().Count() != participantIds.Length)
+                return null;
+
+            var participants = new HashSet<int>(participantIds);
+            var seenIds = new HashSet<int>();
+            var seenPuuids = new HashSet<string>(StringComparer.Ordinal);
+            var result = new List<LeaguePlayerMatchIdentity>();
+            var identities = ReadObjects(game, "participantIdentities").ToList();
+            if (identities.Count > 20) return null;
+            foreach (var identity in identities)
+            {
+                var id = ReadInt(identity, "participantId");
+                if (id <= 0 || !seenIds.Add(id)) return null;
+                if (!participants.Contains(id)) continue;
+                var player = ReadObject(identity, "player");
+                var puuid = ReadString(player, "puuid");
+                if (string.IsNullOrWhiteSpace(puuid) || puuid.Length > 128 ||
+                    puuid.Any(c => !char.IsLetterOrDigit(c) && c != '-' && c != '_')) continue;
+                if (!seenPuuids.Add(puuid)) return null;
+                var name = ReadString(player, "gameName");
+                var tag = ReadString(player, "tagLine");
+                if (string.IsNullOrWhiteSpace(name)) name = ReadString(player, "summonerName");
+                else if (!string.IsNullOrWhiteSpace(tag)) name += "#" + tag;
+                result.Add(new LeaguePlayerMatchIdentity { PuuId = puuid, PlayerName = SafeDisplayName(name) });
+            }
+            return result.Count == 0 ? null : result.ToArray();
         }
 
         private static string[] SameTeamPuuids(Dictionary<string, object> game, Dictionary<string, object> participant,
@@ -913,6 +946,11 @@ namespace FACM.League
                     DamageGoldEfficiency = match.DamageGoldEfficiency,
                     SameTeamPuuids = match.SameTeamPuuids == null ? null : (string[])match.SameTeamPuuids.Clone(),
                     MatchChampionIds = match.MatchChampionIds == null ? null : (int[])match.MatchChampionIds.Clone(),
+                    MatchPlayers = match.MatchPlayers == null ? null : match.MatchPlayers.Select(player =>
+                        player == null ? null : new LeaguePlayerMatchIdentity
+                        {
+                            PuuId = player.PuuId, PlayerName = player.PlayerName
+                        }).ToArray(),
                     ParticipantResolved = match.ParticipantResolved
                 });
             }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -28,13 +29,20 @@ namespace FACM.League
         private readonly FlowLayoutPanel _filterPanel;
         private readonly ComboBox _winFilter;
         private readonly ComboBox _timeFilter;
-        private readonly ComboBox _championFilter;
+        private readonly Button _championFilter;
+        private readonly Button _playerFilter;
+        private readonly CheckedListBox _championChecks;
+        private readonly CheckedListBox _playerChecks;
+        private readonly ToolStripDropDown _championMenu;
+        private readonly ToolStripDropDown _playerMenu;
+        private readonly HashSet<int> _selectedChampions = new HashSet<int>();
+        private readonly HashSet<string> _selectedPlayers = new HashSet<string>(StringComparer.Ordinal);
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _loadMoreButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
         private LeaguePlayerMatchPage _loadedPage;
-        private bool _updatingChampionChoices;
+        private bool _updatingFilterChoices;
         private LeaguePlayerProfile _profile;
         private bool _loading;
         private bool _hasMore;
@@ -142,14 +150,51 @@ namespace FACM.League
             _filterPanel.Controls.Add(_timeFilter);
 
             _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterChampion));
-            _championFilter = FilterCombo(148);
-            _championFilter.AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterChampion);
-            _championFilter.Items.Add(new ChampionChoice(0, _ui.Get(UiTextKeys.LeaguePlayerFilterAll)));
-            _championFilter.SelectedIndex = 0;
+            _championFilter = FilterMultiButton(116, UiTextKeys.LeaguePlayerFilterChampion);
+            _championChecks = FilterCheckList();
+            _championMenu = FilterCheckMenu(_championChecks, () =>
+            {
+                _selectedChampions.Clear();
+                UpdateFilterChoices(_loadedPage);
+                ApplySimpleFilter();
+            });
             _filterPanel.Controls.Add(_championFilter);
+            _championFilter.Click += (sender, e) => _championMenu.Show(_championFilter, 0, _championFilter.Height);
+
+            _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterPlayer));
+            _playerFilter = FilterMultiButton(132, UiTextKeys.LeaguePlayerFilterPlayer);
+            _playerChecks = FilterCheckList();
+            _playerMenu = FilterCheckMenu(_playerChecks, () =>
+            {
+                _selectedPlayers.Clear();
+                UpdateFilterChoices(_loadedPage);
+                ApplySimpleFilter();
+            });
+            _filterPanel.Controls.Add(_playerFilter);
+            _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
+            _championChecks.ItemCheck += (sender, e) =>
+            {
+                if (_updatingFilterChoices) return;
+                var choice = _championChecks.Items[e.Index] as ChampionChoice;
+                if (choice == null) return;
+                if (e.NewValue == CheckState.Checked) _selectedChampions.Add(choice.Id);
+                else _selectedChampions.Remove(choice.Id);
+                UpdateFilterButtonLabels();
+                ApplySimpleFilter();
+            };
+            _playerChecks.ItemCheck += (sender, e) =>
+            {
+                if (_updatingFilterChoices) return;
+                var choice = _playerChecks.Items[e.Index] as PlayerChoice;
+                if (choice == null) return;
+                if (e.NewValue == CheckState.Checked) _selectedPlayers.Add(choice.PuuId);
+                else _selectedPlayers.Remove(choice.PuuId);
+                UpdateFilterButtonLabels();
+                ApplySimpleFilter();
+            };
             _winFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
             _timeFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
-            _championFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
+            UpdateFilterButtonLabels();
 
             _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(542, 672);
@@ -202,6 +247,8 @@ namespace FACM.League
             Shown += async delegate { await RefreshAllAsync(true); };
             FormClosed += delegate
             {
+                _championMenu.Dispose();
+                _playerMenu.Dispose();
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
                 _lifetime.Dispose();
             };
@@ -226,10 +273,20 @@ namespace FACM.League
             _filterPanel.BackColor = FacmDesignSystem.Canvas;
             foreach (Control control in _filterPanel.Controls)
                 if (control is Label) control.ForeColor = FacmDesignSystem.TextMuted;
-            foreach (var combo in new[] { _winFilter, _timeFilter, _championFilter })
+            foreach (var combo in new[] { _winFilter, _timeFilter })
             {
                 combo.BackColor = FacmDesignSystem.SurfaceRaised;
                 combo.ForeColor = FacmDesignSystem.Text;
+            }
+            foreach (var button in new[] { _championFilter, _playerFilter })
+            {
+                button.BackColor = FacmDesignSystem.SurfaceRaised;
+                button.ForeColor = FacmDesignSystem.Text;
+            }
+            foreach (var checks in new[] { _championChecks, _playerChecks })
+            {
+                checks.BackColor = FacmDesignSystem.Surface;
+                checks.ForeColor = FacmDesignSystem.Text;
             }
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
             _accountLabel.ForeColor = FacmDesignSystem.Text;
@@ -264,12 +321,54 @@ namespace FACM.League
                 Margin = new Padding(0, 1, 12, 0) };
         }
 
+        private Button FilterMultiButton(int width, string key)
+        {
+            var button = new Button { Width = width, Height = 26,
+                FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                Margin = new Padding(0, 1, 12, 0), AccessibleName = _ui.Get(key) };
+            button.FlatAppearance.BorderSize = 0;
+            return button;
+        }
+
+        private static CheckedListBox FilterCheckList()
+        {
+            return new CheckedListBox { CheckOnClick = true, IntegralHeight = false,
+                HorizontalScrollbar = true,
+                BorderStyle = BorderStyle.None, Size = new Size(236, 200),
+                BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text };
+        }
+
+        private ToolStripDropDown FilterCheckMenu(CheckedListBox list, Action clear)
+        {
+            var menu = new ToolStripDropDown { AutoClose = true, Padding = Padding.Empty };
+            menu.Items.Add(new ToolStripControlHost(list) { AutoSize = false, Size = list.Size,
+                Margin = Padding.Empty, Padding = Padding.Empty });
+            var clearItem = new ToolStripMenuItem(_ui.Get(UiTextKeys.LeaguePlayerFilterClear));
+            clearItem.Click += (sender, e) => clear();
+            menu.Items.Add(clearItem);
+            return menu;
+        }
+
         private sealed class ChampionChoice
         {
             internal readonly int Id;
             private readonly string _name;
 
             internal ChampionChoice(int id, string name) { Id = id; _name = name; }
+            public override string ToString() { return _name; }
+        }
+
+        private sealed class PlayerChoice
+        {
+            internal readonly string PuuId;
+            private readonly string _name;
+
+            internal PlayerChoice(string puuId, string name)
+            {
+                PuuId = puuId;
+                _name = name;
+            }
             public override string ToString() { return _name; }
         }
 
@@ -341,7 +440,7 @@ namespace FACM.League
                     _loadedPage = null;
                     _hasMore = false;
                     _rows.Clear();
-                    UpdateChampionChoices(null);
+                    ResetFilterChoices();
                     _matchesList.VirtualListSize = 0;
                     _championStatsList.Items.Clear();
                     _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
@@ -356,7 +455,7 @@ namespace FACM.League
                     _loadedPage = null;
                     _hasMore = false;
                     _rows.Clear();
-                    UpdateChampionChoices(null);
+                    ResetFilterChoices();
                     _matchesList.VirtualListSize = 0;
                     _championStatsList.Items.Clear();
                 }
@@ -446,14 +545,30 @@ namespace FACM.League
         {
             _loadedPage = page;
             _hasMore = page != null && page.HasMore;
-            UpdateChampionChoices(page);
+            UpdateFilterChoices(page);
             ApplySimpleFilter();
         }
 
-        private void UpdateChampionChoices(LeaguePlayerMatchPage page)
+        private void ResetFilterChoices()
         {
-            var current = (_championFilter.SelectedItem as ChampionChoice)?.Id ?? 0;
+            _selectedChampions.Clear();
+            _selectedPlayers.Clear();
+            _championMenu.Close();
+            _playerMenu.Close();
+            _winFilter.SelectedIndex = 0;
+            _timeFilter.SelectedIndex = 0;
+            UpdateFilterChoices(null);
+        }
+
+        private static string AbbreviatePuuid(string puuid)
+        {
+            return puuid.Length <= 18 ? puuid : puuid.Substring(0, 8) + "…" + puuid.Substring(puuid.Length - 6);
+        }
+
+        private void UpdateFilterChoices(LeaguePlayerMatchPage page)
+        {
             var known = new SortedDictionary<int, string>();
+            var players = new SortedDictionary<string, string>(StringComparer.Ordinal);
             if (page != null)
             {
                 foreach (var match in page.Matches)
@@ -464,33 +579,60 @@ namespace FACM.League
                             if (id > 0 && !known.ContainsKey(id)) known[id] = "#" + id;
                     if (match.ChampionId > 0 && !string.IsNullOrWhiteSpace(match.ChampionName))
                         known[match.ChampionId] = match.ChampionName + " (#" + match.ChampionId + ")";
+                    if (match.MatchPlayers != null)
+                        foreach (var player in match.MatchPlayers)
+                            if (player != null && !string.IsNullOrEmpty(player.PuuId) &&
+                                (!players.ContainsKey(player.PuuId) ||
+                                (players[player.PuuId] == null && !string.IsNullOrWhiteSpace(player.PlayerName))))
+                                players[player.PuuId] = string.IsNullOrWhiteSpace(player.PlayerName) ? null : player.PlayerName;
                 }
             }
-            _updatingChampionChoices = true;
+            foreach (var id in _selectedChampions)
+                if (!known.ContainsKey(id)) known[id] = "#" + id;
+            foreach (var puuid in _selectedPlayers)
+                if (!players.ContainsKey(puuid)) players[puuid] = null;
+
+            _updatingFilterChoices = true;
             try
             {
-                _championFilter.Items.Clear();
-                _championFilter.Items.Add(new ChampionChoice(0, _ui.Get(UiTextKeys.LeaguePlayerFilterAll)));
-                var selected = 0;
+                _championChecks.BeginUpdate();
+                _playerChecks.BeginUpdate();
+                _championChecks.Items.Clear();
+                _playerChecks.Items.Clear();
                 foreach (var candidate in known)
-                {
-                    var index = _championFilter.Items.Add(new ChampionChoice(candidate.Key, candidate.Value));
-                    if (candidate.Key == current) selected = index;
-                }
-                _championFilter.SelectedIndex = selected;
+                    _championChecks.Items.Add(new ChampionChoice(candidate.Key, candidate.Value),
+                        _selectedChampions.Contains(candidate.Key));
+                foreach (var candidate in players)
+                    _playerChecks.Items.Add(new PlayerChoice(candidate.Key,
+                        (string.IsNullOrWhiteSpace(candidate.Value) ? "" : candidate.Value + " · ") +
+                        AbbreviatePuuid(candidate.Key)), _selectedPlayers.Contains(candidate.Key));
             }
-            finally { _updatingChampionChoices = false; }
+            finally
+            {
+                _championChecks.EndUpdate();
+                _playerChecks.EndUpdate();
+                _updatingFilterChoices = false;
+            }
+            UpdateFilterButtonLabels();
+        }
+
+        private void UpdateFilterButtonLabels()
+        {
+            var all = _ui.Get(UiTextKeys.LeaguePlayerFilterAll);
+            var selected = _ui.Get(UiTextKeys.LeaguePlayerFilterSelected);
+            _championFilter.Text = _selectedChampions.Count == 0 ? all : selected.Replace("{0}", _selectedChampions.Count.ToString());
+            _playerFilter.Text = _selectedPlayers.Count == 0 ? all : selected.Replace("{0}", _selectedPlayers.Count.ToString());
         }
 
         private void ApplySimpleFilter()
         {
-            if (_updatingChampionChoices || _matchesList == null || IsDisposed) return;
+            if (_updatingFilterChoices || _matchesList == null || IsDisposed) return;
             var filter = new LeagueSimpleMatchHistoryFilter
             {
                 WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
                 TimeRange = (LeagueMatchTimeRangeFilter)Math.Max(0, _timeFilter.SelectedIndex),
-                ChampionIds = ((_championFilter.SelectedItem as ChampionChoice)?.Id ?? 0) > 0
-                    ? new[] { ((ChampionChoice)_championFilter.SelectedItem).Id } : null
+                ChampionIds = _selectedChampions.Count == 0 ? null : _selectedChampions.ToArray(),
+                PlayerPuuids = _selectedPlayers.Count == 0 ? null : _selectedPlayers.ToArray()
             };
             _rows.Clear();
             if (_loadedPage != null)

@@ -57,7 +57,15 @@ namespace FACM.League
         public string[] SameTeamPuuids { get; set; }
         // Populated from the match's participant roster; null means the source supplied no reliable champion set.
         public int[] MatchChampionIds { get; set; }
+        // Verified match-wide participant identities; absent/ambiguous PUUIDs are never inferred.
+        public LeaguePlayerMatchIdentity[] MatchPlayers { get; set; }
 
+    }
+
+    internal sealed class LeaguePlayerMatchIdentity
+    {
+        public string PuuId { get; set; }
+        public string PlayerName { get; set; }
     }
 
     internal sealed class LeaguePlayerMatchParticipant

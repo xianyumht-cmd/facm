@@ -27,6 +27,7 @@ namespace FACM.League
         internal LeagueMatchWinLossFilter WinLoss;
         internal LeagueMatchTimeRangeFilter TimeRange;
         internal int[] ChampionIds;
+        internal string[] PlayerPuuids;
 
         internal bool Matches(LeaguePlayerMatchSummary match, DateTime nowUtc)
         {
@@ -50,6 +51,14 @@ namespace FACM.League
                 if (match.MatchChampionIds == null) return false;
                 foreach (var id in ChampionIds)
                     if (id <= 0 || Array.IndexOf(match.MatchChampionIds, id) < 0) return false;
+            }
+            if (PlayerPuuids != null && PlayerPuuids.Length > 0)
+            {
+                if (match.MatchPlayers == null) return false;
+                foreach (var puuid in PlayerPuuids)
+                    if (string.IsNullOrWhiteSpace(puuid) || !match.MatchPlayers.Any(player =>
+                        player != null && string.Equals(player.PuuId, puuid, StringComparison.Ordinal)))
+                        return false;
             }
             return true;
         }
