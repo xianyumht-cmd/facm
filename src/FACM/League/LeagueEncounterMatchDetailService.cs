@@ -21,6 +21,7 @@ namespace FACM.League
         internal System.Collections.Generic.List<LeagueMatchTeamScore> Teams;
         internal System.Collections.Generic.Dictionary<int, string> ChampionNames;
         internal LeagueBuildAdvisorCatalog BuildCatalog;
+        internal Func<CancellationToken, Task<LeagueMatchTimeline>> LoadTimeline;
     }
 
     // Single user-requested detail read; never observes a game or fetches match history in the background.
@@ -98,13 +99,18 @@ namespace FACM.League
                         return Result(LeagueEncounterMatchDetailStatus.Unavailable);
                     if (!string.Equals(verifiedOwner.PuuId, record.SelfPuuid, StringComparison.OrdinalIgnoreCase))
                         return Result(LeagueEncounterMatchDetailStatus.WrongAccount);
+                    var timelineOwner = record.SelfPuuid;
+                    var timelineMatch = new LeaguePlayerMatchSummary { GameId = breakdown.Match.GameId,
+                        DataSource = breakdown.Match.DataSource, SgpServerId = breakdown.Match.SgpServerId };
                     return new LeagueEncounterMatchDetailResult
                     {
                         Status = LeagueEncounterMatchDetailStatus.Ready,
                         Match = breakdown.Match, Participants = breakdown.Participants,
                         Teams = breakdown.Teams,
                         ChampionNames = breakdown.ChampionNames,
-                        BuildCatalog = breakdown.BuildCatalog
+                        BuildCatalog = breakdown.BuildCatalog,
+                        LoadTimeline = cancellation => _players.LoadMatchTimelineAsync(
+                            timelineOwner, timelineMatch, cancellation, initial)
                     };
                 }
                 catch (OperationCanceledException)

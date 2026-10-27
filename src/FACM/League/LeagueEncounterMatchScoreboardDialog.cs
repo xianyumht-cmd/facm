@@ -163,7 +163,19 @@ namespace FACM.League
                 }
                 rows.Items.Add(item);
             }
-            layout.Controls.Add(rows, 0, 2);
+            var matchTabs = new TabControl { Dock = DockStyle.Fill };
+            var participantsTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineParticipants));
+            participantsTab.Controls.Add(rows);
+            matchTabs.TabPages.Add(participantsTab);
+            var timelineTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineTitle));
+            var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token);
+            timelineTab.Controls.Add(timeline);
+            matchTabs.TabPages.Add(timelineTab);
+            matchTabs.SelectedIndexChanged += async (sender, e) =>
+            {
+                if (matchTabs.SelectedTab == timelineTab) await timeline.EnsureLoadedAsync();
+            };
+            layout.Controls.Add(matchTabs, 0, 2);
             layout.Controls.Add(iconStrip, 0, 3);
             layout.Controls.Add(selectedDetails, 0, 4);
             if (targetItem != null)

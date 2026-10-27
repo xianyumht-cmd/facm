@@ -562,6 +562,44 @@ namespace FACM.League
             return breakdown;
         }
 
+        internal async Task<LeagueMatchTimeline> LoadMatchTimelineAsync(string selfPuuid,
+            LeaguePlayerMatchSummary selected, CancellationToken token, LeagueClientSession expectedSession = null)
+        {
+            if (!IsSafePuuid(selfPuuid) || selected == null || selected.GameId <= 0) return null;
+            var gameId = selected.GameId;
+            var regional = selected.DataSource == LeaguePlayerHistorySource.Sgp;
+            var serverId = selected.SgpServerId;
+            if (regional && (_sgpHistory == null || string.IsNullOrEmpty(serverId))) return null;
+            if (expectedSession != null && (_session == null ||
+                !LeagueEncounterReplayService.SessionMatches(expectedSession, _session()))) return null;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(12));
+                try
+                {
+                    await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                    try
+                    {
+                        var before = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        if (before == null || !string.Equals(before.PuuId, selfPuuid, StringComparison.Ordinal)) return null;
+                        var bytes = regional ? await _sgpHistory.TryGetGameDetailsAsync(gameId, deadline.Token, serverId)
+                            .ConfigureAwait(false) : await _client.TryGetBytesAsync(
+                                "/lol-match-history/v1/game-timelines/" + gameId, deadline.Token).ConfigureAwait(false);
+                        var after = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        if (after == null || !string.Equals(after.PuuId, selfPuuid, StringComparison.Ordinal) ||
+                            (expectedSession != null && !LeagueEncounterReplayService.SessionMatches(expectedSession, _session())))
+                            return null;
+                        return LeagueMatchTimelineParser.Parse(bytes, gameId, regional);
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+                catch (System.Net.Http.HttpRequestException) { return null; }
+            }
+        }
+
         private async Task<LeagueBuildAdvisorCatalog> LoadMatchBuildCatalogAsync(CancellationToken cancellationToken)
         {
             lock (_cacheSync)
