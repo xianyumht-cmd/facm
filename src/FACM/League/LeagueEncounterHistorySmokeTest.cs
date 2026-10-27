@@ -13,6 +13,7 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            ValidateMatchDetailAsync().GetAwaiter().GetResult();
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var game = new LeagueLiveSnapshot();
             new LeagueLiveDataService(new StubClient(), new PerformanceBudgetProvider()).ApplyCurrentGame(game,
@@ -120,6 +121,82 @@ namespace FACM.League
         private static void Require(bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private static async Task ValidateMatchDetailAsync()
+        {
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
+            LeagueClientSession active = session;
+            var api = new MatchDetailClient();
+            var reader = new LeagueEncounterMatchDetailService(api, new PerformanceBudgetProvider(), () => active);
+            var record = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self", Puuid = "enemy",
+                Region = "HN1", PlatformId = "HN1", QueueType = "ARAM" };
+            using (var token = new CancellationTokenSource())
+            {
+                active = null;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient &&
+                    api.Reads == 0, "Offline history details must not read LCU without a client.");
+                active = session;
+                record.Region = "HN2";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount &&
+                    api.Reads == 0, "A different region must be rejected before any LCU request.");
+                record.Region = "HN1";
+                api.SelfPuuid = "other";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount &&
+                    api.Reads == 1, "A different signed-in account must not fetch historical details.");
+                api.SelfPuuid = "self";
+                var result = await reader.ReadAsync(record, token.Token);
+                Require(result.Status == LeagueEncounterMatchDetailStatus.Ready && result.Match != null &&
+                    result.Match.GameId == 123 && result.Match.ParticipantResolved && result.Match.Win &&
+                    result.Match.Kills == 5 && result.Match.Deaths == 2 && result.Match.Assists == 9 &&
+                    result.Match.CreepScore == 103 && api.Reads == 4,
+                    "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                api.AfterMatchRead = () => api.SelfPuuid = "other";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount,
+                    "A same-session account switch after the game read must discard the old owner's match detail.");
+                api.AfterMatchRead = null;
+                api.SelfPuuid = "self";
+                api.ReturnMissingParticipant = true;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                    "Incomplete match participants must not be displayed as zero statistics.");
+                api.ReturnMissingParticipant = false;
+                api.AfterProfileRead = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                    "replacement", "https", "fixture", "HN1", "HN1");
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                    "Changed client sessions must invalidate in-flight detail requests.");
+            }
+        }
+
+        private sealed class MatchDetailClient : ILeagueClientApi
+        {
+            internal int Reads;
+            internal string SelfPuuid = "self";
+            internal bool ReturnMissingParticipant;
+            internal Action AfterProfileRead;
+            internal Action AfterMatchRead;
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Reads++;
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                {
+                    AfterProfileRead?.Invoke();
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + SelfPuuid + "\"}"));
+                }
+                if (path == "/lol-match-history/v1/games/123")
+                {
+                    AfterMatchRead?.Invoke();
+                    var target = ReturnMissingParticipant ? "different-player" : "enemy";
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"ARAM\"," +
+                        "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
+                        "\"player\":{\"puuid\":\"" + target + "\"}}],\"participants\":[{" +
+                        "\"participantId\":1,\"teamId\":100,\"championId\":22,\"stats\":{" +
+                        "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
+                        "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3}}]}"));
+                }
+                return Task.FromResult<byte[]>(null);
+            }
         }
 
         private sealed class StubClient : ILeagueClientApi

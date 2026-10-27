@@ -247,6 +247,14 @@ namespace FACM.League
         public const string DynamicEncounterOrderOldest = "LeagueEfficiencyDynamicEncounterOrderOldest";
         public const string DynamicEncounterApply = "LeagueEfficiencyDynamicEncounterApply";
         public const string DynamicEncounterPage = "LeagueEfficiencyDynamicEncounterPage";
+        public const string DynamicEncounterMatchDetail = "LeagueEfficiencyDynamicEncounterMatchDetail";
+        public const string DynamicEncounterMatchLoading = "LeagueEfficiencyDynamicEncounterMatchLoading";
+        public const string DynamicEncounterMatchUnavailable = "LeagueEfficiencyDynamicEncounterMatchUnavailable";
+        public const string DynamicEncounterMatchNoClient = "LeagueEfficiencyDynamicEncounterMatchNoClient";
+        public const string DynamicEncounterMatchWrongAccount = "LeagueEfficiencyDynamicEncounterMatchWrongAccount";
+        public const string DynamicEncounterMatchSummary = "LeagueEfficiencyDynamicEncounterMatchSummary";
+        public const string DynamicEncounterMatchWon = "LeagueEfficiencyDynamicEncounterMatchWon";
+        public const string DynamicEncounterMatchLost = "LeagueEfficiencyDynamicEncounterMatchLost";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -542,6 +550,14 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterOrderOldest, "最早在前" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterApply, "筛选" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterPage, "第 {0}/{1} 页 · 共 {2} 条" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchDetail, "查看本场战绩" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLoading, "正在读取这场对局的详细战绩…" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable, "客户端未返回这场对局的完整战绩。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchNoClient, "LOL 客户端未连接或连接已更换。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWrongAccount, "请登录记录所属的 LOL 账号及区服后重试。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchSummary, "{0} · 英雄 {1} · K/D/A {2}/{3}/{4} · 补刀 {5} · 时长 {6}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon, "胜利" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost, "失败" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

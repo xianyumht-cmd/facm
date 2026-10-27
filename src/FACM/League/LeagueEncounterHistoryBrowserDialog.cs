@@ -1,5 +1,7 @@
 using System;
 using System.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
@@ -7,7 +9,7 @@ using FACM.Theming;
 
 namespace FACM.League
 {
-    // Player-scoped, on-demand local history query. No live match-detail requests or background workers.
+    // Local history remains offline; explicit detail clicks can read one authenticated LCU match.
     internal sealed class LeagueEncounterHistoryBrowserDialog : Form
     {
         private const int PageSize = 40;
@@ -15,6 +17,8 @@ namespace FACM.League
         private readonly Func<bool> _isCurrent;
         private readonly Func<int, int, string, bool, LeagueEncounterHistoryPage> _query;
         private readonly Func<long, bool> _deleteRecord;
+        private readonly Func<LeagueEncounterRecord, CancellationToken, Task<LeagueEncounterMatchDetailResult>> _loadDetail;
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly TextBox _queueFilter;
         private readonly ComboBox _timeOrder;
         private readonly ListView _list;
@@ -22,13 +26,17 @@ namespace FACM.League
         private readonly Button _previous;
         private readonly Button _next;
         private readonly Button _delete;
+        private readonly Button _details;
+        private readonly Label _detailStatus;
+        private bool _detailLoading;
         private int _page = 1;
 
         internal LeagueEncounterHistoryBrowserDialog(LeagueEfficiencyModule module, UiTextCatalog ui,
             LeagueDynamicMessageSnapshot snapshot, string playerPuuid, Func<bool> isCurrent)
             : this(ui, isCurrent,
                 (page, size, queue, newest) => module.QueryPlayerEncounters(snapshot, playerPuuid, page, size, queue, newest),
-                gameId => module.DeletePlayerEncounter(snapshot, playerPuuid, gameId))
+                gameId => module.DeletePlayerEncounter(snapshot, playerPuuid, gameId),
+                (record, token) => module.LoadEncounterMatchDetailAsync(record, token))
         {
         }
 
@@ -36,27 +44,31 @@ namespace FACM.League
             LeagueSavedPlayerOverviewRecord savedPlayer)
             : this(ui, () => true,
                 (page, size, queue, newest) => module.QueryStoredPlayerEncounters(savedPlayer, page, size, queue, newest),
-                gameId => module.DeleteStoredPlayerEncounter(savedPlayer, gameId))
+                gameId => module.DeleteStoredPlayerEncounter(savedPlayer, gameId),
+                (record, token) => module.LoadEncounterMatchDetailAsync(record, token))
         {
         }
 
         private LeagueEncounterHistoryBrowserDialog(UiTextCatalog ui, Func<bool> isCurrent,
-            Func<int, int, string, bool, LeagueEncounterHistoryPage> query, Func<long, bool> deleteRecord)
+            Func<int, int, string, bool, LeagueEncounterHistoryPage> query, Func<long, bool> deleteRecord,
+            Func<LeagueEncounterRecord, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail)
         {
             _ui = ui;
             _isCurrent = isCurrent ?? throw new ArgumentNullException(nameof(isCurrent));
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _deleteRecord = deleteRecord ?? throw new ArgumentNullException(nameof(deleteRecord));
+            _loadDetail = loadDetail ?? throw new ArgumentNullException(nameof(loadDetail));
             Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterTitle);
-            Width = 775; Height = 410; MinimumSize = new Size(610, 340);
+            Width = 775; Height = 490; MinimumSize = new Size(650, 400);
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             AutoScaleMode = AutoScaleMode.Font;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
-                ColumnCount = 1, RowCount = 3 };
+                ColumnCount = 1, RowCount = 4 };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 47));
 
             var filters = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
@@ -84,8 +96,14 @@ namespace FACM.League
             _list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterGame), 180);
             _list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterQueue), 160);
             _list.Columns.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterDate), 235);
-            _list.SelectedIndexChanged += (sender, e) => _delete.Enabled = _list.SelectedItems.Count == 1;
+            _list.SelectedIndexChanged += (sender, e) => RefreshDetailActions();
             layout.Controls.Add(_list, 0, 1);
+
+            _detailStatus = new Label { Dock = DockStyle.Fill, Padding = new Padding(8, 4, 8, 4),
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchDetail) };
+            layout.Controls.Add(_detailStatus, 0, 2);
 
             var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -103,13 +121,81 @@ namespace FACM.League
             close.Click += (sender, e) => Close();
             _delete = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterDelete),
                 Width = 120, Height = 30, Enabled = false };
+            _details = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchDetail),
+                Width = 120, Height = 30, Enabled = false };
             _delete.Click += (sender, e) => DeleteSelected();
-            actions.Controls.Add(close); actions.Controls.Add(_delete);
+            _details.Click += async (sender, e) => await ShowDetailAsync();
+            actions.Controls.Add(close); actions.Controls.Add(_delete); actions.Controls.Add(_details);
             footer.Controls.Add(actions, 1, 0);
-            layout.Controls.Add(footer, 0, 2);
+            layout.Controls.Add(footer, 0, 3);
             Controls.Add(layout);
             CancelButton = close;
+            FormClosed += (sender, e) => { _lifetime.Cancel(); _lifetime.Dispose(); };
             Reload();
+        }
+
+        private LeagueEncounterRecord SelectedRecord()
+        {
+            return _list.SelectedItems.Count == 1 ? _list.SelectedItems[0].Tag as LeagueEncounterRecord : null;
+        }
+
+        private void RefreshDetailActions()
+        {
+            var selected = SelectedRecord() != null && !_detailLoading;
+            _delete.Enabled = selected;
+            _details.Enabled = selected;
+            if (!_detailLoading) _detailStatus.Text = string.Empty;
+        }
+
+        private async Task ShowDetailAsync()
+        {
+            var record = SelectedRecord();
+            if (record == null || _detailLoading || !_isCurrent()) return;
+            _detailLoading = true;
+            _detailStatus.Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLoading);
+            RefreshDetailActions();
+            try
+            {
+                var detail = await _loadDetail(record, _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(record, SelectedRecord()) || !_isCurrent()) return;
+                _detailStatus.Text = FormatDetail(detail);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed) _detailStatus.Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+            }
+            finally
+            {
+                _detailLoading = false;
+                if (!IsDisposed)
+                {
+                    if (!ReferenceEquals(record, SelectedRecord())) _detailStatus.Text = string.Empty;
+                    _delete.Enabled = SelectedRecord() != null;
+                    _details.Enabled = SelectedRecord() != null;
+                }
+            }
+        }
+
+        private string FormatDetail(LeagueEncounterMatchDetailResult detail)
+        {
+            if (detail == null || detail.Status == LeagueEncounterMatchDetailStatus.Unavailable)
+                return T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+            if (detail.Status == LeagueEncounterMatchDetailStatus.NoClient)
+                return T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchNoClient);
+            if (detail.Status == LeagueEncounterMatchDetailStatus.WrongAccount)
+                return T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWrongAccount);
+            var match = detail.Match;
+            if (match == null) return T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+            var champion = string.IsNullOrWhiteSpace(match.ChampionName) ? match.ChampionId.ToString() : match.ChampionName;
+            var duration = TimeSpan.FromSeconds(Math.Max(0, match.GameDurationSeconds));
+            return T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchSummary)
+                .Replace("{0}", match.Win ? T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
+                    T(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost))
+                .Replace("{1}", champion).Replace("{2}", match.Kills.ToString())
+                .Replace("{3}", match.Deaths.ToString()).Replace("{4}", match.Assists.ToString())
+                .Replace("{5}", match.CreepScore.ToString())
+                .Replace("{6}", ((int)duration.TotalMinutes).ToString() + ":" + duration.Seconds.ToString("D2"));
         }
 
         private void Reload()
@@ -148,7 +234,7 @@ namespace FACM.League
             var pages = Math.Max(1, (result.Total + PageSize - 1) / PageSize);
             _previous.Enabled = _page > 1;
             _next.Enabled = _page < pages;
-            _delete.Enabled = false;
+            RefreshDetailActions();
             _pageLabel.Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterPage)
                 .Replace("{0}", _page.ToString()).Replace("{1}", pages.ToString())
                 .Replace("{2}", result.Total.ToString());
@@ -157,8 +243,7 @@ namespace FACM.League
         private void DeleteSelected()
         {
             if (!_isCurrent()) { Close(); return; }
-            if (_list.SelectedItems.Count != 1) return;
-            var record = _list.SelectedItems[0].Tag as LeagueEncounterRecord;
+            var record = SelectedRecord();
             if (record == null || MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.DynamicEncounterConfirm),
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             if (!_isCurrent()) { Close(); return; }

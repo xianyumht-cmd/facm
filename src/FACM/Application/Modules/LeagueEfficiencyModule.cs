@@ -53,6 +53,7 @@ namespace FACM.AppHost.Modules
         private readonly LeagueDashboardModule _dashboard;
         private readonly LeaguePlayerTagStore _playerTags;
         private readonly LeagueEncounterHistoryStore _encounterHistory;
+        private readonly LeagueEncounterMatchDetailService _encounterDetails;
         private LeagueEncounterHistoryRecorder _encounterRecorder;
         private LeagueTaggedPlayerReminderController _tagReminders;
         private readonly object _honorSync = new object();
@@ -92,6 +93,8 @@ namespace FACM.AppHost.Modules
             _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
             _playerTags = LeaguePlayerTagStore.CreateDefault();
             _encounterHistory = LeagueEncounterHistoryStore.CreateDefault();
+            _encounterDetails = new LeagueEncounterMatchDetailService(_leagueClient,
+                _dashboard.BudgetProvider, () => _leagueClient.CurrentSession);
         }
 
         public string Id { get { return ModuleId; } }
@@ -328,6 +331,13 @@ namespace FACM.AppHost.Modules
             ThrowIfDisposed();
             return selected != null && _encounterHistory.DeleteGame(gameId, selected.SelfPuuid,
                 selected.Puuid, selected.Region, selected.PlatformId);
+        }
+
+        public Task<LeagueEncounterMatchDetailResult> LoadEncounterMatchDetailAsync(
+            LeagueEncounterRecord record, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _encounterDetails.ReadAsync(record, token);
         }
 
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
