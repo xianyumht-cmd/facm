@@ -298,6 +298,15 @@ namespace FACM.League
             byte[] spellsBytes,
             byte[] perksBytes)
         {
+            return ParseLocalCatalog(championsBytes, itemsBytes, spellsBytes, perksBytes);
+        }
+
+        internal static LeagueBuildAdvisorCatalog ParseLocalCatalog(
+            byte[] championsBytes,
+            byte[] itemsBytes,
+            byte[] spellsBytes,
+            byte[] perksBytes)
+        {
             var catalog = new LeagueBuildAdvisorCatalog();
             ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
             ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
@@ -703,11 +712,12 @@ namespace FACM.League
             return (double)wins / play;
         }
 
-        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
+        private static void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
         {
             if (bytes == null || bytes.Length == 0 || output == null) return;
             object decoded;
-            try { decoded = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)); }
+            try { decoded = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)); }
             catch { return; }
             foreach (var row in EnumerateDictionaries(decoded))
             {

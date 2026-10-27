@@ -18,6 +18,7 @@ namespace FACM.League
         private readonly Func<int, int, string, bool, LeagueEncounterHistoryPage> _query;
         private readonly Func<long, bool> _deleteRecord;
         private readonly Func<LeagueEncounterRecord, CancellationToken, Task<LeagueEncounterMatchDetailResult>> _loadDetail;
+        private readonly Func<string, CancellationToken, Task<Bitmap>> _loadAsset;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly TextBox _queueFilter;
         private readonly ComboBox _timeOrder;
@@ -36,7 +37,8 @@ namespace FACM.League
             : this(ui, isCurrent,
                 (page, size, queue, newest) => module.QueryPlayerEncounters(snapshot, playerPuuid, page, size, queue, newest),
                 gameId => module.DeletePlayerEncounter(snapshot, playerPuuid, gameId),
-                (record, token) => module.LoadEncounterMatchDetailAsync(record, token))
+                (record, token) => module.LoadEncounterMatchDetailAsync(record, token),
+                (reference, token) => module.LoadEncounterAssetAsync(reference, token))
         {
         }
 
@@ -45,19 +47,22 @@ namespace FACM.League
             : this(ui, () => true,
                 (page, size, queue, newest) => module.QueryStoredPlayerEncounters(savedPlayer, page, size, queue, newest),
                 gameId => module.DeleteStoredPlayerEncounter(savedPlayer, gameId),
-                (record, token) => module.LoadEncounterMatchDetailAsync(record, token))
+                (record, token) => module.LoadEncounterMatchDetailAsync(record, token),
+                (reference, token) => module.LoadEncounterAssetAsync(reference, token))
         {
         }
 
         private LeagueEncounterHistoryBrowserDialog(UiTextCatalog ui, Func<bool> isCurrent,
             Func<int, int, string, bool, LeagueEncounterHistoryPage> query, Func<long, bool> deleteRecord,
-            Func<LeagueEncounterRecord, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail)
+            Func<LeagueEncounterRecord, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
         {
             _ui = ui;
             _isCurrent = isCurrent ?? throw new ArgumentNullException(nameof(isCurrent));
             _query = query ?? throw new ArgumentNullException(nameof(query));
             _deleteRecord = deleteRecord ?? throw new ArgumentNullException(nameof(deleteRecord));
             _loadDetail = loadDetail ?? throw new ArgumentNullException(nameof(loadDetail));
+            _loadAsset = loadAsset ?? throw new ArgumentNullException(nameof(loadAsset));
             Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterTitle);
             Width = 775; Height = 490; MinimumSize = new Size(650, 400);
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
@@ -162,7 +167,7 @@ namespace FACM.League
                 if (detail != null && detail.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     detail.Participants != null && detail.Participants.Count > 0)
                 {
-                    using (var scoreboard = new LeagueEncounterMatchScoreboardDialog(_ui, detail))
+                    using (var scoreboard = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset))
                         scoreboard.ShowDialog(this);
                 }
             }

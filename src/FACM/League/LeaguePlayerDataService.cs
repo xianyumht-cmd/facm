@@ -29,6 +29,8 @@ namespace FACM.League
         private DateTime _pageCachedUtc = DateTime.MinValue;
         private Dictionary<int, string> _cachedChampionNames;
         private DateTime _championNamesCachedUtc = DateTime.MinValue;
+        private LeagueBuildAdvisorCatalog _cachedMatchBuildCatalog;
+        private DateTime _matchBuildCatalogCachedUtc = DateTime.MinValue;
 
         public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
@@ -227,7 +229,59 @@ namespace FACM.League
                     if (participant.IsTarget) breakdown.Match.ChampionName = participant.ChampionName;
                 }
             }
+            breakdown.BuildCatalog = await LoadMatchBuildCatalogAsync(cancellationToken).ConfigureAwait(false);
             return breakdown;
+        }
+
+        private async Task<LeagueBuildAdvisorCatalog> LoadMatchBuildCatalogAsync(CancellationToken cancellationToken)
+        {
+            lock (_cacheSync)
+            {
+                if (_cachedMatchBuildCatalog != null &&
+                    DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration)
+                    return _cachedMatchBuildCatalog;
+            }
+            if (!_budgets.Current.AllowMaintenanceWork) return null;
+
+            await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                lock (_cacheSync)
+                {
+                    if (_cachedMatchBuildCatalog != null &&
+                        DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration)
+                        return _cachedMatchBuildCatalog;
+                }
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                    var items = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.ItemsPath, timeout.Token)
+                        .ConfigureAwait(false);
+                    var spells = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.SummonerSpellsPath, timeout.Token)
+                        .ConfigureAwait(false);
+                    var perks = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.PerksPath, timeout.Token)
+                        .ConfigureAwait(false);
+                    var catalog = LeagueBuildAdvisorDataService.ParseLocalCatalog(null, items, spells, perks);
+                    if (catalog.Items.Count == 0 && catalog.Spells.Count == 0 && catalog.Perks.Count == 0)
+                        return null;
+                    lock (_cacheSync)
+                    {
+                        _cachedMatchBuildCatalog = catalog;
+                        _matchBuildCatalogCachedUtc = DateTime.UtcNow;
+                    }
+                    return catalog;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (cancellationToken.IsCancellationRequested) throw;
+                return null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+            finally { _requestGate.Release(); }
         }
 
         private static List<LeaguePlayerMatchParticipant> ParseParticipants(Dictionary<string, object> game, int targetId)

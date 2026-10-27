@@ -13,6 +13,15 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            Require(FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/v1/items/3006.png") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "https://example.invalid/icon.png") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/../../client-config") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/%2e%2e/secret"),
+                "Encountered-match icon loading must be restricted to safe local game-data paths.");
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var game = new LeagueLiveSnapshot();
@@ -162,8 +171,17 @@ namespace FACM.League
                     result.Participants.Single(p => p.IsTarget).AugmentIds[0] == 1234 &&
                     result.Participants.Single(p => p.PuuId == "ally").TeamId == 100 &&
                     result.Participants.Single(p => p.PuuId == "self").TeamId == 200 &&
-                    api.Reads == 5 && api.ChampionReads == 1,
+                    result.BuildCatalog != null && result.BuildCatalog.Items[3006] == "Berserker Greaves" &&
+                    result.BuildCatalog.Spells[4] == "Flash" &&
+                    result.BuildCatalog.Perks[8005] == "Press the Attack" &&
+                    result.BuildCatalog.ItemIcons[3006].StartsWith("lcu:", StringComparison.Ordinal) &&
+                    api.Reads == 8 && api.ChampionReads == 1 && api.BuildCatalogReads == 3,
                     "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                var cachedDetail = await reader.ReadAsync(record, token.Token);
+                Require(cachedDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    cachedDetail.BuildCatalog != null && api.Reads == 11 && api.BuildCatalogReads == 3 &&
+                    api.ChampionReads == 1,
+                    "Repeated explicit matches must reuse the cached client game-data catalog, not refetch every icon catalog.");
                 var busyBudget = new PerformanceBudgetProvider();
                 busyBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
                 var busyApi = new MatchDetailClient();
@@ -171,8 +189,8 @@ namespace FACM.League
                 var busyResult = await busyReader.ReadAsync(record, token.Token);
                 Require(busyResult.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     busyResult.Participants.Single(p => p.IsTarget).ChampionId == 22 &&
-                    busyApi.ChampionReads == 0,
-                    "In-game budgets must not request extra champion metadata for historical breakdowns.");
+                    busyApi.ChampionReads == 0 && busyApi.BuildCatalogReads == 0,
+                    "In-game budgets must not request extra game-data metadata for historical breakdowns.");
                 var switchedApi = new MatchDetailClient { AfterChampionRead = () => { active = new LeagueClientSession(
                     "LeagueClientUx", 55, 3001, "replacement", "https", "fixture", "HN1", "HN1"); } };
                 var switchedReader = new LeagueEncounterMatchDetailService(switchedApi,
@@ -204,6 +222,7 @@ namespace FACM.League
         {
             internal int Reads;
             internal int ChampionReads;
+            internal int BuildCatalogReads;
             internal string SelfPuuid = "self";
             internal bool ReturnMissingParticipant;
             internal bool ReturnMalformedRoster;
@@ -226,6 +245,25 @@ namespace FACM.League
                     AfterChampionRead?.Invoke();
                     return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":22,\"name\":\"Ashe\"}," +
                         "{\"id\":99,\"name\":\"Lux\"},{\"id\":12,\"name\":\"Alistar\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.ItemsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":3006,\"name\":\"Berserker Greaves\"," +
+                        "\"iconPath\":\"/lol-game-data/assets/v1/items/3006.png\"}," +
+                        "{\"id\":3031,\"name\":\"Infinity Edge\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":4,\"name\":\"Flash\"}," +
+                        "{\"id\":7,\"name\":\"Heal\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.PerksPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":8005," +
+                        "\"name\":\"Press the Attack\"},{\"id\":9111,\"name\":\"Triumph\"}]"));
                 }
                 if (path == "/lol-match-history/v1/games/123")
                 {

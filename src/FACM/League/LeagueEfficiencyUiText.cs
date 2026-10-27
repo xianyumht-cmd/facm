@@ -268,6 +268,9 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardUnknown = "LeagueEfficiencyDynamicEncounterScoreboardUnknown";
         public const string DynamicEncounterScoreboardSelectionHint = "LeagueEfficiencyDynamicEncounterScoreboardSelectionHint";
         public const string DynamicEncounterScoreboardSelection = "LeagueEfficiencyDynamicEncounterScoreboardSelection";
+        public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
+        public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
+        public const string DynamicEncounterScoreboardIconsPerks = "LeagueEfficiencyDynamicEncounterScoreboardIconsPerks";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -583,7 +586,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult, "结果" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown, "未提供名称" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint, "选择一名玩家查看装备、召唤师技能和符文。" },
-            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能 ID：{2}\r\n装备 ID：{3}\r\n符文 ID：{4} · 流派 ID：{5} · 强化 ID：{6}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能：{2}\r\n装备：{3}\r\n符文：{4} · 流派 ID：{5} · 强化 ID：{6}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks, "符文" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

@@ -18,6 +18,7 @@ namespace FACM.League
         internal LeagueEncounterMatchDetailStatus Status;
         internal LeaguePlayerMatchSummary Match;
         internal System.Collections.Generic.List<LeaguePlayerMatchParticipant> Participants;
+        internal LeagueBuildAdvisorCatalog BuildCatalog;
     }
 
     // Single user-requested detail read; never observes a game or fetches match history in the background.
@@ -73,7 +74,8 @@ namespace FACM.League
                     return new LeagueEncounterMatchDetailResult
                     {
                         Status = LeagueEncounterMatchDetailStatus.Ready,
-                        Match = breakdown.Match, Participants = breakdown.Participants
+                        Match = breakdown.Match, Participants = breakdown.Participants,
+                        BuildCatalog = breakdown.BuildCatalog
                     };
                 }
                 catch (OperationCanceledException)

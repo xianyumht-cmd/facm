@@ -87,6 +87,7 @@ namespace FACM.League
     {
         public LeaguePlayerMatchSummary Match { get; set; }
         public List<LeaguePlayerMatchParticipant> Participants { get; set; }
+        public LeagueBuildAdvisorCatalog BuildCatalog { get; set; }
     }
 
     internal sealed class LeaguePlayerChampionStat

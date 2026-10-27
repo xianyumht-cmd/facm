@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
 using FACM.Theming;
@@ -8,7 +11,15 @@ namespace FACM.League
 {
     internal sealed class LeagueEncounterMatchScoreboardDialog : Form
     {
-        internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail)
+        private static readonly SemaphoreSlim IconRequestGate = new SemaphoreSlim(3, 3);
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
+        private readonly ToolTip _tooltips = new ToolTip();
+        private CancellationTokenSource _selectionCancellation;
+        private int _selectionVersion;
+
+        internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
         {
             if (detail == null || detail.Status != LeagueEncounterMatchDetailStatus.Ready ||
                 detail.Match == null || detail.Participants == null)
@@ -16,15 +27,16 @@ namespace FACM.League
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
-            Width = 960; Height = 545; MinimumSize = new Size(680, 400);
+            Width = 960; Height = 605; MinimumSize = new Size(680, 440);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
-                ColumnCount = 1, RowCount = 4 };
+                ColumnCount = 1, RowCount = 5 };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
 
@@ -56,8 +68,12 @@ namespace FACM.League
                 Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint) };
+            var iconStrip = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+                AutoScroll = true, BackColor = FacmDesignSystem.CanvasRaised };
+            var catalog = detail.BuildCatalog;
             Action<LeaguePlayerMatchParticipant> showSelection = player =>
             {
+                ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t);
                 if (player == null)
                 {
                     selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
@@ -71,9 +87,9 @@ namespace FACM.League
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
                     .Replace("{1}", champion)
-                    .Replace("{2}", FormatIds(player.SpellIds, "—"))
-                    .Replace("{3}", FormatIds(player.ItemIds, "—"))
-                    .Replace("{4}", FormatIds(player.PerkIds, "—"))
+                    .Replace("{2}", FormatNamedIds(player.SpellIds, catalog == null ? null : catalog.Spells))
+                    .Replace("{3}", FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items))
+                    .Replace("{4}", FormatNamedIds(player.PerkIds, catalog == null ? null : catalog.Perks))
                     .Replace("{5}", style)
                     .Replace("{6}", FormatIds(player.AugmentIds, "—"));
             };
@@ -108,7 +124,8 @@ namespace FACM.League
                 rows.Items.Add(item);
             }
             layout.Controls.Add(rows, 0, 1);
-            layout.Controls.Add(selectedDetails, 0, 2);
+            layout.Controls.Add(iconStrip, 0, 2);
+            layout.Controls.Add(selectedDetails, 0, 3);
             if (targetItem != null)
             {
                 targetItem.Selected = true;
@@ -120,9 +137,112 @@ namespace FACM.League
                 Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
             close.Click += (sender, e) => Close();
             footer.Controls.Add(close);
-            layout.Controls.Add(footer, 0, 3);
+            layout.Controls.Add(footer, 0, 4);
             Controls.Add(layout);
             CancelButton = close;
+            FormClosed += (sender, e) =>
+            {
+                _lifetime.Cancel();
+                _selectionCancellation?.Cancel();
+                _selectionCancellation?.Dispose();
+                foreach (var bitmap in _ownedIcons) bitmap.Dispose();
+                _ownedIcons.Clear();
+                _tooltips.Dispose();
+                _lifetime.Dispose();
+            };
+        }
+
+        private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,
+            FlowLayoutPanel strip, Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<string, string> t)
+        {
+            _selectionVersion++;
+            _selectionCancellation?.Cancel();
+            _selectionCancellation?.Dispose();
+            _selectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _tooltips.RemoveAll();
+            while (strip.Controls.Count > 0)
+            {
+                var control = strip.Controls[0];
+                strip.Controls.RemoveAt(0);
+                control.Dispose();
+            }
+            foreach (var bitmap in _ownedIcons) bitmap.Dispose();
+            _ownedIcons.Clear();
+            if (player == null || catalog == null || loadAsset == null) return;
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems),
+                player.ItemIds, catalog.Items, catalog.ItemIcons, loadAsset);
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells),
+                player.SpellIds, catalog.Spells, catalog.SpellIcons, loadAsset);
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks),
+                player.PerkIds, catalog.Perks, catalog.PerkIcons, loadAsset);
+        }
+
+        private void AddIconGroup(FlowLayoutPanel strip, string label, int[] ids,
+            IDictionary<int, string> names, IDictionary<int, string> icons,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
+        {
+            if (ids == null || Array.TrueForAll(ids, id => id <= 0)) return;
+            strip.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(8, 12, 3, 0) });
+            foreach (var id in ids)
+            {
+                if (id <= 0) continue;
+                string name;
+                if (names == null || !names.TryGetValue(id, out name) || string.IsNullOrWhiteSpace(name))
+                    name = "#" + id;
+                var token = new Panel { Size = new Size(29, 29), Margin = new Padding(2, 6, 1, 1),
+                    BackColor = FacmDesignSystem.Canvas };
+                var picture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+                var fallback = new Label { Dock = DockStyle.Fill, Text = id.ToString(),
+                    AutoEllipsis = true, TextAlign = ContentAlignment.MiddleCenter };
+                token.Controls.Add(picture); token.Controls.Add(fallback);
+                fallback.BringToFront();
+                _tooltips.SetToolTip(token, name); _tooltips.SetToolTip(picture, name);
+                _tooltips.SetToolTip(fallback, name);
+                strip.Controls.Add(token);
+                string reference;
+                if (icons != null && icons.TryGetValue(id, out reference) &&
+                    !string.IsNullOrWhiteSpace(reference))
+                    _ = LoadIconAsync(picture, fallback, reference, loadAsset,
+                        _selectionVersion, _selectionCancellation.Token);
+            }
+        }
+
+        private async Task LoadIconAsync(PictureBox picture, Label fallback, string reference,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset, int generation, CancellationToken token)
+        {
+            Bitmap bitmap = null;
+            try
+            {
+                await IconRequestGate.WaitAsync(token);
+                try { bitmap = await loadAsset(reference, token); }
+                finally { IconRequestGate.Release(); }
+                if (bitmap == null) return;
+                if (token.IsCancellationRequested || IsDisposed || picture.IsDisposed ||
+                    generation != _selectionVersion) return;
+                picture.Image = bitmap;
+                _ownedIcons.Add(bitmap);
+                bitmap = null;
+                if (!fallback.IsDisposed) fallback.Visible = false;
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { bitmap?.Dispose(); }
+        }
+
+        private static string FormatNamedIds(int[] values, IDictionary<int, string> names)
+        {
+            if (values == null) return "—";
+            var labels = new List<string>();
+            foreach (var id in values)
+            {
+                if (id <= 0) continue;
+                string name;
+                labels.Add(names != null && names.TryGetValue(id, out name) && !string.IsNullOrWhiteSpace(name)
+                    ? name : "#" + id);
+            }
+            return labels.Count == 0 ? "—" : string.Join(" / ", labels);
         }
 
         private static string FormatIds(int[] values, string empty)

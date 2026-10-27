@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
+using FACM.Mayhem;
 using FACM.Services;
 
 namespace FACM.AppHost.Modules
@@ -338,6 +340,30 @@ namespace FACM.AppHost.Modules
         {
             ThrowIfDisposed();
             return _encounterDetails.ReadAsync(record, token);
+        }
+
+        public Task<Bitmap> LoadEncounterAssetAsync(string reference, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            if (!IsSafeEncounterAssetReference(reference)) return Task.FromResult<Bitmap>(null);
+            return MayhemImageCache.GetAsync(reference, _leagueClient, token);
+        }
+
+        internal static bool IsSafeEncounterAssetReference(string reference)
+        {
+            if (string.IsNullOrWhiteSpace(reference) || reference.Length > 256 ||
+                !reference.StartsWith("lcu:/lol-game-data/assets/", StringComparison.OrdinalIgnoreCase) ||
+                reference.IndexOf("..", StringComparison.Ordinal) >= 0)
+                return false;
+            foreach (var character in reference.Substring(4))
+            {
+                if (!((character >= 'a' && character <= 'z') ||
+                    (character >= 'A' && character <= 'Z') ||
+                    (character >= '0' && character <= '9') ||
+                    character == '/' || character == '_' || character == '-' || character == '.'))
+                    return false;
+            }
+            return true;
         }
 
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
