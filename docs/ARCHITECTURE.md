@@ -2,6 +2,8 @@
 
 ## Selected-match rune detail projection (Draft #357)
 
+Verified at executable `0c8fdc786df0c05baa77e294ab22006e89b5d789` by Windows Build, Glass, UI Text and Mayhem Source CI. Live Tencent/Win10 acceptance remains pending.
+
 `LeaguePlayerDataService.ParseParticipants` creates detail-only `LeaguePlayerMatchParticipant` snapshots carrying six nullable signed `perkNVar1..3` triplets and three optional SGP stat-shard IDs. The existing SGP `NormalizeSgpGame` maps source nested `perks.styles[].selections[]` and `statPerks` to the same flat LCU-compatible keys before parsing; absent values remain nullable, never zero-filled. `LeagueBuildAdvisorDataService.ParseLocalCatalog` maps bounded `perks.json` `endOfGameStatDescs` alongside the existing names/icons; clones deep-copy each description array. `LeagueEncounterMatchScoreboardDialog` uses one synchronized participant selection across scoreboard and on-demand Rune Details tab, substitutes verified values in source templates, strips markup for native plain-text rendering, and reuses the existing selection-cancelled icon strip. No new request owner, polling loop, persisted data, runtime dependency or production service.
 
 ## On-demand regional SGP transport (Akari 1.5.1 Draft #357)
