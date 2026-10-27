@@ -36,8 +36,9 @@ namespace FACM.League
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
                 ColumnCount = 1, RowCount = 6 };
+            var isCherry = LeagueCherryTeams.IsCherry(detail.Match.GameMode);
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 106));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, isCherry ? 164 : 106));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
@@ -64,7 +65,7 @@ namespace FACM.League
                 FullRowSelect = true, HideSelection = false, MultiSelect = false, GridLines = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 70);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 165);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 125);
             rows.Columns.Add("K/D/A", 90);
@@ -116,7 +117,8 @@ namespace FACM.League
                     var text = FormatTeamScore(team, t);
                     var fullText = FormatTeamDetails(team, detail.ChampionNames, t);
                     var card = new Button { Dock = DockStyle.Fill, Text = text + "\r\n" +
-                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect),
+                        t(team.IsCherry ? LeagueEfficiencyUiTextKeys.DynamicEncounterCherryInspect :
+                            LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect),
                         BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                         FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft,
                         Padding = new Padding(9, 5, 9, 3), AutoEllipsis = true,
@@ -144,7 +146,10 @@ namespace FACM.League
                     ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown)
                     : player.PlayerName;
                 if (player.IsTarget) name = "★ " + name;
-                var item = new ListViewItem(player.TeamId.ToString());
+                var teamId = LeagueCherryTeams.GroupId(player, isCherry);
+                var item = new ListViewItem(isCherry
+                    ? (teamId > 0 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                        .Replace("{0}", teamId.ToString()) : "—") : player.TeamId.ToString());
                 item.SubItems.Add(name);
                 item.SubItems.Add(string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName);
@@ -153,7 +158,8 @@ namespace FACM.League
                 item.SubItems.Add(player.DamageToChampions.ToString("N0"));
                 item.SubItems.Add(player.GoldEarned.ToString("N0"));
                 item.SubItems.Add(player.VisionScore.ToString());
-                item.SubItems.Add(player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
+                item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
+                    player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
                 item.Tag = player;
                 if (player.IsTarget)
@@ -264,6 +270,18 @@ namespace FACM.League
 
         private static string FormatTeamScore(LeagueMatchTeamScore team, Func<string, string> t)
         {
+            if (team.IsCherry)
+            {
+                return t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherrySummary)
+                    .Replace("{0}", t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                        .Replace("{0}", team.TeamId.ToString()))
+                    .Replace("{1}", FormatCherryPlacement(team.SubteamPlacement, t))
+                    .Replace("{2}", team.PlayerCount.ToString())
+                    .Replace("{3}", team.Kills.ToString()).Replace("{4}", team.Deaths.ToString())
+                    .Replace("{5}", team.Assists.ToString())
+                    .Replace("{6}", team.DamageToChampions.HasValue ? team.DamageToChampions.Value.ToString("N0") : "—")
+                    .Replace("{7}", team.GoldEarned.HasValue ? team.GoldEarned.Value.ToString("N0") : "—");
+            }
             var teamName = team.TeamId == 100 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue) :
                 team.TeamId == 200 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed) :
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther).Replace("{0}", team.TeamId.ToString());
@@ -286,6 +304,7 @@ namespace FACM.League
         internal static string FormatTeamDetails(LeagueMatchTeamScore team,
             IDictionary<int, string> championNames, Func<string, string> t)
         {
+            if (team.IsCherry) return FormatTeamScore(team, t);
             string bans;
             if (team.Bans == null) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown);
             else if (team.Bans.Count == 0) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNone);
@@ -313,6 +332,14 @@ namespace FACM.League
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamFirsts)
                     .Replace("{0}", flag(team.FirstBaron)).Replace("{1}", flag(team.FirstDragon))
                     .Replace("{2}", flag(team.FirstTower)).Replace("{3}", flag(team.FirstInhibitor));
+        }
+
+        internal static string FormatCherryPlacement(int? placement, Func<string, string> t)
+        {
+            return placement.HasValue && placement.Value > 0
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryPlacement)
+                    .Replace("{0}", placement.Value.ToString()) :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown);
         }
 
         private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,

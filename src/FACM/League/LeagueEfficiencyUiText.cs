@@ -282,6 +282,10 @@ namespace FACM.League
         public const string DynamicEncounterTeamBlue = "LeagueEfficiencyDynamicEncounterTeamBlue";
         public const string DynamicEncounterTeamRed = "LeagueEfficiencyDynamicEncounterTeamRed";
         public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
+        public const string DynamicEncounterCherryTeam = "LeagueEfficiencyDynamicEncounterCherryTeam";
+        public const string DynamicEncounterCherryPlacement = "LeagueEfficiencyDynamicEncounterCherryPlacement";
+        public const string DynamicEncounterCherrySummary = "LeagueEfficiencyDynamicEncounterCherrySummary";
+        public const string DynamicEncounterCherryInspect = "LeagueEfficiencyDynamicEncounterCherryInspect";
         public const string DynamicEncounterTeamUnknownResult = "LeagueEfficiencyDynamicEncounterTeamUnknownResult";
         public const string DynamicEncounterTeamSummary = "LeagueEfficiencyDynamicEncounterTeamSummary";
         public const string DynamicEncounterTeamInspect = "LeagueEfficiencyDynamicEncounterTeamInspect";
@@ -622,6 +626,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue, "蓝方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed, "红方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam, "斗魂队伍 {0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterCherryPlacement, "第{0}名" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterCherrySummary, "{0} · {1} · {2}人 · K/D/A {3}/{4}/{5}\r\n伤害 {6} · 金币 {7}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterCherryInspect, "点击查看小队战绩" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknownResult, "结果未确认" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamSummary, "{0} · {1} · {2}人 · K/D/A {3}/{4}/{5}\r\n伤害 {6} · 金币 {7}\r\n大龙 {8} · 小龙 {9} · 塔 {10} · 先锋 {11} · 水晶 {12} · 巢虫 {13}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect, "点击查看禁用与首目标" },

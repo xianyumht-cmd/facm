@@ -279,6 +279,59 @@ namespace FACM.League
                     conflictingWin.Teams[0].Win == null && conflictingWin.Teams[0].Kills == 8,
                     "Conflicting participant results must show unknown team outcome, not a false win.");
                 api.ReturnConflictingWin = false;
+                api.ReturnCherry = true;
+                var cherry = await reader.ReadAsync(record, token.Token);
+                Require(cherry.Status == LeagueEncounterMatchDetailStatus.Ready && cherry.Teams.Count == 2 &&
+                    cherry.Match.GameMode == "CHERRY" && cherry.Teams[0].IsCherry &&
+                    cherry.Teams[0].TeamId == 1 && cherry.Teams[0].SubteamPlacement == 1 &&
+                    cherry.Teams[0].PlayerCount == 1 && cherry.Teams[0].Kills == 3 &&
+                    cherry.Teams[1].TeamId == 2 && cherry.Teams[1].SubteamPlacement == 2 &&
+                    cherry.Teams[1].PlayerCount == 2 && cherry.Teams[1].Kills == 7 &&
+                    cherry.Teams.All(team => team.BaronKills == null && team.Bans == null) &&
+                    cherry.Participants.Single(player => player.IsTarget).PlayerSubteamId == 2 &&
+                    cherry.Match.PlayerSubteamId == 2 && cherry.Match.SubteamPlacement == 2,
+                    "Cherry participants must group by the source subteam ID, not conventional red/blue team IDs.");
+                Require(LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(cherry.Teams[0], null, t)
+                        .Contains("斗魂队伍 1 · 第1名") &&
+                    !LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(cherry.Teams[0], null, t)
+                        .Contains("大龙") &&
+                    LeagueCherryTeams.GroupId(cherry.Participants.Single(player => player.IsTarget), true) == 2 &&
+                    LeagueCherryTeams.GroupId(cherry.Participants.Single(player => player.IsTarget), false) == 100,
+                    "Cherry scoreboard and timeline team comparisons must use the same verified group keys.");
+                api.ReturnCherryConflict = true;
+                var ambiguousCherry = await reader.ReadAsync(record, token.Token);
+                Require(ambiguousCherry.Teams.Count == 2 && ambiguousCherry.Teams[1].SubteamPlacement == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(ambiguousCherry.Teams[1], null, t)
+                        .Contains("未知"),
+                    "Conflicting subgroup placements must not display one participant's rank as the team's rank.");
+                api.ReturnCherryConflict = false;
+                api.ReturnCherryUnknown = true;
+                var unknownCherry = await reader.ReadAsync(record, token.Token);
+                Require(unknownCherry.Teams.Count == 1 && unknownCherry.Teams[0].TeamId == 1 &&
+                    unknownCherry.Participants.Single(player => player.IsTarget).PlayerSubteamId == null &&
+                    LeagueCherryTeams.GroupId(unknownCherry.Participants.Single(player => player.IsTarget), true) == 0 &&
+                    LeagueEncounterMatchScoreboardDialog.FormatCherryPlacement(null, t) == "未知",
+                    "Missing/invalid subteam identity must not be converted to red/blue ownership or first place.");
+                api.ReturnCherryUnknown = false;
+                api.ReturnCherry = false;
+                var sgpCherry = LeaguePlayerDataService.NormalizeSgpGame(new Dictionary<string, object>
+                {
+                    { "json", new Dictionary<string, object> {
+                        { "gameId", 123L }, { "gameMode", "CHERRY" },
+                        { "participants", new object[] {
+                            new Dictionary<string, object> { { "participantId", 1 }, { "puuid", "s1" },
+                                { "playerSubteamId", 3 }, { "subteamPlacement", 1 } },
+                            new Dictionary<string, object> { { "participantId", 2 }, { "puuid", "s2" },
+                                { "playerSubteamId", 4 }, { "subteamPlacement", 2 } }
+                        } }
+                    } }
+                });
+                Require(sgpCherry != null &&
+                    ((Dictionary<string, object>)((List<Dictionary<string, object>>)sgpCherry["participants"])[0]["stats"])
+                        ["playerSubteamId"].ToString() == "3" &&
+                    ((Dictionary<string, object>)((List<Dictionary<string, object>>)sgpCherry["participants"])[1]["stats"])
+                        ["subteamPlacement"].ToString() == "2",
+                    "Normalized regional SGP rows must preserve Cherry subgroup and placement fields.");
                 var busyBudget = new PerformanceBudgetProvider();
                 busyBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
                 var busyApi = new MatchDetailClient();
@@ -330,6 +383,9 @@ namespace FACM.League
             internal bool ReturnInvalidTeamMetrics;
             internal bool ReturnMalformedFirst;
             internal bool ReturnMalformedBans;
+            internal bool ReturnCherry;
+            internal bool ReturnCherryUnknown;
+            internal bool ReturnCherryConflict;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
             internal Action AfterChampionRead;
@@ -391,14 +447,21 @@ namespace FACM.League
                     var allyMetrics = ReturnZeroTeamMetrics
                         ? ",\"totalDamageDealtToChampions\":0,\"goldEarned\":0"
                         : ReturnInvalidTeamMetrics ? ",\"totalDamageDealtToChampions\":null,\"goldEarned\":\"invalid\"" : "";
-                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"ARAM\"," +
+                    var cherryMode = ReturnCherry ? "CHERRY" : "ARAM";
+                    var cherryFirst = ReturnCherry && !ReturnCherryUnknown
+                        ? "\"playerSubteamId\":2,\"subteamPlacement\":2," : "";
+                    var cherrySecond = ReturnCherry ? "\"playerSubteamId\":1,\"subteamPlacement\":1," : "";
+                    var cherryThird = ReturnCherry && !ReturnCherryUnknown
+                        ? "\"playerSubteamId\":2,\"subteamPlacement\":" +
+                            (ReturnCherryConflict ? "3" : "2") + "," : "";
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"" + cherryMode + "\"," +
                         "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
                         "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
                         "{\"participantId\":2,\"player\":{\"puuid\":\"ally\"}}," +
                         "{\"participantId\":3,\"player\":{\"puuid\":\"self\"}}],\"participants\":[{" +
                         "\"participantId\":1,\"teamId\":100,\"championId\":22," +
                         "\"spell1Id\":4,\"spell2Id\":7,\"stats\":{" +
-                        "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
+                        cherryFirst + "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
                         "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
                         "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
@@ -406,10 +469,10 @@ namespace FACM.League
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
                         "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
-                        "\"stats\":{\"win\":" + (ReturnConflictingWin ? "false" : "true") +
+                        "\"stats\":{" + cherrySecond + "\"win\":" + (ReturnConflictingWin ? "false" : "true") +
                         ",\"kills\":3,\"deaths\":4,\"assists\":6" + allyMetrics + "}}," +
                         "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
-                        "\"stats\":{\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]" +
+                        "\"stats\":{" + cherryThird + "\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]" +
                         teams + "}"));
                 }
                 return Task.FromResult<byte[]>(null);

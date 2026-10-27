@@ -63,14 +63,17 @@ namespace FACM.League
         private readonly CheckedListBox _series;
         private readonly LeagueTimelineChart _chart;
         private readonly List<LeaguePlayerMatchParticipant> _participants;
+        private readonly bool _cherry;
         private readonly HashSet<int> _players = new HashSet<int>();
         private readonly HashSet<int> _teams = new HashSet<int>();
         private LeagueMatchTimeline _timeline;
         private bool _updating;
 
-        internal LeagueMatchTimelineChartPanel(UiTextCatalog ui, List<LeaguePlayerMatchParticipant> participants)
+        internal LeagueMatchTimelineChartPanel(UiTextCatalog ui, List<LeaguePlayerMatchParticipant> participants,
+            bool cherry)
         {
             _participants = participants;
+            _cherry = cherry;
             Dock = DockStyle.Fill;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -105,11 +108,20 @@ namespace FACM.League
             _series = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BorderStyle = BorderStyle.None,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = ui.Get(UiTextKeys.LeagueTimelineComparison) };
-            foreach (var team in participants.Where(player => player.TeamId > 0).GroupBy(player => player.TeamId))
+            var groups = participants.Where(player => LeagueCherryTeams.GroupId(player, cherry) > 0)
+                .GroupBy(player => LeagueCherryTeams.GroupId(player, cherry))
+                .OrderBy(group => cherry ? LeagueCherryTeams.Placement(group) ?? int.MaxValue : 0)
+                .ThenBy(group => group.Key);
+            foreach (var team in groups)
             {
                 _teams.Add(team.Key);
+                var label = cherry ? LeagueEfficiencyText.Get(ui, LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                    .Replace("{0}", team.Key.ToString()) + " · " +
+                    LeagueEncounterMatchScoreboardDialog.FormatCherryPlacement(LeagueCherryTeams.Placement(team),
+                        key => LeagueEfficiencyText.Get(ui, key)) :
+                    ui.Get(UiTextKeys.LeagueTimelineTeamAverage).Replace("{0}", team.Key.ToString());
                 _series.Items.Add(new SeriesChoice { Id = team.Key, IsTeam = true,
-                    Label = ui.Get(UiTextKeys.LeagueTimelineTeamAverage).Replace("{0}", team.Key.ToString()) }, true);
+                    Label = label }, true);
             }
             foreach (var player in participants)
                 _series.Items.Add(new SeriesChoice { Id = player.ParticipantId,
@@ -137,10 +149,11 @@ namespace FACM.League
                 foreach (SeriesChoice choice in _series.Items)
                 {
                     if (!(choice.IsTeam ? _teams : _players).Contains(choice.Id)) continue;
-                    var ids = choice.IsTeam ? _participants.Where(player => player.TeamId == choice.Id)
+                    var ids = choice.IsTeam ? _participants.Where(player => LeagueCherryTeams.GroupId(player, _cherry) == choice.Id)
                         .Select(player => player.ParticipantId) : new[] { choice.Id };
                     series.Add(new LeagueTimelineSeries { Name = choice.Label, IsAverage = choice.IsTeam,
-                        ColorIndex = choice.IsTeam ? _participants.Count + choice.Id / 100 : choice.Id - 1,
+                        ColorIndex = choice.IsTeam ? _participants.Count + (_cherry ? choice.Id : choice.Id / 100) :
+                            choice.Id - 1,
                         Values = LeagueTimelineMetrics.Series(_timeline, ids, _metric.SelectedIndex, choice.IsTeam) });
                 }
             }

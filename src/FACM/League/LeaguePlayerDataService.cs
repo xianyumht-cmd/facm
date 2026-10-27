@@ -705,6 +705,8 @@ namespace FACM.League
                 {
                     ParticipantId = id,
                     TeamId = ReadInt(participant, "teamId"),
+                    PlayerSubteamId = LeagueCherryTeams.ValidSubteamId(ReadOptionalCount(stats, "playerSubteamId")),
+                    SubteamPlacement = LeagueCherryTeams.ValidPlacement(ReadOptionalCount(stats, "subteamPlacement")),
                     PuuId = puuid,
                     PlayerName = SafeDisplayName(name),
                     ChampionId = ReadInt(participant, "championId"),
@@ -734,6 +736,7 @@ namespace FACM.League
         private static List<LeagueMatchTeamScore> ParseTeamScores(Dictionary<string, object> game,
             List<LeaguePlayerMatchParticipant> participants)
         {
+            var cherry = LeagueCherryTeams.IsCherry(ReadString(game, "gameMode"));
             var metadata = new Dictionary<int, Dictionary<string, object>>();
             var ambiguous = new HashSet<int>();
             foreach (var team in ReadObjects(game, "teams"))
@@ -744,15 +747,21 @@ namespace FACM.League
                 else if (!ambiguous.Contains(id)) metadata[id] = team;
             }
             var scores = new List<LeagueMatchTeamScore>();
-            foreach (var group in participants.Where(p => p.TeamId > 0).GroupBy(p => p.TeamId).OrderBy(g => g.Key))
+            var groups = participants.Where(p => LeagueCherryTeams.GroupId(p, cherry) > 0)
+                .GroupBy(p => LeagueCherryTeams.GroupId(p, cherry));
+            foreach (var group in groups.OrderBy(g => cherry ? LeagueCherryTeams.Placement(g) ?? int.MaxValue : 0)
+                .ThenBy(g => g.Key))
             {
                 var players = group.ToList();
                 var consistentWin = players.All(p => p.Win == players[0].Win);
                 Dictionary<string, object> team;
-                metadata.TryGetValue(group.Key, out team);
+                team = null;
+                if (!cherry) metadata.TryGetValue(group.Key, out team);
                 scores.Add(new LeagueMatchTeamScore
                 {
-                    TeamId = group.Key, PlayerCount = players.Count,
+                    TeamId = group.Key, IsCherry = cherry,
+                    SubteamPlacement = cherry ? LeagueCherryTeams.Placement(group) : null,
+                    PlayerCount = players.Count,
                     Win = consistentWin ? (bool?)players[0].Win : null,
                     Kills = players.Sum(p => (long)Math.Max(0, p.Kills)),
                     Deaths = players.Sum(p => (long)Math.Max(0, p.Deaths)),
@@ -1305,6 +1314,8 @@ namespace FACM.League
                 ChampionId = participant == null ? 0 : ReadInt(participant, "championId"),
                 MapId = ReadInt(game, "mapId"),
                 TeamId = participant == null ? 0 : ReadInt(participant, "teamId"),
+                PlayerSubteamId = LeagueCherryTeams.ValidSubteamId(ReadOptionalCount(stats, "playerSubteamId")),
+                SubteamPlacement = LeagueCherryTeams.ValidPlacement(ReadOptionalCount(stats, "subteamPlacement")),
                 ParticipantId = participantId > 0 && participant != null ? participantId : 0,
                 HasSmite = participant != null && (ReadInt(participant, "spell1Id") == 11 || ReadInt(participant, "spell2Id") == 11),
                 Kills = stats == null ? 0 : ReadInt(stats, "kills"),
@@ -1824,6 +1835,8 @@ namespace FACM.League
                     MapId = match.MapId,
                     TeamId = match.TeamId,
                     ParticipantId = match.ParticipantId,
+                    PlayerSubteamId = match.PlayerSubteamId,
+                    SubteamPlacement = match.SubteamPlacement,
                     PuuId = match.PuuId,
                     HasSmite = match.HasSmite,
                     ChampionName = match.ChampionName,

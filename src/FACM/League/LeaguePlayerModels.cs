@@ -48,6 +48,8 @@ namespace FACM.League
         public int MapId { get; set; }
         public int TeamId { get; set; }
         public int ParticipantId { get; set; }
+        public int? PlayerSubteamId { get; set; }
+        public int? SubteamPlacement { get; set; }
         public string PuuId { get; set; }
         public bool HasSmite { get; set; }
         public string ChampionName { get; set; }
@@ -177,6 +179,8 @@ namespace FACM.League
     {
         public int ParticipantId { get; set; }
         public int TeamId { get; set; }
+        public int? PlayerSubteamId { get; set; }
+        public int? SubteamPlacement { get; set; }
         public string PuuId { get; set; }
         public string PlayerName { get; set; }
         public int ChampionId { get; set; }
@@ -219,6 +223,8 @@ namespace FACM.League
     internal sealed class LeagueMatchTeamScore
     {
         public int TeamId { get; set; }
+        public bool IsCherry { get; set; }
+        public int? SubteamPlacement { get; set; }
         public int PlayerCount { get; set; }
         public bool? Win { get; set; }
         public long Kills { get; set; }

@@ -105,7 +105,8 @@ namespace FACM.League
             eventLayout.Controls.Add(_eventMap, 1, 0);
             AddTab(tabs, UiTextKeys.LeagueTimelineEvents, eventLayout);
             AddTab(tabs, UiTextKeys.LeagueTimelineProgression, _frames);
-            _comparison = new LeagueMatchTimelineChartPanel(ui, detail.Participants);
+            _comparison = new LeagueMatchTimelineChartPanel(ui, detail.Participants,
+                LeagueCherryTeams.IsCherry(detail.Match.GameMode));
             AddTab(tabs, UiTextKeys.LeagueTimelineComparison, _comparison);
             AddTab(tabs, UiTextKeys.LeagueTimelineBuilds, _builds);
             _frameStats = new LeagueTimelineFrameStats(ui);
