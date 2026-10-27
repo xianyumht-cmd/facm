@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Compare normalized cloud profile semantics, not serialized JSON bytes (2026-10-27)
+
+Draft PR #357 CI `40492525912` and `40492525945` compiled the native client but stopped at an existing `LeagueAutoPickBanSmokeTest` cloud-restore assertion requiring byte-for-byte JSON equality. `CloudSettingsSnapshot.ApplyTo` intentionally parses and serializes `LeagueAutoSelectProfiles` to normalize it; the exact string is not the persistence contract. Compare the decoded profile count, every mode/role's pick/ban lists, enable flags, strategies and delays, plus legacy opt-in preferences. This continues to fail on meaningful user-setting loss while allowing harmless representation changes. Do not lower production normalization bounds or hide missing data by ignoring decoded fields. A fresh CI pass remains required after this assertion correction.
+
 ## Win32 INPUT must include the complete native union
 
 The original native quick-message implementation declared only KEYBDINPUT inside INPUT's managed union. On x64 this yields a 32-byte INPUT, but Win32's union also contains the larger MOUSEINPUT member, making INPUT 40 bytes (28 on x86). Passing the shorter cbSize to SendInput can fail even though compilation and fake-input behavior tests pass. Keep the full union layout and architecture-specific size/offset regression. The authoritative layout is [Microsoft's INPUT definition](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input). This correction validates ABI shape only; it does not establish real Tencent foreground/input delivery.

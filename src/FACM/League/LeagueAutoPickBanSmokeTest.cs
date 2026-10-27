@@ -111,7 +111,15 @@ namespace FACM.League
             var restored = new AppSettings();
             var snapshot = CloudSettingsSnapshot.Capture(settings);
             snapshot.ApplyTo(restored);
-            Require(restored.LeagueAutoSelectProfiles == encoded && restored.LeagueAutoPickEnabled && restored.LeagueAutoPickChampionId == 22,
+            var restoredProfiles = LeagueAutoSelectProfiles.Parse(restored.LeagueAutoSelectProfiles);
+            Require(restoredProfiles.Count == profiles.Count && profiles.All(expected =>
+                    restoredProfiles.Any(actual => actual.Mode == expected.Mode && actual.Role == expected.Role &&
+                        actual.Picks.SequenceEqual(expected.Picks) && actual.Bans.SequenceEqual(expected.Bans) &&
+                        actual.PickEnabled == expected.PickEnabled && actual.BanEnabled == expected.BanEnabled &&
+                        actual.PickStrategy == expected.PickStrategy && actual.BanStrategy == expected.BanStrategy &&
+                        actual.PickDelayMs == expected.PickDelayMs && actual.BanDelayMs == expected.BanDelayMs &&
+                        actual.BenchSwapDelayMs == expected.BenchSwapDelayMs)) &&
+                    restored.LeagueAutoPickEnabled && restored.LeagueAutoPickChampionId == 22,
                 "Auto-select profiles or opt-in preferences were lost in cloud restore.");
             GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = snapshot });
         }
