@@ -73,10 +73,11 @@ namespace FACM.League
                     reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "AR").Total == 0 &&
                     reloaded.QueryPlayer("other", "enemy", "HN1", "HN1").Total == 0,
                     "Encountered-game filters must be exact and remain scoped to the signed-in account.");
+                var tagUpdated = DateTime.UtcNow;
                 var overview = LeagueSavedPlayerOverview.Build(new[]
                 {
                     new LeaguePlayerTagRecord { SelfPuuid = "self", Puuid = "enemy", Region = "hn1",
-                        PlatformId = "hn1", Tag = "known", UpdatedUtc = DateTime.UtcNow },
+                        PlatformId = "hn1", Tag = "known", UpdatedUtc = tagUpdated },
                     new LeaguePlayerTagRecord { SelfPuuid = "other", Puuid = "enemy", Region = "HN1",
                         PlatformId = "HN1", Tag = "different owner", UpdatedUtc = DateTime.UtcNow },
                     new LeaguePlayerTagRecord { SelfPuuid = "self", Puuid = "enemy", Region = "HN2",
@@ -86,7 +87,8 @@ namespace FACM.League
                 }, reloaded.ReadAll());
                 Require(overview.Count == 5 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
                     .EncounterCount == 3 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
-                    .Tag == "known" && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN2")
+                    .Tag == "known" && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
+                    .TagUpdatedUtc == tagUpdated && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN2")
                     .EncounterCount == 0 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "other")
                     .EncounterCount == 0 && overview.Single(p => p.Puuid == "ally").EncounterCount == 1 &&
                     overview.Single(p => p.Puuid == "tag-only").LastMetUtc == null,

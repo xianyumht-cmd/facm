@@ -131,7 +131,8 @@ namespace FACM.League
                     .Select(p => new LeagueSavedPlayerOverviewRecord
                     {
                         Puuid = p.Puuid, SelfPuuid = p.SelfPuuid, Region = p.Region,
-                        PlatformId = p.PlatformId, Tag = p.Tag, UpdatedUtc = p.UpdatedUtc
+                        PlatformId = p.PlatformId, Tag = p.Tag, TagUpdatedUtc = p.UpdatedUtc,
+                        UpdatedUtc = p.UpdatedUtc
                     }).ToList();
             _list.Columns[5].Width = _viewMode.SelectedIndex == 1 ? 95 : 0;
             _list.Columns[6].Width = _viewMode.SelectedIndex == 1 ? 135 : 0;
@@ -176,6 +177,7 @@ namespace FACM.League
             var selected = _list.SelectedItems[0].Tag as LeagueSavedPlayerOverviewRecord;
             if (selected == null || string.IsNullOrWhiteSpace(selected.Tag)) return null;
             return _records.FirstOrDefault(p => p.Puuid == selected.Puuid && p.SelfPuuid == selected.SelfPuuid &&
+                p.Tag == selected.Tag && p.UpdatedUtc == selected.TagUpdatedUtc &&
                 string.Equals(p.Region, selected.Region, StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(p.PlatformId, selected.PlatformId, StringComparison.OrdinalIgnoreCase));
         }

@@ -11,6 +11,7 @@ namespace FACM.League
         public string Region { get; set; }
         public string PlatformId { get; set; }
         public string Tag { get; set; }
+        public DateTime TagUpdatedUtc { get; set; }
         public DateTime UpdatedUtc { get; set; }
         public DateTime? LastMetUtc { get; set; }
         public int EncounterCount { get; set; }
@@ -33,6 +34,7 @@ namespace FACM.League
                 if (!index.TryGetValue(key, out var record))
                     index.Add(key, record = NewRecord(key));
                 record.Tag = tag.Tag;
+                record.TagUpdatedUtc = tag.UpdatedUtc;
                 if (tag.UpdatedUtc > record.UpdatedUtc) record.UpdatedUtc = tag.UpdatedUtc;
             }
             foreach (var encounter in encounters)
