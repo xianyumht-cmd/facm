@@ -35,6 +35,7 @@ namespace FACM.League
             LeagueMatchTimelineSmokeTest.Validate();
             ValidateSgpHistoryFallback();
             ValidateHistoryDetailsAndSparseCompletion();
+            ValidateHistoryDeadlinesAndSessionCache();
             ValidateMatchHistoryCollection();
             ValidatePaginationBoundary();
             ValidateCancellation();
@@ -1144,6 +1145,49 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateHistoryDeadlinesAndSessionCache()
+        {
+            const string sgpSource = "{\"games\":[{\"json\":{\"gameId\":801,\"participants\":[{\"participantId\":1,\"puuid\":\"self\",\"championId\":22,\"win\":true,\"kills\":2,\"deaths\":1,\"assists\":3}]}}]}";
+            var fallback = new FakeSgpHistory(sgpSource);
+            var timedOut = new FixtureApi("{\"puuid\":\"self\"}", "", null) { TimeoutHistory = true };
+            var own = new LeaguePlayerProfile { PuuId = "self" };
+            var result = new LeaguePlayerDataService(timedOut, new PerformanceBudgetProvider(), null, fallback)
+                .LoadRecentMatchesAsync(own, 0, 10, true, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result != null && result.Matches.Count == 1 && result.Matches[0].GameId == 801 && fallback.Reads == 1,
+                "An expired local-history budget must leave an independent live deadline for the SGP fallback.");
+            using (var cancel = new CancellationTokenSource())
+            {
+                var cancelledFallback = new FakeSgpHistory(sgpSource);
+                var cancelled = new FixtureApi("{\"puuid\":\"self\"}", "", null)
+                    { TimeoutHistory = true, BeforeHistory = cancel.Cancel };
+                var observed = false;
+                try
+                {
+                    new LeaguePlayerDataService(cancelled, new PerformanceBudgetProvider(), null, cancelledFallback)
+                        .LoadRecentMatchesAsync(own, 0, 10, true, cancel.Token).GetAwaiter().GetResult();
+                }
+                catch (OperationCanceledException) { observed = true; }
+                Require(observed && cancelledFallback.Reads == 0,
+                    "Caller cancellation must stop history entirely instead of starting a new regional request.");
+            }
+            var session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
+            var local = new FixtureApi("{\"puuid\":\"self\"}", CollectionHistory(CollectionGame(802, 22)), null);
+            var service = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(), null, null, () => session);
+            service.LoadProfileAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+            var original = service.LoadRecentMatchesAsync(own, 0, 10, false, CancellationToken.None).GetAwaiter().GetResult();
+            Require(service.TryGetCachedProfile() != null && service.TryGetCachedPage() != null,
+                "Fresh Player caches must remain usable within their original client session.");
+            session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN1", "TENCENT");
+            Require(service.TryGetCachedProfile() == null && service.TryGetCachedPage() == null,
+                "The same PUUID/port/password must not authorize a previous region's profile or history cache.");
+            service.LoadProfileAsync(false, CancellationToken.None).GetAwaiter().GetResult();
+            service.LoadRecentMatchesAsync(own, 0, 10, false, CancellationToken.None).GetAwaiter().GetResult();
+            Require(CountPrefix(local.Paths, "/lol-match-history/") == 2 &&
+                CountPath(local.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
+                service.EnrichChampionNamesAsync(own, original, CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Region replacement must reread quick caches and prevent stale asynchronous enrichment from relabelling an old page.");
+        }
+
         private static void ValidateHistoryDetailsAndSparseCompletion()
         {
             const string own = "{\"puuid\":\"self\"}";
@@ -1455,6 +1499,8 @@ namespace FACM.League
 
             public List<string> Paths { get; private set; }
             public string SecondProfile { get; set; }
+            internal bool TimeoutHistory;
+            internal Action BeforeHistory;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
@@ -1483,6 +1529,8 @@ namespace FACM.League
                 }
                 if (path != null && path.StartsWith("/lol-match-history/", StringComparison.Ordinal))
                 {
+                    BeforeHistory?.Invoke();
+                    if (TimeoutHistory) throw new TaskCanceledException();
                     const string remotePrefix = "/lol-match-history/v1/products/lol/";
                     if (path.StartsWith(remotePrefix, StringComparison.Ordinal))
                     {

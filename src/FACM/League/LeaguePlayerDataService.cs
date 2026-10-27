@@ -31,6 +31,8 @@ namespace FACM.League
         private DateTime _profileCachedUtc = DateTime.MinValue;
         private LeaguePlayerMatchPage _cachedPage;
         private string _cachedPagePuuId;
+        private LeagueClientSession _cachedPageSession;
+        private LeagueClientSession _cachedProfileSession;
         private DateTime _pageCachedUtc = DateTime.MinValue;
         private Dictionary<int, string> _cachedChampionNames;
         private DateTime _championNamesCachedUtc = DateTime.MinValue;
@@ -227,12 +229,14 @@ namespace FACM.League
 
         public LeaguePlayerProfile TryGetCachedProfile()
         {
-            lock (_cacheSync) return CloneProfile(_cachedProfile);
+            var session = _session?.Invoke();
+            lock (_cacheSync) return CacheSessionMatches(_cachedProfileSession, session) ? CloneProfile(_cachedProfile) : null;
         }
 
         public LeaguePlayerMatchPage TryGetCachedPage()
         {
-            lock (_cacheSync) return ClonePage(_cachedPage);
+            var session = _session?.Invoke();
+            lock (_cacheSync) return CacheSessionMatches(_cachedPageSession, session) ? ClonePage(_cachedPage) : null;
         }
 
         internal Dictionary<int, string> TryGetCachedChampionNames()
@@ -247,9 +251,12 @@ namespace FACM.League
 
         public async Task<LeaguePlayerProfile> LoadProfileAsync(bool force, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var session = _session?.Invoke();
+            if (!SessionStillCurrent(session)) return null;
             lock (_cacheSync)
             {
-                if (!force && _cachedProfile != null && DateTime.UtcNow - _profileCachedUtc < TimeSpan.FromSeconds(15))
+                if (!force && _cachedProfile != null && CacheSessionMatches(_cachedProfileSession, session) && DateTime.UtcNow - _profileCachedUtc < TimeSpan.FromSeconds(15))
                     return CloneProfile(_cachedProfile);
             }
 
@@ -261,6 +268,7 @@ namespace FACM.League
                     timeout.CancelAfter(TimeSpan.FromSeconds(3));
                     var bytes = await _client.TryGetBytesAsync(LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false);
                     var profile = ParseProfile(bytes);
+                    if (!SessionStillCurrent(session)) return null;
                     if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId)) return profile;
                     lock (_cacheSync)
                     {
@@ -271,6 +279,7 @@ namespace FACM.League
                             _pageCachedUtc = DateTime.MinValue;
                         }
                         _cachedProfile = CloneProfile(profile);
+                        _cachedProfileSession = session;
                         _profileCachedUtc = DateTime.UtcNow;
                     }
                     return profile;
@@ -283,59 +292,67 @@ namespace FACM.League
         }
 
         public async Task<LeaguePlayerMatchPage> LoadRecentMatchesAsync(
-            LeaguePlayerProfile profile,
-            int startIndex,
-            int count,
-            bool force,
-            CancellationToken cancellationToken)
+            LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken)
         {
-            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId)) return null;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (profile == null || !IsSafePuuid(profile.PuuId)) return null;
             startIndex = Math.Max(0, startIndex);
             count = Math.Max(1, Math.Min(MaximumMatchCount, count));
-
+            if (startIndex > int.MaxValue - count) return null;
+            var session = _session?.Invoke();
+            if (!SessionStillCurrent(session)) return null;
             lock (_cacheSync)
             {
-                if (!force && _cachedPage != null &&
+                if (!force && _cachedPage != null && CacheSessionMatches(_cachedPageSession, session) &&
                     string.Equals(_cachedPagePuuId, profile.PuuId, StringComparison.OrdinalIgnoreCase) &&
                     _cachedPage.StartIndex == startIndex && _cachedPage.RequestedCount == count &&
-                    DateTime.UtcNow - _pageCachedUtc < TimeSpan.FromSeconds(45))
-                    return ClonePage(_cachedPage);
+                    DateTime.UtcNow - _pageCachedUtc < TimeSpan.FromSeconds(45)) return ClonePage(_cachedPage);
             }
-
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                LeaguePlayerMatchPage page = null;
+                using (var localDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
-                    var budget = _budgets.Current;
-                    timeout.CancelAfter(budget.NetworkConcurrency <= 1 ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(4));
-                    var endIndex = startIndex + count - 1;
-                    var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(profile.PuuId) +
-                               "/matches?begIndex=" + startIndex + "&endIndex=" + endIndex;
-                    var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
-                    var page = ParseMatchPage(bytes, profile, startIndex, count);
-                    if (page == null && _sgpHistory != null)
+                    localDeadline.CancelAfter(_budgets.Current.NetworkConcurrency <= 1
+                        ? TimeSpan.FromSeconds(3) : TimeSpan.FromSeconds(4));
+                    try
                     {
-                        timeout.CancelAfter(TimeSpan.FromSeconds(8));
-                        var before = ParseProfile(await _client.TryGetBytesAsync(
-                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                        if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal))
-                            return null;
-                        page = await TryLoadSgpPageAsync(profile, startIndex, count, timeout.Token)
-                            .ConfigureAwait(false);
-                        var after = ParseProfile(await _client.TryGetBytesAsync(
-                            LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                        if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal))
-                            return null;
+                        var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(profile.PuuId) +
+                            "/matches?begIndex=" + startIndex + "&endIndex=" + (startIndex + count - 1);
+                        page = ParseMatchPage(await _client.TryGetBytesAsync(path, localDeadline.Token)
+                            .ConfigureAwait(false), profile, startIndex, count);
                     }
-                    if (page != null) CachePage(profile.PuuId, page);
-                    return page;
+                    catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); }
                 }
+                if (!SessionStillCurrent(session)) return null;
+                if (page == null && _sgpHistory != null)
+                {
+                    using (var regionalDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    {
+                        regionalDeadline.CancelAfter(TimeSpan.FromSeconds(8));
+                        try
+                        {
+                            var before = ParseProfile(await _client.TryGetBytesAsync(
+                                LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
+                            if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
+                            page = await TryLoadSgpPageAsync(profile, startIndex, count, regionalDeadline.Token).ConfigureAwait(false);
+                            var after = ParseProfile(await _client.TryGetBytesAsync(
+                                LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
+                            if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
+                        }
+                        catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); return null; }
+                    }
+                }
+                if (!SessionStillCurrent(session)) return null;
+                if (page != null)
+                {
+                    page.ClientSession = session;
+                    CachePage(profile.PuuId, page, session);
+                }
+                return page;
             }
-            finally
-            {
-                _requestGate.Release();
-            }
+            finally { _requestGate.Release(); }
         }
 
         internal Task<LeagueMatchCollectionResult> CollectMatchesAsync(
@@ -354,6 +371,7 @@ namespace FACM.League
             IProgress<LeagueMatchCollectionProgress> progress, CancellationToken cancellationToken,
             LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic, string serverId = null)
         {
+            var session = _session?.Invoke();
             var result = new LeagueMatchCollectionResult();
             if (expectedSelf == null || !IsSafePuuid(expectedSelf.PuuId) ||
                 target == null || !IsSafePuuid(target.PuuId) || settings == null || !settings.IsValid)
@@ -386,7 +404,8 @@ namespace FACM.League
                         {
                             var before = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                            if (before == null || !string.Equals(before.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
+                            if (!SessionStillCurrent(session) || before == null ||
+                                !string.Equals(before.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
                             {
                                 result.Status = LeagueMatchCollectionStatus.AccountChanged;
                                 result.Page.Matches.Clear();
@@ -404,7 +423,8 @@ namespace FACM.League
 
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                            if (after == null || !string.Equals(after.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
+                            if (!SessionStillCurrent(session) || after == null ||
+                                !string.Equals(after.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
                             {
                                 result.Status = LeagueMatchCollectionStatus.AccountChanged;
                                 result.Page.Matches.Clear();
@@ -458,6 +478,8 @@ namespace FACM.League
             LeaguePlayerMatchPage page,
             CancellationToken cancellationToken)
         {
+            var session = page?.ClientSession;
+            if (!SessionStillCurrent(session)) return null;
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || page == null || page.Matches.Count == 0)
                 return page;
 
@@ -506,7 +528,8 @@ namespace FACM.League
                 }
             }
 
-            if (changed) CachePage(profile.PuuId, result);
+            if (!SessionStillCurrent(session)) return null;
+            if (changed) CachePage(profile.PuuId, result, session);
             return result;
         }
 
@@ -808,6 +831,8 @@ namespace FACM.League
             LeaguePlayerMatchPage page,
             CancellationToken cancellationToken)
         {
+            var session = page?.ClientSession;
+            if (!SessionStillCurrent(session)) return null;
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || page == null || page.Matches.Count == 0)
                 return page;
 
@@ -829,7 +854,8 @@ namespace FACM.League
                 }
             }
 
-            if (changed) CachePage(profile.PuuId, result);
+            if (!SessionStillCurrent(session)) return null;
+            if (changed) CachePage(profile.PuuId, result, session);
             return result;
         }
 
@@ -943,6 +969,8 @@ namespace FACM.League
         private async Task<LeaguePlayerMatchPage> ReadHistoryPageAsync(LeaguePlayerProfile target,
             int startIndex, int count, LeaguePlayerHistorySource source, string serverId, CancellationToken token)
         {
+            var session = _session?.Invoke();
+            if (!SessionStillCurrent(session)) return null;
             if (!Enum.IsDefined(typeof(LeaguePlayerHistorySource), source)) return null;
             if (source != LeaguePlayerHistorySource.Sgp && string.IsNullOrEmpty(serverId))
             {
@@ -951,12 +979,18 @@ namespace FACM.League
                 var page = ParseMatchPage(await _client.TryGetBytesAsync(path, token).ConfigureAwait(false),
                     target, startIndex, count);
                 if (page != null)
-                    return await HydrateSparsePageAsync(target, page, token, source).ConfigureAwait(false);
+                {
+                    page.ClientSession = session;
+                    page = await HydrateSparsePageAsync(target, page, token, source).ConfigureAwait(false);
+                    return SessionStillCurrent(session) ? page : null;
+                }
                 if (source == LeaguePlayerHistorySource.Lcu) return null;
             }
             if (source == LeaguePlayerHistorySource.Lcu) return null;
             var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId).ConfigureAwait(false);
-            return await HydrateSparsePageAsync(target, regional, token, source).ConfigureAwait(false);
+            if (regional != null) regional.ClientSession = session;
+            regional = await HydrateSparsePageAsync(target, regional, token, source).ConfigureAwait(false);
+            return SessionStillCurrent(session) ? regional : null;
         }
 
         private async Task<LeaguePlayerMatchPage> HydrateSparsePageAsync(LeaguePlayerProfile target,
@@ -1632,12 +1666,23 @@ namespace FACM.League
             return lane;
         }
 
-        private void CachePage(string puuId, LeaguePlayerMatchPage page)
+        private bool CacheSessionMatches(LeagueClientSession cached, LeagueClientSession current)
         {
-            if (string.IsNullOrWhiteSpace(puuId) || page == null) return;
+            return _session == null || LeagueEncounterReplayService.SessionMatches(cached, current);
+        }
+
+        private bool SessionStillCurrent(LeagueClientSession expected)
+        {
+            return _session == null || LeagueEncounterReplayService.SessionMatches(expected, _session());
+        }
+
+        private void CachePage(string puuId, LeaguePlayerMatchPage page, LeagueClientSession session)
+        {
+            if (string.IsNullOrWhiteSpace(puuId) || page == null || !SessionStillCurrent(session)) return;
             lock (_cacheSync)
             {
                 _cachedPage = ClonePage(page);
+                _cachedPageSession = session;
                 _cachedPagePuuId = puuId;
                 _pageCachedUtc = DateTime.UtcNow;
             }
@@ -1750,6 +1795,7 @@ namespace FACM.League
             if (source == null) return null;
             var result = new LeaguePlayerMatchPage
             {
+                ClientSession = source.ClientSession,
                 StartIndex = source.StartIndex,
                 RequestedCount = source.RequestedCount,
                 ReportedGameCount = source.ReportedGameCount

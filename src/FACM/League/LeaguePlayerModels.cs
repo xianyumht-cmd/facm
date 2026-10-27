@@ -272,6 +272,7 @@ namespace FACM.League
 
     internal sealed class LeaguePlayerMatchPage
     {
+        internal LeagueClientSession ClientSession;
         public LeaguePlayerMatchPage()
         {
             Matches = new List<LeaguePlayerMatchSummary>();

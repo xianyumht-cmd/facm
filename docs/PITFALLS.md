@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Regional fallback cannot revive a cancelled local deadline
+
+A request-scoped `CancellationTokenSource` cannot be revived by another `CancelAfter` once its local attempt has already cancelled. A fallback using that same token fails immediately. Give the local and regional attempts separate bounded sources linked to the invoking caller; catch only internal deadline cancellation for fallback, and propagate caller cancellation. Deterministic fixtures should distinguish those two cases. Cache origin must also be captured before the original request and retained by detached pages, not inferred from whichever client happens to be active when later enrichment finishes.
+
 ## Compare normalized cloud profile semantics, not serialized JSON bytes (2026-10-27)
 
 Draft PR #357 CI `40492525912` and `40492525945` compiled the native client but stopped at an existing `LeagueAutoPickBanSmokeTest` cloud-restore assertion requiring byte-for-byte JSON equality. `CloudSettingsSnapshot.ApplyTo` intentionally parses and serializes `LeagueAutoSelectProfiles` to normalize it; the exact string is not the persistence contract. Compare the decoded profile count, every mode/role's pick/ban lists, enable flags, strategies and delays, plus legacy opt-in preferences. This continues to fail on meaningful user-setting loss while allowing harmless representation changes. Do not lower production normalization bounds or hide missing data by ignoring decoded fields. A fresh CI pass remains required after this assertion correction.
