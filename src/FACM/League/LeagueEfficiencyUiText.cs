@@ -282,6 +282,11 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardIconsPrimary = "LeagueEfficiencyDynamicEncounterScoreboardIconsPrimary";
         public const string DynamicEncounterScoreboardIconsSecondary = "LeagueEfficiencyDynamicEncounterScoreboardIconsSecondary";
         public const string DynamicEncounterScoreboardIconsAugments = "LeagueEfficiencyDynamicEncounterScoreboardIconsAugments";
+        public const string DynamicEncounterAugmentPrismatic = "LeagueEfficiencyDynamicEncounterAugmentPrismatic";
+        public const string DynamicEncounterAugmentGold = "LeagueEfficiencyDynamicEncounterAugmentGold";
+        public const string DynamicEncounterAugmentSilver = "LeagueEfficiencyDynamicEncounterAugmentSilver";
+        public const string DynamicEncounterAugmentBronze = "LeagueEfficiencyDynamicEncounterAugmentBronze";
+        public const string DynamicEncounterAugmentEvent = "LeagueEfficiencyDynamicEncounterAugmentEvent";
         public const string DynamicEncounterTeamBlue = "LeagueEfficiencyDynamicEncounterTeamBlue";
         public const string DynamicEncounterTeamRed = "LeagueEfficiencyDynamicEncounterTeamRed";
         public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
@@ -629,6 +634,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary, "主系符文" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary, "副系符文" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments, "强化" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentPrismatic, "棱彩" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentGold, "黄金" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentSilver, "白银" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentBronze, "青铜" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentEvent, "事件" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue, "蓝方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed, "红方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },

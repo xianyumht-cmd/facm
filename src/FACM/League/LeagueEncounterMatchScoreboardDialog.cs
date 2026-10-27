@@ -102,7 +102,7 @@ namespace FACM.League
                     .Replace("{3}", FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items))
                     .Replace("{4}", FormatNamedIds(player.PerkIds, catalog == null ? null : catalog.Perks))
                     .Replace("{5}", style)
-                    .Replace("{6}", FormatAugments(player.AugmentIds, catalog))
+                    .Replace("{6}", FormatAugments(player.AugmentIds, catalog, t))
                     .Replace("{7}", FormatBoundItem(player.RoleBoundItemId,
                         catalog == null ? null : catalog.Items));
             };
@@ -377,7 +377,7 @@ namespace FACM.League
                     player.SecondaryPerkStyleId, catalog.PerkStyles),
                 PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
-                player.AugmentIds, BuildAugmentLabels(catalog), catalog.AugmentIcons, loadAsset);
+                player.AugmentIds, BuildAugmentLabels(catalog, t), catalog.AugmentIcons, loadAsset);
         }
 
         private static int[] PerkSlots(int[] perks, int offset, int count)
@@ -396,27 +396,29 @@ namespace FACM.League
                 !string.IsNullOrWhiteSpace(name) ? name : "#" + styleId);
         }
 
-        internal static string FormatAugments(int[] ids, LeagueBuildAdvisorCatalog catalog)
+        internal static string FormatAugments(int[] ids, LeagueBuildAdvisorCatalog catalog,
+            Func<string, string> t = null)
         {
             if (ids == null) return "—";
             var labels = new List<string>();
             foreach (var id in ids)
             {
-                if (id > 0) labels.Add(FormatAugmentLabel(id, catalog));
+                if (id > 0) labels.Add(FormatAugmentLabel(id, catalog, t));
             }
             return labels.Count == 0 ? "—" : string.Join(" / ", labels);
         }
 
-        private static IDictionary<int, string> BuildAugmentLabels(LeagueBuildAdvisorCatalog catalog)
+        private static IDictionary<int, string> BuildAugmentLabels(LeagueBuildAdvisorCatalog catalog,
+            Func<string, string> t)
         {
             var labels = new Dictionary<int, string>();
             if (catalog == null) return labels;
             foreach (var id in catalog.Augments.Keys)
-                labels[id] = FormatAugmentLabel(id, catalog);
+                labels[id] = FormatAugmentLabel(id, catalog, t);
             return labels;
         }
 
-        private static string FormatAugmentLabel(int id, LeagueBuildAdvisorCatalog catalog)
+        private static string FormatAugmentLabel(int id, LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
         {
             string name;
             if (catalog == null || !catalog.Augments.TryGetValue(id, out name) ||
@@ -424,13 +426,14 @@ namespace FACM.League
             string rarity;
             if (catalog.AugmentRarities.TryGetValue(id, out rarity))
             {
+                var localize = t ?? (key => LeagueEfficiencyText.Get(null, key));
                 switch (rarity)
                 {
-                    case "kPrismatic": return "棱彩 · " + name;
-                    case "kGold": return "黄金 · " + name;
-                    case "kSilver": return "白银 · " + name;
-                    case "kBronze": return "青铜 · " + name;
-                    case "kEventChoice": return "事件 · " + name;
+                    case "kPrismatic": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentPrismatic) + " · " + name;
+                    case "kGold": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentGold) + " · " + name;
+                    case "kSilver": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentSilver) + " · " + name;
+                    case "kBronze": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentBronze) + " · " + name;
+                    case "kEventChoice": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentEvent) + " · " + name;
                 }
             }
             return name;
