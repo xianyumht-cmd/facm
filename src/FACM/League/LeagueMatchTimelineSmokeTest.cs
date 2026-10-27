@@ -30,6 +30,33 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Parse(Bytes("{\"frames\":{}}"), 701, false) == null,
                 "Wrong game envelopes, mismatched frame identities, invalid chronology and malformed frame arrays must fail closed.");
 
+            Require(LeagueTimelineMetrics.Series(parsed, new[] { 1 }, 0, false).SequenceEqual(new double?[] { 500, 700 }) &&
+                LeagueTimelineMetrics.Series(parsed, new[] { 1 }, 1, false).SequenceEqual(new double?[] { 0, 4 }) &&
+                LeagueTimelineMetrics.Series(parsed, new[] { 1, 2 }, 2, true).SequenceEqual(new double?[] { 0, 300 }) &&
+                LeagueTimelineMetrics.Series(parsed, new[] { 1 }, 3, false).All(value => !value.HasValue),
+                "Timeline chart series must use gold, full CS and XP source values while preserving missing SGP damage samples.");
+            var damage = new Dictionary<string, object> { { "damageStats", new Dictionary<string, object>
+                { { "totalDamageDoneToChampions", 1234 }, { "totalDamageTaken", 4567 } } } };
+            Require(LeagueTimelineMetrics.Value(damage, 3) == 1234 && LeagueTimelineMetrics.Value(damage, 4) == 4567 &&
+                LeagueTimelineMetrics.Value(damage, 0) == null,
+                "Damage comparison must read the exact SGP nested keys without inventing other missing metrics.");
+            parsed.Frames[0].Participants[2] = new Dictionary<string, object> { { "totalGold", 1000 } };
+            Require(LeagueTimelineMetrics.Series(parsed, new[] { 1, 2 }, 0, true)
+                .SequenceEqual(new double?[] { 750, 700 }),
+                "A team comparison must average only present verified player samples, never sum them or replace missing players with zero.");
+            using (var chart = new LeagueTimelineChart(FACM.Services.UiTextCatalog.Load()))
+            using (var bitmap = new System.Drawing.Bitmap(520, 210))
+            {
+                chart.Size = bitmap.Size;
+                chart.SetData(new long[] { 0, 60000 }, new List<LeagueTimelineSeries>
+                {
+                    new LeagueTimelineSeries { Name = "fixture", Values = new double?[] { 500, 700 }, IsAverage = true }
+                });
+                chart.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+                chart.SetData(new long[0], new List<LeagueTimelineSeries>());
+                chart.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+            }
+
             var session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
             var local = new TimelineApi();
             var regional = new RegionalApi();

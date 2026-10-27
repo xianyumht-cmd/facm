@@ -23,6 +23,7 @@ namespace FACM.League
         private readonly Button _retry;
         private readonly ListView _events, _frames, _builds;
         private readonly TextBox _details;
+        private readonly LeagueMatchTimelineChartPanel _comparison;
         private List<LeagueMatchTimelineEvent> _shownEvents = new List<LeagueMatchTimelineEvent>();
         private List<LeagueMatchTimelineEvent> _shownBuilds = new List<LeagueMatchTimelineEvent>();
         private readonly List<Tuple<long, int, Dictionary<string, object>>> _shownFrames =
@@ -76,6 +77,8 @@ namespace FACM.League
             var tabs = new TabControl { Dock = DockStyle.Fill };
             AddTab(tabs, UiTextKeys.LeagueTimelineEvents, _events);
             AddTab(tabs, UiTextKeys.LeagueTimelineProgression, _frames);
+            _comparison = new LeagueMatchTimelineChartPanel(ui, detail.Participants);
+            AddTab(tabs, UiTextKeys.LeagueTimelineComparison, _comparison);
             AddTab(tabs, UiTextKeys.LeagueTimelineBuilds, _builds);
             _details = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
                 ScrollBars = ScrollBars.Both, WordWrap = false, BackColor = FacmDesignSystem.SurfaceRaised,
@@ -101,6 +104,7 @@ namespace FACM.League
                 var result = await _load(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 _timeline = result;
+                _comparison.SetTimeline(result);
                 _updating = true;
                 _eventType.Items.Clear();
                 _eventType.Items.Add(T(UiTextKeys.LeagueTimelineAllEvents));

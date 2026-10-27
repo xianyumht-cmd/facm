@@ -416,6 +416,13 @@ namespace FACM.Services
         public const string LeagueTimelineEventDescription = "LeagueTimelineEventDescription";
         public const string LeagueTimelineUndoDescription = "LeagueTimelineUndoDescription";
         public const string LeagueTimelineSkillDescription = "LeagueTimelineSkillDescription";
+        public const string LeagueTimelineMetric = "LeagueTimelineMetric";
+        public const string LeagueTimelineComparison = "LeagueTimelineComparison";
+        public const string LeagueTimelineDamage = "LeagueTimelineDamage";
+        public const string LeagueTimelineTaken = "LeagueTimelineTaken";
+        public const string LeagueTimelineSelectPlayers = "LeagueTimelineSelectPlayers";
+        public const string LeagueTimelineTeamAverage = "LeagueTimelineTeamAverage";
+        public const string LeagueTimelineNoSamples = "LeagueTimelineNoSamples";
         public const string LeagueTimelineTitle = "LeagueTimelineTitle";
         public const string LeagueTimelineParticipants = "LeagueTimelineParticipants";
         public const string LeagueTimelinePlayer = "LeagueTimelinePlayer";
