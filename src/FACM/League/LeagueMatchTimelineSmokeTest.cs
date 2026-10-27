@@ -57,6 +57,27 @@ namespace FACM.League
                 chart.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
             }
 
+            ValidateBuildProgression();
+            var frameStats = new Dictionary<string, object> { { "health", 512.5 }, { "armor", -12.25 },
+                { "attackSpeed", "NaN" }, { "magicPen", double.PositiveInfinity }, { "power", 0 } };
+            Require(LeagueTimelineFrameStats.Format(frameStats, "health") == "512.5" &&
+                LeagueTimelineFrameStats.Format(frameStats, "armor") == "-12.25" &&
+                LeagueTimelineFrameStats.Format(frameStats, "power") == "0" &&
+                LeagueTimelineFrameStats.Format(frameStats, "attackSpeed") == "—" &&
+                LeagueTimelineFrameStats.Format(frameStats, "magicPen") == "—" &&
+                LeagueTimelineFrameStats.Format(frameStats, "unknown") == "—",
+                "Detailed frame values must retain signed decimals and zero while rejecting missing/nonfinite values.");
+            parsed.Frames[0].Participants[1]["championStats"] = frameStats;
+            using (var statsPanel = new LeagueTimelineFrameStats(FACM.Services.UiTextCatalog.Load()))
+            using (var bitmap = new System.Drawing.Bitmap(520, 210))
+            {
+                statsPanel.Size = bitmap.Size;
+                statsPanel.SetData(parsed, 1);
+                statsPanel.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+                statsPanel.SetData(null, 1);
+                statsPanel.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
+            }
+
             var session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
             var local = new TimelineApi();
             var regional = new RegionalApi();
@@ -84,6 +105,32 @@ namespace FACM.League
                 catch (OperationCanceledException) { cancelled = true; }
                 Require(cancelled, "Closing a timeline owner must cancel the outstanding read instead of publishing stale data.");
             }
+        }
+
+        private static void ValidateBuildProgression()
+        {
+            var source = new LeagueMatchTimeline();
+            source.Events.Add(BuildEvent("ITEM_PURCHASED", 1, 1000, "itemId", 6032));
+            source.Events.Add(BuildEvent("ITEM_PURCHASED", 1, 31000, "itemId", 1055));
+            source.Events.Add(BuildEvent("ITEM_PURCHASED", 1, 61001, "itemId", 220000));
+            source.Events.Add(BuildEvent("ITEM_PURCHASED", 2, 70000, "itemId", 1055));
+            source.Events.Add(BuildEvent("SKILL_LEVEL_UP", 1, 71000, "skillSlot", 1));
+            var evolution = BuildEvent("SKILL_LEVEL_UP", 1, 72000, "skillSlot", 4);
+            evolution.Data["levelUpType"] = "EVOLVE";
+            source.Events.Add(evolution);
+            source.Events.Add(BuildEvent("SKILL_LEVEL_UP", 1, 73000, "skillSlot", 2));
+            source.Events.Add(BuildEvent("SKILL_LEVEL_UP", 2, 74000, "skillSlot", 3));
+            var builds = LeagueTimelineBuilds.Project(source);
+            Require(builds.Steps.Count == 8 && builds.Steps.Take(4).Select(step => step.PurchaseGroup)
+                .SequenceEqual(new[] { 1, 1, 2, 1 }) && builds.Anvils[1] == 2 && !builds.Anvils.ContainsKey(2) &&
+                builds.Steps.Skip(4).Select(step => step.SkillLevel).SequenceEqual(new int?[] { 1, null, 2, 1 }) &&
+                builds.Steps[5].IsEvolution,
+                "Build progression must preserve per-player 30-second purchase grouping, both anvil IDs and EVOLVE-excluded skill levels.");
+        }
+        private static LeagueMatchTimelineEvent BuildEvent(string type, int id, long timestamp, string key, int value)
+        {
+            return new LeagueMatchTimelineEvent { Type = type, ParticipantId = id, Timestamp = timestamp,
+                Assists = new int[0], Data = new Dictionary<string, object> { { key, value } } };
         }
 
         private static byte[] Bytes(string text) { return Encoding.UTF8.GetBytes(text); }

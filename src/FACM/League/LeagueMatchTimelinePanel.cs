@@ -24,6 +24,11 @@ namespace FACM.League
         private readonly ListView _events, _frames, _builds;
         private readonly TextBox _details;
         private readonly LeagueMatchTimelineChartPanel _comparison;
+        private readonly LeagueTimelineFrameStats _frameStats;
+        private readonly int _targetParticipant;
+        private LeagueTimelineBuilds _buildProjection = new LeagueTimelineBuilds();
+        private readonly Dictionary<LeagueMatchTimelineEvent, LeagueTimelineBuildStep> _buildSteps =
+            new Dictionary<LeagueMatchTimelineEvent, LeagueTimelineBuildStep>();
         private List<LeagueMatchTimelineEvent> _shownEvents = new List<LeagueMatchTimelineEvent>();
         private List<LeagueMatchTimelineEvent> _shownBuilds = new List<LeagueMatchTimelineEvent>();
         private readonly List<Tuple<long, int, Dictionary<string, object>>> _shownFrames =
@@ -38,6 +43,7 @@ namespace FACM.League
             _load = detail.LoadTimeline;
             _participants = detail.Participants;
             _catalog = detail.BuildCatalog;
+            _targetParticipant = detail.Match.ParticipantId;
             _lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
             Dock = DockStyle.Fill;
             BackColor = FacmDesignSystem.Canvas;
@@ -80,6 +86,8 @@ namespace FACM.League
             _comparison = new LeagueMatchTimelineChartPanel(ui, detail.Participants);
             AddTab(tabs, UiTextKeys.LeagueTimelineComparison, _comparison);
             AddTab(tabs, UiTextKeys.LeagueTimelineBuilds, _builds);
+            _frameStats = new LeagueTimelineFrameStats(ui);
+            AddTab(tabs, UiTextKeys.LeagueFrameTitle, _frameStats);
             _details = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
                 ScrollBars = ScrollBars.Both, WordWrap = false, BackColor = FacmDesignSystem.SurfaceRaised,
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(UiTextKeys.LeagueTimelineDetails) };
@@ -105,6 +113,9 @@ namespace FACM.League
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 _timeline = result;
                 _comparison.SetTimeline(result);
+                _buildProjection = LeagueTimelineBuilds.Project(result);
+                _buildSteps.Clear();
+                foreach (var step in _buildProjection.Steps) _buildSteps[step.Event] = step;
                 _updating = true;
                 _eventType.Items.Clear();
                 _eventType.Items.Add(T(UiTextKeys.LeagueTimelineAllEvents));
@@ -134,8 +145,8 @@ namespace FACM.League
             _builds.VirtualListSize = 0;
             _shownEvents = _timeline == null ? new List<LeagueMatchTimelineEvent>() : _timeline.Events
                 .Where(entry => entry.Involves(id) && (type == null || entry.Type == type)).ToList();
-            _shownBuilds = _timeline == null ? new List<LeagueMatchTimelineEvent>() : _timeline.Events
-                .Where(entry => entry.Involves(id) && entry.Type.StartsWith("ITEM_", StringComparison.Ordinal)).ToList();
+            _shownBuilds = _buildProjection.Steps.Where(step => step.Event.Involves(id))
+                .Select(step => step.Event).ToList();
             _events.VirtualListSize = _shownEvents.Count;
             _builds.VirtualListSize = _shownBuilds.Count;
             _events.Invalidate(); _builds.Invalidate();
@@ -148,9 +159,13 @@ namespace FACM.League
                         _shownFrames.Add(Tuple.Create(frame.Timestamp, pair.Key, pair.Value));
             _frames.VirtualListSize = _shownFrames.Count;
             _frames.Invalidate();
+            _frameStats.SetData(_timeline, id > 0 ? id : _targetParticipant);
             _status.Text = _timeline == null ? T(UiTextKeys.LeagueTimelineUnavailable) :
                 T(UiTextKeys.LeagueTimelineSummary).Replace("{0}", _timeline.Frames.Count.ToString())
                     .Replace("{1}", _shownEvents.Count.ToString());
+            int anvils;
+            if (id > 0 && _buildProjection.Anvils.TryGetValue(id, out anvils))
+                _status.Text += " · " + T(UiTextKeys.LeagueTimelineAnvils).Replace("{0}", anvils.ToString());
         }
 
         private ListViewItem FrameRow(int index)
@@ -184,6 +199,20 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Text(entry.Data, "monsterType") ??
                 LeagueMatchTimelineParser.Text(entry.Data, "buildingType") ??
                 LeagueMatchTimelineParser.Text(entry.Data, "wardType") ?? string.Empty);
+            LeagueTimelineBuildStep step;
+            if (ReferenceEquals(events, _shownBuilds) && _buildSteps.TryGetValue(entry, out step))
+            {
+                if (entry.Type == "ITEM_PURCHASED")
+                    row.SubItems[4].Text = T(UiTextKeys.LeagueTimelinePurchaseGroup)
+                        .Replace("{0}", step.PurchaseGroup.ToString()).Replace("{1}", row.SubItems[4].Text);
+                else
+                {
+                    var slot = LeagueMatchTimelineParser.Number(entry.Data, "skillSlot");
+                    var skill = slot >= 1 && slot <= 4 ? new[] { "Q", "W", "E", "R" }[(int)slot.Value - 1] : "—";
+                    row.SubItems[4].Text = step.IsEvolution ? T(UiTextKeys.LeagueTimelineEvolve).Replace("{0}", skill) :
+                        T(UiTextKeys.LeagueTimelineSkillLevel).Replace("{0}", step.SkillLevel.ToString()).Replace("{1}", skill);
+                }
+            }
             return row;
         }
 
