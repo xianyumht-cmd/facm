@@ -21,6 +21,11 @@ namespace FACM.League
         Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken cancellationToken, string serverId = null);
     }
 
+    internal interface ILeagueSgpPlayerChallengesApi
+    {
+        Task<byte[]> TryGetChallengesAsync(string targetPuuid, CancellationToken token, string serverId = null);
+    }
+
     internal sealed class LeagueSgpServer
     {
         internal string Id;
@@ -32,7 +37,7 @@ namespace FACM.League
         public override string ToString() { return Name; }
     }
 
-    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, IDisposable
+    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, IDisposable
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
@@ -207,6 +212,15 @@ namespace FACM.League
                 "/summoner-ledge/v1/regions/" + server.PathRegion + "/summoners/puuids");
             var body = endpoint == null ? null : new JavaScriptSerializer().Serialize(new[] { targetPuuid });
             return SendAsync(session, endpoint, body, true, cancellationToken);
+        }
+
+        public Task<byte[]> TryGetChallengesAsync(string targetPuuid, CancellationToken token, string serverId = null)
+        {
+            var session = _session();
+            var server = ResolveServer(session, serverId);
+            var endpoint = server == null || !SafePuuid(targetPuuid) ? null : new Uri(server.Common +
+                "/challenges-client/v2/all-player-data/?puuid=" + Uri.EscapeDataString(targetPuuid));
+            return SendAsync(session, endpoint, "[]", true, token);
         }
 
         private bool SameSession(LeagueClientSession expected)

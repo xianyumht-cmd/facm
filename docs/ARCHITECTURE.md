@@ -1,5 +1,11 @@
 # FACM Architecture
 
+## Player challenge and mastery transport
+
+`ILeagueSgpPlayerChallengesApi` adds one typed read to the existing regional client: POST `/challenges-client/v2/all-player-data/?puuid=...` with `[]` and the League-session credential, using exact configured common hosts and existing region/session/response bounds. The Player gate validates owner before/after, exact returned PUUID and bounded unique challenge IDs before exposing the lazy collection/challenge panel. No local rank/mastery cross-region fallback is implied.
+
+`ILeagueMasteryReadApi` adds the pinned top-eight POST to the existing LCU read-client pool. Its fixed route/body, safe target and expected-session checks restrict it to mastery cache refresh, with no general write capability. The full-list GET and source top envelope remain distinct; score is never synthesized from an incomplete list. Native checkbox navigation selects the source contract, with one dialog-owned request at a time and shared champion-name metadata.
+
 ## Selected Player profile details
 
 `LeaguePlayerDataService` now has a profile-details partial that shares its existing request semaphore and authenticated client. A user-triggered overview reads the selected target profile, same-region ranked stats and cosmetic profile between current-account/session fences. Optional endpoint attempts have independent four-second deadlines inside an overall bounded request. Full mastery is a separate lazy GET, validates returned PUUIDs and unique positive champion IDs, and returns a sorted bounded snapshot. No snapshot is stored in the signed-in quick caches. `LeaguePlayerProfileDialog` freezes target, region and originating session, clears stale results, cancels on close and reuses native tabs/lists/search. Existing self and remote-history controls open the same dialog; no worker, timer, HTTP client or package is added.

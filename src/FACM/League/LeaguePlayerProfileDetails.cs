@@ -22,10 +22,58 @@ namespace FACM.League
     {
         internal LeaguePlayerDetailsStatus Status;
         internal List<Dictionary<string, object>> Masteries;
+        internal long? Score;
+    }
+
+    internal sealed class LeaguePlayerChallengesDetails
+    {
+        internal LeaguePlayerDetailsStatus Status;
+        internal Dictionary<string, object> Data;
     }
 
     internal sealed partial class LeaguePlayerDataService
     {
+        internal async Task<LeaguePlayerChallengesDetails> LoadPlayerChallengesAsync(string selfPuuid, string targetPuuid,
+            LeagueClientSession expectedSession, string serverId, CancellationToken token)
+        {
+            var result = new LeaguePlayerChallengesDetails { Status = LeaguePlayerDetailsStatus.Unavailable };
+            var api = _sgpHistory as ILeagueSgpPlayerChallengesApi;
+            if (api == null || !IsSafePuuid(selfPuuid) || !IsSafePuuid(targetPuuid)) return result;
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    deadline.CancelAfter(TimeSpan.FromSeconds(14));
+                    if (!await VerifyDetailsOwnerAsync(selfPuuid, expectedSession, deadline.Token).ConfigureAwait(false))
+                    { result.Status = LeaguePlayerDetailsStatus.AccountChanged; return result; }
+                    var data = ParseDetailsObject(await api.TryGetChallengesAsync(targetPuuid, deadline.Token, serverId).ConfigureAwait(false));
+                    if (!await VerifyDetailsOwnerAsync(selfPuuid, expectedSession, deadline.Token).ConfigureAwait(false))
+                    { result.Status = LeaguePlayerDetailsStatus.AccountChanged; return result; }
+                    if (!ValidatePlayerChallenges(data, targetPuuid)) return result;
+                    result.Data = data; result.Status = LeaguePlayerDetailsStatus.Ready;
+                    return result;
+                }
+            }
+            catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return result; }
+            finally { _requestGate.Release(); }
+        }
+
+        internal static bool ValidatePlayerChallenges(Dictionary<string, object> data, string target)
+        {
+            if (data == null || !string.Equals(ReadString(data, "puuid"), target, StringComparison.OrdinalIgnoreCase)) return false;
+            object value;
+            var rows = data.TryGetValue("playerChallenges", out value) ? value as object[] : null;
+            if (rows == null || rows.Length > 4096) return false;
+            var ids = new HashSet<long>();
+            foreach (var raw in rows)
+            {
+                var id = LeagueMatchTimelineParser.Number(raw as Dictionary<string, object>, "id");
+                if (!(id > 0) || !ids.Add(id.Value)) return false;
+            }
+            return true;
+        }
+
         internal async Task<LeaguePlayerProfileDetails> LoadPlayerDetailsAsync(string selfPuuid, string targetPuuid,
             LeagueClientSession expectedSession, string serverId, LeaguePlayerHistorySource source, CancellationToken token)
         {
@@ -62,7 +110,7 @@ namespace FACM.League
         }
 
         internal async Task<LeaguePlayerMasteryDetails> LoadPlayerMasteriesAsync(string selfPuuid, string targetPuuid,
-            LeagueClientSession expectedSession, string serverId, CancellationToken token)
+            LeagueClientSession expectedSession, string serverId, CancellationToken token, bool topOnly = false)
         {
             var result = new LeaguePlayerMasteryDetails { Status = LeaguePlayerDetailsStatus.Unavailable };
             if (!IsSafePuuid(selfPuuid) || !IsSafePuuid(targetPuuid)) return result;
@@ -76,9 +124,26 @@ namespace FACM.League
                     deadline.CancelAfter(TimeSpan.FromSeconds(10));
                     if (!await VerifyDetailsOwnerAsync(selfPuuid, expectedSession, deadline.Token).ConfigureAwait(false))
                     { result.Status = LeaguePlayerDetailsStatus.AccountChanged; return result; }
-                    var bytes = await ReadDetailsBytesAsync("/lol-champion-mastery/v1/" + targetPuuid +
-                        "/champion-mastery", deadline.Token).ConfigureAwait(false);
-                    result.Masteries = ParsePlayerMasteries(bytes, targetPuuid);
+                    if (topOnly)
+                    {
+                        var api = _client as ILeagueMasteryReadApi;
+                        var data = api == null ? null : ParseDetailsObject(await api.TryGetMasteryTopAsync(
+                            expectedSession, targetPuuid, deadline.Token).ConfigureAwait(false));
+                        if (data != null && string.Equals(ReadString(data, "puuid"), targetPuuid, StringComparison.OrdinalIgnoreCase))
+                        {
+                            object rows;
+                            if (data.TryGetValue("masteries", out rows))
+                                result.Masteries = ParsePlayerMasteries(Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(rows)), targetPuuid);
+                            if (result.Masteries != null && result.Masteries.Count > 8) result.Masteries = null;
+                            result.Score = LeagueMatchTimelineParser.Number(data, "score");
+                        }
+                    }
+                    else
+                    {
+                        var bytes = await ReadDetailsBytesAsync("/lol-champion-mastery/v1/" + targetPuuid +
+                            "/champion-mastery", deadline.Token).ConfigureAwait(false);
+                        result.Masteries = ParsePlayerMasteries(bytes, targetPuuid);
+                    }
                     if (!await VerifyDetailsOwnerAsync(selfPuuid, expectedSession, deadline.Token).ConfigureAwait(false))
                         return new LeaguePlayerMasteryDetails { Status = LeaguePlayerDetailsStatus.AccountChanged };
                     result.Status = result.Masteries == null ? LeaguePlayerDetailsStatus.Unavailable : LeaguePlayerDetailsStatus.Ready;

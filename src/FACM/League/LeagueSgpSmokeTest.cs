@@ -40,6 +40,11 @@ namespace FACM.League
                     handler.Authorization == "Bearer profile-token" &&
                     local.Paths[local.Paths.Count - 1] == LeagueSgpMatchHistoryApiClient.LeagueSessionTokenPath,
                     "Summoner profiles require the League session token, exact region and bounded JSON POST body.");
+                api.TryGetChallengesAsync("target-puuid", CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn1-k8s-sgp.lol.qq.com:21019/challenges-client/v2/all-player-data/?puuid=target-puuid" &&
+                    handler.Method == HttpMethod.Post && handler.Body == "[]" &&
+                    handler.Authorization == "Bearer profile-token",
+                    "Regional challenges must preserve the trailing slash, empty friends array and League-session token.");
                 var calls = handler.Calls;
                 var reads = local.Paths.Count;
                 api.TryGetSummaryAsync("../unsafe", 0, 10, CancellationToken.None).GetAwaiter().GetResult();
@@ -47,6 +52,8 @@ namespace FACM.League
                 api.TryGetGameSummaryAsync(0, CancellationToken.None).GetAwaiter().GetResult();
                 api.TryGetSummonerAsync("target", CancellationToken.None, "https://other.example")
                     .GetAwaiter().GetResult();
+                api.TryGetChallengesAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetChallengesAsync("target", CancellationToken.None, "NA1").GetAwaiter().GetResult();
                 Require(handler.Calls == calls && local.Paths.Count == reads,
                     "Invalid target inputs must fail before credentials or HTTP are requested.");
                 handler.AfterRead = () => current = Session("HN1", "TENCENT");

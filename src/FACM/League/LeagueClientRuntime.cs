@@ -457,7 +457,12 @@ namespace FACM.League
         Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueClientApiClient : ILeagueClientApi, IDisposable
+    internal interface ILeagueMasteryReadApi
+    {
+        Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected, string targetPuuid, CancellationToken token);
+    }
+
+    internal sealed class LeagueClientApiClient : ILeagueClientApi, ILeagueMasteryReadApi, IDisposable
     {
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -468,13 +473,28 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+        public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+        {
+            return SendReadAsync(path, null, null, cancellationToken);
+        }
+
+        public Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected, string targetPuuid, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (expected == null || !LeagueSgpMatchHistoryApiClient.SafePuuid(targetPuuid)) return Task.FromResult<byte[]>(null);
+            return SendReadAsync("/lol-champion-mastery/v1/" + targetPuuid + "/champion-mastery/top?count=8",
+                "{\"skipCache\":true}", expected, token);
+        }
+
+        private async Task<byte[]> SendReadAsync(string path, string body, LeagueClientSession expected,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
             cancellationToken.ThrowIfCancellationRequested();
 
             var session = _sessions.GetSession();
             if (session == null) return null;
+            if (expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try
@@ -490,15 +510,20 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var response = await lease.Client.GetAsync(
-                        NormalizePath(path), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
+                    using (var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, NormalizePath(path)))
                     {
-                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                            _sessions.Invalidate(session);
-                        if (!response.IsSuccessStatusCode) return null;
-                        return await CancelableHttpContentReader.ReadBytesAsync(
-                            response.Content, cancellationToken,
-                            CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                        if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                        using (var response = await lease.Client.SendAsync(request,
+                            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
+                        {
+                            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                                _sessions.Invalidate(session);
+                            if (!response.IsSuccessStatusCode) return null;
+                            var bytes = await CancelableHttpContentReader.ReadBytesAsync(
+                                response.Content, cancellationToken,
+                                CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                            return expected == null || LeagueEncounterReplayService.SessionMatches(expected, _sessions.GetSession()) ? bytes : null;
+                        }
                     }
                 }
                 catch (OperationCanceledException)

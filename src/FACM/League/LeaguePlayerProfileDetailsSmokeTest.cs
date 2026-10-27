@@ -47,6 +47,9 @@ namespace FACM.League
                 LeaguePlayerDataService.ParsePlayerMasteries(Bytes("[]"), "target").Count == 0 &&
                 LeaguePlayerDataService.ParsePlayerMasteries(Bytes("{}"), "target") == null,
                 "Wrong target, duplicate heroes and malformed mastery roots cannot produce an accepted snapshot.");
+            var top = await service.LoadPlayerMasteriesAsync("self", "target", session, null, CancellationToken.None, true);
+            Require(top.Status == LeaguePlayerDetailsStatus.Ready && top.Score == 99 && top.Masteries.Count == 1 && api.TopReads == 1,
+                "The mastery overview must consume the source top-eight envelope and score instead of inventing an aggregate from full rows.");
             var reads = api.Paths.Count;
             mastery = await service.LoadPlayerMasteriesAsync("self", "target", session, "TENCENT_HN10", CancellationToken.None);
             Require(mastery.Status == LeaguePlayerDetailsStatus.UnsupportedRegion && api.Paths.Count == reads,
@@ -68,6 +71,24 @@ namespace FACM.League
                 catch (OperationCanceledException) { threw = true; }
                 Require(threw, "Closing a profile must propagate cancellation through the existing Player request gate.");
             }
+            var challengesApi = new ChallengesApi();
+            var challengesService = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(), null, challengesApi, () => active);
+            var challenges = await challengesService.LoadPlayerChallengesAsync("self", "target", session, "TENCENT_HN10", CancellationToken.None);
+            Require(challenges.Status == LeaguePlayerDetailsStatus.Ready && challengesApi.Server == "TENCENT_HN10" &&
+                challengesApi.Target == "target" && challengesService.TryGetCachedProfile() == null,
+                "Regional challenge data must retain target/server identity without entering local profile caches.");
+            challengesApi.AfterRead = () => api.Changed = true;
+            challenges = await challengesService.LoadPlayerChallengesAsync("self", "target", session, "TENCENT_HN10", CancellationToken.None);
+            Require(challenges.Status == LeaguePlayerDetailsStatus.AccountChanged && challenges.Data == null,
+                "Changing the signed-in owner during a challenge read must discard its regional payload.");
+            api.Changed = false;
+            Require(!LeaguePlayerDataService.ValidatePlayerChallenges(LeaguePlayerDataService.ParseDetailsObject(
+                    Bytes("{\"puuid\":\"other\",\"playerChallenges\":[]}")), "target") &&
+                !LeaguePlayerDataService.ValidatePlayerChallenges(LeaguePlayerDataService.ParseDetailsObject(
+                    Bytes("{\"puuid\":\"target\",\"playerChallenges\":[{\"id\":1},{\"id\":1}]}")), "target") &&
+                LeaguePlayerProfileDialog.MetricText(new Dictionary<string, object> { { "v", 0 } }, "v") == "0" &&
+                LeaguePlayerProfileDialog.MetricText(new Dictionary<string, object>(), "v") == "—",
+                "Challenge identity/duplicate records must be rejected and missing collection values must differ from zero.");
             api.TimeoutRanked = true;
             result = await service.LoadPlayerDetailsAsync("self", "target", session, null, LeaguePlayerHistorySource.Automatic, CancellationToken.None);
             Require(result.Status == LeaguePlayerDetailsStatus.Partial && result.Ranked == null && result.Cosmetics != null,
@@ -79,10 +100,34 @@ namespace FACM.League
         }
         private static byte[] Bytes(string value) { return Encoding.UTF8.GetBytes(value); }
         private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
-        private sealed class Api : ILeagueClientApi
+        private sealed class ChallengesApi : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi
+        {
+            internal string Server, Target;
+            internal Action AfterRead;
+            public Task<byte[]> TryGetChallengesAsync(string target, CancellationToken token, string serverId = null)
+            {
+                Server = serverId; Target = target; AfterRead?.Invoke();
+                return Task.FromResult(Bytes("{\"puuid\":\"target\",\"totalPoints\":{\"current\":0},\"playerChallenges\":[{\"id\":505001,\"currentValue\":0}]}"));
+            }
+            public Task<byte[]> TryGetSummaryAsync(string target, int start, int count, CancellationToken token, string serverId = null)
+            { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameSummaryAsync(long id, CancellationToken token, string serverId = null)
+            { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameDetailsAsync(long id, CancellationToken token, string serverId = null)
+            { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetSummonerAsync(string target, CancellationToken token, string serverId = null)
+            { return Task.FromResult<byte[]>(null); }
+        }
+        private sealed class Api : ILeagueClientApi, ILeagueMasteryReadApi
         {
             internal readonly List<string> Paths = new List<string>();
             internal bool SwitchOnRanked, Changed, TimeoutRanked;
+            internal int TopReads;
+            public Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected, string target, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested(); TopReads++;
+                return Task.FromResult(Bytes("{\"puuid\":\"target\",\"score\":99,\"masteries\":[{\"championId\":2,\"championPoints\":200}]}"));
+            }
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested(); Paths.Add(path);

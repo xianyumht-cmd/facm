@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -76,6 +76,20 @@ namespace FACM.AppHost.Modules
             var api = _riotAlias;
             return api == null ? Task.FromResult<byte[]>(null) :
                 api.TryLookupAsync(gameName, tagLine, cancellationToken);
+        }
+
+        Task<byte[]> ILeagueMasteryReadApi.TryGetMasteryTopAsync(LeagueClientSession expected,
+            string targetPuuid, CancellationToken token)
+        {
+            var api = _api;
+            return api == null ? Task.FromResult<byte[]>(null) : api.TryGetMasteryTopAsync(expected, targetPuuid, token);
+        }
+
+        Task<byte[]> ILeagueSgpPlayerChallengesApi.TryGetChallengesAsync(string targetPuuid,
+            CancellationToken token, string serverId)
+        {
+            var api = _sgpHistory;
+            return api == null ? Task.FromResult<byte[]>(null) : api.TryGetChallengesAsync(targetPuuid, token, serverId);
         }
 
         Task<byte[]> ILeagueSgpMatchHistoryApi.TryGetSummaryAsync(
