@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Keep ordinary remote Player pages transient and bounded
+
+Expose Akari 1.5.1's seven regular match-history page sizes and direct-page navigation natively, but retain only the one page currently visible in the remote Player dialog. Each user action reads at most 200 records on the existing LCU transport with the current-account and target-profile verification. Never reuse the self-account Player cache for an opponent's profile, add a resident indexer, or silently show an old page under a new page number after a failed request. The source's collection-mode sizes up to 1,000 are a separate explicit implementation target requiring progress/cancellation/resource budgeting, not equivalent to increasing a single regular-page response limit.
+
 ## 2026-10-27 — Keep remote Player history out of current-account caches
 
 Implement Akari's same-region remote summoner drill-down through one explicitly opened native read-only window and the existing authenticated LCU reader, without creating a second Player module, cache or polling owner. Enforce signed-in account identity before/after the bounded target request and reject target PUUID/detail mismatches. The current Player page's profile/history caches always belong to the locally signed-in account, so a remote query must parse into a temporary result only; the dialog owns cancellation and discards stale results. Remote SGP and larger history browsing will extend this explicit path later without changing current-account cache ownership. This is a Draft PR capability, not authorization to release before Tencent/Win10 acceptance.

@@ -14,10 +14,23 @@ namespace FACM.League
         private readonly UiTextCatalog _ui;
         private readonly LeaguePlayerProfile _expected;
         private readonly string _puuid;
+        private readonly string _fallbackName;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _playerLabel;
         private readonly Label _statusLabel;
         private readonly ListView _matches;
+        private readonly ComboBox _pageSize;
+        private readonly Button _previousPage;
+        private readonly Button _nextPage;
+        private readonly Button _goToPage;
+        private readonly Button _retryPage;
+        private readonly NumericUpDown _pageNumber;
+        private readonly Label _currentPage;
+        private int _startIndex;
+        private int _count = LeaguePlayerDataService.InitialMatchCount;
+        private bool _hasMore;
+        private bool _loading;
+        private bool _loaded;
 
         internal LeagueRemotePlayerHistoryForm(LeaguePlayerDataService service, UiTextCatalog ui,
             LeaguePlayerProfile current, string targetPuuid, string targetName)
@@ -26,6 +39,7 @@ namespace FACM.League
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _expected = new LeaguePlayerProfile { PuuId = current == null ? null : current.PuuId };
             _puuid = targetPuuid;
+            _fallbackName = targetName ?? string.Empty;
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteHistoryTitle);
             StartPosition = FormStartPosition.CenterParent;
@@ -37,7 +51,7 @@ namespace FACM.League
 
             _playerLabel = new Label
             {
-                Dock = DockStyle.Fill, AutoEllipsis = true, Text = targetName ?? string.Empty,
+                Dock = DockStyle.Fill, AutoEllipsis = true, Text = _fallbackName,
                 ForeColor = FacmDesignSystem.Text, TextAlign = ContentAlignment.MiddleLeft,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 13F, FontStyle.Bold)
             };
@@ -61,23 +75,88 @@ namespace FACM.League
             _matches.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 90);
             _matches.Resize += (sender, args) => FitMatchColumns();
 
+            var footer = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas, Padding = Padding.Empty
+            };
+            _pageSize = new ComboBox { Width = 80, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerRemotePageSize) };
+            foreach (var size in new[] { 10, 20, 30, 40, 50, 100, 200 })
+                _pageSize.Items.Add(size);
+            _pageSize.SelectedIndex = 0;
+            _previousPage = PageButton(UiTextKeys.LeaguePlayerRemotePrevPage, 64);
+            _nextPage = PageButton(UiTextKeys.LeaguePlayerRemoteNextPage, 64);
+            _currentPage = new Label { Width = 82, Height = 27, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleCenter, ForeColor = FacmDesignSystem.Text };
+            _pageNumber = new NumericUpDown { Width = 76, Minimum = 1, Maximum = 100000,
+                Value = 1, Height = 27, BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerRemoteGoPage) };
+            _goToPage = PageButton(UiTextKeys.LeaguePlayerRemoteGoPage, 52);
+            _retryPage = PageButton(UiTextKeys.LeaguePlayerRemoteRetry, 52);
+            footer.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerRemotePageSize),
+                Height = 27, Width = 44, TextAlign = ContentAlignment.MiddleLeft,
+                ForeColor = FacmDesignSystem.TextMuted });
+            footer.Controls.Add(_pageSize);
+            footer.Controls.Add(_previousPage);
+            footer.Controls.Add(_currentPage);
+            footer.Controls.Add(_nextPage);
+            footer.Controls.Add(_pageNumber);
+            footer.Controls.Add(_goToPage);
+            footer.Controls.Add(_retryPage);
+            _previousPage.Click += async (sender, args) => await LoadPageAsync(Math.Max(0, _startIndex - _count), _count);
+            _nextPage.Click += async (sender, args) =>
+            {
+                if (_hasMore && _startIndex <= int.MaxValue - 2 * _count)
+                    await LoadPageAsync(_startIndex + _count, _count);
+            };
+            _goToPage.Click += async (sender, args) =>
+            {
+                int start;
+                if (TryResolvePageStartForSmokeTest((int)_pageNumber.Value, _count, out start))
+                    await LoadPageAsync(start, _count);
+            };
+            _retryPage.Click += async (sender, args) => await LoadPageAsync(_startIndex, _count);
+            _pageSize.SelectedIndexChanged += async (sender, args) =>
+            {
+                if (_loaded && !_loading && _pageSize.SelectedItem is int)
+                    await LoadPageAsync(0, (int)_pageSize.SelectedItem);
+            };
+
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(20, 14, 20, 20),
-                ColumnCount = 1, RowCount = 3, BackColor = FacmDesignSystem.Canvas
+                ColumnCount = 1, RowCount = 4, BackColor = FacmDesignSystem.Canvas
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
             layout.Controls.Add(_playerLabel, 0, 0);
             layout.Controls.Add(_statusLabel, 0, 1);
             layout.Controls.Add(_matches, 0, 2);
+            layout.Controls.Add(footer, 0, 3);
             Controls.Add(layout);
 
-            Shown += async (sender, args) => { FitMatchColumns(); await LoadAsync(); };
+            UpdatePageButtons();
+            Shown += async (sender, args) => { FitMatchColumns(); await LoadPageAsync(0, _count); };
             FormClosing += (sender, args) => _lifetime.Cancel();
             Disposed += (sender, args) => _lifetime.Dispose();
+        }
+
+        private Button PageButton(string key, int width)
+        {
+            var button = new Button
+            {
+                Text = _ui.Get(key), Width = width, Height = 27,
+                FlatStyle = FlatStyle.Flat, BackColor = FacmDesignSystem.SurfaceRaised,
+                ForeColor = FacmDesignSystem.Text
+            };
+            button.FlatAppearance.BorderSize = 0;
+            return button;
         }
 
         internal static int[] ResolveColumnWidthsForSmokeTest(int width)
@@ -95,6 +174,15 @@ namespace FACM.League
             return result;
         }
 
+        internal static bool TryResolvePageStartForSmokeTest(int page, int count, out int start)
+        {
+            start = 0;
+            if (page < 1 || count < 1 || count > LeaguePlayerDataService.MaximumRemoteMatchPageCount ||
+                page - 1 > (int.MaxValue - count) / count) return false;
+            start = (page - 1) * count;
+            return true;
+        }
+
         private void FitMatchColumns()
         {
             if (_matches == null || _matches.Columns.Count != 5) return;
@@ -104,14 +192,42 @@ namespace FACM.League
                 _matches.Columns[index].Width = widths[index];
         }
 
-        private async Task LoadAsync()
+        private void UpdatePageButtons()
         {
+            if (IsDisposed) return;
+            _pageSize.Enabled = _loaded && !_loading;
+            _previousPage.Enabled = _loaded && !_loading && _startIndex > 0;
+            _nextPage.Enabled = _loaded && !_loading && _hasMore &&
+                _startIndex <= int.MaxValue - 2 * _count;
+            _goToPage.Enabled = _loaded && !_loading;
+            _pageNumber.Enabled = _loaded && !_loading;
+            _retryPage.Enabled = !_loading;
+            var number = _startIndex / _count + 1;
+            _currentPage.Text = _ui.Get(UiTextKeys.LeaguePlayerRemotePageLabel)
+                .Replace("{0}", number.ToString());
+            if (number <= _pageNumber.Maximum) _pageNumber.Value = number;
+        }
+
+        private async Task LoadPageAsync(int startIndex, int count)
+        {
+            if (_loading || IsDisposed || _lifetime.IsCancellationRequested) return;
+            _loading = true;
+            _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
+            UpdatePageButtons();
             try
             {
-                var result = await _service.LoadRemotePlayerHistoryAsync(_expected, _puuid, _lifetime.Token);
+                var result = await _service.LoadRemotePlayerHistoryAsync(_expected, _puuid,
+                    _lifetime.Token, startIndex, count);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (result.Status != LeagueRiotPlayerSearchStatus.Found)
                 {
+                    if (result.Status == LeagueRiotPlayerSearchStatus.AccountChanged)
+                    {
+                        _loaded = false;
+                        _hasMore = false;
+                        _playerLabel.Text = string.Empty;
+                        _matches.Items.Clear();
+                    }
                     _statusLabel.Text = _ui.Get(result.Status == LeagueRiotPlayerSearchStatus.AccountChanged
                         ? UiTextKeys.LeaguePlayerRemoteAccountChanged
                         : result.Status == LeagueRiotPlayerSearchStatus.NotFound
@@ -121,7 +237,7 @@ namespace FACM.League
                 var profile = result.Profile;
                 if (profile != null)
                 {
-                    _playerLabel.Text = string.IsNullOrWhiteSpace(profile.AccountName) ? _playerLabel.Text : profile.AccountName;
+                    _playerLabel.Text = string.IsNullOrWhiteSpace(profile.AccountName) ? _fallbackName : profile.AccountName;
                     if (profile.SummonerLevel > 0)
                         _playerLabel.Text += "  ·  " + _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + profile.SummonerLevel;
                 }
@@ -151,6 +267,10 @@ namespace FACM.League
                     }
                 }
                 finally { _matches.EndUpdate(); }
+                _startIndex = startIndex;
+                _count = count;
+                _hasMore = page.HasMore;
+                _loaded = true;
                 _statusLabel.Text = _matches.Items.Count == 0
                     ? _ui.Get(UiTextKeys.LeaguePlayerRemoteNoMatches)
                     : _ui.Get(UiTextKeys.LeaguePlayerRemoteRecentCount)
@@ -160,6 +280,16 @@ namespace FACM.League
             catch (Exception)
             {
                 if (!IsDisposed) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
+            }
+            finally
+            {
+                if (!IsDisposed)
+                {
+                    // Revert a page-size draft if its request did not succeed.
+                    if (!Equals(_pageSize.SelectedItem, _count)) _pageSize.SelectedItem = _count;
+                }
+                _loading = false;
+                if (!IsDisposed) UpdatePageButtons();
             }
         }
     }

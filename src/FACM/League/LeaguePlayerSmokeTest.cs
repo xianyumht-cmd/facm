@@ -33,6 +33,12 @@ namespace FACM.League
                 Require(columns.Length == 5 && columns.All(value => value > 0) && columns.Sum() == width,
                     "Remote player history columns must scale without clipping at compact native widths.");
             }
+            int start;
+            Require(LeagueRemotePlayerHistoryForm.TryResolvePageStartForSmokeTest(1, 10, out start) && start == 0 &&
+                    LeagueRemotePlayerHistoryForm.TryResolvePageStartForSmokeTest(8, 200, out start) && start == 1400 &&
+                    !LeagueRemotePlayerHistoryForm.TryResolvePageStartForSmokeTest(0, 10, out start) &&
+                    !LeagueRemotePlayerHistoryForm.TryResolvePageStartForSmokeTest(int.MaxValue, 200, out start),
+                "Remote history direct-page navigation must match source offsets without integer overflow.");
             Require(LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", "卡莎") &&
                     LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", " 145 ") &&
                     LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Opponent#CN1", "puuid-Example-ZZ", "example"),
@@ -291,11 +297,33 @@ namespace FACM.League
                     CountPath(api.Paths, "/lol-match-history/v1/products/lol/target-puuid/matches?begIndex=0&endIndex=9") == 1,
                 "One explicit remote view must use the bounded target LCU route between two self-profile fences.");
 
+            var secondPage = service.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None, 10, 20)
+                .GetAwaiter().GetResult();
+            Require(secondPage.Status == LeagueRiotPlayerSearchStatus.Found &&
+                    secondPage.Page.StartIndex == 10 && secondPage.Page.RequestedCount == 20 &&
+                    CountPath(api.Paths, "/lol-match-history/v1/products/lol/target-puuid/matches?begIndex=10&endIndex=29") == 1 &&
+                    service.TryGetCachedPage() == null,
+                "Remote history page changes must use exact inclusive source indexes without changing own caches.");
+
             var before = api.Paths.Count;
             Require(service.LoadRemotePlayerHistoryAsync(expected, "not/valid", CancellationToken.None)
                 .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable &&
+                    service.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None, 0, 201)
+                        .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable &&
+                    service.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None, int.MaxValue, 10)
+                        .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.Unavailable &&
                     api.Paths.Count == before,
-                "Untrusted remote player IDs must not become LCU URL paths.");
+                "Untrusted IDs, oversized page requests and integer-overflow offsets must never dispatch LCU requests.");
+
+            var oversizedPage = "{\"games\":{\"games\":[{\"gameId\":1},{\"gameId\":2}]}}";
+            var oversized = new LeaguePlayerDataService(new FixtureApi(current, "{}", null, null, profiles,
+                new Dictionary<string, string> { { "target-puuid", oversizedPage } }),
+                new PerformanceBudgetProvider());
+            var truncated = oversized.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None, 0, 1)
+                .GetAwaiter().GetResult();
+            Require(truncated.Status == LeagueRiotPlayerSearchStatus.Found && truncated.Page.Matches.Count == 1 &&
+                    truncated.Page.HasMore,
+                "Unexpected LCU over-return must remain bounded by the requested remote page size.");
             var wrongAccount = new FixtureApi("{\"puuid\":\"another-account\"}", "{}", null, null, profiles, histories);
             var preflight = new LeaguePlayerDataService(wrongAccount, new PerformanceBudgetProvider());
             Require(preflight.LoadRemotePlayerHistoryAsync(expected, "target-puuid", CancellationToken.None)

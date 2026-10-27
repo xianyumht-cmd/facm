@@ -302,6 +302,12 @@ namespace FACM.Services
         public const string LeaguePlayerRemoteRecentCount = "LeaguePlayerRemoteRecentCount";
         public const string LeaguePlayerRemoteHistoryUnavailable = "LeaguePlayerRemoteHistoryUnavailable";
         public const string LeaguePlayerRemoteHistoryNotFound = "LeaguePlayerRemoteHistoryNotFound";
+        public const string LeaguePlayerRemotePageSize = "LeaguePlayerRemotePageSize";
+        public const string LeaguePlayerRemotePrevPage = "LeaguePlayerRemotePrevPage";
+        public const string LeaguePlayerRemoteNextPage = "LeaguePlayerRemoteNextPage";
+        public const string LeaguePlayerRemoteGoPage = "LeaguePlayerRemoteGoPage";
+        public const string LeaguePlayerRemotePageLabel = "LeaguePlayerRemotePageLabel";
+        public const string LeaguePlayerRemoteRetry = "LeaguePlayerRemoteRetry";
         public const string LeaguePlayerFilter3Hours = "LeaguePlayerFilter3Hours";
         public const string LeaguePlayerFilter12Hours = "LeaguePlayerFilter12Hours";
         public const string LeaguePlayerFilter24Hours = "LeaguePlayerFilter24Hours";

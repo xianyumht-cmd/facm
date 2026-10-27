@@ -17,6 +17,7 @@ namespace FACM.League
         internal const int MaximumMatchCount = 20;
         internal const string ChampionSummaryPath = "/lol-game-data/assets/v1/champion-summary.json";
         private static readonly TimeSpan ChampionMetadataCacheDuration = TimeSpan.FromMinutes(30);
+        internal const int MaximumRemoteMatchPageCount = 200;
         private readonly object _cacheSync = new object();
         private readonly ILeagueClientApi _client;
         private readonly ILeagueRiotAliasLookupApi _riotAliases;
@@ -93,9 +94,12 @@ namespace FACM.League
         }
 
         internal async Task<LeagueRemotePlayerHistoryResult> LoadRemotePlayerHistoryAsync(
-            LeaguePlayerProfile expected, string targetPuuid, CancellationToken cancellationToken)
+            LeaguePlayerProfile expected, string targetPuuid, CancellationToken cancellationToken,
+            int startIndex = 0, int count = InitialMatchCount)
         {
-            if (expected == null || !IsSafePuuid(expected.PuuId) || !IsSafePuuid(targetPuuid))
+            if (expected == null || !IsSafePuuid(expected.PuuId) || !IsSafePuuid(targetPuuid) ||
+                startIndex < 0 || count < 1 || count > MaximumRemoteMatchPageCount ||
+                startIndex > int.MaxValue - count)
                 return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
 
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
@@ -120,15 +124,18 @@ namespace FACM.League
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
 
                         var historyPath = "/lol-match-history/v1/products/lol/" +
-                            Uri.EscapeDataString(targetPuuid) + "/matches?begIndex=0&endIndex=9";
+                            Uri.EscapeDataString(targetPuuid) + "/matches?begIndex=" + startIndex +
+                            "&endIndex=" + (startIndex + count - 1);
                         var page = ParseMatchPage(await _client.TryGetBytesAsync(historyPath, timeout.Token)
-                            .ConfigureAwait(false), profile, 0, InitialMatchCount);
+                            .ConfigureAwait(false), profile, startIndex, count);
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
                         if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
                         if (page == null)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+                        if (page.Matches.Count > count)
+                            page.Matches.RemoveRange(count, page.Matches.Count - count);
                         return new LeagueRemotePlayerHistoryResult
                         {
                             Status = LeagueRiotPlayerSearchStatus.Found,
