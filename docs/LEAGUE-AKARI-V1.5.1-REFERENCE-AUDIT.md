@@ -1,6 +1,10 @@
 # League Akari v1.5.1 — Version-locked implementation research
 
-## Cherry subgroup continuation
+## Cherry subgroup verified checkpoint
+
+Cherry candidate `2b6573150e0b26e63fd86b9138956453e89ddf51` passed Windows Build #40555008723, Glass #40555008729, UI Text #40555008720 and Mayhem Source #40555008765. Grouping/placements and chart comparisons are included; Cherry eight/three-player visual arrangement, detailed-card/rune/augment presentation and Tencent gameplay acceptance remain open. The earlier source note below predates this Windows CI result.
+
+## Previous Cherry source candidate
 
 Pinned `match-history/participants.ts` distinguishes `playerSubteamId` from the ordinary `teamId`, and `teams.ts`, `MatchCardOverview.vue`, `MatchCardSummaryTab.vue` and `MatchCardDiffLineChart.vue` group and sort by the former and `subteamPlacement`. Current native candidate carries these fields from both LCU `stats` and normalized SGP participants into the selected-match cards, history snapshots and five-metric team-average comparison. Missing subgroup IDs cannot inherit the red/blue team; missing or conflicting placements stay unknown. The source's eight/three-player Cherry group presentations and broader detailed-card styling still need parity work. Cherry Windows CI and Tencent runtime acceptance have not yet run at this candidate commit. Previously pending death-damage executable `68122cf` passed all four Windows checks; this does not constitute live-client proof.
 
