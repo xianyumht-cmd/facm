@@ -31,6 +31,7 @@ namespace FACM.League
         private readonly ComboBox _timeFilter;
         private readonly Button _championFilter;
         private readonly Button _playerFilter;
+        private readonly Button _advancedFilterButton;
         private readonly CheckedListBox _championChecks;
         private readonly CheckedListBox _playerChecks;
         private readonly ToolStripTextBox _championSearch;
@@ -49,6 +50,7 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
         private LeaguePlayerMatchPage _loadedPage;
+        private LeagueAdvancedMatchHistoryFilter _advancedFilter;
         private bool _updatingFilterChoices;
         private LeaguePlayerProfile _profile;
         private bool _loading;
@@ -259,6 +261,19 @@ namespace FACM.League
             };
             _winFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
             _timeFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
+            _advancedFilterButton = FilterMultiButton(152, UiTextKeys.LeaguePlayerAdvancedFilter);
+            _advancedFilterButton.Click += (sender, e) =>
+            {
+                using (var dialog = new LeagueAdvancedMatchHistoryForm(_advancedFilter))
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                    _advancedFilter = dialog.Result;
+                }
+                UpdateAdvancedFilterLabel();
+                ApplySimpleFilter();
+            };
+            _filterPanel.Controls.Add(_advancedFilterButton);
+            UpdateAdvancedFilterLabel();
             UpdateFilterButtonLabels();
 
             _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, FacmButtonTone.Primary);
@@ -343,7 +358,7 @@ namespace FACM.League
                 combo.BackColor = FacmDesignSystem.SurfaceRaised;
                 combo.ForeColor = FacmDesignSystem.Text;
             }
-            foreach (var button in new[] { _championFilter, _playerFilter })
+            foreach (var button in new[] { _championFilter, _playerFilter, _advancedFilterButton })
             {
                 button.BackColor = FacmDesignSystem.SurfaceRaised;
                 button.ForeColor = FacmDesignSystem.Text;
@@ -702,6 +717,8 @@ namespace FACM.League
 
         private void ResetFilterChoices()
         {
+            _advancedFilter = null;
+            UpdateAdvancedFilterLabel();
             _selectedChampions.Clear();
             _selectedPlayers.Clear();
             _selectedPlayerNames.Clear();
@@ -806,6 +823,12 @@ namespace FACM.League
             _playerFilter.Text = _selectedPlayers.Count == 0 ? all : selected.Replace("{0}", _selectedPlayers.Count.ToString());
         }
 
+        private void UpdateAdvancedFilterLabel()
+        {
+            _advancedFilterButton.Text = _ui.Get(_advancedFilter == null ?
+                UiTextKeys.LeaguePlayerAdvancedFilter : UiTextKeys.LeaguePlayerAdvancedActive);
+        }
+
         private void ApplySimpleFilter()
         {
             if (_updatingFilterChoices || _matchesList == null || IsDisposed) return;
@@ -818,7 +841,10 @@ namespace FACM.League
             };
             _rows.Clear();
             if (_loadedPage != null)
-                _rows.AddRange(LeagueSimpleMatchHistoryFilter.Apply(_loadedPage.Matches, filter, DateTime.UtcNow));
+            {
+                var selected = LeagueSimpleMatchHistoryFilter.Apply(_loadedPage.Matches, filter, DateTime.UtcNow);
+                _rows.AddRange(LeagueAdvancedMatchHistoryFilter.Apply(selected, _advancedFilter));
+            }
             _matchesList.VirtualListSize = _rows.Count;
             _matchesList.Invalidate();
             var visiblePage = new LeaguePlayerMatchPage();

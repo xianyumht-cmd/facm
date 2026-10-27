@@ -291,6 +291,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerFilterTimeRange, "时间"),
             Pair(UiTextKeys.LeaguePlayerFilterChampion, "本场英雄"),
             Pair(UiTextKeys.LeaguePlayerFilterPlayer, "参赛玩家"),
+            Pair(UiTextKeys.LeaguePlayerAdvancedFilter, "高级筛选"),
+            Pair(UiTextKeys.LeaguePlayerAdvancedActive, "高级筛选 · 已启用"),
             Pair(UiTextKeys.LeaguePlayerFilterSelected, "已选 {0} 项"),
             Pair(UiTextKeys.LeaguePlayerFilterClear, "清空选择"),
             Pair(UiTextKeys.LeaguePlayerFilterSearchChampion, "搜索英雄名称或 ID"),

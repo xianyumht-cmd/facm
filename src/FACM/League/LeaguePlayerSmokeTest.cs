@@ -16,6 +16,7 @@ namespace FACM.League
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
+            ValidateAdvancedCombinatorFilters();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
@@ -195,6 +196,115 @@ namespace FACM.League
             Require(filter.Matches(edge, now), "Three-hour history boundary must be inclusive.");
             edge.GameCreationLocal = DateTime.MinValue;
             Require(!filter.Matches(edge, now), "Unknown historical timestamps cannot pass a dated filter.");
+        }
+
+        private static LeagueAdvancedMatchNode Predicate(LeagueAdvancedMatchKind kind, string value = null)
+        {
+            return new LeagueAdvancedMatchNode { Kind = kind, Value = value };
+        }
+
+        private static LeagueAdvancedMatchNode Group(LeagueAdvancedMatchKind kind, params LeagueAdvancedMatchNode[] children)
+        {
+            var node = Predicate(kind);
+            node.Children.AddRange(children);
+            return node;
+        }
+
+        private static void ValidateAdvancedCombinatorFilters()
+        {
+            // Pinned Akari 1.5.1 combinator-nodes.ts: game(AND/OR/NOT) with queue,
+            // map, mode, duration, results and match-wide player/champion predicates.
+            var root = Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Or,
+                    Predicate(LeagueAdvancedMatchKind.IsQueue, "420"),
+                    Predicate(LeagueAdvancedMatchKind.IsGameMode, "ARAM")),
+                Group(LeagueAdvancedMatchKind.Not, Predicate(LeagueAdvancedMatchKind.HasChampion, "99")),
+                Predicate(LeagueAdvancedMatchKind.DurationBetween, "600,1800"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "5,10"));
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(root, out filter, out error),
+                "Valid recursive AND/OR/NOT source-shaped history filters must compile: " + error);
+
+            var matches = new[]
+            {
+                new LeaguePlayerMatchSummary { GameId = 1, GameMode = "ARAM", QueueId = 450,
+                    GameDurationSeconds = 600, MatchChampionIds = new[] { 22 }, Kills = 5,
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 2, GameMode = "CLASSIC", QueueId = 420,
+                    GameDurationSeconds = 1800, MatchChampionIds = new[] { 22 }, Kills = 10,
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 3, GameMode = "CLASSIC", QueueId = 420,
+                    GameDurationSeconds = 1200, MatchChampionIds = new[] { 99 }, Kills = 7,
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 4, GameMode = "ARAM", QueueId = 450,
+                    GameDurationSeconds = 1200, MatchChampionIds = null, Kills = 7,
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 5, GameMode = "ARAM", QueueId = 450,
+                    GameDurationSeconds = 1200, MatchChampionIds = new[] { 22 }, Kills = 0,
+                    ParticipantResolved = false, StatisticsAvailable = false },
+                new LeaguePlayerMatchSummary { GameId = 6, GameMode = "KIWI", QueueId = 3270,
+                    GameDurationSeconds = 1200, MatchChampionIds = new[] { 22 }, Kills = 7,
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 7, GameMode = "ARAM", QueueId = 450,
+                    GameDurationSeconds = 0, MatchChampionIds = new[] { 22 }, Kills = 7,
+                    ParticipantResolved = true, StatisticsAvailable = true }
+            };
+            Require(LeagueAdvancedMatchHistoryFilter.Apply(matches, filter).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1, 2 }),
+                "Nested advanced groups must preserve AND/OR/NOT semantics, inclusive ranges and missing-evidence gates.");
+            root.Children.Clear();
+            Require(filter.Matches(matches[0]) && !filter.Matches(matches[3]),
+                "Applying a filter must use a defensive snapshot, not the mutable editor nodes.");
+
+            var winResult = Group(LeagueAdvancedMatchKind.Or,
+                Predicate(LeagueAdvancedMatchKind.IsWin),
+                Group(LeagueAdvancedMatchKind.Not, Predicate(LeagueAdvancedMatchKind.IsLoss)));
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(winResult, out filter, out error),
+                "Win/loss OR/NOT tree should compile.");
+            Require(!filter.Matches(new LeaguePlayerMatchSummary { Win = false, StatisticsAvailable = false,
+                ParticipantResolved = true }), "NOT must not turn an unknown outcome into a verified victory.");
+            Require(filter.Matches(new LeaguePlayerMatchSummary { Win = true, StatisticsAvailable = true,
+                ParticipantResolved = true }), "Nested result combinations must include verified wins.");
+
+            var playerTree = Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.HasPlayer, "target"),
+                Predicate(LeagueAdvancedMatchKind.HasChampion, "22"),
+                Predicate(LeagueAdvancedMatchKind.IsMap, "12"),
+                Predicate(LeagueAdvancedMatchKind.AssistsBetween, "3,8"));
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(playerTree, out filter, out error),
+                "Player/champion/map/assists conditions must compile.");
+            var complete = new LeaguePlayerMatchSummary
+            {
+                MatchPlayers = new[] { new LeaguePlayerMatchIdentity { PuuId = "target" } },
+                MatchChampionIds = new[] { 22 }, MapId = 12, Assists = 8,
+                StatisticsAvailable = true, ParticipantResolved = true
+            };
+            Require(filter.Matches(complete), "Verified match-wide PUUID and champion evidence must combine with own stats.");
+            complete.MatchPlayers[0].PuuId = "TARGET";
+            Require(!filter.Matches(complete), "Akari PUUID identity filtering must remain case-sensitive.");
+
+            foreach (var invalid in new[]
+            {
+                Group(LeagueAdvancedMatchKind.And, Predicate(LeagueAdvancedMatchKind.IsQueue, "0")),
+                Group(LeagueAdvancedMatchKind.And, Predicate(LeagueAdvancedMatchKind.DurationBetween, "12,11")),
+                Group(LeagueAdvancedMatchKind.And, Predicate(LeagueAdvancedMatchKind.HasPlayer, "  ")),
+                Group(LeagueAdvancedMatchKind.And, Group(LeagueAdvancedMatchKind.Not)),
+                Group(LeagueAdvancedMatchKind.And, Group(LeagueAdvancedMatchKind.Or)),
+                Group(LeagueAdvancedMatchKind.And, Group(LeagueAdvancedMatchKind.Not,
+                    Predicate(LeagueAdvancedMatchKind.IsWin), Predicate(LeagueAdvancedMatchKind.IsLoss)))
+            })
+                Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(invalid, out filter, out error),
+                    "Invalid or incomplete advanced match filters must fail closed before application.");
+
+            var cycle = Group(LeagueAdvancedMatchKind.And);
+            cycle.Children.Add(cycle);
+            Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(cycle, out filter, out error),
+                "Cyclic filter input must not recurse indefinitely.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(
+                Group(LeagueAdvancedMatchKind.Or), out filter, out error) &&
+                LeagueAdvancedMatchHistoryFilter.Apply(matches, filter).Count == matches.Length,
+                "An empty advanced OR root must not hide the entire loaded page.");
         }
 
         private static void ValidateRiotPlayerSearch()

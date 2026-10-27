@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Compile advanced Player filters once, keep unknown data unknown
+
+Mirror Akari 1.5.1's AND/OR/NOT expression-tree concept in an explicit small native editor, with defensive compile-time validation and bounded recursion. Reuse the existing Player-page account-scoped history and statistics; do not attach the filter to a new network owner, background prefetch or persistent settings. Combine advanced conditions with already selected simple predicates so editing does not silently discard users' existing selections. In a partial Tencent LCU match, unknown participant/result/duration data must remain unknown under NOT instead of being treated as proof of absence. Keep incomplete Akari predicate families visible in the parity backlog and do not infer real-client functionality or production readiness from synthetic tests.
+
 ## 2026-10-27 — Keep ordinary remote Player pages transient and bounded
 
 Expose Akari 1.5.1's seven regular match-history page sizes and direct-page navigation natively, but retain only the one page currently visible in the remote Player dialog. Each user action reads at most 200 records on the existing LCU transport with the current-account and target-profile verification. Never reuse the self-account Player cache for an opponent's profile, add a resident indexer, or silently show an old page under a new page number after a failed request. The source's collection-mode sizes up to 1,000 are a separate explicit implementation target requiring progress/cancellation/resource budgeting, not equivalent to increasing a single regular-page response limit.
