@@ -59,6 +59,13 @@ namespace FACM.League
         public int[] MatchChampionIds { get; set; }
         // Verified match-wide participant identities; absent/ambiguous PUUIDs are never inferred.
         public LeaguePlayerMatchIdentity[] MatchPlayers { get; set; }
+        // Self participant slots. -1 means the upstream field was unavailable; 0 is a known empty slot.
+        public int[] ItemIds { get; set; }
+        public int? RoleBoundItemId { get; set; }
+        public int[] SpellIds { get; set; }
+        public int[] PerkIds { get; set; }
+        public int[] PerkStyleIds { get; set; }
+        public int[] AugmentIds { get; set; }
 
     }
 

@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Preserve missing slot evidence in Akari participant predicates
+
+Project Akari 1.5.1's LCU participant item/spell/rune/augment slot fields into the existing current-player match summary instead of initiating game-detail reads per history row. Keep ordered slot arrays small and account-cache copies defensive. An absent or malformed field is unknown (`-1`), not a confirmed empty slot (`0`); this matters especially for `NOT(hasItem/hasAugment)` after a partial Tencent response. Support source-like optional zero-based `ID@slot` conditions within bounded valid indexes. Preserve Akari's special role-bound item membership even when another slot is requested. Quantified predicates for other players/teams require separately verified participant projections; they are not inferred from self-player fields.
+
 ## 2026-10-27 — Compile advanced Player filters once, keep unknown data unknown
 
 Mirror Akari 1.5.1's AND/OR/NOT expression-tree concept in an explicit small native editor, with defensive compile-time validation and bounded recursion. Reuse the existing Player-page account-scoped history and statistics; do not attach the filter to a new network owner, background prefetch or persistent settings. Combine advanced conditions with already selected simple predicates so editing does not silently discard users' existing selections. In a partial Tencent LCU match, unknown participant/result/duration data must remain unknown under NOT instead of being treated as proof of absence. Keep incomplete Akari predicate families visible in the parity backlog and do not infer real-client functionality or production readiness from synthetic tests.

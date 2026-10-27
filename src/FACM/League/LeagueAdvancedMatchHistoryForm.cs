@@ -24,7 +24,12 @@ namespace FACM.League
             LeagueAdvancedMatchKind.KillsBetween,
             LeagueAdvancedMatchKind.DeathsBetween,
             LeagueAdvancedMatchKind.AssistsBetween,
-            LeagueAdvancedMatchKind.CsBetween
+            LeagueAdvancedMatchKind.CsBetween,
+            LeagueAdvancedMatchKind.HasItem,
+            LeagueAdvancedMatchKind.HasSpell,
+            LeagueAdvancedMatchKind.HasPerk,
+            LeagueAdvancedMatchKind.HasPerkStyle,
+            LeagueAdvancedMatchKind.HasAugment
         };
 
         private readonly LeagueAdvancedMatchNode _root;
@@ -175,6 +180,11 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.DeathsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDeaths);
                 case LeagueAdvancedMatchKind.AssistsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAssists);
                 case LeagueAdvancedMatchKind.CsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedCs);
+                case LeagueAdvancedMatchKind.HasItem: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedItem);
+                case LeagueAdvancedMatchKind.HasSpell: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSpell);
+                case LeagueAdvancedMatchKind.HasPerk: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPerk);
+                case LeagueAdvancedMatchKind.HasPerkStyle: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPerkStyle);
+                case LeagueAdvancedMatchKind.HasAugment: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAugment);
                 default: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedUnknown);
             }
         }
@@ -262,6 +272,9 @@ namespace FACM.League
                         UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedResultHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsQueue || node.Kind == LeagueAdvancedMatchKind.IsMap ||
                     node.Kind == LeagueAdvancedMatchKind.HasChampion ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedIdHint) :
+                    node.Kind == LeagueAdvancedMatchKind.HasItem || node.Kind == LeagueAdvancedMatchKind.HasSpell ||
+                    node.Kind == LeagueAdvancedMatchKind.HasPerk || node.Kind == LeagueAdvancedMatchKind.HasPerkStyle ||
+                    node.Kind == LeagueAdvancedMatchKind.HasAugment ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSlotHint) :
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRangeHint);
             }
             finally { _changingSelection = false; }

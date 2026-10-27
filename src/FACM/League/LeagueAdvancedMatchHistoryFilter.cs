@@ -22,7 +22,12 @@ namespace FACM.League
         KillsBetween,
         DeathsBetween,
         AssistsBetween,
-        CsBetween
+        CsBetween,
+        HasItem,
+        HasSpell,
+        HasPerk,
+        HasPerkStyle,
+        HasAugment
     }
 
     internal sealed class LeagueAdvancedMatchNode
@@ -112,6 +117,7 @@ namespace FACM.League
                 int number;
                 int minimum;
                 int maximum;
+                int slot;
                 switch (source.Kind)
                 {
                     case LeagueAdvancedMatchKind.IsWin:
@@ -139,6 +145,22 @@ namespace FACM.League
                         }
                         copy.Value = minimum.ToString(CultureInfo.InvariantCulture) + "," +
                             maximum.ToString(CultureInfo.InvariantCulture);
+                        break;
+                    case LeagueAdvancedMatchKind.HasItem:
+                    case LeagueAdvancedMatchKind.HasSpell:
+                    case LeagueAdvancedMatchKind.HasPerk:
+                    case LeagueAdvancedMatchKind.HasPerkStyle:
+                    case LeagueAdvancedMatchKind.HasAugment:
+                        var size = source.Kind == LeagueAdvancedMatchKind.HasItem ? 7 :
+                            source.Kind == LeagueAdvancedMatchKind.HasSpell ||
+                            source.Kind == LeagueAdvancedMatchKind.HasPerkStyle ? 2 : 6;
+                        if (!TryIdAndSlot(source.Value, size, out number, out slot))
+                        {
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorSlot;
+                            return false;
+                        }
+                        copy.Value = number.ToString(CultureInfo.InvariantCulture) +
+                            (slot >= 0 ? "@" + slot.ToString(CultureInfo.InvariantCulture) : string.Empty);
                         break;
                     case LeagueAdvancedMatchKind.IsGameMode:
                     case LeagueAdvancedMatchKind.HasPlayer:
@@ -168,6 +190,18 @@ namespace FACM.League
                 int.TryParse(parts[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out minimum) &&
                 int.TryParse(parts[1].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out maximum) &&
                 minimum >= 0 && maximum >= minimum;
+        }
+
+        private static bool TryIdAndSlot(string value, int slotCount, out int id, out int slot)
+        {
+            id = slot = -1;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            var parts = value.Trim().Split('@');
+            if (parts.Length > 2 || !int.TryParse(parts[0], NumberStyles.None,
+                CultureInfo.InvariantCulture, out id) || id <= 0) return false;
+            return parts.Length == 1 ||
+                (int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out slot) &&
+                 slot >= 0 && slot < slotCount);
         }
 
         internal bool Matches(LeaguePlayerMatchSummary match)
@@ -241,9 +275,46 @@ namespace FACM.League
                     return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown : InRange(node.Value, match.Assists);
                 case LeagueAdvancedMatchKind.CsBetween:
                     return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown : InRange(node.Value, match.CreepScore);
+                case LeagueAdvancedMatchKind.HasItem:
+                {
+                    int id;
+                    int slot;
+                    TryIdAndSlot(node.Value, 7, out id, out slot);
+                    if (match.RoleBoundItemId == id) return Evidence.Yes;
+                    var inItems = ContainsSlot(match.ItemIds, id, slot, 7);
+                    return inItems == Evidence.No && !match.RoleBoundItemId.HasValue ? Evidence.Unknown : inItems;
+                }
+                case LeagueAdvancedMatchKind.HasSpell:
+                    return MatchSlot(match.SpellIds, node.Value, 2);
+                case LeagueAdvancedMatchKind.HasPerk:
+                    return MatchSlot(match.PerkIds, node.Value, 6);
+                case LeagueAdvancedMatchKind.HasPerkStyle:
+                    return MatchSlot(match.PerkStyleIds, node.Value, 2);
+                case LeagueAdvancedMatchKind.HasAugment:
+                    return MatchSlot(match.AugmentIds, node.Value, 6);
                 default:
                     return Evidence.Unknown;
             }
+        }
+
+        private static Evidence MatchSlot(int[] values, string expression, int slotCount)
+        {
+            int id;
+            int slot;
+            TryIdAndSlot(expression, slotCount, out id, out slot);
+            return ContainsSlot(values, id, slot, slotCount);
+        }
+
+        private static Evidence ContainsSlot(int[] values, int id, int slot, int expectedCount)
+        {
+            if (values == null || values.Length != expectedCount) return Evidence.Unknown;
+            if (slot >= 0)
+            {
+                if (slot >= values.Length || values[slot] < 0) return Evidence.Unknown;
+                return Match(values[slot] == id);
+            }
+            if (Array.IndexOf(values, id) >= 0) return Evidence.Yes;
+            return values.Any(value => value < 0) ? Evidence.Unknown : Evidence.No;
         }
 
         private static Evidence Match(bool valid) { return valid ? Evidence.Yes : Evidence.No; }

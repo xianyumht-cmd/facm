@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
             ValidateAdvancedCombinatorFilters();
+            ValidateAdvancedParticipantEquipmentFilters();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
@@ -305,6 +306,104 @@ namespace FACM.League
                 Group(LeagueAdvancedMatchKind.Or), out filter, out error) &&
                 LeagueAdvancedMatchHistoryFilter.Apply(matches, filter).Count == matches.Length,
                 "An empty advanced OR root must not hide the entire loaded page.");
+        }
+
+        private static void ValidateAdvancedParticipantEquipmentFilters()
+        {
+            var matchJson = "{\"games\":{\"games\":[{\"gameId\":9001,\"gameMode\":\"ARAM\"," +
+                "\"participants\":[{\"participantId\":1,\"championId\":145,\"spell1Id\":11,\"spell2Id\":4," +
+                "\"stats\":{\"win\":true,\"kills\":8,\"deaths\":2,\"assists\":12," +
+                "\"item0\":1055,\"item1\":3006,\"item2\":0,\"item3\":0,\"item4\":0,\"item5\":0,\"item6\":3364," +
+                "\"roleBoundItem\":3340," +
+                "\"perk0\":8010,\"perk1\":9111,\"perk2\":9104,\"perk3\":8014,\"perk4\":8304,\"perk5\":8345," +
+                "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300," +
+                "\"playerAugment1\":1234,\"playerAugment2\":5678,\"playerAugment3\":0," +
+                "\"playerAugment4\":0,\"playerAugment5\":0,\"playerAugment6\":0}}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]}]}}";
+            var service = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", matchJson, null),
+                new PerformanceBudgetProvider());
+            var profile = service.LoadProfileAsync(true, CancellationToken.None).GetAwaiter().GetResult();
+            var loaded = service.LoadRecentMatchesAsync(profile, 0, 10, true, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(loaded != null && loaded.Matches.Count == 1, "One self-participant equipment fixture should parse.");
+            var match = loaded.Matches[0];
+            Require(match.ItemIds.SequenceEqual(new[] { 1055, 3006, 0, 0, 0, 0, 3364 }) &&
+                    match.RoleBoundItemId == 3340 && match.SpellIds.SequenceEqual(new[] { 11, 4 }) &&
+                    match.PerkIds.SequenceEqual(new[] { 8010, 9111, 9104, 8014, 8304, 8345 }) &&
+                    match.PerkStyleIds.SequenceEqual(new[] { 8000, 8300 }) &&
+                    match.AugmentIds.SequenceEqual(new[] { 1234, 5678, 0, 0, 0, 0 }),
+                "Akari-style LCU equipment, spells, rune styles and augment slots must preserve original order.");
+
+            var root = Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.HasItem, "1055@0"),
+                Predicate(LeagueAdvancedMatchKind.HasItem, "3340@6"),
+                Predicate(LeagueAdvancedMatchKind.HasSpell, "4@1"),
+                Predicate(LeagueAdvancedMatchKind.HasPerk, "8010@0"),
+                Predicate(LeagueAdvancedMatchKind.HasPerkStyle, "8300@1"),
+                Predicate(LeagueAdvancedMatchKind.HasAugment, "5678@1"));
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(root, out filter, out error) && filter.Matches(match),
+                "Indexed participant predicates and Akari role-bound item exception must match verified fixture slots.");
+            root.Children.Clear();
+            Require(filter.Matches(match), "Compiled participant slot conditions must be detached from the editor tree.");
+            var cached = service.TryGetCachedPage();
+            Require(cached != null && cached.Matches.Count == 1, "Loaded participant evidence should have a cache snapshot.");
+            cached.Matches[0].ItemIds[0] = 9999;
+            cached.Matches[0].SpellIds[0] = 9999;
+            cached.Matches[0].PerkIds[0] = 9999;
+            cached.Matches[0].PerkStyleIds[0] = 9999;
+            cached.Matches[0].AugmentIds[0] = 9999;
+            Require(service.TryGetCachedPage().Matches[0].ItemIds[0] == 1055 &&
+                    service.TryGetCachedPage().Matches[0].SpellIds[0] == 11 &&
+                    service.TryGetCachedPage().Matches[0].PerkIds[0] == 8010 &&
+                    service.TryGetCachedPage().Matches[0].PerkStyleIds[0] == 8000 &&
+                    service.TryGetCachedPage().Matches[0].AugmentIds[0] == 1234,
+                "Mutating a Player cache snapshot must not alter verified participant slots.");
+
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.HasSpell, "11@1")), out filter, out error) && !filter.Matches(match),
+                "A spell in the wrong occupied slot must fail an indexed predicate.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Not, Predicate(LeagueAdvancedMatchKind.HasPerk, "9999"))),
+                out filter, out error) && filter.Matches(match),
+                "NOT on a known-complete rune set must accept a verified absence.");
+
+            var partialJson = "{\"games\":{\"games\":[{\"gameId\":9002," +
+                "\"participants\":[{\"participantId\":1,\"spell1Id\":4," +
+                "\"stats\":{\"item0\":1055,\"item1\":\"invalid\",\"playerAugment1\":1234}}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]}]}}";
+            var partialPage = service.ParseMatchPage(Encoding.UTF8.GetBytes(partialJson), profile, 0, 10);
+            Require(partialPage != null && partialPage.Matches.Count == 1,
+                "Incomplete LCU participant-slot fixture must remain readable.");
+            var incomplete = partialPage.Matches[0];
+            Require(incomplete.ItemIds.SequenceEqual(new[] { 1055, -1, -1, -1, -1, -1, -1 }) &&
+                    incomplete.SpellIds.SequenceEqual(new[] { 4, -1 }) &&
+                    incomplete.AugmentIds.SequenceEqual(new[] { 1234, -1, -1, -1, -1, -1 }) &&
+                    !incomplete.RoleBoundItemId.HasValue,
+                "Missing or malformed slots must remain unknown instead of becoming an empty zero slot.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.HasAugment, "1234")), out filter, out error) &&
+                filter.Matches(incomplete), "Known positive slots must remain usable when sibling slots are absent.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Not, Predicate(LeagueAdvancedMatchKind.HasAugment, "9999"))),
+                out filter, out error) && !filter.Matches(incomplete),
+                "A partial augment list must not be interpreted as proof a different augment is absent.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Not, Predicate(LeagueAdvancedMatchKind.HasItem, "9999"))),
+                out filter, out error) && !filter.Matches(incomplete),
+                "Missing item slots or role-bound item cannot satisfy negative equipment predicates.");
+
+            foreach (var invalid in new[]
+            {
+                Predicate(LeagueAdvancedMatchKind.HasItem, "1038@7"),
+                Predicate(LeagueAdvancedMatchKind.HasSpell, "4@2"),
+                Predicate(LeagueAdvancedMatchKind.HasPerkStyle, "8000@-1"),
+                Predicate(LeagueAdvancedMatchKind.HasAugment, "0"),
+                Predicate(LeagueAdvancedMatchKind.HasPerk, "8010@0@1")
+            })
+                Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And, invalid),
+                    out filter, out error), "Invalid participant ID or slot bounds must fail before application.");
         }
 
         private static void ValidateRiotPlayerSearch()

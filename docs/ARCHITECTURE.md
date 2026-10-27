@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Source-shaped participant slot evidence in Player history (Akari 1.5.1 Draft #357)
+
+The existing `LeaguePlayerDataService.ParseMatch` reads the already-correlated **self participant** from the loaded LCU history response and projects items, role-bound item, summoner spells, six rune selections, primary/secondary rune styles and augments to `LeaguePlayerMatchSummary`. Bounded `int[]` slot vectors use `-1` for an absent/invalid upstream field and `0` for an explicitly empty slot. `ClonePage` copies them independently of the account-scoped cache. `LeagueAdvancedMatchHistoryFilter` adds source-aligned participant membership predicates with an optional indexed `ID@slot` syntax, plus tri-state evidence for incomplete arrays and nullable role-bound item. The on-demand native tree editor reuses its existing validation, localization, and apply/reset ownership. No detail hydration, network requests, new background workers, or persistent data.
+
 ## Native advanced Player match filter (Akari 1.5.1 Draft #357)
 
 `LeagueAdvancedMatchHistoryFilter` validates and defensively copies a bounded (40 nodes, depth 7) expression graph, then evaluates AND/OR/NOT and source-backed game/result/roster/stat predicates only on the `LeaguePlayerMatchSummary` page already loaded for the current account. Missing evidence remains unknown through negation. `LeagueAdvancedMatchHistoryForm` owns a disposable WinForms `TreeView` editor; applying a complete tree passes a detached copy into `LeaguePlayerForm`, which intersects it with the existing simple filters and updates the existing virtual list/stats without fetching more data. Account reset clears that local filter. No source fetch, settings/cloud schema, worker, timer, second LCU client or extra per-row network request. Full Akari 1.5.1 quantified participant and team predicates, item/perk/spell/augment filters, complete stats and provider/collection-mode coverage are separate pending tasks.

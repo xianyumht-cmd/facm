@@ -880,8 +880,45 @@ namespace FACM.League
                 SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
                 MatchChampionIds = MatchChampionIds(game),
                 MatchPlayers = MatchPlayerIdentities(game),
+                ItemIds = ReadOptionalSlots(stats, "item", 0, 7),
+                RoleBoundItemId = ReadOptionalNonNegative(stats, "roleBoundItem"),
+                SpellIds = ReadOptionalSlots(participant, "spell", 1, 2, "Id"),
+                PerkIds = ReadOptionalSlots(stats, "perk", 0, 6),
+                PerkStyleIds = ReadOptionalNamedSlots(stats, "perkPrimaryStyle", "perkSubStyle"),
+                AugmentIds = ReadOptionalSlots(stats, "playerAugment", 1, 6),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static int? ReadOptionalNonNegative(Dictionary<string, object> source, string key)
+        {
+            object raw;
+            long value;
+            return source != null && source.TryGetValue(key, out raw) && raw != null &&
+                long.TryParse(Convert.ToString(raw), out value) && value >= 0 && value <= int.MaxValue ?
+                (int?)value : null;
+        }
+
+        private static int[] ReadOptionalSlots(Dictionary<string, object> source, string prefix,
+            int first, int count, string suffix = "")
+        {
+            var result = new int[count];
+            var known = false;
+            for (var index = 0; index < count; index++)
+            {
+                var value = ReadOptionalNonNegative(source, prefix + (first + index) + suffix);
+                result[index] = value ?? -1;
+                if (value.HasValue) known = true;
+            }
+            return known ? result : null;
+        }
+
+        private static int[] ReadOptionalNamedSlots(Dictionary<string, object> source,
+            string first, string second)
+        {
+            var primary = ReadOptionalNonNegative(source, first);
+            var secondary = ReadOptionalNonNegative(source, second);
+            return primary.HasValue || secondary.HasValue ? new[] { primary ?? -1, secondary ?? -1 } : null;
         }
 
         private static int[] MatchChampionIds(Dictionary<string, object> game)
@@ -1144,6 +1181,12 @@ namespace FACM.League
                         {
                             PuuId = player.PuuId, PlayerName = player.PlayerName
                         }).ToArray(),
+                    ItemIds = match.ItemIds == null ? null : (int[])match.ItemIds.Clone(),
+                    RoleBoundItemId = match.RoleBoundItemId,
+                    SpellIds = match.SpellIds == null ? null : (int[])match.SpellIds.Clone(),
+                    PerkIds = match.PerkIds == null ? null : (int[])match.PerkIds.Clone(),
+                    PerkStyleIds = match.PerkStyleIds == null ? null : (int[])match.PerkStyleIds.Clone(),
+                    AugmentIds = match.AugmentIds == null ? null : (int[])match.AugmentIds.Clone(),
                     ParticipantResolved = match.ParticipantResolved
                 });
             }

@@ -332,6 +332,13 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedErrorRange = "LeaguePlayerAdvancedErrorRange";
         public const string LeaguePlayerAdvancedErrorIdentity = "LeaguePlayerAdvancedErrorIdentity";
         public const string LeaguePlayerAdvancedErrorUnsupported = "LeaguePlayerAdvancedErrorUnsupported";
+        public const string LeaguePlayerAdvancedItem = "LeaguePlayerAdvancedItem";
+        public const string LeaguePlayerAdvancedSpell = "LeaguePlayerAdvancedSpell";
+        public const string LeaguePlayerAdvancedPerk = "LeaguePlayerAdvancedPerk";
+        public const string LeaguePlayerAdvancedPerkStyle = "LeaguePlayerAdvancedPerkStyle";
+        public const string LeaguePlayerAdvancedAugment = "LeaguePlayerAdvancedAugment";
+        public const string LeaguePlayerAdvancedSlotHint = "LeaguePlayerAdvancedSlotHint";
+        public const string LeaguePlayerAdvancedErrorSlot = "LeaguePlayerAdvancedErrorSlot";
         public const string LeaguePlayerFilterSelected = "LeaguePlayerFilterSelected";
         public const string LeaguePlayerFilterClear = "LeaguePlayerFilterClear";
         public const string LeaguePlayerFilterSearchChampion = "LeaguePlayerFilterSearchChampion";
