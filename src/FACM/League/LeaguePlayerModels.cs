@@ -58,6 +58,30 @@ namespace FACM.League
 
     }
 
+    internal sealed class LeaguePlayerMatchParticipant
+    {
+        public int ParticipantId { get; set; }
+        public int TeamId { get; set; }
+        public string PuuId { get; set; }
+        public string PlayerName { get; set; }
+        public int ChampionId { get; set; }
+        public int Kills { get; set; }
+        public int Deaths { get; set; }
+        public int Assists { get; set; }
+        public int CreepScore { get; set; }
+        public int DamageToChampions { get; set; }
+        public int GoldEarned { get; set; }
+        public int VisionScore { get; set; }
+        public bool Win { get; set; }
+        public bool IsTarget { get; set; }
+    }
+
+    internal sealed class LeaguePlayerMatchBreakdown
+    {
+        public LeaguePlayerMatchSummary Match { get; set; }
+        public List<LeaguePlayerMatchParticipant> Participants { get; set; }
+    }
+
     internal sealed class LeaguePlayerChampionStat
     {
         public int ChampionId { get; set; }

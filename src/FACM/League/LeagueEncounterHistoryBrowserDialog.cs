@@ -159,6 +159,12 @@ namespace FACM.League
                 var detail = await _loadDetail(record, _lifetime.Token);
                 if (IsDisposed || !ReferenceEquals(record, SelectedRecord()) || !_isCurrent()) return;
                 _detailStatus.Text = FormatDetail(detail);
+                if (detail != null && detail.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    detail.Participants != null && detail.Participants.Count > 0)
+                {
+                    using (var scoreboard = new LeagueEncounterMatchScoreboardDialog(_ui, detail))
+                        scoreboard.ShowDialog(this);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception)

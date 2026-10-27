@@ -17,6 +17,7 @@ namespace FACM.League
     {
         internal LeagueEncounterMatchDetailStatus Status;
         internal LeaguePlayerMatchSummary Match;
+        internal System.Collections.Generic.List<LeaguePlayerMatchParticipant> Participants;
     }
 
     // Single user-requested detail read; never observes a game or fetches match history in the background.
@@ -57,11 +58,11 @@ namespace FACM.League
                     if (!string.Equals(own.PuuId, record.SelfPuuid, StringComparison.OrdinalIgnoreCase))
                         return Result(LeagueEncounterMatchDetailStatus.WrongAccount);
 
-                    var match = await _players.LoadMatchDetailAsync(
+                    var breakdown = await _players.LoadMatchBreakdownAsync(
                         new LeaguePlayerProfile { PuuId = record.Puuid }, record.GameId, deadline.Token)
                         .ConfigureAwait(false);
                     if (!IsSameSession(initial)) return Result(LeagueEncounterMatchDetailStatus.NoClient);
-                    if (match == null || !match.StatisticsAvailable || match.GameId != record.GameId)
+                    if (breakdown == null || breakdown.Match == null || breakdown.Match.GameId != record.GameId)
                         return Result(LeagueEncounterMatchDetailStatus.Unavailable);
                     var verifiedOwner = await _players.LoadProfileAsync(true, deadline.Token).ConfigureAwait(false);
                     if (!IsSameSession(initial)) return Result(LeagueEncounterMatchDetailStatus.NoClient);
@@ -71,7 +72,8 @@ namespace FACM.League
                         return Result(LeagueEncounterMatchDetailStatus.WrongAccount);
                     return new LeagueEncounterMatchDetailResult
                     {
-                        Status = LeagueEncounterMatchDetailStatus.Ready, Match = match
+                        Status = LeagueEncounterMatchDetailStatus.Ready,
+                        Match = breakdown.Match, Participants = breakdown.Participants
                     };
                 }
                 catch (OperationCanceledException)

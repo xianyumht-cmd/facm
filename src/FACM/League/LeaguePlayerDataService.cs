@@ -197,6 +197,80 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        internal async Task<LeaguePlayerMatchBreakdown> LoadMatchBreakdownAsync(
+            LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken)
+        {
+            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || gameId <= 0) return null;
+            await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var bytes = await _client.TryGetBytesAsync(
+                    "/lol-match-history/v1/games/" + gameId, cancellationToken).ConfigureAwait(false);
+                var game = ParseObject(bytes);
+                var match = ParseMatch(game, profile);
+                if (match == null || match.GameId != gameId || !match.ParticipantResolved || !match.StatisticsAvailable)
+                    return null;
+                var participants = ParseParticipants(game, match.ParticipantId);
+                return participants == null || !participants.Any(p => p.IsTarget)
+                    ? null : new LeaguePlayerMatchBreakdown { Match = match, Participants = participants };
+            }
+            finally { _requestGate.Release(); }
+        }
+
+        private static List<LeaguePlayerMatchParticipant> ParseParticipants(Dictionary<string, object> game, int targetId)
+        {
+            var identities = new Dictionary<int, Dictionary<string, object>>();
+            foreach (var identity in ReadObjects(game, "participantIdentities"))
+            {
+                var id = ReadInt(identity, "participantId");
+                if (id <= 0 || identities.ContainsKey(id)) return null;
+                identities.Add(id, ReadObject(identity, "player"));
+            }
+            var result = new List<LeaguePlayerMatchParticipant>();
+            var seen = new HashSet<int>();
+            var seenPuuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var participant in ReadObjects(game, "participants"))
+            {
+                var id = ReadInt(participant, "participantId");
+                var stats = ReadObject(participant, "stats");
+                if (id <= 0 || !seen.Add(id) || result.Count >= 20 || stats == null ||
+                    !stats.ContainsKey("kills") || !stats.ContainsKey("deaths") ||
+                    !stats.ContainsKey("assists") || !stats.ContainsKey("win")) return null;
+                Dictionary<string, object> identity;
+                identities.TryGetValue(id, out identity);
+                var puuid = ReadString(identity, "puuid");
+                if (!string.IsNullOrWhiteSpace(puuid) && !seenPuuids.Add(puuid)) return null;
+                var name = ReadString(identity, "gameName");
+                var tag = ReadString(identity, "tagLine");
+                if (string.IsNullOrWhiteSpace(name)) name = ReadString(identity, "summonerName");
+                if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(tag)) name += "#" + tag;
+                result.Add(new LeaguePlayerMatchParticipant
+                {
+                    ParticipantId = id,
+                    TeamId = ReadInt(participant, "teamId"),
+                    PuuId = puuid,
+                    PlayerName = SafeDisplayName(name),
+                    ChampionId = ReadInt(participant, "championId"),
+                    Kills = ReadInt(stats, "kills"), Deaths = ReadInt(stats, "deaths"),
+                    Assists = ReadInt(stats, "assists"),
+                    CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
+                        (long)ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"))),
+                    DamageToChampions = ReadInt(stats, "totalDamageDealtToChampions"),
+                    GoldEarned = ReadInt(stats, "goldEarned"),
+                    VisionScore = ReadInt(stats, "visionScore"),
+                    Win = ReadBool(stats, "win"), IsTarget = id == targetId
+                });
+            }
+            return result.Count == 0 ? null : result.OrderBy(p => p.TeamId)
+                .ThenBy(p => p.ParticipantId).ToList();
+        }
+
+        private static string SafeDisplayName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            return new string(name.Where(c => !char.IsControl(c)).Take(80).ToArray()).Trim();
+        }
+
         public async Task<LeaguePlayerMatchPage> EnrichChampionNamesAsync(
             LeaguePlayerProfile profile,
             LeaguePlayerMatchPage page,

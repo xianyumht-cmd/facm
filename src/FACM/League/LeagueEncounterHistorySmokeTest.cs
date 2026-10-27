@@ -149,8 +149,17 @@ namespace FACM.League
                 Require(result.Status == LeagueEncounterMatchDetailStatus.Ready && result.Match != null &&
                     result.Match.GameId == 123 && result.Match.ParticipantResolved && result.Match.Win &&
                     result.Match.Kills == 5 && result.Match.Deaths == 2 && result.Match.Assists == 9 &&
-                    result.Match.CreepScore == 103 && api.Reads == 4,
+                    result.Match.CreepScore == 103 && result.Participants != null &&
+                    result.Participants.Count == 3 && result.Participants.Single(p => p.IsTarget).PlayerName == "Target#HN1" &&
+                    result.Participants.Single(p => p.IsTarget).DamageToChampions == 18000 &&
+                    result.Participants.Single(p => p.PuuId == "ally").TeamId == 100 &&
+                    result.Participants.Single(p => p.PuuId == "self").TeamId == 200 &&
+                    api.Reads == 4,
                     "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                api.ReturnMalformedRoster = true;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                    "Duplicate participant IDs must not produce a partial or misleading scoreboard.");
+                api.ReturnMalformedRoster = false;
                 api.AfterMatchRead = () => api.SelfPuuid = "other";
                 Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount,
                     "A same-session account switch after the game read must discard the old owner's match detail.");
@@ -172,6 +181,7 @@ namespace FACM.League
             internal int Reads;
             internal string SelfPuuid = "self";
             internal bool ReturnMissingParticipant;
+            internal bool ReturnMalformedRoster;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
 
@@ -188,12 +198,20 @@ namespace FACM.League
                 {
                     AfterMatchRead?.Invoke();
                     var target = ReturnMissingParticipant ? "different-player" : "enemy";
+                    var otherParticipantId = ReturnMalformedRoster ? 1 : 2;
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"ARAM\"," +
                         "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
-                        "\"player\":{\"puuid\":\"" + target + "\"}}],\"participants\":[{" +
+                        "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
+                        "{\"participantId\":2,\"player\":{\"puuid\":\"ally\"}}," +
+                        "{\"participantId\":3,\"player\":{\"puuid\":\"self\"}}],\"participants\":[{" +
                         "\"participantId\":1,\"teamId\":100,\"championId\":22,\"stats\":{" +
                         "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
-                        "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3}}]}"));
+                        "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
+                        "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11}}," +
+                        "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
+                        "\"stats\":{\"win\":true,\"kills\":3,\"deaths\":4,\"assists\":6}}," +
+                        "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
+                        "\"stats\":{\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]}"));
                 }
                 return Task.FromResult<byte[]>(null);
             }
