@@ -57,6 +57,7 @@ namespace FACM.League
                 chart.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
             }
 
+            LeagueEventMapSmokeTest.Validate(parsed.Events[2]);
             ValidateBuildProgression();
             var frameStats = new Dictionary<string, object> { { "health", 512.5 }, { "armor", -12.25 },
                 { "attackSpeed", "NaN" }, { "magicPen", double.PositiveInfinity }, { "power", 0 } };

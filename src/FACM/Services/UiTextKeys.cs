@@ -464,6 +464,9 @@ namespace FACM.Services
         public const string LeagueTimelineGold = "LeagueTimelineGold";
         public const string LeagueTimelineCurrentGold = "LeagueTimelineCurrentGold";
         public const string LeagueTimelineXp = "LeagueTimelineXp";
+        public const string LeagueEventMap = "LeagueEventMap";
+        public const string LeagueEventMapMissing = "LeagueEventMapMissing";
+        public const string LeagueEventMapUnsupported = "LeagueEventMapUnsupported";
         public const string LeagueTimelineEvents = "LeagueTimelineEvents";
         public const string LeagueTimelineProgression = "LeagueTimelineProgression";
         public const string LeagueTimelineBuilds = "LeagueTimelineBuilds";

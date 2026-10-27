@@ -23,6 +23,7 @@ namespace FACM.League
         private readonly Button _retry;
         private readonly ListView _events, _frames, _builds;
         private readonly TextBox _details;
+        private readonly LeagueEventMap _eventMap;
         private readonly LeagueMatchTimelineChartPanel _comparison;
         private readonly LeagueTimelineFrameStats _frameStats;
         private readonly int _targetParticipant;
@@ -81,7 +82,14 @@ namespace FACM.League
                 UiTextKeys.LeagueTimelineLevel, UiTextKeys.LeagueTimelineGold, UiTextKeys.LeagueTimelineCurrentGold,
                 UiTextKeys.LeagueTimelineXp, UiTextKeys.LeaguePlayerCs }) _frames.Columns.Add(T(key), 100);
             var tabs = new TabControl { Dock = DockStyle.Fill };
-            AddTab(tabs, UiTextKeys.LeagueTimelineEvents, _events);
+            _eventMap = new LeagueEventMap(ui, detail.Match.MapId);
+            var eventLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            eventLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 72));
+            eventLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+            eventLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            eventLayout.Controls.Add(_events, 0, 0);
+            eventLayout.Controls.Add(_eventMap, 1, 0);
+            AddTab(tabs, UiTextKeys.LeagueTimelineEvents, eventLayout);
             AddTab(tabs, UiTextKeys.LeagueTimelineProgression, _frames);
             _comparison = new LeagueMatchTimelineChartPanel(ui, detail.Participants);
             AddTab(tabs, UiTextKeys.LeagueTimelineComparison, _comparison);
@@ -151,6 +159,7 @@ namespace FACM.League
             _builds.VirtualListSize = _shownBuilds.Count;
             _events.Invalidate(); _builds.Invalidate();
             _details.Text = string.Empty;
+            _eventMap.SetEvent(null);
             _frames.VirtualListSize = 0;
             _shownFrames.Clear();
             if (_timeline != null)
@@ -218,8 +227,15 @@ namespace FACM.League
 
         private void ShowEvent(ListView list, List<LeagueMatchTimelineEvent> events)
         {
-            if (list.SelectedIndices.Count != 1 || list.SelectedIndices[0] >= events.Count) return;
+            if (IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (list.SelectedIndices.Count != 1 || list.SelectedIndices[0] >= events.Count)
+            {
+                _details.Text = string.Empty;
+                if (ReferenceEquals(list, _events)) _eventMap.SetEvent(null);
+                return;
+            }
             var entry = events[list.SelectedIndices[0]];
+            if (ReferenceEquals(list, _events)) _eventMap.SetEvent(entry);
             _details.Text = T(UiTextKeys.LeagueTimelineEventDescription)
                 .Replace("{0}", LeagueMatchTimelineParser.Time(entry.Timestamp)).Replace("{1}", EventName(entry.Type))
                 .Replace("{2}", PlayerName(entry.ParticipantId > 0 ? entry.ParticipantId : entry.KillerId))

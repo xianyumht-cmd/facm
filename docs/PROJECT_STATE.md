@@ -1,3 +1,7 @@
+## Active continuation — event map candidate (Draft #357)
+
+Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The selected-event timeline now includes a native map view using pinned Akari images for map 11/12/21, exact coordinate domains, inverted Y and source clipping. Missing, partial, nonfinite and unsupported positions remain unavailable. Selection/filter changes synchronously replace or clear the marker without network reads. Embedded images and the upstream MIT notice are owned by the existing executable; each panel disposes its bitmap. Regression fixtures cover source-parsed events, map bounds/offsets, rapid selection and actual offscreen marker rendering. Windows CI has not yet run for this candidate; no local net48 compiler or Tencent acceptance is available. Next: death-damage drilldowns, then Cherry comparison. All later historical checkpoints remain context, not current absence claims. Production stays 3.5.78; #357 remains Draft.
+
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
