@@ -83,9 +83,13 @@ namespace FACM.League
             Items = new Dictionary<int, string>();
             Spells = new Dictionary<int, string>();
             Perks = new Dictionary<int, string>();
+            PerkStyles = new Dictionary<int, string>();
+            Augments = new Dictionary<int, string>();
+            AugmentRarities = new Dictionary<int, string>();
             ItemIcons = new Dictionary<int, string>();
             SpellIcons = new Dictionary<int, string>();
             PerkIcons = new Dictionary<int, string>();
+            AugmentIcons = new Dictionary<int, string>();
             ChampionIcons = new Dictionary<int, string>();
         }
 
@@ -93,9 +97,13 @@ namespace FACM.League
         public Dictionary<int, string> Items { get; private set; }
         public Dictionary<int, string> Spells { get; private set; }
         public Dictionary<int, string> Perks { get; private set; }
+        public Dictionary<int, string> PerkStyles { get; private set; }
+        public Dictionary<int, string> Augments { get; private set; }
+        public Dictionary<int, string> AugmentRarities { get; private set; }
         public Dictionary<int, string> ItemIcons { get; private set; }
         public Dictionary<int, string> SpellIcons { get; private set; }
         public Dictionary<int, string> PerkIcons { get; private set; }
+        public Dictionary<int, string> AugmentIcons { get; private set; }
         public Dictionary<int, string> ChampionIcons { get; private set; }
     }
 }

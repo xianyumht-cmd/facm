@@ -93,7 +93,7 @@ namespace FACM.League
                 var champion = string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
-                    catalog == null ? null : catalog.Perks);
+                    catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
@@ -102,7 +102,7 @@ namespace FACM.League
                     .Replace("{3}", FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items))
                     .Replace("{4}", FormatNamedIds(player.PerkIds, catalog == null ? null : catalog.Perks))
                     .Replace("{5}", style)
-                    .Replace("{6}", FormatIds(player.AugmentIds, "—"))
+                    .Replace("{6}", FormatAugments(player.AugmentIds, catalog))
                     .Replace("{7}", FormatBoundItem(player.RoleBoundItemId,
                         catalog == null ? null : catalog.Items));
             };
@@ -368,8 +368,72 @@ namespace FACM.League
                     new[] { player.RoleBoundItemId.Value }, catalog.Items, catalog.ItemIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells),
                 player.SpellIds, catalog.Spells, catalog.SpellIcons, loadAsset);
-            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks),
-                player.PerkIds, catalog.Perks, catalog.PerkIcons, loadAsset);
+            AddIconGroup(strip, FormatPerkGroupHeading(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
+                    player.PrimaryPerkStyleId, catalog.PerkStyles),
+                PerkSlots(player.PerkIds, 0, 4), catalog.Perks, catalog.PerkIcons, loadAsset);
+            AddIconGroup(strip, FormatPerkGroupHeading(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
+                    player.SecondaryPerkStyleId, catalog.PerkStyles),
+                PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
+                player.AugmentIds, BuildAugmentLabels(catalog), catalog.AugmentIcons, loadAsset);
+        }
+
+        private static int[] PerkSlots(int[] perks, int offset, int count)
+        {
+            if (perks == null || perks.Length <= offset) return null;
+            var group = new int[Math.Min(count, perks.Length - offset)];
+            Array.Copy(perks, offset, group, 0, group.Length);
+            return group;
+        }
+
+        internal static string FormatPerkGroupHeading(string heading, int styleId, IDictionary<int, string> styles)
+        {
+            if (styleId <= 0) return heading;
+            string name;
+            return heading + " · " + (styles != null && styles.TryGetValue(styleId, out name) &&
+                !string.IsNullOrWhiteSpace(name) ? name : "#" + styleId);
+        }
+
+        internal static string FormatAugments(int[] ids, LeagueBuildAdvisorCatalog catalog)
+        {
+            if (ids == null) return "—";
+            var labels = new List<string>();
+            foreach (var id in ids)
+            {
+                if (id > 0) labels.Add(FormatAugmentLabel(id, catalog));
+            }
+            return labels.Count == 0 ? "—" : string.Join(" / ", labels);
+        }
+
+        private static IDictionary<int, string> BuildAugmentLabels(LeagueBuildAdvisorCatalog catalog)
+        {
+            var labels = new Dictionary<int, string>();
+            if (catalog == null) return labels;
+            foreach (var id in catalog.Augments.Keys)
+                labels[id] = FormatAugmentLabel(id, catalog);
+            return labels;
+        }
+
+        private static string FormatAugmentLabel(int id, LeagueBuildAdvisorCatalog catalog)
+        {
+            string name;
+            if (catalog == null || !catalog.Augments.TryGetValue(id, out name) ||
+                string.IsNullOrWhiteSpace(name)) return "#" + id;
+            string rarity;
+            if (catalog.AugmentRarities.TryGetValue(id, out rarity))
+            {
+                switch (rarity)
+                {
+                    case "kPrismatic": return "棱彩 · " + name;
+                    case "kGold": return "黄金 · " + name;
+                    case "kSilver": return "白银 · " + name;
+                    case "kBronze": return "青铜 · " + name;
+                    case "kEventChoice": return "事件 · " + name;
+                }
+            }
+            return name;
         }
 
         private void AddIconGroup(FlowLayoutPanel strip, string label, int[] ids,

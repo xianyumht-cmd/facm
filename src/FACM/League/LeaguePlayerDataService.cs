@@ -37,6 +37,7 @@ namespace FACM.League
         private Dictionary<int, string> _cachedChampionNames;
         private DateTime _championNamesCachedUtc = DateTime.MinValue;
         private LeagueBuildAdvisorCatalog _cachedMatchBuildCatalog;
+        private bool _cachedMatchBuildAugmentsRequested;
         private DateTime _matchBuildCatalogCachedUtc = DateTime.MinValue;
 
         public LeaguePlayerDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
@@ -581,7 +582,10 @@ namespace FACM.League
                     if (participant.IsTarget) breakdown.Match.ChampionName = participant.ChampionName;
                 }
             }
-            breakdown.BuildCatalog = await LoadMatchBuildCatalogAsync(cancellationToken).ConfigureAwait(false);
+            var needsAugments = breakdown.Participants.Any(p => p.AugmentIds != null &&
+                p.AugmentIds.Any(id => id > 0));
+            breakdown.BuildCatalog = await LoadMatchBuildCatalogAsync(needsAugments, cancellationToken)
+                .ConfigureAwait(false);
             return breakdown;
         }
 
@@ -623,40 +627,69 @@ namespace FACM.League
             }
         }
 
-        private async Task<LeagueBuildAdvisorCatalog> LoadMatchBuildCatalogAsync(CancellationToken cancellationToken)
+        private async Task<LeagueBuildAdvisorCatalog> LoadMatchBuildCatalogAsync(
+            bool includeAugments, CancellationToken cancellationToken)
         {
             lock (_cacheSync)
             {
                 if (_cachedMatchBuildCatalog != null &&
-                    DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration)
+                    DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration &&
+                    (!includeAugments || _cachedMatchBuildAugmentsRequested))
                     return _cachedMatchBuildCatalog;
             }
-            if (!_budgets.Current.AllowMaintenanceWork) return null;
+            if (!_budgets.Current.AllowMaintenanceWork)
+            {
+                lock (_cacheSync) return _cachedMatchBuildCatalog;
+            }
 
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 lock (_cacheSync)
                 {
-                    if (_cachedMatchBuildCatalog != null &&
-                        DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration)
+                    var recent = _cachedMatchBuildCatalog != null &&
+                        DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration;
+                    if (recent && (!includeAugments || _cachedMatchBuildAugmentsRequested))
                         return _cachedMatchBuildCatalog;
                 }
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     timeout.CancelAfter(TimeSpan.FromSeconds(3));
-                    var items = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.ItemsPath, timeout.Token)
-                        .ConfigureAwait(false);
-                    var spells = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.SummonerSpellsPath, timeout.Token)
-                        .ConfigureAwait(false);
-                    var perks = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.PerksPath, timeout.Token)
-                        .ConfigureAwait(false);
-                    var catalog = LeagueBuildAdvisorDataService.ParseLocalCatalog(null, items, spells, perks);
-                    if (catalog.Items.Count == 0 && catalog.Spells.Count == 0 && catalog.Perks.Count == 0)
-                        return null;
+                    LeagueBuildAdvisorCatalog catalog;
+                    bool recent;
+                    lock (_cacheSync)
+                    {
+                        recent = _cachedMatchBuildCatalog != null &&
+                            DateTime.UtcNow - _matchBuildCatalogCachedUtc < ChampionMetadataCacheDuration;
+                        catalog = recent ? LeagueBuildAdvisorDataService.CloneLocalCatalog(_cachedMatchBuildCatalog) : null;
+                    }
+                    if (catalog == null)
+                    {
+                        var items = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.ItemsPath, timeout.Token)
+                            .ConfigureAwait(false);
+                        var spells = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.SummonerSpellsPath, timeout.Token)
+                            .ConfigureAwait(false);
+                        var perks = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.PerksPath, timeout.Token)
+                            .ConfigureAwait(false);
+                        catalog = LeagueBuildAdvisorDataService.ParseLocalCatalog(null, items, spells, perks);
+                        if (catalog.Items.Count == 0 && catalog.Spells.Count == 0 && catalog.Perks.Count == 0)
+                            return null;
+                        // Match cards render native primary/secondary tree names from the same LCU metadata as Akari.
+                        var styles = await _client.TryGetBytesAsync(LeagueBuildAdvisorDataService.PerkStylesPath, timeout.Token)
+                            .ConfigureAwait(false);
+                        LeagueBuildAdvisorDataService.ParseLocalPerkStyles(styles, catalog);
+                    }
+                    var augmentRequested = includeAugments || (recent && _cachedMatchBuildAugmentsRequested);
+                    if (includeAugments && !(recent && _cachedMatchBuildAugmentsRequested))
+                    {
+                        var augments = await _client.TryGetBytesAsync(
+                            LeagueBuildAdvisorDataService.CherryAugmentsPath, timeout.Token).ConfigureAwait(false);
+                        LeagueBuildAdvisorDataService.ParseLocalAugments(augments, catalog);
+                    }
                     lock (_cacheSync)
                     {
                         _cachedMatchBuildCatalog = catalog;
+                        _cachedMatchBuildAugmentsRequested = augmentRequested;
                         _matchBuildCatalogCachedUtc = DateTime.UtcNow;
                     }
                     return catalog;
@@ -665,11 +698,11 @@ namespace FACM.League
             catch (OperationCanceledException)
             {
                 if (cancellationToken.IsCancellationRequested) throw;
-                return null;
+                lock (_cacheSync) return _cachedMatchBuildCatalog;
             }
             catch (Exception)
             {
-                return null;
+                lock (_cacheSync) return _cachedMatchBuildCatalog;
             }
             finally { _requestGate.Release(); }
         }

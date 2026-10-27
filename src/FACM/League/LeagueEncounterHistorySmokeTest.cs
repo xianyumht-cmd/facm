@@ -23,6 +23,7 @@ namespace FACM.League
                     "lcu:/lol-game-data/assets/%2e%2e/secret"),
                 "Encountered-match icon loading must be restricted to safe local game-data paths.");
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
+            ValidateCardPresentation();
             ValidateReplayAsync().GetAwaiter().GetResult();
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var game = new LeagueLiveSnapshot();
@@ -133,6 +134,31 @@ namespace FACM.League
             if (!condition) throw new InvalidOperationException(message);
         }
 
+        private static void ValidateCardPresentation()
+        {
+            var catalog = new LeagueBuildAdvisorCatalog();
+            LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
+                "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), catalog);
+            LeagueBuildAdvisorDataService.ParseLocalAugments(Encoding.UTF8.GetBytes("[" +
+                "{\"id\":1234,\"nameTRA\":\"Prismatic Fixture\",\"rarity\":\"kPrismatic\"," +
+                "\"augmentSmallIconPath\":\"/lol-game-data/assets/v1/augment/1234.png\"}," +
+                "{\"id\":5678,\"nameTRA\":\"Unsafe Fixture\",\"rarity\":\"kGold\"," +
+                "\"augmentSmallIconPath\":\"/lol-game-data/assets/../client-config\"}]"), catalog);
+            var clone = LeagueBuildAdvisorDataService.CloneLocalCatalog(catalog);
+            Require(clone.PerkStyles[8000] == "Precision" && clone.Augments[1234] == "Prismatic Fixture" &&
+                clone.AugmentIcons[1234] == "lcu:/lol-game-data/assets/v1/augment/1234.png" &&
+                !clone.AugmentIcons.ContainsKey(5678) && clone.AugmentRarities[5678] == "kGold" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(new[] { 1234, 5678, 9999, 0 }, clone) ==
+                    "棱彩 · Prismatic Fixture / 黄金 · Unsafe Fixture / #9999" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(new[] { 0 }, clone) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(null, clone) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatPerkGroupHeading("主系符文", 8000, clone.PerkStyles) ==
+                    "主系符文 · Precision" &&
+                LeagueEncounterMatchScoreboardDialog.FormatPerkGroupHeading("副系符文", 9999, clone.PerkStyles) ==
+                    "副系符文 · #9999",
+                "Match card must render named/ranked augments and distinct rune trees without unsafe icon paths.");
+        }
+
         private static async Task ValidateMatchDetailAsync()
         {
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
@@ -178,7 +204,11 @@ namespace FACM.League
                     result.BuildCatalog.Spells[4] == "Flash" &&
                     result.BuildCatalog.Perks[8005] == "Press the Attack" &&
                     result.BuildCatalog.ItemIcons[3006].StartsWith("lcu:", StringComparison.Ordinal) &&
-                    api.Reads == 8 && api.ChampionReads == 1 && api.BuildCatalogReads == 3,
+                    result.BuildCatalog.Augments[1234] == "Fixture Augment" &&
+                    result.BuildCatalog.AugmentRarities[1234] == "kPrismatic" &&
+                    result.BuildCatalog.AugmentIcons[1234].StartsWith("lcu:", StringComparison.Ordinal) &&
+                    result.BuildCatalog.PerkStyles[8000] == "Precision" &&
+                    api.Reads == 10 && api.ChampionReads == 1 && api.BuildCatalogReads == 5,
                     "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
                 Require(LeagueEncounterMatchScoreboardDialog.FormatBoundItem(3158,
                             new Dictionary<int, string> { { 3158, "Special Item" } }) == "Special Item" &&
@@ -193,7 +223,7 @@ namespace FACM.League
                 active = session;
                 var cachedDetail = await reader.ReadAsync(record, token.Token);
                 Require(cachedDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
-                    cachedDetail.BuildCatalog != null && api.Reads == 11 && api.BuildCatalogReads == 3 &&
+                    cachedDetail.BuildCatalog != null && api.Reads == 13 && api.BuildCatalogReads == 5 &&
                     api.ChampionReads == 1,
                     "Repeated explicit matches must reuse the cached client game-data catalog, not refetch every icon catalog.");
                 Require(result.Teams != null && result.Teams.Count == 2 &&
@@ -341,6 +371,22 @@ namespace FACM.League
                     busyResult.Participants.Single(p => p.IsTarget).ChampionId == 22 &&
                     busyApi.ChampionReads == 0 && busyApi.BuildCatalogReads == 0,
                     "In-game budgets must not request extra game-data metadata for historical breakdowns.");
+                var upgradeApi = new MatchDetailClient { ReturnNoAugments = true };
+                var upgradeReader = new LeagueEncounterMatchDetailService(upgradeApi,
+                    new PerformanceBudgetProvider(), () => session);
+                var noAugments = await upgradeReader.ReadAsync(record, token.Token);
+                Require(noAugments.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    upgradeApi.BuildCatalogReads == 4 && noAugments.BuildCatalog.Augments.Count == 0,
+                    "Ordinary matches must not load Cherry augmentation metadata when no player has augments.");
+                upgradeApi.ReturnNoAugments = false;
+                var withAugments = await upgradeReader.ReadAsync(record, token.Token);
+                Require(withAugments.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    upgradeApi.BuildCatalogReads == 5 && withAugments.BuildCatalog.Augments[1234] == "Fixture Augment" &&
+                    noAugments.BuildCatalog.Augments.Count == 0,
+                    "An augmented match must upgrade the cached catalog with one optional LCU request without mutating old cards.");
+                await upgradeReader.ReadAsync(record, token.Token);
+                Require(upgradeApi.BuildCatalogReads == 5,
+                    "Repeated augmented matches must reuse enriched game-data metadata.");
                 var switchedApi = new MatchDetailClient { AfterChampionRead = () => { active = new LeagueClientSession(
                     "LeagueClientUx", 55, 3001, "replacement", "https", "fixture", "HN1", "HN1"); } };
                 var switchedReader = new LeagueEncounterMatchDetailService(switchedApi,
@@ -386,6 +432,7 @@ namespace FACM.League
             internal bool ReturnCherry;
             internal bool ReturnCherryUnknown;
             internal bool ReturnCherryConflict;
+            internal bool ReturnNoAugments;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
             internal Action AfterChampionRead;
@@ -424,6 +471,19 @@ namespace FACM.League
                     BuildCatalogReads++;
                     return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":8005," +
                         "\"name\":\"Press the Attack\"},{\"id\":9111,\"name\":\"Triumph\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.PerkStylesPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"schemaVersion\":2,\"styles\":[" +
+                        "{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"));
+                }
+                if (path == LeagueBuildAdvisorDataService.CherryAugmentsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":1234," +
+                        "\"nameTRA\":\"Fixture Augment\",\"rarity\":\"kPrismatic\"," +
+                        "\"augmentSmallIconPath\":\"/lol-game-data/assets/v1/augment/1234.png\"}]"));
                 }
                 if (path == "/lol-match-history/v1/games/123")
                 {
@@ -467,7 +527,8 @@ namespace FACM.League
                         "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
                         "\"perk0\":8005,\"perk1\":9111," +
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
-                        "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
+                        "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":" +
+                            (ReturnNoAugments ? "0" : "1234") + "}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
                         "\"stats\":{" + cherrySecond + "\"win\":" + (ReturnConflictingWin ? "false" : "true") +
                         ",\"kills\":3,\"deaths\":4,\"assists\":6" + allyMetrics + "}}," +

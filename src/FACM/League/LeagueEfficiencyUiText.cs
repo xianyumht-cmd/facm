@@ -279,6 +279,9 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
         public const string DynamicEncounterScoreboardIconsPerks = "LeagueEfficiencyDynamicEncounterScoreboardIconsPerks";
+        public const string DynamicEncounterScoreboardIconsPrimary = "LeagueEfficiencyDynamicEncounterScoreboardIconsPrimary";
+        public const string DynamicEncounterScoreboardIconsSecondary = "LeagueEfficiencyDynamicEncounterScoreboardIconsSecondary";
+        public const string DynamicEncounterScoreboardIconsAugments = "LeagueEfficiencyDynamicEncounterScoreboardIconsAugments";
         public const string DynamicEncounterTeamBlue = "LeagueEfficiencyDynamicEncounterTeamBlue";
         public const string DynamicEncounterTeamRed = "LeagueEfficiencyDynamicEncounterTeamRed";
         public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
@@ -618,11 +621,14 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult, "结果" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown, "未提供名称" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint, "选择一名玩家查看装备、召唤师技能和符文。" },
-            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能：{2}\r\n装备：{3} · 绑定装备：{7}\r\n符文：{4} · 流派：{5} · 强化 ID：{6}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能：{2}\r\n装备：{3} · 绑定装备：{7}\r\n符文：{4} · 流派：{5} · 强化：{6}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks, "符文" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary, "主系符文" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary, "副系符文" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments, "强化" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue, "蓝方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed, "红方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },
