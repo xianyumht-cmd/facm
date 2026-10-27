@@ -264,9 +264,12 @@ namespace FACM.League
             _advancedFilterButton = FilterMultiButton(152, UiTextKeys.LeaguePlayerAdvancedFilter);
             _advancedFilterButton.Click += (sender, e) =>
             {
+                var accountAtOpen = _profile == null ? null : _profile.PuuId;
                 using (var dialog = new LeagueAdvancedMatchHistoryForm(_advancedFilter))
                 {
                     if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                    if (!string.Equals(accountAtOpen, _profile == null ? null : _profile.PuuId,
+                        StringComparison.Ordinal)) return;
                     _advancedFilter = dialog.Result;
                 }
                 UpdateAdvancedFilterLabel();

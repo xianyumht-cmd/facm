@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using FACM.Services;
 using FACM.Theming;
 
 namespace FACM.League
@@ -38,7 +39,7 @@ namespace FACM.League
 
         internal LeagueAdvancedMatchHistoryForm(LeagueAdvancedMatchHistoryFilter existing)
         {
-            Text = "高级战绩筛选";
+            Text = UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTitle);
             StartPosition = FormStartPosition.CenterParent;
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(736, 576);
@@ -51,7 +52,7 @@ namespace FACM.League
                 Copy(existing.Root);
             var instruction = new Label
             {
-                Text = "按组组合 AND / OR / NOT，并与基础筛选叠加；仅过滤已加载战绩，缺失数据不会通过 NOT。",
+                Text = UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedHint),
                 Bounds = new Rectangle(18, 14, 698, 42),
                 ForeColor = FacmDesignSystem.TextMuted,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
@@ -62,8 +63,8 @@ namespace FACM.League
                 DropDownStyle = ComboBoxStyle.DropDownList, Bounds = new Rectangle(18, 60, 176, 26),
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text
             };
-            _rootMode.Items.Add("所有条件（AND）");
-            _rootMode.Items.Add("任意条件（OR）");
+            _rootMode.Items.Add(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAnd));
+            _rootMode.Items.Add(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedOr));
             _rootMode.SelectedIndex = _root.Kind == LeagueAdvancedMatchKind.Or ? 1 : 0;
 
             _tree = new TreeView
@@ -78,11 +79,16 @@ namespace FACM.League
             rootView.ExpandAll();
             _tree.SelectedNode = rootView;
 
-            var addCondition = Action("添加条件", 18, 382, 98, (s, e) => Add(LeagueAdvancedMatchKind.IsQueue));
-            var addAnd = Action("添加 AND 组", 122, 382, 110, (s, e) => Add(LeagueAdvancedMatchKind.And));
-            var addOr = Action("添加 OR 组", 238, 382, 110, (s, e) => Add(LeagueAdvancedMatchKind.Or));
-            var addNot = Action("添加 NOT 组", 354, 382, 110, (s, e) => Add(LeagueAdvancedMatchKind.Not));
-            var remove = Action("删除选中", 470, 382, 104, (s, e) => RemoveSelected());
+            var addCondition = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAddCondition), 18, 382, 98,
+                (s, e) => Add(LeagueAdvancedMatchKind.IsQueue));
+            var addAnd = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAddAnd), 122, 382, 110,
+                (s, e) => Add(LeagueAdvancedMatchKind.And));
+            var addOr = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAddOr), 238, 382, 110,
+                (s, e) => Add(LeagueAdvancedMatchKind.Or));
+            var addNot = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAddNot), 354, 382, 110,
+                (s, e) => Add(LeagueAdvancedMatchKind.Not));
+            var remove = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRemove), 470, 382, 104,
+                (s, e) => RemoveSelected());
             foreach (var button in new[] { addCondition, addAnd, addOr, addNot, remove })
                 button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
 
@@ -107,9 +113,11 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted, AutoEllipsis = true
             };
 
-            var clear = Action("清空规则", 18, 516, 104, (s, e) => Clear());
-            var cancel = Action("取消", 516, 516, 94, (s, e) => { DialogResult = DialogResult.Cancel; Close(); });
-            var apply = Action("应用筛选", 616, 516, 102, (s, e) => Apply());
+            var clear = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedClear), 18, 516, 104, (s, e) => Clear());
+            var cancel = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedCancel), 516, 516, 94,
+                (s, e) => { DialogResult = DialogResult.Cancel; Close(); });
+            var apply = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedApply), 616, 516, 102,
+                (s, e) => Apply());
             clear.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             cancel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             apply.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -152,22 +160,22 @@ namespace FACM.League
         {
             switch (kind)
             {
-                case LeagueAdvancedMatchKind.And: return "满足全部（AND）";
-                case LeagueAdvancedMatchKind.Or: return "满足任意（OR）";
-                case LeagueAdvancedMatchKind.Not: return "排除条件（NOT）";
-                case LeagueAdvancedMatchKind.IsGameMode: return "游戏模式";
-                case LeagueAdvancedMatchKind.IsQueue: return "队列 ID";
-                case LeagueAdvancedMatchKind.IsMap: return "地图 ID";
-                case LeagueAdvancedMatchKind.DurationBetween: return "时长范围（秒）";
-                case LeagueAdvancedMatchKind.IsWin: return "本人胜利";
-                case LeagueAdvancedMatchKind.IsLoss: return "本人失败";
-                case LeagueAdvancedMatchKind.HasChampion: return "本场有英雄";
-                case LeagueAdvancedMatchKind.HasPlayer: return "本场有玩家 PUUID";
-                case LeagueAdvancedMatchKind.KillsBetween: return "本人击杀范围";
-                case LeagueAdvancedMatchKind.DeathsBetween: return "本人死亡范围";
-                case LeagueAdvancedMatchKind.AssistsBetween: return "本人助攻范围";
-                case LeagueAdvancedMatchKind.CsBetween: return "本人补刀范围";
-                default: return "未知条件";
+                case LeagueAdvancedMatchKind.And: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAnd);
+                case LeagueAdvancedMatchKind.Or: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedOr);
+                case LeagueAdvancedMatchKind.Not: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNot);
+                case LeagueAdvancedMatchKind.IsGameMode: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMode);
+                case LeagueAdvancedMatchKind.IsQueue: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedQueue);
+                case LeagueAdvancedMatchKind.IsMap: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMap);
+                case LeagueAdvancedMatchKind.DurationBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDuration);
+                case LeagueAdvancedMatchKind.IsWin: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedWin);
+                case LeagueAdvancedMatchKind.IsLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedLoss);
+                case LeagueAdvancedMatchKind.HasChampion: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedChampion);
+                case LeagueAdvancedMatchKind.HasPlayer: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayer);
+                case LeagueAdvancedMatchKind.KillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedKills);
+                case LeagueAdvancedMatchKind.DeathsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDeaths);
+                case LeagueAdvancedMatchKind.AssistsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAssists);
+                case LeagueAdvancedMatchKind.CsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedCs);
+                default: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedUnknown);
             }
         }
 
@@ -176,7 +184,8 @@ namespace FACM.League
             var name = Description(node.Kind);
             return LeagueAdvancedMatchNode.IsGroup(node.Kind) ||
                 node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
-                name : name + "：" + (string.IsNullOrEmpty(node.Value) ? "（请填写）" : node.Value);
+                name : name + ": " + (string.IsNullOrEmpty(node.Value) ?
+                    UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnterValue) : node.Value);
         }
 
         private static TreeNode BuildTreeNode(LeagueAdvancedMatchNode node)
@@ -194,13 +203,13 @@ namespace FACM.League
             var node = (LeagueAdvancedMatchNode)parent.Tag;
             if (node.Kind == LeagueAdvancedMatchKind.Not && node.Children.Count > 0)
             {
-                MessageBox.Show(this, "NOT 组只允许一个子条件，请先选择其已有子条件。", Text,
+                MessageBox.Show(this, UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNotLimit), Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             if (CountNodes(_tree.Nodes[0]) >= 40 || parent.Level >= 7)
             {
-                MessageBox.Show(this, "筛选条件数量或嵌套层级已达到上限。", Text,
+                MessageBox.Show(this, UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSizeLimit), Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -246,13 +255,14 @@ namespace FACM.League
                     node.Kind != LeagueAdvancedMatchKind.IsLoss;
                 _conditionType.SelectedIndex = condition ? Array.IndexOf(ConditionKinds, node.Kind) : -1;
                 _conditionValue.Text = condition ? node.Value ?? string.Empty : string.Empty;
-                _inputHint.Text = !condition ? "选中一个条件后可修改类型及参数。" :
-                    node.Kind == LeagueAdvancedMatchKind.IsGameMode ? "填写原始游戏模式，如 ARAM / CLASSIC / KIWI，区分大小写。" :
-                    node.Kind == LeagueAdvancedMatchKind.HasPlayer ? "填写准确的玩家 PUUID，区分大小写；不支持玩家昵称猜测。" :
-                    node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ? "胜负按本人可验证的战绩计算，无需参数。" :
+                _inputHint.Text = !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
+                    node.Kind == LeagueAdvancedMatchKind.IsGameMode ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedModeHint) :
+                    node.Kind == LeagueAdvancedMatchKind.HasPlayer ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayerHint) :
+                    node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
+                        UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedResultHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsQueue || node.Kind == LeagueAdvancedMatchKind.IsMap ||
-                    node.Kind == LeagueAdvancedMatchKind.HasChampion ? "填写正整数 ID，例如队列 450、地图 12 或英雄 22。" :
-                    "填写 最小值,最大值，例如 600,1800；时长用秒，范围包含两端。";
+                    node.Kind == LeagueAdvancedMatchKind.HasChampion ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedIdHint) :
+                    UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRangeHint);
             }
             finally { _changingSelection = false; }
         }
@@ -292,7 +302,8 @@ namespace FACM.League
             string error;
             if (!LeagueAdvancedMatchHistoryFilter.TryCreate(_root, out filter, out error))
             {
-                MessageBox.Show(this, error, "筛选条件不完整", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, UiTextRuntime.Text(error), UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedInvalid),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             Result = filter;

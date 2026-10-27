@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using FACM.Services;
 
 namespace FACM.League
 {
@@ -59,7 +60,7 @@ namespace FACM.League
             error = null;
             if (root == null || (root.Kind != LeagueAdvancedMatchKind.And && root.Kind != LeagueAdvancedMatchKind.Or))
             {
-                error = "筛选根节点必须是 AND 或 OR。";
+                error = UiTextKeys.LeaguePlayerAdvancedErrorRoot;
                 return false;
             }
             var visited = new HashSet<LeagueAdvancedMatchNode>();
@@ -78,7 +79,7 @@ namespace FACM.League
             error = null;
             if (source == null || depth > MaximumDepth || ++count > MaximumNodes || !visited.Add(source))
             {
-                error = "筛选条件过多、嵌套过深或存在循环引用。";
+                error = UiTextKeys.LeaguePlayerAdvancedErrorComplex;
                 return false;
             }
             var copy = new LeagueAdvancedMatchNode { Kind = source.Kind, Value = source.Value };
@@ -86,12 +87,12 @@ namespace FACM.League
             {
                 if (source.Kind == LeagueAdvancedMatchKind.Not && source.Children.Count != 1)
                 {
-                    error = "NOT 条件组必须包含且只包含一个条件。";
+                    error = UiTextKeys.LeaguePlayerAdvancedErrorNot;
                     return false;
                 }
                 if (depth > 0 && source.Children.Count == 0)
                 {
-                    error = "非根条件组不能留空。";
+                    error = UiTextKeys.LeaguePlayerAdvancedErrorEmptyGroup;
                     return false;
                 }
                 foreach (var child in source.Children)
@@ -105,7 +106,7 @@ namespace FACM.League
             {
                 if (source.Children.Count != 0)
                 {
-                    error = "单个条件不能包含子条件。";
+                    error = UiTextKeys.LeaguePlayerAdvancedErrorLeaf;
                     return false;
                 }
                 int number;
@@ -121,7 +122,7 @@ namespace FACM.League
                     case LeagueAdvancedMatchKind.HasChampion:
                         if (!int.TryParse(source.Value, NumberStyles.None, CultureInfo.InvariantCulture, out number) || number <= 0)
                         {
-                            error = "队列、地图和英雄需要填写正整数 ID。";
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorId;
                             return false;
                         }
                         copy.Value = number.ToString(CultureInfo.InvariantCulture);
@@ -133,7 +134,7 @@ namespace FACM.League
                     case LeagueAdvancedMatchKind.CsBetween:
                         if (!TryRange(source.Value, out minimum, out maximum))
                         {
-                            error = "范围必须填写两个非负整数：最小值,最大值（包含边界）。";
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorRange;
                             return false;
                         }
                         copy.Value = minimum.ToString(CultureInfo.InvariantCulture) + "," +
@@ -144,13 +145,13 @@ namespace FACM.League
                         if (string.IsNullOrWhiteSpace(source.Value) || source.Value.Length > 128 ||
                             source.Value.Any(char.IsControl))
                         {
-                            error = "游戏模式或玩家 PUUID 不能为空、过长或包含控制字符。";
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorIdentity;
                             return false;
                         }
                         copy.Value = source.Value.Trim();
                         break;
                     default:
-                        error = "不支持的高级筛选条件。";
+                        error = UiTextKeys.LeaguePlayerAdvancedErrorUnsupported;
                         return false;
                 }
             }
