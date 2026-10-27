@@ -194,6 +194,20 @@ namespace FACM.League
                     result.Teams[1].Win == false && result.Teams[1].BaronKills == 0 &&
                     result.Teams[1].HordeKills == null,
                     "Team summaries must aggregate verified participants while preserving objective zero versus absent.");
+                api.ReturnZeroTeamMetrics = true;
+                var completeMetrics = await reader.ReadAsync(record, token.Token);
+                Require(completeMetrics.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    completeMetrics.Teams[0].DamageToChampions == 18000 &&
+                    completeMetrics.Teams[0].GoldEarned == 12000,
+                    "A reported zero for a member must allow a complete measured team total.");
+                api.ReturnZeroTeamMetrics = false;
+                api.ReturnInvalidTeamMetrics = true;
+                var invalidMetrics = await reader.ReadAsync(record, token.Token);
+                Require(invalidMetrics.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    invalidMetrics.Teams[0].DamageToChampions == null &&
+                    invalidMetrics.Teams[0].GoldEarned == null,
+                    "Null or invalid member metrics must not masquerade as measured zeroes.");
+                api.ReturnInvalidTeamMetrics = false;
                 api.ReturnMissingTeams = true;
                 var missingTeams = await reader.ReadAsync(record, token.Token);
                 Require(missingTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
@@ -261,6 +275,8 @@ namespace FACM.League
             internal bool ReturnMissingTeams;
             internal bool ReturnDuplicateTeams;
             internal bool ReturnConflictingWin;
+            internal bool ReturnZeroTeamMetrics;
+            internal bool ReturnInvalidTeamMetrics;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
             internal Action AfterChampionRead;
@@ -311,6 +327,9 @@ namespace FACM.League
                         "{\"teamId\":200,\"baronKills\":0,\"dragonKills\":1,\"towerKills\":2}]";
                     if (ReturnDuplicateTeams)
                         teams = teams.Replace("{\"teamId\":200", "{\"teamId\":100,\"baronKills\":9},{\"teamId\":200");
+                    var allyMetrics = ReturnZeroTeamMetrics
+                        ? ",\"totalDamageDealtToChampions\":0,\"goldEarned\":0"
+                        : ReturnInvalidTeamMetrics ? ",\"totalDamageDealtToChampions\":null,\"goldEarned\":\"invalid\"" : "";
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"ARAM\"," +
                         "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
                         "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
@@ -326,7 +345,7 @@ namespace FACM.League
                         "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
                         "\"stats\":{\"win\":" + (ReturnConflictingWin ? "false" : "true") +
-                        ",\"kills\":3,\"deaths\":4,\"assists\":6}}," +
+                        ",\"kills\":3,\"deaths\":4,\"assists\":6" + allyMetrics + "}}," +
                         "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
                         "\"stats\":{\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]" +
                         teams + "}"));

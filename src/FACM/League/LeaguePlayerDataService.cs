@@ -332,9 +332,9 @@ namespace FACM.League
                     CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
                         (long)ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"))),
                     DamageToChampions = ReadInt(stats, "totalDamageDealtToChampions"),
-                    DamageAvailable = stats.ContainsKey("totalDamageDealtToChampions"),
+                    DamageAvailable = ReadOptionalCount(stats, "totalDamageDealtToChampions").HasValue,
                     GoldEarned = ReadInt(stats, "goldEarned"),
-                    GoldAvailable = stats.ContainsKey("goldEarned"),
+                    GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),
                     Win = ReadBool(stats, "win"), IsTarget = id == targetId
                 });
