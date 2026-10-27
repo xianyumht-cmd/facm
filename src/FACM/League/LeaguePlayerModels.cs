@@ -126,6 +126,43 @@ namespace FACM.League
         public LeaguePlayerMatchPage Page { get; set; }
     }
 
+    internal sealed class LeagueMatchCollectionSettings
+    {
+        internal int CountPerIteration = 20;
+        internal int ExpectedCount = 20;
+        internal int MaxIterations = 20;
+
+        internal bool IsValid
+        {
+            get { return CountPerIteration >= 1 && CountPerIteration <= 200 &&
+                    ExpectedCount >= 1 && ExpectedCount <= 1000 &&
+                    MaxIterations >= 1 && MaxIterations <= 100; }
+        }
+    }
+
+    internal enum LeagueMatchCollectionStatus
+    {
+        Completed,
+        Stopped,
+        AccountChanged,
+        Unavailable
+    }
+
+    internal sealed class LeagueMatchCollectionProgress
+    {
+        internal int Iterations;
+        internal int ScannedCount;
+        internal int CollectedCount;
+    }
+
+    internal sealed class LeagueMatchCollectionResult
+    {
+        internal LeagueMatchCollectionStatus Status;
+        internal LeaguePlayerMatchPage Page = new LeaguePlayerMatchPage();
+        internal int Iterations;
+        internal int ScannedCount;
+    }
+
     internal sealed class LeaguePlayerMatchParticipant
     {
         public int ParticipantId { get; set; }

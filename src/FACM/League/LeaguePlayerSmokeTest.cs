@@ -31,6 +31,7 @@ namespace FACM.League
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
+            ValidateMatchHistoryCollection();
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
@@ -83,6 +84,110 @@ namespace FACM.League
                     Require(columns.Sum() <= width - 10,
                         "Player match table should fit inside its content area without horizontal scrolling.");
             }
+        }
+
+        private static void ValidateMatchHistoryCollection()
+        {
+            var pages = new Dictionary<int, string>
+            {
+                { 0, CollectionHistory(CollectionGame(100, 22), CollectionGame(101, 99)) },
+                { 2, CollectionHistory(CollectionGame(101, 99), CollectionGame(102, 99)) },
+                { 4, CollectionHistory() }
+            };
+            var profile = new LeaguePlayerProfile { PuuId = "self" };
+            var settings = new LeagueMatchCollectionSettings
+            {
+                CountPerIteration = 2, ExpectedCount = 2, MaxIterations = 3
+            };
+            var filter = new LeagueSimpleMatchHistoryFilter { ChampionIds = new[] { 99 } };
+            var api = new CollectionFixtureApi(pages);
+            var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider());
+            LeagueMatchCollectionProgress last = null;
+            var result = service.CollectMatchesAsync(profile, settings, filter, null,
+                new InlineProgress<LeagueMatchCollectionProgress>(value => last = value),
+                CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Status == LeagueMatchCollectionStatus.Completed && result.ScannedCount == 4 &&
+                    result.Iterations == 2 && result.Page.Matches.Select(m => m.GameId).SequenceEqual(new long[] { 101, 102 }) &&
+                    last != null && last.CollectedCount == 2 && last.ScannedCount == 4 && last.Iterations == 2 &&
+                    service.TryGetCachedPage() == null && service.TryGetCachedProfile() == null,
+                "Collection must match, deduplicate and stop at its exact target without replacing regular caches.");
+            Require(api.Paths.Count(p => p.Contains("/matches?")) == 2 &&
+                    api.Paths.Contains("/lol-match-history/v1/products/lol/self/matches?begIndex=0&endIndex=1") &&
+                    api.Paths.Contains("/lol-match-history/v1/products/lol/self/matches?begIndex=2&endIndex=3") &&
+                    api.ProfileReads == 4,
+                "Each collected page must use source-inclusive offsets between account identity fences.");
+
+            var stoppedApi = new CollectionFixtureApi(pages);
+            var stoppedService = new LeaguePlayerDataService(stoppedApi, new PerformanceBudgetProvider());
+            using (var cancel = new CancellationTokenSource())
+            {
+                var stopped = stoppedService.CollectMatchesAsync(profile, settings, filter, null,
+                    new InlineProgress<LeagueMatchCollectionProgress>(value => cancel.Cancel()), cancel.Token)
+                    .GetAwaiter().GetResult();
+                Require(stopped.Status == LeagueMatchCollectionStatus.Stopped && stopped.Iterations == 1 &&
+                        stopped.Page.Matches.Count == 1 && stopped.Page.Matches[0].GameId == 101 &&
+                        stoppedApi.Paths.Count(p => p.Contains("/matches?")) == 1,
+                    "Explicit stop must retain the last complete collection page without fetching another.");
+            }
+
+            var switchedApi = new CollectionFixtureApi(pages) { SwitchAccountAtRead = 3 };
+            var switched = new LeaguePlayerDataService(switchedApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, settings, filter, null, null, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(switched.Status == LeagueMatchCollectionStatus.AccountChanged &&
+                    switched.Page.Matches.Count == 0 && switchedApi.Paths.Count(p => p.Contains("/matches?")) == 1,
+                "An account change between pages must discard all collected identity-bound rows.");
+
+            var emptyApi = new CollectionFixtureApi(new Dictionary<int, string> { { 0, CollectionHistory() } });
+            var empty = new LeaguePlayerDataService(emptyApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, settings, filter, null, null, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(empty.Status == LeagueMatchCollectionStatus.Completed && empty.Iterations == 1 &&
+                    empty.Page.Matches.Count == 0 && emptyApi.Paths.Count(p => p.Contains("/matches?")) == 1,
+                "Empty history must terminate the collection without consuming the full iteration budget.");
+
+            LeagueAdvancedMatchHistoryFilter advanced;
+            string error;
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Predicate(LeagueAdvancedMatchKind.IsLoss)), out advanced, out error),
+                "The collection fixture must use a valid source-shaped advanced predicate.");
+            var advancedApi = new CollectionFixtureApi(pages);
+            var advancedResult = new LeaguePlayerDataService(advancedApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, settings, filter, advanced, null, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(advancedResult.Status == LeagueMatchCollectionStatus.Completed &&
+                    advancedResult.Page.Matches.Count == 0 && advancedResult.Iterations == 3,
+                "Collection must intersect simple and advanced predicates across every scanned window.");
+
+            var unavailableApi = new CollectionFixtureApi(new Dictionary<int, string> { { 0, pages[0] } });
+            var unavailable = new LeaguePlayerDataService(unavailableApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, settings, filter, null, null, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(unavailable.Status == LeagueMatchCollectionStatus.Unavailable && unavailable.Iterations == 1 &&
+                    unavailable.Page.Matches.Count == 1 && unavailable.Page.Matches[0].GameId == 101,
+                "A failed later read must preserve completed matching pages and report partial availability.");
+
+            var invalidApi = new CollectionFixtureApi(pages);
+            var invalid = new LeaguePlayerDataService(invalidApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, new LeagueMatchCollectionSettings { CountPerIteration = 201 },
+                    filter, null, null, CancellationToken.None).GetAwaiter().GetResult();
+            Require(invalid.Status == LeagueMatchCollectionStatus.Unavailable && invalidApi.Paths.Count == 0 &&
+                    new LeagueMatchCollectionSettings { CountPerIteration = 200, ExpectedCount = 1000,
+                        MaxIterations = 100 }.IsValid,
+                "Collection limits must reject over-budget requests before any LCU call.");
+        }
+
+        private static string CollectionGame(long id, int champion)
+        {
+            return "{\"gameId\":" + id + ",\"gameMode\":\"ARAM\",\"queueId\":450," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]," +
+                "\"participants\":[{\"participantId\":1,\"championId\":" + champion +
+                ",\"stats\":{\"win\":true,\"kills\":3,\"deaths\":1,\"assists\":8}}]}";
+        }
+
+        private static string CollectionHistory(params string[] games)
+        {
+            return "{\"games\":{\"games\":[" + string.Join(",", games) + "]}}";
         }
 
         private static void ValidateProfileAndRecentMatchParsing()
@@ -1147,6 +1252,44 @@ namespace FACM.League
                         }
                     }
                     return Task.FromResult(_history);
+                }
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private sealed class InlineProgress<T> : IProgress<T>
+        {
+            private readonly Action<T> _callback;
+            internal InlineProgress(Action<T> callback) { _callback = callback; }
+            public void Report(T value) { _callback(value); }
+        }
+
+        private sealed class CollectionFixtureApi : ILeagueClientApi
+        {
+            private readonly Dictionary<int, string> _pages;
+            internal readonly List<string> Paths = new List<string>();
+            internal int ProfileReads;
+            internal int SwitchAccountAtRead = int.MaxValue;
+
+            internal CollectionFixtureApi(Dictionary<int, string> pages) { _pages = pages; }
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Paths.Add(path);
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                {
+                    var account = ++ProfileReads >= SwitchAccountAtRead ? "other" : "self";
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + account + "\"}"));
+                }
+                const string prefix = "/lol-match-history/v1/products/lol/self/matches?begIndex=";
+                if (path != null && path.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    var value = path.Substring(prefix.Length).Split('&')[0];
+                    int start;
+                    string json;
+                    if (int.TryParse(value, out start) && _pages.TryGetValue(start, out json))
+                        return Task.FromResult(Encoding.UTF8.GetBytes(json));
                 }
                 return Task.FromResult<byte[]>(null);
             }

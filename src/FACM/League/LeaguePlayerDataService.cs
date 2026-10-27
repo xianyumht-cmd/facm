@@ -320,6 +320,112 @@ namespace FACM.League
             }
         }
 
+        internal async Task<LeagueMatchCollectionResult> CollectMatchesAsync(
+            LeaguePlayerProfile profile, LeagueMatchCollectionSettings settings,
+            LeagueSimpleMatchHistoryFilter simpleFilter, LeagueAdvancedMatchHistoryFilter advancedFilter,
+            IProgress<LeagueMatchCollectionProgress> progress, CancellationToken cancellationToken)
+        {
+            var result = new LeagueMatchCollectionResult();
+            if (profile == null || !IsSafePuuid(profile.PuuId) || settings == null || !settings.IsValid)
+            {
+                result.Status = LeagueMatchCollectionStatus.Unavailable;
+                return result;
+            }
+
+            var seen = new HashSet<long>();
+            var nowUtc = DateTime.UtcNow;
+            var filter = simpleFilter ?? new LeagueSimpleMatchHistoryFilter();
+            for (var iteration = 0; iteration < settings.MaxIterations &&
+                result.Page.Matches.Count < settings.ExpectedCount; iteration++)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    result.Status = LeagueMatchCollectionStatus.Stopped;
+                    return result;
+                }
+
+                // Keep every read behind the Player service's existing LCU request gate.
+                // Collection never updates the regular ten/twenty-match page cache.
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(12));
+                    try
+                    {
+                        await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                        try
+                        {
+                            var before = ParseProfile(await _client.TryGetBytesAsync(
+                                LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                            if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            {
+                                result.Status = LeagueMatchCollectionStatus.AccountChanged;
+                                result.Page.Matches.Clear();
+                                return result;
+                            }
+
+                            var startIndex = iteration * settings.CountPerIteration;
+                            var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(profile.PuuId) +
+                                "/matches?begIndex=" + startIndex +
+                                "&endIndex=" + (startIndex + settings.CountPerIteration - 1);
+                            var page = ParseMatchPage(await _client.TryGetBytesAsync(path, timeout.Token)
+                                .ConfigureAwait(false), profile, startIndex, settings.CountPerIteration);
+                            if (page == null)
+                            {
+                                result.Status = LeagueMatchCollectionStatus.Unavailable;
+                                return result;
+                            }
+
+                            var after = ParseProfile(await _client.TryGetBytesAsync(
+                                LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                            if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            {
+                                result.Status = LeagueMatchCollectionStatus.AccountChanged;
+                                result.Page.Matches.Clear();
+                                return result;
+                            }
+
+                            result.Iterations++;
+                            result.ScannedCount += page.Matches.Count;
+                            foreach (var match in page.Matches.Take(settings.CountPerIteration))
+                            {
+                                if (match == null || match.GameId <= 0 || !seen.Add(match.GameId)) continue;
+                                if (!filter.Matches(match, nowUtc) ||
+                                    (advancedFilter != null && !advancedFilter.Matches(match))) continue;
+                                result.Page.Matches.Add(match);
+                                if (result.Page.Matches.Count == settings.ExpectedCount) break;
+                            }
+                            if (progress != null)
+                                progress.Report(new LeagueMatchCollectionProgress
+                                {
+                                    Iterations = result.Iterations,
+                                    ScannedCount = result.ScannedCount,
+                                    CollectedCount = result.Page.Matches.Count
+                                });
+                            if (page.Matches.Count == 0) break;
+                        }
+                        finally { _requestGate.Release(); }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (!cancellationToken.IsCancellationRequested)
+                            AppLog.Info("League Player collection page deadline exceeded.");
+                        result.Status = cancellationToken.IsCancellationRequested
+                            ? LeagueMatchCollectionStatus.Stopped : LeagueMatchCollectionStatus.Unavailable;
+                        return result;
+                    }
+                    catch (Exception exception)
+                    {
+                        AppLog.Info("League Player collection page unavailable: " + exception.GetType().Name);
+                        result.Status = LeagueMatchCollectionStatus.Unavailable;
+                        return result;
+                    }
+                }
+            }
+            result.Status = cancellationToken.IsCancellationRequested
+                ? LeagueMatchCollectionStatus.Stopped : LeagueMatchCollectionStatus.Completed;
+            return result;
+        }
+
         public async Task<LeaguePlayerMatchPage> EnrichIncompleteMatchesAsync(
             LeaguePlayerProfile profile,
             LeaguePlayerMatchPage page,
