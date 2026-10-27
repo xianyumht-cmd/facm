@@ -850,6 +850,20 @@ namespace FACM.League
                 }
             }
 
+            var match = ParseParticipantMatch(game, participant, participantId);
+            match.PuuId = participant == null ? null : profile.PuuId;
+            match.SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile);
+            match.MatchChampionIds = MatchChampionIds(game);
+            match.MatchPlayers = MatchPlayerIdentities(game);
+            match.ParticipantRoster = participant == null ? null : BuildParticipantRoster(game);
+            match.RosterIdentitiesComplete = match.ParticipantRoster != null &&
+                match.ParticipantRoster.All(member => !string.IsNullOrEmpty(member.PuuId));
+            return match;
+        }
+
+        private static LeaguePlayerMatchSummary ParseParticipantMatch(Dictionary<string, object> game,
+            Dictionary<string, object> participant, int participantId, bool calculateBaselines = true)
+        {
             var stats = participant == null ? null : ReadObject(participant, "stats");
             return new LeaguePlayerMatchSummary
             {
@@ -895,10 +909,7 @@ namespace FACM.League
                 TripleKills = Metric(stats, "tripleKills"),
                 QuadraKills = Metric(stats, "quadraKills"),
                 PentaKills = Metric(stats, "pentaKills"),
-                MetricBaselines = BuildMetricBaselines(game, participant),
-                SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
-                MatchChampionIds = MatchChampionIds(game),
-                MatchPlayers = MatchPlayerIdentities(game),
+                MetricBaselines = calculateBaselines ? BuildMetricBaselines(game, participant) : null,
                 ItemIds = ReadOptionalSlots(stats, "item", 0, 7),
                 RoleBoundItemId = ReadOptionalNonNegative(stats, "roleBoundItem"),
                 SpellIds = ReadOptionalSlots(participant, "spell", 1, 2, "Id"),
@@ -907,6 +918,89 @@ namespace FACM.League
                 AugmentIds = ReadOptionalSlots(stats, "playerAugment", 1, 6),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static LeaguePlayerMatchSummary[] BuildParticipantRoster(Dictionary<string, object> game)
+        {
+            var participants = ReadObjects(game, "participants").Take(21).ToList();
+            if (participants.Count == 0 || participants.Count > 20) return null;
+            var ids = participants.Select(p => ReadInt(p, "participantId")).ToArray();
+            if (ids.Any(id => id <= 0) || ids.Distinct().Count() != ids.Length) return null;
+            var idSet = new HashSet<int>(ids);
+            var seen = new HashSet<int>();
+            var puuids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var identities = new Dictionary<int, string>();
+            var identityRows = ReadObjects(game, "participantIdentities").Take(21).ToList();
+            if (identityRows.Count > 20) return null;
+            foreach (var identity in identityRows)
+            {
+                var id = ReadInt(identity, "participantId");
+                if (id <= 0 || !seen.Add(id)) return null;
+                if (!idSet.Contains(id)) continue;
+                var puuid = ReadString(ReadObject(identity, "player"), "puuid");
+                if (string.IsNullOrWhiteSpace(puuid) || puuid.Length > 128 ||
+                    puuid.Any(c => !char.IsLetterOrDigit(c) && c != '-' && c != '_')) continue;
+                if (!puuids.Add(puuid)) return null;
+                identities[id] = puuid;
+            }
+            var roster = new LeaguePlayerMatchSummary[participants.Count];
+            for (var index = 0; index < participants.Count; index++)
+            {
+                var id = ids[index];
+                var member = ParseParticipantMatch(game, participants[index], id, false);
+                string puuid;
+                member.PuuId = identities.TryGetValue(id, out puuid) ? puuid : null;
+                roster[index] = member;
+            }
+            AssignRosterMetricBaselines(participants, roster);
+            return roster;
+        }
+
+        private static void AssignRosterMetricBaselines(List<Dictionary<string, object>> participants,
+            LeaguePlayerMatchSummary[] roster)
+        {
+            foreach (var key in RelativeMetricKeys)
+            {
+                var values = participants.Select(participant => ParticipantMetric(participant, key)).ToArray();
+                var gameSum = 0d;
+                var gameMax = 0d;
+                var teamSums = new Dictionary<int, double>();
+                var teamMaxima = new Dictionary<int, double>();
+                for (var index = 0; index < values.Length; index++)
+                {
+                    if (!values[index].HasValue) continue;
+                    var value = values[index].Value;
+                    gameSum += value;
+                    gameMax = Math.Max(gameMax, value);
+                    var teamId = roster[index].TeamId;
+                    if (teamId <= 0) continue;
+                    double sum;
+                    teamSums.TryGetValue(teamId, out sum);
+                    teamSums[teamId] = sum + value;
+                    double maximum;
+                    teamMaxima.TryGetValue(teamId, out maximum);
+                    teamMaxima[teamId] = Math.Max(maximum, value);
+                }
+                if (double.IsInfinity(gameSum) || double.IsNaN(gameSum)) continue;
+                for (var index = 0; index < values.Length; index++)
+                {
+                    if (!values[index].HasValue) continue;
+                    var member = roster[index];
+                    double teamSum = 0;
+                    double teamMax = 0;
+                    var hasTeam = member.TeamId > 0 &&
+                        teamSums.TryGetValue(member.TeamId, out teamSum) &&
+                        teamMaxima.TryGetValue(member.TeamId, out teamMax);
+                    if (hasTeam && (double.IsInfinity(teamSum) || double.IsNaN(teamSum))) continue;
+                    if (member.MetricBaselines == null)
+                        member.MetricBaselines = new Dictionary<string, double[]>(StringComparer.Ordinal);
+                    member.MetricBaselines[key] = new[]
+                    {
+                        hasTeam ? teamSum : double.NaN, hasTeam ? teamMax : double.NaN,
+                        gameSum, gameMax
+                    };
+                }
+            }
         }
 
         private static int? ReadOptionalNonNegative(Dictionary<string, object> source, string key)
@@ -1224,8 +1318,14 @@ namespace FACM.League
                 ReportedGameCount = source.ReportedGameCount
             };
             foreach (var match in source.Matches)
-            {
-                result.Matches.Add(match == null ? null : new LeaguePlayerMatchSummary
+                result.Matches.Add(CloneMatch(match));
+            return result;
+        }
+
+        private static LeaguePlayerMatchSummary CloneMatch(LeaguePlayerMatchSummary match)
+        {
+            if (match == null) return null;
+            return new LeaguePlayerMatchSummary
                 {
                     GameId = match.GameId,
                     GameCreationLocal = match.GameCreationLocal,
@@ -1236,6 +1336,7 @@ namespace FACM.League
                     MapId = match.MapId,
                     TeamId = match.TeamId,
                     ParticipantId = match.ParticipantId,
+                    PuuId = match.PuuId,
                     HasSmite = match.HasSmite,
                     ChampionName = match.ChampionName,
                     Kills = match.Kills,
@@ -1273,6 +1374,9 @@ namespace FACM.League
                     MetricBaselines = match.MetricBaselines == null ? null :
                         match.MetricBaselines.ToDictionary(pair => pair.Key,
                             pair => pair.Value == null ? null : (double[])pair.Value.Clone(), StringComparer.Ordinal),
+                    ParticipantRoster = match.ParticipantRoster == null ? null :
+                        match.ParticipantRoster.Select(CloneMatch).ToArray(),
+                    RosterIdentitiesComplete = match.RosterIdentitiesComplete,
                     SameTeamPuuids = match.SameTeamPuuids == null ? null : (string[])match.SameTeamPuuids.Clone(),
                     MatchChampionIds = match.MatchChampionIds == null ? null : (int[])match.MatchChampionIds.Clone(),
                     MatchPlayers = match.MatchPlayers == null ? null : match.MatchPlayers.Select(player =>
@@ -1287,9 +1391,7 @@ namespace FACM.League
                     PerkStyleIds = match.PerkStyleIds == null ? null : (int[])match.PerkStyleIds.Clone(),
                     AugmentIds = match.AugmentIds == null ? null : (int[])match.AugmentIds.Clone(),
                     ParticipantResolved = match.ParticipantResolved
-                });
-            }
-            return result;
+                };
         }
     }
 }

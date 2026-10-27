@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Keep Akari quantified predicates within a verified current-game roster
+
+Implement `player`/`anyone`/`everyone`/`all`/`allies`/`enemies` as bounded single-child nodes in the existing native advanced filter, not a second history scanner. Read participants only from the authenticated current-player LCU history response; reject ambiguous or duplicate participant IDs, and preserve missing PUUID/team evidence under negation. Use the same existing source-backed predicate evaluator with an explicit selected-person and participant-set context so numeric, item, spell, rune, augment and result checks do not accidentally read self data for an opponent. Build per-person relative numeric denominators in one bulk pass and deep-copy roster snapshots across page-cache boundaries. Accept a local `self` alias for the verified signed-in participant while exact other PUUIDs remain required. Do not introduce separate LCU requests, cloud schema, resident monitors or production changes.
+
 ## 2026-10-27 — Resolve relative advanced-filter measures when parsing an owned history page
 
 Akari v1.5.1's four team/game number modes need sibling participant metrics, while GGman's current Player summary previously retained only own numeric values. Compute bounded per-metric team/game sum and maximum from the **same existing match-history response**, attach only compact derived denominators to each signed-in player summary and clone them with page-cache snapshots. Keep incomplete source/identity evidence unknown rather than inventing negative evidence; preserve source behavior of omitting unavailable peer values, and return 0% for a verified zero denominator. Store no full opponent statistics, new persistence, polling or per-row detail hydration in this slice. Relative predicates for other participant scopes and SGP sourcing stay explicitly open until the separate quantifier model is implemented.

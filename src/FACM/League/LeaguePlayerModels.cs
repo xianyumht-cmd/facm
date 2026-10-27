@@ -36,6 +36,7 @@ namespace FACM.League
         public int MapId { get; set; }
         public int TeamId { get; set; }
         public int ParticipantId { get; set; }
+        public string PuuId { get; set; }
         public bool HasSmite { get; set; }
         public string ChampionName { get; set; }
         public int Kills { get; set; }
@@ -73,6 +74,9 @@ namespace FACM.League
         public double? PentaKills { get; set; }
         // Per-source-statistic baselines: team sum/max, then game sum/max. Missing team scope uses NaN.
         public Dictionary<string, double[]> MetricBaselines { get; set; }
+        // Bounded, independently owned evidence for this match's participant-scope predicates.
+        public LeaguePlayerMatchSummary[] ParticipantRoster { get; set; }
+        public bool RosterIdentitiesComplete { get; set; }
         // Available only when the match includes verified participant identities and team IDs.
         public string[] SameTeamPuuids { get; set; }
         // Populated from the match's participant roster; null means the source supplied no reliable champion set.

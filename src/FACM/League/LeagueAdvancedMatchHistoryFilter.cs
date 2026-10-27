@@ -54,7 +54,13 @@ namespace FACM.League
         DoubleKillsBetween,
         TripleKillsBetween,
         QuadraKillsBetween,
-        PentaKillsBetween
+        PentaKillsBetween,
+        Player,
+        Anyone,
+        Everyone,
+        All,
+        Allies,
+        Enemies
     }
 
     internal sealed class LeagueAdvancedMatchNode
@@ -66,7 +72,10 @@ namespace FACM.League
         internal static bool IsGroup(LeagueAdvancedMatchKind kind)
         {
             return kind == LeagueAdvancedMatchKind.And || kind == LeagueAdvancedMatchKind.Or ||
-                kind == LeagueAdvancedMatchKind.Not;
+                kind == LeagueAdvancedMatchKind.Not || kind == LeagueAdvancedMatchKind.Player ||
+                kind == LeagueAdvancedMatchKind.Anyone || kind == LeagueAdvancedMatchKind.Everyone ||
+                kind == LeagueAdvancedMatchKind.All || kind == LeagueAdvancedMatchKind.Allies ||
+                kind == LeagueAdvancedMatchKind.Enemies;
         }
     }
 
@@ -117,10 +126,22 @@ namespace FACM.League
             var copy = new LeagueAdvancedMatchNode { Kind = source.Kind, Value = source.Value };
             if (LeagueAdvancedMatchNode.IsGroup(source.Kind))
             {
-                if (source.Kind == LeagueAdvancedMatchKind.Not && source.Children.Count != 1)
+                if (source.Kind != LeagueAdvancedMatchKind.And && source.Kind != LeagueAdvancedMatchKind.Or &&
+                    source.Children.Count != 1)
                 {
                     error = UiTextKeys.LeaguePlayerAdvancedErrorNot;
                     return false;
+                }
+                if (source.Kind == LeagueAdvancedMatchKind.Player || source.Kind == LeagueAdvancedMatchKind.Allies ||
+                    source.Kind == LeagueAdvancedMatchKind.Enemies)
+                {
+                    if (string.IsNullOrWhiteSpace(source.Value) || source.Value.Length > 128 ||
+                        source.Value.Any(c => !char.IsLetterOrDigit(c) && c != '-' && c != '_'))
+                    {
+                        error = UiTextKeys.LeaguePlayerAdvancedErrorIdentity;
+                        return false;
+                    }
+                    copy.Value = source.Value.Trim();
                 }
                 if (depth > 0 && source.Children.Count == 0)
                 {
@@ -303,7 +324,8 @@ namespace FACM.League
 
         internal bool Matches(LeaguePlayerMatchSummary match)
         {
-            return match != null && Evaluate(Root, match) == Evidence.Yes;
+            return match != null && Evaluate(Root, match, match,
+                match.ParticipantRoster, false, false) == Evidence.Yes;
         }
 
         internal static List<LeaguePlayerMatchSummary> Apply(IEnumerable<LeaguePlayerMatchSummary> matches,
@@ -313,8 +335,11 @@ namespace FACM.League
             return matches.Where(match => match != null && (filter == null || filter.Matches(match))).ToList();
         }
 
-        private static Evidence Evaluate(LeagueAdvancedMatchNode node, LeaguePlayerMatchSummary match)
+        private static Evidence Evaluate(LeagueAdvancedMatchNode node, LeaguePlayerMatchSummary root,
+            LeaguePlayerMatchSummary subject, LeaguePlayerMatchSummary[] scope,
+            bool participantScope, bool scopedSet)
         {
+            var match = participantScope || scopedSet ? subject : root;
             switch (node.Kind)
             {
                 case LeagueAdvancedMatchKind.And:
@@ -322,7 +347,7 @@ namespace FACM.League
                     var unknown = false;
                     foreach (var child in node.Children)
                     {
-                        var state = Evaluate(child, match);
+                        var state = Evaluate(child, root, subject, scope, participantScope, scopedSet);
                         if (state == Evidence.No) return Evidence.No;
                         if (state == Evidence.Unknown) unknown = true;
                     }
@@ -334,7 +359,7 @@ namespace FACM.League
                     var unknown = false;
                     foreach (var child in node.Children)
                     {
-                        var state = Evaluate(child, match);
+                        var state = Evaluate(child, root, subject, scope, participantScope, scopedSet);
                         if (state == Evidence.Yes) return Evidence.Yes;
                         if (state == Evidence.Unknown) unknown = true;
                     }
@@ -342,8 +367,46 @@ namespace FACM.League
                 }
                 case LeagueAdvancedMatchKind.Not:
                 {
-                    var inner = Evaluate(node.Children[0], match);
+                    var inner = Evaluate(node.Children[0], root, subject, scope, participantScope, scopedSet);
                     return inner == Evidence.Yes ? Evidence.No : inner == Evidence.No ? Evidence.Yes : Evidence.Unknown;
+                }
+                case LeagueAdvancedMatchKind.All:
+                    return root.ParticipantRoster == null ? Evidence.Unknown :
+                        Evaluate(node.Children[0], root,
+                            root.ParticipantRoster.FirstOrDefault() ?? root, root.ParticipantRoster, false, true);
+                case LeagueAdvancedMatchKind.Player:
+                {
+                    if (scope == null) return Evidence.Unknown;
+                    var selected = FindParticipant(scope, node.Value, root);
+                    return selected != null ? Evaluate(node.Children[0], root, selected, scope, true, true) :
+                        root.RosterIdentitiesComplete ? Evidence.No : Evidence.Unknown;
+                }
+                case LeagueAdvancedMatchKind.Anyone:
+                case LeagueAdvancedMatchKind.Everyone:
+                {
+                    if (scope == null) return Evidence.Unknown;
+                    var any = node.Kind == LeagueAdvancedMatchKind.Anyone;
+                    var unknown = false;
+                    foreach (var member in scope)
+                    {
+                        var state = Evaluate(node.Children[0], root, member, scope, true, true);
+                        if (any && state == Evidence.Yes) return Evidence.Yes;
+                        if (!any && state == Evidence.No) return Evidence.No;
+                        if (state == Evidence.Unknown) unknown = true;
+                    }
+                    return unknown ? Evidence.Unknown : any ? Evidence.No : Evidence.Yes;
+                }
+                case LeagueAdvancedMatchKind.Allies:
+                case LeagueAdvancedMatchKind.Enemies:
+                {
+                    if (scope == null) return Evidence.Unknown;
+                    var reference = FindParticipant(scope, node.Value, root);
+                    if (reference == null) return root.RosterIdentitiesComplete ? Evidence.No : Evidence.Unknown;
+                    if (reference.TeamId <= 0 || scope.Any(member => member.TeamId <= 0))
+                        return Evidence.Unknown;
+                    var same = node.Kind == LeagueAdvancedMatchKind.Allies;
+                    var members = scope.Where(member => (member.TeamId == reference.TeamId) == same).ToArray();
+                    return Evaluate(node.Children[0], root, members.FirstOrDefault() ?? root, members, false, true);
                 }
                 case LeagueAdvancedMatchKind.IsGameMode:
                     return string.IsNullOrWhiteSpace(match.GameMode) ? Evidence.Unknown :
@@ -359,9 +422,23 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.IsLoss:
                     return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown : Match(!match.Win);
                 case LeagueAdvancedMatchKind.HasChampion:
+                    if (participantScope)
+                        return match.ChampionId <= 0 ? Evidence.Unknown : Match(match.ChampionId == ParseId(node.Value));
+                    if (scopedSet)
+                    {
+                        if (scope == null) return Evidence.Unknown;
+                        if (scope.Any(p => p.ChampionId == ParseId(node.Value))) return Evidence.Yes;
+                        return scope.Any(p => p.ChampionId <= 0) ? Evidence.Unknown : Evidence.No;
+                    }
                     return match.MatchChampionIds == null ? Evidence.Unknown :
                         Match(Array.IndexOf(match.MatchChampionIds, ParseId(node.Value)) >= 0);
                 case LeagueAdvancedMatchKind.HasPlayer:
+                    if (scopedSet)
+                    {
+                        if (scope == null) return Evidence.Unknown;
+                        if (scope.Any(p => string.Equals(p.PuuId, node.Value, StringComparison.Ordinal))) return Evidence.Yes;
+                        return root.RosterIdentitiesComplete ? Evidence.No : Evidence.Unknown;
+                    }
                     return match.MatchPlayers == null ? Evidence.Unknown :
                         Match(match.MatchPlayers.Any(p => p != null && string.Equals(p.PuuId, node.Value, StringComparison.Ordinal)));
                 case LeagueAdvancedMatchKind.KillsBetween:
@@ -435,6 +512,16 @@ namespace FACM.League
             int slot;
             TryIdAndSlot(expression, slotCount, out id, out slot);
             return ContainsSlot(values, id, slot, slotCount);
+        }
+
+        private static LeaguePlayerMatchSummary FindParticipant(LeaguePlayerMatchSummary[] scope,
+            string puuid, LeaguePlayerMatchSummary root)
+        {
+            if (scope == null) return null;
+            if (string.Equals(puuid, "self", StringComparison.Ordinal))
+                return root.ParticipantId <= 0 ? null :
+                    scope.FirstOrDefault(p => p.ParticipantId == root.ParticipantId);
+            return scope.FirstOrDefault(p => string.Equals(p.PuuId, puuid, StringComparison.Ordinal));
         }
 
         private static Evidence ContainsSlot(int[] values, int id, int slot, int expectedCount)

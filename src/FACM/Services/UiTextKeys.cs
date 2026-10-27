@@ -371,6 +371,15 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedTripleKills = "LeaguePlayerAdvancedTripleKills";
         public const string LeaguePlayerAdvancedQuadraKills = "LeaguePlayerAdvancedQuadraKills";
         public const string LeaguePlayerAdvancedPentaKills = "LeaguePlayerAdvancedPentaKills";
+        public const string LeaguePlayerAdvancedScope = "LeaguePlayerAdvancedScope";
+        public const string LeaguePlayerAdvancedPlayerScope = "LeaguePlayerAdvancedPlayerScope";
+        public const string LeaguePlayerAdvancedAnyone = "LeaguePlayerAdvancedAnyone";
+        public const string LeaguePlayerAdvancedEveryone = "LeaguePlayerAdvancedEveryone";
+        public const string LeaguePlayerAdvancedAll = "LeaguePlayerAdvancedAll";
+        public const string LeaguePlayerAdvancedAllies = "LeaguePlayerAdvancedAllies";
+        public const string LeaguePlayerAdvancedEnemies = "LeaguePlayerAdvancedEnemies";
+        public const string LeaguePlayerAdvancedScopeHint = "LeaguePlayerAdvancedScopeHint";
+        public const string LeaguePlayerAdvancedScopeLimit = "LeaguePlayerAdvancedScopeLimit";
         public const string LeaguePlayerFilterSelected = "LeaguePlayerFilterSelected";
         public const string LeaguePlayerFilterClear = "LeaguePlayerFilterClear";
         public const string LeaguePlayerFilterSearchChampion = "LeaguePlayerFilterSearchChampion";

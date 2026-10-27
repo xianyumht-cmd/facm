@@ -121,7 +121,19 @@ namespace FACM.League
                 (s, e) => Add(LeagueAdvancedMatchKind.Not));
             var remove = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRemove), 470, 382, 104,
                 (s, e) => RemoveSelected());
-            foreach (var button in new[] { addCondition, addAnd, addOr, addNot, remove })
+            var scopeMenu = new ContextMenuStrip();
+            foreach (var kind in new[] { LeagueAdvancedMatchKind.Player, LeagueAdvancedMatchKind.Anyone,
+                LeagueAdvancedMatchKind.Everyone, LeagueAdvancedMatchKind.All,
+                LeagueAdvancedMatchKind.Allies, LeagueAdvancedMatchKind.Enemies })
+            {
+                var choice = kind;
+                scopeMenu.Items.Add(Description(choice), null, (s, e) => Add(choice));
+            }
+            Button addScope = null;
+            addScope = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScope), 580, 382, 138,
+                (s, e) => scopeMenu.Show(addScope, new Point(0, addScope.Height)));
+            Disposed += (s, e) => scopeMenu.Dispose();
+            foreach (var button in new[] { addCondition, addAnd, addOr, addNot, remove, addScope })
                 button.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
 
             _conditionType = new ComboBox
@@ -157,7 +169,7 @@ namespace FACM.League
             CancelButton = cancel;
 
             Controls.AddRange(new Control[] { instruction, _rootMode, _tree, addCondition, addAnd, addOr,
-                addNot, remove, _conditionType, _conditionValue, _inputHint, clear, cancel, apply });
+                addNot, remove, addScope, _conditionType, _conditionValue, _inputHint, clear, cancel, apply });
             _tree.AfterSelect += (s, e) => ShowSelectedCondition();
             _rootMode.SelectedIndexChanged += (s, e) =>
             {
@@ -195,6 +207,12 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.And: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAnd);
                 case LeagueAdvancedMatchKind.Or: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedOr);
                 case LeagueAdvancedMatchKind.Not: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNot);
+                case LeagueAdvancedMatchKind.Player: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayerScope);
+                case LeagueAdvancedMatchKind.Anyone: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAnyone);
+                case LeagueAdvancedMatchKind.Everyone: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEveryone);
+                case LeagueAdvancedMatchKind.All: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAll);
+                case LeagueAdvancedMatchKind.Allies: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAllies);
+                case LeagueAdvancedMatchKind.Enemies: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnemies);
                 case LeagueAdvancedMatchKind.IsGameMode: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMode);
                 case LeagueAdvancedMatchKind.IsQueue: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedQueue);
                 case LeagueAdvancedMatchKind.IsMap: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMap);
@@ -246,10 +264,19 @@ namespace FACM.League
         private static string Display(LeagueAdvancedMatchNode node)
         {
             var name = Description(node.Kind);
+            if (IsScopedIdentityGroup(node.Kind))
+                return name + ": " + (string.IsNullOrEmpty(node.Value) ?
+                    UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnterValue) : node.Value);
             return LeagueAdvancedMatchNode.IsGroup(node.Kind) ||
                 node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
                 name : name + ": " + (string.IsNullOrEmpty(node.Value) ?
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEnterValue) : node.Value);
+        }
+
+        private static bool IsScopedIdentityGroup(LeagueAdvancedMatchKind kind)
+        {
+            return kind == LeagueAdvancedMatchKind.Player ||
+                kind == LeagueAdvancedMatchKind.Allies || kind == LeagueAdvancedMatchKind.Enemies;
         }
 
         private static TreeNode BuildTreeNode(LeagueAdvancedMatchNode node)
@@ -265,9 +292,10 @@ namespace FACM.League
             if (!LeagueAdvancedMatchNode.IsGroup(((LeagueAdvancedMatchNode)parent.Tag).Kind)) parent = parent.Parent;
             if (parent == null) return;
             var node = (LeagueAdvancedMatchNode)parent.Tag;
-            if (node.Kind == LeagueAdvancedMatchKind.Not && node.Children.Count > 0)
+            if (node.Kind != LeagueAdvancedMatchKind.And && node.Kind != LeagueAdvancedMatchKind.Or &&
+                node.Children.Count > 0)
             {
-                MessageBox.Show(this, UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNotLimit), Text,
+                MessageBox.Show(this, UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScopeLimit), Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -314,12 +342,14 @@ namespace FACM.League
             {
                 var node = _tree.SelectedNode == null ? null : (LeagueAdvancedMatchNode)_tree.SelectedNode.Tag;
                 var condition = node != null && !LeagueAdvancedMatchNode.IsGroup(node.Kind);
+                var scopedIdentity = node != null && IsScopedIdentityGroup(node.Kind);
                 _conditionType.Enabled = condition;
-                _conditionValue.Enabled = condition && node.Kind != LeagueAdvancedMatchKind.IsWin &&
+                _conditionValue.Enabled = scopedIdentity || condition && node.Kind != LeagueAdvancedMatchKind.IsWin &&
                     node.Kind != LeagueAdvancedMatchKind.IsLoss;
                 _conditionType.SelectedIndex = condition ? Array.IndexOf(ConditionKinds, node.Kind) : -1;
-                _conditionValue.Text = condition ? node.Value ?? string.Empty : string.Empty;
-                _inputHint.Text = !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
+                _conditionValue.Text = condition || scopedIdentity ? node.Value ?? string.Empty : string.Empty;
+                _inputHint.Text = scopedIdentity ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScopeHint) :
+                    !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsGameMode ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedModeHint) :
                     node.Kind == LeagueAdvancedMatchKind.HasPlayer ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayerHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsWin || node.Kind == LeagueAdvancedMatchKind.IsLoss ?
@@ -376,7 +406,7 @@ namespace FACM.League
         {
             if (_changingSelection || _tree.SelectedNode == null) return;
             var node = (LeagueAdvancedMatchNode)_tree.SelectedNode.Tag;
-            if (LeagueAdvancedMatchNode.IsGroup(node.Kind)) return;
+            if (LeagueAdvancedMatchNode.IsGroup(node.Kind) && !IsScopedIdentityGroup(node.Kind)) return;
             node.Value = _conditionValue.Text;
             _tree.SelectedNode.Text = Display(node);
         }

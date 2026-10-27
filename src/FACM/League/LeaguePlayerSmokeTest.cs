@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateAdvancedCombinatorFilters();
             ValidateAdvancedParticipantEquipmentFilters();
             ValidateAdvancedRelativeMetricFilters();
+            ValidateAdvancedParticipantScopes();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
@@ -209,6 +210,14 @@ namespace FACM.League
         {
             var node = Predicate(kind);
             node.Children.AddRange(children);
+            return node;
+        }
+
+        private static LeagueAdvancedMatchNode Scoped(LeagueAdvancedMatchKind kind, string player,
+            LeagueAdvancedMatchNode child)
+        {
+            var node = Group(kind, child);
+            node.Value = player;
             return node;
         }
 
@@ -549,6 +558,106 @@ namespace FACM.League
             Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
                 Predicate(LeagueAdvancedMatchKind.KdaBetween, "teamShare:0,100")), out filter, out error),
                 "KDA must retain Akari's absolute-only comparator.");
+        }
+
+        private static void ValidateAdvancedParticipantScopes()
+        {
+            var history = "{\"games\":{\"games\":[{\"gameId\":9021,\"gameMode\":\"CLASSIC\"," +
+                "\"participants\":[" +
+                "{\"participantId\":1,\"teamId\":100,\"championId\":145,\"stats\":{" +
+                "\"win\":true,\"kills\":8,\"deaths\":2,\"assists\":12,\"item0\":1055}}," +
+                "{\"participantId\":2,\"teamId\":100,\"championId\":22,\"stats\":{" +
+                "\"win\":true,\"kills\":4,\"deaths\":4,\"assists\":6,\"item0\":3006}}," +
+                "{\"participantId\":3,\"teamId\":200,\"championId\":99,\"stats\":{" +
+                "\"win\":false,\"kills\":10,\"deaths\":3,\"assists\":2,\"item0\":3020}}]," +
+                "\"participantIdentities\":[" +
+                "{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}," +
+                "{\"participantId\":2,\"player\":{\"puuid\":\"ally\"}}," +
+                "{\"participantId\":3,\"player\":{\"puuid\":\"enemy\"}}]}]}}";
+            var service = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", history, null),
+                new PerformanceBudgetProvider());
+            var profile = service.LoadProfileAsync(true, CancellationToken.None).GetAwaiter().GetResult();
+            var page = service.LoadRecentMatchesAsync(profile, 0, 10, true, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(page != null && page.Matches.Count == 1 &&
+                    page.Matches[0].ParticipantRoster.Length == 3 &&
+                    page.Matches[0].RosterIdentitiesComplete,
+                "Bounded LCU participant scopes must correlate all three unique participant identities.");
+            var match = page.Matches[0];
+            var pass = new[]
+            {
+                Scoped(LeagueAdvancedMatchKind.All, null,
+                    Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                        Predicate(LeagueAdvancedMatchKind.HasChampion, "22"))),
+                Scoped(LeagueAdvancedMatchKind.All, null,
+                    Scoped(LeagueAdvancedMatchKind.Everyone, null,
+                        Predicate(LeagueAdvancedMatchKind.KillsBetween, "0,20"))),
+                Scoped(LeagueAdvancedMatchKind.Player, "ally", Group(LeagueAdvancedMatchKind.And,
+                    Predicate(LeagueAdvancedMatchKind.HasChampion, "22"),
+                    Predicate(LeagueAdvancedMatchKind.KillsBetween, "4,4"),
+                    Predicate(LeagueAdvancedMatchKind.HasItem, "3006@0"))),
+                Scoped(LeagueAdvancedMatchKind.Allies, "self",
+                    Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                        Predicate(LeagueAdvancedMatchKind.KillsBetween, "4,4"))),
+                Scoped(LeagueAdvancedMatchKind.Enemies, "self",
+                    Scoped(LeagueAdvancedMatchKind.Everyone, null,
+                        Predicate(LeagueAdvancedMatchKind.KillsBetween, "8,20"))),
+                Scoped(LeagueAdvancedMatchKind.Allies, "ally",
+                    Scoped(LeagueAdvancedMatchKind.Everyone, null,
+                        Predicate(LeagueAdvancedMatchKind.IsWin))),
+                Scoped(LeagueAdvancedMatchKind.Enemies, "ally",
+                    Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                        Predicate(LeagueAdvancedMatchKind.HasItem, "3020")))
+            };
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            foreach (var node in pass)
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And, node),
+                    out filter, out error) && filter.Matches(match),
+                    "Akari participant/group quantifier must retain selected-player context: " + node.Kind);
+            foreach (var node in new[]
+            {
+                Scoped(LeagueAdvancedMatchKind.All, null,
+                    Scoped(LeagueAdvancedMatchKind.Everyone, null,
+                        Predicate(LeagueAdvancedMatchKind.IsWin))),
+                Scoped(LeagueAdvancedMatchKind.Player, "ally",
+                    Predicate(LeagueAdvancedMatchKind.KillsBetween, "8,8")),
+                Scoped(LeagueAdvancedMatchKind.Enemies, "self",
+                    Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                        Predicate(LeagueAdvancedMatchKind.HasChampion, "22")))
+            })
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And, node),
+                    out filter, out error) && !filter.Matches(match),
+                    "Cross-participant predicates must reject another player's nonmatching statistics.");
+            var cached = service.TryGetCachedPage();
+            cached.Matches[0].ParticipantRoster[1].ItemIds[0] = 9999;
+            cached.Matches[0].ParticipantRoster[1].PuuId = "modified";
+            Require(service.TryGetCachedPage().Matches[0].ParticipantRoster[1].ItemIds[0] == 3006 &&
+                    service.TryGetCachedPage().Matches[0].ParticipantRoster[1].PuuId == "ally",
+                "Nested participant evidence must be fully detached from cached pages.");
+            var incomplete = new LeaguePlayerMatchSummary
+            {
+                ParticipantResolved = true, ParticipantId = 1,
+                ParticipantRoster = new[]
+                {
+                    new LeaguePlayerMatchSummary { ParticipantId = 1, PuuId = "self", TeamId = 100,
+                        ParticipantResolved = true, StatisticsAvailable = true, Kills = 8 },
+                    new LeaguePlayerMatchSummary { ParticipantId = 2, TeamId = 200,
+                        ParticipantResolved = true, StatisticsAvailable = true, Kills = 4 }
+                }
+            };
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Not,
+                    Scoped(LeagueAdvancedMatchKind.Player, "unknown",
+                        Predicate(LeagueAdvancedMatchKind.KillsBetween, "0,20")))), out filter, out error) &&
+                !filter.Matches(incomplete), "Missing participant PUUIDs must stay unknown under NOT.");
+            Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Scoped(LeagueAdvancedMatchKind.Player, "", Predicate(LeagueAdvancedMatchKind.IsWin))),
+                out filter, out error), "A targeted scope must reject an empty PUUID before application.");
+            Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Anyone,
+                    Predicate(LeagueAdvancedMatchKind.IsWin), Predicate(LeagueAdvancedMatchKind.IsLoss))),
+                out filter, out error), "Quantifier scopes must accept exactly one child expression.");
         }
 
         private static void ValidateRiotPlayerSearch()
