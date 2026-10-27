@@ -341,6 +341,7 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedErrorSlot = "LeaguePlayerAdvancedErrorSlot";
         public const string LeaguePlayerAdvancedErrorDecimalRange = "LeaguePlayerAdvancedErrorDecimalRange";
         public const string LeaguePlayerAdvancedDecimalHint = "LeaguePlayerAdvancedDecimalHint";
+        public const string LeaguePlayerAdvancedMeasureHint = "LeaguePlayerAdvancedMeasureHint";
         public const string LeaguePlayerAdvancedPercentHint = "LeaguePlayerAdvancedPercentHint";
         public const string LeaguePlayerAdvancedPositionHint = "LeaguePlayerAdvancedPositionHint";
         public const string LeaguePlayerAdvancedPosition = "LeaguePlayerAdvancedPosition";

@@ -71,6 +71,8 @@ namespace FACM.League
         public double? TripleKills { get; set; }
         public double? QuadraKills { get; set; }
         public double? PentaKills { get; set; }
+        // Per-source-statistic baselines: team sum/max, then game sum/max. Missing team scope uses NaN.
+        public Dictionary<string, double[]> MetricBaselines { get; set; }
         // Available only when the match includes verified participant identities and team IDs.
         public string[] SameTeamPuuids { get; set; }
         // Populated from the match's participant roster; null means the source supplied no reliable champion set.

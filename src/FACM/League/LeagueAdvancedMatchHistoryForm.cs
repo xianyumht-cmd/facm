@@ -331,6 +331,7 @@ namespace FACM.League
                     node.Kind == LeagueAdvancedMatchKind.HasAugment ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSlotHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsPosition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPositionHint) :
                     IsPercentCondition(node.Kind) ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPercentHint) :
+                    IsMeasuredCondition(node.Kind) ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMeasureHint) :
                     (int)node.Kind >= (int)LeagueAdvancedMatchKind.KdaBetween ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDecimalHint) :
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRangeHint);
             }
@@ -344,6 +345,18 @@ namespace FACM.League
                 kind == LeagueAdvancedMatchKind.ChampionDamageShareBetween ||
                 kind == LeagueAdvancedMatchKind.DamageTakenShareBetween ||
                 kind == LeagueAdvancedMatchKind.GoldShareBetween;
+        }
+
+        private static bool IsMeasuredCondition(LeagueAdvancedMatchKind kind)
+        {
+            return kind == LeagueAdvancedMatchKind.KillsBetween ||
+                kind == LeagueAdvancedMatchKind.DeathsBetween ||
+                kind == LeagueAdvancedMatchKind.AssistsBetween ||
+                kind == LeagueAdvancedMatchKind.CsBetween ||
+                ((int)kind >= (int)LeagueAdvancedMatchKind.LevelBetween &&
+                 (int)kind <= (int)LeagueAdvancedMatchKind.SoloKillsBetween) ||
+                ((int)kind >= (int)LeagueAdvancedMatchKind.DoubleKillsBetween &&
+                 (int)kind <= (int)LeagueAdvancedMatchKind.PentaKillsBetween);
         }
 
         private void ChangeConditionType()

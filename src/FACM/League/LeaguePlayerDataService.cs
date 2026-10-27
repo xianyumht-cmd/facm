@@ -895,6 +895,7 @@ namespace FACM.League
                 TripleKills = Metric(stats, "tripleKills"),
                 QuadraKills = Metric(stats, "quadraKills"),
                 PentaKills = Metric(stats, "pentaKills"),
+                MetricBaselines = BuildMetricBaselines(game, participant),
                 SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
                 MatchChampionIds = MatchChampionIds(game),
                 MatchPlayers = MatchPlayerIdentities(game),
@@ -1011,6 +1012,65 @@ namespace FACM.League
             return source != null && source.TryGetValue(key, out value) && value != null &&
                 double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture, out number) &&
                 !double.IsNaN(number) && !double.IsInfinity(number) && number >= 0 ? (double?)number : null;
+        }
+
+        private static readonly string[] RelativeMetricKeys =
+        {
+            "kills", "deaths", "assists", "cs", "champLevel", "goldEarned", "goldSpent",
+            "totalDamageDealtToChampions", "physicalDamageDealtToChampions",
+            "magicDamageDealtToChampions", "trueDamageDealtToChampions",
+            "totalDamageTaken", "physicalDamageTaken", "magicDamageTaken", "trueDamageTaken",
+            "damageDealtToTurrets", "totalHeal", "visionScore", "timeCCingOthers", "soloKills",
+            "doubleKills", "tripleKills", "quadraKills", "pentaKills"
+        };
+
+        private static double? ParticipantMetric(Dictionary<string, object> participant, string key)
+        {
+            var stats = ReadObject(participant, "stats");
+            if (key == "soloKills") return Metric(ReadObject(stats, "challenges"), key);
+            if (key != "cs") return Metric(stats, key);
+            var lane = Metric(stats, "totalMinionsKilled");
+            var jungle = Metric(stats, "neutralMinionsKilled");
+            return lane.HasValue && jungle.HasValue ? (double?)(lane.Value + jungle.Value) : null;
+        }
+
+        private static Dictionary<string, double[]> BuildMetricBaselines(
+            Dictionary<string, object> game, Dictionary<string, object> self)
+        {
+            if (self == null) return null;
+            var participants = ReadObjects(game, "participants").Take(33).ToList();
+            if (participants.Count == 0 || participants.Count > 32) return null;
+            var teamId = ReadInt(self, "teamId");
+            var baselines = new Dictionary<string, double[]>(StringComparer.Ordinal);
+            foreach (var key in RelativeMetricKeys)
+            {
+                if (!ParticipantMetric(self, key).HasValue) continue;
+                var teamSum = 0d;
+                var teamMax = 0d;
+                var gameSum = 0d;
+                var gameMax = 0d;
+                var hasTeam = false;
+                foreach (var member in participants)
+                {
+                    var value = ParticipantMetric(member, key);
+                    if (!value.HasValue) continue;
+                    gameSum += value.Value;
+                    gameMax = Math.Max(gameMax, value.Value);
+                    if (teamId <= 0 || ReadInt(member, "teamId") != teamId) continue;
+                    hasTeam = true;
+                    teamSum += value.Value;
+                    teamMax = Math.Max(teamMax, value.Value);
+                }
+                if (double.IsNaN(gameSum) || double.IsInfinity(gameSum) ||
+                    double.IsNaN(teamSum) || double.IsInfinity(teamSum)) continue;
+                baselines[key] = new[]
+                {
+                    hasTeam ? teamSum : double.NaN,
+                    hasTeam ? teamMax : double.NaN,
+                    gameSum, gameMax
+                };
+            }
+            return baselines.Count > 0 ? baselines : null;
         }
 
         private static double? Ratio(double? numerator, double? denominator)
@@ -1210,6 +1270,9 @@ namespace FACM.League
                     TripleKills = match.TripleKills,
                     QuadraKills = match.QuadraKills,
                     PentaKills = match.PentaKills,
+                    MetricBaselines = match.MetricBaselines == null ? null :
+                        match.MetricBaselines.ToDictionary(pair => pair.Key,
+                            pair => pair.Value == null ? null : (double[])pair.Value.Clone(), StringComparer.Ordinal),
                     SameTeamPuuids = match.SameTeamPuuids == null ? null : (string[])match.SameTeamPuuids.Clone(),
                     MatchChampionIds = match.MatchChampionIds == null ? null : (int[])match.MatchChampionIds.Clone(),
                     MatchPlayers = match.MatchPlayers == null ? null : match.MatchPlayers.Select(player =>

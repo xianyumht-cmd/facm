@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Resolve relative advanced-filter measures when parsing an owned history page
+
+Akari v1.5.1's four team/game number modes need sibling participant metrics, while GGman's current Player summary previously retained only own numeric values. Compute bounded per-metric team/game sum and maximum from the **same existing match-history response**, attach only compact derived denominators to each signed-in player summary and clone them with page-cache snapshots. Keep incomplete source/identity evidence unknown rather than inventing negative evidence; preserve source behavior of omitting unavailable peer values, and return 0% for a verified zero denominator. Store no full opponent statistics, new persistence, polling or per-row detail hydration in this slice. Relative predicates for other participant scopes and SGP sourcing stay explicitly open until the separate quantifier model is implemented.
+
 ## 2026-10-27 — Batch self-player numeric source predicates without network expansion
 
 Implement Akari 1.5.1's position, numeric and percentage predicates together in the existing bounded native match-history filter rather than introducing a second filtering UI, an aggregate cache or network hydration per record. Read only already-returned LCU self-participant stats, preserve absent fields as nullable evidence and copy them across account-cache snapshots. Parse invariant inclusive decimal ranges and show ratio selectors as user-facing percentages, including potentially over-100 damage/gold efficiency. Avoid treating unknown under NOT as a negative match. Source-defined relative team/game comparator modes and participant quantifiers require richer verified roster data and stay explicitly unfinished. CI smoke is a regression guard, not a claim of Tencent in-game acceptance or authorization to release.

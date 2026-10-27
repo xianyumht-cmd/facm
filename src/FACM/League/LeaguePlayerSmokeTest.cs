@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateSourceSimpleFilters();
             ValidateAdvancedCombinatorFilters();
             ValidateAdvancedParticipantEquipmentFilters();
+            ValidateAdvancedRelativeMetricFilters();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
             ValidatePaginationBoundary();
@@ -477,6 +478,77 @@ namespace FACM.League
             Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
                 Predicate(LeagueAdvancedMatchKind.KdaBetween, "10.01,11")), out filter, out error) &&
                 !filter.Matches(match), "Decimal bounds must exclude genuine out-of-range KDA values.");
+        }
+
+        private static void ValidateAdvancedRelativeMetricFilters()
+        {
+            var matchJson = "{\"games\":{\"games\":[{\"gameId\":9011,\"gameMode\":\"CLASSIC\"," +
+                "\"participants\":[" +
+                "{\"participantId\":1,\"teamId\":100,\"championId\":145,\"stats\":{" +
+                "\"win\":true,\"kills\":8,\"deaths\":2,\"assists\":12," +
+                "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":20," +
+                "\"goldEarned\":12000,\"totalDamageDealtToChampions\":18000}}," +
+                "{\"participantId\":2,\"teamId\":100,\"championId\":22,\"stats\":{" +
+                "\"win\":true,\"kills\":4,\"deaths\":4,\"assists\":6," +
+                "\"totalMinionsKilled\":80,\"neutralMinionsKilled\":10," +
+                "\"goldEarned\":6000,\"totalDamageDealtToChampions\":6000}}," +
+                "{\"participantId\":3,\"teamId\":200,\"championId\":99,\"stats\":{" +
+                "\"win\":false,\"kills\":10,\"deaths\":3,\"assists\":2," +
+                "\"totalMinionsKilled\":120,\"neutralMinionsKilled\":20," +
+                "\"goldEarned\":10000,\"totalDamageDealtToChampions\":12000}}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]}]}}";
+            var service = new LeaguePlayerDataService(new FixtureApi("{\"puuid\":\"self\"}", matchJson, null),
+                new PerformanceBudgetProvider());
+            var profile = service.LoadProfileAsync(true, CancellationToken.None).GetAwaiter().GetResult();
+            var loaded = service.LoadRecentMatchesAsync(profile, 0, 10, true, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(loaded != null && loaded.Matches.Count == 1, "A complete three-player numeric fixture should parse.");
+            var match = loaded.Matches[0];
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            foreach (var node in new[]
+            {
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "teamShare:66,67"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "teamMaxShare:100,100"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "gameShare:36,37"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "gameMaxShare:80,80"),
+                Predicate(LeagueAdvancedMatchKind.GoldBetween, "teamShare:66,67"),
+                Predicate(LeagueAdvancedMatchKind.GoldBetween, "gameShare:42,43"),
+                Predicate(LeagueAdvancedMatchKind.DamageToChampionsBetween, "gameMaxShare:100,100"),
+                Predicate(LeagueAdvancedMatchKind.CsBetween, "teamShare:57,58"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "8,8"),
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "7.5,8.5")
+            })
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And, node),
+                    out filter, out error) && filter.Matches(match),
+                    "Relative numeric measure must match verified team/game baselines: " + node.Value);
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.KillsBetween, "teamShare:67,90")), out filter, out error) &&
+                !filter.Matches(match), "Relative percent bounds must reject values outside the interval.");
+            var snapshot = service.TryGetCachedPage();
+            Require(snapshot.Matches[0].MetricBaselines != null, "Cached pages must preserve participant baselines.");
+            snapshot.Matches[0].MetricBaselines["kills"][0] = 999;
+            Require(service.TryGetCachedPage().Matches[0].MetricBaselines["kills"][0] == 12,
+                "Metric baseline arrays must be defensively cloned across cache snapshots.");
+            var noRoster = new LeaguePlayerMatchSummary
+            {
+                ParticipantResolved = true, StatisticsAvailable = true, Kills = 8
+            };
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Group(LeagueAdvancedMatchKind.Not,
+                    Predicate(LeagueAdvancedMatchKind.KillsBetween, "gameShare:0,100"))), out filter, out error) &&
+                !filter.Matches(noRoster), "NOT must not convert absent team/game baselines into verified evidence.");
+            foreach (var invalid in new[]
+            {
+                "teamShare:-1,100", "teamMaxShare:100,20", "gameShare:NaN,50",
+                "gameMaxShare:1", "teamFoo:0,100", "gameShare:1,2,3", "gameShare:0,1:2"
+            })
+                Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Predicate(LeagueAdvancedMatchKind.GoldBetween, invalid)), out filter, out error),
+                    "Malformed relative modes must be rejected at compile time.");
+            Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.KdaBetween, "teamShare:0,100")), out filter, out error),
+                "KDA must retain Akari's absolute-only comparator.");
         }
 
         private static void ValidateRiotPlayerSearch()

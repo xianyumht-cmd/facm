@@ -347,6 +347,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerAdvancedErrorSlot, "请输入正整数 ID，或 ID@槽位；槽位不能超出相应条件范围。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedErrorDecimalRange, "数值范围需要两个有限的非负数字：最小值,最大值。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedDecimalHint, "填写最小值,最大值，可使用小数，如 2.5,8.0；范围包含两端。"),
+            Pair(UiTextKeys.LeaguePlayerAdvancedMeasureHint, "数值：2,10；占比：teamShare:20,80、teamMaxShare:20,80、gameShare:20,80、gameMaxShare:20,80。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedPercentHint, "输入百分数，不带 %，如 25,75；来源不足时不会匹配。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedPositionHint, "填写客户端返回的位置，如 TOP、JUNGLE、MIDDLE、BOTTOM、UTILITY。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedPosition, "本人位置"),
