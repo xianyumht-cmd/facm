@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -17,6 +17,7 @@ namespace FACM.AppHost.Modules
         private LeagueRiotAliasLookupApiClient _riotAlias;
         private LeagueClientWriteApiClient _writer;
         private LeaguePostGameWriteApiClient _postGameWriter;
+        private LeagueReplayWriteApiClient _replayWriter;
         private LeagueMatchmakingWriteApiClient _matchmakingWriter;
         private LeagueChampSelectActionWriteApiClient _champSelectActionWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
@@ -47,6 +48,7 @@ namespace FACM.AppHost.Modules
             _riotAlias = new LeagueRiotAliasLookupApiClient(_sessions);
             _writer = new LeagueClientWriteApiClient(_sessions);
             _postGameWriter = new LeaguePostGameWriteApiClient(_sessions);
+            _replayWriter = new LeagueReplayWriteApiClient(_sessions);
             _matchmakingWriter = new LeagueMatchmakingWriteApiClient(_sessions);
             _champSelectActionWriter = new LeagueChampSelectActionWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
@@ -92,6 +94,20 @@ namespace FACM.AppHost.Modules
         {
             var writer = _postGameWriter;
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, json, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueReplayWriteApi.TryCreateMetadataAsync(
+            LeagueClientSession session, LeaguePlayerMatchSummary match, string gameVersion, CancellationToken token)
+        {
+            return _replayWriter == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                _replayWriter.TryCreateMetadataAsync(session, match, gameVersion, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueReplayWriteApi.TryReplayAsync(
+            LeagueClientSession session, long gameId, bool watch, CancellationToken token)
+        {
+            return _replayWriter == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                _replayWriter.TryReplayAsync(session, gameId, watch, token);
         }
 
         Task<LeagueClientWriteResponse> ILeagueMatchmakingWriteApi.TrySendAsync(string method, string path, CancellationToken cancellationToken)
@@ -263,6 +279,7 @@ namespace FACM.AppHost.Modules
             var matchmakingWriter = _matchmakingWriter;
             var champSelectActionWriter = _champSelectActionWriter;
             var postGameWriter = _postGameWriter;
+            var replayWriter = _replayWriter;
             var writer = _writer;
             var api = _api;
             var riotAlias = _riotAlias;
@@ -277,6 +294,7 @@ namespace FACM.AppHost.Modules
             _matchmakingWriter = null;
             _champSelectActionWriter = null;
             _postGameWriter = null;
+            _replayWriter = null;
             _writer = null;
             _api = null;
             _riotAlias = null;
@@ -292,6 +310,7 @@ namespace FACM.AppHost.Modules
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
             if (champSelectActionWriter != null) champSelectActionWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();
+            if (replayWriter != null) replayWriter.Dispose();
             if (writer != null) writer.Dispose();
             if (api != null) api.Dispose();
             if (riotAlias != null) riotAlias.Dispose();

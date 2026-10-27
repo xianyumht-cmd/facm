@@ -32,6 +32,7 @@ namespace FACM.League
         public int GameDurationSeconds { get; set; }
         public string GameMode { get; set; }
         public string GameType { get; set; }
+        public long GameCreationEpochMs { get; set; }
         public int QueueId { get; set; }
         public int ChampionId { get; set; }
         public int MapId { get; set; }

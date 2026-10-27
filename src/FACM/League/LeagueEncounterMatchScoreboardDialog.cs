@@ -20,7 +20,8 @@ namespace FACM.League
         private int _selectionVersion;
 
         internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
-            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
         {
             if (detail == null || detail.Status != LeagueEncounterMatchDetailStatus.Ready ||
                 detail.Match == null || detail.Participants == null)
@@ -171,11 +172,43 @@ namespace FACM.League
                 showSelection(targetItem.Tag as LeaguePlayerMatchParticipant);
             }
 
-            var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+            var replayStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay) };
+            footer.Controls.Add(replayStatus, 0, 0);
+            var replayButton = new Button { Dock = DockStyle.Top, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay), Enabled = replay != null };
+            replayButton.Click += async (sender, e) =>
+            {
+                if (replay == null || _lifetime.IsCancellationRequested) return;
+                replayButton.Enabled = false;
+                replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+                try
+                {
+                    var result = await replay(match, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    replayStatus.Text = ReplayStatusText(result, t);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                        replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+                }
+                finally
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested) replayButton.Enabled = true;
+                }
+            };
+            footer.Controls.Add(replayButton, 1, 0);
             var close = new Button { Width = 90, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
             close.Click += (sender, e) => Close();
-            footer.Controls.Add(close);
+            footer.Controls.Add(close, 2, 0);
             layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
             CancelButton = close;
@@ -190,6 +223,31 @@ namespace FACM.League
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
             };
+        }
+
+        internal static string ReplayStatusText(LeagueEncounterReplayResult result, Func<string, string> t)
+        {
+            if (result == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            switch (result.Status)
+            {
+                case LeagueEncounterReplayStatus.DownloadRequested:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloadRequested);
+                case LeagueEncounterReplayStatus.WatchRequested:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayWatchRequested);
+                case LeagueEncounterReplayStatus.Checking:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+                case LeagueEncounterReplayStatus.Downloading:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading)
+                        .Replace("{0}", result.Progress.ToString());
+                case LeagueEncounterReplayStatus.Incompatible:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayIncompatible);
+                case LeagueEncounterReplayStatus.NoClient:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchNoClient);
+                case LeagueEncounterReplayStatus.WrongAccount:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWrongAccount);
+                default:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            }
         }
 
         private static string FormatTeamScore(LeagueMatchTeamScore team, Func<string, string> t)

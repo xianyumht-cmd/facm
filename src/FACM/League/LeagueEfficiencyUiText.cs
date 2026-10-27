@@ -256,6 +256,13 @@ namespace FACM.League
         public const string DynamicEncounterMatchWon = "LeagueEfficiencyDynamicEncounterMatchWon";
         public const string DynamicEncounterMatchLost = "LeagueEfficiencyDynamicEncounterMatchLost";
         public const string DynamicEncounterScoreboardTitle = "LeagueEfficiencyDynamicEncounterScoreboardTitle";
+        public const string DynamicEncounterReplay = "LeagueEfficiencyDynamicEncounterReplay";
+        public const string DynamicEncounterReplayChecking = "LeagueEfficiencyDynamicEncounterReplayChecking";
+        public const string DynamicEncounterReplayDownloadRequested = "LeagueEfficiencyDynamicEncounterReplayDownloadRequested";
+        public const string DynamicEncounterReplayWatchRequested = "LeagueEfficiencyDynamicEncounterReplayWatchRequested";
+        public const string DynamicEncounterReplayDownloading = "LeagueEfficiencyDynamicEncounterReplayDownloading";
+        public const string DynamicEncounterReplayIncompatible = "LeagueEfficiencyDynamicEncounterReplayIncompatible";
+        public const string DynamicEncounterReplayUnavailable = "LeagueEfficiencyDynamicEncounterReplayUnavailable";
         public const string DynamicEncounterScoreboardSummary = "LeagueEfficiencyDynamicEncounterScoreboardSummary";
         public const string DynamicEncounterScoreboardTeam = "LeagueEfficiencyDynamicEncounterScoreboardTeam";
         public const string DynamicEncounterScoreboardPlayer = "LeagueEfficiencyDynamicEncounterScoreboardPlayer";
@@ -589,6 +596,13 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon, "胜利" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost, "失败" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle, "本场对局 · 玩家记分板" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplay, "下载 / 观看回放" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking, "正在检查回放状态…" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloadRequested, "已向客户端提交下载；稍后可再次点击观看。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayWatchRequested, "已向客户端提交播放请求。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading, "回放下载中（{0}%），稍后再试。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayIncompatible, "当前客户端版本无法播放这场回放。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable, "这场回放暂时不可用，请检查客户端或稍后重试。" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSummary, "对局 {0} · 模式 {1} · 时长 {2} · ★ 为所选玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam, "队伍" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer, "玩家" },

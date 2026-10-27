@@ -56,6 +56,7 @@ namespace FACM.AppHost.Modules
         private readonly LeaguePlayerTagStore _playerTags;
         private readonly LeagueEncounterHistoryStore _encounterHistory;
         private readonly LeagueEncounterMatchDetailService _encounterDetails;
+        private readonly LeagueEncounterReplayService _encounterReplay;
         private LeagueEncounterHistoryRecorder _encounterRecorder;
         private LeagueTaggedPlayerReminderController _tagReminders;
         private readonly object _honorSync = new object();
@@ -97,6 +98,8 @@ namespace FACM.AppHost.Modules
             _encounterHistory = LeagueEncounterHistoryStore.CreateDefault();
             _encounterDetails = new LeagueEncounterMatchDetailService(_leagueClient,
                 _dashboard.BudgetProvider, () => _leagueClient.CurrentSession);
+            _encounterReplay = new LeagueEncounterReplayService(_leagueClient,
+                (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
         }
 
         public string Id { get { return ModuleId; } }
@@ -340,6 +343,13 @@ namespace FACM.AppHost.Modules
         {
             ThrowIfDisposed();
             return _encounterDetails.ReadAsync(record, token);
+        }
+
+        public Task<LeagueEncounterReplayResult> ExecuteEncounterReplayAsync(
+            LeagueEncounterRecord record, LeaguePlayerMatchSummary match, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _encounterReplay.ExecuteAsync(record, match, token);
         }
 
         public Task<Bitmap> LoadEncounterAssetAsync(string reference, CancellationToken token)

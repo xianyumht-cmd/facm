@@ -23,6 +23,7 @@ namespace FACM.League
                     "lcu:/lol-game-data/assets/%2e%2e/secret"),
                 "Encountered-match icon loading must be restricted to safe local game-data paths.");
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
+            ValidateReplayAsync().GetAwaiter().GetResult();
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var game = new LeagueLiveSnapshot();
             new LeagueLiveDataService(new StubClient(), new PerformanceBudgetProvider()).ApplyCurrentGame(game,
@@ -407,6 +408,152 @@ namespace FACM.League
                         teams + "}"));
                 }
                 return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private static async Task ValidateReplayAsync()
+        {
+            Require(LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v2/metadata/123/create") &&
+                LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/download") &&
+                LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/watch") &&
+                !LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/../watch") &&
+                !LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/delete"),
+                "Replay writer must only accept positive game IDs and exact replay POST routes.");
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
+            var active = session;
+            var record = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self", Puuid = "enemy",
+                PlatformId = "HN1", Region = "HN1" };
+            var match = new LeaguePlayerMatchSummary { GameId = 123, QueueId = 450,
+                GameType = "MATCHED_GAME", GameCreationEpochMs = 1720000000000,
+                GameDurationSeconds = 1234 };
+            var read = new ReplayReadClient();
+            var write = new ReplayWriteClient();
+            var service = new LeagueEncounterReplayService(read, write, () => active);
+
+            var result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.DownloadRequested &&
+                write.Created == 1 && write.Downloads == 1 && write.Watches == 0 &&
+                write.CreatedMatch == match && write.CreatedVersion == "15.21.1" &&
+                read.ProfileReads == 2,
+                "Downloading a replay must check the owner twice, create metadata and POST once.");
+            read.State = "watch";
+            result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.WatchRequested && write.Watches == 1 &&
+                write.Downloads == 1, "A watch-ready replay should only send the watch action.");
+            read.State = "downloading";
+            read.Progress = 0.42;
+            result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.Downloading && result.Progress == 42 &&
+                write.Watches == 1 && write.Downloads == 1,
+                "Download progress must be informative without resending replay commands.");
+            read.State = "checking";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Checking, "Checking must not trigger a replay POST.");
+            read.State = "incompatible";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Incompatible, "Incompatible replays must not be played.");
+            read.State = "download";
+            read.Enabled = false;
+            var writesBefore = write.Downloads;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Replay configuration opt-outs must be honored.");
+            read.Enabled = true;
+            read.SelfPuuid = "another-player";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.WrongAccount && write.Downloads == writesBefore,
+                "A changed signed-in owner must not act on saved-player history.");
+            read.SelfPuuid = "self";
+            read.MetadataGameId = 999;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Mismatched replay metadata must not trigger an action.");
+            read.MetadataGameId = 123;
+            read.AfterMetadata = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                "other", "https", "fixture", "HN1", "HN1");
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.NoClient && write.Downloads == writesBefore,
+                "Switching LCU sessions while reading metadata must stop the replay action.");
+            active = session;
+            read.AfterMetadata = null;
+            var wrongRegion = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self",
+                Puuid = "enemy", PlatformId = "HN2", Region = "HN2" };
+            Require((await service.ExecuteAsync(wrongRegion, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.WrongAccount && write.Downloads == writesBefore,
+                "A foreign platform or region must never receive replay commands.");
+            match.GameCreationEpochMs = 0;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Incomplete creation timestamps must prevent invalid metadata POSTs.");
+            Require(LeagueEncounterMatchScoreboardDialog.ReplayStatusText(
+                new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Downloading, Progress = 42 },
+                key => key == LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading ? "{0}%" : key) == "42%",
+                "Replay state must be reflected in the native scoreboard label.");
+        }
+
+        private sealed class ReplayReadClient : ILeagueClientApi
+        {
+            internal string SelfPuuid = "self";
+            internal string State = "download";
+            internal bool Enabled = true;
+            internal double Progress;
+            internal long MetadataGameId = 123;
+            internal Action AfterMetadata;
+            internal int ProfileReads;
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                string json = null;
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                {
+                    ProfileReads++;
+                    json = "{\"puuid\":\"" + SelfPuuid + "\"}";
+                }
+                else if (path == LeagueEncounterReplayService.ConfigurationPath)
+                    json = "{\"gameVersion\":\"15.21.1\",\"isReplaysEnabled\":" +
+                        (Enabled ? "true" : "false") + ",\"isReplaysForMatchHistoryEnabled\":true}";
+                else if (path == "/lol-replays/v1/metadata/123")
+                {
+                    AfterMetadata?.Invoke();
+                    json = "{\"gameId\":" + MetadataGameId + ",\"state\":\"" + State +
+                        "\",\"downloadProgress\":" + Progress.ToString(
+                            System.Globalization.CultureInfo.InvariantCulture) + "}";
+                }
+                return Task.FromResult(json == null ? null : Encoding.UTF8.GetBytes(json));
+            }
+        }
+
+        private sealed class ReplayWriteClient : ILeagueReplayWriteApi
+        {
+            internal int Created;
+            internal int Downloads;
+            internal int Watches;
+            internal LeaguePlayerMatchSummary CreatedMatch;
+            internal string CreatedVersion;
+
+            public Task<LeagueClientWriteResponse> TryCreateMetadataAsync(LeagueClientSession session,
+                LeaguePlayerMatchSummary match, string gameVersion, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Created++;
+                CreatedMatch = match;
+                CreatedVersion = gameVersion;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 200 });
+            }
+
+            public Task<LeagueClientWriteResponse> TryReplayAsync(LeagueClientSession session,
+                long gameId, bool watch, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (watch) Watches++;
+                else Downloads++;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 200 });
             }
         }
 

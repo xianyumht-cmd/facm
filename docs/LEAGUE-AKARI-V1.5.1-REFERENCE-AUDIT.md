@@ -77,6 +77,10 @@ The user supplied this **specific** Windows x64 distribution:
 
 ## v1.5.1 source-backed functional inventory — initial pass
 
+### Encountered-match replay control candidate (2026-10-27, Draft #357)
+
+At the pinned commit, `src/shared/http-api-axios-helper/league-client/replays.ts` defines `GET /lol-replays/v1/configuration`, `POST /lol-replays/v2/metadata/{gameId}/create`, `GET /lol-replays/v1/metadata/{gameId}` and `POST /lol-replays/v1/rofls/{gameId}/{download|watch}`. The source uses `componentType: replay-button_match-history` on replay actions and metadata states `checking`, `found`, `download`, `downloading`, `watch`, `incompatible`; `MatchCardDetails.vue` exposes an action when downloading or watching is possible. GGman now provides an explicit native button in the already-existing encountered-game scoreboard, checking owner/session, creating metadata and acting on `download` or `watch`, with transitional/unsupported states displayed without network polling. Deterministic fixtures are not confirmation of actual Tencent-server replay support or exact visual parity. Other Akari match-card operations and match sources remain in the mandatory backlog.
+
 These are implementations and settings **present in the pinned source**, not a verified Windows/Tencent live-operation checklist.
 
 | Area | Source implementation | Evidence from pinned source | GGman adaptation direction |

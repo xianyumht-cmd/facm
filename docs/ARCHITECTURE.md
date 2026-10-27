@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Encountered-match replay owner (Akari 1.5.1 Draft #357)
+
+`LeagueEncounterReplayService` has one on-demand execution path from a match scoreboard button, separate from the existing authenticated match-detail read. It checks the current LCU session, region/platform, current signed-in PUUID, selected match ID and on-demand replay configuration; the typed `ILeagueReplayWriteApi` implemented by `LeagueReplayWriteApiClient` permits exactly two POST forms: metadata create and one replay download/watch action. Re-checking account/session after metadata read prevents old saved-player records from acting on a newly logged-in player. Only positive game IDs enter fixed path templates; JSON bodies contain source-defined replay fields, not caller-controlled routes. `LeagueClientModule` owns and disposes the pooled authenticated writer; the dialog owns click cancellation and localized replay states. `gameCreation` is carried through the regular match-summary clone for replay end-time calculation. There is no new Gameflow observer, timer, persistence or background replay download manager.
+
 ## Encountered-match role-bound equipment (Draft #357)
 
 `LeaguePlayerDataService.ParseParticipants` projects nullable `roleBoundItem` only from verified participant stats in the existing match-detail response. `LeagueEncounterMatchScoreboardDialog` presents that value separately from seven ordered equipment slots, uses the already-populated Build Advisor item catalog for optional name and icon, and reuses selection-scoped cancellation, bitmap ownership and request limits. A bound item already present in the normal slot list is not requested twice. Missing metadata remains a raw ID rather than starting another catalog fetch.
