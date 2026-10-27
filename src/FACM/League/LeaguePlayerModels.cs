@@ -134,6 +134,7 @@ namespace FACM.League
         public int ChampionId { get; set; }
         public string ChampionName { get; set; }
         public int[] ItemIds { get; set; }
+        public int? RoleBoundItemId { get; set; }
         public int[] SpellIds { get; set; }
         public int[] PerkIds { get; set; }
         public int PrimaryPerkStyleId { get; set; }

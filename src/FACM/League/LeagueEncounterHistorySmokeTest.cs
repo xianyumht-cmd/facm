@@ -164,6 +164,8 @@ namespace FACM.League
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
                     result.Match.ChampionName == "Ashe" &&
                     result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
+                    result.Participants.Single(p => p.IsTarget).RoleBoundItemId == 3158 &&
+                    result.Match.RoleBoundItemId == 3158 &&
                     result.Participants.Single(p => p.IsTarget).SpellIds.SequenceEqual(new[] { 4, 7 }) &&
                     result.Participants.Single(p => p.IsTarget).PerkIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014, 8345, 8347 }) &&
                     result.Participants.Single(p => p.IsTarget).PrimaryPerkStyleId == 8000 &&
@@ -177,6 +179,12 @@ namespace FACM.League
                     result.BuildCatalog.ItemIcons[3006].StartsWith("lcu:", StringComparison.Ordinal) &&
                     api.Reads == 8 && api.ChampionReads == 1 && api.BuildCatalogReads == 3,
                     "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                Require(LeagueEncounterMatchScoreboardDialog.FormatBoundItem(3158,
+                            new Dictionary<int, string> { { 3158, "Special Item" } }) == "Special Item" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(3158, null) == "#3158" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(0, null) == "—" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(null, null) == "—",
+                    "Role-bound items must have a named/ID fallback and distinguish missing or empty equipment.");
                 var cachedDetail = await reader.ReadAsync(record, token.Token);
                 Require(cachedDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     cachedDetail.BuildCatalog != null && api.Reads == 11 && api.BuildCatalogReads == 3 &&
@@ -387,7 +395,8 @@ namespace FACM.League
                         "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
                         "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
-                        "\"item0\":3006,\"item1\":3031,\"perk0\":8005,\"perk1\":9111," +
+                        "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
+                        "\"perk0\":8005,\"perk1\":9111," +
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
                         "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +

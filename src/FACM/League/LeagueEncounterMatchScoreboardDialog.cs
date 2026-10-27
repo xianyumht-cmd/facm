@@ -90,8 +90,8 @@ namespace FACM.League
                 }
                 var champion = string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
-                var style = FormatIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
-                    "—");
+                var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
+                    catalog == null ? null : catalog.Perks);
                 selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
@@ -100,7 +100,9 @@ namespace FACM.League
                     .Replace("{3}", FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items))
                     .Replace("{4}", FormatNamedIds(player.PerkIds, catalog == null ? null : catalog.Perks))
                     .Replace("{5}", style)
-                    .Replace("{6}", FormatIds(player.AugmentIds, "—"));
+                    .Replace("{6}", FormatIds(player.AugmentIds, "—"))
+                    .Replace("{7}", FormatBoundItem(player.RoleBoundItemId,
+                        catalog == null ? null : catalog.Items));
             };
             if (scores != null)
             {
@@ -263,6 +265,10 @@ namespace FACM.League
             if (player == null || catalog == null || loadAsset == null) return;
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems),
                 player.ItemIds, catalog.Items, catalog.ItemIcons, loadAsset);
+            if (player.RoleBoundItemId.GetValueOrDefault() > 0 &&
+                (player.ItemIds == null || Array.IndexOf(player.ItemIds, player.RoleBoundItemId.Value) < 0))
+                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem),
+                    new[] { player.RoleBoundItemId.Value }, catalog.Items, catalog.ItemIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells),
                 player.SpellIds, catalog.Spells, catalog.SpellIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks),
@@ -334,6 +340,12 @@ namespace FACM.League
                     ? name : "#" + id);
             }
             return labels.Count == 0 ? "—" : string.Join(" / ", labels);
+        }
+
+        internal static string FormatBoundItem(int? value, IDictionary<int, string> names)
+        {
+            return value.HasValue && value.Value > 0 ?
+                FormatNamedIds(new[] { value.Value }, names) : "—";
         }
 
         private static string FormatIds(int[] values, string empty)

@@ -516,6 +516,7 @@ namespace FACM.League
                     PlayerName = SafeDisplayName(name),
                     ChampionId = ReadInt(participant, "championId"),
                     ItemIds = Enumerable.Range(0, 7).Select(slot => ReadInt(stats, "item" + slot)).ToArray(),
+                    RoleBoundItemId = ReadOptionalNonNegative(stats, "roleBoundItem"),
                     SpellIds = new[] { ReadInt(participant, "spell1Id"), ReadInt(participant, "spell2Id") },
                     PerkIds = Enumerable.Range(0, 6).Select(slot => ReadInt(stats, "perk" + slot)).ToArray(),
                     PrimaryPerkStyleId = ReadInt(stats, "perkPrimaryStyle"),

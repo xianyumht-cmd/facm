@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Encountered-match role-bound equipment (Draft #357)
+
+`LeaguePlayerDataService.ParseParticipants` projects nullable `roleBoundItem` only from verified participant stats in the existing match-detail response. `LeagueEncounterMatchScoreboardDialog` presents that value separately from seven ordered equipment slots, uses the already-populated Build Advisor item catalog for optional name and icon, and reuses selection-scoped cancellation, bitmap ownership and request limits. A bound item already present in the normal slot list is not requested twice. Missing metadata remains a raw ID rather than starting another catalog fetch.
+
 ## Bounded participant-scope match evidence (Akari 1.5.1 Draft #357)
 
 `LeaguePlayerDataService.ParseMatch` continues to validate the current owner/profile first, then projects a bounded `ParticipantRoster` only if the signed-in participant can be correlated with the LCU game. The roster requires 1–20 unique positive participant IDs; each independently owned `LeaguePlayerMatchSummary` holds only its own participant-scoped source fields, optional validated PUUID, team ID and existing game metadata. Per-member numeric team/game baselines are built together from one already-loaded roster to avoid quadratic lookups; no new detail GET, watcher, persistence, or network owner. `CloneMatch` deep-copies nested snapshots and their slot/metric arrays. `LeagueAdvancedMatchHistoryFilter` carries a selected participant plus an optional restricted participant set through AND/OR/NOT and six source-like scope wrappers (`player`, `anyone`, `everyone`, `all`, `allies`, `enemies`). Missing roster/identity/team data is a separate Unknown state, preserved under negation. `LeagueAdvancedMatchHistoryForm` adds one compact scope menu to its existing condition toolbar and edits a scope's target PUUID through the existing value field. Full SGP and live Windows client verification remain independent gates.
