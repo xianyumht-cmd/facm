@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Globalization;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -12,6 +16,10 @@ namespace FACM.League
     internal sealed class LeagueEncounterMatchScoreboardDialog : Form
     {
         private static readonly SemaphoreSlim IconRequestGate = new SemaphoreSlim(3, 3);
+        private static readonly Regex RuneVariables = new Regex(@"@eogvar([123])@",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly Regex RuneTags = new Regex(@"<[^>]{0,100}>",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
         private readonly ToolTip _tooltips = new ToolTip();
@@ -79,6 +87,14 @@ namespace FACM.League
                 Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint) };
+            var runeDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint),
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab) };
+            var runePlayers = new ListBox { Dock = DockStyle.Fill,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                IntegralHeight = false, AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
             var iconStrip = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
                 AutoScroll = true, BackColor = FacmDesignSystem.CanvasRaised };
             var catalog = detail.BuildCatalog;
@@ -88,8 +104,10 @@ namespace FACM.League
                 if (player == null)
                 {
                     selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
+                    runeDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
                     return;
                 }
+                runeDetails.Text = FormatParticipantRuneDetails(player, catalog, t);
                 var champion = string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
@@ -136,8 +154,17 @@ namespace FACM.League
                 }
             }
             rows.SelectedIndexChanged += (sender, e) =>
-                showSelection(rows.SelectedItems.Count == 1
-                    ? rows.SelectedItems[0].Tag as LeaguePlayerMatchParticipant : null);
+            {
+                var selected = rows.SelectedIndices.Count == 1 ? rows.SelectedIndices[0] : -1;
+                if (runePlayers.SelectedIndex != selected) runePlayers.SelectedIndex = selected;
+                showSelection(selected >= 0 ? rows.Items[selected].Tag as LeaguePlayerMatchParticipant : null);
+            };
+            runePlayers.SelectedIndexChanged += (sender, e) =>
+            {
+                var selected = runePlayers.SelectedIndex;
+                if (selected >= 0 && selected < rows.Items.Count && !rows.Items[selected].Selected)
+                    rows.Items[selected].Selected = true;
+            };
 
             ListViewItem targetItem = null;
             foreach (var player in detail.Participants)
@@ -168,11 +195,21 @@ namespace FACM.League
                     targetItem = item;
                 }
                 rows.Items.Add(item);
+                runePlayers.Items.Add(name + " · " + (string.IsNullOrWhiteSpace(player.ChampionName)
+                    ? player.ChampionId.ToString() : player.ChampionName));
             }
             var matchTabs = new TabControl { Dock = DockStyle.Fill };
             var participantsTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineParticipants));
             participantsTab.Controls.Add(rows);
             matchTabs.TabPages.Add(participantsTab);
+            var runesTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab));
+            var runeLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            runeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+            runeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runeLayout.Controls.Add(runePlayers, 0, 0);
+            runeLayout.Controls.Add(runeDetails, 1, 0);
+            runesTab.Controls.Add(runeLayout);
+            matchTabs.TabPages.Add(runesTab);
             var timelineTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineTitle));
             var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token, loadAsset);
             timelineTab.Controls.Add(timeline);
@@ -376,6 +413,10 @@ namespace FACM.League
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
                     player.SecondaryPerkStyleId, catalog.PerkStyles),
                 PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
+            if (player.StatPerkIds != null)
+                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards),
+                    Array.ConvertAll(player.StatPerkIds, value => value.GetValueOrDefault()),
+                    catalog.Perks, catalog.PerkIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
                 player.AugmentIds, BuildAugmentLabels(catalog, t), catalog.AugmentIcons, loadAsset);
         }
@@ -437,6 +478,68 @@ namespace FACM.League
                 }
             }
             return name;
+        }
+
+        internal static string FormatParticipantRuneDetails(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        {
+            if (player == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
+            var output = new StringBuilder(750);
+            output.AppendLine(string.IsNullOrWhiteSpace(player.PlayerName)
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName);
+            if (player.StatPerkIds != null)
+            {
+                var stats = new List<string>();
+                foreach (var id in player.StatPerkIds)
+                {
+                    string name;
+                    stats.Add(!id.HasValue || id.Value <= 0 ? "—" : catalog != null &&
+                        catalog.Perks.TryGetValue(id.Value, out name) && !string.IsNullOrWhiteSpace(name)
+                        ? name : "#" + id.Value);
+                }
+                output.AppendLine(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards) + "：" +
+                    string.Join(" / ", stats));
+            }
+            var labels = new[] {
+                FormatPerkGroupHeading(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
+                    player.PrimaryPerkStyleId, catalog == null ? null : catalog.PerkStyles),
+                FormatPerkGroupHeading(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
+                    player.SecondaryPerkStyleId, catalog == null ? null : catalog.PerkStyles)
+            };
+            for (var group = 0; group < 2; group++)
+            {
+                output.AppendLine().AppendLine(labels[group]);
+                var start = group == 0 ? 0 : 4;
+                var count = group == 0 ? 4 : 2;
+                var found = false;
+                for (var slot = start; slot < start + count; slot++)
+                {
+                    var id = player.PerkIds != null && slot < player.PerkIds.Length ? player.PerkIds[slot] : 0;
+                    if (id <= 0) continue;
+                    found = true;
+                    string name;
+                    output.Append("• ").AppendLine(catalog != null && catalog.Perks.TryGetValue(id, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name : "#" + id);
+                    string[] descriptions;
+                    if (catalog == null || !catalog.PerkEndOfGameDescriptions.TryGetValue(id, out descriptions)) continue;
+                    var values = player.PerkEndOfGameValues != null && slot < player.PerkEndOfGameValues.Length
+                        ? player.PerkEndOfGameValues[slot] : null;
+                    foreach (var description in descriptions)
+                    {
+                        if (string.IsNullOrWhiteSpace(description)) continue;
+                        var valueText = RuneVariables.Replace(description, match =>
+                        {
+                            var index = match.Groups[1].Value[0] - '1';
+                            return values != null && index < values.Length && values[index].HasValue
+                                ? values[index].Value.ToString("G", CultureInfo.InvariantCulture) : "—";
+                        });
+                        valueText = WebUtility.HtmlDecode(RuneTags.Replace(valueText, "")).Trim();
+                        if (valueText.Length > 0) output.Append("    ").AppendLine(valueText);
+                    }
+                }
+                if (!found) output.AppendLine("—");
+            }
+            return output.ToString();
         }
 
         private void AddIconGroup(FlowLayoutPanel strip, string label, int[] ids,

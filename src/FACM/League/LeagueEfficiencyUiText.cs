@@ -287,6 +287,9 @@ namespace FACM.League
         public const string DynamicEncounterAugmentSilver = "LeagueEfficiencyDynamicEncounterAugmentSilver";
         public const string DynamicEncounterAugmentBronze = "LeagueEfficiencyDynamicEncounterAugmentBronze";
         public const string DynamicEncounterAugmentEvent = "LeagueEfficiencyDynamicEncounterAugmentEvent";
+        public const string DynamicEncounterRuneDetailsTab = "LeagueEfficiencyDynamicEncounterRuneDetailsTab";
+        public const string DynamicEncounterRuneStatShards = "LeagueEfficiencyDynamicEncounterRuneStatShards";
+        public const string DynamicEncounterRuneSelectionHint = "LeagueEfficiencyDynamicEncounterRuneSelectionHint";
         public const string DynamicEncounterTeamBlue = "LeagueEfficiencyDynamicEncounterTeamBlue";
         public const string DynamicEncounterTeamRed = "LeagueEfficiencyDynamicEncounterTeamRed";
         public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
@@ -639,6 +642,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentSilver, "白银" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentBronze, "青铜" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentEvent, "事件" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab, "符文详情" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards, "属性碎片" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint, "选择一名玩家查看符文的局后效果及属性碎片。" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue, "蓝方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed, "红方" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },

@@ -157,6 +157,61 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatPerkGroupHeading("副系符文", 9999, clone.PerkStyles) ==
                     "副系符文 · #9999",
                 "Match card must render named/ranked augments and distinct rune trees without unsafe icon paths.");
+            var runes = LeagueBuildAdvisorDataService.ParseLocalCatalog(null, null, null,
+                Encoding.UTF8.GetBytes("[{\"id\":8005,\"name\":\"Press the Attack\"," +
+                    "\"endOfGameStatDescs\":[\"<b>Damage</b> &amp; hits: @eogvar1@\"," +
+                    "\"Difference: @eogvar2@, count: @eogvar3@\"]}," +
+                    "{\"id\":9111,\"name\":\"Triumph\",\"endOfGameStatDescs\":[\"Recovered @eogvar1@\"]}]"));
+            LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
+                "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), runes);
+            var withValues = new LeaguePlayerMatchParticipant {
+                PlayerName = "Fixture Player", PrimaryPerkStyleId = 8000, SecondaryPerkStyleId = 8300,
+                PerkIds = new[] { 8005, 9111, 0, 0, 0, 0 },
+                PerkEndOfGameValues = new[] {
+                    new double?[] { 777, -2.5, 0 }, new double?[] { null, null, null },
+                    new double?[3], new double?[3], new double?[3], new double?[3]
+                },
+                StatPerkIds = new int?[] { 5008, null, 0 }
+            };
+            var descriptions = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                withValues, runes, key => LeagueEfficiencyText.Get(null, key));
+            var runeCopy = LeagueBuildAdvisorDataService.CloneLocalCatalog(runes);
+            runeCopy.PerkEndOfGameDescriptions[8005][0] = "mutated";
+            Require(runes.PerkEndOfGameDescriptions[8005][0].Contains("<b>") &&
+                descriptions.Contains("Damage & hits: 777") &&
+                descriptions.Contains("Difference: -2.5, count: 0") &&
+                descriptions.Contains("Recovered —") && descriptions.Contains("属性碎片：#5008 / — / —") &&
+                !descriptions.Contains("<b>") && !descriptions.Contains("@eogvar") &&
+                descriptions.Contains("主系符文 · Precision") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                    null, runes, key => LeagueEfficiencyText.Get(null, key)).Contains("选择一名玩家"),
+                "Rune card must preserve signed/zero variables, unknown placeholders and detached perk descriptions.");
+            var regional = LeaguePlayerDataService.NormalizeSgpGame(new Dictionary<string, object> {
+                { "json", new Dictionary<string, object> {
+                    { "gameId", 44L }, { "participants", new object[] {
+                        new Dictionary<string, object> {
+                            { "participantId", 1 }, { "puuid", "fixture" },
+                            { "perks", new Dictionary<string, object> {
+                                { "statPerks", new Dictionary<string, object> {
+                                    { "offense", 5008 }, { "flex", 5002 } } },
+                                { "styles", new object[] { new Dictionary<string, object> {
+                                    { "description", "primaryStyle" }, { "style", 8000 },
+                                    { "selections", new object[] { new Dictionary<string, object> {
+                                    { "perk", 8005 }, { "var1", 777 }, { "var2", -2.5 }, { "var3", 0 }
+                                    } } }
+                                } } }
+                            } }
+                        }
+                    } }
+                } }
+            });
+            var participant = ((List<Dictionary<string, object>>)regional["participants"])[0];
+            var stats = (Dictionary<string, object>)participant["stats"];
+            Require(stats["perk0Var1"].ToString() == "777" &&
+                stats["perk0Var2"].ToString() == "-2.5" && stats["perk0Var3"].ToString() == "0" &&
+                stats["perkStatOffense"].ToString() == "5008" &&
+                stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
+                "SGP normalization must retain raw rune selection variables and nullable stat shards.");
         }
 
         private static async Task ValidateMatchDetailAsync()
@@ -195,6 +250,11 @@ namespace FACM.League
                     result.Match.RoleBoundItemId == 3158 &&
                     result.Participants.Single(p => p.IsTarget).SpellIds.SequenceEqual(new[] { 4, 7 }) &&
                     result.Participants.Single(p => p.IsTarget).PerkIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014, 8345, 8347 }) &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][0] == 777 &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][1] == -2.5 &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][2] == 0 &&
+                    !result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[1][0].HasValue &&
+                    result.Participants.Single(p => p.IsTarget).StatPerkIds == null &&
                     result.Participants.Single(p => p.IsTarget).PrimaryPerkStyleId == 8000 &&
                     result.Participants.Single(p => p.IsTarget).SecondaryPerkStyleId == 8300 &&
                     result.Participants.Single(p => p.IsTarget).AugmentIds[0] == 1234 &&
@@ -470,7 +530,8 @@ namespace FACM.League
                 {
                     BuildCatalogReads++;
                     return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":8005," +
-                        "\"name\":\"Press the Attack\"},{\"id\":9111,\"name\":\"Triumph\"}]"));
+                        "\"name\":\"Press the Attack\",\"endOfGameStatDescs\":[\"Damage @eogvar1@\"]}," +
+                        "{\"id\":9111,\"name\":\"Triumph\"}]"));
                 }
                 if (path == LeagueBuildAdvisorDataService.PerkStylesPath)
                 {
@@ -525,7 +586,7 @@ namespace FACM.League
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
                         "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
                         "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
-                        "\"perk0\":8005,\"perk1\":9111," +
+                        "\"perk0\":8005,\"perk0Var1\":777,\"perk0Var2\":-2.5,\"perk0Var3\":0,\"perk1\":9111," +
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
                         "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":" +
                             (ReturnNoAugments ? "0" : "1234") + "}}," +

@@ -83,6 +83,7 @@ namespace FACM.League
             Items = new Dictionary<int, string>();
             Spells = new Dictionary<int, string>();
             Perks = new Dictionary<int, string>();
+            PerkEndOfGameDescriptions = new Dictionary<int, string[]>();
             PerkStyles = new Dictionary<int, string>();
             Augments = new Dictionary<int, string>();
             AugmentRarities = new Dictionary<int, string>();
@@ -97,6 +98,7 @@ namespace FACM.League
         public Dictionary<int, string> Items { get; private set; }
         public Dictionary<int, string> Spells { get; private set; }
         public Dictionary<int, string> Perks { get; private set; }
+        public Dictionary<int, string[]> PerkEndOfGameDescriptions { get; private set; }
         public Dictionary<int, string> PerkStyles { get; private set; }
         public Dictionary<int, string> Augments { get; private set; }
         public Dictionary<int, string> AugmentRarities { get; private set; }

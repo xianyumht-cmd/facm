@@ -191,6 +191,8 @@ namespace FACM.League
         public int[] PerkIds { get; set; }
         public int PrimaryPerkStyleId { get; set; }
         public int SecondaryPerkStyleId { get; set; }
+        public double?[][] PerkEndOfGameValues { get; set; }
+        public int?[] StatPerkIds { get; set; }
         public int[] AugmentIds { get; set; }
         public int Kills { get; set; }
         public int Deaths { get; set; }

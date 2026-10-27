@@ -1003,8 +1003,9 @@ namespace FACM.League
                 "\"participants\":[{\"participantId\":1,\"puuid\":\"target-puuid\",\"riotIdGameName\":\"Opponent\"," +
                 "\"riotIdTagline\":\"CN1\",\"teamId\":100,\"championId\":99,\"win\":true," +
                 "\"kills\":11,\"deaths\":2,\"assists\":9,\"item0\":3031,\"spell1Id\":4,\"spell2Id\":6," +
-                "\"playerAugment1\":1337,\"perks\":{\"styles\":[{\"description\":\"primaryStyle\"," +
-                "\"style\":8000,\"selections\":[{\"perk\":8005}]},{\"description\":\"subStyle\"," +
+                "\"playerAugment1\":1337,\"perks\":{\"statPerks\":{\"offense\":5008,\"flex\":5002}," +
+                "\"styles\":[{\"description\":\"primaryStyle\"," +
+                "\"style\":8000,\"selections\":[{\"perk\":8005,\"var1\":123.5,\"var2\":0,\"var3\":-4}]},{\"description\":\"subStyle\"," +
                 "\"style\":8100,\"selections\":[{\"perk\":8139}]}]}},{\"participantId\":2," +
                 "\"puuid\":\"teammate\",\"teamId\":100,\"championId\":22,\"win\":true,\"kills\":3," +
                 "\"deaths\":4,\"assists\":8}]}}]}";
@@ -1032,6 +1033,14 @@ namespace FACM.League
             var detail = detailService.LoadMatchDetailAsync(target, 601, CancellationToken.None).GetAwaiter().GetResult();
             Require(detail != null && detail.GameId == 601 && detail.Kills == 11 && detail.PerkIds[4] == 8139,
                 "A missing LCU game must hydrate its selected SGP summary through the same participant projection.");
+            var breakdown = detailService.LoadMatchBreakdownAsync(target, 601, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            var selected = breakdown == null ? null : breakdown.Participants.SingleOrDefault(p => p.IsTarget);
+            Require(selected != null && selected.PerkEndOfGameValues[0][0] == 123.5 &&
+                selected.PerkEndOfGameValues[0][1] == 0 && selected.PerkEndOfGameValues[0][2] == -4 &&
+                !selected.PerkEndOfGameValues[1][0].HasValue && selected.StatPerkIds[0] == 5008 &&
+                selected.StatPerkIds[1] == 5002 && !selected.StatPerkIds[2].HasValue,
+                "Selected regional SGP breakdown must carry fractional/signed rune values and incomplete stat shards.");
             Require(detailService.LoadMatchDetailAsync(target, 602, CancellationToken.None).GetAwaiter().GetResult() == null,
                 "An SGP response for another game ID must not be used as selected-game detail.");
 

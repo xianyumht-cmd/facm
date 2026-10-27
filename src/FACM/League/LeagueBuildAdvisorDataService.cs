@@ -313,7 +313,8 @@ namespace FACM.League
             ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
             ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
             ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
-            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons);
+            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons,
+                catalog.PerkEndOfGameDescriptions);
             return catalog;
         }
 
@@ -759,7 +760,8 @@ namespace FACM.League
             return (double)wins / play;
         }
 
-        private static void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
+        private static void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output,
+            IDictionary<int, string> icons = null, IDictionary<int, string[]> endOfGameDescriptions = null)
         {
             if (bytes == null || bytes.Length == 0 || output == null) return;
             object decoded;
@@ -774,6 +776,14 @@ namespace FACM.League
                 if (id > 0 && !string.IsNullOrWhiteSpace(name)) output[id] = name.Trim();
                 if (id > 0 && icons != null && !string.IsNullOrWhiteSpace(iconPath))
                     icons[id] = AssetReference(iconPath);
+                if (id > 0 && endOfGameDescriptions != null)
+                {
+                    var descriptions = EnumerateValues(ReadValue(row, "endOfGameStatDescs"))
+                        .OfType<string>().Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Take(3).Select(value => value.Length <= 800 ? value : value.Substring(0, 800))
+                        .ToArray();
+                    if (descriptions.Length > 0) endOfGameDescriptions[id] = descriptions;
+                }
             }
         }
 
@@ -979,6 +989,8 @@ namespace FACM.League
             Copy(source.Items, clone.Items);
             Copy(source.Spells, clone.Spells);
             Copy(source.Perks, clone.Perks);
+            foreach (var pair in source.PerkEndOfGameDescriptions)
+                clone.PerkEndOfGameDescriptions[pair.Key] = (string[])pair.Value.Clone();
             Copy(source.PerkStyles, clone.PerkStyles);
             Copy(source.Augments, clone.Augments);
             Copy(source.AugmentRarities, clone.AugmentRarities);

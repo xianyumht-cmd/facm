@@ -749,6 +749,8 @@ namespace FACM.League
                     PerkIds = Enumerable.Range(0, 6).Select(slot => ReadInt(stats, "perk" + slot)).ToArray(),
                     PrimaryPerkStyleId = ReadInt(stats, "perkPrimaryStyle"),
                     SecondaryPerkStyleId = ReadInt(stats, "perkSubStyle"),
+                    PerkEndOfGameValues = ReadPerkEndOfGameValues(stats),
+                    StatPerkIds = ReadStatPerkIds(stats),
                     AugmentIds = Enumerable.Range(1, 6).Select(slot => ReadInt(stats, "playerAugment" + slot)).ToArray(),
                     Kills = ReadInt(stats, "kills"), Deaths = ReadInt(stats, "deaths"),
                     Assists = ReadInt(stats, "assists"),
@@ -764,6 +766,40 @@ namespace FACM.League
             }
             return result.Count == 0 ? null : result.OrderBy(p => p.TeamId)
                 .ThenBy(p => p.ParticipantId).ToList();
+        }
+
+        private static double?[][] ReadPerkEndOfGameValues(Dictionary<string, object> stats)
+        {
+            var slots = new double?[6][];
+            var hasEvidence = false;
+            for (var slot = 0; slot < slots.Length; slot++)
+            {
+                slots[slot] = new[] {
+                    ReadOptionalFiniteNumber(stats, "perk" + slot + "Var1"),
+                    ReadOptionalFiniteNumber(stats, "perk" + slot + "Var2"),
+                    ReadOptionalFiniteNumber(stats, "perk" + slot + "Var3")
+                };
+                if (slots[slot].Any(value => value.HasValue)) hasEvidence = true;
+            }
+            return hasEvidence ? slots : null;
+        }
+
+        private static int?[] ReadStatPerkIds(Dictionary<string, object> stats)
+        {
+            var values = new[] { ReadOptionalCount(stats, "perkStatOffense"),
+                ReadOptionalCount(stats, "perkStatFlex"), ReadOptionalCount(stats, "perkStatDefense") };
+            return values.Any(value => value.HasValue) ? values : null;
+        }
+
+        private static double? ReadOptionalFiniteNumber(Dictionary<string, object> stats, string key)
+        {
+            object raw;
+            double value;
+            return stats != null && stats.TryGetValue(key, out raw) && raw != null &&
+                double.TryParse(Convert.ToString(raw, CultureInfo.InvariantCulture),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out value) &&
+                !double.IsNaN(value) && !double.IsInfinity(value)
+                ? (double?)value : null;
         }
 
         private static List<LeagueMatchTeamScore> ParseTeamScores(Dictionary<string, object> game,
@@ -1156,6 +1192,16 @@ namespace FACM.League
                 var row = new Dictionary<string, object>(participant);
                 var stats = new Dictionary<string, object>(participant);
                 var perks = ReadObject(participant, "perks");
+                var statPerks = ReadObject(perks, "statPerks");
+                if (statPerks != null)
+                {
+                    foreach (var key in new[] { "offense", "flex", "defense" })
+                    {
+                        object statPerk;
+                        if (statPerks.TryGetValue(key, out statPerk))
+                            stats["perkStat" + char.ToUpperInvariant(key[0]) + key.Substring(1)] = statPerk;
+                    }
+                }
                 var styles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var style in ReadObjects(perks, "styles").Take(2))
                 {
@@ -1172,6 +1218,12 @@ namespace FACM.League
                     {
                         object perk;
                         if (selection.TryGetValue("perk", out perk)) stats["perk" + slot] = perk;
+                        foreach (var variable in new[] { "var1", "var2", "var3" })
+                        {
+                            object value;
+                            if (selection.TryGetValue(variable, out value))
+                                stats["perk" + slot + "Var" + variable[3]] = value;
+                        }
                         slot++;
                     }
                 }
