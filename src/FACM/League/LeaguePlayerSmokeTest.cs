@@ -311,8 +311,15 @@ namespace FACM.League
         private static void ValidateAdvancedParticipantEquipmentFilters()
         {
             var matchJson = "{\"games\":{\"games\":[{\"gameId\":9001,\"gameMode\":\"ARAM\"," +
-                "\"participants\":[{\"participantId\":1,\"championId\":145,\"spell1Id\":11,\"spell2Id\":4," +
+                "\"participants\":[{\"participantId\":1,\"teamId\":100,\"championId\":145,\"spell1Id\":11,\"spell2Id\":4," +
                 "\"stats\":{\"win\":true,\"kills\":8,\"deaths\":2,\"assists\":12," +
+                "\"teamPosition\":\"MIDDLE\",\"champLevel\":18,\"goldEarned\":12000,\"goldSpent\":10000," +
+                "\"totalDamageDealtToChampions\":18000,\"physicalDamageDealtToChampions\":12000," +
+                "\"magicDamageDealtToChampions\":5000,\"trueDamageDealtToChampions\":1000," +
+                "\"totalDamageTaken\":11000,\"physicalDamageTaken\":6000,\"magicDamageTaken\":4000," +
+                "\"trueDamageTaken\":1000,\"damageDealtToTurrets\":1000,\"totalHeal\":750," +
+                "\"timeCCingOthers\":45,\"visionScore\":24,\"doubleKills\":1,\"tripleKills\":0," +
+                "\"quadraKills\":0,\"pentaKills\":0,\"challenges\":{\"soloKills\":2}," +
                 "\"item0\":1055,\"item1\":3006,\"item2\":0,\"item3\":0,\"item4\":0,\"item5\":0,\"item6\":3364," +
                 "\"roleBoundItem\":3340," +
                 "\"perk0\":8010,\"perk1\":9111,\"perk2\":9104,\"perk3\":8014,\"perk4\":8304,\"perk5\":8345," +
@@ -360,6 +367,7 @@ namespace FACM.League
                     service.TryGetCachedPage().Matches[0].PerkStyleIds[0] == 8000 &&
                     service.TryGetCachedPage().Matches[0].AugmentIds[0] == 1234,
                 "Mutating a Player cache snapshot must not alter verified participant slots.");
+            ValidateAdvancedStatisticsFilters(match, service);
 
             Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
                 Predicate(LeagueAdvancedMatchKind.HasSpell, "11@1")), out filter, out error) && !filter.Matches(match),
@@ -404,6 +412,71 @@ namespace FACM.League
             })
                 Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And, invalid),
                     out filter, out error), "Invalid participant ID or slot bounds must fail before application.");
+        }
+
+        private static void ValidateAdvancedStatisticsFilters(LeaguePlayerMatchSummary match, LeaguePlayerDataService service)
+        {
+            Require(match.Position == "MIDDLE" && match.Level == 18 && match.GoldEarned == 12000 &&
+                    match.PhysicalDamageToChampions == 12000 && match.MagicDamageTaken == 4000 &&
+                    match.DamageToTowers == 1000 && match.TimeCCingOthers == 45 &&
+                    match.SoloKills == 2 && match.PentaKills == 0,
+                "Self-participant numeric statistics must preserve their LCU source values.");
+            var cases = new Dictionary<LeagueAdvancedMatchKind, string>
+            {
+                { LeagueAdvancedMatchKind.IsPosition, "MIDDLE" },
+                { LeagueAdvancedMatchKind.KdaBetween, "10,10" },
+                { LeagueAdvancedMatchKind.LevelBetween, "18,18" },
+                { LeagueAdvancedMatchKind.GoldBetween, "12000,12000" },
+                { LeagueAdvancedMatchKind.GoldSpentBetween, "10000,10000" },
+                { LeagueAdvancedMatchKind.DamageToChampionsBetween, "18000,18000" },
+                { LeagueAdvancedMatchKind.PhysicalDamageToChampionsBetween, "12000,12000" },
+                { LeagueAdvancedMatchKind.MagicDamageToChampionsBetween, "5000,5000" },
+                { LeagueAdvancedMatchKind.TrueDamageToChampionsBetween, "1000,1000" },
+                { LeagueAdvancedMatchKind.DamageTakenBetween, "11000,11000" },
+                { LeagueAdvancedMatchKind.PhysicalDamageTakenBetween, "6000,6000" },
+                { LeagueAdvancedMatchKind.MagicDamageTakenBetween, "4000,4000" },
+                { LeagueAdvancedMatchKind.TrueDamageTakenBetween, "1000,1000" },
+                { LeagueAdvancedMatchKind.DamageToTowersBetween, "1000,1000" },
+                { LeagueAdvancedMatchKind.HealBetween, "750,750" },
+                { LeagueAdvancedMatchKind.VisionScoreBetween, "24,24" },
+                { LeagueAdvancedMatchKind.TimeCCingOthersBetween, "45,45" },
+                { LeagueAdvancedMatchKind.SoloKillsBetween, "2,2" },
+                { LeagueAdvancedMatchKind.KillParticipationBetween, "250,250" },
+                { LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween, "150,150" },
+                { LeagueAdvancedMatchKind.ChampionDamageShareBetween, "100,100" },
+                { LeagueAdvancedMatchKind.DamageTakenShareBetween, "100,100" },
+                { LeagueAdvancedMatchKind.GoldShareBetween, "100,100" },
+                { LeagueAdvancedMatchKind.DoubleKillsBetween, "1,1" },
+                { LeagueAdvancedMatchKind.TripleKillsBetween, "0,0" },
+                { LeagueAdvancedMatchKind.QuadraKillsBetween, "0,0" },
+                { LeagueAdvancedMatchKind.PentaKillsBetween, "0,0" }
+            };
+            LeagueAdvancedMatchHistoryFilter filter;
+            string error;
+            foreach (var expected in cases)
+            {
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Predicate(expected.Key, expected.Value)), out filter, out error) && filter.Matches(match),
+                    "Advanced numeric/position predicate must match LCU fixture: " + expected.Key);
+            }
+            Require(service.TryGetCachedPage().Matches[0].GoldSpent == 10000 &&
+                    service.TryGetCachedPage().Matches[0].PhysicalDamageTaken == 6000,
+                "A cached match snapshot must retain numeric participant statistics.");
+            var noEvidence = new LeaguePlayerMatchSummary { ParticipantResolved = true, StatisticsAvailable = true };
+            foreach (var kind in new[] { LeagueAdvancedMatchKind.GoldBetween,
+                LeagueAdvancedMatchKind.SoloKillsBetween, LeagueAdvancedMatchKind.ChampionDamageShareBetween })
+            {
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Group(LeagueAdvancedMatchKind.Not, Predicate(kind, "0,999999"))), out filter, out error) &&
+                    !filter.Matches(noEvidence), "NOT must not turn unavailable metrics into verified absence: " + kind);
+            }
+            foreach (var invalid in new[] { "NaN,1", "Infinity,10", "-1,2", "10,2", "1", "1,2,3" })
+                Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Predicate(LeagueAdvancedMatchKind.KdaBetween, invalid)), out filter, out error),
+                    "Invalid floating ranges must be rejected before evaluating a match.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                Predicate(LeagueAdvancedMatchKind.KdaBetween, "10.01,11")), out filter, out error) &&
+                !filter.Matches(match), "Decimal bounds must exclude genuine out-of-range KDA values.");
         }
 
         private static void ValidateRiotPlayerSearch()

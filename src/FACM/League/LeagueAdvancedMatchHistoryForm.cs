@@ -29,7 +29,34 @@ namespace FACM.League
             LeagueAdvancedMatchKind.HasSpell,
             LeagueAdvancedMatchKind.HasPerk,
             LeagueAdvancedMatchKind.HasPerkStyle,
-            LeagueAdvancedMatchKind.HasAugment
+            LeagueAdvancedMatchKind.HasAugment,
+            LeagueAdvancedMatchKind.IsPosition,
+            LeagueAdvancedMatchKind.KdaBetween,
+            LeagueAdvancedMatchKind.LevelBetween,
+            LeagueAdvancedMatchKind.GoldBetween,
+            LeagueAdvancedMatchKind.GoldSpentBetween,
+            LeagueAdvancedMatchKind.DamageToChampionsBetween,
+            LeagueAdvancedMatchKind.PhysicalDamageToChampionsBetween,
+            LeagueAdvancedMatchKind.MagicDamageToChampionsBetween,
+            LeagueAdvancedMatchKind.TrueDamageToChampionsBetween,
+            LeagueAdvancedMatchKind.DamageTakenBetween,
+            LeagueAdvancedMatchKind.PhysicalDamageTakenBetween,
+            LeagueAdvancedMatchKind.MagicDamageTakenBetween,
+            LeagueAdvancedMatchKind.TrueDamageTakenBetween,
+            LeagueAdvancedMatchKind.DamageToTowersBetween,
+            LeagueAdvancedMatchKind.HealBetween,
+            LeagueAdvancedMatchKind.VisionScoreBetween,
+            LeagueAdvancedMatchKind.TimeCCingOthersBetween,
+            LeagueAdvancedMatchKind.SoloKillsBetween,
+            LeagueAdvancedMatchKind.KillParticipationBetween,
+            LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween,
+            LeagueAdvancedMatchKind.ChampionDamageShareBetween,
+            LeagueAdvancedMatchKind.DamageTakenShareBetween,
+            LeagueAdvancedMatchKind.GoldShareBetween,
+            LeagueAdvancedMatchKind.DoubleKillsBetween,
+            LeagueAdvancedMatchKind.TripleKillsBetween,
+            LeagueAdvancedMatchKind.QuadraKillsBetween,
+            LeagueAdvancedMatchKind.PentaKillsBetween
         };
 
         private readonly LeagueAdvancedMatchNode _root;
@@ -185,6 +212,33 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.HasPerk: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPerk);
                 case LeagueAdvancedMatchKind.HasPerkStyle: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPerkStyle);
                 case LeagueAdvancedMatchKind.HasAugment: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedAugment);
+                case LeagueAdvancedMatchKind.IsPosition: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPosition);
+                case LeagueAdvancedMatchKind.KdaBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedKda);
+                case LeagueAdvancedMatchKind.LevelBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedLevel);
+                case LeagueAdvancedMatchKind.GoldBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedGold);
+                case LeagueAdvancedMatchKind.GoldSpentBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedGoldSpent);
+                case LeagueAdvancedMatchKind.DamageToChampionsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDamage);
+                case LeagueAdvancedMatchKind.PhysicalDamageToChampionsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPhysicalDamage);
+                case LeagueAdvancedMatchKind.MagicDamageToChampionsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMagicDamage);
+                case LeagueAdvancedMatchKind.TrueDamageToChampionsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTrueDamage);
+                case LeagueAdvancedMatchKind.DamageTakenBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTakenDamage);
+                case LeagueAdvancedMatchKind.PhysicalDamageTakenBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTakenPhysical);
+                case LeagueAdvancedMatchKind.MagicDamageTakenBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTakenMagic);
+                case LeagueAdvancedMatchKind.TrueDamageTakenBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTakenTrue);
+                case LeagueAdvancedMatchKind.DamageToTowersBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTowerDamage);
+                case LeagueAdvancedMatchKind.HealBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedHeal);
+                case LeagueAdvancedMatchKind.VisionScoreBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedVision);
+                case LeagueAdvancedMatchKind.TimeCCingOthersBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedCc);
+                case LeagueAdvancedMatchKind.SoloKillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSoloKills);
+                case LeagueAdvancedMatchKind.KillParticipationBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedParticipation);
+                case LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedEfficiency);
+                case LeagueAdvancedMatchKind.ChampionDamageShareBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDamageShare);
+                case LeagueAdvancedMatchKind.DamageTakenShareBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTakenShare);
+                case LeagueAdvancedMatchKind.GoldShareBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedGoldShare);
+                case LeagueAdvancedMatchKind.DoubleKillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDoubleKills);
+                case LeagueAdvancedMatchKind.TripleKillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTripleKills);
+                case LeagueAdvancedMatchKind.QuadraKillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedQuadraKills);
+                case LeagueAdvancedMatchKind.PentaKillsBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPentaKills);
                 default: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedUnknown);
             }
         }
@@ -275,9 +329,21 @@ namespace FACM.League
                     node.Kind == LeagueAdvancedMatchKind.HasItem || node.Kind == LeagueAdvancedMatchKind.HasSpell ||
                     node.Kind == LeagueAdvancedMatchKind.HasPerk || node.Kind == LeagueAdvancedMatchKind.HasPerkStyle ||
                     node.Kind == LeagueAdvancedMatchKind.HasAugment ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSlotHint) :
+                    node.Kind == LeagueAdvancedMatchKind.IsPosition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPositionHint) :
+                    IsPercentCondition(node.Kind) ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPercentHint) :
+                    (int)node.Kind >= (int)LeagueAdvancedMatchKind.KdaBetween ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDecimalHint) :
                     UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedRangeHint);
             }
             finally { _changingSelection = false; }
+        }
+
+        private static bool IsPercentCondition(LeagueAdvancedMatchKind kind)
+        {
+            return kind == LeagueAdvancedMatchKind.KillParticipationBetween ||
+                kind == LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween ||
+                kind == LeagueAdvancedMatchKind.ChampionDamageShareBetween ||
+                kind == LeagueAdvancedMatchKind.DamageTakenShareBetween ||
+                kind == LeagueAdvancedMatchKind.GoldShareBetween;
         }
 
         private void ChangeConditionType()

@@ -27,7 +27,34 @@ namespace FACM.League
         HasSpell,
         HasPerk,
         HasPerkStyle,
-        HasAugment
+        HasAugment,
+        IsPosition,
+        KdaBetween,
+        LevelBetween,
+        GoldBetween,
+        GoldSpentBetween,
+        DamageToChampionsBetween,
+        PhysicalDamageToChampionsBetween,
+        MagicDamageToChampionsBetween,
+        TrueDamageToChampionsBetween,
+        DamageTakenBetween,
+        PhysicalDamageTakenBetween,
+        MagicDamageTakenBetween,
+        TrueDamageTakenBetween,
+        DamageToTowersBetween,
+        HealBetween,
+        VisionScoreBetween,
+        TimeCCingOthersBetween,
+        SoloKillsBetween,
+        KillParticipationBetween,
+        DamageGoldEfficiencyBetween,
+        ChampionDamageShareBetween,
+        DamageTakenShareBetween,
+        GoldShareBetween,
+        DoubleKillsBetween,
+        TripleKillsBetween,
+        QuadraKillsBetween,
+        PentaKillsBetween
     }
 
     internal sealed class LeagueAdvancedMatchNode
@@ -146,6 +173,42 @@ namespace FACM.League
                         copy.Value = minimum.ToString(CultureInfo.InvariantCulture) + "," +
                             maximum.ToString(CultureInfo.InvariantCulture);
                         break;
+                    case LeagueAdvancedMatchKind.KdaBetween:
+                    case LeagueAdvancedMatchKind.LevelBetween:
+                    case LeagueAdvancedMatchKind.GoldBetween:
+                    case LeagueAdvancedMatchKind.GoldSpentBetween:
+                    case LeagueAdvancedMatchKind.DamageToChampionsBetween:
+                    case LeagueAdvancedMatchKind.PhysicalDamageToChampionsBetween:
+                    case LeagueAdvancedMatchKind.MagicDamageToChampionsBetween:
+                    case LeagueAdvancedMatchKind.TrueDamageToChampionsBetween:
+                    case LeagueAdvancedMatchKind.DamageTakenBetween:
+                    case LeagueAdvancedMatchKind.PhysicalDamageTakenBetween:
+                    case LeagueAdvancedMatchKind.MagicDamageTakenBetween:
+                    case LeagueAdvancedMatchKind.TrueDamageTakenBetween:
+                    case LeagueAdvancedMatchKind.DamageToTowersBetween:
+                    case LeagueAdvancedMatchKind.HealBetween:
+                    case LeagueAdvancedMatchKind.VisionScoreBetween:
+                    case LeagueAdvancedMatchKind.TimeCCingOthersBetween:
+                    case LeagueAdvancedMatchKind.SoloKillsBetween:
+                    case LeagueAdvancedMatchKind.KillParticipationBetween:
+                    case LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween:
+                    case LeagueAdvancedMatchKind.ChampionDamageShareBetween:
+                    case LeagueAdvancedMatchKind.DamageTakenShareBetween:
+                    case LeagueAdvancedMatchKind.GoldShareBetween:
+                    case LeagueAdvancedMatchKind.DoubleKillsBetween:
+                    case LeagueAdvancedMatchKind.TripleKillsBetween:
+                    case LeagueAdvancedMatchKind.QuadraKillsBetween:
+                    case LeagueAdvancedMatchKind.PentaKillsBetween:
+                        double first;
+                        double last;
+                        if (!TryDecimalRange(source.Value, out first, out last))
+                        {
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorDecimalRange;
+                            return false;
+                        }
+                        copy.Value = first.ToString("R", CultureInfo.InvariantCulture) + "," +
+                            last.ToString("R", CultureInfo.InvariantCulture);
+                        break;
                     case LeagueAdvancedMatchKind.HasItem:
                     case LeagueAdvancedMatchKind.HasSpell:
                     case LeagueAdvancedMatchKind.HasPerk:
@@ -164,6 +227,7 @@ namespace FACM.League
                         break;
                     case LeagueAdvancedMatchKind.IsGameMode:
                     case LeagueAdvancedMatchKind.HasPlayer:
+                    case LeagueAdvancedMatchKind.IsPosition:
                         if (string.IsNullOrWhiteSpace(source.Value) || source.Value.Length > 128 ||
                             source.Value.Any(char.IsControl))
                         {
@@ -189,6 +253,19 @@ namespace FACM.League
             return parts.Length == 2 &&
                 int.TryParse(parts[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out minimum) &&
                 int.TryParse(parts[1].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out maximum) &&
+                minimum >= 0 && maximum >= minimum;
+        }
+
+        private static bool TryDecimalRange(string value, out double minimum, out double maximum)
+        {
+            minimum = maximum = 0;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+            var parts = value.Split(',');
+            return parts.Length == 2 &&
+                double.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out minimum) &&
+                double.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out maximum) &&
+                !double.IsNaN(minimum) && !double.IsInfinity(minimum) &&
+                !double.IsNaN(maximum) && !double.IsInfinity(maximum) &&
                 minimum >= 0 && maximum >= minimum;
         }
 
@@ -292,6 +369,37 @@ namespace FACM.League
                     return MatchSlot(match.PerkStyleIds, node.Value, 2);
                 case LeagueAdvancedMatchKind.HasAugment:
                     return MatchSlot(match.AugmentIds, node.Value, 6);
+                case LeagueAdvancedMatchKind.IsPosition:
+                    return string.IsNullOrWhiteSpace(match.Position) ? Evidence.Unknown :
+                        Match(string.Equals(match.Position, node.Value, StringComparison.Ordinal));
+                case LeagueAdvancedMatchKind.KdaBetween:
+                    return !match.ParticipantResolved || !match.StatisticsAvailable ? Evidence.Unknown :
+                        InDecimalRange(node.Value, ((double)match.Kills + match.Assists) / Math.Max(1, match.Deaths));
+                case LeagueAdvancedMatchKind.LevelBetween: return InDecimalRange(node.Value, match.Level);
+                case LeagueAdvancedMatchKind.GoldBetween: return InDecimalRange(node.Value, match.GoldEarned);
+                case LeagueAdvancedMatchKind.GoldSpentBetween: return InDecimalRange(node.Value, match.GoldSpent);
+                case LeagueAdvancedMatchKind.DamageToChampionsBetween: return InDecimalRange(node.Value, match.DamageDealtToChampions);
+                case LeagueAdvancedMatchKind.PhysicalDamageToChampionsBetween: return InDecimalRange(node.Value, match.PhysicalDamageToChampions);
+                case LeagueAdvancedMatchKind.MagicDamageToChampionsBetween: return InDecimalRange(node.Value, match.MagicDamageToChampions);
+                case LeagueAdvancedMatchKind.TrueDamageToChampionsBetween: return InDecimalRange(node.Value, match.TrueDamageToChampions);
+                case LeagueAdvancedMatchKind.DamageTakenBetween: return InDecimalRange(node.Value, match.DamageTaken);
+                case LeagueAdvancedMatchKind.PhysicalDamageTakenBetween: return InDecimalRange(node.Value, match.PhysicalDamageTaken);
+                case LeagueAdvancedMatchKind.MagicDamageTakenBetween: return InDecimalRange(node.Value, match.MagicDamageTaken);
+                case LeagueAdvancedMatchKind.TrueDamageTakenBetween: return InDecimalRange(node.Value, match.TrueDamageTaken);
+                case LeagueAdvancedMatchKind.DamageToTowersBetween: return InDecimalRange(node.Value, match.DamageToTowers);
+                case LeagueAdvancedMatchKind.HealBetween: return InDecimalRange(node.Value, match.TotalHeal);
+                case LeagueAdvancedMatchKind.VisionScoreBetween: return InDecimalRange(node.Value, match.VisionScore);
+                case LeagueAdvancedMatchKind.TimeCCingOthersBetween: return InDecimalRange(node.Value, match.TimeCCingOthers);
+                case LeagueAdvancedMatchKind.SoloKillsBetween: return InDecimalRange(node.Value, match.SoloKills);
+                case LeagueAdvancedMatchKind.KillParticipationBetween: return InDecimalRange(node.Value, Percent(match.KillParticipation));
+                case LeagueAdvancedMatchKind.DamageGoldEfficiencyBetween: return InDecimalRange(node.Value, Percent(match.DamageGoldEfficiency));
+                case LeagueAdvancedMatchKind.ChampionDamageShareBetween: return InDecimalRange(node.Value, Percent(match.ChampionDamageShare));
+                case LeagueAdvancedMatchKind.DamageTakenShareBetween: return InDecimalRange(node.Value, Percent(match.DamageTakenShare));
+                case LeagueAdvancedMatchKind.GoldShareBetween: return InDecimalRange(node.Value, Percent(match.GoldShare));
+                case LeagueAdvancedMatchKind.DoubleKillsBetween: return InDecimalRange(node.Value, match.DoubleKills);
+                case LeagueAdvancedMatchKind.TripleKillsBetween: return InDecimalRange(node.Value, match.TripleKills);
+                case LeagueAdvancedMatchKind.QuadraKillsBetween: return InDecimalRange(node.Value, match.QuadraKills);
+                case LeagueAdvancedMatchKind.PentaKillsBetween: return InDecimalRange(node.Value, match.PentaKills);
                 default:
                     return Evidence.Unknown;
             }
@@ -318,6 +426,22 @@ namespace FACM.League
         }
 
         private static Evidence Match(bool valid) { return valid ? Evidence.Yes : Evidence.No; }
+
+        private static double? Percent(double? value)
+        {
+            return value.HasValue && !double.IsNaN(value.Value) && !double.IsInfinity(value.Value) ?
+                (double?)(value.Value * 100d) : null;
+        }
+
+        private static Evidence InDecimalRange(string expression, double? value)
+        {
+            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+                return Evidence.Unknown;
+            double minimum;
+            double maximum;
+            return Match(TryDecimalRange(expression, out minimum, out maximum) &&
+                value.Value >= minimum && value.Value <= maximum);
+        }
 
         private static int ParseId(string value)
         {

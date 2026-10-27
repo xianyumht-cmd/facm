@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Batch self-player numeric source predicates without network expansion
+
+Implement Akari 1.5.1's position, numeric and percentage predicates together in the existing bounded native match-history filter rather than introducing a second filtering UI, an aggregate cache or network hydration per record. Read only already-returned LCU self-participant stats, preserve absent fields as nullable evidence and copy them across account-cache snapshots. Parse invariant inclusive decimal ranges and show ratio selectors as user-facing percentages, including potentially over-100 damage/gold efficiency. Avoid treating unknown under NOT as a negative match. Source-defined relative team/game comparator modes and participant quantifiers require richer verified roster data and stay explicitly unfinished. CI smoke is a regression guard, not a claim of Tencent in-game acceptance or authorization to release.
+
 ## 2026-10-27 — Preserve missing slot evidence in Akari participant predicates
 
 Project Akari 1.5.1's LCU participant item/spell/rune/augment slot fields into the existing current-player match summary instead of initiating game-detail reads per history row. Keep ordered slot arrays small and account-cache copies defensive. An absent or malformed field is unknown (`-1`), not a confirmed empty slot (`0`); this matters especially for `NOT(hasItem/hasAugment)` after a partial Tencent response. Support source-like optional zero-based `ID@slot` conditions within bounded valid indexes. Preserve Akari's special role-bound item membership even when another slot is requested. Quantified predicates for other players/teams require separately verified participant projections; they are not inferred from self-player fields.

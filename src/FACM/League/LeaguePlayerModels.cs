@@ -53,6 +53,24 @@ namespace FACM.League
         public double? GoldShare { get; set; }
         public double? KillParticipation { get; set; }
         public double? DamageGoldEfficiency { get; set; }
+        public double? Level { get; set; }
+        public double? GoldEarned { get; set; }
+        public double? GoldSpent { get; set; }
+        public double? DamageDealtToChampions { get; set; }
+        public double? PhysicalDamageToChampions { get; set; }
+        public double? MagicDamageToChampions { get; set; }
+        public double? TrueDamageToChampions { get; set; }
+        public double? DamageTaken { get; set; }
+        public double? PhysicalDamageTaken { get; set; }
+        public double? MagicDamageTaken { get; set; }
+        public double? TrueDamageTaken { get; set; }
+        public double? DamageToTowers { get; set; }
+        public double? TotalHeal { get; set; }
+        public double? TimeCCingOthers { get; set; }
+        public double? DoubleKills { get; set; }
+        public double? TripleKills { get; set; }
+        public double? QuadraKills { get; set; }
+        public double? PentaKills { get; set; }
         // Available only when the match includes verified participant identities and team IDs.
         public string[] SameTeamPuuids { get; set; }
         // Populated from the match's participant roster; null means the source supplied no reliable champion set.
