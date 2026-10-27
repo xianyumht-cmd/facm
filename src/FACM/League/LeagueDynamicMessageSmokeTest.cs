@@ -84,6 +84,20 @@ namespace FACM.League
                     store.ReadTags("self", "HN1", "HN1").Count == 0 &&
                     reloaded.ReadAllTags().Count == 1,
                     "Browser deletion must remove only the selected scoped tag.");
+                Require(reloaded.TryCreateStoredTag("self", "encounter-only", "hn1", "HN1", "第一次相遇") &&
+                    reloaded.ReadTags("self", "HN1", "HN1")["encounter-only"] == "第一次相遇" &&
+                    !reloaded.TryCreateStoredTag("self", "encounter-only", "HN1", "hn1", "旧窗口覆盖") &&
+                    reloaded.ReadTags("self", "HN1", "HN1")["encounter-only"] == "第一次相遇" &&
+                    reloaded.ReadTags("other", "HN1", "HN1").Count == 0,
+                    "Adding a tag from an encountered-only player must not overwrite newer or other-account tags.");
+                Require(reloaded.TryCreateStoredTag("other", "encounter-only", "HN1", "HN1", "另一个账号") &&
+                    reloaded.ReadTags("other", "HN1", "HN1")["encounter-only"] == "另一个账号" &&
+                    reloaded.ReadTags("self", "HN1", "HN2").Count == 0,
+                    "Local saved-player tagging must keep each account and platform independent.");
+                rejected = false;
+                try { reloaded.TryCreateStoredTag("self", "self", "HN1", "HN1", "invalid"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Saved-player tag creation must reject the current player as its own target.");
                 var invalidExchange = Path.Combine(directory, "invalid-tags.json");
                 File.WriteAllText(invalidExchange, exported.Replace("league-akari-tagged-players", "different-schema"), Encoding.UTF8);
                 rejected = false;

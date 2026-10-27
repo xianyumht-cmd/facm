@@ -18,7 +18,7 @@ namespace FACM.League
         private readonly TextBox _search;
         private readonly ListView _list;
         private readonly Label _pageLabel;
-        private readonly Button _previous, _next, _edit, _delete;
+        private readonly Button _previous, _next, _edit, _delete, _history;
         private IReadOnlyList<LeaguePlayerTagRecord> _records = new LeaguePlayerTagRecord[0];
         private IReadOnlyList<LeagueSavedPlayerOverviewRecord> _overview = new LeagueSavedPlayerOverviewRecord[0];
         private int _page;
@@ -27,7 +27,7 @@ namespace FACM.League
         {
             _module = module; _ui = ui;
             Text = T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse);
-            Width = 880; Height = 490; MinimumSize = new Size(650, 360);
+            Width = 960; Height = 490; MinimumSize = new Size(765, 360);
             StartPosition = FormStartPosition.CenterParent;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
             ShowInTaskbar = false; AutoScaleMode = AutoScaleMode.Font;
@@ -87,9 +87,12 @@ namespace FACM.League
             close.Click += (sender, e) => Close();
             _delete = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagRemove), Width = 90, Height = 30 };
             _edit = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagEdit), Width = 90, Height = 30 };
+            _history = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterHistory), Width = 130, Height = 30 };
             _delete.Click += (sender, e) => DeleteSelected();
             _edit.Click += (sender, e) => EditSelected();
+            _history.Click += (sender, e) => BrowseSelectedHistory();
             actions.Controls.Add(close); actions.Controls.Add(_delete); actions.Controls.Add(_edit);
+            actions.Controls.Add(_history);
             footer.Controls.Add(actions, 1, 0);
             layout.Controls.Add(footer, 0, 2);
             Controls.Add(layout);
@@ -166,15 +169,22 @@ namespace FACM.League
 
         private void RefreshActions()
         {
-            var selected = Selected() != null;
-            _edit.Enabled = selected;
-            _delete.Enabled = selected;
+            var overview = SelectedOverview();
+            var tagged = Selected() != null;
+            _edit.Enabled = tagged || (_viewMode.SelectedIndex == 1 && overview != null && overview.EncounterCount > 0);
+            _delete.Enabled = tagged;
+            _history.Enabled = _viewMode.SelectedIndex == 1 && overview != null && overview.EncounterCount > 0;
+        }
+
+        private LeagueSavedPlayerOverviewRecord SelectedOverview()
+        {
+            if (_list.SelectedItems.Count != 1) return null;
+            return _list.SelectedItems[0].Tag as LeagueSavedPlayerOverviewRecord;
         }
 
         private LeaguePlayerTagRecord Selected()
         {
-            if (_list.SelectedItems.Count != 1) return null;
-            var selected = _list.SelectedItems[0].Tag as LeagueSavedPlayerOverviewRecord;
+            var selected = SelectedOverview();
             if (selected == null || string.IsNullOrWhiteSpace(selected.Tag)) return null;
             return _records.FirstOrDefault(p => p.Puuid == selected.Puuid && p.SelfPuuid == selected.SelfPuuid &&
                 p.Tag == selected.Tag && p.UpdatedUtc == selected.TagUpdatedUtc &&
@@ -184,23 +194,55 @@ namespace FACM.League
 
         private void EditSelected()
         {
+            var selected = SelectedOverview();
             var record = Selected();
-            if (record == null) return;
+            if (record == null && (_viewMode.SelectedIndex != 1 || selected == null || selected.EncounterCount == 0))
+                return;
             using (var editor = new Form { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTitle),
                 Width = 390, Height = 165, FormBorderStyle = FormBorderStyle.FixedDialog,
                 StartPosition = FormStartPosition.CenterParent, MaximizeBox = false, MinimizeBox = false,
                 ShowInTaskbar = false, BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text })
             {
                 var input = new TextBox { Left = 12, Top = 16, Width = 346,
-                    MaxLength = LeaguePlayerTagStore.MaximumTagLength, Text = record.Tag };
+                    MaxLength = LeaguePlayerTagStore.MaximumTagLength, Text = record == null ? "" : record.Tag };
                 var save = new Button { Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave),
                     DialogResult = DialogResult.OK, Left = 190, Top = 58, Width = 80 };
                 var cancel = new Button { Text = T(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
                     DialogResult = DialogResult.Cancel, Left = 278, Top = 58, Width = 80 };
                 editor.Controls.Add(input); editor.Controls.Add(save); editor.Controls.Add(cancel);
                 editor.AcceptButton = save; editor.CancelButton = cancel;
-                if (editor.ShowDialog(this) == DialogResult.OK) ApplyChange(record, input.Text);
+                if (editor.ShowDialog(this) == DialogResult.OK)
+                {
+                    if (record != null) ApplyChange(record, input.Text);
+                    else CreateTag(selected, input.Text);
+                }
             }
+        }
+
+        private void CreateTag(LeagueSavedPlayerOverviewRecord selected, string tag)
+        {
+            if (string.IsNullOrWhiteSpace(tag)) return;
+            try
+            {
+                if (!_module.TryTagEncounteredPlayer(selected, tag))
+                    MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.DynamicTagChanged),
+                        Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.DynamicTagUnavailable),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            Reload();
+        }
+
+        private void BrowseSelectedHistory()
+        {
+            var selected = SelectedOverview();
+            if (_viewMode.SelectedIndex != 1 || selected == null || selected.EncounterCount == 0) return;
+            using (var dialog = new LeagueEncounterHistoryBrowserDialog(_module, _ui, selected))
+                dialog.ShowDialog(this);
+            Reload();
         }
 
         private void DeleteSelected()

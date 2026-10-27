@@ -11,11 +11,10 @@ namespace FACM.League
     internal sealed class LeagueEncounterHistoryBrowserDialog : Form
     {
         private const int PageSize = 40;
-        private readonly LeagueEfficiencyModule _module;
         private readonly UiTextCatalog _ui;
-        private readonly LeagueDynamicMessageSnapshot _snapshot;
-        private readonly string _playerPuuid;
         private readonly Func<bool> _isCurrent;
+        private readonly Func<int, int, string, bool, LeagueEncounterHistoryPage> _query;
+        private readonly Func<long, bool> _deleteRecord;
         private readonly TextBox _queueFilter;
         private readonly ComboBox _timeOrder;
         private readonly ListView _list;
@@ -27,12 +26,27 @@ namespace FACM.League
 
         internal LeagueEncounterHistoryBrowserDialog(LeagueEfficiencyModule module, UiTextCatalog ui,
             LeagueDynamicMessageSnapshot snapshot, string playerPuuid, Func<bool> isCurrent)
+            : this(ui, isCurrent,
+                (page, size, queue, newest) => module.QueryPlayerEncounters(snapshot, playerPuuid, page, size, queue, newest),
+                gameId => module.DeletePlayerEncounter(snapshot, playerPuuid, gameId))
         {
-            _module = module ?? throw new ArgumentNullException(nameof(module));
+        }
+
+        internal LeagueEncounterHistoryBrowserDialog(LeagueEfficiencyModule module, UiTextCatalog ui,
+            LeagueSavedPlayerOverviewRecord savedPlayer)
+            : this(ui, () => true,
+                (page, size, queue, newest) => module.QueryStoredPlayerEncounters(savedPlayer, page, size, queue, newest),
+                gameId => module.DeleteStoredPlayerEncounter(savedPlayer, gameId))
+        {
+        }
+
+        private LeagueEncounterHistoryBrowserDialog(UiTextCatalog ui, Func<bool> isCurrent,
+            Func<int, int, string, bool, LeagueEncounterHistoryPage> query, Func<long, bool> deleteRecord)
+        {
             _ui = ui;
-            _snapshot = snapshot ?? throw new ArgumentNullException(nameof(snapshot));
-            _playerPuuid = playerPuuid ?? throw new ArgumentNullException(nameof(playerPuuid));
             _isCurrent = isCurrent ?? throw new ArgumentNullException(nameof(isCurrent));
+            _query = query ?? throw new ArgumentNullException(nameof(query));
+            _deleteRecord = deleteRecord ?? throw new ArgumentNullException(nameof(deleteRecord));
             Text = T(LeagueEfficiencyUiTextKeys.DynamicEncounterTitle);
             Width = 775; Height = 410; MinimumSize = new Size(610, 340);
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
@@ -104,14 +118,12 @@ namespace FACM.League
             LeagueEncounterHistoryPage result;
             try
             {
-                result = _module.QueryPlayerEncounters(_snapshot, _playerPuuid,
-                    _page, PageSize, _queueFilter.Text.Trim(), _timeOrder.SelectedIndex != 1);
+                result = _query(_page, PageSize, _queueFilter.Text.Trim(), _timeOrder.SelectedIndex != 1);
                 var pageCount = Math.Max(1, (result.Total + PageSize - 1) / PageSize);
                 if (_page > pageCount)
                 {
                     _page = pageCount;
-                    result = _module.QueryPlayerEncounters(_snapshot, _playerPuuid,
-                        _page, PageSize, _queueFilter.Text.Trim(), _timeOrder.SelectedIndex != 1);
+                    result = _query(_page, PageSize, _queueFilter.Text.Trim(), _timeOrder.SelectedIndex != 1);
                 }
             }
             catch (Exception)
@@ -152,7 +164,7 @@ namespace FACM.League
             if (!_isCurrent()) { Close(); return; }
             try
             {
-                if (_module.DeletePlayerEncounter(_snapshot, _playerPuuid, record.GameId)) Reload();
+                if (_deleteRecord(record.GameId)) Reload();
             }
             catch (Exception)
             {

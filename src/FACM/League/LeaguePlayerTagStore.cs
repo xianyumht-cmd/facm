@@ -102,6 +102,30 @@ namespace FACM.League
             }
         }
 
+        internal bool TryCreateStoredTag(string selfPuuid, string playerPuuid,
+            string region, string platformId, string tag)
+        {
+            if (!ValidPuuid(selfPuuid) || !ValidPuuid(playerPuuid) || selfPuuid == playerPuuid ||
+                !ValidRegion(region) || !ValidRegion(platformId))
+                throw new ArgumentException("Invalid player identity or region.");
+            tag = (tag ?? string.Empty).Trim();
+            if (tag.Length == 0 || tag.Length > MaximumTagLength || tag.Any(char.IsControl))
+                throw new ArgumentException("Invalid player tag.", nameof(tag));
+            lock (_sync)
+            {
+                var state = ReadState();
+                if (state.Players.Any(p => p.Puuid == playerPuuid &&
+                    SameScope(p, selfPuuid, region, platformId))) return false;
+                if (state.Players.Count >= MaximumEntries)
+                    throw new InvalidOperationException("Player tag limit reached.");
+                state.Players.Add(new LeaguePlayerTagRecord { Puuid = playerPuuid, SelfPuuid = selfPuuid,
+                    Region = NormalizeRegion(region), PlatformId = NormalizeRegion(platformId),
+                    Tag = tag, UpdatedUtc = DateTime.UtcNow });
+                SaveState(state);
+                return true;
+            }
+        }
+
         internal void SetTag(string selfPuuid, string playerPuuid, string region, string platformId, string tag)
         {
             if (!ValidPuuid(selfPuuid) || !ValidPuuid(playerPuuid) ||

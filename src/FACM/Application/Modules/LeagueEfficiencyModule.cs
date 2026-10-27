@@ -300,6 +300,36 @@ namespace FACM.AppHost.Modules
             return changed;
         }
 
+        public bool TryTagEncounteredPlayer(LeagueSavedPlayerOverviewRecord selected, string tag)
+        {
+            ThrowIfDisposed();
+            if (selected == null || selected.EncounterCount == 0 ||
+                !string.IsNullOrEmpty(selected.Tag) || string.IsNullOrWhiteSpace(tag)) return false;
+            if (_encounterHistory.QueryPlayer(selected.SelfPuuid, selected.Puuid,
+                selected.Region, selected.PlatformId).Total == 0) return false;
+            var created = _playerTags.TryCreateStoredTag(selected.SelfPuuid, selected.Puuid,
+                selected.Region, selected.PlatformId, tag);
+            if (created) _tagReminders?.TagsChanged();
+            return created;
+        }
+
+        public LeagueEncounterHistoryPage QueryStoredPlayerEncounters(LeagueSavedPlayerOverviewRecord selected,
+            int page, int pageSize, string queueType = null, bool newestFirst = true)
+        {
+            ThrowIfDisposed();
+            if (selected == null) return new LeagueEncounterHistoryPage {
+                Records = new LeagueEncounterRecord[0], Page = page, PageSize = pageSize };
+            return _encounterHistory.QueryPlayer(selected.SelfPuuid, selected.Puuid, selected.Region,
+                selected.PlatformId, page, pageSize, queueType, newestFirst);
+        }
+
+        public bool DeleteStoredPlayerEncounter(LeagueSavedPlayerOverviewRecord selected, long gameId)
+        {
+            ThrowIfDisposed();
+            return selected != null && _encounterHistory.DeleteGame(gameId, selected.SelfPuuid,
+                selected.Puuid, selected.Region, selected.PlatformId);
+        }
+
         public IReadOnlyList<LeagueEncounterRecord> ReadPlayerEncounters(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid)
         {

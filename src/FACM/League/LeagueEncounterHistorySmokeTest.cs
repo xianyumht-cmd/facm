@@ -73,6 +73,11 @@ namespace FACM.League
                     reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "AR").Total == 0 &&
                     reloaded.QueryPlayer("other", "enemy", "HN1", "HN1").Total == 0,
                     "Encountered-game filters must be exact and remain scoped to the signed-in account.");
+                Require(!reloaded.DeleteGame(12348, "other", "enemy", "HN1", "HN1") &&
+                    !reloaded.DeleteGame(12348, "self", "enemy", "HN2", "HN1") &&
+                    !reloaded.DeleteGame(12348, "self", "enemy", "HN1", "HN2") &&
+                    reloaded.QueryPlayer("self", "enemy", "HN1", "HN1").Total == 3,
+                    "History deletion from an offline saved-player view must remain exact-account and exact-region scoped.");
                 var tagUpdated = DateTime.UtcNow;
                 var overview = LeagueSavedPlayerOverview.Build(new[]
                 {
