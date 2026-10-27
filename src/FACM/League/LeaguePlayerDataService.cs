@@ -201,6 +201,7 @@ namespace FACM.League
             LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken)
         {
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || gameId <= 0) return null;
+            LeaguePlayerMatchBreakdown breakdown;
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
@@ -211,10 +212,22 @@ namespace FACM.League
                 if (match == null || match.GameId != gameId || !match.ParticipantResolved || !match.StatisticsAvailable)
                     return null;
                 var participants = ParseParticipants(game, match.ParticipantId);
-                return participants == null || !participants.Any(p => p.IsTarget)
-                    ? null : new LeaguePlayerMatchBreakdown { Match = match, Participants = participants };
+                if (participants == null || !participants.Any(p => p.IsTarget)) return null;
+                breakdown = new LeaguePlayerMatchBreakdown { Match = match, Participants = participants };
             }
             finally { _requestGate.Release(); }
+
+            var names = await LoadChampionNamesAsync(cancellationToken).ConfigureAwait(false);
+            if (names != null)
+            {
+                foreach (var participant in breakdown.Participants)
+                {
+                    string name;
+                    if (names.TryGetValue(participant.ChampionId, out name)) participant.ChampionName = name;
+                    if (participant.IsTarget) breakdown.Match.ChampionName = participant.ChampionName;
+                }
+            }
+            return breakdown;
         }
 
         private static List<LeaguePlayerMatchParticipant> ParseParticipants(Dictionary<string, object> game, int targetId)
@@ -251,6 +264,12 @@ namespace FACM.League
                     PuuId = puuid,
                     PlayerName = SafeDisplayName(name),
                     ChampionId = ReadInt(participant, "championId"),
+                    ItemIds = Enumerable.Range(0, 7).Select(slot => ReadInt(stats, "item" + slot)).ToArray(),
+                    SpellIds = new[] { ReadInt(participant, "spell1Id"), ReadInt(participant, "spell2Id") },
+                    PerkIds = Enumerable.Range(0, 6).Select(slot => ReadInt(stats, "perk" + slot)).ToArray(),
+                    PrimaryPerkStyleId = ReadInt(stats, "perkPrimaryStyle"),
+                    SecondaryPerkStyleId = ReadInt(stats, "perkSubStyle"),
+                    AugmentIds = Enumerable.Range(1, 6).Select(slot => ReadInt(stats, "playerAugment" + slot)).ToArray(),
                     Kills = ReadInt(stats, "kills"), Deaths = ReadInt(stats, "deaths"),
                     Assists = ReadInt(stats, "assists"),
                     CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
@@ -279,6 +298,30 @@ namespace FACM.League
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) || page == null || page.Matches.Count == 0)
                 return page;
 
+            var names = await LoadChampionNamesAsync(cancellationToken).ConfigureAwait(false);
+            var result = ClonePage(page);
+            var changed = false;
+            if (names != null && names.Count > 0)
+            {
+                foreach (var match in result.Matches)
+                {
+                    if (match == null || match.ChampionId <= 0) continue;
+                    string name;
+                    if (!names.TryGetValue(match.ChampionId, out name) || string.IsNullOrWhiteSpace(name)) continue;
+                    if (!string.Equals(match.ChampionName, name, StringComparison.Ordinal))
+                    {
+                        match.ChampionName = name;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) CachePage(profile.PuuId, result);
+            return result;
+        }
+
+        private async Task<Dictionary<int, string>> LoadChampionNamesAsync(CancellationToken cancellationToken)
+        {
             Dictionary<int, string> names;
             bool cacheFresh;
             lock (_cacheSync)
@@ -342,25 +385,7 @@ namespace FACM.League
                 }
             }
 
-            var result = ClonePage(page);
-            var changed = false;
-            if (names != null && names.Count > 0)
-            {
-                foreach (var match in result.Matches)
-                {
-                    if (match == null || match.ChampionId <= 0) continue;
-                    string name;
-                    if (!names.TryGetValue(match.ChampionId, out name) || string.IsNullOrWhiteSpace(name)) continue;
-                    if (!string.Equals(match.ChampionName, name, StringComparison.Ordinal))
-                    {
-                        match.ChampionName = name;
-                        changed = true;
-                    }
-                }
-            }
-
-            if (changed) CachePage(profile.PuuId, result);
-            return result;
+            return names;
         }
 
         internal LeaguePlayerProfile ParseProfile(byte[] bytes)

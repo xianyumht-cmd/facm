@@ -65,6 +65,13 @@ namespace FACM.League
         public string PuuId { get; set; }
         public string PlayerName { get; set; }
         public int ChampionId { get; set; }
+        public string ChampionName { get; set; }
+        public int[] ItemIds { get; set; }
+        public int[] SpellIds { get; set; }
+        public int[] PerkIds { get; set; }
+        public int PrimaryPerkStyleId { get; set; }
+        public int SecondaryPerkStyleId { get; set; }
+        public int[] AugmentIds { get; set; }
         public int Kills { get; set; }
         public int Deaths { get; set; }
         public int Assists { get; set; }

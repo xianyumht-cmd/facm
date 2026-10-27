@@ -266,6 +266,8 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardVision = "LeagueEfficiencyDynamicEncounterScoreboardVision";
         public const string DynamicEncounterScoreboardResult = "LeagueEfficiencyDynamicEncounterScoreboardResult";
         public const string DynamicEncounterScoreboardUnknown = "LeagueEfficiencyDynamicEncounterScoreboardUnknown";
+        public const string DynamicEncounterScoreboardSelectionHint = "LeagueEfficiencyDynamicEncounterScoreboardSelectionHint";
+        public const string DynamicEncounterScoreboardSelection = "LeagueEfficiencyDynamicEncounterScoreboardSelection";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -573,13 +575,15 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSummary, "对局 {0} · 模式 {1} · 时长 {2} · ★ 为所选玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam, "队伍" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer, "玩家" },
-            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion, "英雄 ID" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion, "英雄" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs, "补刀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage, "英雄伤害" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold, "金币" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision, "视野" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult, "结果" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown, "未提供名称" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint, "选择一名玩家查看装备、召唤师技能和符文。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能 ID：{2}\r\n装备 ID：{3}\r\n符文 ID：{4} · 流派 ID：{5} · 强化 ID：{6}" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

@@ -152,10 +152,34 @@ namespace FACM.League
                     result.Match.CreepScore == 103 && result.Participants != null &&
                     result.Participants.Count == 3 && result.Participants.Single(p => p.IsTarget).PlayerName == "Target#HN1" &&
                     result.Participants.Single(p => p.IsTarget).DamageToChampions == 18000 &&
+                    result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
+                    result.Match.ChampionName == "Ashe" &&
+                    result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
+                    result.Participants.Single(p => p.IsTarget).SpellIds.SequenceEqual(new[] { 4, 7 }) &&
+                    result.Participants.Single(p => p.IsTarget).PerkIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014, 8345, 8347 }) &&
+                    result.Participants.Single(p => p.IsTarget).PrimaryPerkStyleId == 8000 &&
+                    result.Participants.Single(p => p.IsTarget).SecondaryPerkStyleId == 8300 &&
+                    result.Participants.Single(p => p.IsTarget).AugmentIds[0] == 1234 &&
                     result.Participants.Single(p => p.PuuId == "ally").TeamId == 100 &&
                     result.Participants.Single(p => p.PuuId == "self").TeamId == 200 &&
-                    api.Reads == 4,
+                    api.Reads == 5 && api.ChampionReads == 1,
                     "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                var busyBudget = new PerformanceBudgetProvider();
+                busyBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+                var busyApi = new MatchDetailClient();
+                var busyReader = new LeagueEncounterMatchDetailService(busyApi, busyBudget, () => session);
+                var busyResult = await busyReader.ReadAsync(record, token.Token);
+                Require(busyResult.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    busyResult.Participants.Single(p => p.IsTarget).ChampionId == 22 &&
+                    busyApi.ChampionReads == 0,
+                    "In-game budgets must not request extra champion metadata for historical breakdowns.");
+                var switchedApi = new MatchDetailClient { AfterChampionRead = () => { active = new LeagueClientSession(
+                    "LeagueClientUx", 55, 3001, "replacement", "https", "fixture", "HN1", "HN1"); } };
+                var switchedReader = new LeagueEncounterMatchDetailService(switchedApi,
+                    new PerformanceBudgetProvider(), () => active);
+                Require((await switchedReader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                    "A client replacement while loading optional hero names must discard the full scoreboard.");
+                active = session;
                 api.ReturnMalformedRoster = true;
                 Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
                     "Duplicate participant IDs must not produce a partial or misleading scoreboard.");
@@ -179,11 +203,13 @@ namespace FACM.League
         private sealed class MatchDetailClient : ILeagueClientApi
         {
             internal int Reads;
+            internal int ChampionReads;
             internal string SelfPuuid = "self";
             internal bool ReturnMissingParticipant;
             internal bool ReturnMalformedRoster;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
+            internal Action AfterChampionRead;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
@@ -193,6 +219,13 @@ namespace FACM.League
                 {
                     AfterProfileRead?.Invoke();
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + SelfPuuid + "\"}"));
+                }
+                if (path == LeaguePlayerDataService.ChampionSummaryPath)
+                {
+                    ChampionReads++;
+                    AfterChampionRead?.Invoke();
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":22,\"name\":\"Ashe\"}," +
+                        "{\"id\":99,\"name\":\"Lux\"},{\"id\":12,\"name\":\"Alistar\"}]"));
                 }
                 if (path == "/lol-match-history/v1/games/123")
                 {
@@ -204,10 +237,14 @@ namespace FACM.League
                         "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
                         "{\"participantId\":2,\"player\":{\"puuid\":\"ally\"}}," +
                         "{\"participantId\":3,\"player\":{\"puuid\":\"self\"}}],\"participants\":[{" +
-                        "\"participantId\":1,\"teamId\":100,\"championId\":22,\"stats\":{" +
+                        "\"participantId\":1,\"teamId\":100,\"championId\":22," +
+                        "\"spell1Id\":4,\"spell2Id\":7,\"stats\":{" +
                         "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
-                        "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11}}," +
+                        "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
+                        "\"item0\":3006,\"item1\":3031,\"perk0\":8005,\"perk1\":9111," +
+                        "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
+                        "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
                         "\"stats\":{\"win\":true,\"kills\":3,\"deaths\":4,\"assists\":6}}," +
                         "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
