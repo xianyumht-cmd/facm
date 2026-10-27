@@ -25,6 +25,16 @@ namespace FACM.League
 
         private static void ValidatePlayerPageLayout()
         {
+            Require(LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", "卡莎") &&
+                    LeaguePlayerForm.FilterOptionMatchesForSmokeTest("卡莎 (#145)", "145", " 145 ") &&
+                    LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Opponent#CN1", "puuid-Example-ZZ", "example"),
+                "Native hero/player filter option searches must accept localized names, IDs and PUUID substrings.");
+            Require(!LeaguePlayerForm.FilterOptionMatchesForSmokeTest("艾希", "22", "卡莎") &&
+                    !LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Opponent#CN1", "puuid-Example-ZZ", "Other"),
+                "Filter search must not show unrelated champion or summoner options.");
+            Require(LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Some Name", "uid", "   "),
+                "Clearing an option search must restore the full available catalog.");
+
             var minimum = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(680, 540);
             var defaultSize = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(860, 720);
             var expanded = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(1180, 850);
@@ -200,7 +210,7 @@ namespace FACM.League
 
         private static void ValidateChampionMetadataAndStats()
         {
-            const string championSummary = "[{\"id\":-1,\"name\":\"None\"},{\"id\":145,\"name\":\"卡莎\"},{\"id\":22,\"name\":\"艾希\"}]";
+            const string championSummary = "[{\"id\":-1,\"name\":\"None\"},{\"id\":145,\"name\":\"卡莎\"},{\"id\":22,\"name\":\"艾希\"},{\"id\":147,\"name\":\"萨勒芬妮\"}]";
             var profile = new LeaguePlayerProfile { PuuId = "puuid-current", SummonerId = 9001 };
             var page = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 3 };
             page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30001, ChampionId = 145, Kills = 8, Deaths = 4, Assists = 12, Win = true, ParticipantResolved = true });
@@ -212,12 +222,31 @@ namespace FACM.League
             var service = new LeaguePlayerDataService(api, provider);
             var named = service.EnrichChampionNamesAsync(profile, page, CancellationToken.None).GetAwaiter().GetResult();
             Require(named != null && named.Matches[0].ChampionName == "卡莎" && named.Matches[2].ChampionName == "艾希", "Champion-summary ID mapping failed.");
+            var entireCatalog = service.TryGetCachedChampionNames();
+            Require(entireCatalog != null && entireCatalog[147] == "萨勒芬妮" && !entireCatalog.ContainsKey(-1),
+                "Full champion selection must use verified game-data heroes, including those absent from the loaded matches.");
+            entireCatalog[147] = "changed";
+            Require(service.TryGetCachedChampionNames()[147] == "萨勒芬妮",
+                "Full champion selector must receive an isolated metadata snapshot.");
             Require(CountPath(api.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1, "Champion metadata must use one bounded summary request.");
             Require(CountPrefix(api.Paths, "/lol-match-history/") == 0, "Champion metadata must not add match-history fan-out.");
 
             var cachedAgain = service.EnrichChampionNamesAsync(profile, page, CancellationToken.None).GetAwaiter().GetResult();
             Require(cachedAgain.Matches[0].ChampionName == "卡莎", "Champion metadata cache did not remain usable.");
             Require(CountPath(api.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1, "Fresh champion metadata cache unexpectedly refetched.");
+
+            var emptyHistoryApi = new FixtureApi("{}", "{}", null, championSummary);
+            var emptyHistoryService = new LeaguePlayerDataService(emptyHistoryApi, new PerformanceBudgetProvider());
+            Require(emptyHistoryService.TryGetCachedChampionNames() == null,
+                "A new Player service must not invent champion metadata before an explicit request.");
+            var allOptions = emptyHistoryService.LoadChampionOptionsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(allOptions != null && allOptions.ContainsKey(147) &&
+                    CountPath(emptyHistoryApi.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1 &&
+                    CountPrefix(emptyHistoryApi.Paths, "/lol-match-history/") == 0,
+                "Explicit champion-option opening should fill the one existing cache even without loaded matches.");
+            emptyHistoryService.LoadChampionOptionsAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(CountPath(emptyHistoryApi.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 1,
+                "Reopening hero options within cache TTL must not request metadata again.");
 
             var stats = service.BuildChampionStats(named);
             Require(stats.Count == 2, "Loaded-match champion stats did not group expected champions.");
@@ -244,6 +273,9 @@ namespace FACM.League
             var suppressed = inGameService.EnrichChampionNamesAsync(profile, noCachePage, CancellationToken.None).GetAwaiter().GetResult();
             Require(string.IsNullOrWhiteSpace(suppressed.Matches[0].ChampionName), "In-game metadata suppression unexpectedly fabricated a champion name.");
             Require(CountPath(inGameApi.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 0, "In-game Player page must not start nonessential champion metadata requests.");
+            Require(inGameService.LoadChampionOptionsAsync(CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    CountPath(inGameApi.Paths, LeaguePlayerDataService.ChampionSummaryPath) == 0,
+                "Explicit hero-option opening in game must respect the existing maintenance budget.");
         }
 
         private static void ValidatePaginationBoundary()

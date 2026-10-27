@@ -33,10 +33,13 @@ namespace FACM.League
         private readonly Button _playerFilter;
         private readonly CheckedListBox _championChecks;
         private readonly CheckedListBox _playerChecks;
+        private readonly ToolStripTextBox _championSearch;
+        private readonly ToolStripTextBox _playerSearch;
         private readonly ToolStripDropDown _championMenu;
         private readonly ToolStripDropDown _playerMenu;
         private readonly HashSet<int> _selectedChampions = new HashSet<int>();
         private readonly HashSet<string> _selectedPlayers = new HashSet<string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, string> _selectedPlayerNames = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _loadMoreButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -45,6 +48,7 @@ namespace FACM.League
         private bool _updatingFilterChoices;
         private LeaguePlayerProfile _profile;
         private bool _loading;
+        private bool _loadingChampionOptions;
         private bool _hasMore;
         private int _requestedCount = LeaguePlayerDataService.InitialMatchCount;
 
@@ -152,26 +156,44 @@ namespace FACM.League
             _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterChampion));
             _championFilter = FilterMultiButton(116, UiTextKeys.LeaguePlayerFilterChampion);
             _championChecks = FilterCheckList();
-            _championMenu = FilterCheckMenu(_championChecks, () =>
+            _championSearch = FilterSearchBox(UiTextKeys.LeaguePlayerFilterSearchChampion);
+            _championMenu = FilterCheckMenu(_championChecks, _championSearch, () =>
             {
                 _selectedChampions.Clear();
                 UpdateFilterChoices(_loadedPage);
                 ApplySimpleFilter();
             });
             _filterPanel.Controls.Add(_championFilter);
-            _championFilter.Click += (sender, e) => _championMenu.Show(_championFilter, 0, _championFilter.Height);
+            _championFilter.Click += async (sender, e) =>
+            {
+                _championMenu.Show(_championFilter, 0, _championFilter.Height);
+                if (_loadingChampionOptions || _lifetime.IsCancellationRequested) return;
+                _loadingChampionOptions = true;
+                try
+                {
+                    await _service.LoadChampionOptionsAsync(_lifetime.Token);
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested) UpdateFilterChoices(_loadedPage);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception exception) { AppLog.Info("League Player hero options unavailable: " + exception.Message); }
+                finally { _loadingChampionOptions = false; }
+            };
 
             _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterPlayer));
             _playerFilter = FilterMultiButton(132, UiTextKeys.LeaguePlayerFilterPlayer);
             _playerChecks = FilterCheckList();
-            _playerMenu = FilterCheckMenu(_playerChecks, () =>
+            _playerSearch = FilterSearchBox(UiTextKeys.LeaguePlayerFilterSearchPlayer);
+            _playerMenu = FilterCheckMenu(_playerChecks, _playerSearch, () =>
             {
                 _selectedPlayers.Clear();
+                _selectedPlayerNames.Clear();
                 UpdateFilterChoices(_loadedPage);
                 ApplySimpleFilter();
             });
             _filterPanel.Controls.Add(_playerFilter);
             _playerFilter.Click += (sender, e) => _playerMenu.Show(_playerFilter, 0, _playerFilter.Height);
+            _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
+            _playerSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);
             _championChecks.ItemCheck += (sender, e) =>
             {
                 if (_updatingFilterChoices) return;
@@ -187,8 +209,16 @@ namespace FACM.League
                 if (_updatingFilterChoices) return;
                 var choice = _playerChecks.Items[e.Index] as PlayerChoice;
                 if (choice == null) return;
-                if (e.NewValue == CheckState.Checked) _selectedPlayers.Add(choice.PuuId);
-                else _selectedPlayers.Remove(choice.PuuId);
+                if (e.NewValue == CheckState.Checked)
+                {
+                    _selectedPlayers.Add(choice.PuuId);
+                    _selectedPlayerNames[choice.PuuId] = choice.Name;
+                }
+                else
+                {
+                    _selectedPlayers.Remove(choice.PuuId);
+                    _selectedPlayerNames.Remove(choice.PuuId);
+                }
                 UpdateFilterButtonLabels();
                 ApplySimpleFilter();
             };
@@ -288,6 +318,11 @@ namespace FACM.League
                 checks.BackColor = FacmDesignSystem.Surface;
                 checks.ForeColor = FacmDesignSystem.Text;
             }
+            foreach (var search in new[] { _championSearch, _playerSearch })
+            {
+                search.BackColor = FacmDesignSystem.Surface;
+                search.ForeColor = FacmDesignSystem.Text;
+            }
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
             _accountLabel.ForeColor = FacmDesignSystem.Text;
             _statusLabel.ForeColor = FacmDesignSystem.TextMuted;
@@ -339,9 +374,18 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text };
         }
 
-        private ToolStripDropDown FilterCheckMenu(CheckedListBox list, Action clear)
+        private ToolStripTextBox FilterSearchBox(string key)
+        {
+            return new ToolStripTextBox { AutoSize = false, Size = new Size(236, 25),
+                MaxLength = 64, AccessibleName = _ui.Get(key), ToolTipText = _ui.Get(key),
+                BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text };
+        }
+
+        private ToolStripDropDown FilterCheckMenu(CheckedListBox list, ToolStripTextBox search, Action clear)
         {
             var menu = new ToolStripDropDown { AutoClose = true, Padding = Padding.Empty };
+            menu.Items.Add(new ToolStripLabel(search.AccessibleName));
+            menu.Items.Add(search);
             menu.Items.Add(new ToolStripControlHost(list) { AutoSize = false, Size = list.Size,
                 Margin = Padding.Empty, Padding = Padding.Empty });
             var clearItem = new ToolStripMenuItem(_ui.Get(UiTextKeys.LeaguePlayerFilterClear));
@@ -362,14 +406,17 @@ namespace FACM.League
         private sealed class PlayerChoice
         {
             internal readonly string PuuId;
-            private readonly string _name;
+            internal readonly string Name;
 
             internal PlayerChoice(string puuId, string name)
             {
                 PuuId = puuId;
-                _name = name;
+                Name = name;
             }
-            public override string ToString() { return _name; }
+            public override string ToString()
+            {
+                return (string.IsNullOrWhiteSpace(Name) ? "" : Name + " · ") + AbbreviatePuuid(PuuId);
+            }
         }
 
         private static ListView CreateListView(Rectangle bounds, bool virtualMode)
@@ -553,8 +600,11 @@ namespace FACM.League
         {
             _selectedChampions.Clear();
             _selectedPlayers.Clear();
+            _selectedPlayerNames.Clear();
             _championMenu.Close();
             _playerMenu.Close();
+            _championSearch.Text = string.Empty;
+            _playerSearch.Text = string.Empty;
             _winFilter.SelectedIndex = 0;
             _timeFilter.SelectedIndex = 0;
             UpdateFilterChoices(null);
@@ -565,10 +615,23 @@ namespace FACM.League
             return puuid.Length <= 18 ? puuid : puuid.Substring(0, 8) + "…" + puuid.Substring(puuid.Length - 6);
         }
 
+        internal static bool FilterOptionMatchesForSmokeTest(string name, string id, string search)
+        {
+            if (string.IsNullOrWhiteSpace(search)) return true;
+            var term = search.Trim();
+            return (name != null && name.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                (id != null && id.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+
         private void UpdateFilterChoices(LeaguePlayerMatchPage page)
         {
             var known = new SortedDictionary<int, string>();
             var players = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            var catalog = _service.TryGetCachedChampionNames();
+            if (catalog != null)
+                foreach (var candidate in catalog)
+                    if (candidate.Key > 0 && !string.IsNullOrWhiteSpace(candidate.Value))
+                        known[candidate.Key] = candidate.Value + " (#" + candidate.Key + ")";
             if (page != null)
             {
                 foreach (var match in page.Matches)
@@ -577,7 +640,8 @@ namespace FACM.League
                     if (match.MatchChampionIds != null)
                         foreach (var id in match.MatchChampionIds)
                             if (id > 0 && !known.ContainsKey(id)) known[id] = "#" + id;
-                    if (match.ChampionId > 0 && !string.IsNullOrWhiteSpace(match.ChampionName))
+                    if (match.ChampionId > 0 && !known.ContainsKey(match.ChampionId) &&
+                        !string.IsNullOrWhiteSpace(match.ChampionName))
                         known[match.ChampionId] = match.ChampionName + " (#" + match.ChampionId + ")";
                     if (match.MatchPlayers != null)
                         foreach (var player in match.MatchPlayers)
@@ -590,7 +654,12 @@ namespace FACM.League
             foreach (var id in _selectedChampions)
                 if (!known.ContainsKey(id)) known[id] = "#" + id;
             foreach (var puuid in _selectedPlayers)
-                if (!players.ContainsKey(puuid)) players[puuid] = null;
+            {
+                string selectedName;
+                _selectedPlayerNames.TryGetValue(puuid, out selectedName);
+                if (!players.ContainsKey(puuid)) players[puuid] = selectedName;
+                else if (!string.IsNullOrWhiteSpace(players[puuid])) _selectedPlayerNames[puuid] = players[puuid];
+            }
 
             _updatingFilterChoices = true;
             try
@@ -600,12 +669,13 @@ namespace FACM.League
                 _championChecks.Items.Clear();
                 _playerChecks.Items.Clear();
                 foreach (var candidate in known)
-                    _championChecks.Items.Add(new ChampionChoice(candidate.Key, candidate.Value),
-                        _selectedChampions.Contains(candidate.Key));
+                    if (FilterOptionMatchesForSmokeTest(candidate.Value, candidate.Key.ToString(), _championSearch.Text))
+                        _championChecks.Items.Add(new ChampionChoice(candidate.Key, candidate.Value),
+                            _selectedChampions.Contains(candidate.Key));
                 foreach (var candidate in players)
-                    _playerChecks.Items.Add(new PlayerChoice(candidate.Key,
-                        (string.IsNullOrWhiteSpace(candidate.Value) ? "" : candidate.Value + " · ") +
-                        AbbreviatePuuid(candidate.Key)), _selectedPlayers.Contains(candidate.Key));
+                    if (FilterOptionMatchesForSmokeTest(candidate.Value, candidate.Key, _playerSearch.Text))
+                        _playerChecks.Items.Add(new PlayerChoice(candidate.Key, candidate.Value),
+                            _selectedPlayers.Contains(candidate.Key));
             }
             finally
             {

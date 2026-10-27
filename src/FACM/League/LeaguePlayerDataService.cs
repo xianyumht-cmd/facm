@@ -48,6 +48,16 @@ namespace FACM.League
             lock (_cacheSync) return ClonePage(_cachedPage);
         }
 
+        internal Dictionary<int, string> TryGetCachedChampionNames()
+        {
+            lock (_cacheSync) return CloneChampionNames(_cachedChampionNames);
+        }
+
+        internal Task<Dictionary<int, string>> LoadChampionOptionsAsync(CancellationToken cancellationToken)
+        {
+            return LoadChampionNamesAsync(cancellationToken);
+        }
+
         public async Task<LeaguePlayerProfile> LoadProfileAsync(bool force, CancellationToken cancellationToken)
         {
             lock (_cacheSync)

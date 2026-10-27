@@ -293,6 +293,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerFilterPlayer, "参赛玩家"),
             Pair(UiTextKeys.LeaguePlayerFilterSelected, "已选 {0} 项"),
             Pair(UiTextKeys.LeaguePlayerFilterClear, "清空选择"),
+            Pair(UiTextKeys.LeaguePlayerFilterSearchChampion, "搜索英雄名称或 ID"),
+            Pair(UiTextKeys.LeaguePlayerFilterSearchPlayer, "搜索玩家名称或 PUUID"),
             Pair(UiTextKeys.LeaguePlayerFilter3Hours, "3 小时内"),
             Pair(UiTextKeys.LeaguePlayerFilter12Hours, "12 小时内"),
             Pair(UiTextKeys.LeaguePlayerFilter24Hours, "24 小时内"),

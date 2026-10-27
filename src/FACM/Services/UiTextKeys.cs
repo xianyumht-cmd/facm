@@ -287,6 +287,8 @@ namespace FACM.Services
         public const string LeaguePlayerFilterPlayer = "LeaguePlayerFilterPlayer";
         public const string LeaguePlayerFilterSelected = "LeaguePlayerFilterSelected";
         public const string LeaguePlayerFilterClear = "LeaguePlayerFilterClear";
+        public const string LeaguePlayerFilterSearchChampion = "LeaguePlayerFilterSearchChampion";
+        public const string LeaguePlayerFilterSearchPlayer = "LeaguePlayerFilterSearchPlayer";
         public const string LeaguePlayerFilter3Hours = "LeaguePlayerFilter3Hours";
         public const string LeaguePlayerFilter12Hours = "LeaguePlayerFilter12Hours";
         public const string LeaguePlayerFilter24Hours = "LeaguePlayerFilter24Hours";
