@@ -18,6 +18,7 @@ namespace FACM.League
         internal LeagueEncounterMatchDetailStatus Status;
         internal LeaguePlayerMatchSummary Match;
         internal System.Collections.Generic.List<LeaguePlayerMatchParticipant> Participants;
+        internal System.Collections.Generic.List<LeagueMatchTeamScore> Teams;
         internal LeagueBuildAdvisorCatalog BuildCatalog;
     }
 
@@ -75,6 +76,7 @@ namespace FACM.League
                     {
                         Status = LeagueEncounterMatchDetailStatus.Ready,
                         Match = breakdown.Match, Participants = breakdown.Participants,
+                        Teams = breakdown.Teams,
                         BuildCatalog = breakdown.BuildCatalog
                     };
                 }

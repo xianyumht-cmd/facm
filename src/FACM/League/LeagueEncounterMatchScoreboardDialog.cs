@@ -27,14 +27,15 @@ namespace FACM.League
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
-            Width = 960; Height = 605; MinimumSize = new Size(680, 440);
+            Width = 960; Height = 685; MinimumSize = new Size(680, 510);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
-                ColumnCount = 1, RowCount = 5 };
+                ColumnCount = 1, RowCount = 6 };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 106));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
@@ -49,6 +50,29 @@ namespace FACM.League
                     .Replace("{2}", ((int)duration.TotalMinutes).ToString() + ":" + duration.Seconds.ToString("D2")),
                 AutoEllipsis = true };
             layout.Controls.Add(summary, 0, 0);
+
+            var teams = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
+                AutoScroll = true, BackColor = FacmDesignSystem.Canvas };
+            teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            var scores = detail.Teams;
+            if (scores != null)
+            {
+                teams.RowCount = Math.Max(1, (scores.Count + 1) / 2);
+                for (var i = 0; i < teams.RowCount; i++)
+                    teams.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+                for (var i = 0; i < scores.Count; i++)
+                {
+                    var text = FormatTeamScore(scores[i], t);
+                    var card = new Label { Dock = DockStyle.Fill, Text = text,
+                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                        Padding = new Padding(9, 5, 9, 3), AutoEllipsis = true,
+                        AccessibleName = text, Margin = new Padding(3) };
+                    teams.Controls.Add(card, i % 2, i / 2);
+                    _tooltips.SetToolTip(card, text);
+                }
+            }
+            layout.Controls.Add(teams, 0, 1);
 
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, HideSelection = false, MultiSelect = false, GridLines = true,
@@ -123,9 +147,9 @@ namespace FACM.League
                 }
                 rows.Items.Add(item);
             }
-            layout.Controls.Add(rows, 0, 1);
-            layout.Controls.Add(iconStrip, 0, 2);
-            layout.Controls.Add(selectedDetails, 0, 3);
+            layout.Controls.Add(rows, 0, 2);
+            layout.Controls.Add(iconStrip, 0, 3);
+            layout.Controls.Add(selectedDetails, 0, 4);
             if (targetItem != null)
             {
                 targetItem.Selected = true;
@@ -137,7 +161,7 @@ namespace FACM.League
                 Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
             close.Click += (sender, e) => Close();
             footer.Controls.Add(close);
-            layout.Controls.Add(footer, 0, 4);
+            layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
             CancelButton = close;
             FormClosed += (sender, e) =>
@@ -150,6 +174,27 @@ namespace FACM.League
                 _tooltips.Dispose();
                 _lifetime.Dispose();
             };
+        }
+
+        private static string FormatTeamScore(LeagueMatchTeamScore team, Func<string, string> t)
+        {
+            var teamName = team.TeamId == 100 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue) :
+                team.TeamId == 200 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed) :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther).Replace("{0}", team.TeamId.ToString());
+            var result = !team.Win.HasValue ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknownResult) :
+                team.Win.Value ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost);
+            Func<int?, string> count = value => value.HasValue ? value.Value.ToString() : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamSummary)
+                .Replace("{0}", teamName).Replace("{1}", result)
+                .Replace("{2}", team.PlayerCount.ToString())
+                .Replace("{3}", team.Kills.ToString()).Replace("{4}", team.Deaths.ToString())
+                .Replace("{5}", team.Assists.ToString())
+                .Replace("{6}", team.DamageToChampions.HasValue ? team.DamageToChampions.Value.ToString("N0") : "—")
+                .Replace("{7}", team.GoldEarned.HasValue ? team.GoldEarned.Value.ToString("N0") : "—")
+                .Replace("{8}", count(team.BaronKills)).Replace("{9}", count(team.DragonKills))
+                .Replace("{10}", count(team.TowerKills)).Replace("{11}", count(team.RiftHeraldKills))
+                .Replace("{12}", count(team.InhibitorKills)).Replace("{13}", count(team.HordeKills));
         }
 
         private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,

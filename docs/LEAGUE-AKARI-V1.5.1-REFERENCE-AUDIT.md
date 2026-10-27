@@ -1,5 +1,9 @@
 # League Akari v1.5.1 — Version-locked implementation research
 
+## 2026-10-27 — Match-history team aggregates/objectives (Draft #357)
+
+Pinned source `src/shared/data-adapter/match-history/teams.ts#toTeams` consumes game-level `teams[]` objective counts and groups participants by `teamId` for aggregate K/D/A and damage/gold. GGman's source-shaped **LCU-only** projection in `LeaguePlayerDataService.ParseTeamScores` now renders these values above the explicitly requested encountered-match player scoreboard, without a second game read. The source's `hordeKills` (Void Grubs) field is retained, and optional counters distinguish zero from missing data. Ambiguous metadata and incomplete player damage/gold are not silently treated as complete team values; mismatched participant win flags are marked unknown. Tests are isolated synthetic responses. Full `MatchCard` layout, regional SGP hydration, source-exact coverage across other match formats, full player filtering/replay actions, native DPI and Tencent acceptance remain mandatory; this does not complete Akari's player tab.
+
 ## Native historical premade candidate (2026-10-26; Draft #357)
 
 **Saved-player management follow-up (2026-10-27):** The exact `saved-player/index.ts` functions `querySavedPlayerWithGames`, `updatePlayerTag`, `queryEncounteredGames` and `deleteEncounteredGame` were rechecked against pinned `14557723`. The GGman local index now provides an offline history entry for saved players and creates a tag on a previously untagged, encountered-only player without replacing a concurrently added tag. Existing queue-filtered paging and deletion operate on exact account/region/platform scope; they do not require an ongoing match. This is a native local-data candidate; Akari's rich player-tab match-summary hydration via LCU/SGP, other profile actions and final Win10 client acceptance remain open.
@@ -177,7 +181,7 @@ Pinned `in-game-send/presets/{rating,name-display,helpers}.ts`, `shared/shards/i
 
 ## 2026-10-27 — Player-tab item, spell and rune names/icons (Draft #357)
 
-The pinned `shared/data-adapter/match-history/participants.ts` exposes inventory, spell and rune IDs from the already-read game, while the native client game-data arrays provide locale-dependent display names and asset references. GGman now uses the existing Build Advisor catalog parser and on-demand bitmap cache for this projection: an encountered-game scoreboard selection shows available names and requests only selected participant icons, with immediate ID fallback and cancellation on selection/dialog closure. The complete Akari card look, item details/tooltips beyond names, remote SGP matches, objective panels, full replay actions and Tencent live-client acceptance remain missing. The parser/image reuse is a source candidate, not a Win10 visual certification.
+The pinned `shared/data-adapter/match-history/participants.ts` exposes inventory, spell and rune IDs from the already-read game, while the native client game-data arrays provide locale-dependent display names and asset references. GGman now uses the existing Build Advisor catalog parser and on-demand bitmap cache for this projection: an encountered-game scoreboard selection shows available names and requests only selected participant icons, with immediate ID fallback and cancellation on selection/dialog closure. The complete Akari card look, item details/tooltips beyond names, remote SGP matches, rich objective panels, full replay actions and Tencent live-client acceptance remain missing. The parser/image reuse is a source candidate, not a Win10 visual certification.
 
 ## 2026-10-27 — Player-tab match-card build detail (Draft #357)
 

@@ -215,7 +215,10 @@ namespace FACM.League
                     return null;
                 var participants = ParseParticipants(game, match.ParticipantId);
                 if (participants == null || !participants.Any(p => p.IsTarget)) return null;
-                breakdown = new LeaguePlayerMatchBreakdown { Match = match, Participants = participants };
+                breakdown = new LeaguePlayerMatchBreakdown
+                {
+                    Match = match, Participants = participants, Teams = ParseTeamScores(game, participants)
+                };
             }
             finally { _requestGate.Release(); }
 
@@ -329,13 +332,65 @@ namespace FACM.League
                     CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
                         (long)ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"))),
                     DamageToChampions = ReadInt(stats, "totalDamageDealtToChampions"),
+                    DamageAvailable = stats.ContainsKey("totalDamageDealtToChampions"),
                     GoldEarned = ReadInt(stats, "goldEarned"),
+                    GoldAvailable = stats.ContainsKey("goldEarned"),
                     VisionScore = ReadInt(stats, "visionScore"),
                     Win = ReadBool(stats, "win"), IsTarget = id == targetId
                 });
             }
             return result.Count == 0 ? null : result.OrderBy(p => p.TeamId)
                 .ThenBy(p => p.ParticipantId).ToList();
+        }
+
+        private static List<LeagueMatchTeamScore> ParseTeamScores(Dictionary<string, object> game,
+            List<LeaguePlayerMatchParticipant> participants)
+        {
+            var metadata = new Dictionary<int, Dictionary<string, object>>();
+            var ambiguous = new HashSet<int>();
+            foreach (var team in ReadObjects(game, "teams"))
+            {
+                var id = ReadInt(team, "teamId");
+                if (id <= 0) continue;
+                if (metadata.ContainsKey(id)) { ambiguous.Add(id); metadata.Remove(id); }
+                else if (!ambiguous.Contains(id)) metadata[id] = team;
+            }
+            var scores = new List<LeagueMatchTeamScore>();
+            foreach (var group in participants.Where(p => p.TeamId > 0).GroupBy(p => p.TeamId).OrderBy(g => g.Key))
+            {
+                var players = group.ToList();
+                var consistentWin = players.All(p => p.Win == players[0].Win);
+                Dictionary<string, object> team;
+                metadata.TryGetValue(group.Key, out team);
+                scores.Add(new LeagueMatchTeamScore
+                {
+                    TeamId = group.Key, PlayerCount = players.Count,
+                    Win = consistentWin ? (bool?)players[0].Win : null,
+                    Kills = players.Sum(p => (long)Math.Max(0, p.Kills)),
+                    Deaths = players.Sum(p => (long)Math.Max(0, p.Deaths)),
+                    Assists = players.Sum(p => (long)Math.Max(0, p.Assists)),
+                    DamageToChampions = players.All(p => p.DamageAvailable)
+                        ? (long?)players.Sum(p => (long)Math.Max(0, p.DamageToChampions)) : null,
+                    GoldEarned = players.All(p => p.GoldAvailable)
+                        ? (long?)players.Sum(p => (long)Math.Max(0, p.GoldEarned)) : null,
+                    BaronKills = ReadOptionalCount(team, "baronKills"),
+                    DragonKills = ReadOptionalCount(team, "dragonKills"),
+                    TowerKills = ReadOptionalCount(team, "towerKills"),
+                    RiftHeraldKills = ReadOptionalCount(team, "riftHeraldKills"),
+                    InhibitorKills = ReadOptionalCount(team, "inhibitorKills"),
+                    HordeKills = ReadOptionalCount(team, "hordeKills")
+                });
+            }
+            return scores;
+        }
+
+        private static int? ReadOptionalCount(Dictionary<string, object> source, string key)
+        {
+            object value;
+            int parsed;
+            return source != null && source.TryGetValue(key, out value) && value != null &&
+                int.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), out parsed) && parsed >= 0
+                ? (int?)parsed : null;
         }
 
         private static string SafeDisplayName(string name)

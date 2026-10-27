@@ -77,7 +77,9 @@ namespace FACM.League
         public int Assists { get; set; }
         public int CreepScore { get; set; }
         public int DamageToChampions { get; set; }
+        public bool DamageAvailable { get; set; }
         public int GoldEarned { get; set; }
+        public bool GoldAvailable { get; set; }
         public int VisionScore { get; set; }
         public bool Win { get; set; }
         public bool IsTarget { get; set; }
@@ -87,7 +89,26 @@ namespace FACM.League
     {
         public LeaguePlayerMatchSummary Match { get; set; }
         public List<LeaguePlayerMatchParticipant> Participants { get; set; }
+        public List<LeagueMatchTeamScore> Teams { get; set; }
         public LeagueBuildAdvisorCatalog BuildCatalog { get; set; }
+    }
+
+    internal sealed class LeagueMatchTeamScore
+    {
+        public int TeamId { get; set; }
+        public int PlayerCount { get; set; }
+        public bool? Win { get; set; }
+        public long Kills { get; set; }
+        public long Deaths { get; set; }
+        public long Assists { get; set; }
+        public long? DamageToChampions { get; set; }
+        public long? GoldEarned { get; set; }
+        public int? BaronKills { get; set; }
+        public int? DragonKills { get; set; }
+        public int? TowerKills { get; set; }
+        public int? RiftHeraldKills { get; set; }
+        public int? InhibitorKills { get; set; }
+        public int? HordeKills { get; set; }
     }
 
     internal sealed class LeaguePlayerChampionStat

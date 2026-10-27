@@ -271,6 +271,11 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
         public const string DynamicEncounterScoreboardIconsPerks = "LeagueEfficiencyDynamicEncounterScoreboardIconsPerks";
+        public const string DynamicEncounterTeamBlue = "LeagueEfficiencyDynamicEncounterTeamBlue";
+        public const string DynamicEncounterTeamRed = "LeagueEfficiencyDynamicEncounterTeamRed";
+        public const string DynamicEncounterTeamOther = "LeagueEfficiencyDynamicEncounterTeamOther";
+        public const string DynamicEncounterTeamUnknownResult = "LeagueEfficiencyDynamicEncounterTeamUnknownResult";
+        public const string DynamicEncounterTeamSummary = "LeagueEfficiencyDynamicEncounterTeamSummary";
         public const string DynamicRefreshNeeded = "LeagueEfficiencyDynamicRefreshNeeded";
         public const string DynamicSelectPlayers = "LeagueEfficiencyDynamicSelectPlayers";
         public const string DynamicSending = "LeagueEfficiencyDynamicSending";
@@ -590,6 +595,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPerks, "符文" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue, "蓝方" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed, "红方" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther, "队伍 {0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknownResult, "结果未确认" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTeamSummary, "{0} · {1} · {2}人 · K/D/A {3}/{4}/{5}\r\n伤害 {6} · 金币 {7}\r\n大龙 {8} · 小龙 {9} · 塔 {10} · 先锋 {11} · 水晶 {12} · 巢虫 {13}" },
             { LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded, "对局、账号或阵容已变化，请重新读取。" },
             { LeagueEfficiencyUiTextKeys.DynamicSelectPlayers, "选择参与摘要的玩家" },
             { LeagueEfficiencyUiTextKeys.DynamicSending, "正在发送；可用已设置的取消快捷键停止。" },

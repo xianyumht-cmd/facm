@@ -182,6 +182,38 @@ namespace FACM.League
                     cachedDetail.BuildCatalog != null && api.Reads == 11 && api.BuildCatalogReads == 3 &&
                     api.ChampionReads == 1,
                     "Repeated explicit matches must reuse the cached client game-data catalog, not refetch every icon catalog.");
+                Require(result.Teams != null && result.Teams.Count == 2 &&
+                    result.Teams[0].TeamId == 100 && result.Teams[0].PlayerCount == 2 &&
+                    result.Teams[0].Win == true && result.Teams[0].Kills == 8 &&
+                    result.Teams[0].Deaths == 6 && result.Teams[0].Assists == 15 &&
+                    result.Teams[0].DamageToChampions == null && result.Teams[0].GoldEarned == null &&
+                    result.Teams[0].BaronKills == 1 && result.Teams[0].DragonKills == 2 &&
+                    result.Teams[0].TowerKills == 6 && result.Teams[0].HordeKills == 3 &&
+                    result.Teams[0].RiftHeraldKills == 0 && result.Teams[0].InhibitorKills == 2 &&
+                    result.Teams[1].TeamId == 200 && result.Teams[1].PlayerCount == 1 &&
+                    result.Teams[1].Win == false && result.Teams[1].BaronKills == 0 &&
+                    result.Teams[1].HordeKills == null,
+                    "Team summaries must aggregate verified participants while preserving objective zero versus absent.");
+                api.ReturnMissingTeams = true;
+                var missingTeams = await reader.ReadAsync(record, token.Token);
+                Require(missingTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    missingTeams.Teams.Count == 2 && missingTeams.Teams[0].Kills == 8 &&
+                    missingTeams.Teams[0].BaronKills == null && missingTeams.Teams[1].DragonKills == null,
+                    "Missing team metadata must not discard real participant scores or invent objective zeroes.");
+                api.ReturnMissingTeams = false;
+                api.ReturnDuplicateTeams = true;
+                var duplicateTeams = await reader.ReadAsync(record, token.Token);
+                Require(duplicateTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    duplicateTeams.Teams[0].Kills == 8 && duplicateTeams.Teams[0].BaronKills == null &&
+                    duplicateTeams.Teams[1].DragonKills == 1,
+                    "Ambiguous team metadata must not attach objectives to the wrong team.");
+                api.ReturnDuplicateTeams = false;
+                api.ReturnConflictingWin = true;
+                var conflictingWin = await reader.ReadAsync(record, token.Token);
+                Require(conflictingWin.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    conflictingWin.Teams[0].Win == null && conflictingWin.Teams[0].Kills == 8,
+                    "Conflicting participant results must show unknown team outcome, not a false win.");
+                api.ReturnConflictingWin = false;
                 var busyBudget = new PerformanceBudgetProvider();
                 busyBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
                 var busyApi = new MatchDetailClient();
@@ -226,6 +258,9 @@ namespace FACM.League
             internal string SelfPuuid = "self";
             internal bool ReturnMissingParticipant;
             internal bool ReturnMalformedRoster;
+            internal bool ReturnMissingTeams;
+            internal bool ReturnDuplicateTeams;
+            internal bool ReturnConflictingWin;
             internal Action AfterProfileRead;
             internal Action AfterMatchRead;
             internal Action AfterChampionRead;
@@ -270,6 +305,12 @@ namespace FACM.League
                     AfterMatchRead?.Invoke();
                     var target = ReturnMissingParticipant ? "different-player" : "enemy";
                     var otherParticipantId = ReturnMalformedRoster ? 1 : 2;
+                    var teams = ReturnMissingTeams ? "" : ",\"teams\":[{\"teamId\":100," +
+                        "\"baronKills\":1,\"dragonKills\":2,\"towerKills\":6," +
+                        "\"hordeKills\":3,\"riftHeraldKills\":0,\"inhibitorKills\":2}," +
+                        "{\"teamId\":200,\"baronKills\":0,\"dragonKills\":1,\"towerKills\":2}]";
+                    if (ReturnDuplicateTeams)
+                        teams = teams.Replace("{\"teamId\":200", "{\"teamId\":100,\"baronKills\":9},{\"teamId\":200");
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"ARAM\"," +
                         "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
                         "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
@@ -284,9 +325,11 @@ namespace FACM.League
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
                         "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":1234}}," +
                         "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
-                        "\"stats\":{\"win\":true,\"kills\":3,\"deaths\":4,\"assists\":6}}," +
+                        "\"stats\":{\"win\":" + (ReturnConflictingWin ? "false" : "true") +
+                        ",\"kills\":3,\"deaths\":4,\"assists\":6}}," +
                         "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
-                        "\"stats\":{\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]}"));
+                        "\"stats\":{\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]" +
+                        teams + "}"));
                 }
                 return Task.FromResult<byte[]>(null);
             }
