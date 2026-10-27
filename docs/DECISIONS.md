@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-27 — Replay both own and remote Player pages through a frozen LCU selection
+
+The prior replay service was attached only to locally saved encountered games. Extend the same typed write owner to current-account and Riot-ID remote match-history lists, but never manufacture a persistent encounter record or enable an action directly from a stale cached page. Snapshot the session that successfully loaded the page, match metadata and current self PUUID; verify signed-in identity just before each write. A selected-row button is more discoverable than a hidden context-menu-only command and does not require changing the owner-approved launcher or adding browser UI. Account changes, page changes and dialog close must cancel or hide stale UI results. Keep all work inside Draft #357 until consolidated live acceptance.
+
 ## 2026-10-27 — Keep Akari quantified predicates within a verified current-game roster
 
 Implement `player`/`anyone`/`everyone`/`all`/`allies`/`enemies` as bounded single-child nodes in the existing native advanced filter, not a second history scanner. Read participants only from the authenticated current-player LCU history response; reject ambiguous or duplicate participant IDs, and preserve missing PUUID/team evidence under negation. Use the same existing source-backed predicate evaluator with an explicit selected-person and participant-set context so numeric, item, spell, rune, augment and result checks do not accidentally read self data for an opponent. Build per-person relative numeric denominators in one bulk pass and deep-copy roster snapshots across page-cache boundaries. Accept a local `self` alias for the verified signed-in participant while exact other PUUIDs remain required. Do not introduce separate LCU requests, cloud schema, resident monitors or production changes.

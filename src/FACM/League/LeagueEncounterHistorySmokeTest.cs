@@ -490,6 +490,34 @@ namespace FACM.League
             Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
                 LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
                 "Incomplete creation timestamps must prevent invalid metadata POSTs.");
+            var historyMatch = new LeaguePlayerMatchSummary { GameId = 123, QueueId = 450,
+                GameType = "MATCHED_GAME", GameCreationEpochMs = 1720000000000, GameDurationSeconds = 1234 };
+            read.AfterConfiguration = () => historyMatch.GameId = 999;
+            result = await service.ExecuteForHistoryAsync(session, "self", "enemy", historyMatch,
+                CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.DownloadRequested &&
+                write.Downloads == writesBefore + 1 && write.CreatedMatch.GameId == 123 &&
+                historyMatch.GameId == 999,
+                "History actions must freeze the selected match before any asynchronous LCU read.");
+            read.AfterConfiguration = null;
+            writesBefore = write.Downloads;
+            var movedSession = new LeagueClientSession("LeagueClientUx", 55, 2999, "test",
+                "https", "fixture", "HN2", "HN2");
+            Require(LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, "self", historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(movedSession, active, "self", historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, null, historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, "self", null),
+                "History replay controls must require a verified account, selected match and unchanged page session.");
+            Require((await service.ExecuteForHistoryAsync(movedSession, "self", "enemy", match,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.NoClient &&
+                (await service.ExecuteForHistoryAsync(null, "self", "enemy", match,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.NoClient &&
+                write.Downloads == writesBefore,
+                "A remote or cached history page must retain its original authenticated region and session.");
+            Require((await service.ExecuteForHistoryAsync(session, "self", "enemy", null,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.Unavailable &&
+                write.Downloads == writesBefore,
+                "Unselected history rows must not trigger replay writes.");
             Require(LeagueEncounterMatchScoreboardDialog.ReplayStatusText(
                 new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Downloading, Progress = 42 },
                 key => key == LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading ? "{0}%" : key) == "42%",
@@ -504,6 +532,7 @@ namespace FACM.League
             internal double Progress;
             internal long MetadataGameId = 123;
             internal Action AfterMetadata;
+            internal Action AfterConfiguration;
             internal int ProfileReads;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
@@ -516,8 +545,11 @@ namespace FACM.League
                     json = "{\"puuid\":\"" + SelfPuuid + "\"}";
                 }
                 else if (path == LeagueEncounterReplayService.ConfigurationPath)
+                {
+                    AfterConfiguration?.Invoke();
                     json = "{\"gameVersion\":\"15.21.1\",\"isReplaysEnabled\":" +
                         (Enabled ? "true" : "false") + ",\"isReplaysForMatchHistoryEnabled\":true}";
+                }
                 else if (path == "/lol-replays/v1/metadata/123")
                 {
                     AfterMetadata?.Invoke();

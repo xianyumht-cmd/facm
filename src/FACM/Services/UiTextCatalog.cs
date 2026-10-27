@@ -404,6 +404,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerRemoteAccountChanged, "账号已变化，请重试"),
             Pair(UiTextKeys.LeaguePlayerRemoteUnavailable, "Riot 查询暂不可用"),
             Pair(UiTextKeys.LeaguePlayerRemoteHistoryAction, "查看该玩家近期战绩"),
+            Pair(UiTextKeys.LeaguePlayerReplayAction, "下载 / 观看回放"),
             Pair(UiTextKeys.LeaguePlayerRemoteHistoryTitle, "玩家资料与近期战绩"),
             Pair(UiTextKeys.LeaguePlayerRemoteNoMatches, "暂无可读取的近期战绩"),
             Pair(UiTextKeys.LeaguePlayerRemoteRecentCount, "最近读取 {0} 场 · 当前客户端数据"),

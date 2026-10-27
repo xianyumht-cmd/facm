@@ -12,6 +12,14 @@ namespace FACM.League
     {
         public static void Validate()
         {
+            var completeReplay = new LeaguePlayerMatchSummary { GameId = 12, QueueId = 450,
+                GameType = "MATCHED_GAME", GameDurationSeconds = 1234,
+                GameCreationEpochMs = 1720000000000 };
+            Require(!FACM.AppHost.Modules.LeaguePlayerModule.RequiresReplayDetail(completeReplay) &&
+                FACM.AppHost.Modules.LeaguePlayerModule.RequiresReplayDetail(new LeaguePlayerMatchSummary
+                    { GameId = 12, QueueId = 450, GameType = "MATCHED_GAME", GameDurationSeconds = 1234 }) &&
+                FACM.AppHost.Modules.LeaguePlayerModule.RequiresReplayDetail(null),
+                "Sparse history must hydrate only the selected game before creating replay metadata.");
             ValidateProfileAndRecentMatchParsing();
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();

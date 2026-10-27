@@ -13,12 +13,16 @@ namespace FACM.League
         private readonly LeaguePlayerDataService _service;
         private readonly UiTextCatalog _ui;
         private readonly LeaguePlayerProfile _expected;
+        private readonly Func<LeagueClientSession> _currentSession;
+        private readonly Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+            CancellationToken, Task<LeagueEncounterReplayResult>> _replay;
         private readonly string _puuid;
         private readonly string _fallbackName;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly Label _playerLabel;
         private readonly Label _statusLabel;
         private readonly ListView _matches;
+        private readonly Button _replayButton;
         private readonly ComboBox _pageSize;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
@@ -31,15 +35,22 @@ namespace FACM.League
         private bool _hasMore;
         private bool _loading;
         private bool _loaded;
+        private bool _replayRunning;
+        private LeagueClientSession _pageSession;
 
         internal LeagueRemotePlayerHistoryForm(LeaguePlayerDataService service, UiTextCatalog ui,
-            LeaguePlayerProfile current, string targetPuuid, string targetName)
+            LeaguePlayerProfile current, string targetPuuid, string targetName,
+            Func<LeagueClientSession> currentSession = null,
+            Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+                CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _expected = new LeaguePlayerProfile { PuuId = current == null ? null : current.PuuId };
             _puuid = targetPuuid;
             _fallbackName = targetName ?? string.Empty;
+            _currentSession = currentSession;
+            _replay = replay;
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteHistoryTitle);
             StartPosition = FormStartPosition.CenterParent;
@@ -74,6 +85,11 @@ namespace FACM.League
             _matches.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerKda), 130);
             _matches.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 90);
             _matches.Resize += (sender, args) => FitMatchColumns();
+            _matches.SelectedIndexChanged += (sender, args) => UpdateReplayButton();
+
+            _replayButton = PageButton(UiTextKeys.LeaguePlayerReplayAction, 142);
+            _replayButton.Enabled = false;
+            _replayButton.Click += async (sender, args) => await ReplaySelectedAsync();
 
             var footer = new FlowLayoutPanel
             {
@@ -135,7 +151,12 @@ namespace FACM.League
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
-            layout.Controls.Add(_playerLabel, 0, 0);
+            var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            heading.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+            heading.Controls.Add(_playerLabel, 0, 0);
+            heading.Controls.Add(_replayButton, 1, 0);
+            layout.Controls.Add(heading, 0, 0);
             layout.Controls.Add(_statusLabel, 0, 1);
             layout.Controls.Add(_matches, 0, 2);
             layout.Controls.Add(footer, 0, 3);
@@ -206,11 +227,67 @@ namespace FACM.League
             _currentPage.Text = _ui.Get(UiTextKeys.LeaguePlayerRemotePageLabel)
                 .Replace("{0}", number.ToString());
             if (number <= _pageNumber.Maximum) _pageNumber.Value = number;
+            UpdateReplayButton();
+        }
+
+        private LeaguePlayerMatchSummary SelectedReplayMatch()
+        {
+            return _matches.SelectedItems.Count == 1
+                ? _matches.SelectedItems[0].Tag as LeaguePlayerMatchSummary : null;
+        }
+
+        private bool SessionMatches(LeagueClientSession expected)
+        {
+            return LeagueEncounterReplayService.SessionMatches(expected,
+                _currentSession == null ? null : _currentSession());
+        }
+
+        private void UpdateReplayButton()
+        {
+            if (_replayButton == null || IsDisposed) return;
+            var match = SelectedReplayMatch();
+            _replayButton.Enabled = _loaded && !_loading && !_replayRunning && _replay != null &&
+                LeagueEncounterReplayService.CanOfferHistoryReplay(_pageSession,
+                    _currentSession == null ? null : _currentSession(), _expected.PuuId, match);
+        }
+
+        private async Task ReplaySelectedAsync()
+        {
+            var match = SelectedReplayMatch();
+            var expectedSession = _pageSession;
+            if (match == null || !_loaded || _loading || _replayRunning || _replay == null ||
+                !SessionMatches(expectedSession)) return;
+            _replayRunning = true;
+            UpdateReplayButton();
+            _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+            try
+            {
+                var result = await _replay(expectedSession, _expected.PuuId, _puuid, match, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested ||
+                    !ReferenceEquals(match, SelectedReplayMatch())) return;
+                _statusLabel.Text = LeagueEncounterMatchScoreboardDialog.ReplayStatusText(result,
+                    key => LeagueEfficiencyText.Get(_ui, key));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            }
+            finally
+            {
+                _replayRunning = false;
+                if (!IsDisposed) UpdateReplayButton();
+            }
         }
 
         private async Task LoadPageAsync(int startIndex, int count)
         {
             if (_loading || IsDisposed || _lifetime.IsCancellationRequested) return;
+            var expectedSession = _currentSession == null ? null : _currentSession();
+            _pageSession = null;
             _loading = true;
             _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
             UpdatePageButtons();
@@ -263,6 +340,7 @@ namespace FACM.League
                         row.SubItems.Add(champion);
                         row.SubItems.Add(kda);
                         row.SubItems.Add(outcome);
+                        row.Tag = match;
                         _matches.Items.Add(row);
                     }
                 }
@@ -271,6 +349,7 @@ namespace FACM.League
                 _count = count;
                 _hasMore = page.HasMore;
                 _loaded = true;
+                _pageSession = SessionMatches(expectedSession) ? expectedSession : null;
                 _statusLabel.Text = _matches.Items.Count == 0
                     ? _ui.Get(UiTextKeys.LeaguePlayerRemoteNoMatches)
                     : _ui.Get(UiTextKeys.LeaguePlayerRemoteRecentCount)

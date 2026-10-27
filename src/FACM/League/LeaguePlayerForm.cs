@@ -14,6 +14,9 @@ namespace FACM.League
     {
         private readonly LeaguePlayerDataService _service;
         private readonly UiTextCatalog _ui;
+        private readonly Func<LeagueClientSession> _currentSession;
+        private readonly Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+            CancellationToken, Task<LeagueEncounterReplayResult>> _replay;
         private readonly Label _accountLabel;
         private readonly Panel _accountSurface;
         private readonly Panel _accountAccent;
@@ -47,12 +50,15 @@ namespace FACM.League
         private readonly Dictionary<string, string> _remotePlayers = new Dictionary<string, string>(StringComparer.Ordinal);
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _loadMoreButton;
+        private readonly FacmActionButton _replayButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
         private LeaguePlayerMatchPage _loadedPage;
         private LeagueAdvancedMatchHistoryFilter _advancedFilter;
         private bool _updatingFilterChoices;
         private LeaguePlayerProfile _profile;
+        private LeagueClientSession _pageSession;
+        private bool _replayRunning;
         private bool _loading;
         private bool _loadingChampionOptions;
         private bool _loadingPlayerLookup;
@@ -61,10 +67,15 @@ namespace FACM.League
         private bool _hasMore;
         private int _requestedCount = LeaguePlayerDataService.InitialMatchCount;
 
-        public LeaguePlayerForm(LeaguePlayerDataService service, UiTextCatalog ui)
+        public LeaguePlayerForm(LeaguePlayerDataService service, UiTextCatalog ui,
+            Func<LeagueClientSession> currentSession = null,
+            Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
+                CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
+            _currentSession = currentSession;
+            _replay = replay;
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
@@ -139,6 +150,7 @@ namespace FACM.League
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerResult), 72);
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerDuration), 76);
             _matchesList.RetrieveVirtualItem += RetrieveVirtualItem;
+            _matchesList.SelectedIndexChanged += (sender, e) => UpdateReplayButton();
 
             _filterPanel = new FlowLayoutPanel { Dock = DockStyle.None, WrapContents = false,
                 AutoScroll = true, BackColor = FacmDesignSystem.Canvas };
@@ -289,6 +301,11 @@ namespace FACM.League
             _loadMoreButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _loadMoreButton.Click += async delegate { await LoadMoreAsync(); };
 
+            _replayButton = CreateButton(UiTextKeys.LeaguePlayerReplayAction, FacmButtonTone.Secondary);
+            _replayButton.Size = new Size(146, 30);
+            _replayButton.Enabled = false;
+            _replayButton.Click += async delegate { await ReplaySelectedAsync(); };
+
             _closeButton = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
             _closeButton.Location = new Point(738, 672);
             _closeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -318,6 +335,7 @@ namespace FACM.League
             Controls.Add(_matchesList);
             Controls.Add(_refreshButton);
             Controls.Add(_loadMoreButton);
+            Controls.Add(_replayButton);
             Controls.Add(_closeButton);
             Controls.Add(_emptyStateLabel);
 
@@ -532,6 +550,9 @@ namespace FACM.League
         private async Task RefreshAllAsync(bool force)
         {
             if (_loading || IsDisposed || _lifetime.IsCancellationRequested) return;
+            var expectedSession = _currentSession == null ? null : _currentSession();
+            _pageSession = null;
+            UpdateReplayButton();
             SetLoading(true);
             try
             {
@@ -542,6 +563,7 @@ namespace FACM.League
                 if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId))
                 {
                     _profile = null;
+                    _pageSession = null;
                     _loadedPage = null;
                     _hasMore = false;
                     _rows.Clear();
@@ -570,6 +592,7 @@ namespace FACM.League
                 UpdateEmptyState();
                 var page = await _service.LoadRecentMatchesAsync(profile, 0, _requestedCount, force, _lifetime.Token);
                 if (IsDisposed) return;
+                _pageSession = SessionMatches(expectedSession) ? expectedSession : null;
                 ApplyPage(page);
 
                 var enriched = await _service.EnrichIncompleteMatchesAsync(profile, page, _lifetime.Token);
@@ -605,6 +628,7 @@ namespace FACM.League
         private async Task LoadMoreAsync()
         {
             if (_loading || _profile == null || !_hasMore || _requestedCount >= LeaguePlayerDataService.MaximumMatchCount) return;
+            var expectedSession = _pageSession;
             _requestedCount = LeaguePlayerDataService.MaximumMatchCount;
             SetLoading(true);
             try
@@ -613,6 +637,7 @@ namespace FACM.League
                 UpdateEmptyState();
                 var page = await _service.LoadRecentMatchesAsync(_profile, 0, _requestedCount, false, _lifetime.Token);
                 if (IsDisposed) return;
+                _pageSession = SessionMatches(expectedSession) ? expectedSession : null;
                 ApplyPage(page);
 
                 var enriched = await _service.EnrichIncompleteMatchesAsync(_profile, page, _lifetime.Token);
@@ -652,6 +677,7 @@ namespace FACM.League
             _hasMore = page != null && page.HasMore;
             UpdateFilterChoices(page);
             ApplySimpleFilter();
+            UpdateReplayButton();
         }
 
         private async Task SearchRemotePlayerAsync()
@@ -714,8 +740,65 @@ namespace FACM.League
             var puuid = _lastRemotePlayerPuuid;
             var name = _lastRemotePlayerName;
             _playerMenu.Close();
-            using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile, puuid, name))
+            using (var dialog = new LeagueRemotePlayerHistoryForm(_service, _ui, _profile, puuid, name,
+                _currentSession, _replay))
                 dialog.ShowDialog(this);
+        }
+
+        private LeaguePlayerMatchSummary SelectedReplayMatch()
+        {
+            if (_matchesList.SelectedIndices.Count != 1) return null;
+            var index = _matchesList.SelectedIndices[0];
+            return index >= 0 && index < _rows.Count ? _rows[index] : null;
+        }
+
+        private bool SessionMatches(LeagueClientSession expected)
+        {
+            var current = _currentSession == null ? null : _currentSession();
+            return LeagueEncounterReplayService.SessionMatches(expected, current);
+        }
+
+        private void UpdateReplayButton()
+        {
+            if (_replayButton == null || IsDisposed) return;
+            var selected = SelectedReplayMatch();
+            _replayButton.Enabled = !_loading && !_replayRunning && _replay != null &&
+                LeagueEncounterReplayService.CanOfferHistoryReplay(_pageSession,
+                    _currentSession == null ? null : _currentSession(),
+                    _profile == null ? null : _profile.PuuId, selected);
+        }
+
+        private async Task ReplaySelectedAsync()
+        {
+            var match = SelectedReplayMatch();
+            var owner = _profile == null ? null : _profile.PuuId;
+            var session = _pageSession;
+            if (match == null || _replay == null || _loading || _replayRunning ||
+                !SessionMatches(session) || string.IsNullOrWhiteSpace(owner)) return;
+            _replayRunning = true;
+            UpdateReplayButton();
+            _statusLabel.Text = LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+            try
+            {
+                var result = await _replay(session, owner, owner, match, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested ||
+                    !string.Equals(_profile == null ? null : _profile.PuuId, owner, StringComparison.Ordinal) ||
+                    !ReferenceEquals(match, SelectedReplayMatch())) return;
+                _statusLabel.Text = LeagueEncounterMatchScoreboardDialog.ReplayStatusText(result,
+                    key => LeagueEfficiencyText.Get(_ui, key));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            }
+            finally
+            {
+                _replayRunning = false;
+                if (!IsDisposed) UpdateReplayButton();
+            }
         }
 
         private void ResetFilterChoices()
@@ -850,6 +933,7 @@ namespace FACM.League
             }
             _matchesList.VirtualListSize = _rows.Count;
             _matchesList.Invalidate();
+            UpdateReplayButton();
             var visiblePage = new LeaguePlayerMatchPage();
             visiblePage.Matches.AddRange(_rows);
             ApplyChampionStats(visiblePage);
@@ -955,6 +1039,7 @@ namespace FACM.League
             if (IsDisposed) return;
             _refreshButton.Enabled = !loading;
             _loadMoreButton.Enabled = !loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
+            UpdateReplayButton();
             UpdateEmptyState();
         }
 
@@ -1023,6 +1108,7 @@ namespace FACM.League
             _closeButton.Location = new Point(Math.Max(24, width - 24 - _closeButton.Width), toolbarTop);
             _loadMoreButton.Location = new Point(_closeButton.Left - 8 - _loadMoreButton.Width, toolbarTop);
             _refreshButton.Location = new Point(_loadMoreButton.Left - 8 - _refreshButton.Width, toolbarTop);
+            _replayButton.Location = new Point(matchesBounds.Left, toolbarTop);
 
             var available = Math.Max(320, _championStatsList.ClientSize.Width - 10);
             var championWidth = Math.Max(135, available * 44 / 100);

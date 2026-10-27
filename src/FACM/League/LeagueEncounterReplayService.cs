@@ -42,11 +42,49 @@ namespace FACM.League
             _session = session ?? throw new ArgumentNullException(nameof(session));
         }
 
-        internal async Task<LeagueEncounterReplayResult> ExecuteAsync(
+        // Player history is transient, not necessarily part of the saved encounter index.
+        // Preserve its original session and copy only the metadata required for the write.
+        internal Task<LeagueEncounterReplayResult> ExecuteForHistoryAsync(
+            LeagueClientSession expected, string selfPuuid, string targetPuuid,
+            LeaguePlayerMatchSummary selected, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var current = _session();
+            if (!SessionMatches(expected, current))
+                return Task.FromResult(Result(LeagueEncounterReplayStatus.NoClient));
+            if (!CanOfferHistoryReplay(expected, current, selfPuuid, selected) ||
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid))
+                return Task.FromResult(Result(LeagueEncounterReplayStatus.Unavailable));
+            var match = new LeaguePlayerMatchSummary
+            {
+                GameId = selected.GameId,
+                GameType = selected.GameType,
+                QueueId = selected.QueueId,
+                GameDurationSeconds = selected.GameDurationSeconds,
+                GameCreationEpochMs = selected.GameCreationEpochMs
+            };
+            var record = new LeagueEncounterRecord
+            {
+                GameId = match.GameId, SelfPuuid = selfPuuid, Puuid = targetPuuid,
+                Region = expected.Region, PlatformId = expected.PlatformId
+            };
+            return ExecuteCoreAsync(record, match, expected, token);
+        }
+
+        internal Task<LeagueEncounterReplayResult> ExecuteAsync(
             LeagueEncounterRecord record, LeaguePlayerMatchSummary match, CancellationToken token)
+        {
+            return ExecuteCoreAsync(record, match, null, token);
+        }
+
+        private async Task<LeagueEncounterReplayResult> ExecuteCoreAsync(
+            LeagueEncounterRecord record, LeaguePlayerMatchSummary match,
+            LeagueClientSession expected, CancellationToken token)
         {
             var initial = _session();
             if (initial == null) return Result(LeagueEncounterReplayStatus.NoClient);
+            if (expected != null && !SessionMatches(expected, initial))
+                return Result(LeagueEncounterReplayStatus.NoClient);
             if (record == null || match == null || record.GameId <= 0 || match.GameId != record.GameId ||
                 !LeagueDynamicMessageService.SafePuuid(record.SelfPuuid) ||
                 !LeagueDynamicMessageService.SafePuuid(record.Puuid))
@@ -59,9 +97,6 @@ namespace FACM.League
                 deadline.CancelAfter(TimeSpan.FromSeconds(10));
                 try
                 {
-                    var owner = await VerifyOwnerAsync(initial, record, deadline.Token).ConfigureAwait(false);
-                    if (owner != LeagueEncounterReplayStatus.Checking) return Result(owner);
-
                     var configuration = Parse(await _read.TryGetBytesAsync(ConfigurationPath, deadline.Token)
                         .ConfigureAwait(false));
                     if (!IsCurrent(initial)) return Result(LeagueEncounterReplayStatus.NoClient);
@@ -75,6 +110,8 @@ namespace FACM.League
                     if (match.QueueId <= 0 || match.GameDurationSeconds <= 0 ||
                         match.GameCreationEpochMs <= 0 || string.IsNullOrWhiteSpace(match.GameType))
                         return Result(LeagueEncounterReplayStatus.Unavailable);
+                    var owner = await VerifyOwnerAsync(initial, record, deadline.Token).ConfigureAwait(false);
+                    if (owner != LeagueEncounterReplayStatus.Checking) return Result(owner);
                     var created = await _write.TryCreateMetadataAsync(initial, match, version, deadline.Token)
                         .ConfigureAwait(false);
                     if (!IsCurrent(initial)) return Result(LeagueEncounterReplayStatus.NoClient);
@@ -142,9 +179,21 @@ namespace FACM.League
 
         private bool IsCurrent(LeagueClientSession initial)
         {
-            var current = _session();
-            return initial.Matches(current) && Same(initial.Region, current.Region) &&
-                Same(initial.PlatformId, current.PlatformId);
+            return SessionMatches(initial, _session());
+        }
+
+        internal static bool SessionMatches(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return expected != null && expected.Matches(current) &&
+                Same(expected.Region, current.Region) && Same(expected.PlatformId, current.PlatformId);
+        }
+
+        internal static bool CanOfferHistoryReplay(LeagueClientSession expected,
+            LeagueClientSession current, string selfPuuid, LeaguePlayerMatchSummary match)
+        {
+            return SessionMatches(expected, current) &&
+                LeagueDynamicMessageService.SafePuuid(selfPuuid) &&
+                match != null && match.GameId > 0;
         }
 
         private Dictionary<string, object> Parse(byte[] bytes)
