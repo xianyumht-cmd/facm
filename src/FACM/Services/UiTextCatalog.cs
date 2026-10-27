@@ -418,6 +418,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerCollectSummary, "收集结果 {0} 场 · 扫描 {1} 场 / {2} 轮"),
             Pair(UiTextKeys.LeaguePlayerCollectStopped, " · 已停止"),
             Pair(UiTextKeys.LeaguePlayerCollectUnavailable, " · 读取中断，可重新收集"),
+            Pair(UiTextKeys.LeaguePlayerCollectBackToPage, "返回分页"),
             Pair(UiTextKeys.LeaguePlayerRemoteHistoryTitle, "玩家资料与近期战绩"),
             Pair(UiTextKeys.LeaguePlayerRemoteNoMatches, "暂无可读取的近期战绩"),
             Pair(UiTextKeys.LeaguePlayerRemoteRecentCount, "最近读取 {0} 场 · 当前客户端数据"),

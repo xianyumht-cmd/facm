@@ -320,13 +320,24 @@ namespace FACM.League
             }
         }
 
-        internal async Task<LeagueMatchCollectionResult> CollectMatchesAsync(
+        internal Task<LeagueMatchCollectionResult> CollectMatchesAsync(
             LeaguePlayerProfile profile, LeagueMatchCollectionSettings settings,
             LeagueSimpleMatchHistoryFilter simpleFilter, LeagueAdvancedMatchHistoryFilter advancedFilter,
             IProgress<LeagueMatchCollectionProgress> progress, CancellationToken cancellationToken)
         {
+            return CollectMatchesAsync(profile, profile, settings, simpleFilter, advancedFilter,
+                progress, cancellationToken);
+        }
+
+        internal async Task<LeagueMatchCollectionResult> CollectMatchesAsync(
+            LeaguePlayerProfile expectedSelf, LeaguePlayerProfile target,
+            LeagueMatchCollectionSettings settings,
+            LeagueSimpleMatchHistoryFilter simpleFilter, LeagueAdvancedMatchHistoryFilter advancedFilter,
+            IProgress<LeagueMatchCollectionProgress> progress, CancellationToken cancellationToken)
+        {
             var result = new LeagueMatchCollectionResult();
-            if (profile == null || !IsSafePuuid(profile.PuuId) || settings == null || !settings.IsValid)
+            if (expectedSelf == null || !IsSafePuuid(expectedSelf.PuuId) ||
+                target == null || !IsSafePuuid(target.PuuId) || settings == null || !settings.IsValid)
             {
                 result.Status = LeagueMatchCollectionStatus.Unavailable;
                 return result;
@@ -356,7 +367,7 @@ namespace FACM.League
                         {
                             var before = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                            if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            if (before == null || !string.Equals(before.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
                             {
                                 result.Status = LeagueMatchCollectionStatus.AccountChanged;
                                 result.Page.Matches.Clear();
@@ -364,11 +375,11 @@ namespace FACM.League
                             }
 
                             var startIndex = iteration * settings.CountPerIteration;
-                            var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(profile.PuuId) +
+                            var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(target.PuuId) +
                                 "/matches?begIndex=" + startIndex +
                                 "&endIndex=" + (startIndex + settings.CountPerIteration - 1);
                             var page = ParseMatchPage(await _client.TryGetBytesAsync(path, timeout.Token)
-                                .ConfigureAwait(false), profile, startIndex, settings.CountPerIteration);
+                                .ConfigureAwait(false), target, startIndex, settings.CountPerIteration);
                             if (page == null)
                             {
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
@@ -377,7 +388,7 @@ namespace FACM.League
 
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                            if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal))
+                            if (after == null || !string.Equals(after.PuuId, expectedSelf.PuuId, StringComparison.Ordinal))
                             {
                                 result.Status = LeagueMatchCollectionStatus.AccountChanged;
                                 result.Page.Matches.Clear();

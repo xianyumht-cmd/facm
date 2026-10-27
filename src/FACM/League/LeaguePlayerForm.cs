@@ -711,27 +711,28 @@ namespace FACM.League
                 (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
         }
 
-        private LeagueMatchCollectionSettings ShowCollectionSettings()
+        internal static LeagueMatchCollectionSettings ShowCollectionSettings(
+            IWin32Window owner, UiTextCatalog ui, Font font, LeagueMatchCollectionSettings previous)
         {
             using (var dialog = new Form
             {
-                Text = _ui.Get(UiTextKeys.LeaguePlayerCollectTitle),
+                Text = ui.Get(UiTextKeys.LeaguePlayerCollectTitle),
                 ClientSize = new Size(438, 242), FormBorderStyle = FormBorderStyle.FixedDialog,
                 MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false,
                 StartPosition = FormStartPosition.CenterParent,
-                Font = Font, BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
+                Font = font, BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
             })
             {
                 var settings = new[]
                 {
-                    new { Key = UiTextKeys.LeaguePlayerCollectBatch, Value = _collectionSettings.CountPerIteration, Maximum = 200 },
-                    new { Key = UiTextKeys.LeaguePlayerCollectExpected, Value = _collectionSettings.ExpectedCount, Maximum = 1000 },
-                    new { Key = UiTextKeys.LeaguePlayerCollectIterations, Value = _collectionSettings.MaxIterations, Maximum = 100 }
+                    new { Key = UiTextKeys.LeaguePlayerCollectBatch, Value = previous.CountPerIteration, Maximum = 200 },
+                    new { Key = UiTextKeys.LeaguePlayerCollectExpected, Value = previous.ExpectedCount, Maximum = 1000 },
+                    new { Key = UiTextKeys.LeaguePlayerCollectIterations, Value = previous.MaxIterations, Maximum = 100 }
                 };
                 var values = new List<NumericUpDown>();
                 var hint = new Label
                 {
-                    Text = _ui.Get(UiTextKeys.LeaguePlayerCollectHint),
+                    Text = ui.Get(UiTextKeys.LeaguePlayerCollectHint),
                     Bounds = new Rectangle(18, 14, 400, 36), AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.TextMuted
                 };
@@ -741,7 +742,7 @@ namespace FACM.League
                     var y = 58 + index * 42;
                     dialog.Controls.Add(new Label
                     {
-                        Text = _ui.Get(settings[index].Key),
+                        Text = ui.Get(settings[index].Key),
                         Bounds = new Rectangle(18, y + 4, 260, 25),
                         ForeColor = FacmDesignSystem.Text
                     });
@@ -756,14 +757,14 @@ namespace FACM.League
                 }
                 var start = new Button
                 {
-                    Text = _ui.Get(UiTextKeys.LeaguePlayerCollectStart),
+                    Text = ui.Get(UiTextKeys.LeaguePlayerCollectStart),
                     DialogResult = DialogResult.OK, Bounds = new Rectangle(220, 200, 92, 30),
                     FlatStyle = FlatStyle.Flat, BackColor = FacmDesignSystem.Accent,
                     ForeColor = FacmDesignSystem.Canvas
                 };
                 var cancel = new Button
                 {
-                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
+                    Text = ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
                     DialogResult = DialogResult.Cancel, Bounds = new Rectangle(322, 200, 92, 30),
                     FlatStyle = FlatStyle.Flat, BackColor = FacmDesignSystem.SurfaceRaised,
                     ForeColor = FacmDesignSystem.Text
@@ -773,7 +774,7 @@ namespace FACM.League
                 dialog.Controls.Add(cancel);
                 dialog.AcceptButton = start;
                 dialog.CancelButton = cancel;
-                if (dialog.ShowDialog(this) != DialogResult.OK) return null;
+                if (dialog.ShowDialog(owner) != DialogResult.OK) return null;
                 return new LeagueMatchCollectionSettings
                 {
                     CountPerIteration = (int)values[0].Value,
@@ -787,7 +788,7 @@ namespace FACM.League
         {
             if (_loading || _profile == null || !HasCollectionFilter() ||
                 _collectionCancellation != null || _lifetime.IsCancellationRequested) return;
-            var settings = ShowCollectionSettings();
+            var settings = ShowCollectionSettings(this, _ui, Font, _collectionSettings);
             if (settings == null || !settings.IsValid || IsDisposed) return;
             _collectionSettings = settings;
             var profile = _profile;

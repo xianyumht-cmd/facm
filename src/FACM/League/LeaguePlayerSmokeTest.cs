@@ -167,6 +167,36 @@ namespace FACM.League
                     unavailable.Page.Matches.Count == 1 && unavailable.Page.Matches[0].GameId == 101,
                 "A failed later read must preserve completed matching pages and report partial availability.");
 
+            var target = new LeaguePlayerProfile { PuuId = "target" };
+            var remotePages = new Dictionary<int, string>
+            {
+                { 0, CollectionHistory(CollectionGame(201, 22, "target"), CollectionGame(202, 99, "target")) },
+                { 2, CollectionHistory(CollectionGame(202, 99, "target"), CollectionGame(203, 99, "target")) }
+            };
+            var remoteApi = new CollectionFixtureApi(remotePages, "target");
+            var remoteService = new LeaguePlayerDataService(remoteApi, new PerformanceBudgetProvider());
+            var remote = remoteService.CollectMatchesAsync(profile, target, settings, filter, null,
+                null, CancellationToken.None).GetAwaiter().GetResult();
+            Require(remote.Status == LeagueMatchCollectionStatus.Completed &&
+                    remote.Page.Matches.Select(m => m.GameId).SequenceEqual(new long[] { 202, 203 }) &&
+                    remote.Page.Matches.All(m => m.ParticipantResolved && m.PuuId == "target") &&
+                    remoteApi.Paths.All(p => !p.Contains("/lol-match-history/") || p.Contains("/lol/target/matches?")) &&
+                    remoteService.TryGetCachedPage() == null && remoteService.TryGetCachedProfile() == null,
+                "Remote collection must apply predicates to the authenticated target, retaining separate self fences and caches.");
+            var remoteChangedApi = new CollectionFixtureApi(remotePages, "target") { SwitchAccountAtRead = 2 };
+            var remoteChanged = new LeaguePlayerDataService(remoteChangedApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, target, settings, filter, null, null, CancellationToken.None)
+                .GetAwaiter().GetResult();
+            Require(remoteChanged.Status == LeagueMatchCollectionStatus.AccountChanged &&
+                    remoteChanged.Page.Matches.Count == 0 && remoteChangedApi.ProfileReads == 2,
+                "A self-account switch while collecting another player's games must publish no target records.");
+            var invalidTargetApi = new CollectionFixtureApi(remotePages, "target");
+            var invalidTarget = new LeaguePlayerDataService(invalidTargetApi, new PerformanceBudgetProvider())
+                .CollectMatchesAsync(profile, new LeaguePlayerProfile { PuuId = "target/unsafe" },
+                    settings, filter, null, null, CancellationToken.None).GetAwaiter().GetResult();
+            Require(invalidTarget.Status == LeagueMatchCollectionStatus.Unavailable && invalidTargetApi.Paths.Count == 0,
+                "Unsafe remote target identifiers must not enter an authenticated match-history path.");
+
             var invalidApi = new CollectionFixtureApi(pages);
             var invalid = new LeaguePlayerDataService(invalidApi, new PerformanceBudgetProvider())
                 .CollectMatchesAsync(profile, new LeagueMatchCollectionSettings { CountPerIteration = 201 },
@@ -177,10 +207,10 @@ namespace FACM.League
                 "Collection limits must reject over-budget requests before any LCU call.");
         }
 
-        private static string CollectionGame(long id, int champion)
+        private static string CollectionGame(long id, int champion, string puuid = "self")
         {
             return "{\"gameId\":" + id + ",\"gameMode\":\"ARAM\",\"queueId\":450," +
-                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"self\"}}]," +
+                "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"" + puuid + "\"}}]," +
                 "\"participants\":[{\"participantId\":1,\"championId\":" + champion +
                 ",\"stats\":{\"win\":true,\"kills\":3,\"deaths\":1,\"assists\":8}}]}";
         }
@@ -1267,11 +1297,16 @@ namespace FACM.League
         private sealed class CollectionFixtureApi : ILeagueClientApi
         {
             private readonly Dictionary<int, string> _pages;
+            private readonly string _targetPuuid;
             internal readonly List<string> Paths = new List<string>();
             internal int ProfileReads;
             internal int SwitchAccountAtRead = int.MaxValue;
 
-            internal CollectionFixtureApi(Dictionary<int, string> pages) { _pages = pages; }
+            internal CollectionFixtureApi(Dictionary<int, string> pages, string targetPuuid = "self")
+            {
+                _pages = pages;
+                _targetPuuid = targetPuuid;
+            }
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
@@ -1282,7 +1317,7 @@ namespace FACM.League
                     var account = ++ProfileReads >= SwitchAccountAtRead ? "other" : "self";
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + account + "\"}"));
                 }
-                const string prefix = "/lol-match-history/v1/products/lol/self/matches?begIndex=";
+                var prefix = "/lol-match-history/v1/products/lol/" + _targetPuuid + "/matches?begIndex=";
                 if (path != null && path.StartsWith(prefix, StringComparison.Ordinal))
                 {
                     var value = path.Substring(prefix.Length).Split('&')[0];

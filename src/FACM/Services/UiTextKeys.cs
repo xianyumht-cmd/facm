@@ -412,6 +412,7 @@ namespace FACM.Services
         public const string LeaguePlayerCollectSummary = "LeaguePlayerCollectSummary";
         public const string LeaguePlayerCollectStopped = "LeaguePlayerCollectStopped";
         public const string LeaguePlayerCollectUnavailable = "LeaguePlayerCollectUnavailable";
+        public const string LeaguePlayerCollectBackToPage = "LeaguePlayerCollectBackToPage";
         public const string LeaguePlayerRemoteHistoryTitle = "LeaguePlayerRemoteHistoryTitle";
         public const string LeaguePlayerRemoteNoMatches = "LeaguePlayerRemoteNoMatches";
         public const string LeaguePlayerRemoteRecentCount = "LeaguePlayerRemoteRecentCount";

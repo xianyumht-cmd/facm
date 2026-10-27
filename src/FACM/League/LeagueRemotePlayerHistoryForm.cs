@@ -23,6 +23,10 @@ namespace FACM.League
         private readonly Label _statusLabel;
         private readonly ListView _matches;
         private readonly Button _replayButton;
+        private readonly ComboBox _winFilter;
+        private readonly Button _advancedFilterButton;
+        private readonly Button _collectButton;
+        private readonly Button _stopCollectButton;
         private readonly ComboBox _pageSize;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
@@ -37,6 +41,12 @@ namespace FACM.League
         private bool _loaded;
         private bool _replayRunning;
         private LeagueClientSession _pageSession;
+        private LeaguePlayerProfile _targetProfile;
+        private LeaguePlayerMatchPage _activePage;
+        private LeagueAdvancedMatchHistoryFilter _advancedFilter;
+        private LeagueMatchCollectionResult _collectionResult;
+        private LeagueMatchCollectionSettings _collectionSettings = new LeagueMatchCollectionSettings();
+        private CancellationTokenSource _collectionCancellation;
 
         internal LeagueRemotePlayerHistoryForm(LeaguePlayerDataService service, UiTextCatalog ui,
             LeaguePlayerProfile current, string targetPuuid, string targetName,
@@ -91,6 +101,49 @@ namespace FACM.League
             _replayButton.Enabled = false;
             _replayButton.Click += async (sender, args) => await ReplaySelectedAsync();
 
+            var filterRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas, Padding = Padding.Empty
+            };
+            _winFilter = new ComboBox
+            {
+                Width = 100, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterWinLoss)
+            };
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerFilterAll));
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerWin));
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerLoss));
+            _winFilter.SelectedIndex = 0;
+            _winFilter.SelectedIndexChanged += (sender, args) =>
+            {
+                RenderRows();
+                UpdatePageButtons();
+            };
+            _advancedFilterButton = PageButton(UiTextKeys.LeaguePlayerAdvancedFilter, 154);
+            _advancedFilterButton.Click += (sender, args) => EditAdvancedFilter();
+            _collectButton = PageButton(UiTextKeys.LeaguePlayerCollectAction, 122);
+            _collectButton.Click += async (sender, args) => await StartCollectionAsync();
+            _stopCollectButton = PageButton(UiTextKeys.LeaguePlayerCollectStop, 64);
+            _stopCollectButton.Enabled = false;
+            _stopCollectButton.Click += (sender, args) =>
+            {
+                if (_collectionCancellation == null) return;
+                _collectionCancellation.Cancel();
+                _stopCollectButton.Enabled = false;
+                _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerCollectStopping);
+            };
+            filterRow.Controls.Add(new Label
+            {
+                Text = _ui.Get(UiTextKeys.LeaguePlayerFilterWinLoss), Width = 40, Height = 27,
+                ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft
+            });
+            filterRow.Controls.Add(_winFilter);
+            filterRow.Controls.Add(_advancedFilterButton);
+            filterRow.Controls.Add(_collectButton);
+            filterRow.Controls.Add(_stopCollectButton);
+
             var footer = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
@@ -144,11 +197,12 @@ namespace FACM.League
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(20, 14, 20, 20),
-                ColumnCount = 1, RowCount = 4, BackColor = FacmDesignSystem.Canvas
+                ColumnCount = 1, RowCount = 5, BackColor = FacmDesignSystem.Canvas
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42F));
             var heading = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
@@ -158,13 +212,18 @@ namespace FACM.League
             heading.Controls.Add(_replayButton, 1, 0);
             layout.Controls.Add(heading, 0, 0);
             layout.Controls.Add(_statusLabel, 0, 1);
-            layout.Controls.Add(_matches, 0, 2);
-            layout.Controls.Add(footer, 0, 3);
+            layout.Controls.Add(filterRow, 0, 2);
+            layout.Controls.Add(_matches, 0, 3);
+            layout.Controls.Add(footer, 0, 4);
             Controls.Add(layout);
 
             UpdatePageButtons();
             Shown += async (sender, args) => { FitMatchColumns(); await LoadPageAsync(0, _count); };
-            FormClosing += (sender, args) => _lifetime.Cancel();
+            FormClosing += (sender, args) =>
+            {
+                if (_collectionCancellation != null) _collectionCancellation.Cancel();
+                _lifetime.Cancel();
+            };
             Disposed += (sender, args) => _lifetime.Dispose();
         }
 
@@ -216,18 +275,169 @@ namespace FACM.League
         private void UpdatePageButtons()
         {
             if (IsDisposed) return;
-            _pageSize.Enabled = _loaded && !_loading;
-            _previousPage.Enabled = _loaded && !_loading && _startIndex > 0;
-            _nextPage.Enabled = _loaded && !_loading && _hasMore &&
+            var regularPage = _collectionResult == null;
+            _pageSize.Enabled = _loaded && !_loading && regularPage;
+            _previousPage.Enabled = _loaded && !_loading && regularPage && _startIndex > 0;
+            _nextPage.Enabled = _loaded && !_loading && regularPage && _hasMore &&
                 _startIndex <= int.MaxValue - 2 * _count;
-            _goToPage.Enabled = _loaded && !_loading;
-            _pageNumber.Enabled = _loaded && !_loading;
+            _goToPage.Enabled = _loaded && !_loading && regularPage;
+            _pageNumber.Enabled = _loaded && !_loading && regularPage;
             _retryPage.Enabled = !_loading;
+            _retryPage.Text = _ui.Get(regularPage ? UiTextKeys.LeaguePlayerRemoteRetry :
+                UiTextKeys.LeaguePlayerCollectBackToPage);
+            _retryPage.Width = regularPage ? 52 : 80;
             var number = _startIndex / _count + 1;
-            _currentPage.Text = _ui.Get(UiTextKeys.LeaguePlayerRemotePageLabel)
-                .Replace("{0}", number.ToString());
+            _currentPage.Text = regularPage
+                ? _ui.Get(UiTextKeys.LeaguePlayerRemotePageLabel).Replace("{0}", number.ToString())
+                : _ui.Get(UiTextKeys.LeaguePlayerCollectTitle);
             if (number <= _pageNumber.Maximum) _pageNumber.Value = number;
+            _winFilter.Enabled = _loaded && !_loading;
+            _advancedFilterButton.Enabled = _loaded && !_loading;
+            _collectButton.Enabled = _loaded && !_loading && !_replayRunning &&
+                _targetProfile != null && HasCollectionFilter() && SessionMatches(_pageSession);
+            _stopCollectButton.Enabled = _collectionCancellation != null &&
+                !_collectionCancellation.IsCancellationRequested;
             UpdateReplayButton();
+        }
+
+        private bool HasCollectionFilter()
+        {
+            return _winFilter.SelectedIndex > 0 ||
+                (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
+        }
+
+        private void EditAdvancedFilter()
+        {
+            if (_loading || !_loaded) return;
+            var expectedSession = _pageSession;
+            using (var dialog = new LeagueAdvancedMatchHistoryForm(_advancedFilter))
+            {
+                if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession)) return;
+                _advancedFilter = dialog.Result;
+            }
+            _advancedFilterButton.Text = _ui.Get(_advancedFilter == null
+                ? UiTextKeys.LeaguePlayerAdvancedFilter : UiTextKeys.LeaguePlayerAdvancedActive);
+            RenderRows();
+            UpdatePageButtons();
+        }
+
+        private void RenderRows()
+        {
+            if (_matches == null || IsDisposed || _activePage == null) return;
+            var filtered = LeagueSimpleMatchHistoryFilter.Apply(_activePage.Matches,
+                new LeagueSimpleMatchHistoryFilter
+                {
+                    WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
+                }, DateTime.UtcNow);
+            filtered = LeagueAdvancedMatchHistoryFilter.Apply(filtered, _advancedFilter);
+            _matches.BeginUpdate();
+            try
+            {
+                _matches.Items.Clear();
+                foreach (var match in filtered)
+                {
+                    if (match == null) continue;
+                    var when = match.GameCreationLocal == DateTime.MinValue
+                        ? "—" : match.GameCreationLocal.ToString("MM-dd HH:mm");
+                    var champion = match.ChampionId > 0
+                        ? (string.IsNullOrWhiteSpace(match.ChampionName) ? "#" + match.ChampionId : match.ChampionName) : "—";
+                    var kda = match.ParticipantResolved && match.StatisticsAvailable
+                        ? match.Kills + "/" + match.Deaths + "/" + match.Assists : "—";
+                    var outcome = match.ParticipantResolved && match.StatisticsAvailable
+                        ? _ui.Get(match.Win ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss) : "—";
+                    var row = new ListViewItem(when);
+                    row.SubItems.Add(string.IsNullOrWhiteSpace(match.GameMode) ? "—" : match.GameMode);
+                    row.SubItems.Add(champion);
+                    row.SubItems.Add(kda);
+                    row.SubItems.Add(outcome);
+                    row.Tag = match;
+                    _matches.Items.Add(row);
+                }
+            }
+            finally { _matches.EndUpdate(); }
+            if (_collectionResult != null)
+            {
+                var note = _collectionResult.Status == LeagueMatchCollectionStatus.Stopped
+                    ? _ui.Get(UiTextKeys.LeaguePlayerCollectStopped)
+                    : _collectionResult.Status == LeagueMatchCollectionStatus.Unavailable
+                        ? _ui.Get(UiTextKeys.LeaguePlayerCollectUnavailable) : string.Empty;
+                _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerCollectSummary)
+                    .Replace("{0}", _matches.Items.Count.ToString())
+                    .Replace("{1}", _collectionResult.ScannedCount.ToString())
+                    .Replace("{2}", _collectionResult.Iterations.ToString()) + note;
+            }
+            else if (HasCollectionFilter())
+                _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerFilteredCount)
+                    .Replace("{0}", _matches.Items.Count.ToString())
+                    .Replace("{1}", _activePage.Matches.Count.ToString());
+            else
+                _statusLabel.Text = _matches.Items.Count == 0
+                    ? _ui.Get(UiTextKeys.LeaguePlayerRemoteNoMatches)
+                    : _ui.Get(UiTextKeys.LeaguePlayerRemoteRecentCount)
+                        .Replace("{0}", _matches.Items.Count.ToString());
+            UpdateReplayButton();
+        }
+
+        private async Task StartCollectionAsync()
+        {
+            if (_loading || _replayRunning || !_loaded || _collectionCancellation != null ||
+                _targetProfile == null || !HasCollectionFilter() || !SessionMatches(_pageSession) ||
+                _lifetime.IsCancellationRequested) return;
+            var settings = LeaguePlayerForm.ShowCollectionSettings(this, _ui, Font, _collectionSettings);
+            if (settings == null || !settings.IsValid || IsDisposed) return;
+            _collectionSettings = settings;
+            var session = _pageSession;
+            var target = _targetProfile;
+            var simple = new LeagueSimpleMatchHistoryFilter
+            {
+                WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
+            };
+            var advanced = _advancedFilter;
+            var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _collectionCancellation = cancellation;
+            _loading = true;
+            UpdatePageButtons();
+            _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerCollectProgress)
+                .Replace("{0}", "0").Replace("{1}", "0").Replace("{2}", "0");
+            var progress = new Progress<LeagueMatchCollectionProgress>(current =>
+            {
+                if (IsDisposed || _collectionCancellation != cancellation || cancellation.IsCancellationRequested) return;
+                _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerCollectProgress)
+                    .Replace("{0}", current.CollectedCount.ToString())
+                    .Replace("{1}", current.ScannedCount.ToString())
+                    .Replace("{2}", current.Iterations.ToString());
+            });
+            try
+            {
+                var result = await _service.CollectMatchesAsync(_expected, target, settings,
+                    simple, advanced, progress, cancellation.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (!SessionMatches(session) || result.Status == LeagueMatchCollectionStatus.AccountChanged ||
+                    !string.Equals(target.PuuId, _targetProfile == null ? null : _targetProfile.PuuId,
+                        StringComparison.Ordinal))
+                {
+                    _loaded = false;
+                    _targetProfile = null;
+                    _activePage = null;
+                    _collectionResult = null;
+                    _pageSession = null;
+                    _matches.Items.Clear();
+                    _playerLabel.Text = string.Empty;
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
+                    return;
+                }
+                _activePage = result.Page;
+                _collectionResult = result;
+                RenderRows();
+            }
+            catch (OperationCanceledException) { }
+            finally
+            {
+                _collectionCancellation = null;
+                cancellation.Dispose();
+                _loading = false;
+                if (!IsDisposed) UpdatePageButtons();
+            }
         }
 
         private LeaguePlayerMatchSummary SelectedReplayMatch()
@@ -258,7 +468,7 @@ namespace FACM.League
             if (match == null || !_loaded || _loading || _replayRunning || _replay == null ||
                 !SessionMatches(expectedSession)) return;
             _replayRunning = true;
-            UpdateReplayButton();
+            UpdatePageButtons();
             _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
             try
@@ -279,7 +489,7 @@ namespace FACM.League
             finally
             {
                 _replayRunning = false;
-                if (!IsDisposed) UpdateReplayButton();
+                if (!IsDisposed) UpdatePageButtons();
             }
         }
 
@@ -302,6 +512,9 @@ namespace FACM.League
                     {
                         _loaded = false;
                         _hasMore = false;
+                        _targetProfile = null;
+                        _activePage = null;
+                        _collectionResult = null;
                         _playerLabel.Text = string.Empty;
                         _matches.Items.Clear();
                     }
@@ -320,40 +533,15 @@ namespace FACM.League
                 }
 
                 var page = result.Page;
-                _matches.BeginUpdate();
-                try
-                {
-                    _matches.Items.Clear();
-                    foreach (var match in page.Matches)
-                    {
-                        if (match == null) continue;
-                        var when = match.GameCreationLocal == DateTime.MinValue
-                            ? "—" : match.GameCreationLocal.ToString("MM-dd HH:mm");
-                        var champion = match.ChampionId > 0
-                            ? (string.IsNullOrWhiteSpace(match.ChampionName) ? "#" + match.ChampionId : match.ChampionName) : "—";
-                        var kda = match.ParticipantResolved && match.StatisticsAvailable
-                            ? match.Kills + "/" + match.Deaths + "/" + match.Assists : "—";
-                        var outcome = match.ParticipantResolved && match.StatisticsAvailable
-                            ? _ui.Get(match.Win ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss) : "—";
-                        var row = new ListViewItem(when);
-                        row.SubItems.Add(string.IsNullOrWhiteSpace(match.GameMode) ? "—" : match.GameMode);
-                        row.SubItems.Add(champion);
-                        row.SubItems.Add(kda);
-                        row.SubItems.Add(outcome);
-                        row.Tag = match;
-                        _matches.Items.Add(row);
-                    }
-                }
-                finally { _matches.EndUpdate(); }
+                _targetProfile = profile;
+                _activePage = page;
+                _collectionResult = null;
                 _startIndex = startIndex;
                 _count = count;
                 _hasMore = page.HasMore;
                 _loaded = true;
                 _pageSession = SessionMatches(expectedSession) ? expectedSession : null;
-                _statusLabel.Text = _matches.Items.Count == 0
-                    ? _ui.Get(UiTextKeys.LeaguePlayerRemoteNoMatches)
-                    : _ui.Get(UiTextKeys.LeaguePlayerRemoteRecentCount)
-                        .Replace("{0}", _matches.Items.Count.ToString());
+                RenderRows();
             }
             catch (OperationCanceledException) { }
             catch (Exception)
