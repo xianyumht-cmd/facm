@@ -685,8 +685,16 @@ namespace FACM.League
                 KillParticipation = TeamShare(game, participant, "kills", true),
                 DamageGoldEfficiency = Ratio(Metric(stats, "totalDamageDealtToChampions"), Metric(stats, "goldEarned")),
                 SameTeamPuuids = SameTeamPuuids(game, participant, participantId, profile),
+                MatchChampionIds = MatchChampionIds(game),
                 ParticipantResolved = participant != null
             };
+        }
+
+        private static int[] MatchChampionIds(Dictionary<string, object> game)
+        {
+            var ids = ReadObjects(game, "participants").Select(p => ReadInt(p, "championId"))
+                .Where(id => id > 0).Distinct().Take(21).ToArray();
+            return ids.Length > 0 && ids.Length <= 20 ? ids : null;
         }
 
         private static string[] SameTeamPuuids(Dictionary<string, object> game, Dictionary<string, object> participant,
@@ -904,6 +912,7 @@ namespace FACM.League
                     KillParticipation = match.KillParticipation,
                     DamageGoldEfficiency = match.DamageGoldEfficiency,
                     SameTeamPuuids = match.SameTeamPuuids == null ? null : (string[])match.SameTeamPuuids.Clone(),
+                    MatchChampionIds = match.MatchChampionIds == null ? null : (int[])match.MatchChampionIds.Clone(),
                     ParticipantResolved = match.ParticipantResolved
                 });
             }

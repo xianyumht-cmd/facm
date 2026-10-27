@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateProfileAndRecentMatchParsing();
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();
+            ValidateSourceSimpleFilters();
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
@@ -51,7 +52,7 @@ namespace FACM.League
         {
             var profileJson = "{\"puuid\":\"puuid-current\",\"summonerId\":9001,\"accountId\":8001,\"gameName\":\"Player\",\"tagLine\":\"CQ100\",\"displayName\":\"Player\",\"summonerLevel\":321,\"profileIconId\":12}";
             var historyJson = "{\"accountId\":8001,\"platformId\":\"CQ100\",\"games\":{\"gameCount\":42,\"gameIndexBegin\":0,\"gameIndexEnd\":1,\"games\":[" +
-                "{\"gameId\":10001,\"gameCreation\":1700000000000,\"gameDuration\":1260,\"gameMode\":\"ARAM\",\"queueId\":450,\"participantIdentities\":[{\"participantId\":3,\"player\":{\"puuid\":\"puuid-current\",\"summonerId\":9001}}],\"participants\":[{\"participantId\":3,\"championId\":145,\"stats\":{\"kills\":8,\"deaths\":4,\"assists\":12,\"totalMinionsKilled\":44,\"neutralMinionsKilled\":3,\"win\":true}}]}," +
+                "{\"gameId\":10001,\"gameCreation\":1700000000000,\"gameDuration\":1260,\"gameMode\":\"ARAM\",\"queueId\":450,\"participantIdentities\":[{\"participantId\":3,\"player\":{\"puuid\":\"puuid-current\",\"summonerId\":9001}}],\"participants\":[{\"participantId\":3,\"championId\":145,\"stats\":{\"kills\":8,\"deaths\":4,\"assists\":12,\"totalMinionsKilled\":44,\"neutralMinionsKilled\":3,\"win\":true}},{\"participantId\":4,\"championId\":99}]} ," +
                 "{\"gameId\":10002,\"gameCreation\":1700001000000,\"gameDuration\":1800,\"gameMode\":\"CLASSIC\",\"queueId\":420,\"participantIdentities\":[{\"participantId\":7,\"player\":{\"summonerId\":9001}}],\"participants\":[{\"participantId\":7,\"championId\":22,\"stats\":{\"kills\":2,\"deaths\":7,\"assists\":5,\"totalMinionsKilled\":151,\"neutralMinionsKilled\":0,\"win\":false}}]}" +
                 "]}}";
 
@@ -72,8 +73,69 @@ namespace FACM.League
             Require(first.ParticipantResolved && first.ChampionId == 145, "Current participant was not resolved by PUUID.");
             Require(first.Kills == 8 && first.Deaths == 4 && first.Assists == 12, "KDA parsing changed unexpectedly.");
             Require(first.CreepScore == 47 && first.Win, "CS/result parsing changed unexpectedly.");
+            Require(first.MatchChampionIds != null && first.MatchChampionIds.SequenceEqual(new[] { 145, 99 }),
+                "Champion filter must read all known champions from the one existing history response.");
             var second = page.Matches[1];
             Require(second.ParticipantResolved && !second.Win && second.QueueId == 420, "Summoner-ID participant fallback changed unexpectedly.");
+            Require(second.MatchChampionIds != null && second.MatchChampionIds.SequenceEqual(new[] { 22 }),
+                "Different-match champion-roster filters must stay isolated.");
+            var cached = service.TryGetCachedPage();
+            Require(cached != null && cached.Matches[0].MatchChampionIds.SequenceEqual(new[] { 145, 99 }),
+                "The Player cache must retain match-wide champion evidence.");
+            cached.Matches[0].MatchChampionIds[0] = 999;
+            Require(service.TryGetCachedPage().Matches[0].MatchChampionIds[0] == 145,
+                "Filtered match champion arrays must not mutate the shared Player cache.");
+        }
+
+        private static void ValidateSourceSimpleFilters()
+        {
+            var now = new DateTime(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc);
+            var matches = new[]
+            {
+                new LeaguePlayerMatchSummary { GameId = 1, Win = true, StatisticsAvailable = true,
+                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-2), MatchChampionIds = new[] { 22, 99 } },
+                new LeaguePlayerMatchSummary { GameId = 2, Win = false, StatisticsAvailable = true,
+                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-10), MatchChampionIds = new[] { 22 } },
+                new LeaguePlayerMatchSummary { GameId = 3, Win = true, StatisticsAvailable = true,
+                    ParticipantResolved = true, GameCreationLocal = now.AddDays(-8), MatchChampionIds = null },
+                new LeaguePlayerMatchSummary { GameId = 4, Win = false, StatisticsAvailable = false,
+                    ParticipantResolved = true, GameCreationLocal = now.AddHours(-1), MatchChampionIds = new[] { 99 } },
+                new LeaguePlayerMatchSummary { GameId = 5, Win = true, StatisticsAvailable = true,
+                    ParticipantResolved = true, GameCreationLocal = now.AddMinutes(1), MatchChampionIds = new[] { 22, 99 } }
+            };
+            var filter = new LeagueSimpleMatchHistoryFilter
+            {
+                WinLoss = LeagueMatchWinLossFilter.Win,
+                TimeRange = LeagueMatchTimeRangeFilter.Last3Hours,
+                ChampionIds = new[] { 22, 99 }
+            };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1 }),
+                "Source simple filters must intersect win, inclusive time range and all selected champion IDs.");
+            filter.WinLoss = LeagueMatchWinLossFilter.Loss;
+            filter.TimeRange = LeagueMatchTimeRangeFilter.Last12Hours;
+            filter.ChampionIds = new[] { 22 };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 2 }),
+                "Loss filters must require verified results and include only matching games.");
+            filter.WinLoss = LeagueMatchWinLossFilter.All;
+            filter.TimeRange = LeagueMatchTimeRangeFilter.All;
+            filter.ChampionIds = new[] { 99 };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1, 4, 5 }),
+                "Anyone-champion filters must match other participants without requiring own champion identity.");
+            filter.ChampionIds = null;
+            filter.TimeRange = LeagueMatchTimeRangeFilter.Last7Days;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, filter, now).Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1, 2, 4 }),
+                "Time-range filtering must exclude future games and games older than the selected range.");
+            Require(LeagueSimpleMatchHistoryFilter.Apply(matches, null, now).Count == 5,
+                "The default empty filter must not change the loaded-match list.");
+            filter.TimeRange = LeagueMatchTimeRangeFilter.Last3Hours;
+            var edge = new LeaguePlayerMatchSummary { GameId = 6, GameCreationLocal = now.AddHours(-3) };
+            Require(filter.Matches(edge, now), "Three-hour history boundary must be inclusive.");
+            edge.GameCreationLocal = DateTime.MinValue;
+            Require(!filter.Matches(edge, now), "Unknown historical timestamps cannot pass a dated filter.");
         }
 
         private static void ValidateProgressiveEnrichmentBudget()

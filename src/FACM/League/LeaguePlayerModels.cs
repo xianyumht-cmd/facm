@@ -55,6 +55,8 @@ namespace FACM.League
         public double? DamageGoldEfficiency { get; set; }
         // Available only when the match includes verified participant identities and team IDs.
         public string[] SameTeamPuuids { get; set; }
+        // Populated from the match's participant roster; null means the source supplied no reliable champion set.
+        public int[] MatchChampionIds { get; set; }
 
     }
 

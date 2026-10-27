@@ -25,10 +25,16 @@ namespace FACM.League
         private readonly FacmActionButton _closeButton;
         private readonly ListView _championStatsList;
         private readonly ListView _matchesList;
+        private readonly FlowLayoutPanel _filterPanel;
+        private readonly ComboBox _winFilter;
+        private readonly ComboBox _timeFilter;
+        private readonly ComboBox _championFilter;
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _loadMoreButton;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<LeaguePlayerMatchSummary> _rows = new List<LeaguePlayerMatchSummary>();
+        private LeaguePlayerMatchPage _loadedPage;
+        private bool _updatingChampionChoices;
         private LeaguePlayerProfile _profile;
         private bool _loading;
         private bool _hasMore;
@@ -113,6 +119,38 @@ namespace FACM.League
             _matchesList.Columns.Add(_ui.Get(UiTextKeys.LeaguePlayerDuration), 76);
             _matchesList.RetrieveVirtualItem += RetrieveVirtualItem;
 
+            _filterPanel = new FlowLayoutPanel { Dock = DockStyle.None, WrapContents = false,
+                AutoScroll = true, BackColor = FacmDesignSystem.Canvas };
+            _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterWinLoss));
+            _winFilter = FilterCombo(90);
+            _winFilter.AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterWinLoss);
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerFilterAll));
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerWin));
+            _winFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerLoss));
+            _winFilter.SelectedIndex = 0;
+            _filterPanel.Controls.Add(_winFilter);
+
+            _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterTimeRange));
+            _timeFilter = FilterCombo(114);
+            _timeFilter.AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterTimeRange);
+            foreach (var key in new[] { UiTextKeys.LeaguePlayerFilterAll, UiTextKeys.LeaguePlayerFilter3Hours,
+                UiTextKeys.LeaguePlayerFilter12Hours, UiTextKeys.LeaguePlayerFilter24Hours,
+                UiTextKeys.LeaguePlayerFilter3Days, UiTextKeys.LeaguePlayerFilter7Days,
+                UiTextKeys.LeaguePlayerFilter30Days })
+                _timeFilter.Items.Add(_ui.Get(key));
+            _timeFilter.SelectedIndex = 0;
+            _filterPanel.Controls.Add(_timeFilter);
+
+            _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterChampion));
+            _championFilter = FilterCombo(148);
+            _championFilter.AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterChampion);
+            _championFilter.Items.Add(new ChampionChoice(0, _ui.Get(UiTextKeys.LeaguePlayerFilterAll)));
+            _championFilter.SelectedIndex = 0;
+            _filterPanel.Controls.Add(_championFilter);
+            _winFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
+            _timeFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
+            _championFilter.SelectedIndexChanged += (sender, e) => ApplySimpleFilter();
+
             _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(542, 672);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -148,6 +186,7 @@ namespace FACM.League
             Controls.Add(_statsSection);
             Controls.Add(_championStatsList);
             Controls.Add(_recentSection);
+            Controls.Add(_filterPanel);
             Controls.Add(_matchesList);
             Controls.Add(_refreshButton);
             Controls.Add(_loadMoreButton);
@@ -184,6 +223,14 @@ namespace FACM.League
             _championStatsList.ForeColor = FacmDesignSystem.Text;
             _matchesList.BackColor = FacmDesignSystem.Surface;
             _matchesList.ForeColor = FacmDesignSystem.Text;
+            _filterPanel.BackColor = FacmDesignSystem.Canvas;
+            foreach (Control control in _filterPanel.Controls)
+                if (control is Label) control.ForeColor = FacmDesignSystem.TextMuted;
+            foreach (var combo in new[] { _winFilter, _timeFilter, _championFilter })
+            {
+                combo.BackColor = FacmDesignSystem.SurfaceRaised;
+                combo.ForeColor = FacmDesignSystem.Text;
+            }
             _hintLabel.ForeColor = FacmDesignSystem.TextMuted;
             _accountLabel.ForeColor = FacmDesignSystem.Text;
             _statusLabel.ForeColor = FacmDesignSystem.TextMuted;
@@ -202,6 +249,28 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(FacmThemeRuntime.Current.FontName, 11F, FontStyle.Bold)
             };
+        }
+
+        private Label FilterLabel(string key)
+        {
+            return new Label { Text = _ui.Get(key), AutoSize = true,
+                Margin = new Padding(0, 7, 6, 0), ForeColor = FacmDesignSystem.TextMuted };
+        }
+
+        private static ComboBox FilterCombo(int width)
+        {
+            return new ComboBox { Width = width, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                Margin = new Padding(0, 1, 12, 0) };
+        }
+
+        private sealed class ChampionChoice
+        {
+            internal readonly int Id;
+            private readonly string _name;
+
+            internal ChampionChoice(int id, string name) { Id = id; _name = name; }
+            public override string ToString() { return _name; }
         }
 
         private static ListView CreateListView(Rectangle bounds, bool virtualMode)
@@ -269,8 +338,10 @@ namespace FACM.League
                 if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId))
                 {
                     _profile = null;
+                    _loadedPage = null;
                     _hasMore = false;
                     _rows.Clear();
+                    UpdateChampionChoices(null);
                     _matchesList.VirtualListSize = 0;
                     _championStatsList.Items.Clear();
                     _accountLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerClientRequired);
@@ -279,6 +350,16 @@ namespace FACM.League
                     return;
                 }
 
+                if (_profile != null && !string.Equals(_profile.PuuId, profile.PuuId,
+                    StringComparison.OrdinalIgnoreCase))
+                {
+                    _loadedPage = null;
+                    _hasMore = false;
+                    _rows.Clear();
+                    UpdateChampionChoices(null);
+                    _matchesList.VirtualListSize = 0;
+                    _championStatsList.Items.Clear();
+                }
                 _profile = profile;
                 ApplyProfile(profile);
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerLoadingMatches);
@@ -363,15 +444,68 @@ namespace FACM.League
 
         private void ApplyPage(LeaguePlayerMatchPage page)
         {
-            _rows.Clear();
-            if (page != null) _rows.AddRange(page.Matches);
+            _loadedPage = page;
             _hasMore = page != null && page.HasMore;
+            UpdateChampionChoices(page);
+            ApplySimpleFilter();
+        }
+
+        private void UpdateChampionChoices(LeaguePlayerMatchPage page)
+        {
+            var current = (_championFilter.SelectedItem as ChampionChoice)?.Id ?? 0;
+            var known = new SortedDictionary<int, string>();
+            if (page != null)
+            {
+                foreach (var match in page.Matches)
+                {
+                    if (match == null) continue;
+                    if (match.MatchChampionIds != null)
+                        foreach (var id in match.MatchChampionIds)
+                            if (id > 0 && !known.ContainsKey(id)) known[id] = "#" + id;
+                    if (match.ChampionId > 0 && !string.IsNullOrWhiteSpace(match.ChampionName))
+                        known[match.ChampionId] = match.ChampionName + " (#" + match.ChampionId + ")";
+                }
+            }
+            _updatingChampionChoices = true;
+            try
+            {
+                _championFilter.Items.Clear();
+                _championFilter.Items.Add(new ChampionChoice(0, _ui.Get(UiTextKeys.LeaguePlayerFilterAll)));
+                var selected = 0;
+                foreach (var candidate in known)
+                {
+                    var index = _championFilter.Items.Add(new ChampionChoice(candidate.Key, candidate.Value));
+                    if (candidate.Key == current) selected = index;
+                }
+                _championFilter.SelectedIndex = selected;
+            }
+            finally { _updatingChampionChoices = false; }
+        }
+
+        private void ApplySimpleFilter()
+        {
+            if (_updatingChampionChoices || _matchesList == null || IsDisposed) return;
+            var filter = new LeagueSimpleMatchHistoryFilter
+            {
+                WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
+                TimeRange = (LeagueMatchTimeRangeFilter)Math.Max(0, _timeFilter.SelectedIndex),
+                ChampionIds = ((_championFilter.SelectedItem as ChampionChoice)?.Id ?? 0) > 0
+                    ? new[] { ((ChampionChoice)_championFilter.SelectedItem).Id } : null
+            };
+            _rows.Clear();
+            if (_loadedPage != null)
+                _rows.AddRange(LeagueSimpleMatchHistoryFilter.Apply(_loadedPage.Matches, filter, DateTime.UtcNow));
             _matchesList.VirtualListSize = _rows.Count;
             _matchesList.Invalidate();
-            ApplyChampionStats(page);
-            _statusLabel.Text = _rows.Count == 0
-                ? _ui.Get(UiTextKeys.LeaguePlayerNoMatches)
-                : _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + "  ·  " + _rows.Count;
+            var visiblePage = new LeaguePlayerMatchPage();
+            visiblePage.Matches.AddRange(_rows);
+            ApplyChampionStats(visiblePage);
+            var loaded = _loadedPage == null ? 0 : _loadedPage.Matches.Count;
+            _statusLabel.Text = loaded == 0 ? _ui.Get(UiTextKeys.LeaguePlayerNoMatches) :
+                _rows.Count == 0 ? _ui.Get(UiTextKeys.LeaguePlayerNoFilteredMatches) :
+                _rows.Count == loaded ? _ui.Get(UiTextKeys.LeaguePlayerRecentMatches) + "  ·  " + loaded :
+                _ui.Get(UiTextKeys.LeaguePlayerFilteredCount)
+                    .Replace("{0}", _rows.Count.ToString()).Replace("{1}", loaded.ToString());
             _loadMoreButton.Enabled = !_loading && _requestedCount < LeaguePlayerDataService.MaximumMatchCount && _hasMore;
             UpdateEmptyState();
         }
@@ -482,7 +616,7 @@ namespace FACM.League
         internal static Rectangle ResolveMatchesBoundsForSmokeTest(int clientWidth, int clientHeight)
         {
             var statsHeight = clientHeight >= 670 ? 115 : 98;
-            var top = 194 + statsHeight + 40;
+            var top = 194 + statsHeight + 74;
             return new Rectangle(
                 24, top,
                 Math.Max(160, clientWidth - 48),
@@ -523,7 +657,8 @@ namespace FACM.League
             var statsHeight = height >= 670 ? 115 : 98;
             _championStatsList.Bounds = new Rectangle(24, 194, contentWidth, statsHeight);
             var matchesBounds = ResolveMatchesBoundsForSmokeTest(width, height);
-            _recentSection.Bounds = new Rectangle(26, matchesBounds.Top - 31, contentWidth, 25);
+            _recentSection.Bounds = new Rectangle(26, matchesBounds.Top - 65, contentWidth, 25);
+            _filterPanel.Bounds = new Rectangle(matchesBounds.Left, matchesBounds.Top - 37, contentWidth, 33);
             _matchesList.Bounds = matchesBounds;
             _emptyStateLabel.Bounds = new Rectangle(
                 matchesBounds.Left + 16,
