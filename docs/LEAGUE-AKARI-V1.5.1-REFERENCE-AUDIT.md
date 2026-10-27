@@ -1,5 +1,9 @@
 # League Akari v1.5.1 — Version-locked implementation research
 
+## Death-damage continuation
+
+Pinned `widgets/VictimDamageDetails.vue` groups by nonzero participant ID or MINION/MONSTER/TOWER/other, sums physical/magic/true fields and groups A/P(63)/Q(0)/W(1)/E(2)/R(3)/other before sorting entity totals. The native projection/dialog implements that contract for both captured timeline formats, preserving missing components and explicit direction attribution. Optional champion images reuse the existing catalog/loader; nonchampion categories retain source names rather than invented champion ownership. Fixtures cover mixed and incomplete data, source envelopes, peer identity, independent selections, replaced sessions and native render. Death-damage Windows verification is pending; event-map checkpoint `5547289` passed all four workflows. Exact source damage-bar styling/nonchampion artwork remains a presentation gap, alongside Cherry and broader MatchCard parity.
+
 ## Event map continuation
 
 Pinned `widgets/MapPosition.vue`, `utils/game-map.ts` and `MatchCardEventsTab.vue` supply image assets, supported maps, coordinate domains, inverted Y and clipping. The native timeline selection now shows that map using already-captured LCU/SGP event positions. Missing or invalid position stays unavailable; it does not fall back to actor frame positions. Images and MIT attribution are embedded. Added deterministic coordinate and native marker-render tests; executable verification is pending Windows CI. This does not close death-damage, Cherry or broader MatchCard gaps.
@@ -13,7 +17,7 @@ Executable source `02d842ee0088292737f555c355a68b2ed9e58d18` passed Windows Buil
 | SGP catalog/authentication | All 26 built-in entries, explicit path overrides, two transient token types, bounded history/profile/SUMMARY/DETAILS routes | Remote config/discovery refresh; live service availability |
 | Regional Player history | Region/source controls, target-correlated profile, regular paging and filtered collection | Full tabs/profile/ranked/mastery/analysis parity; region-specific runtime proof |
 | Match summary/detail | One shared scoreboard, teams/objectives/builds, target-checked sparse completion and source provenance | Full detailed stat/rune/augment presentation and Cherry grouping |
-| Timelines and events | Lazy LCU/selected SGP reads, participant/type filters, virtual chronology and growth lists | Native selected-event map 11/12/21 candidate added; received/dealt death damage is **next task** |
+| Timelines and events | Lazy LCU/selected SGP reads, participant/type filters, virtual chronology and growth lists | Native map 11/12/21 and received/dealt damage candidates; real-client source/visual acceptance remains |
 | Time comparisons | Five source metrics, selectable players/team averages, timestamps/hover, missing-value gaps | Cherry subteam identity/placement and real-client visual acceptance |
 | Build/frame progression | >30s purchase groups, EVOLVE-aware skill levels, both anvils, 23 slider-selected attributes | Icon/layout fidelity and actual source-field coverage |
 | Replay | Current-region LCU path with regional game-ID rejection | Regional SGP replay stream/download/launch integration |

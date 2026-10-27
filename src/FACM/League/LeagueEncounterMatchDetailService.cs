@@ -22,6 +22,7 @@ namespace FACM.League
         internal System.Collections.Generic.Dictionary<int, string> ChampionNames;
         internal LeagueBuildAdvisorCatalog BuildCatalog;
         internal Func<CancellationToken, Task<LeagueMatchTimeline>> LoadTimeline;
+        internal Func<bool> IsCurrentSession;
     }
 
     // Single user-requested detail read; never observes a game or fetches match history in the background.
@@ -109,6 +110,7 @@ namespace FACM.League
                         Teams = breakdown.Teams,
                         ChampionNames = breakdown.ChampionNames,
                         BuildCatalog = breakdown.BuildCatalog,
+                        IsCurrentSession = () => IsSameSession(initial),
                         LoadTimeline = cancellation => _players.LoadMatchTimelineAsync(
                             timelineOwner, timelineMatch, cancellation, initial)
                     };

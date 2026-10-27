@@ -58,6 +58,7 @@ namespace FACM.League
             }
 
             LeagueEventMapSmokeTest.Validate(parsed.Events[2]);
+            LeagueDeathDamageSmokeTest.Validate();
             ValidateBuildProgression();
             var frameStats = new Dictionary<string, object> { { "health", 512.5 }, { "armor", -12.25 },
                 { "attackSpeed", "NaN" }, { "magicPen", double.PositiveInfinity }, { "power", 0 } };

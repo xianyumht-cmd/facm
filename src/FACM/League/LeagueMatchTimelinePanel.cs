@@ -20,7 +20,9 @@ namespace FACM.League
         private readonly LeagueBuildAdvisorCatalog _catalog;
         private readonly ComboBox _player, _eventType;
         private readonly Label _status;
-        private readonly Button _retry;
+        private readonly Button _retry, _damage;
+        private readonly Func<bool> _isCurrentSession;
+        private LeagueMatchTimelineEvent _selectedEvent;
         private readonly ListView _events, _frames, _builds;
         private readonly TextBox _details;
         private readonly LeagueEventMap _eventMap;
@@ -38,10 +40,12 @@ namespace FACM.League
         private bool _loading;
         private bool _updating;
 
-        internal LeagueMatchTimelinePanel(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail, CancellationToken token)
+        internal LeagueMatchTimelinePanel(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail, CancellationToken token,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
         {
             _ui = ui;
             _load = detail.LoadTimeline;
+            _isCurrentSession = detail.IsCurrentSession;
             _participants = detail.Participants;
             _catalog = detail.BuildCatalog;
             _targetParticipant = detail.Match.ParticipantId;
@@ -69,7 +73,17 @@ namespace FACM.League
             _eventType.SelectedIndex = 0;
             _retry = new Button { Text = T(UiTextKeys.LeaguePlayerRemoteRetry), Width = 70, Height = 26 };
             _retry.Click += async (sender, args) => { _timeline = null; await EnsureLoadedAsync(); };
+            _damage = new Button { Text = T(UiTextKeys.LeagueDeathDamageTitle), AutoSize = true, Height = 26, Enabled = false };
+            _damage.Click += (sender, args) =>
+            {
+                if (_lifetime.IsCancellationRequested || (_isCurrentSession != null && !_isCurrentSession())) return;
+                var projection = LeagueDeathDamage.Project(_selectedEvent);
+                if (projection == null) return;
+                using (var dialog = new LeagueDeathDamageDialog(_ui, projection, _participants, _catalog,
+                    loadAsset, _isCurrentSession, _lifetime.Token)) dialog.ShowDialog(this);
+            };
             tools.Controls.Add(_player); tools.Controls.Add(_eventType); tools.Controls.Add(_retry);
+            tools.Controls.Add(_damage);
             _status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
             _events = EventList();
             _builds = EventList();
@@ -160,6 +174,8 @@ namespace FACM.League
             _events.Invalidate(); _builds.Invalidate();
             _details.Text = string.Empty;
             _eventMap.SetEvent(null);
+            _selectedEvent = null;
+            _damage.Enabled = false;
             _frames.VirtualListSize = 0;
             _shownFrames.Clear();
             if (_timeline != null)
@@ -228,14 +244,25 @@ namespace FACM.League
         private void ShowEvent(ListView list, List<LeagueMatchTimelineEvent> events)
         {
             if (IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (_isCurrentSession != null && !_isCurrentSession())
+            {
+                _eventMap.SetEvent(null); _selectedEvent = null; _damage.Enabled = false;
+                _details.Text = T(UiTextKeys.LeagueTimelineUnavailable);
+                return;
+            }
             if (list.SelectedIndices.Count != 1 || list.SelectedIndices[0] >= events.Count)
             {
                 _details.Text = string.Empty;
-                if (ReferenceEquals(list, _events)) _eventMap.SetEvent(null);
+                if (ReferenceEquals(list, _events))
+                { _eventMap.SetEvent(null); _selectedEvent = null; _damage.Enabled = false; }
                 return;
             }
             var entry = events[list.SelectedIndices[0]];
-            if (ReferenceEquals(list, _events)) _eventMap.SetEvent(entry);
+            if (ReferenceEquals(list, _events))
+            {
+                _eventMap.SetEvent(entry); _selectedEvent = entry;
+                _damage.Enabled = entry.Type == "CHAMPION_KILL";
+            }
             _details.Text = T(UiTextKeys.LeagueTimelineEventDescription)
                 .Replace("{0}", LeagueMatchTimelineParser.Time(entry.Timestamp)).Replace("{1}", EventName(entry.Type))
                 .Replace("{2}", PlayerName(entry.ParticipantId > 0 ? entry.ParticipantId : entry.KillerId))

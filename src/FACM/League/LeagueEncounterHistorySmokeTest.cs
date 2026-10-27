@@ -186,6 +186,11 @@ namespace FACM.League
                         LeagueEncounterMatchScoreboardDialog.FormatBoundItem(0, null) == "—" &&
                         LeagueEncounterMatchScoreboardDialog.FormatBoundItem(null, null) == "—",
                     "Role-bound items must have a named/ID fallback and distinguish missing or empty equipment.");
+                Require(result.IsCurrentSession != null && result.IsCurrentSession(),
+                    "Selected-event actions must retain the detail request's originating session.");
+                active = new LeagueClientSession("LeagueClientUx", 56, 3000, "other", "https", "fixture", "HN1", "HN1");
+                Require(!result.IsCurrentSession(), "A replacement client must invalidate deferred event assets and actions.");
+                active = session;
                 var cachedDetail = await reader.ReadAsync(record, token.Token);
                 Require(cachedDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
                     cachedDetail.BuildCatalog != null && api.Reads == 11 && api.BuildCatalogReads == 3 &&

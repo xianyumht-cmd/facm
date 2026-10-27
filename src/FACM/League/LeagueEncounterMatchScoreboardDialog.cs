@@ -168,7 +168,7 @@ namespace FACM.League
             participantsTab.Controls.Add(rows);
             matchTabs.TabPages.Add(participantsTab);
             var timelineTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineTitle));
-            var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token);
+            var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token, loadAsset);
             timelineTab.Controls.Add(timeline);
             matchTabs.TabPages.Add(timelineTab);
             matchTabs.SelectedIndexChanged += async (sender, e) =>
