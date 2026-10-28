@@ -197,7 +197,28 @@ namespace FACM.League
             if (!_pendingPostgameRefresh || _busy || IsDisposed || _lifetime.IsCancellationRequested ||
                 !IsCurrent() || _tabs.SelectedIndex != 0) return;
             _pendingPostgameRefresh = false;
+            var before = RankedSnapshot();
             await LoadSelectedAsync(true);
+            if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _tabs.SelectedIndex != 0 || !ShouldRetryPostgameRanked(before, RankedSnapshot(), _ranked.Items.Count > 0))
+                return;
+            try { await Task.Delay(TimeSpan.FromSeconds(3), _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _tabs.SelectedIndex != 0 || _busy || _pendingPostgameRefresh) return;
+            await LoadSelectedAsync(true);
+        }
+
+        internal static bool ShouldRetryPostgameRanked(string before, string after, bool hasRows)
+        {
+            return hasRows && string.Equals(before, after, StringComparison.Ordinal);
+        }
+
+        private string RankedSnapshot()
+        {
+            return string.Join("|", _ranked.Items.Cast<ListViewItem>().Select(item =>
+                string.Join(":", item.SubItems.Cast<ListViewItem.ListViewSubItem>()
+                    .Select(subItem => subItem.Text))));
         }
 
         private async Task LoadSelectedAsync(bool force)

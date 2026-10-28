@@ -46,6 +46,10 @@ namespace FACM.League
         private static async Task ValidateAsync()
         {
             ValidatePostgameRefresh();
+            Require(LeaguePlayerProfileDialog.ShouldRetryPostgameRanked("same", "same", true) &&
+                    !LeaguePlayerProfileDialog.ShouldRetryPostgameRanked("before", "after", true) &&
+                    !LeaguePlayerProfileDialog.ShouldRetryPostgameRanked("", "", false),
+                "The one-shot postgame retry must require a loaded and unchanged ranked snapshot.");
 
             var session = new LeagueClientSession("LeagueClientUx", 1, 1000, "fixture", "https", "fixture", "HN1", "TENCENT");
             var active = session;
