@@ -595,6 +595,15 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisStreak = "LeaguePlayerAnalysisStreak";
         public const string LeaguePlayerAnalysisTopChampions = "LeaguePlayerAnalysisTopChampions";
         public const string LeaguePlayerAnalysisChampionRow = "LeaguePlayerAnalysisChampionRow";
+        public const string LeaguePlayerAnalysisExtraShares = "LeaguePlayerAnalysisExtraShares";
+        public const string LeaguePlayerAnalysisRecentCompare = "LeaguePlayerAnalysisRecentCompare";
+        public const string LeaguePlayerAnalysisPositions = "LeaguePlayerAnalysisPositions";
+        public const string LeaguePlayerAnalysisPositionRow = "LeaguePlayerAnalysisPositionRow";
+        public const string LeaguePlayerAnalysisPositionTop = "LeaguePlayerAnalysisPositionTop";
+        public const string LeaguePlayerAnalysisPositionJungle = "LeaguePlayerAnalysisPositionJungle";
+        public const string LeaguePlayerAnalysisPositionMiddle = "LeaguePlayerAnalysisPositionMiddle";
+        public const string LeaguePlayerAnalysisPositionBottom = "LeaguePlayerAnalysisPositionBottom";
+        public const string LeaguePlayerAnalysisPositionUtility = "LeaguePlayerAnalysisPositionUtility";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";

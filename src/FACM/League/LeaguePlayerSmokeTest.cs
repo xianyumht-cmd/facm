@@ -80,6 +80,28 @@ namespace FACM.League
                 new LeagueSimpleMatchHistoryFilter { WinLoss = LeagueMatchWinLossFilter.Loss }, now);
             Require(loss.All(m => m.GameId != 3 && m.GameId != 4),
                 "Simple losses must exclude explicitly classified remakes and aborts.");
+            rows[0].Position = "TOP";
+            rows[0].KillParticipation = 0.6;
+            rows[0].DamageTakenShare = 0d;
+            rows[2].Position = "top";
+            rows[2].KillParticipation = null;
+            rows[2].DamageTakenShare = 0.2;
+            rows[3].Position = "JUNGLE"; // Remakes must not count toward role totals.
+            var byPosition = LeaguePlayerHistoryAnalysis.Calculate(rows);
+            Require(byPosition.Positions.Count == 1 && byPosition.Positions[0].Position == "TOP" &&
+                    byPosition.Positions[0].Games == 2 && byPosition.Positions[0].Wins == 1 &&
+                    Math.Abs(byPosition.KillParticipation.Value - 0.6) < 0.00001 &&
+                    Math.Abs(byPosition.DamageTakenShare.Value - 0.1) < 0.00001 &&
+                    !byPosition.RecentFiveWinRate.HasValue && !byPosition.PreviousFiveWinRate.HasValue,
+                "Role analysis must classify known positions, exclude remake rows, and keep absent metrics unavailable.");
+            var trend = Enumerable.Range(0, 10).Select(i => new LeaguePlayerMatchSummary {
+                GameId = 100 + i, GameType = "MATCHED_GAME",
+                WinResult = i < 5 ? "win" : "loss", ParticipantResolved = true,
+                StatisticsAvailable = true, GameCreationLocal = now.AddMinutes(-i)
+            }).ToList();
+            var compared = LeaguePlayerHistoryAnalysis.Calculate(trend);
+            Require(compared.RecentFiveWinRate == 100d && compared.PreviousFiveWinRate == 0d,
+                "The recent-five comparison must use the newest ten dated, confirmed results only.");
             Require(LeaguePlayerHistoryAnalysis.Outcome(new LeaguePlayerMatchSummary {
                     ParticipantResolved = true, WinResult = "remake", StatisticsAvailable = false
                 }) == LeagueHistoryOutcome.Remake &&

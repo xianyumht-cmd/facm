@@ -11,12 +11,22 @@ namespace FACM.League
 {
     internal enum LeagueHistoryOutcome { Unknown, Win, Loss, Remake, Abort }
 
+    internal sealed class LeagueHistoryPositionStat
+    {
+        internal string Position;
+        internal int Games, Wins, Kills, Deaths, Assists;
+        internal double WinRate { get { return Games > 0 ? Wins * 100d / Games : 0d; } }
+    }
+
     internal sealed class LeaguePlayerHistoryAnalysis
     {
         internal int Loaded, Wins, Losses, Remakes, Aborts, Unknowns, Other;
         internal int Streak;
         internal LeagueHistoryOutcome StreakOutcome;
         internal double? Kills, Deaths, Assists, CsPerMinute, DamageShare, GoldShare;
+        internal double? KillParticipation, DamageTakenShare;
+        internal double? RecentFiveWinRate, PreviousFiveWinRate;
+        internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal List<LeaguePlayerChampionStat> Champions = new List<LeaguePlayerChampionStat>();
 
         internal static LeagueHistoryOutcome Outcome(LeaguePlayerMatchSummary m)
@@ -67,6 +77,24 @@ namespace FACM.League
                 .Select(m => (double?)m.CreepScore * 60d / m.GameDurationSeconds));
             result.DamageShare = Mean(played.Select(m => m.ChampionDamageShare));
             result.GoldShare = Mean(played.Select(m => m.GoldShare));
+            result.KillParticipation = Mean(played.Select(m => m.KillParticipation));
+            result.DamageTakenShare = Mean(played.Select(m => m.DamageTakenShare));
+            result.Positions = played.Select(m => new { Match = m, Position = NormalizePosition(m.Position) })
+                .Where(row => row.Position != null).GroupBy(row => row.Position, StringComparer.Ordinal)
+                .Select(g => new LeagueHistoryPositionStat {
+                    Position = g.Key, Games = g.Count(),
+                    Wins = g.Count(row => Outcome(row.Match) == LeagueHistoryOutcome.Win),
+                    Kills = g.Sum(row => row.Match.Kills), Deaths = g.Sum(row => row.Match.Deaths),
+                    Assists = g.Sum(row => row.Match.Assists)
+                }).OrderByDescending(s => s.Games).ThenBy(s => s.Position, StringComparer.Ordinal).ToList();
+            var dated = played.Where(m => m.GameCreationLocal != DateTime.MinValue)
+                .OrderByDescending(m => m.GameCreationLocal).ToList();
+            if (dated.Count >= 10)
+            {
+                result.RecentFiveWinRate = dated.Take(5).Count(m => Outcome(m) == LeagueHistoryOutcome.Win) * 20d;
+                result.PreviousFiveWinRate = dated.Skip(5).Take(5)
+                    .Count(m => Outcome(m) == LeagueHistoryOutcome.Win) * 20d;
+            }
             result.Champions = played.Where(m => m.ChampionId > 0).GroupBy(m => m.ChampionId)
                 .Select(g => new LeaguePlayerChampionStat {
                     ChampionId = g.Key, ChampionName = g.Select(m => m.ChampionName)
@@ -85,6 +113,22 @@ namespace FACM.League
                 result.Streak++;
             }
             return result;
+        }
+
+        private static string NormalizePosition(string raw)
+        {
+            switch ((raw ?? string.Empty).Trim().ToUpperInvariant())
+            {
+                case "TOP": return "TOP";
+                case "JUNGLE": return "JUNGLE";
+                case "MIDDLE":
+                case "MID": return "MIDDLE";
+                case "BOTTOM":
+                case "BOT": return "BOTTOM";
+                case "UTILITY":
+                case "SUPPORT": return "UTILITY";
+                default: return null;
+            }
         }
 
         private static double? Mean(IEnumerable<double?> values)
@@ -128,6 +172,11 @@ namespace FACM.League
                     Number(a.CsPerMinute)),
                 string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeaguePlayerAnalysisShares),
                     Number(a.DamageShare, true), Number(a.GoldShare, true)),
+                string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeaguePlayerAnalysisExtraShares),
+                    Number(a.KillParticipation, true), Number(a.DamageTakenShare, true)),
+                string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeaguePlayerAnalysisRecentCompare),
+                    Number(a.RecentFiveWinRate.HasValue ? a.RecentFiveWinRate / 100d : null, true),
+                    Number(a.PreviousFiveWinRate.HasValue ? a.PreviousFiveWinRate / 100d : null, true)),
                 string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeaguePlayerAnalysisStreak),
                     a.Streak == 0 ? "--" :
                     ui.Get(a.StreakOutcome == LeagueHistoryOutcome.Win ? UiTextKeys.LeaguePlayerWin :
@@ -139,6 +188,20 @@ namespace FACM.League
                     ui.Get(UiTextKeys.LeaguePlayerAnalysisChampionRow),
                     string.IsNullOrWhiteSpace(c.ChampionName) ? "#" + c.ChampionId : c.ChampionName,
                     c.Games, c.WinRate.ToString("0", CultureInfo.CurrentCulture)));
+            lines.Add(string.Empty);
+            lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
+            foreach (var role in a.Positions)
+            {
+                var name = role.Position == "TOP" ? UiTextKeys.LeaguePlayerAnalysisPositionTop :
+                    role.Position == "JUNGLE" ? UiTextKeys.LeaguePlayerAnalysisPositionJungle :
+                    role.Position == "MIDDLE" ? UiTextKeys.LeaguePlayerAnalysisPositionMiddle :
+                    role.Position == "BOTTOM" ? UiTextKeys.LeaguePlayerAnalysisPositionBottom :
+                    UiTextKeys.LeaguePlayerAnalysisPositionUtility;
+                lines.Add(string.Format(CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionRow),
+                    ui.Get(name), role.Games, role.WinRate.ToString("0", CultureInfo.CurrentCulture),
+                    role.Kills, role.Deaths, role.Assists));
+            }
             using (var dialog = new Form {
                 Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisAction),
                 StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
