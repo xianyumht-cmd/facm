@@ -34,6 +34,7 @@ namespace FACM.League
             ValidateRemotePlayerHistory();
             LeagueSgpSmokeTest.Validate();
             LeagueMatchTimelineSmokeTest.Validate();
+            LeagueJungleAnalysisSmokeTest.Validate();
             LeaguePlayerProfileDetailsSmokeTest.Validate();
             ValidateSgpHistoryFallback();
             ValidateHistoryDetailsAndSparseCompletion();

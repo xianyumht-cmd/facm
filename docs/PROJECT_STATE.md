@@ -1,3 +1,9 @@
+## Verified hero comparison; active single-match jungle pathing
+
+Hero comparison executable `49abac71211641410def0560e45044d64ae0b90f` passed Windows Build #40659233884, Glass #40659233923, UI Text #40659233904 and Mayhem Source #40659233934. Windows logs confirm Player/performance fixtures, including populated native comparison rendering. Earlier hydration `71842b0d` and Cherry correction `b53d769e` are also four-workflow green.
+
+The current continuation adds an on-demand Jungle Analysis tab to the existing selected-match timeline. It uses pinned frame indices 1-14, weight-five kill/assist positions through 14 minutes, distinct heat-zone/gank-lane geometry, eight source camp coordinates and source-specific early-frame damage/kill signals. Only correlated map-11 junglers (position or smite) qualify; player selection remains shared with timeline views. Missing positions/CS/damage remain explicit unknowns and camp/early-gank signals are labeled as inference. The computation reuses the already fetched timeline with no new requests. Synthetic geometry, boundary, LCU/SGP, sparse-data and target guards are included; Windows CI pending. Cross-game jungle aggregation, objectives, position maps, the remaining hero metrics and full MatchCard/replay/options parity are still open. No Tencent/DPI acceptance or release.
+
 ## Active native champion comparison and verified Cherry correction
 
 Cherry team correction `b53d769e8a7c5b42501b66daa3c92a2b248d43e8` passed Windows Build #40658421279, Glass #40658421188, UI Text #40658421222 and Mayhem Source #40658421243. The preceding explicit hydration batch `71842b0d` also passed all four workflows.

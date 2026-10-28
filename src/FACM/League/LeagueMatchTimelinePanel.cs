@@ -24,7 +24,8 @@ namespace FACM.League
         private readonly Func<bool> _isCurrentSession;
         private LeagueMatchTimelineEvent _selectedEvent;
         private readonly ListView _events, _frames, _builds;
-        private readonly TextBox _details;
+        private readonly TextBox _details, _jungle;
+        private readonly LeaguePlayerMatchSummary _match;
         private readonly LeagueEventMap _eventMap;
         private readonly LeagueMatchTimelineChartPanel _comparison;
         private readonly LeagueTimelineFrameStats _frameStats;
@@ -49,6 +50,7 @@ namespace FACM.League
             _participants = detail.Participants;
             _catalog = detail.BuildCatalog;
             _targetParticipant = detail.Match.ParticipantId;
+            _match = detail.Match;
             _lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
             Dock = DockStyle.Fill;
             BackColor = FacmDesignSystem.Canvas;
@@ -111,6 +113,11 @@ namespace FACM.League
             AddTab(tabs, UiTextKeys.LeagueTimelineBuilds, _builds);
             _frameStats = new LeagueTimelineFrameStats(ui);
             AddTab(tabs, UiTextKeys.LeagueFrameTitle, _frameStats);
+            _jungle = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
+                ScrollBars = ScrollBars.Vertical, BackColor = FacmDesignSystem.SurfaceRaised,
+                ForeColor = FacmDesignSystem.Text, AccessibleName = T(UiTextKeys.LeagueJungleTitle),
+                Text = T(UiTextKeys.LeagueJungleUnavailable) };
+            AddTab(tabs, UiTextKeys.LeagueJungleTitle, _jungle);
             _details = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
                 ScrollBars = ScrollBars.Both, WordWrap = false, BackColor = FacmDesignSystem.SurfaceRaised,
                 ForeColor = FacmDesignSystem.Text, AccessibleName = T(UiTextKeys.LeagueTimelineDetails) };
@@ -186,6 +193,12 @@ namespace FACM.League
             _frames.VirtualListSize = _shownFrames.Count;
             _frames.Invalidate();
             _frameStats.SetData(_timeline, id > 0 ? id : _targetParticipant);
+            var junglePlayerId = id > 0 ? id : _targetParticipant;
+            var junglePlayer = junglePlayerId == _targetParticipant ? _match :
+                _match.ParticipantRoster?.FirstOrDefault(p => p != null && p.ParticipantId == junglePlayerId);
+            var jungle = _isCurrentSession != null && !_isCurrentSession() ? null :
+                LeagueJungleAnalysis.Calculate(_timeline, junglePlayer);
+            _jungle.Text = jungle == null ? T(UiTextKeys.LeagueJungleUnavailable) : jungle.Report(_ui);
             _status.Text = _timeline == null ? T(UiTextKeys.LeagueTimelineUnavailable) :
                 T(UiTextKeys.LeagueTimelineSummary).Replace("{0}", _timeline.Frames.Count.ToString())
                     .Replace("{1}", _shownEvents.Count.ToString());
