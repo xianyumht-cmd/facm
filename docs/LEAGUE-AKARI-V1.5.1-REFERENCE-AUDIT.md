@@ -1,6 +1,8 @@
-## MatchCard outgoing/taken damage component continuation (Draft #357; Windows CI pending)
+## Verified MatchCard outgoing/taken damage component continuation (Draft #357)
 
 Pinned `src/shared/data-adapter/match-history/participants.ts` exposes `totalDamageDealtToChampions`, three `*DamageDealtToChampions` fields, `totalDamageTaken`, `physicalDamageTaken`, `magicDamageTaken` (LCU) and `magicalDamageTaken` (SGP), plus true damage taken. `src/renderer-shared/components/match-card/widgets/{TeamTable,DamageBarWithPopover}.vue` displays those source values separately. The native selected-player details now retains and renders all seven formerly absent optional fields from the same bounded read, with no back-filled values when the Tencent payload is partial. SGP's spelling is normalized at the existing adapter boundary so loaded Player summary metrics benefit too. Source-shaped tests protect the distinct dealt/taken directions, per-type 0/unknown and SGP precedence; exact colored bars, tooltip percent shares, participant radar, tags and Win10/Tencent/DPI acceptance remain mandatory open parity items.
+
+**Executable `d2c8eee` passed all four Windows CI workflows:** Build #40684668289, Glass #40684668313, UI Text #40684668099, Mayhem #40684668335; the Windows Player/Dashboard and performance smoke ran successfully. The subsequent `[skip ci]` docs checkpoint records the evidence without rerunning the executable.
 
 ## Verified MatchCard performance-rate continuation (Draft #357)
 
