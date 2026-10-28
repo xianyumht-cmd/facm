@@ -134,7 +134,7 @@ namespace FACM.League
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
                     catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
-                    match.GameDurationSeconds, t) + "\r\n" +
+                    match.GameDurationSeconds, t) + "\r\n" + FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
@@ -359,6 +359,25 @@ namespace FACM.League
                 .Replace("{2}", percent(damageShare))
                 .Replace("{3}", number(csPerMinute, "0.0"))
                 .Replace("{4}", number(goldPerMinute, "0.0"));
+        }
+
+        internal static string FormatParticipantDamageDetails(LeaguePlayerMatchParticipant player,
+            Func<string, string> t)
+        {
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            var dealt = player != null && player.DamageAvailable && player.DamageToChampions >= 0
+                ? (int?)player.DamageToChampions : null;
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageSplit)
+                .Replace("{0}", count(dealt))
+                .Replace("{1}", count(player == null ? null : player.PhysicalDamageToChampions))
+                .Replace("{2}", count(player == null ? null : player.MagicDamageToChampions))
+                .Replace("{3}", count(player == null ? null : player.TrueDamageToChampions)) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenSplit)
+                    .Replace("{0}", count(player == null ? null : player.TotalDamageTaken))
+                    .Replace("{1}", count(player == null ? null : player.PhysicalDamageTaken))
+                    .Replace("{2}", count(player == null ? null : player.MagicDamageTaken))
+                    .Replace("{3}", count(player == null ? null : player.TrueDamageTaken));
         }
 
         internal static List<LeaguePlayerMatchParticipant> OrderScoreboardParticipants(

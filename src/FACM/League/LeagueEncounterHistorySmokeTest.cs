@@ -205,6 +205,30 @@ namespace FACM.League
                     new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
                     false, 600, t).Contains("补刀/分 0.0 · 金币/分 0.0"),
                 "Explicitly verified zero values must remain distinguishable from unknown fields.");
+            var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
+                DamageToChampions = 800, PhysicalDamageToChampions = 500,
+                MagicDamageToChampions = 200, TrueDamageToChampions = 100,
+                TotalDamageTaken = 700, PhysicalDamageTaken = 400,
+                MagicDamageTaken = 200, TrueDamageTaken = 100 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t) ==
+                    "英雄输出 800（物理 500 / 魔法 200 / 真实 100）\r\n" +
+                    "承受伤害 700（物理 400 / 魔法 200 / 真实 100）" &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(null, t).Contains(
+                    "承受伤害 —（物理 — / 魔法 — / 真实 —）"),
+                "MatchCard damage details must retain distinct dealt/taken and physical/magic/true counters.");
+            damagePlayer.DamageAvailable = false;
+            damagePlayer.MagicDamageTaken = 0;
+            damagePlayer.TrueDamageTaken = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("英雄输出 —（物理 500 / 魔法 200 / 真实 100）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("承受伤害 700（物理 400 / 魔法 0 / 真实 —）"),
+                "Partial damage records must expose available components without fabricating unknown totals.");
+            damagePlayer.TotalDamageTaken = null;
+            damagePlayer.MagicDamageTaken = -1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("承受伤害 —（物理 400 / 魔法 — / 真实 —）"),
+                "Missing totals and malformed negative damage components must stay unknown.");
             var catalog = new LeagueBuildAdvisorCatalog();
             LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
                 "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), catalog);
@@ -260,6 +284,7 @@ namespace FACM.League
                     { "gameId", 44L }, { "participants", new object[] {
                         new Dictionary<string, object> {
                             { "participantId", 1 }, { "puuid", "fixture" },
+                            { "magicalDamageTaken", 321 }, { "magicDamageTaken", 999 },
                             { "perks", new Dictionary<string, object> {
                                 { "statPerks", new Dictionary<string, object> {
                                     { "offense", 5008 }, { "flex", 5002 } } },
@@ -278,6 +303,7 @@ namespace FACM.League
             var stats = (Dictionary<string, object>)participant["stats"];
             Require(stats["perk0Var1"].ToString() == "777" &&
                 stats["perk0Var2"].ToString() == "-2.5" && stats["perk0Var3"].ToString() == "0" &&
+                stats["magicDamageTaken"].ToString() == "321" &&
                 stats["perkStatOffense"].ToString() == "5008" &&
                 stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
                 "SGP normalization must retain raw rune selection variables and nullable stat shards.");
@@ -316,6 +342,13 @@ namespace FACM.League
                     !result.Participants.Single(p => p.PuuId == "ally").DamageAvailable &&
                     !result.Participants.Single(p => p.PuuId == "ally").GoldAvailable &&
                     result.Participants.Single(p => p.IsTarget).DamageToChampions == 18000 &&
+                    result.Participants.Single(p => p.IsTarget).PhysicalDamageToChampions == 9000 &&
+                    result.Participants.Single(p => p.IsTarget).MagicDamageToChampions == 7000 &&
+                    result.Participants.Single(p => p.IsTarget).TrueDamageToChampions == 2000 &&
+                    result.Participants.Single(p => p.IsTarget).TotalDamageTaken == 5000 &&
+                    result.Participants.Single(p => p.IsTarget).PhysicalDamageTaken == 3000 &&
+                    result.Participants.Single(p => p.IsTarget).MagicDamageTaken == 1500 &&
+                    result.Participants.Single(p => p.IsTarget).TrueDamageTaken == 500 &&
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
                     result.Match.ChampionName == "Ashe" &&
                     result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
@@ -658,6 +691,9 @@ namespace FACM.League
                         cherryFirst + "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
                         "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
+                        "\"physicalDamageDealtToChampions\":9000,\"magicDamageDealtToChampions\":7000," +
+                        "\"trueDamageDealtToChampions\":2000,\"totalDamageTaken\":5000," +
+                        "\"physicalDamageTaken\":3000,\"magicDamageTaken\":1500,\"trueDamageTaken\":500," +
                         "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
                         "\"perk0\":8005,\"perk0Var1\":777,\"perk0Var2\":-2.5,\"perk0Var3\":0,\"perk1\":9111," +
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +

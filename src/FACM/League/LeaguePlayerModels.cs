@@ -203,6 +203,13 @@ namespace FACM.League
         public bool CreepScoreAvailable { get; set; }
         public int DamageToChampions { get; set; }
         public bool DamageAvailable { get; set; }
+        public int? PhysicalDamageToChampions { get; set; }
+        public int? MagicDamageToChampions { get; set; }
+        public int? TrueDamageToChampions { get; set; }
+        public int? TotalDamageTaken { get; set; }
+        public int? PhysicalDamageTaken { get; set; }
+        public int? MagicDamageTaken { get; set; }
+        public int? TrueDamageTaken { get; set; }
         public int GoldEarned { get; set; }
         public bool GoldAvailable { get; set; }
         public int VisionScore { get; set; }

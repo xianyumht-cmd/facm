@@ -760,6 +760,13 @@ namespace FACM.League
                         ReadOptionalCount(stats, "neutralMinionsKilled").HasValue,
                     DamageToChampions = ReadInt(stats, "totalDamageDealtToChampions"),
                     DamageAvailable = ReadOptionalCount(stats, "totalDamageDealtToChampions").HasValue,
+                    PhysicalDamageToChampions = ReadOptionalCount(stats, "physicalDamageDealtToChampions"),
+                    MagicDamageToChampions = ReadOptionalCount(stats, "magicDamageDealtToChampions"),
+                    TrueDamageToChampions = ReadOptionalCount(stats, "trueDamageDealtToChampions"),
+                    TotalDamageTaken = ReadOptionalCount(stats, "totalDamageTaken"),
+                    PhysicalDamageTaken = ReadOptionalCount(stats, "physicalDamageTaken"),
+                    MagicDamageTaken = ReadOptionalCount(stats, "magicDamageTaken"),
+                    TrueDamageTaken = ReadOptionalCount(stats, "trueDamageTaken"),
                     GoldEarned = ReadInt(stats, "goldEarned"),
                     GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),
@@ -1193,6 +1200,9 @@ namespace FACM.League
                 if (id <= 0 || !ids.Add(id) || (!string.IsNullOrEmpty(puuid) && !puuids.Add(puuid))) return null;
                 var row = new Dictionary<string, object>(participant);
                 var stats = new Dictionary<string, object>(participant);
+                object magicalDamageTaken;
+                if (participant.TryGetValue("magicalDamageTaken", out magicalDamageTaken))
+                    stats["magicDamageTaken"] = magicalDamageTaken;
                 var perks = ReadObject(participant, "perks");
                 var statPerks = ReadObject(perks, "statPerks");
                 if (statPerks != null)

@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Keep MatchCard damage types nullable and normalize SGP magic-taken spelling once
+
+Preserve the exact physical/magic/true outgoing-to-champions and incoming-damage fields on each selected-match participant, without inferring missing component counts from a reported total or issuing follow-up requests. Akari's SGP source spells the incoming magic counter `magicalDamageTaken`, unlike LCU's `magicDamageTaken`; canonicalize it in the existing SGP normalization boundary so both MatchCard detail and loaded Player summaries use one trustworthy key. Retain explicit known zeros and reject negative/invalid input. Use the existing scrollable native selected-member detail pane, leaving the source's richer bar/tooltip/radar widget visuals and live Tencent/Win10 proof for subsequent parity work.
+
 ## 2026-10-28 — Project five MatchCard rates from already-verified detail records
 
 Reuse the selected game's authenticated participant/team snapshot for source-pinned KDA, kill participation, damage share and CS/gold per-minute figures. Validate Cherry subgroup ownership, nonnegative source fields and positive duration before displaying rates. Preserve explicit zero versus missing source components, including the two CS fields, rather than treating incomplete matches as fully measured. Keep the user-facing ratios in the same selected-member detail pane and reuse existing localization, request/cancel ownership and memory budgets. The wider Akari MatchCard widget/rendering parity and Tencent/Win10 acceptance remain open.
