@@ -63,6 +63,7 @@ namespace FACM.League
                 for (var i = 0; i < roster.Length; i++)
                     roster[i] = new LeaguePlayerMatchSummary {
                         ParticipantId = i + 1, TeamId = 100, StatisticsAvailable = true,
+                        Kills = i == 0 ? 12 : 0, Assists = i == 0 ? 10 : 0,
                         DamageDealtToChampions = i == 0 ? 400d : 150d,
                         DamageTaken = i == 0 ? 400d : 150d,
                         GoldEarned = i == 0 ? 300d : 175d,
