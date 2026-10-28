@@ -772,6 +772,11 @@ namespace FACM.League
                     MagicDamageTaken = ReadOptionalCount(stats, "magicDamageTaken"),
                     TrueDamageTaken = ReadOptionalCount(stats, "trueDamageTaken"),
                     TotalHeal = ReadOptionalCount(stats, "totalHeal"),
+                    TotalDamageToTowers = ReadOptionalCount(stats, "damageDealtToTurrets"),
+                    TotalDamageShieldedOnTeammates = ReadBool(game, "_sgp")
+                        ? ReadOptionalCount(stats, "totalDamageShieldedOnTeammates") : null,
+                    SoloKills = ReadBool(game, "_sgp")
+                        ? ReadOptionalCount(ReadObject(stats, "challenges"), "soloKills") : null,
                     GoldEarned = ReadInt(stats, "goldEarned"),
                     GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),

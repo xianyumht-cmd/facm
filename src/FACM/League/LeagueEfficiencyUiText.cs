@@ -308,6 +308,12 @@ namespace FACM.League
         public const string DynamicEncounterLeaderTakenTeam = "LeagueEfficiencyDynamicEncounterLeaderTakenTeam";
         public const string DynamicEncounterLeaderGoldMatch = "LeagueEfficiencyDynamicEncounterLeaderGoldMatch";
         public const string DynamicEncounterLeaderGoldTeam = "LeagueEfficiencyDynamicEncounterLeaderGoldTeam";
+        public const string DynamicEncounterLeaderTowerMatch = "LeagueEfficiencyDynamicEncounterLeaderTowerMatch";
+        public const string DynamicEncounterLeaderTowerTeam = "LeagueEfficiencyDynamicEncounterLeaderTowerTeam";
+        public const string DynamicEncounterLeaderShieldMatch = "LeagueEfficiencyDynamicEncounterLeaderShieldMatch";
+        public const string DynamicEncounterLeaderShieldTeam = "LeagueEfficiencyDynamicEncounterLeaderShieldTeam";
+        public const string DynamicEncounterLeaderSolo = "LeagueEfficiencyDynamicEncounterLeaderSolo";
+        public const string DynamicEncounterLeaderCs = "LeagueEfficiencyDynamicEncounterLeaderCs";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -696,6 +702,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, "队内承伤第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch, "全场经济第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, "队内经济第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch, "全场推塔伤害第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam, "队内推塔伤害第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch, "全场护盾第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam, "队内护盾第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo, "单杀 ×{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs, "全场补刀第一（{0}）" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

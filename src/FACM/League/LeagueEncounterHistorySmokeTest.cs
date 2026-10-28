@@ -290,6 +290,54 @@ namespace FACM.League
                     leader, leaderboard, true, t).Contains("输出第一"),
                 "Unavailable own damage cannot qualify for a leader tag.");
 
+            leader.DamageAvailable = true;
+            leader.TotalDamageToTowers = 1200;
+            ally.TotalDamageToTowers = 600;
+            enemy.TotalDamageToTowers = 900;
+            enemyAlly.TotalDamageToTowers = 300;
+            leader.TotalDamageShieldedOnTeammates = 300;
+            ally.TotalDamageShieldedOnTeammates = 100;
+            enemy.TotalDamageShieldedOnTeammates = 500;
+            enemyAlly.TotalDamageShieldedOnTeammates = 100;
+            leader.SoloKills = 2;
+            leader.CreepScore = 210;
+            leader.CreepScoreAvailable = true;
+            ally.CreepScore = 140;
+            ally.CreepScoreAvailable = true;
+            enemy.CreepScore = 180;
+            enemy.CreepScoreAvailable = true;
+            enemyAlly.CreepScore = 90;
+            enemyAlly.CreepScoreAvailable = true;
+            var expandedTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(expandedTags.Contains("单杀 ×2") &&
+                expandedTags.Contains("全场推塔伤害第一（1,200 / 66.67%）") &&
+                expandedTags.Contains("队内护盾第一（300 / 75.00%）") &&
+                expandedTags.Contains("全场补刀第一（210）") &&
+                expandedTags.IndexOf("单杀 ×2", StringComparison.Ordinal) <
+                    expandedTags.IndexOf("全场治疗第一", StringComparison.Ordinal) &&
+                expandedTags.IndexOf("全场推塔伤害第一", StringComparison.Ordinal) <
+                    expandedTags.IndexOf("全场经济第一", StringComparison.Ordinal),
+                "Pinned tower, shield, solo and CS tags must retain metric shares and priority.");
+            enemy.TotalDamageToTowers = 1200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                enemy, leaderboard, true, t).Contains("全场推塔伤害第一（1,200 / 80.00%）"),
+                "Tied tower damage must retain all-match leaders with Cherry subgroup shares.");
+            enemy.TotalDamageToTowers = 900;
+            enemyAlly.TotalDamageShieldedOnTeammates = null;
+            enemy.CreepScoreAvailable = false;
+            leader.SoloKills = 1;
+            expandedTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!expandedTags.Contains("全场护盾第一") &&
+                expandedTags.Contains("队内护盾第一（300 / 75.00%）") &&
+                !expandedTags.Contains("全场补刀第一") && !expandedTags.Contains("单杀"),
+                "Sparse cross-team evidence must not imply match leaders or one-solo tags.");
+            leader.TotalDamageToTowers = null;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t).Contains("推塔伤害第一"),
+                "Missing tower damage must not be promoted to a verified zero or leader.");
+
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,

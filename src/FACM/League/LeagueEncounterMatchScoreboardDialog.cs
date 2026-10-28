@@ -476,14 +476,32 @@ namespace FACM.League
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam, 1600, 1550, t);
             AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageShieldedOnTeammates,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam, 1500, 1450, t);
+            AddMatchLeaderTag(tags, player, all, group,
                 p => p.TotalDamageTaken.HasValue && p.TotalDamageTaken.Value >= 0
                     ? p.TotalDamageTaken : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, 1400, 1350, t);
             AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageToTowers,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam, 900, 850, t);
+            AddMatchLeaderTag(tags, player, all, group,
                 p => p.GoldAvailable && p.GoldEarned >= 0 ? (int?)p.GoldEarned : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, 700, 650, t);
+            if (player.SoloKills.HasValue && player.SoloKills.Value >= 2)
+                tags.Add(new KeyValuePair<int, string>(1700,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo)
+                        .Replace("{0}", player.SoloKills.Value.ToString("N0", CultureInfo.InvariantCulture))));
+            if (player.CreepScoreAvailable && player.CreepScore > 0 &&
+                all.All(p => p.CreepScoreAvailable && p.CreepScore >= 0) &&
+                player.CreepScore == all.Max(p => p.CreepScore))
+                tags.Add(new KeyValuePair<int, string>(600,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs)
+                        .Replace("{0}", player.CreepScore.ToString("N0", CultureInfo.InvariantCulture))));
             return tags.Count == 0 ? string.Empty :
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
                     .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
