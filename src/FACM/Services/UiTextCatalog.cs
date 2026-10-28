@@ -626,6 +626,9 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerAnalysisAkariGold, "经济"),
             Pair(UiTextKeys.LeaguePlayerAnalysisAkariParticipation, "参团"),
             Pair(UiTextKeys.LeaguePlayerAnalysisAkariVision, "视野"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroSelect, "切换英雄评分"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroAll, "全部 · 综合分析"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroRating, "{0} · {1} 场 · 胜率 {2}% · 单英雄评分"),
 
             Pair(UiTextKeys.LeagueLiveMenu, "实时对局"),
             Pair(UiTextKeys.LeagueLiveWindowTitle, "GGman · 实时对局"),

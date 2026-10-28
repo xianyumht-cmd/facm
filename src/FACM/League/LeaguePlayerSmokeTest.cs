@@ -78,6 +78,27 @@ namespace FACM.League
                     Math.Abs(perfect.Total - 17d) < 0.00001 && perfect.Extraordinary &&
                     perfect.Outstanding, "Pinned Akari 1.5.1 component weights must total 17 on a full-score fixture.");
 
+            for (var index = 0; index < matches.Count; index++)
+            {
+                matches[index].ChampionId = index < 3 ? 145 : 22;
+                matches[index].ChampionName = index < 3 ? "Kai'Sa" : "Ashe";
+            }
+            var incompleteHero = new LeaguePlayerMatchSummary {
+                GameId = 900, ChampionId = 266, ChampionName = "Aatrox",
+                GameType = "MATCHED_GAME", WinResult = "loss",
+                StatisticsAvailable = true, ParticipantResolved = true
+            };
+            var mixed = LeaguePlayerHistoryAnalysis.Calculate(matches.Concat(new[] { incompleteHero }));
+            Require(mixed.AllChampions.Count == 3 && mixed.Champions.Count == 3 &&
+                    mixed.AllChampions[0].ChampionId == 22 && mixed.AllChampions[0].Games == 5 &&
+                    mixed.ChampionScores[22] != null && mixed.ChampionScores[22].Games == 5 &&
+                    mixed.ChampionScores[22].Outstanding && !mixed.ChampionScores[22].Extraordinary &&
+                    mixed.ChampionScores[145] != null && mixed.ChampionScores[145].Games == 3 &&
+                    !mixed.ChampionScores[145].Outstanding &&
+                    mixed.ChampionScores[266] == null &&
+                    mixed.AkariScore != null && mixed.AkariScore.Games == 8,
+                "Each champion must use its own verified scoring denominator without hiding sparse heroes.");
+
             var incomplete = matches[0];
             incomplete.ParticipantRoster[1].GoldEarned = null;
             Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,

@@ -125,6 +125,9 @@ namespace FACM.League
         internal LeagueHistoryAkariScore AkariScore;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal List<LeaguePlayerChampionStat> Champions = new List<LeaguePlayerChampionStat>();
+        internal List<LeaguePlayerChampionStat> AllChampions = new List<LeaguePlayerChampionStat>();
+        internal Dictionary<int, LeagueHistoryAkariScore> ChampionScores =
+            new Dictionary<int, LeagueHistoryAkariScore>();
 
         internal static LeagueHistoryOutcome Outcome(LeaguePlayerMatchSummary m)
         {
@@ -193,14 +196,17 @@ namespace FACM.League
                 result.PreviousFiveWinRate = dated.Skip(5).Take(5)
                     .Count(m => Outcome(m) == LeagueHistoryOutcome.Win) * 20d;
             }
-            result.Champions = played.Where(m => m.ChampionId > 0).GroupBy(m => m.ChampionId)
-                .Select(g => new LeaguePlayerChampionStat {
+            var championGroups = played.Where(m => m.ChampionId > 0).GroupBy(m => m.ChampionId).ToList();
+            foreach (var group in championGroups)
+                result.ChampionScores[group.Key] = LeagueHistoryAkariScore.Calculate(group);
+            result.AllChampions = championGroups.Select(g => new LeaguePlayerChampionStat {
                     ChampionId = g.Key, ChampionName = g.Select(m => m.ChampionName)
                         .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)),
                     Games = g.Count(), Wins = g.Count(m => Outcome(m) == LeagueHistoryOutcome.Win),
                     Kills = g.Sum(m => m.Kills), Deaths = g.Sum(m => m.Deaths),
                     Assists = g.Sum(m => m.Assists)
-                }).OrderByDescending(c => c.Games).ThenBy(c => c.ChampionId).Take(5).ToList();
+                }).OrderByDescending(c => c.Games).ThenBy(c => c.ChampionId).ToList();
+            result.Champions = result.AllChampions.Take(5).ToList();
             foreach (var m in rows)
             {
                 if (m.GameCreationLocal == DateTime.MinValue) break;
@@ -254,6 +260,37 @@ namespace FACM.League
                 .ToString("0.0", CultureInfo.CurrentCulture) + (fraction ? "%" : "") : "--";
         }
 
+        private static void AppendRating(List<string> lines, UiTextCatalog ui,
+            LeagueHistoryAkariScore score, int eligibleGames)
+        {
+            if (score == null)
+            {
+                lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariUnavailable));
+                return;
+            }
+            lines.Add(string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTotal),
+                score.Total.ToString("0.00", CultureInfo.CurrentCulture), score.Games,
+                eligibleGames, score.Extraordinary ?
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariExtraordinary) :
+                    score.Outstanding ? ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariOutstanding) :
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariNormal)));
+            var keys = new[] { UiTextKeys.LeaguePlayerAnalysisAkariKda,
+                UiTextKeys.LeaguePlayerAnalysisAkariWinRate, UiTextKeys.LeaguePlayerAnalysisAkariDamage,
+                UiTextKeys.LeaguePlayerAnalysisAkariDamageTaken, UiTextKeys.LeaguePlayerAnalysisAkariHealing,
+                UiTextKeys.LeaguePlayerAnalysisAkariCs, UiTextKeys.LeaguePlayerAnalysisAkariGold,
+                UiTextKeys.LeaguePlayerAnalysisAkariParticipation,
+                UiTextKeys.LeaguePlayerAnalysisAkariVision };
+            var values = new[] { score.Kda, score.WinRate, score.Damage,
+                score.DamageTaken, score.Healing, score.Cs, score.Gold,
+                score.Participation, score.Vision };
+            var maxima = new[] { 1, 1, 3, 2, 2, 2, 2, 2, 2 };
+            for (var i = 0; i < keys.Length; i++)
+                lines.Add(string.Format(CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariPart),
+                    ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
+        }
+
         internal static void Show(Form owner, UiTextCatalog ui, IEnumerable<LeaguePlayerMatchSummary> matches)
         {
             var a = Calculate(matches);
@@ -288,33 +325,7 @@ namespace FACM.League
                     c.Games, c.WinRate.ToString("0", CultureInfo.CurrentCulture)));
             lines.Add(string.Empty);
             lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTitle));
-            if (a.AkariScore == null)
-                lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariUnavailable));
-            else
-            {
-                var score = a.AkariScore;
-                lines.Add(string.Format(CultureInfo.CurrentCulture,
-                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTotal),
-                    score.Total.ToString("0.00", CultureInfo.CurrentCulture), score.Games,
-                    a.Wins + a.Losses, score.Extraordinary ?
-                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariExtraordinary) :
-                        score.Outstanding ? ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariOutstanding) :
-                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariNormal)));
-                var keys = new[] { UiTextKeys.LeaguePlayerAnalysisAkariKda,
-                    UiTextKeys.LeaguePlayerAnalysisAkariWinRate, UiTextKeys.LeaguePlayerAnalysisAkariDamage,
-                    UiTextKeys.LeaguePlayerAnalysisAkariDamageTaken, UiTextKeys.LeaguePlayerAnalysisAkariHealing,
-                    UiTextKeys.LeaguePlayerAnalysisAkariCs, UiTextKeys.LeaguePlayerAnalysisAkariGold,
-                    UiTextKeys.LeaguePlayerAnalysisAkariParticipation,
-                    UiTextKeys.LeaguePlayerAnalysisAkariVision };
-                var values = new[] { score.Kda, score.WinRate, score.Damage,
-                    score.DamageTaken, score.Healing, score.Cs, score.Gold,
-                    score.Participation, score.Vision };
-                var maxima = new[] { 1, 1, 3, 2, 2, 2, 2, 2, 2 };
-                for (var i = 0; i < keys.Length; i++)
-                    lines.Add(string.Format(CultureInfo.CurrentCulture,
-                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariPart),
-                        ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
-            }
+            AppendRating(lines, ui, a.AkariScore, a.Wins + a.Losses);
             lines.Add(string.Empty);
             lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
             foreach (var role in a.Positions)
@@ -336,13 +347,67 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
             })
             {
-                dialog.Controls.Add(new TextBox {
+                var report = new TextBox {
                     Multiline = true, ReadOnly = true, Dock = DockStyle.Fill,
                     ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
                     BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
                     Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 10f),
                     Text = string.Join(Environment.NewLine, lines)
-                });
+                };
+                if (a.AllChampions.Count == 0)
+                    dialog.Controls.Add(report);
+                else
+                {
+                    var layout = new TableLayoutPanel {
+                        Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
+                        Margin = Padding.Empty, Padding = Padding.Empty
+                    };
+                    layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+                    layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                    var header = new Panel { Dock = DockStyle.Fill,
+                        BackColor = FacmDesignSystem.Canvas, Padding = new Padding(8, 6, 8, 4) };
+                    var selector = new ComboBox {
+                        Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+                        BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                        AccessibleName = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroSelect)
+                    };
+                    selector.Items.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll));
+                    foreach (var champion in a.AllChampions)
+                        selector.Items.Add((string.IsNullOrWhiteSpace(champion.ChampionName) ?
+                            "#" + champion.ChampionId : champion.ChampionName) +
+                            " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
+                    selector.SelectedIndexChanged += (sender, args) =>
+                    {
+                        var updated = new List<string>(lines);
+                        if (selector.SelectedIndex > 0 && selector.SelectedIndex <= a.AllChampions.Count)
+                        {
+                            var champion = a.AllChampions[selector.SelectedIndex - 1];
+                            updated.Add(string.Empty);
+                            updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroRating),
+                                string.IsNullOrWhiteSpace(champion.ChampionName) ?
+                                    "#" + champion.ChampionId : champion.ChampionName,
+                                champion.Games, champion.WinRate.ToString("0", CultureInfo.CurrentCulture)));
+                            LeagueHistoryAkariScore score;
+                            a.ChampionScores.TryGetValue(champion.ChampionId, out score);
+                            AppendRating(updated, ui, score, champion.Games);
+                        }
+                        report.Text = string.Join(Environment.NewLine, updated);
+                        report.SelectionStart = 0;
+                        report.ScrollToCaret();
+                    };
+                    header.Controls.Add(selector);
+                    var label = new Label {
+                        Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroSelect),
+                        Dock = DockStyle.Left, Width = 105, AutoEllipsis = true,
+                        TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text
+                    };
+                    header.Controls.Add(label);
+                    layout.Controls.Add(header, 0, 0);
+                    layout.Controls.Add(report, 0, 1);
+                    dialog.Controls.Add(layout);
+                    selector.SelectedIndex = 0;
+                }
                 dialog.ShowDialog(owner);
             }
         }

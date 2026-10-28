@@ -620,6 +620,9 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisAkariGold = "LeaguePlayerAnalysisAkariGold";
         public const string LeaguePlayerAnalysisAkariParticipation = "LeaguePlayerAnalysisAkariParticipation";
         public const string LeaguePlayerAnalysisAkariVision = "LeaguePlayerAnalysisAkariVision";
+        public const string LeaguePlayerAnalysisHeroSelect = "LeaguePlayerAnalysisHeroSelect";
+        public const string LeaguePlayerAnalysisHeroAll = "LeaguePlayerAnalysisHeroAll";
+        public const string LeaguePlayerAnalysisHeroRating = "LeaguePlayerAnalysisHeroRating";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";
