@@ -71,6 +71,8 @@ namespace FACM.League
         public double? GoldShare { get; set; }
         public double? KillParticipation { get; set; }
         public double? DamageGoldEfficiency { get; set; }
+        public double? TotalPings { get; set; }
+        public double? EnemyMissingPings { get; set; }
         public double? Level { get; set; }
         public double? GoldEarned { get; set; }
         public double? GoldSpent { get; set; }

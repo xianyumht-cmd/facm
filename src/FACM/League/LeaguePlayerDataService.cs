@@ -1387,6 +1387,24 @@ namespace FACM.League
             return match;
         }
 
+        private static readonly string[] SgpPingKeys = {
+            "allInPings", "assistMePings", "basicPings", "commandPings", "dangerPings",
+            "enemyMissingPings", "enemyVisionPings", "getBackPings", "holdPings",
+            "needVisionPings", "onMyWayPings", "pushPings", "retreatPings", "visionClearedPings"
+        };
+
+        private static double? SumSgpPings(Dictionary<string, object> stats)
+        {
+            double total = 0;
+            foreach (var key in SgpPingKeys)
+            {
+                var count = ReadOptionalCount(stats, key);
+                if (!count.HasValue) return null;
+                total += count.Value;
+            }
+            return total;
+        }
+
         private static LeaguePlayerMatchSummary ParseParticipantMatch(Dictionary<string, object> game,
             Dictionary<string, object> participant, int participantId, bool calculateBaselines = true)
         {
@@ -1425,6 +1443,8 @@ namespace FACM.League
                 GoldShare = TeamShare(game, participant, "goldEarned"),
                 KillParticipation = TeamShare(game, participant, "kills", true),
                 DamageGoldEfficiency = Ratio(Metric(stats, "totalDamageDealtToChampions"), Metric(stats, "goldEarned")),
+                TotalPings = ReadBool(game, "_sgp") ? SumSgpPings(stats) : null,
+                EnemyMissingPings = ReadBool(game, "_sgp") ? ReadOptionalCount(stats, "enemyMissingPings") : null,
                 Level = Metric(stats, "champLevel"),
                 GoldEarned = Metric(stats, "goldEarned"),
                 GoldSpent = Metric(stats, "goldSpent"),
@@ -1964,6 +1984,8 @@ namespace FACM.League
                     GoldShare = match.GoldShare,
                     KillParticipation = match.KillParticipation,
                     DamageGoldEfficiency = match.DamageGoldEfficiency,
+                    TotalPings = match.TotalPings,
+                    EnemyMissingPings = match.EnemyMissingPings,
                     Level = match.Level,
                     GoldEarned = match.GoldEarned,
                     GoldSpent = match.GoldSpent,

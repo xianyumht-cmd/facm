@@ -14,6 +14,7 @@ namespace FACM.League
             var first = Match(1, 22, 60, 60, 60);
             first.Kills = 2; first.Deaths = 0; first.Assists = 0;
             first.VisionScore = 0; first.SoloKills = 0;
+            first.TotalPings = 4; first.EnemyMissingPings = 2;
             var second = Match(2, 22, 600, 0, 120);
             second.Kills = 0; second.Deaths = 10; second.Assists = 0;
             second.VisionScore = null; second.SoloKills = null;
@@ -21,9 +22,13 @@ namespace FACM.League
             var matches = new[] { first, second, other, first };
             var values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Func<string, LeagueHistoryComparisonValue> get = key => values.Single(v => v.Key == key);
-            Require(values.Count == 25 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
+            Require(values.Count == 29 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
                 get(UiTextKeys.LeaguePlayerCompareKda).Total == 2,
                 "Hero comparisons must deduplicate games and use aggregate KDA, not mean game KDA.");
+            Require(get(UiTextKeys.LeaguePlayerCompareKdaVariation).Value == 1d &&
+                get(UiTextKeys.LeaguePlayerCompareKillDamageEfficiency).Value == 1.5d &&
+                get(UiTextKeys.LeaguePlayerCompareKillDamageEfficiency).Known == 2,
+                "Pinned KDA population variation and per-game kill/damage efficiency must not pool unlike denominators.");
             Require(get(UiTextKeys.LeaguePlayerCompareDamageMinute).Value == 180d &&
                 get(UiTextKeys.LeaguePlayerCompareDamageShare).Value == .75d,
                 "Per-minute and ratio comparisons must average individual-game values.");
@@ -32,8 +37,19 @@ namespace FACM.League
                 !get(UiTextKeys.LeaguePlayerCompareSoloKills).Value.HasValue &&
                 get(UiTextKeys.LeaguePlayerCompareSoloKills).Known == 1,
                 "Known zero must remain zero; source all-non-null solo kills must not use a partial mean.");
+            Require(!get(UiTextKeys.LeaguePlayerComparePings).Value.HasValue &&
+                get(UiTextKeys.LeaguePlayerComparePings).Known == 1 &&
+                !get(UiTextKeys.LeaguePlayerCompareMissingPings).Value.HasValue,
+                "One missing SGP ping source must leave both whole-sample averages unavailable.");
+            second.TotalPings = 8; second.EnemyMissingPings = 0;
+            values = LeagueHistoryChampionComparison.Calculate(matches, 22);
+            Require(get(UiTextKeys.LeaguePlayerComparePings).Value == 6d &&
+                get(UiTextKeys.LeaguePlayerCompareMissingPings).Value == 1d &&
+                get(UiTextKeys.LeaguePlayerCompareMissingPings).Known == 2,
+                "Two verified ping samples must permit zero missing-pings and average independently.");
             var independent = LeagueHistoryChampionComparison.Calculate(matches, 145);
             Require(independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareDamageShare).Value == 0 &&
+                !independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareKdaVariation).Value.HasValue &&
                 independent.All(v => v.Total == 1),
                 "Another hero must retain independent sample coverage and verified zero denominators.");
             first.MetricBaselines = null;
@@ -44,10 +60,23 @@ namespace FACM.League
             Require(LeagueHistoryChampionComparison.Relative(first, m => m.DamageDealtToChampions,
                     true, false) == 1d,
                 "Cherry comparisons must exclude another subteam sharing ordinary teamId.");
+            Require(LeagueHistoryChampionComparison.KillDamageEfficiency(first) == 1d,
+                "A Cherry solo-subteam kill efficiency must not include ordinary-team opponent damage.");
             first.ParticipantRoster[1].PlayerSubteamId = null;
             Require(!LeagueHistoryChampionComparison.Relative(first, m => m.DamageDealtToChampions,
                     true, false).HasValue,
                 "Unassigned Cherry participants must leave team comparison evidence unknown.");
+            Require(!LeagueHistoryChampionComparison.KillDamageEfficiency(first).HasValue,
+                "Missing Cherry subteam evidence must suppress kill/damage efficiency too.");
+            var zero = Match(4, 1, 0, 0, 60);
+            Require(LeagueHistoryChampionComparison.KillDamageEfficiency(zero) == 1d,
+                "The pinned noZero fallback yields one when verified team kills or damage totals are zero.");
+            zero.Kills = 1; zero.ParticipantRoster[1].DamageDealtToChampions = 100;
+            Require(!LeagueHistoryChampionComparison.KillDamageEfficiency(zero).HasValue,
+                "A positive team total with zero personal damage must remain unavailable, not infinite.");
+            zero.ParticipantRoster[1].StatisticsAvailable = false;
+            Require(!LeagueHistoryChampionComparison.KillDamageEfficiency(zero).HasValue,
+                "Missing teammate statistics must not fabricate team damage or kills.");
             Require(LeagueHistoryChampionComparison.Calculate(matches, 999).All(v =>
                 !v.Value.HasValue && v.Known == 0 && v.Total == 0),
                 "Absent champions must display unavailable values, never another hero's metrics.");
@@ -57,7 +86,7 @@ namespace FACM.League
                 view.Size = bitmap.Size;
                 view.RefreshData(matches);
                 view.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                Require(view.Controls.OfType<ListView>().Single().Items.Count == 25,
+                Require(view.Controls.OfType<ListView>().Single().Items.Count == 29,
                     "Native comparison must expose every available metric row.");
                 view.RefreshData(new LeaguePlayerMatchSummary[0]);
                 Require(view.Controls.OfType<ListView>().Single().Items[0].SubItems[1].Text.Contains("(0/0)"),

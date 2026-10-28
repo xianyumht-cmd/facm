@@ -1297,8 +1297,28 @@ namespace FACM.League
                     page.Matches[0].AugmentIds[0] == 1337 && page.Matches[0].PerkIds[0] == 8005 &&
                     page.Matches[0].PerkIds[4] == 8139 && page.Matches[0].PerkIds[1] == -1 && page.Matches[0].PerkStyleIds[0] == 8000 &&
                     page.Matches[0].MatchPlayers.Length == 2 &&
+                    !page.Matches[0].TotalPings.HasValue && !page.Matches[0].EnemyMissingPings.HasValue &&
                     page.Matches[0].SameTeamPuuids.Contains("teammate"),
                 "SGP flat participant data must retain identity, results and loadout after normalization.");
+            var pingFields = "\"allInPings\":1,\"assistMePings\":1,\"basicPings\":1," +
+                "\"commandPings\":1,\"dangerPings\":1,\"enemyMissingPings\":5," +
+                "\"enemyVisionPings\":1,\"getBackPings\":1,\"holdPings\":1," +
+                "\"needVisionPings\":1,\"onMyWayPings\":1,\"pushPings\":1," +
+                "\"retreatPings\":1,\"visionClearedPings\":1,";
+            var withPings = source.Replace("\"playerAugment1\":1337,", "\"playerAugment1\":1337," + pingFields);
+            var pingPage = parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(withPings), target, 0, 10);
+            Require(pingPage != null && pingPage.Matches.Count == 1 &&
+                pingPage.Matches[0].TotalPings == 18 && pingPage.Matches[0].EnemyMissingPings == 5,
+                "All fourteen source SGP ping counters must sum once, including enemy-missing pings.");
+            var partialPings = parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(
+                source.Replace("\"playerAugment1\":1337,", "\"playerAugment1\":1337,\"enemyMissingPings\":5,")),
+                target, 0, 10);
+            Require(partialPings != null && partialPings.Matches[0].EnemyMissingPings == 5 &&
+                !partialPings.Matches[0].TotalPings.HasValue &&
+                !parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(withPings.Replace(
+                    "\"enemyMissingPings\":5", "\"enemyMissingPings\":-1")), target, 0, 10)
+                    .Matches[0].EnemyMissingPings.HasValue,
+                "Partial or negative SGP counters must never fabricate a full ping total or a known zero.");
             Require(parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes("{\"games\":{}}"), target, 0, 10) == null &&
                     parser.ParseSgpMatchPage(Encoding.UTF8.GetBytes(source),
                         new LeaguePlayerProfile { PuuId = "other" }, 0, 10).Matches.Count == 0,

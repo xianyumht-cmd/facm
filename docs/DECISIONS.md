@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Keep optional Akari champion metrics source/roster complete
+
+Extend native ChampionAnalysis metrics only over existing identity- and region-fenced Player matches. Individual-game KDA variation follows the pinned population formula; kill/damage efficiency requires an eligible original match's known team roster (Cherry subteams, not ordinary team ID) and retains the source's `1` fallback only when a confirmed team total is zero. SGP pings use all fourteen explicitly named counters and are nullable when any counter is absent or malformed; LCU never invents pings from other statistics. All-non-null averages retain unknown instead of conflating missing samples with no pings. Existing on-demand SGP/LCU hydration and bounded comparison owner remain unchanged; live Tencent behavior needs later consolidated acceptance.
+
 ## 2026-10-27 — Replay both own and remote Player pages through a frozen LCU selection
 
 The prior replay service was attached only to locally saved encountered games. Extend the same typed write owner to current-account and Riot-ID remote match-history lists, but never manufacture a persistent encounter record or enable an action directly from a stale cached page. Snapshot the session that successfully loaded the page, match metadata and current self PUUID; verify signed-in identity just before each write. A selected-row button is more discoverable than a hidden context-menu-only command and does not require changing the owner-approved launcher or adding browser UI. Account changes, page changes and dialog close must cancel or hide stale UI results. Keep all work inside Draft #357 until consolidated live acceptance.

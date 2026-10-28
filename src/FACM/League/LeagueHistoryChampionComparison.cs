@@ -50,6 +50,39 @@ namespace FACM.League
             return personal.Value / (denominator == 0 ? 1 : denominator);
         }
 
+        // Source-pinned coefficient of variation: population deviation of per-game KDA divided by its mean.
+        internal static double? KdaVariation(IReadOnlyList<LeaguePlayerMatchSummary> matches)
+        {
+            if (matches == null || matches.Count == 0) return null;
+            var values = matches.Select(m => (m.Kills + (double)m.Assists) / Math.Max(1, m.Deaths)).ToArray();
+            var mean = values.Average();
+            if (mean == 0) return null;
+            return Math.Sqrt(values.Average(v => (v - mean) * (v - mean))) / mean;
+        }
+
+        internal static double? KillDamageEfficiency(LeaguePlayerMatchSummary match)
+        {
+            if (match == null || !match.StatisticsAvailable || match.Kills < 0 ||
+                !Known(match.DamageDealtToChampions)) return null;
+            var roster = match.ParticipantRoster;
+            if (roster == null || roster.Length == 0 ||
+                roster.Any(p => p == null || p.ParticipantId <= 0) ||
+                roster.Select(p => p.ParticipantId).Distinct().Count() != roster.Length ||
+                roster.Count(p => p.ParticipantId == match.ParticipantId) != 1) return null;
+            var cherry = LeagueCherryTeams.IsCherry(match.GameMode);
+            var group = LeagueCherryTeams.GroupId(match, cherry);
+            if (group <= 0 || roster.Any(p => LeagueCherryTeams.GroupId(p, cherry) <= 0)) return null;
+            var team = roster.Where(p => LeagueCherryTeams.GroupId(p, cherry) == group).ToArray();
+            if (team.Length == 0 || team.Any(p => !p.StatisticsAvailable || p.Kills < 0 ||
+                !Known(p.DamageDealtToChampions))) return null;
+            var teamKills = team.Sum(p => (double)p.Kills);
+            var teamDamage = team.Sum(p => p.DamageDealtToChampions.Value);
+            if (teamKills == 0 || teamDamage == 0) return 1d;
+            if (match.DamageDealtToChampions.Value == 0) return null;
+            var efficiency = (match.Kills / teamKills) / (match.DamageDealtToChampions.Value / teamDamage);
+            return Known(efficiency) ? efficiency : (double?)null;
+        }
+
         internal static List<LeagueHistoryComparisonValue> Calculate(
             IEnumerable<LeaguePlayerMatchSummary> matches, int championId)
         {
@@ -74,6 +107,8 @@ namespace FACM.League
                 Value = rows.Count == 0 ? (double?)null :
                     rows.Sum(m => (double)m.Kills + m.Assists) / Math.Max(1d, rows.Sum(m => (double)m.Deaths)),
                 Known = rows.Count, Total = rows.Count });
+            result.Add(new LeagueHistoryComparisonValue { Key = UiTextKeys.LeaguePlayerCompareKdaVariation,
+                Value = KdaVariation(rows), Known = rows.Count, Total = rows.Count });
             add(UiTextKeys.LeaguePlayerCompareWinRate, m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ? 1d : 0d, true, false);
             add(UiTextKeys.LeaguePlayerCompareParticipation, m => m.KillParticipation, true, false);
             add(UiTextKeys.LeaguePlayerCompareVision, m => m.VisionScore, false, false);
@@ -87,7 +122,10 @@ namespace FACM.League
             add(UiTextKeys.LeaguePlayerCompareTakenTeamMax, m => Relative(m, p => p.DamageTaken, true, true), true, false);
             add(UiTextKeys.LeaguePlayerCompareTakenGameMax, m => Relative(m, p => p.DamageTaken, false, true), true, false);
             add(UiTextKeys.LeaguePlayerCompareDamageGold, m => m.DamageGoldEfficiency, true, false);
+            add(UiTextKeys.LeaguePlayerCompareKillDamageEfficiency, KillDamageEfficiency, false, false);
             add(UiTextKeys.LeaguePlayerCompareSoloKills, m => m.SoloKills, false, true);
+            add(UiTextKeys.LeaguePlayerComparePings, m => m.TotalPings, false, true);
+            add(UiTextKeys.LeaguePlayerCompareMissingPings, m => m.EnemyMissingPings, false, true);
             add(UiTextKeys.LeaguePlayerCompareGoldShare, m => Relative(m, p => p.GoldEarned, true, false), true, false);
             add(UiTextKeys.LeaguePlayerCompareGoldTeamMax, m => Relative(m, p => p.GoldEarned, true, true), true, false);
             add(UiTextKeys.LeaguePlayerCompareGoldGameMax, m => Relative(m, p => p.GoldEarned, false, true), true, false);
