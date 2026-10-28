@@ -80,6 +80,16 @@ namespace FACM.League
                 new LeagueSimpleMatchHistoryFilter { WinLoss = LeagueMatchWinLossFilter.Loss }, now);
             Require(loss.All(m => m.GameId != 3 && m.GameId != 4),
                 "Simple losses must exclude explicitly classified remakes and aborts.");
+            Require(LeaguePlayerHistoryAnalysis.Outcome(new LeaguePlayerMatchSummary {
+                    ParticipantResolved = true, WinResult = "remake", StatisticsAvailable = false
+                }) == LeagueHistoryOutcome.Remake &&
+                LeaguePlayerHistoryAnalysis.Outcome(new LeaguePlayerMatchSummary {
+                    ParticipantResolved = true, WinResult = "abort", StatisticsAvailable = false
+                }) == LeagueHistoryOutcome.Abort &&
+                LeaguePlayerHistoryAnalysis.Outcome(new LeaguePlayerMatchSummary {
+                    ParticipantResolved = true, WinResult = "win", StatisticsAvailable = false
+                }) == LeagueHistoryOutcome.Unknown,
+                "Authoritative remake/abort results must survive sparse stats; ordinary win/loss needs evidence.");
         }
 
         private static void ValidatePlayerPageLayout()

@@ -21,16 +21,15 @@ namespace FACM.League
 
         internal static LeagueHistoryOutcome Outcome(LeaguePlayerMatchSummary m)
         {
-            if (m == null || !m.ParticipantResolved || !m.StatisticsAvailable)
+            if (m == null || !m.ParticipantResolved)
                 return LeagueHistoryOutcome.Unknown;
-            switch ((m.WinResult ?? "").Trim().ToLowerInvariant())
-            {
-                case "win": return LeagueHistoryOutcome.Win;
-                case "loss": return LeagueHistoryOutcome.Loss;
-                case "remake": return LeagueHistoryOutcome.Remake;
-                case "abort": return LeagueHistoryOutcome.Abort;
-                default: return LeagueHistoryOutcome.Unknown;
-            }
+            var result = (m.WinResult ?? "").Trim().ToLowerInvariant();
+            if (result == "remake") return LeagueHistoryOutcome.Remake;
+            if (result == "abort") return LeagueHistoryOutcome.Abort;
+            if (!m.StatisticsAvailable) return LeagueHistoryOutcome.Unknown;
+            if (result == "win") return LeagueHistoryOutcome.Win;
+            if (result == "loss") return LeagueHistoryOutcome.Loss;
+            return LeagueHistoryOutcome.Unknown;
         }
 
         internal static LeaguePlayerHistoryAnalysis Calculate(IEnumerable<LeaguePlayerMatchSummary> matches)
