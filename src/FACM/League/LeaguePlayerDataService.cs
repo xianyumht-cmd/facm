@@ -756,6 +756,8 @@ namespace FACM.League
                     Assists = ReadInt(stats, "assists"),
                     CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
                         (long)ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"))),
+                    CreepScoreAvailable = ReadOptionalCount(stats, "totalMinionsKilled").HasValue &&
+                        ReadOptionalCount(stats, "neutralMinionsKilled").HasValue,
                     DamageToChampions = ReadInt(stats, "totalDamageDealtToChampions"),
                     DamageAvailable = ReadOptionalCount(stats, "totalDamageDealtToChampions").HasValue,
                     GoldEarned = ReadInt(stats, "goldEarned"),

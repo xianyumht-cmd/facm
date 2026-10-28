@@ -275,6 +275,7 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardUnknown = "LeagueEfficiencyDynamicEncounterScoreboardUnknown";
         public const string DynamicEncounterScoreboardSelectionHint = "LeagueEfficiencyDynamicEncounterScoreboardSelectionHint";
         public const string DynamicEncounterScoreboardSelection = "LeagueEfficiencyDynamicEncounterScoreboardSelection";
+        public const string DynamicEncounterScoreboardRates = "LeagueEfficiencyDynamicEncounterScoreboardRates";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -630,6 +631,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown, "未提供名称" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint, "选择一名玩家查看装备、召唤师技能和符文。" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection, "{0} · 英雄：{1} · 召唤师技能：{2}\r\n装备：{3} · 绑定装备：{7}\r\n符文：{4} · 流派：{5} · 强化：{6}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardRates, "KDA {0} · 参团率 {1} · 伤害占比 {2}\r\n补刀/分 {3} · 金币/分 {4}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

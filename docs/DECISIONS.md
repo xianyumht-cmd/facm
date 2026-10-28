@@ -1,8 +1,12 @@
+# GGman / FACM Decisions
+
+## 2026-10-28 — Project five MatchCard rates from already-verified detail records
+
+Reuse the selected game's authenticated participant/team snapshot for source-pinned KDA, kill participation, damage share and CS/gold per-minute figures. Validate Cherry subgroup ownership, nonnegative source fields and positive duration before displaying rates. Preserve explicit zero versus missing source components, including the two CS fields, rather than treating incomplete matches as fully measured. Keep the user-facing ratios in the same selected-member detail pane and reuse existing localization, request/cancel ownership and memory budgets. The wider Akari MatchCard widget/rendering parity and Tencent/Win10 acceptance remain open.
+
 ## 2026-10-28 — Use one verified team order for native MatchCard cards and participant rows
 
 Follow the pinned Akari MatchCard summary's team-oriented presentation using GGman's existing parsed team scores and participant summaries, without a second visual host. Sort Cherry only by source-confirmed placement, keep unranked teams last, and never use conventional red/blue team ID as Cherry subgroup identity. Retain unassigned participants in a separate unknown group and maintain one shared backing-row order for native list selection and rune details. No extra timeline read, resident worker, local database or production update is justified by this presentation slice. Full source UI and Tencent/DPI acceptance remain unfinished.
-
-# GGman / FACM Decisions
 
 ## 2026-10-28 — Keep optional Akari champion metrics source/roster complete
 

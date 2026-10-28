@@ -133,7 +133,9 @@ namespace FACM.League
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
                     catalog == null ? null : catalog.PerkStyles);
-                selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
+                selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
+                    match.GameDurationSeconds, t) + "\r\n" +
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
                     .Replace("{1}", champion)
@@ -202,9 +204,9 @@ namespace FACM.League
                 item.SubItems.Add(string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName);
                 item.SubItems.Add(player.Kills + "/" + player.Deaths + "/" + player.Assists);
-                item.SubItems.Add(player.CreepScore.ToString());
-                item.SubItems.Add(player.DamageToChampions.ToString("N0"));
-                item.SubItems.Add(player.GoldEarned.ToString("N0"));
+                item.SubItems.Add(player.CreepScoreAvailable ? player.CreepScore.ToString() : "—");
+                item.SubItems.Add(player.DamageAvailable ? player.DamageToChampions.ToString("N0") : "—");
+                item.SubItems.Add(player.GoldAvailable ? player.GoldEarned.ToString("N0") : "—");
                 item.SubItems.Add(player.VisionScore.ToString());
                 item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
@@ -320,6 +322,43 @@ namespace FACM.League
                 .Where(team => team != null && team.TeamId > 0)
                 .OrderBy(team => cherry ? team.SubteamPlacement ?? int.MaxValue : team.TeamId)
                 .ThenBy(team => team.TeamId).ToList();
+        }
+
+        internal static string FormatParticipantRates(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry, int gameDurationSeconds,
+            Func<string, string> t)
+        {
+            var groupId = player == null ? 0 : LeagueCherryTeams.GroupId(player, cherry);
+            var matching = groupId > 0 && teams != null
+                ? teams.Where(team => team != null && team.TeamId == groupId).Take(2).ToList()
+                : new List<LeagueMatchTeamScore>();
+            var team = matching.Count == 1 ? matching[0] : null;
+            var scoreValid = player != null && player.Kills >= 0 && player.Assists >= 0 && player.Deaths >= 0;
+            var kda = scoreValid ? (double?)(player.Kills + (double)player.Assists) /
+                Math.Max(1, player.Deaths) : null;
+            var participation = scoreValid && team != null && team.Kills >= 0
+                ? (double?)(player.Kills + (double)player.Assists) / Math.Max(1L, team.Kills) * 100 : null;
+            var damageShare = player != null && player.DamageAvailable && player.DamageToChampions >= 0 &&
+                team != null && team.DamageToChampions.HasValue && team.DamageToChampions.Value >= 0
+                    ? (double?)player.DamageToChampions / Math.Max(1L, team.DamageToChampions.Value) * 100 : null;
+            var minutes = gameDurationSeconds > 0 ? gameDurationSeconds / 60d : 0;
+            var csPerMinute = player != null && player.CreepScoreAvailable && player.CreepScore >= 0 && minutes > 0
+                ? (double?)player.CreepScore / minutes : null;
+            var goldPerMinute = player != null && player.GoldAvailable && player.GoldEarned >= 0 && minutes > 0
+                ? (double?)player.GoldEarned / minutes : null;
+            Func<double?, string, string> number = (value, format) => value.HasValue &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
+                    ? value.Value.ToString(format, CultureInfo.InvariantCulture) : "—";
+            Func<double?, string> percent = value => value.HasValue &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
+                    ? Math.Round(value.Value, 0, MidpointRounding.AwayFromZero)
+                        .ToString("0", CultureInfo.InvariantCulture) + "%" : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardRates)
+                .Replace("{0}", number(kda, "0.00"))
+                .Replace("{1}", percent(participation))
+                .Replace("{2}", percent(damageShare))
+                .Replace("{3}", number(csPerMinute, "0.0"))
+                .Replace("{4}", number(goldPerMinute, "0.0"));
         }
 
         internal static List<LeaguePlayerMatchParticipant> OrderScoreboardParticipants(

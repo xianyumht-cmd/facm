@@ -171,6 +171,40 @@ namespace FACM.League
                         new LeagueMatchTeamScore { TeamId = 100 }
                     }, false).Select(player => player.ParticipantId).SequenceEqual(new[] { 2, 1, 5 }),
                 "Unknown Cherry placements must sort last, while ordinary teams retain red/blue membership.");
+            Func<string, string> t = key => LeagueEfficiencyText.Get(null, key);
+            var ratesPlayer = new LeaguePlayerMatchParticipant {
+                TeamId = 100, PlayerSubteamId = 2, Kills = 4, Deaths = 0, Assists = 6,
+                CreepScore = 120, CreepScoreAvailable = true,
+                DamageToChampions = 5000, DamageAvailable = true,
+                GoldEarned = 10000, GoldAvailable = true
+            };
+            var ratesTeams = new[] {
+                new LeagueMatchTeamScore { TeamId = 100, Kills = 20, DamageToChampions = 40000 },
+                new LeagueMatchTeamScore { TeamId = 2, Kills = 10, DamageToChampions = 20000 }
+            };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, true, 1200, t) ==
+                        "KDA 10.00 · 参团率 100% · 伤害占比 25%\r\n补刀/分 6.0 · 金币/分 500.0" &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, false, 1200, t).Contains("参团率 50% · 伤害占比 13%"),
+                "MatchCard rates must use Akari's deaths=0 fallback and Cherry subteam, not red/blue team totals.");
+            var sparsePlayer = new LeaguePlayerMatchParticipant { TeamId = 100, Kills = 1, Assists = 1 };
+            var sparseRates = LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                sparsePlayer, null, false, 0, t);
+            Require(sparseRates.Contains("KDA 2.00 · 参团率 — · 伤害占比 —") &&
+                sparseRates.Contains("补刀/分 — · 金币/分 —") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, true, 0, t).Contains("补刀/分 — · 金币/分 —"),
+                "Unavailable roster, stats and duration must not appear as measured zeroes.");
+            var zeroPlayer = new LeaguePlayerMatchParticipant { TeamId = 100, CreepScoreAvailable = true,
+                GoldAvailable = true, DamageAvailable = true };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(zeroPlayer,
+                    new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
+                    false, 600, t).Contains("参团率 0% · 伤害占比 0%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(zeroPlayer,
+                    new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
+                    false, 600, t).Contains("补刀/分 0.0 · 金币/分 0.0"),
+                "Explicitly verified zero values must remain distinguishable from unknown fields.");
             var catalog = new LeagueBuildAdvisorCatalog();
             LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
                 "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), catalog);
@@ -277,6 +311,10 @@ namespace FACM.League
                     result.Match.Kills == 5 && result.Match.Deaths == 2 && result.Match.Assists == 9 &&
                     result.Match.CreepScore == 103 && result.Participants != null &&
                     result.Participants.Count == 3 && result.Participants.Single(p => p.IsTarget).PlayerName == "Target#HN1" &&
+                    result.Participants.Single(p => p.IsTarget).CreepScoreAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").CreepScoreAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").DamageAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").GoldAvailable &&
                     result.Participants.Single(p => p.IsTarget).DamageToChampions == 18000 &&
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
                     result.Match.ChampionName == "Ashe" &&

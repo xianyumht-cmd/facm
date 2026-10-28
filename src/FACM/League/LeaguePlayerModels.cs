@@ -200,6 +200,7 @@ namespace FACM.League
         public int Deaths { get; set; }
         public int Assists { get; set; }
         public int CreepScore { get; set; }
+        public bool CreepScoreAvailable { get; set; }
         public int DamageToChampions { get; set; }
         public bool DamageAvailable { get; set; }
         public int GoldEarned { get; set; }
