@@ -28,6 +28,7 @@ namespace FACM.League
             ValidateAdvancedParticipantEquipmentFilters();
             ValidateAdvancedRelativeMetricFilters();
             ValidateAdvancedParticipantScopes();
+            ValidateCherryAnalysisTeams();
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
             ValidateRemotePlayerHistory();
@@ -919,6 +920,66 @@ namespace FACM.League
             Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
                 Predicate(LeagueAdvancedMatchKind.KdaBetween, "teamShare:0,100")), out filter, out error),
                 "KDA must retain Akari's absolute-only comparator.");
+        }
+
+        private static void ValidateCherryAnalysisTeams()
+        {
+            var participants = new List<Dictionary<string, object>>();
+            var identities = new List<object>();
+            var damage = new[] { 100, 300, 1000, 3000 };
+            for (var i = 0; i < 4; i++)
+            {
+                participants.Add(new Dictionary<string, object> {
+                    { "participantId", i + 1 }, { "teamId", 100 }, { "championId", i + 1 },
+                    { "stats", new Dictionary<string, object> {
+                        { "playerSubteamId", i < 2 ? 1 : 2 }, { "win", true },
+                        { "kills", 2 * (i + 1) }, { "deaths", 1 }, { "assists", 1 },
+                        { "totalDamageDealtToChampions", damage[i] }, { "goldEarned", damage[i] },
+                        { "totalDamageTaken", damage[i] } } }
+                });
+                identities.Add(new { participantId = i + 1, player = new { puuid = "player-" + (i + 1) } });
+            }
+            var game = new Dictionary<string, object> { { "gameId", 9901 }, { "gameMode", "CHERRY" },
+                { "participants", participants }, { "participantIdentities", identities } };
+            var service = new LeaguePlayerDataService(new FixtureApi(null, null, null), new PerformanceBudgetProvider());
+            Func<LeaguePlayerMatchSummary> parse = () => service.ParseMatchPage(
+                Encoding.UTF8.GetBytes(new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(
+                    new { games = new { games = new[] { game } } })),
+                new LeaguePlayerProfile { PuuId = "player-1" }, 0, 1).Matches.Single();
+            var match = parse();
+            Require(match.ChampionDamageShare == .25d && match.GoldShare == .25d &&
+                match.DamageTakenShare == .25d && match.KillParticipation == .5d &&
+                match.MetricBaselines["totalDamageDealtToChampions"][0] == 400 &&
+                match.MetricBaselines["totalDamageDealtToChampions"][2] == 4400 &&
+                match.ParticipantRoster[2].MetricBaselines["totalDamageDealtToChampions"][0] == 4000 &&
+                match.SameTeamPuuids.SequenceEqual(new[] { "player-1", "player-2" }),
+                "Cherry shares, relative baselines and teammate identities must use the selected subteam.");
+            LeagueAdvancedMatchHistoryFilter allies = null, enemies = null, negated = null;
+            string error;
+            var opponent = Scoped(LeagueAdvancedMatchKind.Anyone, null,
+                Predicate(LeagueAdvancedMatchKind.HasChampion, "3"));
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Scoped(LeagueAdvancedMatchKind.Allies, "self", opponent)), out allies, out error) &&
+                LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Scoped(LeagueAdvancedMatchKind.Enemies, "self", opponent)), out enemies, out error) &&
+                !allies.Matches(match) && enemies.Matches(match),
+                "Cherry enemy scopes must not merge different subteams sharing ordinary teamId.");
+            Require(LeagueAdvancedMatchHistoryFilter.TryCreate(Group(LeagueAdvancedMatchKind.And,
+                    Group(LeagueAdvancedMatchKind.Not,
+                        Scoped(LeagueAdvancedMatchKind.Enemies, "self", opponent))), out negated, out error),
+                "The missing-subteam negation fixture must compile.");
+            ((Dictionary<string, object>)participants[2]["stats"]).Remove("playerSubteamId");
+            match = parse();
+            Require(!match.ChampionDamageShare.HasValue && match.SameTeamPuuids == null &&
+                double.IsNaN(match.MetricBaselines["totalDamageDealtToChampions"][0]) &&
+                double.IsNaN(match.ParticipantRoster[0].MetricBaselines["totalDamageDealtToChampions"][0]) &&
+                !enemies.Matches(match) && !negated.Matches(match),
+                "Missing Cherry groups must remain unknown, including under negation; no red/blue fallback.");
+            game["gameMode"] = "CLASSIC";
+            match = parse();
+            Require(Math.Abs(match.ChampionDamageShare.Value - 100d / 4400d) < .000001 &&
+                match.SameTeamPuuids.Length == 4 && allies.Matches(match) && !enemies.Matches(match),
+                "Ordinary modes must retain teamId grouping even when optional subteam fields are present.");
         }
 
         private static void ValidateAdvancedParticipantScopes()

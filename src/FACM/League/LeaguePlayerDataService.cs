@@ -1532,6 +1532,8 @@ namespace FACM.League
         private static void AssignRosterMetricBaselines(List<Dictionary<string, object>> participants,
             LeaguePlayerMatchSummary[] roster)
         {
+            var cherry = roster.Length > 0 && LeagueCherryTeams.IsCherry(roster[0].GameMode);
+            var groupsKnown = roster.All(p => LeagueCherryTeams.GroupId(p, cherry) > 0);
             foreach (var key in RelativeMetricKeys)
             {
                 var values = participants.Select(participant => ParticipantMetric(participant, key)).ToArray();
@@ -1545,7 +1547,7 @@ namespace FACM.League
                     var value = values[index].Value;
                     gameSum += value;
                     gameMax = Math.Max(gameMax, value);
-                    var teamId = roster[index].TeamId;
+                    var teamId = LeagueCherryTeams.GroupId(roster[index], cherry);
                     if (teamId <= 0) continue;
                     double sum;
                     teamSums.TryGetValue(teamId, out sum);
@@ -1561,9 +1563,10 @@ namespace FACM.League
                     var member = roster[index];
                     double teamSum = 0;
                     double teamMax = 0;
-                    var hasTeam = member.TeamId > 0 &&
-                        teamSums.TryGetValue(member.TeamId, out teamSum) &&
-                        teamMaxima.TryGetValue(member.TeamId, out teamMax);
+                    var group = LeagueCherryTeams.GroupId(member, cherry);
+                    var hasTeam = group > 0 && (!cherry || groupsKnown) &&
+                        teamSums.TryGetValue(group, out teamSum) &&
+                        teamMaxima.TryGetValue(group, out teamMax);
                     if (hasTeam && (double.IsInfinity(teamSum) || double.IsNaN(teamSum))) continue;
                     if (member.MetricBaselines == null)
                         member.MetricBaselines = new Dictionary<string, double[]>(StringComparer.Ordinal);
@@ -1650,9 +1653,10 @@ namespace FACM.League
             int participantId, LeaguePlayerProfile profile)
         {
             if (participant == null || participantId <= 0 || profile == null || string.IsNullOrEmpty(profile.PuuId)) return null;
-            var teamId = ReadInt(participant, "teamId");
-            if (teamId <= 0) return null;
-            var teamMembers = ReadObjects(game, "participants").Where(row => ReadInt(row, "teamId") == teamId)
+            var teamId = AnalysisTeamId(game, participant);
+            if (teamId <= 0 || (LeagueCherryTeams.IsCherry(ReadString(game, "gameMode")) &&
+                ReadObjects(game, "participants").Any(row => AnalysisTeamId(game, row) <= 0))) return null;
+            var teamMembers = ReadObjects(game, "participants").Where(row => AnalysisTeamId(game, row) == teamId)
                 .Select(row => ReadInt(row, "participantId")).Where(id => id > 0).Distinct().Take(11).ToArray();
             if (teamMembers.Length < 2 || teamMembers.Length > 10 || !teamMembers.Contains(participantId)) return null;
             var identities = new Dictionary<int, string>();
@@ -1707,7 +1711,9 @@ namespace FACM.League
             if (self == null) return null;
             var participants = ReadObjects(game, "participants").Take(33).ToList();
             if (participants.Count == 0 || participants.Count > 32) return null;
-            var teamId = ReadInt(self, "teamId");
+            var teamId = AnalysisTeamId(game, self);
+            var groupsKnown = !LeagueCherryTeams.IsCherry(ReadString(game, "gameMode")) ||
+                participants.All(p => AnalysisTeamId(game, p) > 0);
             var baselines = new Dictionary<string, double[]>(StringComparer.Ordinal);
             foreach (var key in RelativeMetricKeys)
             {
@@ -1723,7 +1729,7 @@ namespace FACM.League
                     if (!value.HasValue) continue;
                     gameSum += value.Value;
                     gameMax = Math.Max(gameMax, value.Value);
-                    if (teamId <= 0 || ReadInt(member, "teamId") != teamId) continue;
+                    if (!groupsKnown || teamId <= 0 || AnalysisTeamId(game, member) != teamId) continue;
                     hasTeam = true;
                     teamSum += value.Value;
                     teamMax = Math.Max(teamMax, value.Value);
@@ -1745,10 +1751,21 @@ namespace FACM.League
             return numerator.HasValue && denominator.HasValue ? numerator.Value / Math.Max(1, denominator.Value) : (double?)null;
         }
 
+        private static int AnalysisTeamId(Dictionary<string, object> game, Dictionary<string, object> participant)
+        {
+            return LeagueCherryTeams.IsCherry(ReadString(game, "gameMode"))
+                ? LeagueCherryTeams.ValidSubteamId(ReadOptionalCount(ReadObject(participant, "stats"),
+                    "playerSubteamId")).GetValueOrDefault() : ReadInt(participant, "teamId");
+        }
+
         private static double? TeamShare(Dictionary<string, object> game, Dictionary<string, object> participant, string key, bool participation = false)
         {
-            if (participant == null || !participant.ContainsKey("teamId")) return null;
-            var members = ReadObjects(game, "participants").Where(p => ReadInt(p, "teamId") == ReadInt(participant, "teamId")).ToList();
+            var team = AnalysisTeamId(game, participant);
+            if (participant == null || team <= 0) return null;
+            var roster = ReadObjects(game, "participants").ToList();
+            if (LeagueCherryTeams.IsCherry(ReadString(game, "gameMode")) &&
+                roster.Any(p => AnalysisTeamId(game, p) <= 0)) return null;
+            var members = roster.Where(p => AnalysisTeamId(game, p) == team).ToList();
             var values = members.Select(p => Metric(ReadObject(p, "stats"), key)).ToList();
             if (values.Count == 0 || values.Any(v => !v.HasValue)) return null;
             var stats = ReadObject(participant, "stats");

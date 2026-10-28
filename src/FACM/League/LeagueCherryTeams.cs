@@ -26,6 +26,12 @@ namespace FACM.League
             return participant == null ? 0 : cherry ? participant.PlayerSubteamId.GetValueOrDefault() : participant.TeamId;
         }
 
+        internal static int GroupId(LeaguePlayerMatchSummary participant, bool cherry)
+        {
+            return participant == null ? 0 : cherry
+                ? ValidSubteamId(participant.PlayerSubteamId).GetValueOrDefault() : participant.TeamId;
+        }
+
         internal static int? Placement(IEnumerable<LeaguePlayerMatchParticipant> players)
         {
             var placements = players.Select(player => player.SubteamPlacement).Distinct().ToArray();

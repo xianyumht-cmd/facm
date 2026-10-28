@@ -424,10 +424,13 @@ namespace FACM.League
                     if (scope == null) return Evidence.Unknown;
                     var reference = FindParticipant(scope, node.Value, root);
                     if (reference == null) return root.RosterIdentitiesComplete ? Evidence.No : Evidence.Unknown;
-                    if (reference.TeamId <= 0 || scope.Any(member => member.TeamId <= 0))
+                    var cherry = LeagueCherryTeams.IsCherry(root.GameMode);
+                    var group = LeagueCherryTeams.GroupId(reference, cherry);
+                    if (group <= 0 || scope.Any(member => LeagueCherryTeams.GroupId(member, cherry) <= 0))
                         return Evidence.Unknown;
                     var same = node.Kind == LeagueAdvancedMatchKind.Allies;
-                    var members = scope.Where(member => (member.TeamId == reference.TeamId) == same).ToArray();
+                    var members = scope.Where(member =>
+                        (LeagueCherryTeams.GroupId(member, cherry) == group) == same).ToArray();
                     return Evaluate(node.Children[0], root, members.FirstOrDefault() ?? root, members, false, true);
                 }
                 case LeagueAdvancedMatchKind.IsGameMode:
