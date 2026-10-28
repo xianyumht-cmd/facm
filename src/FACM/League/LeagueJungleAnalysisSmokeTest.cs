@@ -79,9 +79,48 @@ namespace FACM.League
             player.SpellIds = new[] { 4, 11 };
             Require(LeagueJungleAnalysis.Calculate(timeline, player) != null,
                 "Pinned smite-based jungle detection must remain available when role is absent.");
+            ValidateObjectives(timeline, player);
             player.GameId = 501;
             Require(LeagueJungleAnalysis.Calculate(timeline, player) == null,
                 "Timeline and selected-match identities must agree.");
+        }
+
+        private static void ValidateObjectives(LeagueMatchTimeline timeline, LeaguePlayerMatchSummary player)
+        {
+            player.TeamId = 100;
+            timeline.Events.Clear();
+            timeline.Events.Add(Objective(300000, "DRAGON", 6, null, new int[0]));
+            timeline.Events.Add(Objective(420000, "HORDE", 1, 100, new int[0]));
+            timeline.Events.Add(Objective(421000, "HORDE", 2, 100, new int[0]));
+            timeline.Events.Add(Objective(600000, "DRAGON", 1, 100, new int[0]));
+            timeline.Events.Add(Objective(800000, "RIFTHERALD", 2, 100, new int[0]));
+            timeline.Events.Add(Objective(900000, "DRAGON", 1, 100, new[] { 2 }));
+            timeline.Events.Add(Objective(1200000, "BARON_NASHOR", 6, 100, new int[0]));
+            var result = LeagueJungleAnalysis.Calculate(timeline, player);
+            Require(result.ObjectivesAvailable && result.GotFirstDragon == false && result.Dragons == 2 &&
+                result.SoloDragons == 1 && result.Voidgrubs == 2 && result.Heralds == 1 && result.Barons == 1 &&
+                result.FirstDragonTime == 600000 && result.FirstVoidgrubTime == 420000 &&
+                result.FirstHeraldTime == 800000 && result.FirstBaronTime == 1200000 &&
+                result.UnknownObjectiveTeams == 0,
+                "Objectives must prefer explicit killer team, retain first-team dragon, distinguish solo kills and include events beyond 14 minutes.");
+            timeline.Events.Clear();
+            timeline.Events.Add(Objective(300000, "DRAGON", 0, null, new int[0]));
+            timeline.Events.Add(Objective(600000, "DRAGON", 1, 100, new int[0]));
+            timeline.Events.Add(Objective(700000, "DRAGON", 1, 999, new int[0]));
+            result = LeagueJungleAnalysis.Calculate(timeline, player);
+            Require(!result.GotFirstDragon.HasValue && result.Dragons == 1 && result.UnknownObjectiveTeams == 2,
+                "An unknown first objective team must not be replaced by a later dragon or an invented ordinary team.");
+            player.TeamId = 0;
+            Require(!LeagueJungleAnalysis.Calculate(timeline, player).ObjectivesAvailable,
+                "Missing selected-player team must leave objective data unavailable rather than report measured zero.");
+        }
+
+        private static LeagueMatchTimelineEvent Objective(long time, string type, int killer, int? team, int[] assists)
+        {
+            var data = new Dictionary<string, object> { { "monsterType", type } };
+            if (team.HasValue) data["killerTeamId"] = team.Value;
+            return new LeagueMatchTimelineEvent { Type = "ELITE_MONSTER_KILL", Timestamp = time,
+                KillerId = killer, Assists = assists, Data = data };
         }
 
         private static Dictionary<string, object> Position(int x, int y)

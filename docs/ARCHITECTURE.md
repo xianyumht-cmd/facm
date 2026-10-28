@@ -1,3 +1,7 @@
+## Whole-timeline objective evidence in the jungle projection
+
+The existing `LeagueJungleAnalysis` additionally scans captured elite-monster events, independently of the 14-minute pathing window. Known selected team 100/200 is required. Explicit valid event team wins; only absent team plus participant 1-10 permits the pinned ordinary-team fallback. Unknown objective ownership is retained separately and the first dragon's nullable attribution never changes after its first event. Team counts, selected-player solo kills and first event timestamps are modal-only values, adding no network, cache or runtime owner. CI pending for this continuation; the preceding pathing projection `3af7f429` passed all four Windows workflows.
+
 ## Selected timeline jungle projection
 
 `LeagueJungleAnalysis` consumes the existing bounded `LeagueMatchTimeline` and a source-correlated participant summary. It admits only matching game IDs, Rift map 11 and a known jungle position/smite. Source-pinned frame/event projections retain weighted zone counts, gank-lane counts, sample/missing-position coverage, optional nearest camp/side and nullable early combat indicators. `LeagueMatchTimelinePanel` renders the result in a native text tab for its shared selected player; no new timeline fetch, cache, timer or owner is added. Changed sessions disable the new projection, missing fields stay unavailable, and the model never fills event positions from unrelated frame positions. Deterministic model checks are wired into the existing Player/performance smoke; Windows CI pending.

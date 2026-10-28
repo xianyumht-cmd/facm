@@ -13,6 +13,10 @@ namespace FACM.League
         internal int PositionSamples, AvailableSamples, MissingKillPositions;
         internal string StartCamp;
         internal bool? StartBlue, Level3Gank, Level4Gank;
+        internal bool? GotFirstDragon;
+        internal bool ObjectivesAvailable;
+        internal int Dragons, SoloDragons, Voidgrubs, Heralds, Barons, UnknownObjectiveTeams;
+        internal long? FirstDragonTime, FirstVoidgrubTime, FirstHeraldTime, FirstBaronTime;
 
         internal static int MapZone(long x, long y)
         {
@@ -79,6 +83,7 @@ namespace FACM.League
                 !(string.Equals(player.Position, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
                     player.HasSmite || (player.SpellIds != null && player.SpellIds.Contains(11)))) return null;
             var result = new LeagueJungleAnalysis();
+            result.ReadObjectives(timeline, player);
             var limit = Math.Min(timeline.Frames.Count, 15);
             result.AvailableSamples = Math.Max(0, limit - 1);
             for (var i = 1; i < limit; i++)
@@ -146,6 +151,52 @@ namespace FACM.League
             return result;
         }
 
+        private void ReadObjectives(LeagueMatchTimeline timeline, LeaguePlayerMatchSummary player)
+        {
+            if (player.TeamId != 100 && player.TeamId != 200) return;
+            ObjectivesAvailable = true;
+            bool dragonSeen = false;
+            foreach (var entry in timeline.Events)
+            {
+                if (entry.Type != "ELITE_MONSTER_KILL") continue;
+                var monster = LeagueMatchTimelineParser.Text(entry.Data, "monsterType");
+                if (monster != "DRAGON" && monster != "HORDE" &&
+                    monster != "RIFTHERALD" && monster != "BARON_NASHOR") continue;
+                var team = LeagueMatchTimelineParser.Number(entry.Data, "killerTeamId");
+                if (!team.HasValue && entry.KillerId >= 1 && entry.KillerId <= 10)
+                    team = entry.KillerId <= 5 ? 100 : 200;
+                var knownTeam = team == 100 || team == 200;
+                if (!knownTeam) UnknownObjectiveTeams++;
+                if (monster == "DRAGON" && !dragonSeen)
+                {
+                    dragonSeen = true;
+                    GotFirstDragon = knownTeam ? (bool?)(team == player.TeamId) : null;
+                }
+                if (!knownTeam || team != player.TeamId) continue;
+                switch (monster)
+                {
+                    case "DRAGON":
+                        Dragons++;
+                        if (entry.KillerId == player.ParticipantId &&
+                            (entry.Assists == null || entry.Assists.Length == 0)) SoloDragons++;
+                        if (!FirstDragonTime.HasValue) FirstDragonTime = entry.Timestamp;
+                        break;
+                    case "HORDE":
+                        Voidgrubs++;
+                        if (!FirstVoidgrubTime.HasValue) FirstVoidgrubTime = entry.Timestamp;
+                        break;
+                    case "RIFTHERALD":
+                        Heralds++;
+                        if (!FirstHeraldTime.HasValue) FirstHeraldTime = entry.Timestamp;
+                        break;
+                    case "BARON_NASHOR":
+                        Barons++;
+                        if (!FirstBaronTime.HasValue) FirstBaronTime = entry.Timestamp;
+                        break;
+                }
+            }
+        }
+
         internal string Report(UiTextCatalog ui)
         {
             Func<bool?, string> boolean = value => !value.HasValue ? "--" :
@@ -169,6 +220,20 @@ namespace FACM.League
                     ui.Get(zones[i]), total == 0 ? "--" :
                         (100d * ZoneWeights[i] / total).ToString("0.0", CultureInfo.CurrentCulture) + "%",
                     Ganks[i]));
+            lines.Add("");
+            lines.Add(ui.Get(UiTextKeys.LeagueJungleObjectivesScope));
+            if (!ObjectivesAvailable)
+            { lines.Add("--"); return string.Join(Environment.NewLine, lines); }
+            lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleFirstDragon),
+                boolean(GotFirstDragon), SoloDragons, Dragons, UnknownObjectiveTeams));
+            var names = new[] { UiTextKeys.LeagueJungleDragons, UiTextKeys.LeagueJungleGrubs,
+                UiTextKeys.LeagueJungleHeralds, UiTextKeys.LeagueJungleBarons };
+            var counts = new[] { Dragons, Voidgrubs, Heralds, Barons };
+            var times = new[] { FirstDragonTime, FirstVoidgrubTime, FirstHeraldTime, FirstBaronTime };
+            for (var i = 0; i < names.Length; i++)
+                lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleObjectiveRow),
+                    ui.Get(names[i]), counts[i], times[i].HasValue
+                        ? LeagueMatchTimelineParser.Time(times[i].Value) : "--"));
             return string.Join(Environment.NewLine, lines);
         }
     }

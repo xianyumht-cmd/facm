@@ -1,3 +1,9 @@
+## Verified single-match jungle pathing; active objective analysis
+
+Executable `3af7f42955d8ae37f043587f76ae9141cdc40997` passed Windows Build #40660061261, Glass #40660061294, UI Text #40660061264 and Mayhem Source #40660061312, including Player/performance smoke. The native timeline Jungle Analysis tab is source/fixture verified, not Tencent/DPI accepted.
+
+The next candidate adds pinned whole-timeline objective counts: team dragons, the selected player's solo dragons, voidgrubs, heralds, barons, team-first timestamps and whether the first dragon belonged to the selected team. Explicit killerTeamId takes priority; the pinned 1-5/6-10 participant fallback is only used when the team is absent and participant ID is valid. Unknown or malformed teams are counted separately and cannot invent first-dragon ownership. Missing selected team leaves all objective statistics unavailable. Deterministic mixed-team, assist, timestamp, post-14-minute and unknown-first-event fixtures are included; Windows CI pending. Next: bounded multi-game/per-champion jungle timeline aggregation and visualization, remaining hero metrics, MatchCard/Cherry presentation, regional replay/server and source-wide options. PR stays Draft; production 3.5.78 remains unchanged.
+
 ## Verified hero comparison; active single-match jungle pathing
 
 Hero comparison executable `49abac71211641410def0560e45044d64ae0b90f` passed Windows Build #40659233884, Glass #40659233923, UI Text #40659233904 and Mayhem Source #40659233934. Windows logs confirm Player/performance fixtures, including populated native comparison rendering. Earlier hydration `71842b0d` and Cherry correction `b53d769e` are also four-workflow green.
