@@ -206,6 +206,30 @@ namespace FACM.League
                     new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
                     false, 600, t).Contains("补刀/分 0.0 · 金币/分 0.0"),
                 "Explicitly verified zero values must remain distinguishable from unknown fields.");
+            var streaks = new LeaguePlayerMatchParticipant { DoubleKills = 6, TripleKills = 3,
+                QuadraKills = 2, PentaKills = 1 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 四杀 · 三杀 · 双杀 ×3\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(
+                    new LeaguePlayerMatchParticipant { DoubleKills = 2, TripleKills = 0,
+                        QuadraKills = 0, PentaKills = 0 }, t) == "连杀表现：双杀 ×2\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(
+                    new LeaguePlayerMatchParticipant(), t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(null, t) == string.Empty,
+                "Source-cumulative multikills must be de-duplicated and absent tags omitted.");
+            streaks.PentaKills = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：三杀 · 双杀 ×3\r\n",
+                "A missing higher streak count must not be interpreted as a known zero.");
+            streaks.PentaKills = 1;
+            streaks.DoubleKills = 1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 四杀 · 三杀\r\n",
+                "Contradictory cumulative counts must not fabricate a negative or extra lower streak tag.");
+            streaks.DoubleKills = 200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 双杀 ×197 · 四杀 · 三杀\r\n",
+                "Large source streak counts must retain Akari's dynamic tag priority rather than fixed order.");
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
@@ -384,6 +408,8 @@ namespace FACM.League
                     { "gameId", 44L }, { "participants", new object[] {
                         new Dictionary<string, object> {
                             { "participantId", 1 }, { "puuid", "fixture" },
+                            { "doubleKills", 3 }, { "tripleKills", 1 },
+                            { "quadraKills", 0 }, { "pentaKills", 0 },
                             { "magicalDamageTaken", 321 }, { "magicDamageTaken", 999 },
                             { "perks", new Dictionary<string, object> {
                                 { "statPerks", new Dictionary<string, object> {
@@ -404,6 +430,8 @@ namespace FACM.League
             Require(stats["perk0Var1"].ToString() == "777" &&
                 stats["perk0Var2"].ToString() == "-2.5" && stats["perk0Var3"].ToString() == "0" &&
                 stats["magicDamageTaken"].ToString() == "321" &&
+                stats["doubleKills"].ToString() == "3" &&
+                stats["tripleKills"].ToString() == "1" &&
                 stats["perkStatOffense"].ToString() == "5008" &&
                 stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
                 "SGP normalization must retain raw rune selection variables and nullable stat shards.");
@@ -450,6 +478,11 @@ namespace FACM.League
                     result.Participants.Single(p => p.IsTarget).MagicDamageTaken == 1500 &&
                     result.Participants.Single(p => p.IsTarget).TrueDamageTaken == 500 &&
                     result.Participants.Single(p => p.IsTarget).TotalHeal == 2400 &&
+                    result.Participants.Single(p => p.IsTarget).DoubleKills == 6 &&
+                    result.Participants.Single(p => p.IsTarget).TripleKills == 3 &&
+                    result.Participants.Single(p => p.IsTarget).QuadraKills == 2 &&
+                    result.Participants.Single(p => p.IsTarget).PentaKills == 1 &&
+                    !result.Participants.Single(p => p.PuuId == "ally").DoubleKills.HasValue &&
                     !result.Participants.Single(p => p.PuuId == "ally").TotalHeal.HasValue &&
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
                     result.Match.ChampionName == "Ashe" &&
@@ -791,6 +824,7 @@ namespace FACM.League
                         "\"participantId\":1,\"teamId\":100,\"championId\":22," +
                         "\"spell1Id\":4,\"spell2Id\":7,\"stats\":{" +
                         cherryFirst + "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
+                        "\"doubleKills\":6,\"tripleKills\":3,\"quadraKills\":2,\"pentaKills\":1," +
                         "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
                         "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
                         "\"physicalDamageDealtToChampions\":9000,\"magicDamageDealtToChampions\":7000," +

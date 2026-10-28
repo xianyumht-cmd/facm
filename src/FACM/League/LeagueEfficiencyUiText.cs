@@ -293,6 +293,12 @@ namespace FACM.League
         public const string DynamicEncounterRadarKda = "LeagueEfficiencyDynamicEncounterRadarKda";
         public const string DynamicEncounterRadarParticipation = "LeagueEfficiencyDynamicEncounterRadarParticipation";
         public const string DynamicEncounterRadarHeal = "LeagueEfficiencyDynamicEncounterRadarHeal";
+        public const string DynamicEncounterMultikillTitle = "LeagueEfficiencyDynamicEncounterMultikillTitle";
+        public const string DynamicEncounterMultikillTimes = "LeagueEfficiencyDynamicEncounterMultikillTimes";
+        public const string DynamicEncounterMultikillDouble = "LeagueEfficiencyDynamicEncounterMultikillDouble";
+        public const string DynamicEncounterMultikillTriple = "LeagueEfficiencyDynamicEncounterMultikillTriple";
+        public const string DynamicEncounterMultikillQuadra = "LeagueEfficiencyDynamicEncounterMultikillQuadra";
+        public const string DynamicEncounterMultikillPenta = "LeagueEfficiencyDynamicEncounterMultikillPenta";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -666,6 +672,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarKda, "KDA" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarParticipation, "参团" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHeal, "治疗" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle, "连杀表现：{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTimes, "{0} ×{1}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillDouble, "双杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple, "三杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra, "四杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta, "五杀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

@@ -199,6 +199,10 @@ namespace FACM.League
         public int Kills { get; set; }
         public int Deaths { get; set; }
         public int Assists { get; set; }
+        public int? DoubleKills { get; set; }
+        public int? TripleKills { get; set; }
+        public int? QuadraKills { get; set; }
+        public int? PentaKills { get; set; }
         public int CreepScore { get; set; }
         public bool CreepScoreAvailable { get; set; }
         public int DamageToChampions { get; set; }

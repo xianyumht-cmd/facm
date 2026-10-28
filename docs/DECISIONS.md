@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Treat MatchCard multikill counters as nested evidence
+
+Follow pinned Akari v1.5.1 `computeMultikillTags`: double/triple/quadra/penta game statistics are cumulative, so each lower streak's exclusive count subtracts the next higher cumulative count. Preserve each field as nullable at the existing LCU/SGP detail boundary; only show a derived tag when both required counters are known and monotonic. Keep the source dynamic priorities and use the existing player-detail text surface for this first tag family, leaving its full chip/overflow presentation and other tag types as parity work. No new data fetch or background owner is justified.
+
 ## 2026-10-28 — Keep radar hover in the native on-demand canvas
 
 The pinned Akari 1.5.1 Chart.js radar uses one-decimal percentage tooltips for both the player and matching team-average datasets. GGman continues to use its existing GDI match-detail canvas, with shared paint/hit geometry and one owned WinForms tooltip; it does not add a chart package, overlay window or timer. Missing series points are not hover targets, and selection changes clear old tips. Final source/CI and Tencent/Win10 DPI acceptance remain separate gates for Draft #357.

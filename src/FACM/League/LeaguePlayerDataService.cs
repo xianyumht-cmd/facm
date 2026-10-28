@@ -754,6 +754,10 @@ namespace FACM.League
                     AugmentIds = Enumerable.Range(1, 6).Select(slot => ReadInt(stats, "playerAugment" + slot)).ToArray(),
                     Kills = ReadInt(stats, "kills"), Deaths = ReadInt(stats, "deaths"),
                     Assists = ReadInt(stats, "assists"),
+                    DoubleKills = ReadOptionalCount(stats, "doubleKills"),
+                    TripleKills = ReadOptionalCount(stats, "tripleKills"),
+                    QuadraKills = ReadOptionalCount(stats, "quadraKills"),
+                    PentaKills = ReadOptionalCount(stats, "pentaKills"),
                     CreepScore = (int)Math.Min(int.MaxValue, Math.Max(0L,
                         (long)ReadInt(stats, "totalMinionsKilled") + ReadInt(stats, "neutralMinionsKilled"))),
                     CreepScoreAvailable = ReadOptionalCount(stats, "totalMinionsKilled").HasValue &&

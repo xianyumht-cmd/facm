@@ -169,7 +169,8 @@ namespace FACM.League
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
                     catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
-                    match.GameDurationSeconds, t) + "\r\n" + FormatParticipantDamageDetails(player, t) + "\r\n" +
+                    match.GameDurationSeconds, t) + "\r\n" + FormatMultikillTags(player, t) +
+                    FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
@@ -416,6 +417,43 @@ namespace FACM.League
                     .Replace("{1}", count(player == null ? null : player.PhysicalDamageTaken))
                     .Replace("{2}", count(player == null ? null : player.MagicDamageTaken))
                     .Replace("{3}", count(player == null ? null : player.TrueDamageTaken));
+        }
+
+        internal static string FormatMultikillTags(LeaguePlayerMatchParticipant player, Func<string, string> t)
+        {
+            if (player == null) return string.Empty;
+            var penta = player.PentaKills;
+            var quadra = player.QuadraKills.HasValue && penta.HasValue &&
+                player.QuadraKills.Value >= penta.Value
+                    ? (int?)(player.QuadraKills.Value - penta.Value) : null;
+            var triple = player.TripleKills.HasValue && player.QuadraKills.HasValue &&
+                player.TripleKills.Value >= player.QuadraKills.Value
+                    ? (int?)(player.TripleKills.Value - player.QuadraKills.Value) : null;
+            var doubleKills = player.DoubleKills.HasValue && player.TripleKills.HasValue &&
+                player.DoubleKills.Value >= player.TripleKills.Value
+                    ? (int?)(player.DoubleKills.Value - player.TripleKills.Value) : null;
+            var counts = new[] { penta, quadra, triple, doubleKills };
+            var keys = new[] { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillDouble };
+            var tags = new List<KeyValuePair<long, string>>();
+            for (var index = 0; index < counts.Length; index++)
+            {
+                if (!counts[index].HasValue || counts[index].Value <= 0) continue;
+                var label = t(keys[index]);
+                if (counts[index].Value > 1)
+                    label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTimes)
+                        .Replace("{0}", label)
+                        .Replace("{1}", counts[index].Value.ToString(CultureInfo.InvariantCulture));
+                var priority = index == 0 ? 20000L : index == 1 ? 1300L :
+                    index == 2 ? 300L + counts[index].Value * 15L : 100L + counts[index].Value * 10L;
+                tags.Add(new KeyValuePair<long, string>(priority, label));
+            }
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
         }
 
         internal static int[] DamageBarWidths(int width, int? baseline, int? physical, int? magic, int? trueDamage)
