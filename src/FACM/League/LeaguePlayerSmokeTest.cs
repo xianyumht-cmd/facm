@@ -1279,6 +1279,8 @@ namespace FACM.League
                 "\"participants\":[{\"participantId\":1,\"puuid\":\"target-puuid\",\"riotIdGameName\":\"Opponent\"," +
                 "\"riotIdTagline\":\"CN1\",\"teamId\":100,\"championId\":99,\"win\":true," +
                 "\"kills\":11,\"deaths\":2,\"assists\":9,\"item0\":3031,\"spell1Id\":4,\"spell2Id\":6," +
+                "\"damageDealtToTurrets\":1200,\"totalDamageShieldedOnTeammates\":600," +
+                "\"challenges\":{\"soloKills\":2},\"totalMinionsKilled\":130,\"neutralMinionsKilled\":25," +
                 "\"playerAugment1\":1337,\"perks\":{\"statPerks\":{\"offense\":5008,\"flex\":5002}," +
                 "\"styles\":[{\"description\":\"primaryStyle\"," +
                 "\"style\":8000,\"selections\":[{\"perk\":8005,\"var1\":123.5,\"var2\":0,\"var3\":-4}]},{\"description\":\"subStyle\"," +
@@ -1337,6 +1339,10 @@ namespace FACM.League
                 !selected.PerkEndOfGameValues[1][0].HasValue && selected.StatPerkIds[0] == 5008 &&
                 selected.StatPerkIds[1] == 5002 && !selected.StatPerkIds[2].HasValue,
                 "Selected regional SGP breakdown must carry fractional/signed rune values and incomplete stat shards.");
+            Require(selected.TotalDamageToTowers == 1200 &&
+                selected.TotalDamageShieldedOnTeammates == 600 && selected.SoloKills == 2 &&
+                selected.CreepScoreAvailable && selected.CreepScore == 155,
+                "Regional SGP match detail must project tower damage, shield, nested solo and complete CS.");
             Require(detailService.LoadMatchDetailAsync(target, 602, CancellationToken.None).GetAwaiter().GetResult() == null,
                 "An SGP response for another game ID must not be used as selected-game detail.");
 
