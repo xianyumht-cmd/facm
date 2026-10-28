@@ -1,5 +1,9 @@
 # FACM Architecture
 
+## Loaded Player history analytics and result classification
+
+`LeaguePlayerHistoryAnalysis` is a pure, bounded projection over the caller's already-loaded match list. The native self and remote Player history surfaces reuse the current simple/advanced filtered snapshot without another LCU/SGP operation or resident observer. Source-confirmed `WinResult` distinguishes win, loss, remake and abort; incomplete statistics can still preserve explicit abort/remake labels, but ordinary win/loss needs complete participant evidence. Aggregate denominators exclude unverified and non-matched results. Region/game-ID deduplication, optional metric averages, and conservative dated streak handling avoid fabricated data. Both surfaces use the existing `UiTextCatalog` contract for new strings. `LeaguePlayerDataService.BuildChampionStats` and `LeagueSimpleMatchHistoryFilter` use compatible source-confirmed result restrictions. Native modal is created and disposed on demand, with no added HTTP client, timer or package.
+
 ## Player challenge and mastery transport
 
 `ILeagueSgpPlayerChallengesApi` adds one typed read to the existing regional client: POST `/challenges-client/v2/all-player-data/?puuid=...` with `[]` and the League-session credential, using exact configured common hosts and existing region/session/response bounds. The Player gate validates owner before/after, exact returned PUUID and bounded unique challenge IDs before exposing the lazy collection/challenge panel. No local rank/mastery cross-region fallback is implied.
