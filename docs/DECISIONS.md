@@ -1,3 +1,7 @@
+## 2026-10-29 — Reuse verified group kill totals for MatchCard participation tags
+
+Follow pinned Akari 1.5.1 `computeKillsTags` (1200/1150) and `computeKpTags` (1100/1050) using the existing bounded match detail rather than introducing a second participant fetch. Kill participation is `(kills + assists) / teamKills` for the verified ordinary team or Cherry subteam; missing/invalid groups and impossible zero-denominator claims are omitted rather than presented as a record. The source uses match-over-team precedence and retains ties. Keep native accessible text until full ManyTags chip/overflow presentation and consolidated Tencent/Win10 DPI acceptance. Executable `bf5f3ce` passed all four Windows workflows.
+
 # GGman / FACM Decisions
 
 ## 2026-10-29 — Extend MatchCard tags without inventing LCU-only evidence
