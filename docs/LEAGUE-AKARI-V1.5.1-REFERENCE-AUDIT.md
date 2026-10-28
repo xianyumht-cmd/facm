@@ -1,6 +1,8 @@
-## MatchCard summary team grouping continuation (Draft #357; Windows CI pending)
+## Verified MatchCard summary team grouping continuation (Draft #357)
 
 The pinned `src/renderer-shared/components/match-card/tabs/MatchCardSummaryTab.vue` sorts Cherry subteams by placement and renders each `TeamTable.vue` with only its matching members. GGman's existing encounter/Player detailed-match scoreboard now groups and sorts both native team cards and participant rows by that same model, using explicit ListView group headings. Cherry group IDs come only from verified `playerSubteamId`; ordinary modes continue using `teamId`. Unknown subgroup identity remains an unassigned section, conflicting placement shows unknown and sorts last, and the rune/details selection index follows the backing row order. Deterministic tests cover scrambled source order, placement, missing groups, and regular red/blue teams. Full Akari match-card geometry, per-player charts/tags, visual/DPI fidelity and Tencent server acceptance are **still open**; the WinForms grouping is a scoped parity step, not complete MatchCard parity.
+
+**Executable `99ed66e` passed all four Windows workflows**: Build #40675854175, Glass #40675854203, UI Text #40675854254 and Mayhem Source #40675854184, including the actual `league-player` and `league-dashboard` performance smoke. The later documentation-only head is `[skip ci]` and is not a second executable validation.
 
 ## Akari 1.5.1 ChampionAnalysis four-summary-field continuation (active candidate)
 
