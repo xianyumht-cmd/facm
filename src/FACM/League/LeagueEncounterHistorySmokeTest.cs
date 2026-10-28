@@ -338,6 +338,43 @@ namespace FACM.League
                 leader, leaderboard, true, t).Contains("推塔伤害第一"),
                 "Missing tower damage must not be promoted to a verified zero or leader.");
 
+            leader.Kills = 7;
+            leader.Assists = 3;
+            ally.Kills = 3;
+            ally.Assists = 2;
+            enemy.Kills = 6;
+            enemy.Assists = 0;
+            enemyAlly.Kills = 2;
+            enemyAlly.Assists = 4;
+            var killTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(killTags.Contains("全场击杀第一（7）") &&
+                killTags.Contains("全场参团率第一（100.00%）") &&
+                killTags.IndexOf("全场击杀第一", StringComparison.Ordinal) <
+                    killTags.IndexOf("全场参团率第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("队内击杀第一（6）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, true, t).Contains("队内参团率第一（75.00%）"),
+                "Pinned kill/KP match and Cherry-team leader tags must use exact counts, rates and priority.");
+            enemy.Kills = 7;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                enemy, leaderboard, true, t).Contains("全场击杀第一（7）"),
+                "Tied positive kills must retain both match leaders.");
+            enemy.Kills = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, true, t).Contains("参团率第一") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("击杀第一"),
+                "Invalid teammate kill evidence must suppress unverifiable team KP and kill claims.");
+            enemy.Kills = 6;
+            leader.Kills = 0;
+            leader.Assists = 0;
+            ally.Kills = 0;
+            ally.Assists = 0;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("参团率第一"),
+                "Zero team kills must not fabricate a positive participation leader.");
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,

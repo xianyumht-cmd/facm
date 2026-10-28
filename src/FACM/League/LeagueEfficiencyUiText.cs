@@ -314,6 +314,10 @@ namespace FACM.League
         public const string DynamicEncounterLeaderShieldTeam = "LeagueEfficiencyDynamicEncounterLeaderShieldTeam";
         public const string DynamicEncounterLeaderSolo = "LeagueEfficiencyDynamicEncounterLeaderSolo";
         public const string DynamicEncounterLeaderCs = "LeagueEfficiencyDynamicEncounterLeaderCs";
+        public const string DynamicEncounterLeaderKillsMatch = "LeagueEfficiencyDynamicEncounterLeaderKillsMatch";
+        public const string DynamicEncounterLeaderKillsTeam = "LeagueEfficiencyDynamicEncounterLeaderKillsTeam";
+        public const string DynamicEncounterLeaderKpMatch = "LeagueEfficiencyDynamicEncounterLeaderKpMatch";
+        public const string DynamicEncounterLeaderKpTeam = "LeagueEfficiencyDynamicEncounterLeaderKpTeam";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -708,6 +712,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam, "队内护盾第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo, "单杀 ×{0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs, "全场补刀第一（{0}）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch, "全场击杀第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam, "队内击杀第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch, "全场参团率第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam, "队内参团率第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },
