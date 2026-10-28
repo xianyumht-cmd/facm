@@ -11,6 +11,74 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+
+    // This bridge only forwards the existing Gameflow owner; it owns no network or timer.
+    internal sealed class LeaguePlayerPostgameRefreshDetector
+    {
+        private bool _sawGame;
+        private bool _inPostgame;
+
+        internal bool Observe(LeagueDashboardPhaseState state)
+        {
+            if (state == null || !state.Connected)
+            {
+                Reset();
+                return false;
+            }
+            var phase = state.Phase ?? string.Empty;
+            if (phase == "InProgress" || phase == "Reconnect" || phase == "PreEndOfGame")
+                _sawGame = true;
+            if (phase == "EndOfGame" || phase == "PreEndOfGame")
+            {
+                if (_inPostgame || !_sawGame) return false;
+                _inPostgame = true;
+                _sawGame = false;
+                return true;
+            }
+            _inPostgame = false;
+            if (phase == "Lobby" || phase == "None" || phase == "ChampSelect")
+                _sawGame = false;
+            return false;
+        }
+
+        internal void Reset()
+        {
+            _sawGame = false;
+            _inPostgame = false;
+        }
+    }
+
+    internal static class LeaguePlayerPostgameRefreshBridge
+    {
+        private static readonly object Sync = new object();
+        private static readonly LeaguePlayerPostgameRefreshDetector Detector =
+            new LeaguePlayerPostgameRefreshDetector();
+
+        internal static event Action PostgameEntered;
+
+        internal static void Observe(LeagueDashboardPhaseState state)
+        {
+            Action subscribers = null;
+            lock (Sync)
+                if (Detector.Observe(state)) subscribers = PostgameEntered;
+            if (subscribers == null) return;
+            foreach (var callback in subscribers.GetInvocationList())
+            {
+                try { ((Action)callback)(); }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Player postgame refresh subscriber skipped: " +
+                        exception.GetType().Name);
+                }
+            }
+        }
+
+        internal static void Reset()
+        {
+            lock (Sync) Detector.Reset();
+        }
+    }
+
     internal sealed class LeaguePlayerProfileDialog : Form
     {
         private readonly LeaguePlayerDataService _service;
@@ -31,6 +99,7 @@ namespace FACM.League
         private Dictionary<string, object> _challengeData;
         private long? _masteryScore;
         private bool _busy;
+        private bool _pendingPostgameRefresh;
 
         internal LeaguePlayerProfileDialog(LeaguePlayerDataService service, UiTextCatalog ui, string self,
             string target, string name, LeagueClientSession session, Func<LeagueClientSession> currentSession,
@@ -87,11 +156,48 @@ namespace FACM.League
             _status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
             _refresh = new Button { Text = ui.Get(UiTextKeys.LeaguePlayerRemoteRetry), Dock = DockStyle.Fill };
             _refresh.Click += async (sender, args) => await LoadSelectedAsync(true);
-            _tabs.SelectedIndexChanged += async (sender, args) => await LoadSelectedAsync(false);
+            _tabs.SelectedIndexChanged += async (sender, args) =>
+            {
+                if (_tabs.SelectedIndex == 0 && _pendingPostgameRefresh)
+                    await RefreshAfterGameAsync();
+                else
+                    await LoadSelectedAsync(false);
+            };
             footer.Controls.Add(_status, 0, 0); footer.Controls.Add(_refresh, 1, 0);
             layout.Controls.Add(_profile, 0, 0); layout.Controls.Add(_tabs, 0, 1); layout.Controls.Add(footer, 0, 2);
             Controls.Add(layout);
-            Shown += async (sender, args) => await LoadSelectedAsync(true);
+            Shown += async (sender, args) =>
+            {
+                LeaguePlayerPostgameRefreshBridge.PostgameEntered += OnPostgameEntered;
+                await LoadSelectedAsync(true);
+            };
+        }
+
+        private void OnPostgameEntered()
+        {
+            if (IsDisposed || !IsHandleCreated || _lifetime.IsCancellationRequested) return;
+            try
+            {
+                BeginInvoke((Action)(async () =>
+                {
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                        !string.Equals(_self, _target, StringComparison.Ordinal) ||
+                        _source == LeaguePlayerHistorySource.Sgp || !string.IsNullOrEmpty(_server))
+                        return;
+                    _pendingPostgameRefresh = true;
+                    if (_tabs.SelectedIndex == 0) await RefreshAfterGameAsync();
+                }));
+            }
+            catch (InvalidOperationException) { }
+            catch (ObjectDisposedException) { }
+        }
+
+        private async Task RefreshAfterGameAsync()
+        {
+            if (!_pendingPostgameRefresh || _busy || IsDisposed || _lifetime.IsCancellationRequested ||
+                !IsCurrent() || _tabs.SelectedIndex != 0) return;
+            _pendingPostgameRefresh = false;
+            await LoadSelectedAsync(true);
         }
 
         private async Task LoadSelectedAsync(bool force)
@@ -149,7 +255,14 @@ namespace FACM.League
             finally
             {
                 _busy = false;
-                if (!IsDisposed) { _refresh.Enabled = true; _tabs.Enabled = true; }
+                if (!IsDisposed)
+                {
+                    _refresh.Enabled = true;
+                    _tabs.Enabled = true;
+                    if (_pendingPostgameRefresh && _tabs.SelectedIndex == 0 &&
+                        !_lifetime.IsCancellationRequested && IsCurrent())
+                        await RefreshAfterGameAsync();
+                }
             }
         }
 
@@ -277,7 +390,12 @@ namespace FACM.League
             MultiSelect = false, BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text }; }
         protected override void Dispose(bool disposing)
         {
-            if (disposing && !IsDisposed) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            if (disposing && !IsDisposed)
+            {
+                LeaguePlayerPostgameRefreshBridge.PostgameEntered -= OnPostgameEntered;
+                _lifetime.Cancel();
+                _lifetime.Dispose();
+            }
             base.Dispose(disposing);
         }
     }

@@ -62,8 +62,8 @@ namespace FACM.AppHost.Modules
                 catch (Exception exception) { AppLog.Info("League Dodge Probe observe skipped: " + exception.Message); }
             }
 
-            // A faulty UI or automation subscriber must not starve the remaining consumers or fault
-            // the authoritative Gameflow owner.
+            // Share one transition-only notification with open Player details dialogs.
+            LeaguePlayerPostgameRefreshBridge.Observe(state);
             LeagueGameflowEventDispatcher.DispatchSafely(GameflowStateChanged, state, "dashboard-module");
         }
 
@@ -96,6 +96,7 @@ namespace FACM.AppHost.Modules
             if (_dodgeProbe != null) _dodgeProbe.Dispose();
             _dodgeProbe = null;
             _monitor = null;
+            LeaguePlayerPostgameRefreshBridge.Reset();
         }
     }
 }

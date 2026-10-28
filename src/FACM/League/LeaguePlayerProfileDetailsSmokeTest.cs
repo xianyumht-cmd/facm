@@ -16,8 +16,37 @@ namespace FACM.League
         {
             ValidateAsync().GetAwaiter().GetResult();
         }
+        private static void ValidatePostgameRefresh()
+        {
+            var detector = new LeaguePlayerPostgameRefreshDetector();
+            Func<string, LeagueDashboardPhaseState> phase = name => new LeagueDashboardPhaseState
+            { Connected = true, Phase = name };
+            Require(!detector.Observe(phase("Lobby")) &&
+                    !detector.Observe(phase("EndOfGame")),
+                "Ranked refresh must not fire on initial postgame or an idle lobby.");
+            Require(!detector.Observe(phase("InProgress")) &&
+                    !detector.Observe(phase("WaitingForStats")) &&
+                    detector.Observe(phase("PreEndOfGame")) &&
+                    !detector.Observe(phase("EndOfGame")) &&
+                    !detector.Observe(phase("EndOfGame")),
+                "Only one postgame refresh notification may be emitted per observed game.");
+            Require(!detector.Observe(phase("Lobby")) &&
+                    !detector.Observe(phase("Reconnect")) &&
+                    detector.Observe(phase("EndOfGame")),
+                "A subsequent game must independently trigger a refresh.");
+            Require(!detector.Observe(phase("InProgress")) &&
+                    !detector.Observe(new LeagueDashboardPhaseState { Connected = false }) &&
+                    !detector.Observe(phase("EndOfGame")),
+                "A disconnected session must not carry stale postgame refresh ownership.");
+            detector.Reset();
+            Require(!detector.Observe(phase("EndOfGame")),
+                "Disposing the dashboard must clear its pending postgame signal.");
+        }
+
         private static async Task ValidateAsync()
         {
+            ValidatePostgameRefresh();
+
             var session = new LeagueClientSession("LeagueClientUx", 1, 1000, "fixture", "https", "fixture", "HN1", "TENCENT");
             var active = session;
             var api = new Api();
