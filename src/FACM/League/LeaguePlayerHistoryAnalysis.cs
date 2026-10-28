@@ -435,6 +435,8 @@ namespace FACM.League
             var a = Calculate(snapshot);
             var lines = ReportLines(ui, a);
             var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var jungleAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var jungleSamples = new List<LeagueJungleHistorySample>();
             Task pending = Task.CompletedTask;
             using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(parentToken))
             using (var dialog = new Form {
@@ -447,12 +449,55 @@ namespace FACM.League
                 var tabs = new TabControl { Dock = DockStyle.Fill };
                 var reportTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisAction));
                 var comparisonTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerCompareTitle));
+                var jungleTab = new TabPage(ui.Get(UiTextKeys.LeagueJungleHistoryTitle));
                 var comparison = new LeagueHistoryChampionComparisonView(ui);
                 comparisonTab.Controls.Add(comparison);
                 tabs.TabPages.Add(reportTab);
                 tabs.TabPages.Add(comparisonTab);
+                tabs.TabPages.Add(jungleTab);
                 dialog.Controls.Add(tabs);
                 comparison.RefreshData(snapshot);
+                var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                var jungleSelector = new ComboBox { Dock = DockStyle.Top, DropDownStyle = ComboBoxStyle.DropDownList,
+                    BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text };
+                var jungleReport = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
+                    ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
+                    BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                    Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 10f) };
+                Action refreshJungle = () =>
+                {
+                    var candidateCount = LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid).Count;
+                    var selected = jungleSelector.SelectedIndex <= 0 ? 0 :
+                        ((KeyValuePair<int, string>)jungleSelector.SelectedItem).Key;
+                    jungleReport.Text = LeagueJungleHistoryAnalysis.Report(ui, jungleSamples,
+                        candidateCount, jungleAttempted.Count, selected);
+                };
+                jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
+                jungleLayout.Controls.Add(jungleSelector, 0, 0);
+                jungleLayout.Controls.Add(jungleReport, 0, 1);
+                jungleTab.Controls.Add(jungleLayout);
+                Action rebuildJungleSelector = () =>
+                {
+                    jungleSelector.Items.Clear();
+                    jungleSelector.Items.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll));
+                    foreach (var group in jungleSamples.GroupBy(s => s.Match.ChampionId).OrderBy(g => g.Key))
+                    {
+                        var match = group.First().Match;
+                        jungleSelector.Items.Add(new KeyValuePair<int, string>(group.Key,
+                            (string.IsNullOrWhiteSpace(match.ChampionName) ? "#" + group.Key : match.ChampionName) +
+                            " (#" + group.Key.ToString(CultureInfo.InvariantCulture) + ")"));
+                    }
+                    jungleSelector.SelectedIndex = 0;
+                };
+                jungleSelector.Format += (sender, args) =>
+                {
+                    if (args.ListItem is KeyValuePair<int, string>)
+                        args.Value = ((KeyValuePair<int, string>)args.ListItem).Value;
+                };
+                jungleSelector.FormattingEnabled = true;
+                rebuildJungleSelector();
                 var report = new TextBox {
                     Multiline = true, ReadOnly = true, Dock = DockStyle.Fill,
                     ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
@@ -562,18 +607,27 @@ namespace FACM.League
                         Padding = new Padding(6), WrapContents = true };
                     var hydrate = new Button { AutoSize = true,
                         Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrate) };
+                    var loadJungle = new Button { AutoSize = true,
+                        Text = ui.Get(UiTextKeys.LeagueJungleHistoryLoad) };
                     var stop = new Button { AutoSize = true, Enabled = false,
                         Text = ui.Get(UiTextKeys.LeaguePlayerCollectStop) };
                     var status = new Label { AutoSize = true, MaximumSize = new Size(460, 0),
                         Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateScope) };
                     CancellationTokenSource operation = null;
                     bool stale = false;
-                    Action refreshAction = () => hydrate.Enabled = !stale && service != null &&
-                        snapshot.Any(m => LeaguePlayerDataService.NeedsAnalysisDetail(m) &&
-                            !attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
+                    Action refreshAction = () =>
+                    {
+                        hydrate.Enabled = !stale && service != null && operation == null &&
+                            snapshot.Any(m => LeaguePlayerDataService.NeedsAnalysisDetail(m) &&
+                                !attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
+                        loadJungle.Enabled = !stale && service != null && session != null && operation == null &&
+                            jungleSamples.Count < LeagueJungleHistoryAnalysis.MaximumSamples &&
+                            LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid).Any(m =>
+                                !jungleAttempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
+                    };
                     Func<Task> hydrateAsync = async () =>
                     {
-                        hydrate.Enabled = false;
+                        hydrate.Enabled = false; loadJungle.Enabled = false;
                         stop.Enabled = true;
                         operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                         status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrating);
@@ -589,6 +643,7 @@ namespace FACM.League
                             comparison.RefreshData(snapshot);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
+                            refreshJungle();
                             status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :
                                 string.Format(CultureInfo.CurrentCulture,
                                     ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrated),
@@ -613,10 +668,65 @@ namespace FACM.League
                             { stop.Enabled = false; refreshAction(); }
                         }
                     };
+                    Func<Task> jungleAsync = async () =>
+                    {
+                        hydrate.Enabled = false; loadJungle.Enabled = false;
+                        stop.Enabled = true;
+                        operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                        status.Text = ui.Get(UiTextKeys.LeagueJungleHistoryLoading);
+                        using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(operation.Token))
+                        {
+                            deadline.CancelAfter(TimeSpan.FromSeconds(48));
+                            try
+                            {
+                                foreach (var match in LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid)
+                                    .Where(m => !jungleAttempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)))
+                                    .Take(LeagueJungleHistoryAnalysis.BatchSize))
+                                {
+                                    if (jungleSamples.Count >= LeagueJungleHistoryAnalysis.MaximumSamples) break;
+                                    deadline.Token.ThrowIfCancellationRequested();
+                                    var timeline = await service.LoadMatchTimelineAsync(selfPuuid, match,
+                                        deadline.Token, session);
+                                    if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
+                                    deadline.Token.ThrowIfCancellationRequested();
+                                    jungleAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                                    var analysis = LeagueJungleAnalysis.Calculate(timeline, match);
+                                    if (analysis != null)
+                                        jungleSamples.Add(new LeagueJungleHistorySample { Match = match, Analysis = analysis });
+                                }
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    status.Text = string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeagueJungleHistoryDone),
+                                        jungleSamples.Count, jungleAttempted.Count);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    status.Text = deadline.IsCancellationRequested && !operation.IsCancellationRequested ?
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateTimeout) :
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateStopped);
+                            }
+                            catch (Exception)
+                            {
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateFailed);
+                            }
+                            finally
+                            {
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested) rebuildJungleSelector();
+                                operation.Dispose();
+                                operation = null;
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                { stop.Enabled = false; refreshAction(); }
+                            }
+                        }
+                    };
                     hydrate.Click += (sender, args) => { if (operation == null) pending = hydrateAsync(); };
+                    loadJungle.Click += (sender, args) => { if (operation == null) pending = jungleAsync(); };
                     stop.Click += (sender, args) => operation?.Cancel();
                     dialog.FormClosed += (sender, args) => lifetime.Cancel();
                     actions.Controls.Add(hydrate);
+                    actions.Controls.Add(loadJungle);
                     actions.Controls.Add(stop);
                     actions.Controls.Add(status);
                     dialog.Controls.Add(actions);

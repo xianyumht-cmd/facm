@@ -1,0 +1,83 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FACM.Services;
+
+namespace FACM.League
+{
+    internal static class LeagueJungleHistorySmokeTest
+    {
+        internal static void Validate()
+        {
+            var first = Match(1001, 1, 64, LeaguePlayerHistorySource.Lcu, null);
+            var second = Match(1002, 1, 64, LeaguePlayerHistorySource.Sgp, "TENCENT_HN10");
+            var third = Match(1003, 2, 11, LeaguePlayerHistorySource.Lcu, null);
+            var candidates = LeagueJungleHistoryAnalysis.Candidates(new[] {
+                first, second, third, first,
+                Match(1004, 1, 64, LeaguePlayerHistorySource.Sgp, null),
+                Match(1005, 1, 64, LeaguePlayerHistorySource.Lcu, "TENCENT_HN10"),
+                Match(1006, 1, 64, LeaguePlayerHistorySource.Lcu, null, "other"),
+                Match(1007, 1, 64, LeaguePlayerHistorySource.Lcu, null, null, false)
+            }, "target");
+            Require(candidates.Count == 3 && candidates.Select(m => m.GameId)
+                .SequenceEqual(new long[] { 1001, 1002, 1003 }),
+                "Only unique current-target Rift jungle matches with original source/server provenance may request timelines.");
+            var a = new LeagueJungleAnalysis { PositionSamples = 2, AvailableSamples = 14,
+                Level3Gank = true, Level4Gank = null, StartBlue = true, StartCamp = "blue",
+                ObjectivesAvailable = true, GotFirstDragon = null, Dragons = 2, SoloDragons = 1,
+                Voidgrubs = 3, FirstDragonTime = 600000, FirstVoidgrubTime = 360000 };
+            a.ZoneWeights[0] = 5; a.ZoneWeights[1] = 1;
+            a.Ganks[0] = 2;
+            var b = new LeagueJungleAnalysis { PositionSamples = 1, AvailableSamples = 14,
+                Level3Gank = false, Level4Gank = true, StartBlue = false, StartCamp = "raptors",
+                ObjectivesAvailable = true, GotFirstDragon = false,
+                Dragons = 0, FirstVoidgrubTime = 480000 };
+            b.ZoneWeights[1] = 4; b.Ganks[1] = 1;
+            var unavailable = new LeagueJungleAnalysis { ObjectivesAvailable = false, Level3Gank = null,
+                Level4Gank = null, MissingKillPositions = 2 };
+            var samples = new[] {
+                new LeagueJungleHistorySample { Match = first, Analysis = a },
+                new LeagueJungleHistorySample { Match = second, Analysis = b },
+                new LeagueJungleHistorySample { Match = first, Analysis = unavailable },
+                new LeagueJungleHistorySample { Match = third, Analysis = unavailable }
+            };
+            var aggregate = LeagueJungleHistoryAggregate.Calculate(samples);
+            Require(aggregate != null && aggregate.Games == 3 && aggregate.PositionGames == 2 &&
+                Math.Abs(aggregate.ZoneRate(0).Value - .5d) < .0001 &&
+                aggregate.Ganks[0] == 2 && aggregate.Ganks[1] == 1 &&
+                aggregate.Level3Known == 2 && aggregate.Level3Detected == 1 &&
+                aggregate.Level4Known == 1 && aggregate.Level4Detected == 1 &&
+                aggregate.MissingKillPositions == 2,
+                "Jungle rates must weight source-confirmed positions and separate early signal denominators from unknowns.");
+            Require(aggregate.ObjectiveGames == 2 && aggregate.FirstDragonKnown == 1 &&
+                aggregate.FirstDragonWon == 0 && aggregate.Dragons == 2 && aggregate.SoloDragons == 1 &&
+                Math.Abs(aggregate.FirstDragonSeconds.Value - 600d) < .0001 &&
+                Math.Abs(aggregate.FirstVoidgrubSeconds.Value - 420d) < .0001 &&
+                aggregate.FirstCampGames == 2 && aggregate.Camps["blue/normal/blue"] == 1 &&
+                aggregate.Camps["blue/invade/raptors"] == 1,
+                "Objective averages and camp-side grouping must exclude unknown teams/times and duplicated games.");
+            var hero = LeagueJungleHistoryAggregate.Calculate(samples.Where(s => s.Match.ChampionId == 64));
+            Require(hero.Games == 2 && hero.ObjectiveGames == 2 && hero.FirstDragonKnown == 1 &&
+                hero.FirstDragonWon == 0 && hero.Level3Known == 2 && hero.Level4Known == 1,
+                "Per-champion jungle totals must use only that hero's successfully loaded timelines.");
+            var ui = UiTextCatalog.Load();
+            var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
+            Require(text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&
+                LeagueJungleHistoryAnalysis.Report(ui, new LeagueJungleHistorySample[0], 1, 0)
+                    .Contains(ui.Get(UiTextKeys.LeagueJungleHistoryUnavailable)),
+                "Native report must expose attempted/eligible coverage and never present a missing timeline as a loss.");
+        }
+
+        private static LeaguePlayerMatchSummary Match(long id, int participant, int champion,
+            LeaguePlayerHistorySource source, string region, string puuid = "target", bool jungler = true)
+        {
+            return new LeaguePlayerMatchSummary { GameId = id, ParticipantId = participant,
+                ChampionId = champion, MapId = 11, TeamId = 100, Position = jungler ? "JUNGLE" : "TOP",
+                PuuId = puuid, GameType = "MATCHED_GAME", ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "win", DataSource = source, SgpServerId = region };
+        }
+
+        private static void Require(bool condition, string message)
+        { if (!condition) throw new InvalidOperationException(message); }
+    }
+}
