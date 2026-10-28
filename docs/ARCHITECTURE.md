@@ -1,5 +1,10 @@
 # FACM Architecture
 
+## Player role and dated-window performance projection
+
+`LeaguePlayerHistoryAnalysis` now also averages optional kill participation and team damage-taken share from already-resolved match summaries; missing source ratios are excluded rather than assumed zero. Its valid-match subset yields position groups only for explicitly recognized LCU/normalized SGP top, jungle, middle, bottom or utility positions, and it compares the newest five to the previous five dated, confirmed outcomes only if both samples exist. Neither source window is fetched implicitly. The existing dialog renders these through the unified UI text registry; role aliases and synthetic positive/negative/unknown scenarios are covered by the Player smoke suite. Source-pinned Akari `SummaryPane.vue` confirms participation and damage-taken aggregates; this native extension does not assert full Akari analysis parity.
+
+
 ## Loaded Player history analytics and result classification
 
 `LeaguePlayerHistoryAnalysis` is a pure, bounded projection over the caller's already-loaded match list. The native self and remote Player history surfaces reuse the current simple/advanced filtered snapshot without another LCU/SGP operation or resident observer. Source-confirmed `WinResult` distinguishes win, loss, remake and abort; incomplete statistics can still preserve explicit abort/remake labels, but ordinary win/loss needs complete participant evidence. Aggregate denominators exclude unverified and non-matched results. Region/game-ID deduplication, optional metric averages, and conservative dated streak handling avoid fabricated data. Both surfaces use the existing `UiTextCatalog` contract for new strings. `LeaguePlayerDataService.BuildChampionStats` and `LeagueSimpleMatchHistoryFilter` use compatible source-confirmed result restrictions. Native modal is created and disposed on demand, with no added HTTP client, timer or package.
