@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-29 — Require measured roster coverage for MatchCard leader tags
+
+Follow pinned Akari 1.5.1 match-over-team precedence and priority for outgoing damage, healing, damage taken and gold tags. Because regional LCU/SGP detail can omit optional metrics, never call a player the match leader while another participant's metric is unknown. Only show a team leader when the relevant group is identified (including Cherry subteam) and every group member has a measured metric. Reuse the existing detail text pane for accessible value/team-share output, with colored chips and remaining tags left in Draft parity scope. No extra source request or runtime is justified.
+
 ## 2026-10-28 — Treat MatchCard multikill counters as nested evidence
 
 Follow pinned Akari v1.5.1 `computeMultikillTags`: double/triple/quadra/penta game statistics are cumulative, so each lower streak's exclusive count subtracts the next higher cumulative count. Preserve each field as nullable at the existing LCU/SGP detail boundary; only show a derived tag when both required counters are known and monotonic. Keep the source dynamic priorities and use the existing player-detail text surface for this first tag family, leaving its full chip/overflow presentation and other tag types as parity work. No new data fetch or background owner is justified.

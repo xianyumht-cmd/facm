@@ -170,6 +170,7 @@ namespace FACM.League
                     catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
                     match.GameDurationSeconds, t) + "\r\n" + FormatMultikillTags(player, t) +
+                    FormatMatchPerformanceTags(player, detail.Participants, isCherry, t) +
                     FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
@@ -454,6 +455,61 @@ namespace FACM.League
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle)
                     .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
                         .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static string FormatMatchPerformanceTags(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t)
+        {
+            if (player == null || participants == null) return string.Empty;
+            var all = participants.Where(p => p != null).Take(21).ToList();
+            if (all.Count == 0 || all.Count > 20 || !all.Contains(player) ||
+                all.Any(p => LeagueCherryTeams.GroupId(p, cherry) <= 0)) return string.Empty;
+            var groupId = LeagueCherryTeams.GroupId(player, cherry);
+            var group = all.Where(p => LeagueCherryTeams.GroupId(p, cherry) == groupId).ToList();
+            var tags = new List<KeyValuePair<int, string>>();
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.DamageAvailable && p.DamageToChampions >= 0 ? (int?)p.DamageToChampions : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageTeam, 1800, 1750, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalHeal.HasValue && p.TotalHeal.Value >= 0 ? p.TotalHeal : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam, 1600, 1550, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageTaken.HasValue && p.TotalDamageTaken.Value >= 0
+                    ? p.TotalDamageTaken : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, 1400, 1350, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.GoldAvailable && p.GoldEarned >= 0 ? (int?)p.GoldEarned : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, 700, 650, t);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        private static void AddMatchLeaderTag(List<KeyValuePair<int, string>> tags,
+            LeaguePlayerMatchParticipant player, List<LeaguePlayerMatchParticipant> all,
+            List<LeaguePlayerMatchParticipant> group, Func<LeaguePlayerMatchParticipant, int?> metric,
+            string matchKey, string teamKey, int matchPriority, int teamPriority, Func<string, string> t)
+        {
+            var own = metric(player);
+            if (!own.HasValue || own.Value <= 0 || group.Count == 0) return;
+            var teamValues = group.Select(metric).ToList();
+            if (teamValues.Any(value => !value.HasValue)) return;
+            var allValues = all.Select(metric).ToList();
+            var matchBest = allValues.All(value => value.HasValue) &&
+                own.Value == allValues.Max(value => value.Value);
+            var teamBest = own.Value == teamValues.Max(value => value.Value);
+            if (!matchBest && !teamBest) return;
+            var teamTotal = teamValues.Sum(value => (long)value.Value);
+            var share = ((double)own.Value / Math.Max(1L, teamTotal) * 100)
+                .ToString("0.00", CultureInfo.InvariantCulture);
+            var label = t(matchBest ? matchKey : teamKey) + "（" +
+                own.Value.ToString("N0", CultureInfo.InvariantCulture) + " / " + share + "%）";
+            tags.Add(new KeyValuePair<int, string>(matchBest ? matchPriority : teamPriority, label));
         }
 
         internal static int[] DamageBarWidths(int width, int? baseline, int? physical, int? magic, int? trueDamage)

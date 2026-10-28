@@ -1,3 +1,7 @@
+## Selected-match leader-tag projection
+
+`LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags` projects pinned Akari damage, healing, taken and gold match/team leader predicates from the existing bounded match-detail participant snapshot. It uses `LeagueCherryTeams.GroupId` for verified group ownership and complete per-metric coverage before issuing a leader claim, and computes team share from measured team members. The same scrollable native selection surface retains the previous multikill text and radar/damage bars. No new fetch, timer, cache, background worker or persistent model is introduced. Source-shaped encounter smoke and four Windows workflows remain the executable gate; Tencent/DPI and ManyTags presentation are not yet verified.
+
 ## Selected-match multikill tag projection
 
 `LeaguePlayerDataService.ParseParticipants` now carries four nullable multikill counts from the same authenticated LCU or normalized SGP match-detail snapshot into `LeaguePlayerMatchParticipant`. `LeagueEncounterMatchScoreboardDialog.FormatMultikillTags` converts the nested source cumulative totals into exclusive positive counts, preserving unknown/contradictory values and pinned tag priorities, and includes the resulting line in the already-existing selected-player details. There is no additional read, cache, thread, window, settings record or account-data mutation. The remaining Akari tag groups and chip/overflow presentation are distinct unimplemented scope; Windows CI and Tencent/DPI acceptance must not be conflated.

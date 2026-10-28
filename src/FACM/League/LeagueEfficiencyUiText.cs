@@ -299,6 +299,15 @@ namespace FACM.League
         public const string DynamicEncounterMultikillTriple = "LeagueEfficiencyDynamicEncounterMultikillTriple";
         public const string DynamicEncounterMultikillQuadra = "LeagueEfficiencyDynamicEncounterMultikillQuadra";
         public const string DynamicEncounterMultikillPenta = "LeagueEfficiencyDynamicEncounterMultikillPenta";
+        public const string DynamicEncounterLeaderTitle = "LeagueEfficiencyDynamicEncounterLeaderTitle";
+        public const string DynamicEncounterLeaderDamageMatch = "LeagueEfficiencyDynamicEncounterLeaderDamageMatch";
+        public const string DynamicEncounterLeaderDamageTeam = "LeagueEfficiencyDynamicEncounterLeaderDamageTeam";
+        public const string DynamicEncounterLeaderHealMatch = "LeagueEfficiencyDynamicEncounterLeaderHealMatch";
+        public const string DynamicEncounterLeaderHealTeam = "LeagueEfficiencyDynamicEncounterLeaderHealTeam";
+        public const string DynamicEncounterLeaderTakenMatch = "LeagueEfficiencyDynamicEncounterLeaderTakenMatch";
+        public const string DynamicEncounterLeaderTakenTeam = "LeagueEfficiencyDynamicEncounterLeaderTakenTeam";
+        public const string DynamicEncounterLeaderGoldMatch = "LeagueEfficiencyDynamicEncounterLeaderGoldMatch";
+        public const string DynamicEncounterLeaderGoldTeam = "LeagueEfficiencyDynamicEncounterLeaderGoldTeam";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -678,6 +687,15 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple, "三杀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra, "四杀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta, "五杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle, "对局表现：{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch, "全场输出第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageTeam, "队内输出第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch, "全场治疗第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam, "队内治疗第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch, "全场承伤第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, "队内承伤第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch, "全场经济第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, "队内经济第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

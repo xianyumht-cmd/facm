@@ -230,6 +230,66 @@ namespace FACM.League
             Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
                     "连杀表现：五杀 · 双杀 ×197 · 四杀 · 三杀\r\n",
                 "Large source streak counts must retain Akari's dynamic tag priority rather than fixed order.");
+            var leader = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 1000, TotalDamageTaken = 500,
+                TotalHeal = 200, GoldAvailable = true, GoldEarned = 1200 };
+            var ally = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 500, TotalDamageTaken = 700,
+                TotalHeal = 100, GoldAvailable = true, GoldEarned = 1000 };
+            var enemy = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 900, TotalDamageTaken = 600,
+                TotalHeal = 150, GoldAvailable = true, GoldEarned = 1100 };
+            var enemyAlly = new LeaguePlayerMatchParticipant { ParticipantId = 4, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 400, TotalDamageTaken = 300,
+                TotalHeal = 50, GoldAvailable = true, GoldEarned = 700 };
+            var leaderboard = new[] { leader, ally, enemy, enemyAlly };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t) ==
+                    "对局表现：全场输出第一（1,000 / 66.67%） · 全场治疗第一（200 / 66.67%） · " +
+                    "全场经济第一（1,200 / 54.55%）\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    ally, leaderboard, false, t) ==
+                    "对局表现：全场承伤第一（700 / 58.33%）\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内输出第一（900 / 69.23%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内治疗第一（150 / 75.00%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内经济第一（1,100 / 61.11%）"),
+                "MatchCard leader tags must use pinned match/team precedence, metric-specific totals and priority.");
+            enemyAlly.TotalHeal = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内治疗第一（200 / 66.67%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("治疗第一"),
+                "Partial enemy healing must not imply a match-wide record or a complete team comparison.");
+            enemyAlly.TotalHeal = 50;
+            enemy.DamageToChampions = 1000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("全场输出第一（1,000 / 71.43%）"),
+                "Source-equal positive match maxima must retain tied leaders.");
+            enemy.DamageToChampions = 900;
+            var unknownGroup = new LeaguePlayerMatchParticipant { ParticipantId = 5,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { unknownGroup }), false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    null, leaderboard, false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, null, false, t) == string.Empty,
+                "Unknown team membership or missing selection must not fabricate leader claims.");
+            leader.PlayerSubteamId = 2;
+            ally.PlayerSubteamId = 2;
+            enemy.PlayerSubteamId = 1;
+            enemyAlly.PlayerSubteamId = 1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场输出第一（1,000 / 66.67%）"),
+                "Cherry leader shares must use verified subteams, not the ordinary team ID.");
+            leader.DamageAvailable = false;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("输出第一"),
+                "Unavailable own damage cannot qualify for a leader tag.");
+
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
