@@ -140,7 +140,7 @@ namespace FACM
                 PhaseName = "ChampSelect",
                 QueueSessionBytes = bytes("{\"gameData\":{\"queue\":{\"id\":440,\"type\":\"RANKED_FLEX_SR\"}}}")
             };
-            var service = new LeagueDashboardPhaseService(api, new PerformanceBudgetProvider());
+            var service = new LeagueDashboardPhaseService(api, new PerformanceBudgetProvider(), true);
             var first = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
             Require(first.IsRankedQueue == true && api.QueueSessionReads == 1,
                 "The first select snapshot must capture queue evidence once.");

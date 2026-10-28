@@ -18,15 +18,18 @@ namespace FACM.League
         private static readonly string[] GameProcessNames = { "League of Legends" };
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
+        private readonly bool _captureRankedQueue;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
         private bool _selectionQueueChecked;
         private bool _gameQueueChecked;
         private bool? _rankedQueue;
 
-        public LeagueDashboardPhaseService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
+        public LeagueDashboardPhaseService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
+            bool captureRankedQueue = false)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
+            _captureRankedQueue = captureRankedQueue;
         }
 
         public async Task<LeagueDashboardPhaseState> RefreshAsync(CancellationToken cancellationToken)
@@ -37,14 +40,14 @@ namespace FACM.League
                 var bytes = await _client.TryGetBytesAsync(PhasePath, timeout.Token).ConfigureAwait(false);
                 var connected = bytes != null && bytes.Length > 0;
                 var phase = connected ? ParsePhase(bytes) : null;
-                if (!connected || phase == "Lobby" || phase == "None" ||
-                    phase == "Matchmaking" || phase == "ReadyCheck")
+                if (_captureRankedQueue && (!connected || phase == "Lobby" || phase == "None" ||
+                    phase == "Matchmaking" || phase == "ReadyCheck"))
                 {
                     _selectionQueueChecked = false;
                     _gameQueueChecked = false;
                     _rankedQueue = null;
                 }
-                else if (!_rankedQueue.HasValue)
+                else if (_captureRankedQueue && !_rankedQueue.HasValue)
                 {
                     var selection = phase == "ChampSelect";
                     var game = phase == "GameStart" || phase == "InProgress" || phase == "Reconnect";

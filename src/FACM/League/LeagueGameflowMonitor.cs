@@ -72,7 +72,7 @@ namespace FACM.League
 
         public LeagueGameflowMonitor(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
-            _phaseService = new LeagueDashboardPhaseService(client, budgets);
+            _phaseService = new LeagueDashboardPhaseService(client, budgets, true);
         }
 
         public event Action<LeagueDashboardPhaseState> StateChanged;
