@@ -492,6 +492,13 @@ namespace FACM.League
                 p => p.GoldAvailable && p.GoldEarned >= 0 ? (int?)p.GoldEarned : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, 700, 650, t);
+            AddMatchValueLeaderTag(tags, player, all, group,
+                p => p.DamageAvailable && p.GoldAvailable &&
+                    p.DamageToChampions >= 0 && p.GoldEarned >= 0
+                        ? (double?)p.DamageToChampions / Math.Max(1, p.GoldEarned) : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyTeam,
+                1800, 930, true, t);
             if (player.SoloKills.HasValue && player.SoloKills.Value >= 2)
                 tags.Add(new KeyValuePair<int, string>(1700,
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo)

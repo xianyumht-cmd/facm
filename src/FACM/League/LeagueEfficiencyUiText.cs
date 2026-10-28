@@ -308,6 +308,8 @@ namespace FACM.League
         public const string DynamicEncounterLeaderTakenTeam = "LeagueEfficiencyDynamicEncounterLeaderTakenTeam";
         public const string DynamicEncounterLeaderGoldMatch = "LeagueEfficiencyDynamicEncounterLeaderGoldMatch";
         public const string DynamicEncounterLeaderGoldTeam = "LeagueEfficiencyDynamicEncounterLeaderGoldTeam";
+        public const string DynamicEncounterLeaderEfficiencyMatch = "LeagueEfficiencyDynamicEncounterLeaderEfficiencyMatch";
+        public const string DynamicEncounterLeaderEfficiencyTeam = "LeagueEfficiencyDynamicEncounterLeaderEfficiencyTeam";
         public const string DynamicEncounterLeaderTowerMatch = "LeagueEfficiencyDynamicEncounterLeaderTowerMatch";
         public const string DynamicEncounterLeaderTowerTeam = "LeagueEfficiencyDynamicEncounterLeaderTowerTeam";
         public const string DynamicEncounterLeaderShieldMatch = "LeagueEfficiencyDynamicEncounterLeaderShieldMatch";
@@ -708,6 +710,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, "队内承伤第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch, "全场经济第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, "队内经济第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch, "全场伤害经济效率第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyTeam, "队内伤害经济效率第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch, "全场推塔伤害第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam, "队内推塔伤害第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch, "全场护盾第一" },

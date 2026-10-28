@@ -245,7 +245,8 @@ namespace FACM.League
             var leaderboard = new[] { leader, ally, enemy, enemyAlly };
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     leader, leaderboard, false, t) ==
-                    "对局表现：全场输出第一（1,000 / 66.67%） · 全场治疗第一（200 / 66.67%） · " +
+                    "对局表现：全场输出第一（1,000 / 66.67%） · 全场伤害经济效率第一（83.33%） · " +
+                    "全场治疗第一（200 / 66.67%） · " +
                     "全场经济第一（1,200 / 54.55%）\r\n" &&
                 LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     ally, leaderboard, false, t) ==
@@ -257,6 +258,28 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, false, t).Contains("队内经济第一（1,100 / 61.11%）"),
                 "MatchCard leader tags must use pinned match/team precedence, metric-specific totals and priority.");
+            var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t);
+            Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&
+                efficiencyTags.IndexOf("全场输出第一", StringComparison.Ordinal) <
+                    efficiencyTags.IndexOf("全场伤害经济效率第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内伤害经济效率第一（81.82%）"),
+                "Damage/gold efficiency must follow pinned match/team priorities and percentage scaling.");
+            enemyAlly.GoldAvailable = false;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内伤害经济效率第一（83.33%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, false, t).Contains("伤害经济效率第一"),
+                "Missing gold must suppress a match-wide efficiency claim and unavailable self metrics.");
+            enemyAlly.GoldAvailable = true;
+            enemy.DamageToChampions = 1000;
+            enemy.GoldEarned = 1200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("全场伤害经济效率第一（83.33%）"),
+                "Tied damage/gold ratios must retain all-match leaders.");
+            enemy.DamageToChampions = 900;
+            enemy.GoldEarned = 1100;
             enemyAlly.TotalHeal = null;
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     leader, leaderboard, false, t).Contains("队内治疗第一（200 / 66.67%）") &&
