@@ -42,8 +42,57 @@ namespace FACM.League
             ValidateCancellation();
             ValidatePlayerPageLayout();
             ValidateLoadedHistoryAnalysis();
+            ValidateAkariScoring();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
+        }
+
+        private static void ValidateAkariScoring()
+        {
+            var matches = new List<LeaguePlayerMatchSummary>();
+            for (var game = 0; game < 8; game++)
+            {
+                var match = new LeaguePlayerMatchSummary {
+                    GameId = 500 + game, ParticipantId = 1, TeamId = 100,
+                    GameType = "MATCHED_GAME", GameDurationSeconds = 1200,
+                    ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", Kills = 12, Deaths = 1, Assists = 10,
+                    CreepScore = 200, KillParticipation = 1d
+                };
+                var roster = new LeaguePlayerMatchSummary[5];
+                for (var i = 0; i < roster.Length; i++)
+                    roster[i] = new LeaguePlayerMatchSummary {
+                        ParticipantId = i + 1, TeamId = 100, StatisticsAvailable = true,
+                        DamageDealtToChampions = i == 0 ? 400d : 150d,
+                        DamageTaken = i == 0 ? 400d : 150d,
+                        GoldEarned = i == 0 ? 300d : 175d,
+                        VisionScore = i == 0 ? 40d : 15d,
+                        TotalHeal = i == 0 ? 400d : 0d
+                    };
+                match.ParticipantRoster = roster;
+                matches.Add(match);
+            }
+            var perfect = LeagueHistoryAkariScore.Calculate(matches);
+            Require(perfect != null && perfect.Games == 8 &&
+                    Math.Abs(perfect.Total - 17d) < 0.00001 && perfect.Extraordinary &&
+                    perfect.Outstanding, "Pinned Akari 1.5.1 component weights must total 17 on a full-score fixture.");
+
+            var incomplete = matches[0];
+            incomplete.ParticipantRoster[1].GoldEarned = null;
+            Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,
+                "Sparse team economic data must not be fabricated into an Akari score.");
+            incomplete.ParticipantRoster[1].GoldEarned = 175d;
+            incomplete.KillParticipation = null;
+            Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,
+                "Missing participation must not be silently treated as zero.");
+            incomplete.KillParticipation = 0d;
+            var zero = LeagueHistoryAkariScore.Calculate(new[] { incomplete });
+            Require(zero != null && zero.Participation == 0d && zero.Total <= 15d,
+                "Known zero participation must remain valid and score zero in its component.");
+            incomplete.KillParticipation = 1d;
+            incomplete.ParticipantRoster = null;
+            Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,
+                "Summary-only matches without a verified participant roster are not fully scoreable.");
         }
 
         private static void ValidateLoadedHistoryAnalysis()

@@ -18,6 +18,98 @@ namespace FACM.League
         internal double WinRate { get { return Games > 0 ? Wins * 100d / Games : 0d; } }
     }
 
+
+    // Pinned Akari 1.5.1 aggregate scoring: no score unless all nine components
+    // have evidence from the selected participant and a complete team roster.
+    internal sealed class LeagueHistoryAkariScore
+    {
+        internal int Games;
+        internal double Kda, WinRate, Damage, DamageTaken, Healing, Cs, Gold, Participation, Vision;
+        internal double Total { get { return Kda + WinRate + Damage + DamageTaken + Healing +
+            Cs + Gold + Participation + Vision; } }
+        internal bool Outstanding { get { return Games >= 5 && Total >= 6.5; } }
+        internal bool Extraordinary { get { return Games >= 8 && Total >= 8; } }
+
+        private static double Linear(double value, double min, double max, double weight)
+        {
+            return Math.Max(0d, Math.Min(1d, (value - min) / (max - min))) * weight;
+        }
+
+        private static double Contribution(double personal, double team, int teamCount)
+        {
+            return teamCount <= 1 ? 0d : personal / Math.Max(1d, team) * teamCount;
+        }
+
+        private static bool Valid(double? value)
+        {
+            return value.HasValue && value.Value >= 0d &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value);
+        }
+
+        internal static LeagueHistoryAkariScore Calculate(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            var included = new List<LeaguePlayerMatchSummary>();
+            var sums = new double[7];
+            foreach (var match in matches ?? Enumerable.Empty<LeaguePlayerMatchSummary>())
+            {
+                if (LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Win &&
+                    LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Loss)
+                    continue;
+                if (match.ParticipantId <= 0 || match.TeamId <= 0 || match.GameDurationSeconds <= 0 ||
+                    match.ParticipantRoster == null || match.ParticipantRoster.Length == 0) continue;
+                var roster = match.ParticipantRoster;
+                var self = roster.FirstOrDefault(p => p != null && p.ParticipantId == match.ParticipantId);
+                if (self == null || self.TeamId != match.TeamId || roster.Count(p => p != null &&
+                    p.ParticipantId == match.ParticipantId) != 1) continue;
+                var hasSubteam = match.PlayerSubteamId.HasValue && match.PlayerSubteamId.Value > 0;
+                var members = roster.Where(p => p != null && p.TeamId == match.TeamId &&
+                    (!hasSubteam || p.PlayerSubteamId == match.PlayerSubteamId)).ToList();
+                if (members.Count == 0 || members.Count > 5 ||
+                    !members.Contains(self) || members.Any(p => !p.StatisticsAvailable ||
+                    !Valid(p.DamageDealtToChampions) || !Valid(p.DamageTaken) ||
+                    !Valid(p.GoldEarned) || !Valid(p.VisionScore)) ||
+                    !Valid(self.TotalHeal) || !Valid(match.KillParticipation))
+                    continue;
+                double damage = members.Sum(p => p.DamageDealtToChampions.Value);
+                double taken = members.Sum(p => p.DamageTaken.Value);
+                double gold = members.Sum(p => p.GoldEarned.Value);
+                double vision = members.Sum(p => p.VisionScore.Value);
+                if (hasSubteam && members.Count < 1) continue;
+                var n = members.Count;
+                var csPerMinute = match.CreepScore * 60d / match.GameDurationSeconds;
+                var healing = self.TotalHeal.Value / Math.Max(1d, taken / n);
+                var individual = new[]
+                {
+                    Linear(Contribution(self.DamageDealtToChampions.Value, damage, n), 1d, 2d, 3d),
+                    Linear(Contribution(self.DamageTaken.Value, taken, n), 1d, 2d, 2d),
+                    Linear(healing, .2d, n == 1 ? 1d : 1.4d, 2d),
+                    Linear(csPerMinute, 5d, 10d, 2d),
+                    Linear(Contribution(self.GoldEarned.Value, gold, n), 1d, 1.5d, 2d),
+                    Linear(match.KillParticipation.Value, .3d, 1d, 2d),
+                    Linear(Contribution(self.VisionScore.Value, vision, n), 1d, 2d, 2d)
+                };
+                for (int i = 0; i < sums.Length; i++) sums[i] += individual[i];
+                included.Add(match);
+            }
+            if (included.Count == 0) return null;
+            var score = new LeagueHistoryAkariScore { Games = included.Count };
+            var count = (double)included.Count;
+            score.Damage = sums[0] / count;
+            score.DamageTaken = sums[1] / count;
+            score.Healing = sums[2] / count;
+            score.Cs = sums[3] / count;
+            score.Gold = sums[4] / count;
+            score.Participation = sums[5] / count;
+            score.Vision = sums[6] / count;
+            double kda = (included.Sum(p => p.Kills) + included.Sum(p => p.Assists)) /
+                (double)Math.Max(1, included.Sum(p => p.Deaths));
+            score.Kda = Math.Min(1d, Math.Sqrt(Math.Max(0d, kda - 2d)) * 3d / 7d);
+            score.WinRate = Linear(included.Count(p =>
+                LeaguePlayerHistoryAnalysis.Outcome(p) == LeagueHistoryOutcome.Win) / count, .5d, 1d, 1d);
+            return score;
+        }
+    }
+
     internal sealed class LeaguePlayerHistoryAnalysis
     {
         internal int Loaded, Wins, Losses, Remakes, Aborts, Unknowns, Other;
@@ -26,6 +118,7 @@ namespace FACM.League
         internal double? Kills, Deaths, Assists, CsPerMinute, DamageShare, GoldShare;
         internal double? KillParticipation, DamageTakenShare;
         internal double? RecentFiveWinRate, PreviousFiveWinRate;
+        internal LeagueHistoryAkariScore AkariScore;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal List<LeaguePlayerChampionStat> Champions = new List<LeaguePlayerChampionStat>();
 
@@ -70,6 +163,7 @@ namespace FACM.League
                     default: result.Unknowns++; break;
                 }
             }
+            result.AkariScore = LeagueHistoryAkariScore.Calculate(played);
             result.Kills = Mean(played.Select(m => (double?)m.Kills));
             result.Deaths = Mean(played.Select(m => (double?)m.Deaths));
             result.Assists = Mean(played.Select(m => (double?)m.Assists));
@@ -188,6 +282,35 @@ namespace FACM.League
                     ui.Get(UiTextKeys.LeaguePlayerAnalysisChampionRow),
                     string.IsNullOrWhiteSpace(c.ChampionName) ? "#" + c.ChampionId : c.ChampionName,
                     c.Games, c.WinRate.ToString("0", CultureInfo.CurrentCulture)));
+            lines.Add(string.Empty);
+            lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTitle));
+            if (a.AkariScore == null)
+                lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariUnavailable));
+            else
+            {
+                var score = a.AkariScore;
+                lines.Add(string.Format(CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTotal),
+                    score.Total.ToString("0.00", CultureInfo.CurrentCulture), score.Games,
+                    a.Wins + a.Losses, score.Extraordinary ?
+                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariExtraordinary) :
+                        score.Outstanding ? ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariOutstanding) :
+                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariNormal)));
+                var keys = new[] { UiTextKeys.LeaguePlayerAnalysisAkariKda,
+                    UiTextKeys.LeaguePlayerAnalysisAkariWinRate, UiTextKeys.LeaguePlayerAnalysisAkariDamage,
+                    UiTextKeys.LeaguePlayerAnalysisAkariDamageTaken, UiTextKeys.LeaguePlayerAnalysisAkariHealing,
+                    UiTextKeys.LeaguePlayerAnalysisAkariCs, UiTextKeys.LeaguePlayerAnalysisAkariGold,
+                    UiTextKeys.LeaguePlayerAnalysisAkariParticipation,
+                    UiTextKeys.LeaguePlayerAnalysisAkariVision };
+                var values = new[] { score.Kda, score.WinRate, score.Damage,
+                    score.DamageTaken, score.Healing, score.Cs, score.Gold,
+                    score.Participation, score.Vision };
+                var maxima = new[] { 1, 1, 3, 2, 2, 2, 2, 2, 2 };
+                for (var i = 0; i < keys.Length; i++)
+                    lines.Add(string.Format(CultureInfo.CurrentCulture,
+                        ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariPart),
+                        ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
+            }
             lines.Add(string.Empty);
             lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
             foreach (var role in a.Positions)

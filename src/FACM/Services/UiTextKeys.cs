@@ -604,6 +604,22 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisPositionMiddle = "LeaguePlayerAnalysisPositionMiddle";
         public const string LeaguePlayerAnalysisPositionBottom = "LeaguePlayerAnalysisPositionBottom";
         public const string LeaguePlayerAnalysisPositionUtility = "LeaguePlayerAnalysisPositionUtility";
+        public const string LeaguePlayerAnalysisAkariTitle = "LeaguePlayerAnalysisAkariTitle";
+        public const string LeaguePlayerAnalysisAkariUnavailable = "LeaguePlayerAnalysisAkariUnavailable";
+        public const string LeaguePlayerAnalysisAkariTotal = "LeaguePlayerAnalysisAkariTotal";
+        public const string LeaguePlayerAnalysisAkariNormal = "LeaguePlayerAnalysisAkariNormal";
+        public const string LeaguePlayerAnalysisAkariOutstanding = "LeaguePlayerAnalysisAkariOutstanding";
+        public const string LeaguePlayerAnalysisAkariExtraordinary = "LeaguePlayerAnalysisAkariExtraordinary";
+        public const string LeaguePlayerAnalysisAkariPart = "LeaguePlayerAnalysisAkariPart";
+        public const string LeaguePlayerAnalysisAkariKda = "LeaguePlayerAnalysisAkariKda";
+        public const string LeaguePlayerAnalysisAkariWinRate = "LeaguePlayerAnalysisAkariWinRate";
+        public const string LeaguePlayerAnalysisAkariDamage = "LeaguePlayerAnalysisAkariDamage";
+        public const string LeaguePlayerAnalysisAkariDamageTaken = "LeaguePlayerAnalysisAkariDamageTaken";
+        public const string LeaguePlayerAnalysisAkariHealing = "LeaguePlayerAnalysisAkariHealing";
+        public const string LeaguePlayerAnalysisAkariCs = "LeaguePlayerAnalysisAkariCs";
+        public const string LeaguePlayerAnalysisAkariGold = "LeaguePlayerAnalysisAkariGold";
+        public const string LeaguePlayerAnalysisAkariParticipation = "LeaguePlayerAnalysisAkariParticipation";
+        public const string LeaguePlayerAnalysisAkariVision = "LeaguePlayerAnalysisAkariVision";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";
