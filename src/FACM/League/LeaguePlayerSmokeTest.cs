@@ -325,14 +325,14 @@ namespace FACM.League
             var now = new DateTime(2026, 10, 27, 12, 0, 0, DateTimeKind.Utc);
             var matches = new[]
             {
-                new LeaguePlayerMatchSummary { GameId = 1, Win = true, StatisticsAvailable = true,
+                new LeaguePlayerMatchSummary { GameId = 1, WinResult = "win", Win = true, StatisticsAvailable = true,
                     ParticipantResolved = true, GameCreationLocal = now.AddHours(-2), MatchChampionIds = new[] { 22, 99 },
                     MatchPlayers = new[] { new LeaguePlayerMatchIdentity { PuuId = "self" },
                         new LeaguePlayerMatchIdentity { PuuId = "other" } } },
-                new LeaguePlayerMatchSummary { GameId = 2, Win = false, StatisticsAvailable = true,
+                new LeaguePlayerMatchSummary { GameId = 2, WinResult = "loss", Win = false, StatisticsAvailable = true,
                     ParticipantResolved = true, GameCreationLocal = now.AddHours(-10), MatchChampionIds = new[] { 22 },
                     MatchPlayers = new[] { new LeaguePlayerMatchIdentity { PuuId = "self" } } },
-                new LeaguePlayerMatchSummary { GameId = 3, Win = true, StatisticsAvailable = true,
+                new LeaguePlayerMatchSummary { GameId = 3, WinResult = "win", Win = true, StatisticsAvailable = true,
                     ParticipantResolved = true, GameCreationLocal = now.AddDays(-8), MatchChampionIds = null },
                 new LeaguePlayerMatchSummary { GameId = 4, Win = false, StatisticsAvailable = false,
                     ParticipantResolved = true, GameCreationLocal = now.AddHours(-1), MatchChampionIds = new[] { 99 } },
@@ -1381,9 +1381,9 @@ namespace FACM.League
             const string championSummary = "[{\"id\":-1,\"name\":\"None\"},{\"id\":145,\"name\":\"卡莎\"},{\"id\":22,\"name\":\"艾希\"},{\"id\":147,\"name\":\"萨勒芬妮\"}]";
             var profile = new LeaguePlayerProfile { PuuId = "puuid-current", SummonerId = 9001 };
             var page = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 3 };
-            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30001, ChampionId = 145, Kills = 8, Deaths = 4, Assists = 12, Win = true, ParticipantResolved = true });
-            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30002, ChampionId = 145, Kills = 4, Deaths = 6, Assists = 8, Win = false, ParticipantResolved = true });
-            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30003, ChampionId = 22, Kills = 2, Deaths = 3, Assists = 9, Win = true, ParticipantResolved = true });
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30001, WinResult = "win", StatisticsAvailable = true, ChampionId = 145, Kills = 8, Deaths = 4, Assists = 12, Win = true, ParticipantResolved = true });
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30002, WinResult = "loss", StatisticsAvailable = true, ChampionId = 145, Kills = 4, Deaths = 6, Assists = 8, Win = false, ParticipantResolved = true });
+            page.Matches.Add(new LeaguePlayerMatchSummary { GameId = 30003, WinResult = "win", StatisticsAvailable = true, ChampionId = 22, Kills = 2, Deaths = 3, Assists = 9, Win = true, ParticipantResolved = true });
 
             var provider = new PerformanceBudgetProvider();
             var api = new FixtureApi("{}", "{}", null, championSummary);
@@ -1423,6 +1423,19 @@ namespace FACM.League
             Require(Math.Abs(stats[0].AverageKills - 6d) < 0.001d && Math.Abs(stats[0].AverageDeaths - 5d) < 0.001d && Math.Abs(stats[0].AverageAssists - 10d) < 0.001d,
                 "Champion stats average K/D/A changed unexpectedly.");
             Require(CountPrefix(api.Paths, "/lol-match-history/") == 0, "Pure champion aggregation unexpectedly performed network work.");
+            var excluded = new LeaguePlayerMatchPage();
+            excluded.Matches.Add(new LeaguePlayerMatchSummary { GameId = 40, ChampionId = 145,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "remake" });
+            excluded.Matches.Add(new LeaguePlayerMatchSummary { GameId = 41, ChampionId = 145,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "abort" });
+            excluded.Matches.Add(new LeaguePlayerMatchSummary { GameId = 42, ChampionId = 145,
+                ParticipantResolved = true, StatisticsAvailable = true });
+            excluded.Matches.Add(new LeaguePlayerMatchSummary { GameId = 43, ChampionId = 145,
+                ParticipantResolved = true, StatisticsAvailable = false, WinResult = "loss" });
+            excluded.Matches.Add(new LeaguePlayerMatchSummary { GameId = 44, ChampionId = 145,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win", GameType = "CUSTOM_GAME" });
+            Require(service.BuildChampionStats(excluded).Count == 0,
+                "Champion win rates must exclude remakes, aborts, unknown outcomes and unverified results.");
 
             provider.UpdateLeagueActivity(LeagueActivityLevel.InGame);
             var cachedInGame = new LeaguePlayerMatchPage { StartIndex = 0, RequestedCount = 10, ReportedGameCount = 1 };

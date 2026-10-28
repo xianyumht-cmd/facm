@@ -35,11 +35,9 @@ namespace FACM.League
             if (WinLoss != LeagueMatchWinLossFilter.All)
             {
                 if (!match.ParticipantResolved || !match.StatisticsAvailable) return false;
-                if (!string.IsNullOrWhiteSpace(match.WinResult) &&
-                    !string.Equals(match.WinResult, WinLoss == LeagueMatchWinLossFilter.Win ? "win" : "loss",
-                        StringComparison.OrdinalIgnoreCase)) return false;
-                if (string.IsNullOrWhiteSpace(match.WinResult) &&
-                    match.Win != (WinLoss == LeagueMatchWinLossFilter.Win)) return false;
+                if (!string.Equals(match.WinResult,
+                    WinLoss == LeagueMatchWinLossFilter.Win ? "win" : "loss",
+                    StringComparison.OrdinalIgnoreCase)) return false;
             }
 
             var range = ResolveRange(TimeRange);

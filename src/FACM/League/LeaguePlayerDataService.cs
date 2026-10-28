@@ -1321,7 +1321,13 @@ namespace FACM.League
             {
                 foreach (var match in page.Matches)
                 {
-                    if (match == null || !match.ParticipantResolved || match.ChampionId <= 0) continue;
+                    if (match == null || !match.ParticipantResolved || !match.StatisticsAvailable ||
+                        match.ChampionId <= 0 ||
+                        LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Win &&
+                        LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Loss ||
+                        !string.IsNullOrWhiteSpace(match.GameType) &&
+                        !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase))
+                        continue;
                     LeaguePlayerChampionStat stat;
                     if (!grouped.TryGetValue(match.ChampionId, out stat))
                     {
