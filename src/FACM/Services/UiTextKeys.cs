@@ -628,6 +628,7 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisHeroNormal = "LeaguePlayerAnalysisHeroNormal";
         public const string LeaguePlayerAnalysisHeroCherry = "LeaguePlayerAnalysisHeroCherry";
         public const string LeaguePlayerAnalysisHeroUnknownMode = "LeaguePlayerAnalysisHeroUnknownMode";
+        public const string LeaguePlayerAnalysisHeroCherryPlacement = "LeaguePlayerAnalysisHeroCherryPlacement";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";

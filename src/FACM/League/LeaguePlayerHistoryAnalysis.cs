@@ -21,8 +21,12 @@ namespace FACM.League
     internal sealed class LeagueHistoryChampionBreakdown
     {
         internal int NormalGames, NormalWins, CherryGames, CherryWins, UnknownModeGames;
+        internal int CherryFirstPlaces, CherryKnownPlacements, CherryPlacementSum;
+        internal int CherryTopHalfFinishes, CherryKnownTopHalfGames;
         internal double? CsPerMinute, DamageShare, DamageTakenShare, GoldShare, KillParticipation;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
+        internal double? AverageCherryPlacement { get { return CherryKnownPlacements > 0
+            ? (double?)CherryPlacementSum / CherryKnownPlacements : null; } }
     }
 
 
@@ -218,6 +222,19 @@ namespace FACM.League
                     {
                         breakdown.CherryGames++;
                         if (Outcome(match) == LeagueHistoryOutcome.Win) breakdown.CherryWins++;
+                        var placement = match.SubteamPlacement.GetValueOrDefault();
+                        if (placement > 0)
+                        {
+                            breakdown.CherryKnownPlacements++;
+                            breakdown.CherryPlacementSum += placement;
+                            if (placement == 1) breakdown.CherryFirstPlaces++;
+                            var teamCount = ReliableCherryTeamCount(match);
+                            if (teamCount.HasValue)
+                            {
+                                breakdown.CherryKnownTopHalfGames++;
+                                if (placement <= teamCount.Value / 2) breakdown.CherryTopHalfFinishes++;
+                            }
+                        }
                     }
                     else
                     {
@@ -257,6 +274,21 @@ namespace FACM.League
                     Kills = g.Sum(row => row.Match.Kills), Deaths = g.Sum(row => row.Match.Deaths),
                     Assists = g.Sum(row => row.Match.Assists)
                 }).OrderByDescending(s => s.Games).ThenBy(s => s.Position, StringComparer.Ordinal).ToList();
+        }
+
+        private static int? ReliableCherryTeamCount(LeaguePlayerMatchSummary match)
+        {
+            var roster = match.ParticipantRoster;
+            if (!match.RosterIdentitiesComplete || roster == null || roster.Length < 4 ||
+                roster.Any(p => p == null || !p.PlayerSubteamId.HasValue || p.PlayerSubteamId.Value <= 0 ||
+                    !p.SubteamPlacement.HasValue || p.SubteamPlacement.Value <= 0)) return null;
+            var groups = roster.GroupBy(p => p.PlayerSubteamId.Value).ToList();
+            if (groups.Count < 2 || !groups.Any(g => g.Key == match.PlayerSubteamId) ||
+                groups.Any(g => g.Select(p => p.SubteamPlacement.Value).Distinct().Count() != 1)) return null;
+            var self = roster.Where(p => p.ParticipantId == match.ParticipantId).ToList();
+            if (self.Count != 1 || self[0].PlayerSubteamId != match.PlayerSubteamId ||
+                self[0].SubteamPlacement != match.SubteamPlacement) return null;
+            return groups.Count;
         }
 
         private static string NormalizePosition(string raw)
@@ -447,10 +479,19 @@ namespace FACM.League
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroNormal),
                                         breakdown.NormalGames, breakdown.NormalWins));
                                 if (breakdown.CherryGames > 0)
+                                {
                                     updated.Add(string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherry),
                                         breakdown.CherryGames, breakdown.CherryWins));
+                                    updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherryPlacement),
+                                        breakdown.CherryKnownPlacements == 0 ? "--" :
+                                            breakdown.CherryFirstPlaces + "/" + breakdown.CherryKnownPlacements,
+                                        breakdown.CherryKnownTopHalfGames == 0 ? "--" :
+                                            breakdown.CherryTopHalfFinishes + "/" + breakdown.CherryKnownTopHalfGames,
+                                        Number(breakdown.AverageCherryPlacement)));
+                                }
                                 if (breakdown.UnknownModeGames > 0)
                                     updated.Add(string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode),

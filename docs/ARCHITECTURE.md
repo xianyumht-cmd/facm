@@ -1,8 +1,13 @@
 # FACM Architecture
 
-## Per-hero loaded Player analysis grouping (Draft #357 candidate)
+## Cherry placement evidence in on-demand hero reports (Draft #357 candidate)
 
-The existing `LeaguePlayerHistoryAnalysis.Calculate` groups only the same filtered, deduplicated, confirmed-match subset by champion ID. Each group now owns a `LeagueHistoryChampionBreakdown` with known non-Cherry and `CHERRY` win/game counts, an explicit unknown-mode count, recognized role totals and available optional CS/min and participation/economy/damage-share averages. The report's existing hero selector renders those data with the per-hero Akari score; the all-hero report and score eligibility remain unchanged. Pure projection, no added data source, cache, network request, worker or persistent state. The pinned reference is `aggregate/champions.ts` plus `aggregate/{win-loss,positions,summary}.ts`. Windows CI and Tencent runtime checks remain independent acceptance gates.
+`LeagueHistoryChampionBreakdown` keeps two placement coverages: positive Cherry placement for first-place and average, and an identity-complete, subteam-consistent participant roster for top-half classification. A reported half-field uses source `floor(subteamCount/2)`, so missing roster or placement is not treated as an actual poor finish. The projection remains pure and hero-scoped, with no new source request, persistence or observer. The source references are pinned `aggregate/win-loss.ts` and `match-history/cherry.ts`. Windows CI and Tencent game validation are pending for this second candidate.
+
+## Verified per-hero loaded Player analysis grouping
+
+The first hero summary/mode/position continuation passed four Windows workflows at `9af4ced2`. Each hero owns optional group-specific summary statistics with independent denominators; source-incomplete matches remain unscored. No runtime owner, data request, cache or persisted setting changed.
+
 
 ## Akari 17-point scoring from existing loaded Player data
 

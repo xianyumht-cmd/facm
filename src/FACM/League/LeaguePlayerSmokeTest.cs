@@ -122,6 +122,41 @@ namespace FACM.League
                     !aatrox.DamageShare.HasValue,
                 "Akari champion summaries must separate Cherry, known normal, unknown mode and per-hero metrics.");
 
+            var cherryRoster = Enumerable.Range(1, 8).Select(i => new LeaguePlayerMatchSummary {
+                ParticipantId = i, PuuId = "player-" + i, PlayerSubteamId = (i + 1) / 2,
+                SubteamPlacement = (i + 1) / 2
+            }).ToArray();
+            var cherryGames = new[] {
+                new LeaguePlayerMatchSummary {
+                    GameId = 901, ChampionId = 202, GameType = "MATCHED_GAME", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                    ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 1,
+                    ParticipantRoster = cherryRoster, RosterIdentitiesComplete = true
+                },
+                new LeaguePlayerMatchSummary {
+                    GameId = 902, ChampionId = 202, GameType = "MATCHED_GAME", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss",
+                    ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 3,
+                    ParticipantRoster = cherryRoster, RosterIdentitiesComplete = false
+                },
+                new LeaguePlayerMatchSummary {
+                    GameId = 903, ChampionId = 202, GameType = "MATCHED_GAME", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win"
+                },
+                new LeaguePlayerMatchSummary {
+                    GameId = 904, ChampionId = 202, GameType = "MATCHED_GAME", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss",
+                    ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 3,
+                    ParticipantRoster = cherryRoster, RosterIdentitiesComplete = true
+                }
+            };
+            var cherrySummary = LeaguePlayerHistoryAnalysis.Calculate(cherryGames).ChampionBreakdowns[202];
+            Require(cherrySummary.CherryGames == 4 && cherrySummary.CherryWins == 2 &&
+                    cherrySummary.CherryKnownPlacements == 3 && cherrySummary.CherryFirstPlaces == 1 &&
+                    cherrySummary.CherryKnownTopHalfGames == 1 && cherrySummary.CherryTopHalfFinishes == 1 &&
+                    Math.Abs(cherrySummary.AverageCherryPlacement.Value - 7d / 3d) < .00001,
+                "Cherry top-half placement needs a consistent self/subteam roster; unknown placements do not count as losses.");
+
             var incomplete = matches[0];
             incomplete.ParticipantRoster[1].GoldEarned = null;
             Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,

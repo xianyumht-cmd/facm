@@ -1,6 +1,10 @@
-## Per-champion summary and win/loss grouping continuation (source candidate)
+## Cherry per-hero placement continuation (source candidate)
 
-Pinned `src/shared/data-adapter/analysis/player/aggregate/champions.ts` combines `computeAggregatedWinLossMap`, `computeAggregatedPositions`, `computeAggregatedSummary`, the already-verified score and jungle analysis for each champion. The current native loaded-only continuation adds the win/loss mode split (`CHERRY` vs known non-Cherry), recognized position counts and per-hero available summary ratios/CS per minute to the existing hero selector; mode-missing records are explicitly unclassified, not counted as normal. This uses the same filtered valid-outcome samples without any added hydration read. New deterministic fixtures check separate hero denominators, partial numeric fields, Cherry/ordinary/unknown modes and positions. **Pending Windows CI and live Tencent acceptance**; source-wide jungle statistics, full history hydration and MatchCard/replay remain open.
+Pinned `src/shared/data-adapter/analysis/player/aggregate/win-loss.ts` exposes `top1s`, `topHalfFinishes` and `avgSubteamPlacement`, while `match-history/cherry.ts` defines the top-half threshold as `floor(teamCount / 2)`. GGman's loaded-only hero breakdown now counts verified positive first places, reports the mean over known placement entries, and counts top-half results only when a consistent identity-complete participant roster can establish unique Cherry subteam count; missing placements/team counts never become zero-ranked losses. Four-subteam and incomplete-roster smoke fixtures are added. This candidate has not yet passed Windows CI. Source-complete regional provider coverage, cross-game jungle details, exact Cherry layout and Tencent runtime verification remain outstanding.
+
+## Verified per-champion summary and mode grouping
+
+Native `aggregate/champions.ts`-aligned hero analysis has source-confirmed regular/Cherry wins, known lane/summary slices and unknown-mode preservation. Executable `9af4ced2` passed Windows Build #40653396380, Glass #40653396250, UI Text #40653396279 and Mayhem #40653396304. It uses only already-loaded filtered records; no additional data fetch or resident work. Tencent acceptance, complete history hydration and source-wide jungle statistics remain outstanding.
 
 ## Verified aggregate rating checkpoint — pinned Akari 1.5.1
 

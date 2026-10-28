@@ -634,6 +634,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroNormal, "普通模式"),
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroCherry, "斗魂竞技场"),
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode, "模式未知 · {0} 场（不归入普通模式）"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroCherryPlacement, "斗魂名次：第一名 {0} · 前半区 {1} · 平均第 {2} 名（仅已知数据）"),
 
             Pair(UiTextKeys.LeagueLiveMenu, "实时对局"),
             Pair(UiTextKeys.LeagueLiveWindowTitle, "GGman · 实时对局"),
