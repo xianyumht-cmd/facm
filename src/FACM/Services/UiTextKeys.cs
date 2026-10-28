@@ -653,6 +653,7 @@ namespace FACM.Services
         public const string LeagueJungleHistoryUnavailable = "LeagueJungleHistoryUnavailable";
         public const string LeagueJungleHistoryLane = "LeagueJungleHistoryLane";
         public const string LeagueJungleHistoryEarly = "LeagueJungleHistoryEarly";
+        public const string LeagueJungleHistoryBySide = "LeagueJungleHistoryBySide";
         public const string LeagueJungleHistoryCamps = "LeagueJungleHistoryCamps";
         public const string LeagueJungleHistoryCampRow = "LeagueJungleHistoryCampRow";
         public const string LeagueJungleHistoryNormal = "LeagueJungleHistoryNormal";

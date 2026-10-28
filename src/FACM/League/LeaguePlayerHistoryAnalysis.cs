@@ -621,9 +621,8 @@ namespace FACM.League
                             snapshot.Any(m => LeaguePlayerDataService.NeedsAnalysisDetail(m) &&
                                 !attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
                         loadJungle.Enabled = !stale && service != null && session != null && operation == null &&
-                            jungleSamples.Count < LeagueJungleHistoryAnalysis.MaximumSamples &&
-                            LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid).Any(m =>
-                                !jungleAttempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
+                            LeagueJungleHistoryAnalysis.PendingBatch(snapshot, targetPuuid,
+                                jungleAttempted, jungleSamples.Count).Count > 0;
                     };
                     Func<Task> hydrateAsync = async () =>
                     {
@@ -679,9 +678,8 @@ namespace FACM.League
                             deadline.CancelAfter(TimeSpan.FromSeconds(48));
                             try
                             {
-                                foreach (var match in LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid)
-                                    .Where(m => !jungleAttempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)))
-                                    .Take(LeagueJungleHistoryAnalysis.BatchSize))
+                                foreach (var match in LeagueJungleHistoryAnalysis.PendingBatch(snapshot,
+                                    targetPuuid, jungleAttempted, jungleSamples.Count))
                                 {
                                     if (jungleSamples.Count >= LeagueJungleHistoryAnalysis.MaximumSamples) break;
                                     deadline.Token.ThrowIfCancellationRequested();
@@ -722,7 +720,12 @@ namespace FACM.League
                         }
                     };
                     hydrate.Click += (sender, args) => { if (operation == null) pending = hydrateAsync(); };
-                    loadJungle.Click += (sender, args) => { if (operation == null) pending = jungleAsync(); };
+                    loadJungle.Click += (sender, args) =>
+                    {
+                        if (operation != null) return;
+                        tabs.SelectedTab = jungleTab;
+                        pending = jungleAsync();
+                    };
                     stop.Click += (sender, args) => operation?.Cancel();
                     dialog.FormClosed += (sender, args) => lifetime.Cancel();
                     actions.Controls.Add(hydrate);

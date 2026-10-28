@@ -16,6 +16,8 @@ namespace FACM.League
     {
         internal int Games, PositionGames, FirstCampGames, ObjectiveGames;
         internal int Level3Known, Level3Detected, Level4Known, Level4Detected;
+        internal int BlueGames, RedGames, BlueLevel3Known, BlueLevel3Detected, BlueLevel4Known, BlueLevel4Detected;
+        internal int RedLevel3Known, RedLevel3Detected, RedLevel4Known, RedLevel4Detected;
         internal int FirstDragonKnown, FirstDragonWon;
         internal int Dragons, SoloDragons, Voidgrubs, Heralds, Barons, MissingKillPositions;
         internal readonly int[] ZoneWeights = new int[3];
@@ -44,6 +46,34 @@ namespace FACM.League
             foreach (var entry in entries)
             {
                 var a = entry.Analysis;
+                if (entry.Match.TeamId == 100)
+                {
+                    result.BlueGames++;
+                    if (a.Level3Gank.HasValue)
+                    {
+                        result.BlueLevel3Known++;
+                        if (a.Level3Gank.Value) result.BlueLevel3Detected++;
+                    }
+                    if (a.Level4Gank.HasValue)
+                    {
+                        result.BlueLevel4Known++;
+                        if (a.Level4Gank.Value) result.BlueLevel4Detected++;
+                    }
+                }
+                else if (entry.Match.TeamId == 200)
+                {
+                    result.RedGames++;
+                    if (a.Level3Gank.HasValue)
+                    {
+                        result.RedLevel3Known++;
+                        if (a.Level3Gank.Value) result.RedLevel3Detected++;
+                    }
+                    if (a.Level4Gank.HasValue)
+                    {
+                        result.RedLevel4Known++;
+                        if (a.Level4Gank.Value) result.RedLevel4Detected++;
+                    }
+                }
                 for (var i = 0; i < 3; i++)
                 {
                     result.ZoneWeights[i] += a.ZoneWeights[i];
@@ -106,6 +136,15 @@ namespace FACM.League
         internal const int BatchSize = 8;
         internal const int MaximumSamples = 40;
 
+        internal static List<LeaguePlayerMatchSummary> PendingBatch(IEnumerable<LeaguePlayerMatchSummary> matches,
+            string targetPuuid, ISet<string> attempted, int successful)
+        {
+            if (successful >= MaximumSamples) return new List<LeaguePlayerMatchSummary>();
+            return Candidates(matches, targetPuuid).Where(m => attempted == null ||
+                !attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)))
+                .Take(Math.Min(BatchSize, MaximumSamples - Math.Max(0, successful))).ToList();
+        }
+
         internal static List<LeaguePlayerMatchSummary> Candidates(IEnumerable<LeaguePlayerMatchSummary> matches,
             string targetPuuid)
         {
@@ -147,6 +186,12 @@ namespace FACM.League
                     ui.Get(lanes[i]), Percent(a.ZoneRate(i)), a.Ganks[i], a.PositionGames));
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryEarly),
                 a.Level3Detected, a.Level3Known, a.Level4Detected, a.Level4Known, a.MissingKillPositions));
+            lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryBySide),
+                ui.Get(UiTextKeys.LeagueJungleBlueSide), a.BlueGames,
+                a.BlueLevel3Detected, a.BlueLevel3Known, a.BlueLevel4Detected, a.BlueLevel4Known));
+            lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryBySide),
+                ui.Get(UiTextKeys.LeagueJungleRedSide), a.RedGames,
+                a.RedLevel3Detected, a.RedLevel3Known, a.RedLevel4Detected, a.RedLevel4Known));
             lines.Add(string.Empty);
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCamps),
                 a.FirstCampGames, a.Games));

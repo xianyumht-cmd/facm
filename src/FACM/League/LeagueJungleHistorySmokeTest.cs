@@ -22,6 +22,18 @@ namespace FACM.League
             Require(candidates.Count == 3 && candidates.Select(m => m.GameId)
                 .SequenceEqual(new long[] { 1001, 1002, 1003 }),
                 "Only unique current-target Rift jungle matches with original source/server provenance may request timelines.");
+            var loaded = Enumerable.Range(0, 20).Select(i => Match(3000 + i, 1, 64,
+                LeaguePlayerHistorySource.Lcu, null)).ToList();
+            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                LeaguePlayerDataService.HistoryDetailKey(loaded[0]),
+                LeaguePlayerDataService.HistoryDetailKey(loaded[1]) };
+            var firstBatch = LeagueJungleHistoryAnalysis.PendingBatch(loaded, "target", attempted, 0);
+            Require(firstBatch.Count == LeagueJungleHistoryAnalysis.BatchSize &&
+                firstBatch.First().GameId == 3002 && firstBatch.Last().GameId == 3009 &&
+                attempted.Count == 2 &&
+                LeagueJungleHistoryAnalysis.PendingBatch(loaded, "target", attempted, 39).Count == 1 &&
+                LeagueJungleHistoryAnalysis.PendingBatch(loaded, "target", attempted, 40).Count == 0,
+                "Pending batches must skip attempted keys, cap each explicit read at eight and stop after forty successes.");
             var a = new LeagueJungleAnalysis { PositionSamples = 2, AvailableSamples = 14,
                 Level3Gank = true, Level4Gank = null, StartBlue = true, StartCamp = "blue",
                 ObjectivesAvailable = true, GotFirstDragon = null, Dragons = 2, SoloDragons = 1,
@@ -60,6 +72,19 @@ namespace FACM.League
             Require(hero.Games == 2 && hero.ObjectiveGames == 2 && hero.FirstDragonKnown == 1 &&
                 hero.FirstDragonWon == 0 && hero.Level3Known == 2 && hero.Level4Known == 1,
                 "Per-champion jungle totals must use only that hero's successfully loaded timelines.");
+            var red = Match(1008, 1, 64, LeaguePlayerHistorySource.Lcu, null);
+            red.TeamId = 200;
+            var redAnalysis = new LeagueJungleAnalysis { Level3Gank = true, Level4Gank = false,
+                ObjectivesAvailable = true, StartCamp = "raptors", StartBlue = false };
+            var sides = LeagueJungleHistoryAggregate.Calculate(samples.Concat(new[] {
+                new LeagueJungleHistorySample { Match = red, Analysis = redAnalysis } }));
+            Require(sides.BlueGames == 3 && sides.RedGames == 1 &&
+                sides.BlueLevel3Known == 2 && sides.BlueLevel3Detected == 1 &&
+                sides.BlueLevel4Known == 1 && sides.BlueLevel4Detected == 1 &&
+                sides.RedLevel3Known == 1 && sides.RedLevel3Detected == 1 &&
+                sides.RedLevel4Known == 1 && sides.RedLevel4Detected == 0 &&
+                sides.Camps["red/normal/raptors"] == 1,
+                "Pinned by-team early-gank rates and first-camp sides require separate blue/red coverage.");
             var ui = UiTextCatalog.Load();
             var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
             Require(text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&

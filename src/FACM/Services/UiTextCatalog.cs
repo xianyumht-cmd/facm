@@ -659,6 +659,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleHistoryUnavailable, "尚无可分析的时间线。点击下方按钮分批补全（8场/轮，总预算48秒）。"),
             Pair(UiTextKeys.LeagueJungleHistoryLane, "{0}：位置加权 {1}；击杀参与抓人 {2} 次（位置覆盖 {3} 场）"),
             Pair(UiTextKeys.LeagueJungleHistoryEarly, "三级抓人 {0}/{1}；四级抓人 {2}/{3}；缺位置的击杀参与 {4} 次"),
+            Pair(UiTextKeys.LeagueJungleHistoryBySide, "{0} {1} 场：三级迹象 {2}/{3}；四级迹象 {4}/{5}（未知不计失败）"),
             Pair(UiTextKeys.LeagueJungleHistoryCamps, "首分钟最近营地（推断）覆盖 {0}/{1} 场；按阵营/入侵方向计数："),
             Pair(UiTextKeys.LeagueJungleHistoryCampRow, "{0} · {1} · {2}：{3} 场"),
             Pair(UiTextKeys.LeagueJungleHistoryNormal, "己方野区"),
