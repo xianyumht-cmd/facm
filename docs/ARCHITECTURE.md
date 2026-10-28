@@ -1,5 +1,10 @@
 # FACM Architecture
 
+## Postgame Player ranked refresh lifecycle (Draft #357)
+
+`LeagueDashboardModule.ForwardGameflowState` forwards existing monitor snapshots into `LeaguePlayerPostgameRefreshBridge`; its detector emits a single postgame edge per observed match and resets at disconnect/disposal. The bridge owns neither a second monitor nor network requests. An open `LeaguePlayerProfileDialog` subscribes on Shown/unsubscribes on Dispose, dispatches onto its WinForms owner thread, checks frozen self/target/session/source, and refreshes its existing ranked/profile read. Requests already in flight coalesce through one pending flag. After an unchanged, present ranked snapshot, one cancelable three-second retry may run; closing the dialog or changing account cancels/skips it. Deterministic detector and retry predicate tests run in the existing Player profile smoke suite. Exact 420/440 queue restriction needs separately bound source evidence because the current Gameflow phase snapshot does not include queue metadata.
+
+
 ## Player role and dated-window performance projection
 
 `LeaguePlayerHistoryAnalysis` now also averages optional kill participation and team damage-taken share from already-resolved match summaries; missing source ratios are excluded rather than assumed zero. Its valid-match subset yields position groups only for explicitly recognized LCU/normalized SGP top, jungle, middle, bottom or utility positions, and it compares the newest five to the previous five dated, confirmed outcomes only if both samples exist. Neither source window is fetched implicitly. The existing dialog renders these through the unified UI text registry; role aliases and synthetic positive/negative/unknown scenarios are covered by the Player smoke suite. Source-pinned Akari `SummaryPane.vue` confirms participation and damage-taken aggregates; this native extension does not assert full Akari analysis parity.
