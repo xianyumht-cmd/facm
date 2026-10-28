@@ -26,14 +26,15 @@ namespace FACM.League
                 return false;
             }
             var phase = state.Phase ?? string.Empty;
-            if (phase == "InProgress" || phase == "Reconnect" || phase == "PreEndOfGame")
+            if (phase == "GameStart" || phase == "InProgress" || phase == "Reconnect")
                 _sawGame = true;
             if (phase == "EndOfGame" || phase == "PreEndOfGame")
             {
                 if (_inPostgame || !_sawGame) return false;
                 _inPostgame = true;
+                var shouldRefresh = _sawGame && state.IsRankedQueue == true;
                 _sawGame = false;
-                return true;
+                return shouldRefresh;
             }
             _inPostgame = false;
             if (phase == "Lobby" || phase == "None" || phase == "ChampSelect")

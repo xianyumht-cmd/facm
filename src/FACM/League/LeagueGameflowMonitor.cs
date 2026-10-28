@@ -46,6 +46,7 @@ namespace FACM.League
                 ClientProcessDetected = state.ClientProcessDetected,
                 GameProcessDetected = state.GameProcessDetected,
                 Phase = state.Phase,
+                IsRankedQueue = state.IsRankedQueue,
                 Activity = state.Activity,
                 BudgetName = state.BudgetName,
                 UpdatedAtUtc = state.UpdatedAtUtc

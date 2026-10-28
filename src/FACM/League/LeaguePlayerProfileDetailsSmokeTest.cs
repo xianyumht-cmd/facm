@@ -20,7 +20,7 @@ namespace FACM.League
         {
             var detector = new LeaguePlayerPostgameRefreshDetector();
             Func<string, LeagueDashboardPhaseState> phase = name => new LeagueDashboardPhaseState
-            { Connected = true, Phase = name };
+            { Connected = true, Phase = name, IsRankedQueue = true };
             Require(!detector.Observe(phase("Lobby")) &&
                     !detector.Observe(phase("EndOfGame")),
                 "Ranked refresh must not fire on initial postgame or an idle lobby.");
@@ -38,6 +38,17 @@ namespace FACM.League
                     !detector.Observe(new LeagueDashboardPhaseState { Connected = false }) &&
                     !detector.Observe(phase("EndOfGame")),
                 "A disconnected session must not carry stale postgame refresh ownership.");
+            detector.Reset();
+            Require(!detector.Observe(phase("PreEndOfGame")),
+                "Opening on PreEndOfGame must not be mistaken for an observed completed game.");
+            detector.Reset();
+            var unranked = phase("EndOfGame"); unranked.IsRankedQueue = false;
+            Require(!detector.Observe(phase("InProgress")) && !detector.Observe(unranked),
+                "Unranked matches must not refresh ranked stats.");
+            detector.Reset();
+            var unknown = phase("EndOfGame"); unknown.IsRankedQueue = null;
+            Require(!detector.Observe(phase("InProgress")) && !detector.Observe(unknown),
+                "Unknown match queue data must not trigger ranked refresh.");
             detector.Reset();
             Require(!detector.Observe(phase("EndOfGame")),
                 "Disposing the dashboard must clear its pending postgame signal.");
