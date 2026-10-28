@@ -29,7 +29,9 @@ namespace FACM.League
                 result.ZoneWeights[0] == 18 && result.ZoneWeights[1] == 5 && result.ZoneWeights[2] == 6 &&
                 result.Ganks[0] == 1 && result.Ganks[1] == 1 && result.Ganks[2] == 1 &&
                 result.MinutePositions.Count == 14 && result.GankPositions.Count == 3 &&
-                result.OmittedGankMapPoints == 0 &&
+                result.Level3KillPositions.Count == 1 && result.Level4KillPositions.Count == 1 &&
+                result.Level3KillPositions[0].X == 6000 && result.Level4KillPositions[0].X == 10000 &&
+                result.OmittedGankMapPoints == 0 && result.OmittedEarlyMapPoints == 0 &&
                 result.StartCamp == "blue" && result.StartBlue == true &&
                 result.Level3Gank == true && result.Level4Gank == true,
                 "Pinned pathing must use frames 1-14, weight kill/assist positions by five and preserve inclusive time boundaries.");
@@ -70,6 +72,7 @@ namespace FACM.League
             Require(result.StartCamp == null && !result.StartBlue.HasValue &&
                 result.PositionSamples == 13 && result.MissingKillPositions == 1 &&
                 result.MinutePositions.Count == 13 && result.GankPositions.Count == 0 &&
+                result.Level3KillPositions.Count == 0 && result.Level4KillPositions.Count == 0 &&
                 !result.Level3Gank.HasValue,
                 "Missing event/frame positions cannot be fabricated from another timestamp or participant.");
 
@@ -79,7 +82,9 @@ namespace FACM.League
             result = LeagueJungleAnalysis.Calculate(timeline, player);
             Require(result.Ganks[1] == LeagueJungleAnalysis.MaximumGankMapPoints + 1 &&
                 result.GankPositions.Count == LeagueJungleAnalysis.MaximumGankMapPoints &&
-                result.OmittedGankMapPoints == 1 &&
+                result.Level3KillPositions.Count == LeagueJungleAnalysis.MaximumGankMapPoints &&
+                result.Level4KillPositions.Count == 0 &&
+                result.OmittedGankMapPoints == 1 && result.OmittedEarlyMapPoints == 1 &&
                 result.ZoneWeights[1] >= 5 * (LeagueJungleAnalysis.MaximumGankMapPoints + 1),
                 "The compact point map may cap stored coordinates, but must retain all source-counted ganks and weights.");
 

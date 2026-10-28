@@ -47,6 +47,20 @@ namespace FACM.League
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                         Require(bitmap.GetPixel(110, 110).ToArgb() != Color.FromArgb(147, 197, 253).ToArgb(),
                             "The multi-match point cloud must render an independent gank layer over minute samples.");
+                        using (var baseline = new Bitmap(220, 220))
+                        {
+                            map.SetEvent(At(1000, 1000));
+                            map.DrawToBitmap(baseline, new Rectangle(Point.Empty, baseline.Size));
+                            var early = new[] { new PointF(7410, 7440.5f) };
+                            map.SetPointCloud(null, null, early, null);
+                            map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                            Require(ChangedTintPixels(baseline, bitmap, true) > 3,
+                                "Level-3 early kill positions must draw even when no lane-classified gank dots exist.");
+                            map.SetPointCloud(null, null, null, early);
+                            map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                            Require(ChangedTintPixels(baseline, bitmap, false) > 3,
+                                "Level-4 early kill positions must have their independent visible ring layer.");
+                        }
                         map.SetPointCloud(new[] { new PointF(float.NaN, 1) },
                             new[] { new PointF(float.PositiveInfinity, 1) });
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
@@ -64,6 +78,19 @@ namespace FACM.League
         {
             return new LeagueMatchTimelineEvent { Type = "CHAMPION_KILL", Data = new Dictionary<string, object>
                 { { "position", new Dictionary<string, object> { { "x", x }, { "y", y } } } } };
+        }
+        private static int ChangedTintPixels(Bitmap left, Bitmap right, bool green)
+        {
+            var changed = 0;
+            for (var x = 99; x <= 121; x++)
+                for (var y = 99; y <= 121; y++)
+                {
+                    var after = right.GetPixel(x, y);
+                    if (left.GetPixel(x, y).ToArgb() != after.ToArgb() &&
+                        (green ? after.G > after.R + 40 && after.G > after.B + 30 :
+                            after.R > after.G + 30 && after.B > after.G + 30)) changed++;
+                }
+            return changed;
         }
         private static void Require(bool condition, string message)
         {

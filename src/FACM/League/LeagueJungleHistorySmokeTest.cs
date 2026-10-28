@@ -52,7 +52,9 @@ namespace FACM.League
             a.Ganks[0] = 2;
             a.MinutePositions.Add(new PointF(1000, 12000));
             a.GankPositions.Add(new PointF(2000, 11000));
+            a.Level3KillPositions.Add(new PointF(3000, 9000));
             a.OmittedGankMapPoints = 1;
+            a.OmittedEarlyMapPoints = 1;
             var b = new LeagueJungleAnalysis { PositionSamples = 1, AvailableSamples = 14,
                 Level3Gank = false, Level4Gank = true, StartBlue = false, StartCamp = "raptors",
                 ObjectivesAvailable = true, GotFirstDragon = false,
@@ -60,6 +62,7 @@ namespace FACM.League
             b.ZoneWeights[1] = 4; b.Ganks[1] = 1;
             b.MinutePositions.Add(new PointF(5000, 6000));
             b.GankPositions.Add(new PointF(6000, 6000));
+            b.Level4KillPositions.Add(new PointF(7000, 6000));
             var unavailable = new LeagueJungleAnalysis { ObjectivesAvailable = false, Level3Gank = null,
                 Level4Gank = null, MissingKillPositions = 2 };
             var samples = new[] {
@@ -77,8 +80,10 @@ namespace FACM.League
                 aggregate.MissingKillPositions == 2,
                 "Jungle rates must weight source-confirmed positions and separate early signal denominators from unknowns.");
             Require(aggregate.MinutePositions.Count == 2 && aggregate.GankPositions.Count == 2 &&
-                aggregate.OmittedGankMapPoints == 1 && aggregate.MinutePositions[0].X == 1000 &&
-                aggregate.GankPositions[1].Y == 6000,
+                aggregate.OmittedGankMapPoints == 1 && aggregate.OmittedEarlyMapPoints == 1 &&
+                aggregate.Level3KillPositions.Count == 1 && aggregate.Level4KillPositions.Count == 1 &&
+                aggregate.Level3KillPositions[0].Y == 9000 && aggregate.Level4KillPositions[0].X == 7000 &&
+                aggregate.MinutePositions[0].X == 1000 && aggregate.GankPositions[1].Y == 6000,
                 "A distinct-game aggregate must preserve bounded minute and gank coordinates without replaying raw timeline frames.");
             Require(aggregate.ObjectiveGames == 2 && aggregate.FirstDragonKnown == 1 &&
                 aggregate.FirstDragonWon == 0 && aggregate.Dragons == 2 && aggregate.SoloDragons == 1 &&
@@ -90,7 +95,8 @@ namespace FACM.League
             var hero = LeagueJungleHistoryAggregate.Calculate(samples.Where(s => s.Match.ChampionId == 64));
             Require(hero.Games == 2 && hero.ObjectiveGames == 2 && hero.FirstDragonKnown == 1 &&
                 hero.FirstDragonWon == 0 && hero.Level3Known == 2 && hero.Level4Known == 1 &&
-                hero.MinutePositions.Count == 2 && hero.GankPositions.Count == 2,
+                hero.MinutePositions.Count == 2 && hero.GankPositions.Count == 2 &&
+                hero.Level3KillPositions.Count == 1 && hero.Level4KillPositions.Count == 1,
                 "Per-champion jungle totals must use only that hero's successfully loaded timelines.");
             var red = Match(1008, 1, 64, LeaguePlayerHistorySource.Lcu, null);
             red.TeamId = 200;

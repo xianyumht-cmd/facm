@@ -492,11 +492,13 @@ namespace FACM.League
                     {
                         var mapSamples = jungleSamples.Where(s => selected == 0 || s.Match.ChampionId == selected);
                         var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
-                        mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions);
+                        mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions,
+                            projection?.Level3KillPositions, projection?.Level4KillPositions);
                         mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
                             ui.Get(UiTextKeys.LeagueJungleMapCoverage),
                             projection?.MinutePositions.Count ?? 0, projection?.GankPositions.Count ?? 0,
-                            projection?.OmittedGankMapPoints ?? 0);
+                            projection?.Level3KillPositions.Count ?? 0, projection?.Level4KillPositions.Count ?? 0,
+                            (projection?.OmittedGankMapPoints ?? 0) + (projection?.OmittedEarlyMapPoints ?? 0));
                     }
                 };
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();

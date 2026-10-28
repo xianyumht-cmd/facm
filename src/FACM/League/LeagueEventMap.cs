@@ -17,6 +17,8 @@ namespace FACM.League
         private PointF? _position;
         private PointF[] _minutePositions = new PointF[0];
         private PointF[] _gankPositions = new PointF[0];
+        private PointF[] _level3Positions = new PointF[0];
+        private PointF[] _level4Positions = new PointF[0];
         private bool _pointCloudMode;
 
         internal LeagueEventMap(UiTextCatalog ui, int mapId)
@@ -44,6 +46,8 @@ namespace FACM.League
             _pointCloudMode = false;
             _minutePositions = new PointF[0];
             _gankPositions = new PointF[0];
+            _level3Positions = new PointF[0];
+            _level4Positions = new PointF[0];
             _position = Position(entry, _mapId);
             AccessibleDescription = _position.HasValue ? AccessibleName :
                 _ui.Get(Supported(_mapId) ? UiTextKeys.LeagueEventMapMissing : UiTextKeys.LeagueEventMapUnsupported);
@@ -52,12 +56,21 @@ namespace FACM.League
 
         internal void SetPointCloud(IEnumerable<PointF> minutePositions, IEnumerable<PointF> gankPositions)
         {
+            SetPointCloud(minutePositions, gankPositions, null, null);
+        }
+
+        internal void SetPointCloud(IEnumerable<PointF> minutePositions, IEnumerable<PointF> gankPositions,
+            IEnumerable<PointF> level3Positions, IEnumerable<PointF> level4Positions)
+        {
             if (IsDisposed) return;
             _pointCloudMode = true;
             _position = null;
             _minutePositions = NormalizePoints(minutePositions, 40 * 14);
             _gankPositions = NormalizePoints(gankPositions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
-            AccessibleDescription = _ui.Get(_minutePositions.Length + _gankPositions.Length > 0 ?
+            _level3Positions = NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
+            _level4Positions = NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
+            AccessibleDescription = _ui.Get(_minutePositions.Length + _gankPositions.Length +
+                _level3Positions.Length + _level4Positions.Length > 0 ?
                 UiTextKeys.LeagueJungleMapLegend : UiTextKeys.LeagueJungleMapEmpty);
             Invalidate();
         }
@@ -108,7 +121,8 @@ namespace FACM.League
             var padding = Math.Max(6, (int)(e.Graphics.DpiX / 16));
             var side = Math.Min(ClientSize.Width, ClientSize.Height) - 2 * padding;
             if (side <= 0) return;
-            if ((!_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0) || _map == null)
+            if ((!_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0 &&
+                _level3Positions.Length == 0 && _level4Positions.Length == 0) || _map == null)
             {
                 TextRenderer.DrawText(e.Graphics, _ui.Get(!Supported(_mapId) ?
                     UiTextKeys.LeagueEventMapUnsupported : _pointCloudMode ?
@@ -123,6 +137,8 @@ namespace FACM.League
             {
                 using (var minuteBrush = new SolidBrush(Color.FromArgb(130, 147, 197, 253)))
                 using (var gankBrush = new SolidBrush(Color.FromArgb(180, 251, 146, 60)))
+                using (var level3Pen = new Pen(Color.FromArgb(235, 74, 222, 128), Math.Max(2f, e.Graphics.DpiX / 48f)))
+                using (var level4Pen = new Pen(Color.FromArgb(235, 232, 121, 249), Math.Max(2f, e.Graphics.DpiX / 48f)))
                 {
                     var minuteRadius = Math.Max(2f, e.Graphics.DpiX / 48f);
                     var gankRadius = Math.Max(3f, e.Graphics.DpiX / 32f);
@@ -132,6 +148,14 @@ namespace FACM.League
                     foreach (var p in _gankPositions)
                         e.Graphics.FillEllipse(gankBrush, bounds.Left + p.X * bounds.Width - gankRadius,
                             bounds.Top + p.Y * bounds.Height - gankRadius, 2 * gankRadius, 2 * gankRadius);
+                    var level3Radius = Math.Max(4f, e.Graphics.DpiX / 24f);
+                    var level4Radius = Math.Max(6f, e.Graphics.DpiX / 18f);
+                    foreach (var p in _level3Positions)
+                        e.Graphics.DrawEllipse(level3Pen, bounds.Left + p.X * bounds.Width - level3Radius,
+                            bounds.Top + p.Y * bounds.Height - level3Radius, 2 * level3Radius, 2 * level3Radius);
+                    foreach (var p in _level4Positions)
+                        e.Graphics.DrawEllipse(level4Pen, bounds.Left + p.X * bounds.Width - level4Radius,
+                            bounds.Top + p.Y * bounds.Height - level4Radius, 2 * level4Radius, 2 * level4Radius);
                 }
                 return;
             }
