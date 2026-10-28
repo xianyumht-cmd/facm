@@ -1,6 +1,8 @@
-## MatchCard performance-rate continuation (Draft #357; Windows CI pending)
+## Verified MatchCard performance-rate continuation (Draft #357)
 
 Pinned `src/shared/data-adapter/match-history/participants.ts` sets `kda=(kills+assists)/noZero(deaths)` and `killParticipation=(kills+assists)/noZero(totalKills[teamIdentifier])`; `MatchCardOverview.vue` shows team damage share, and `TeamTable.vue` shows CS/min and gold/min. The native detail dialog now computes and localizes these five visible values from its already-owned LCU/SGP breakdown. Ordinary/Cherry team identifiers follow the same verified `LeagueCherryTeams.GroupId` model as prior cards/comparisons; missing subgroup IDs do not silently inherit 100/200. Full known damage/CS/gold fields and positive duration guard optional numbers; source-concrete zero remains distinct from missing. Sparse scoreboard cells now show unknown instead of zero for missing CS/damage/gold. Source-aligned fixture checks are wired to the existing Windows Player/performance smoke; Tencent-client and full per-player damage decomposition, radar/tags/interactive bars, exact MatchCard geometry and DPI remain open.
+
+**Executable `9180ecc` passed all four Windows CI workflows**: Build #40678323947, Glass #40678324157, UI Text #40678324163 and Mayhem #40678324041. Windows log `122782312142` confirms Player/Dashboard and performance smoke with no C# compiler errors. Documentation-only `[skip ci]` checkpoint records these source-level results without claiming a second executable run.
 
 ## Verified MatchCard summary team grouping continuation (Draft #357)
 
