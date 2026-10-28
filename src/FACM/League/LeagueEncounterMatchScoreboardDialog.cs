@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -67,6 +68,7 @@ namespace FACM.League
             teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             var scores = detail.Teams;
+            var orderedScores = OrderedScoreboardTeams(scores, isCherry);
             layout.Controls.Add(teams, 0, 1);
 
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
@@ -82,6 +84,25 @@ namespace FACM.League
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 85);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 65);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 70);
+            rows.ShowGroups = true;
+            var participantGroups = new Dictionary<int, ListViewGroup>();
+            if (scores != null)
+            {
+                foreach (var team in orderedScores)
+                {
+                    var groupName = isCherry
+                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                            .Replace("{0}", team.TeamId.ToString()) + " · " + FormatCherryPlacement(team.SubteamPlacement, t)
+                        : team.TeamId == 100 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue) :
+                            team.TeamId == 200 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed) :
+                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther)
+                                    .Replace("{0}", team.TeamId.ToString());
+                    var group = new ListViewGroup(groupName);
+                    rows.Groups.Add(group);
+                    participantGroups[team.TeamId] = group;
+                }
+            }
+            ListViewGroup unknownGroup = null;
 
             var selectedDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
                 Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
@@ -124,14 +145,14 @@ namespace FACM.League
                     .Replace("{7}", FormatBoundItem(player.RoleBoundItemId,
                         catalog == null ? null : catalog.Items));
             };
-            if (scores != null)
+            if (orderedScores.Count > 0)
             {
-                teams.RowCount = Math.Max(1, (scores.Count + 1) / 2);
+                teams.RowCount = (orderedScores.Count + 1) / 2;
                 for (var i = 0; i < teams.RowCount; i++)
                     teams.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
-                for (var i = 0; i < scores.Count; i++)
+                for (var i = 0; i < orderedScores.Count; i++)
                 {
-                    var team = scores[i];
+                    var team = orderedScores[i];
                     var text = FormatTeamScore(team, t);
                     var fullText = FormatTeamDetails(team, detail.ChampionNames, t);
                     var card = new Button { Dock = DockStyle.Fill, Text = text + "\r\n" +
@@ -167,7 +188,7 @@ namespace FACM.League
             };
 
             ListViewItem targetItem = null;
-            foreach (var player in detail.Participants)
+            foreach (var player in OrderScoreboardParticipants(detail.Participants, orderedScores, isCherry))
             {
                 var name = string.IsNullOrWhiteSpace(player.PlayerName)
                     ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown)
@@ -189,6 +210,18 @@ namespace FACM.League
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
                 item.Tag = player;
+                ListViewGroup participantGroup;
+                if (teamId > 0 && participantGroups.TryGetValue(teamId, out participantGroup))
+                    item.Group = participantGroup;
+                else
+                {
+                    if (unknownGroup == null)
+                    {
+                        unknownGroup = new ListViewGroup(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown));
+                        rows.Groups.Add(unknownGroup);
+                    }
+                    item.Group = unknownGroup;
+                }
                 if (player.IsTarget)
                 {
                     item.BackColor = FacmDesignSystem.Canvas;
@@ -278,6 +311,36 @@ namespace FACM.League
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
             };
+        }
+
+        internal static List<LeagueMatchTeamScore> OrderedScoreboardTeams(
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
+        {
+            return (teams ?? Enumerable.Empty<LeagueMatchTeamScore>())
+                .Where(team => team != null && team.TeamId > 0)
+                .OrderBy(team => cherry ? team.SubteamPlacement ?? int.MaxValue : team.TeamId)
+                .ThenBy(team => team.TeamId).ToList();
+        }
+
+        internal static List<LeaguePlayerMatchParticipant> OrderScoreboardParticipants(
+            IEnumerable<LeaguePlayerMatchParticipant> participants,
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
+        {
+            var ordered = new List<LeaguePlayerMatchParticipant>();
+            var source = (participants ?? Enumerable.Empty<LeaguePlayerMatchParticipant>())
+                .Where(player => player != null).ToList();
+            var usedGroups = new HashSet<int>();
+            foreach (var team in OrderedScoreboardTeams(teams, cherry))
+            {
+                if (!usedGroups.Add(team.TeamId)) continue;
+                foreach (var player in source)
+                    if (LeagueCherryTeams.GroupId(player, cherry) == team.TeamId)
+                        ordered.Add(player);
+            }
+            // Unverified subteam IDs must never inherit red/blue or an unrelated Cherry group.
+            foreach (var player in source)
+                if (!usedGroups.Contains(LeagueCherryTeams.GroupId(player, cherry))) ordered.Add(player);
+            return ordered;
         }
 
         internal static string ReplayStatusText(LeagueEncounterReplayResult result, Func<string, string> t)

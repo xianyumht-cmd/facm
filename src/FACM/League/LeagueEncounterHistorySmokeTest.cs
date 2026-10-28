@@ -136,6 +136,41 @@ namespace FACM.League
 
         private static void ValidateCardPresentation()
         {
+            var runner = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                PlayerSubteamId = 2, SubteamPlacement = 2, IsTarget = true };
+            var winner = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                PlayerSubteamId = 1, SubteamPlacement = 1 };
+            var teammate = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 100,
+                PlayerSubteamId = 2, SubteamPlacement = 2 };
+            var unassigned = new LeaguePlayerMatchParticipant { ParticipantId = 4, TeamId = 100 };
+            var otherSide = new LeaguePlayerMatchParticipant { ParticipantId = 5, TeamId = 200 };
+            var groups = new[] {
+                new LeagueMatchTeamScore { TeamId = 2, IsCherry = true, SubteamPlacement = 2 },
+                new LeagueMatchTeamScore { TeamId = 1, IsCherry = true, SubteamPlacement = 1 }
+            };
+            var participants = new[] { runner, unassigned, teammate, winner };
+            Require(LeagueEncounterMatchScoreboardDialog.OrderedScoreboardTeams(groups, true)
+                    .Select(team => team.TeamId).SequenceEqual(new[] { 1, 2 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(participants, groups, true)
+                    .Select(player => player.ParticipantId).SequenceEqual(new[] { 2, 1, 3, 4 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(
+                    new[] { runner, winner, otherSide }, null, true)
+                    .Select(player => player.ParticipantId).SequenceEqual(new[] { 1, 2, 5 }),
+                "Cherry cards and rows must order verified placements together, retain teammate identity " +
+                "and leave missing subteam identity unassigned without dropping any player.");
+            var ambiguousGroups = new[] {
+                new LeagueMatchTeamScore { TeamId = 2, IsCherry = true, SubteamPlacement = null },
+                new LeagueMatchTeamScore { TeamId = 1, IsCherry = true, SubteamPlacement = 1 }
+            };
+            Require(LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(participants,
+                    ambiguousGroups, true).Select(player => player.ParticipantId)
+                        .SequenceEqual(new[] { 2, 1, 3, 4 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(
+                    new[] { otherSide, winner, runner }, new[] {
+                        new LeagueMatchTeamScore { TeamId = 200 },
+                        new LeagueMatchTeamScore { TeamId = 100 }
+                    }, false).Select(player => player.ParticipantId).SequenceEqual(new[] { 2, 1, 5 }),
+                "Unknown Cherry placements must sort last, while ordinary teams retain red/blue membership.");
             var catalog = new LeagueBuildAdvisorCatalog();
             LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
                 "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), catalog);
