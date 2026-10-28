@@ -466,6 +466,20 @@ namespace FACM.League
                     ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
                     BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
                     Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 10f) };
+                var jungleViews = new TabControl { Dock = DockStyle.Fill };
+                var jungleTextPage = new TabPage(ui.Get(UiTextKeys.LeagueJungleHistoryReportTab));
+                var jungleMapPage = new TabPage(ui.Get(UiTextKeys.LeagueJungleMapTitle));
+                jungleTextPage.Controls.Add(jungleReport);
+                jungleViews.TabPages.Add(jungleTextPage);
+                jungleViews.TabPages.Add(jungleMapPage);
+                var mapLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+                mapLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42f));
+                mapLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
+                var mapStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                    TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text };
+                mapLayout.Controls.Add(mapStatus, 0, 0);
+                jungleMapPage.Controls.Add(mapLayout);
+                LeagueEventMap mapView = null;
                 Action refreshJungle = () =>
                 {
                     var selected = jungleSelector.SelectedIndex <= 0 ? 0 :
@@ -474,10 +488,27 @@ namespace FACM.League
                         jungleAttempted, selected);
                     jungleReport.Text = LeagueJungleHistoryAnalysis.Report(ui, jungleSamples,
                         coverage.Item1, coverage.Item2, selected);
+                    if (mapView != null)
+                    {
+                        var mapSamples = jungleSamples.Where(s => selected == 0 || s.Match.ChampionId == selected);
+                        var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
+                        mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions);
+                        mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
+                            ui.Get(UiTextKeys.LeagueJungleMapCoverage),
+                            projection?.MinutePositions.Count ?? 0, projection?.GankPositions.Count ?? 0,
+                            projection?.OmittedGankMapPoints ?? 0);
+                    }
                 };
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
+                jungleViews.SelectedIndexChanged += (sender, args) =>
+                {
+                    if (jungleViews.SelectedTab != jungleMapPage || mapView != null || dialog.IsDisposed) return;
+                    mapView = new LeagueEventMap(ui, 11);
+                    mapLayout.Controls.Add(mapView, 0, 1);
+                    refreshJungle();
+                };
                 jungleLayout.Controls.Add(jungleSelector, 0, 0);
-                jungleLayout.Controls.Add(jungleReport, 0, 1);
+                jungleLayout.Controls.Add(jungleViews, 0, 1);
                 jungleTab.Controls.Add(jungleLayout);
                 Action rebuildJungleSelector = () =>
                 {

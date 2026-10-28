@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
 using FACM.Services;
 using FACM.Theming;
@@ -14,6 +15,9 @@ namespace FACM.League
         private readonly int _mapId;
         private Bitmap _map;
         private PointF? _position;
+        private PointF[] _minutePositions = new PointF[0];
+        private PointF[] _gankPositions = new PointF[0];
+        private bool _pointCloudMode;
 
         internal LeagueEventMap(UiTextCatalog ui, int mapId)
         {
@@ -37,10 +41,31 @@ namespace FACM.League
         internal void SetEvent(LeagueMatchTimelineEvent entry)
         {
             if (IsDisposed) return;
+            _pointCloudMode = false;
+            _minutePositions = new PointF[0];
+            _gankPositions = new PointF[0];
             _position = Position(entry, _mapId);
             AccessibleDescription = _position.HasValue ? AccessibleName :
                 _ui.Get(Supported(_mapId) ? UiTextKeys.LeagueEventMapMissing : UiTextKeys.LeagueEventMapUnsupported);
             Invalidate();
+        }
+
+        internal void SetPointCloud(IEnumerable<PointF> minutePositions, IEnumerable<PointF> gankPositions)
+        {
+            if (IsDisposed) return;
+            _pointCloudMode = true;
+            _position = null;
+            _minutePositions = NormalizePoints(minutePositions, 40 * 14);
+            _gankPositions = NormalizePoints(gankPositions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
+            AccessibleDescription = _ui.Get(_minutePositions.Length + _gankPositions.Length > 0 ?
+                UiTextKeys.LeagueJungleMapLegend : UiTextKeys.LeagueJungleMapEmpty);
+            Invalidate();
+        }
+
+        private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)
+        {
+            return (positions ?? Enumerable.Empty<PointF>()).Take(limit).Select(p => Normalize(p.X, p.Y, _mapId))
+                .Where(p => p.HasValue).Select(p => p.Value).ToArray();
         }
 
         internal static bool Supported(int mapId) { return mapId == 11 || mapId == 12 || mapId == 21; }
@@ -54,6 +79,13 @@ namespace FACM.League
             var position = value as Dictionary<string, object>;
             double x, y;
             if (!Coordinate(position, "x", out x) || !Coordinate(position, "y", out y)) return null;
+            return Normalize(x, y, mapId);
+        }
+
+        internal static PointF? Normalize(double x, double y, int mapId)
+        {
+            if (!Supported(mapId) || double.IsNaN(x) || double.IsInfinity(x) ||
+                double.IsNaN(y) || double.IsInfinity(y)) return null;
             var min = mapId == 12 ? new PointF(-28, -19) : PointF.Empty;
             var max = mapId == 11 ? new PointF(14820, 14881) :
                 mapId == 12 ? new PointF(12849, 12858) : new PointF(15000, 15000);
@@ -76,16 +108,33 @@ namespace FACM.League
             var padding = Math.Max(6, (int)(e.Graphics.DpiX / 16));
             var side = Math.Min(ClientSize.Width, ClientSize.Height) - 2 * padding;
             if (side <= 0) return;
-            if (!_position.HasValue || _map == null)
+            if ((!_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0) || _map == null)
             {
-                TextRenderer.DrawText(e.Graphics, _ui.Get(Supported(_mapId) ?
-                    UiTextKeys.LeagueEventMapMissing : UiTextKeys.LeagueEventMapUnsupported), Font,
+                TextRenderer.DrawText(e.Graphics, _ui.Get(!Supported(_mapId) ?
+                    UiTextKeys.LeagueEventMapUnsupported : _pointCloudMode ?
+                    UiTextKeys.LeagueJungleMapEmpty : UiTextKeys.LeagueEventMapMissing), Font,
                     ClientRectangle, ForeColor, TextFormatFlags.WordBreak | TextFormatFlags.HorizontalCenter |
                     TextFormatFlags.VerticalCenter);
                 return;
             }
             var bounds = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
             e.Graphics.DrawImage(_map, bounds);
+            if (_pointCloudMode)
+            {
+                using (var minuteBrush = new SolidBrush(Color.FromArgb(130, 147, 197, 253)))
+                using (var gankBrush = new SolidBrush(Color.FromArgb(180, 251, 146, 60)))
+                {
+                    var minuteRadius = Math.Max(2f, e.Graphics.DpiX / 48f);
+                    var gankRadius = Math.Max(3f, e.Graphics.DpiX / 32f);
+                    foreach (var p in _minutePositions)
+                        e.Graphics.FillEllipse(minuteBrush, bounds.Left + p.X * bounds.Width - minuteRadius,
+                            bounds.Top + p.Y * bounds.Height - minuteRadius, 2 * minuteRadius, 2 * minuteRadius);
+                    foreach (var p in _gankPositions)
+                        e.Graphics.FillEllipse(gankBrush, bounds.Left + p.X * bounds.Width - gankRadius,
+                            bounds.Top + p.Y * bounds.Height - gankRadius, 2 * gankRadius, 2 * gankRadius);
+                }
+                return;
+            }
             var point = _position.Value;
             var radius = Math.Max(3, e.Graphics.DpiX / 24);
             var x = bounds.Left + point.X * bounds.Width;

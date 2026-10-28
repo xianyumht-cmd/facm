@@ -23,6 +23,9 @@ namespace FACM.League
             Require(LeagueEventMap.Position(missing, 11) == null && LeagueEventMap.Position(null, 11) == null &&
                 LeagueEventMap.Position(At(double.NaN, 1), 11) == null &&
                 LeagueEventMap.Position(At(1, double.PositiveInfinity), 11) == null &&
+                LeagueEventMap.Normalize(double.NaN, 100, 11) == null &&
+                LeagueEventMap.Normalize(7500, double.PositiveInfinity, 11) == null &&
+                LeagueEventMap.Normalize(7500, 7500, 13) == null &&
                 LeagueEventMap.Position(parsed, 99) == null,
                 "Absent, nonfinite and unsupported event positions must never become a fabricated marker.");
             foreach (var mapId in new[] { 11, 12, 21 })
@@ -37,6 +40,21 @@ namespace FACM.League
                     map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                     Require(bitmap.GetPixel(110, 110).ToArgb() == Color.FromArgb(147, 197, 253).ToArgb(),
                         "Each embedded source map must render the selected marker after rapid selection changes.");
+                    if (mapId == 11)
+                    {
+                        map.SetPointCloud(new[] { new PointF(7410, 7440.5f) },
+                            new[] { new PointF(7410, 7440.5f) });
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(bitmap.GetPixel(110, 110).ToArgb() != Color.FromArgb(147, 197, 253).ToArgb(),
+                            "The multi-match point cloud must render an independent gank layer over minute samples.");
+                        map.SetPointCloud(new[] { new PointF(float.NaN, 1) },
+                            new[] { new PointF(float.PositiveInfinity, 1) });
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        map.SetEvent(center);
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(bitmap.GetPixel(110, 110).ToArgb() == Color.FromArgb(147, 197, 253).ToArgb(),
+                            "Returning to one selected event must clear both previous point-cloud layers.");
+                    }
                     map.SetEvent(null);
                     map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                 }

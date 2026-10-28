@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using FACM.Services;
@@ -20,6 +21,9 @@ namespace FACM.League
         internal int RedLevel3Known, RedLevel3Detected, RedLevel4Known, RedLevel4Detected;
         internal int FirstDragonKnown, FirstDragonWon;
         internal int Dragons, SoloDragons, Voidgrubs, Heralds, Barons, MissingKillPositions;
+        internal int OmittedGankMapPoints;
+        internal readonly List<PointF> MinutePositions = new List<PointF>();
+        internal readonly List<PointF> GankPositions = new List<PointF>();
         internal readonly int[] ZoneWeights = new int[3];
         internal readonly int[] Ganks = new int[3];
         internal readonly Dictionary<string, int> Camps = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -81,6 +85,10 @@ namespace FACM.League
                 }
                 if (a.ZoneWeights.Sum() > 0) result.PositionGames++;
                 result.MissingKillPositions += a.MissingKillPositions;
+                result.MinutePositions.AddRange(a.MinutePositions.Take(14));
+                result.GankPositions.AddRange(a.GankPositions.Take(LeagueJungleAnalysis.MaximumGankMapPoints));
+                result.OmittedGankMapPoints += a.OmittedGankMapPoints +
+                    Math.Max(0, a.GankPositions.Count - LeagueJungleAnalysis.MaximumGankMapPoints);
                 if (a.Level3Gank.HasValue)
                 {
                     result.Level3Known++;

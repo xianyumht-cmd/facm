@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using FACM.Services;
@@ -10,6 +11,10 @@ namespace FACM.League
     {
         internal readonly int[] ZoneWeights = new int[3];
         internal readonly int[] Ganks = new int[3];
+        internal const int MaximumGankMapPoints = 128;
+        internal readonly List<PointF> MinutePositions = new List<PointF>();
+        internal readonly List<PointF> GankPositions = new List<PointF>();
+        internal int OmittedGankMapPoints;
         internal int PositionSamples, AvailableSamples, MissingKillPositions;
         internal string StartCamp;
         internal bool? StartBlue, Level3Gank, Level4Gank;
@@ -91,6 +96,7 @@ namespace FACM.League
                 long x, y;
                 if (!Position(Frame(timeline, i, player.ParticipantId), out x, out y)) continue;
                 result.PositionSamples++;
+                result.MinutePositions.Add(new PointF(x, y));
                 result.ZoneWeights[MapZone(x, y)]++;
             }
             long firstX, firstY;
@@ -117,7 +123,13 @@ namespace FACM.League
                 }
                 result.ZoneWeights[MapZone(x, y)] += 5;
                 var lane = GankLane(x, y);
-                if (lane.HasValue) result.Ganks[lane.Value]++;
+                if (lane.HasValue)
+                {
+                    result.Ganks[lane.Value]++;
+                    if (result.GankPositions.Count < MaximumGankMapPoints)
+                        result.GankPositions.Add(new PointF(x, y));
+                    else result.OmittedGankMapPoints++;
+                }
                 if (entry.Timestamp <= 180000) early3++;
                 else if (entry.Timestamp <= 240000) early4++;
             }
