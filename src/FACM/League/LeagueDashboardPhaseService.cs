@@ -126,7 +126,6 @@ namespace FACM.League
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
-            catch (System.Web.Script.Serialization.InvalidJSONPrimitiveException) { return null; }
         }
 
         internal string ParsePhase(byte[] bytes)
