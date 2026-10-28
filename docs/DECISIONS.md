@@ -1,5 +1,10 @@
 # GGman / FACM Decisions
 
+## 2026-10-29 — Extend MatchCard tags without inventing LCU-only evidence
+
+Pinned Akari 1.5.1 `match-card/utils/tags.tsx` defines tower-damage match/team priorities 900/850, shielding 1500/1450, solo-kill threshold >=2 at 1700, and match-only CS leader at 600. Preserve the source data-adapter distinction: LCU has tower damage and CS but does not provide `soloKills` or `totalDamageShieldedOnTeammates`; SGP may provide the latter from nested challenges and participant statistics. Reuse the existing bounded participant snapshot and team-share calculation, with null for missing values and no new request or resident service. Keep accessible native text tags as an incremental candidate; do not claim colored ManyTags or complete parity before visual and Tencent/Win10 acceptance. Final executable `d5825a4` passed four Windows workflows.
+
+
 ## 2026-10-29 — Require measured roster coverage for MatchCard leader tags
 
 Follow pinned Akari 1.5.1 match-over-team precedence and priority for outgoing damage, healing, damage taken and gold tags. Because regional LCU/SGP detail can omit optional metrics, never call a player the match leader while another participant's metric is unknown. Only show a team leader when the relevant group is identified (including Cherry subteam) and every group member has a measured metric. Reuse the existing detail text pane for accessible value/team-share output, with colored chips and remaining tags left in Draft parity scope. No extra source request or runtime is justified.
