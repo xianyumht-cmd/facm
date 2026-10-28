@@ -82,7 +82,14 @@ namespace FACM.League
             {
                 matches[index].ChampionId = index < 3 ? 145 : 22;
                 matches[index].ChampionName = index < 3 ? "Kai'Sa" : "Ashe";
+                matches[index].GameMode = index == 2 ? null :
+                    index == 0 || index == 3 || index == 7 ? "CHERRY" : "CLASSIC";
+                matches[index].Position = index == 0 || index == 3 ? "top" :
+                    index == 1 ? "jungle" : index == 4 || index == 6 ? "mid" : null;
             }
+            matches[0].ChampionDamageShare = .4d;
+            matches[1].ChampionDamageShare = .2d;
+            matches[4].WinResult = "loss";
             var incompleteHero = new LeaguePlayerMatchSummary {
                 GameId = 900, ChampionId = 266, ChampionName = "Aatrox",
                 GameType = "MATCHED_GAME", WinResult = "loss",
@@ -98,6 +105,22 @@ namespace FACM.League
                     mixed.ChampionScores[266] == null &&
                     mixed.AkariScore != null && mixed.AkariScore.Games == 8,
                 "Each champion must use its own verified scoring denominator without hiding sparse heroes.");
+            LeagueHistoryChampionBreakdown kaisa, ashe, aatrox;
+            Require(mixed.ChampionBreakdowns.TryGetValue(145, out kaisa) &&
+                    kaisa.NormalGames == 1 && kaisa.NormalWins == 1 &&
+                    kaisa.CherryGames == 1 && kaisa.CherryWins == 1 &&
+                    kaisa.UnknownModeGames == 1 && kaisa.Positions.Count == 2 &&
+                    kaisa.Positions.Any(p => p.Position == "TOP" && p.Games == 1) &&
+                    kaisa.Positions.Any(p => p.Position == "JUNGLE" && p.Games == 1) &&
+                    Math.Abs(kaisa.DamageShare.Value - .3d) < .00001 &&
+                    mixed.ChampionBreakdowns.TryGetValue(22, out ashe) &&
+                    ashe.NormalGames == 3 && ashe.NormalWins == 2 &&
+                    ashe.CherryGames == 2 && ashe.CherryWins == 2 &&
+                    ashe.UnknownModeGames == 0 && ashe.Positions.Count == 2 &&
+                    mixed.ChampionBreakdowns.TryGetValue(266, out aatrox) &&
+                    aatrox.UnknownModeGames == 1 && !aatrox.CsPerMinute.HasValue &&
+                    !aatrox.DamageShare.HasValue,
+                "Akari champion summaries must separate Cherry, known normal, unknown mode and per-hero metrics.");
 
             var incomplete = matches[0];
             incomplete.ParticipantRoster[1].GoldEarned = null;

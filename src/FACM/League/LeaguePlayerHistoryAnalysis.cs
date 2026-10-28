@@ -18,6 +18,13 @@ namespace FACM.League
         internal double WinRate { get { return Games > 0 ? Wins * 100d / Games : 0d; } }
     }
 
+    internal sealed class LeagueHistoryChampionBreakdown
+    {
+        internal int NormalGames, NormalWins, CherryGames, CherryWins, UnknownModeGames;
+        internal double? CsPerMinute, DamageShare, DamageTakenShare, GoldShare, KillParticipation;
+        internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
+    }
+
 
     // Pinned Akari 1.5.1 aggregate scoring: no score unless all nine components
     // have evidence from the selected participant and a complete team roster.
@@ -128,6 +135,8 @@ namespace FACM.League
         internal List<LeaguePlayerChampionStat> AllChampions = new List<LeaguePlayerChampionStat>();
         internal Dictionary<int, LeagueHistoryAkariScore> ChampionScores =
             new Dictionary<int, LeagueHistoryAkariScore>();
+        internal Dictionary<int, LeagueHistoryChampionBreakdown> ChampionBreakdowns =
+            new Dictionary<int, LeagueHistoryChampionBreakdown>();
 
         internal static LeagueHistoryOutcome Outcome(LeaguePlayerMatchSummary m)
         {
@@ -180,14 +189,7 @@ namespace FACM.League
             result.GoldShare = Mean(played.Select(m => m.GoldShare));
             result.KillParticipation = Mean(played.Select(m => m.KillParticipation));
             result.DamageTakenShare = Mean(played.Select(m => m.DamageTakenShare));
-            result.Positions = played.Select(m => new { Match = m, Position = NormalizePosition(m.Position) })
-                .Where(row => row.Position != null).GroupBy(row => row.Position, StringComparer.Ordinal)
-                .Select(g => new LeagueHistoryPositionStat {
-                    Position = g.Key, Games = g.Count(),
-                    Wins = g.Count(row => Outcome(row.Match) == LeagueHistoryOutcome.Win),
-                    Kills = g.Sum(row => row.Match.Kills), Deaths = g.Sum(row => row.Match.Deaths),
-                    Assists = g.Sum(row => row.Match.Assists)
-                }).OrderByDescending(s => s.Games).ThenBy(s => s.Position, StringComparer.Ordinal).ToList();
+            result.Positions = BuildPositions(played);
             var dated = played.Where(m => m.GameCreationLocal != DateTime.MinValue)
                 .OrderByDescending(m => m.GameCreationLocal).ToList();
             if (dated.Count >= 10)
@@ -198,7 +200,33 @@ namespace FACM.League
             }
             var championGroups = played.Where(m => m.ChampionId > 0).GroupBy(m => m.ChampionId).ToList();
             foreach (var group in championGroups)
+            {
                 result.ChampionScores[group.Key] = LeagueHistoryAkariScore.Calculate(group);
+                var breakdown = new LeagueHistoryChampionBreakdown {
+                    Positions = BuildPositions(group),
+                    CsPerMinute = Mean(group.Where(m => m.GameDurationSeconds > 0)
+                        .Select(m => (double?)m.CreepScore * 60d / m.GameDurationSeconds)),
+                    DamageShare = Mean(group.Select(m => m.ChampionDamageShare)),
+                    DamageTakenShare = Mean(group.Select(m => m.DamageTakenShare)),
+                    GoldShare = Mean(group.Select(m => m.GoldShare)),
+                    KillParticipation = Mean(group.Select(m => m.KillParticipation))
+                };
+                foreach (var match in group)
+                {
+                    if (string.IsNullOrWhiteSpace(match.GameMode)) breakdown.UnknownModeGames++;
+                    else if (string.Equals(match.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        breakdown.CherryGames++;
+                        if (Outcome(match) == LeagueHistoryOutcome.Win) breakdown.CherryWins++;
+                    }
+                    else
+                    {
+                        breakdown.NormalGames++;
+                        if (Outcome(match) == LeagueHistoryOutcome.Win) breakdown.NormalWins++;
+                    }
+                }
+                result.ChampionBreakdowns[group.Key] = breakdown;
+            }
             result.AllChampions = championGroups.Select(g => new LeaguePlayerChampionStat {
                     ChampionId = g.Key, ChampionName = g.Select(m => m.ChampionName)
                         .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)),
@@ -217,6 +245,18 @@ namespace FACM.League
                 result.Streak++;
             }
             return result;
+        }
+
+        private static List<LeagueHistoryPositionStat> BuildPositions(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            return matches.Select(m => new { Match = m, Position = NormalizePosition(m.Position) })
+                .Where(row => row.Position != null).GroupBy(row => row.Position, StringComparer.Ordinal)
+                .Select(g => new LeagueHistoryPositionStat {
+                    Position = g.Key, Games = g.Count(),
+                    Wins = g.Count(row => Outcome(row.Match) == LeagueHistoryOutcome.Win),
+                    Kills = g.Sum(row => row.Match.Kills), Deaths = g.Sum(row => row.Match.Deaths),
+                    Assists = g.Sum(row => row.Match.Assists)
+                }).OrderByDescending(s => s.Games).ThenBy(s => s.Position, StringComparer.Ordinal).ToList();
         }
 
         private static string NormalizePosition(string raw)
@@ -258,6 +298,16 @@ namespace FACM.League
         {
             return v.HasValue ? (v.Value * (fraction ? 100d : 1d))
                 .ToString("0.0", CultureInfo.CurrentCulture) + (fraction ? "%" : "") : "--";
+        }
+
+        private static string PositionName(UiTextCatalog ui, string position)
+        {
+            var key = position == "TOP" ? UiTextKeys.LeaguePlayerAnalysisPositionTop :
+                position == "JUNGLE" ? UiTextKeys.LeaguePlayerAnalysisPositionJungle :
+                position == "MIDDLE" ? UiTextKeys.LeaguePlayerAnalysisPositionMiddle :
+                position == "BOTTOM" ? UiTextKeys.LeaguePlayerAnalysisPositionBottom :
+                UiTextKeys.LeaguePlayerAnalysisPositionUtility;
+            return ui.Get(key);
         }
 
         private static void AppendRating(List<string> lines, UiTextCatalog ui,
@@ -330,14 +380,9 @@ namespace FACM.League
             lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
             foreach (var role in a.Positions)
             {
-                var name = role.Position == "TOP" ? UiTextKeys.LeaguePlayerAnalysisPositionTop :
-                    role.Position == "JUNGLE" ? UiTextKeys.LeaguePlayerAnalysisPositionJungle :
-                    role.Position == "MIDDLE" ? UiTextKeys.LeaguePlayerAnalysisPositionMiddle :
-                    role.Position == "BOTTOM" ? UiTextKeys.LeaguePlayerAnalysisPositionBottom :
-                    UiTextKeys.LeaguePlayerAnalysisPositionUtility;
                 lines.Add(string.Format(CultureInfo.CurrentCulture,
                     ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionRow),
-                    ui.Get(name), role.Games, role.WinRate.ToString("0", CultureInfo.CurrentCulture),
+                    PositionName(ui, role.Position), role.Games, role.WinRate.ToString("0", CultureInfo.CurrentCulture),
                     role.Kills, role.Deaths, role.Assists));
             }
             using (var dialog = new Form {
@@ -391,6 +436,40 @@ namespace FACM.League
                             LeagueHistoryAkariScore score;
                             a.ChampionScores.TryGetValue(champion.ChampionId, out score);
                             AppendRating(updated, ui, score, champion.Games);
+                            LeagueHistoryChampionBreakdown breakdown;
+                            if (a.ChampionBreakdowns.TryGetValue(champion.ChampionId, out breakdown))
+                            {
+                                updated.Add(string.Empty);
+                                updated.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroBreakdown));
+                                if (breakdown.NormalGames > 0)
+                                    updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroNormal),
+                                        breakdown.NormalGames, breakdown.NormalWins));
+                                if (breakdown.CherryGames > 0)
+                                    updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherry),
+                                        breakdown.CherryGames, breakdown.CherryWins));
+                                if (breakdown.UnknownModeGames > 0)
+                                    updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode),
+                                        breakdown.UnknownModeGames));
+                                updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                    ui.Get(UiTextKeys.LeaguePlayerAnalysisCs), Number(breakdown.CsPerMinute)));
+                                updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                    ui.Get(UiTextKeys.LeaguePlayerAnalysisShares),
+                                    Number(breakdown.DamageShare, true), Number(breakdown.GoldShare, true)));
+                                updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                    ui.Get(UiTextKeys.LeaguePlayerAnalysisExtraShares),
+                                    Number(breakdown.KillParticipation, true), Number(breakdown.DamageTakenShare, true)));
+                                foreach (var role in breakdown.Positions)
+                                    updated.Add(string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionRow),
+                                        PositionName(ui, role.Position), role.Games,
+                                        role.WinRate.ToString("0", CultureInfo.CurrentCulture),
+                                        role.Kills, role.Deaths, role.Assists));
+                            }
                         }
                         report.Text = string.Join(Environment.NewLine, updated);
                         report.SelectionStart = 0;

@@ -623,6 +623,11 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisHeroSelect = "LeaguePlayerAnalysisHeroSelect";
         public const string LeaguePlayerAnalysisHeroAll = "LeaguePlayerAnalysisHeroAll";
         public const string LeaguePlayerAnalysisHeroRating = "LeaguePlayerAnalysisHeroRating";
+        public const string LeaguePlayerAnalysisHeroBreakdown = "LeaguePlayerAnalysisHeroBreakdown";
+        public const string LeaguePlayerAnalysisHeroModeRow = "LeaguePlayerAnalysisHeroModeRow";
+        public const string LeaguePlayerAnalysisHeroNormal = "LeaguePlayerAnalysisHeroNormal";
+        public const string LeaguePlayerAnalysisHeroCherry = "LeaguePlayerAnalysisHeroCherry";
+        public const string LeaguePlayerAnalysisHeroUnknownMode = "LeaguePlayerAnalysisHeroUnknownMode";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";

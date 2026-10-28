@@ -629,6 +629,11 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroSelect, "切换英雄评分"),
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroAll, "全部 · 综合分析"),
             Pair(UiTextKeys.LeaguePlayerAnalysisHeroRating, "{0} · {1} 场 · 胜率 {2}% · 单英雄评分"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroBreakdown, "单英雄战绩分组（仅统计已加载、结果明确的对局）"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroModeRow, "{0} · {1} 场 · {2} 胜"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroNormal, "普通模式"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroCherry, "斗魂竞技场"),
+            Pair(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode, "模式未知 · {0} 场（不归入普通模式）"),
 
             Pair(UiTextKeys.LeagueLiveMenu, "实时对局"),
             Pair(UiTextKeys.LeagueLiveWindowTitle, "GGman · 实时对局"),
