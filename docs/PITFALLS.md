@@ -1,5 +1,9 @@
 # FACM Pitfalls
 
+## Optional Gameflow metadata must not expand every phase reader's request budget
+
+`LeagueDashboardPhaseService` is shared by the authoritative dashboard monitor and independent League Live readers. Adding a `/lol-gameflow/v1/session` lookup unconditionally broke the original League Live request budget and its performance smoke, even though compilation succeeded. Restrict optional queue capture to the authoritative monitor via an opt-in constructor flag, and leave phase-only consumers unchanged. Keep the 420/440 classification nullable, bounded to one ChampSelect and one game-entry opportunity, and reject conflicting or missing evidence. Verify both the new ranked parser and existing League Live request-count contract before acceptance. The initial `InvalidJSONPrimitiveException` parser catch also failed the net48 build because that type is unavailable; use target-framework-supported exceptions only. Corrected checkpoint `17aafbe3` passed all four CI workflows.
+
 ## Regional fallback cannot revive a cancelled local deadline
 
 A request-scoped `CancellationTokenSource` cannot be revived by another `CancelAfter` once its local attempt has already cancelled. A fallback using that same token fails immediately. Give the local and regional attempts separate bounded sources linked to the invoking caller; catch only internal deadline cancellation for fallback, and propagate caller cancellation. Deterministic fixtures should distinguish those two cases. Cache origin must also be captured before the original request and retained by detached pages, not inferred from whichever client happens to be active when later enrichment finishes.
