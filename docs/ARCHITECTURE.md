@@ -1,8 +1,8 @@
 # FACM Architecture
 
-## Cherry placement evidence in on-demand hero reports (Draft #357 candidate)
+## Cherry placement evidence in on-demand hero reports (Draft #357 verified source)
 
-`LeagueHistoryChampionBreakdown` keeps two placement coverages: positive Cherry placement for first-place and average, and an identity-complete, subteam-consistent participant roster for top-half classification. A reported half-field uses source `floor(subteamCount/2)`, so missing roster or placement is not treated as an actual poor finish. The projection remains pure and hero-scoped, with no new source request, persistence or observer. The source references are pinned `aggregate/win-loss.ts` and `match-history/cherry.ts`. Windows CI and Tencent game validation are pending for this second candidate.
+`LeagueHistoryChampionBreakdown` keeps two placement coverages: positive Cherry placement for first-place and average, and an identity-complete, subteam-consistent participant roster for top-half classification. A reported half-field uses source `floor(subteamCount/2)`, so missing roster or placement is not treated as an actual poor finish. The projection remains pure and hero-scoped, with no new source request, persistence or observer. The source references are pinned `aggregate/win-loss.ts` and `match-history/cherry.ts`. Executable `9c5a215a` passed all four Windows workflows; Tencent game validation remains pending.
 
 ## Verified per-hero loaded Player analysis grouping
 
