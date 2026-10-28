@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -205,6 +206,14 @@ namespace FACM.League
             });
             filterRow.Controls.Add(_winFilter);
             filterRow.Controls.Add(_advancedFilterButton);
+            var analysisButton = PageButton(UiTextKeys.LeaguePlayerAnalysisAction, 90);
+            analysisButton.Click += (sender, args) =>
+            {
+                if (!_loaded || _loading || _collectionCancellation != null ||
+                    !SessionMatches(_pageSession)) return;
+                LeaguePlayerHistoryAnalysis.Show(this, _ui, CurrentFilteredRows());
+            };
+            filterRow.Controls.Add(analysisButton);
             filterRow.Controls.Add(_collectButton);
             filterRow.Controls.Add(_stopCollectButton);
 
@@ -392,15 +401,20 @@ namespace FACM.League
             UpdatePageButtons();
         }
 
+        private List<LeaguePlayerMatchSummary> CurrentFilteredRows()
+        {
+            if (_activePage == null) return new List<LeaguePlayerMatchSummary>();
+            var rows = LeagueSimpleMatchHistoryFilter.Apply(_activePage.Matches,
+                new LeagueSimpleMatchHistoryFilter {
+                    WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
+                }, DateTime.UtcNow);
+            return LeagueAdvancedMatchHistoryFilter.Apply(rows, _advancedFilter);
+        }
+
         private void RenderRows()
         {
             if (_matches == null || IsDisposed || _activePage == null) return;
-            var filtered = LeagueSimpleMatchHistoryFilter.Apply(_activePage.Matches,
-                new LeagueSimpleMatchHistoryFilter
-                {
-                    WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
-                }, DateTime.UtcNow);
-            filtered = LeagueAdvancedMatchHistoryFilter.Apply(filtered, _advancedFilter);
+            var filtered = CurrentFilteredRows();
             _matches.BeginUpdate();
             try
             {
@@ -414,8 +428,7 @@ namespace FACM.League
                         ? (string.IsNullOrWhiteSpace(match.ChampionName) ? "#" + match.ChampionId : match.ChampionName) : "—";
                     var kda = match.ParticipantResolved && match.StatisticsAvailable
                         ? match.Kills + "/" + match.Deaths + "/" + match.Assists : "—";
-                    var outcome = match.ParticipantResolved && match.StatisticsAvailable
-                        ? _ui.Get(match.Win ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss) : "—";
+                    var outcome = LeaguePlayerHistoryAnalysis.OutcomeText(_ui, match);
                     var row = new ListViewItem(when);
                     row.SubItems.Add(string.IsNullOrWhiteSpace(match.GameMode) ? "—" : match.GameMode);
                     row.SubItems.Add(champion);

@@ -332,6 +332,16 @@ namespace FACM.League
                 ApplySimpleFilter();
             };
             _filterPanel.Controls.Add(_advancedFilterButton);
+            var analysisButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerAnalysisAction),
+                Width = 90, Height = 27, FlatStyle = FlatStyle.Flat };
+            analysisButton.Click += (sender, e) =>
+            {
+                if (_loading || _profile == null || _loadedPage == null ||
+                    !LeagueEncounterReplayService.SessionMatches(_pageSession,
+                        _currentSession == null ? null : _currentSession())) return;
+                LeaguePlayerHistoryAnalysis.Show(this, _ui, _rows.ToArray());
+            };
+            _filterPanel.Controls.Add(analysisButton);
             UpdateAdvancedFilterLabel();
             UpdateFilterButtonLabels();
 
@@ -1263,9 +1273,7 @@ namespace FACM.League
                 : unknown;
             var kda = match.ParticipantResolved ? match.Kills + " / " + match.Deaths + " / " + match.Assists : unknown;
             var cs = match.ParticipantResolved ? match.CreepScore.ToString() : unknown;
-            var result = match.ParticipantResolved
-                ? _ui.Get(match.Win ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss)
-                : unknown;
+            var result = LeaguePlayerHistoryAnalysis.OutcomeText(_ui, match);
             var duration = match.GameDurationSeconds > 0
                 ? TimeSpan.FromSeconds(match.GameDurationSeconds).ToString(@"mm\:ss")
                 : unknown;
@@ -1273,8 +1281,10 @@ namespace FACM.League
             item.UseItemStyleForSubItems = false;
             foreach (ListViewItem.ListViewSubItem cell in item.SubItems)
                 cell.ForeColor = match.ParticipantResolved ? FacmDesignSystem.Text : FacmDesignSystem.TextMuted;
-            if (match.ParticipantResolved)
-                item.SubItems[5].ForeColor = match.Win ? FacmDesignSystem.Success : FacmDesignSystem.Error;
+            if (LeaguePlayerHistoryAnalysis.Outcome(match) == LeagueHistoryOutcome.Win)
+                item.SubItems[5].ForeColor = FacmDesignSystem.Success;
+            else if (LeaguePlayerHistoryAnalysis.Outcome(match) == LeagueHistoryOutcome.Loss)
+                item.SubItems[5].ForeColor = FacmDesignSystem.Error;
             e.Item = item;
         }
 

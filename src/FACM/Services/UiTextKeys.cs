@@ -583,6 +583,18 @@ namespace FACM.Services
         public const string LeaguePlayerWin = "LeaguePlayerWin";
         public const string LeaguePlayerLoss = "LeaguePlayerLoss";
         public const string LeaguePlayerUnknown = "LeaguePlayerUnknown";
+        public const string LeaguePlayerRemake = "LeaguePlayerRemake";
+        public const string LeaguePlayerAbort = "LeaguePlayerAbort";
+        public const string LeaguePlayerAnalysisAction = "LeaguePlayerAnalysisAction";
+        public const string LeaguePlayerAnalysisScope = "LeaguePlayerAnalysisScope";
+        public const string LeaguePlayerAnalysisTotals = "LeaguePlayerAnalysisTotals";
+        public const string LeaguePlayerAnalysisWinRate = "LeaguePlayerAnalysisWinRate";
+        public const string LeaguePlayerAnalysisKda = "LeaguePlayerAnalysisKda";
+        public const string LeaguePlayerAnalysisCs = "LeaguePlayerAnalysisCs";
+        public const string LeaguePlayerAnalysisShares = "LeaguePlayerAnalysisShares";
+        public const string LeaguePlayerAnalysisStreak = "LeaguePlayerAnalysisStreak";
+        public const string LeaguePlayerAnalysisTopChampions = "LeaguePlayerAnalysisTopChampions";
+        public const string LeaguePlayerAnalysisChampionRow = "LeaguePlayerAnalysisChampionRow";
 
         public const string LeagueLiveMenu = "LeagueLiveMenu";
         public const string LeagueLiveWindowTitle = "LeagueLiveWindowTitle";

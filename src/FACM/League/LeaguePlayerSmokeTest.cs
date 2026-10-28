@@ -41,8 +41,45 @@ namespace FACM.League
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
+            ValidateLoadedHistoryAnalysis();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
+        }
+
+        private static void ValidateLoadedHistoryAnalysis()
+        {
+            var now = new DateTime(2026, 10, 28, 0, 0, 0, DateTimeKind.Utc);
+            var rows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 1, GameType = "MATCHED_GAME",
+                    WinResult = "win", Win = true, ParticipantResolved = true,
+                    StatisticsAvailable = true, ChampionId = 145, ChampionName = "Kai'Sa",
+                    GameCreationLocal = now, Kills = 10, Deaths = 2, Assists = 8,
+                    CreepScore = 200, GameDurationSeconds = 1200, ChampionDamageShare = 0.4 },
+                new LeaguePlayerMatchSummary { GameId = 1, WinResult = "win", Win = true,
+                    ParticipantResolved = true, StatisticsAvailable = false },
+                new LeaguePlayerMatchSummary { GameId = 2, GameType = "MATCHED_GAME",
+                    WinResult = "loss", ParticipantResolved = true, StatisticsAvailable = true,
+                    GameCreationLocal = now.AddMinutes(-30), ChampionId = 145,
+                    Kills = 2, Deaths = 6, Assists = 3, CreepScore = 100 },
+                new LeaguePlayerMatchSummary { GameId = 3, WinResult = "remake",
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 4, WinResult = "abort",
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 5, ParticipantResolved = true,
+                    StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 6, GameType = "CUSTOM_GAME",
+                    WinResult = "win", ParticipantResolved = true, StatisticsAvailable = true }
+            };
+            var a = LeaguePlayerHistoryAnalysis.Calculate(rows);
+            Require(a.Loaded == 6 && a.Wins == 1 && a.Losses == 1 &&
+                    a.Remakes == 1 && a.Aborts == 1 && a.Unknowns == 1 && a.Other == 1 &&
+                    a.Streak == 1 && a.Kills == 6d && a.CsPerMinute == 10d &&
+                    a.Champions.Count == 1 && a.Champions[0].Games == 2,
+                "Loaded analysis must deduplicate, exclude other games, and retain unknown outcomes.");
+            var loss = LeagueSimpleMatchHistoryFilter.Apply(rows,
+                new LeagueSimpleMatchHistoryFilter { WinLoss = LeagueMatchWinLossFilter.Loss }, now);
+            Require(loss.All(m => m.GameId != 3 && m.GameId != 4),
+                "Simple losses must exclude explicitly classified remakes and aborts.");
         }
 
         private static void ValidatePlayerPageLayout()
