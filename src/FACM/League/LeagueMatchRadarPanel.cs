@@ -135,10 +135,10 @@ namespace FACM.League
             var lines = new List<string> { t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarLegend) };
             for (var i = 0; i < AxisKeys.Length; i++)
             {
-                var player = FormatMetric(profile.Player[i], i == 4 ? "0.00" : i == 5 ? "P0" : "N0");
-                var average = FormatMetric(profile.TeamAverage[i], i == 4 ? "0.00" : i == 5 ? "P0" : "N0");
-                var playerRatio = FormatMetric(profile.PlayerRatio[i], "P1");
-                var averageRatio = FormatMetric(profile.TeamAverageRatio[i], "P1");
+                var player = FormatMetric(profile.Player[i], i == 4 ? "0.00" : i == 5 ? "0%" : "N0");
+                var average = FormatMetric(profile.TeamAverage[i], i == 4 ? "0.00" : i == 5 ? "0%" : "N0");
+                var playerRatio = FormatMetric(profile.PlayerRatio[i], "0.0%");
+                var averageRatio = FormatMetric(profile.TeamAverageRatio[i], "0.0%");
                 lines.Add(t(AxisKeys[i]) + "：" + player + "（" + playerRatio + "） / " +
                     average + "（" + averageRatio + "）");
             }
