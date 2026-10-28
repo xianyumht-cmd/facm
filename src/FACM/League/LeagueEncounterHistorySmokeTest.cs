@@ -375,6 +375,34 @@ namespace FACM.League
             Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     leader, leaderboard, true, t).Contains("参团率第一"),
                 "Zero team kills must not fabricate a positive participation leader.");
+            leader.TimeCCingOthers = 85.5;
+            ally.TimeCCingOthers = 50;
+            enemy.TimeCCingOthers = 70;
+            enemyAlly.TimeCCingOthers = 30;
+            var ccTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(ccTags.Contains("全场控制第一（85.5）") &&
+                ccTags.IndexOf("全场输出第一", StringComparison.Ordinal) <
+                    ccTags.IndexOf("全场控制第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("队内控制第一（70）"),
+                "Pinned CC-time leaders must preserve fractional seconds, source priority and Cherry grouping.");
+            enemy.TimeCCingOthers = 85.5;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("全场控制第一（85.5）"),
+                "Tied measured control time must retain all-match leaders.");
+            enemy.TimeCCingOthers = null;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场控制第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("队内控制第一（85.5）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("控制第一"),
+                "Sparse cross-team CC evidence must not fabricate match-wide or missing-self leaders.");
+            enemy.TimeCCingOthers = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("控制第一"),
+                "Invalid negative control time must not qualify for a leader tag.");
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,

@@ -772,6 +772,7 @@ namespace FACM.League
                     MagicDamageTaken = ReadOptionalCount(stats, "magicDamageTaken"),
                     TrueDamageTaken = ReadOptionalCount(stats, "trueDamageTaken"),
                     TotalHeal = ReadOptionalCount(stats, "totalHeal"),
+                    TimeCCingOthers = ReadOptionalFiniteNumber(stats, "timeCCingOthers"),
                     TotalDamageToTowers = ReadOptionalCount(stats, "damageDealtToTurrets"),
                     TotalDamageShieldedOnTeammates = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(stats, "totalDamageShieldedOnTeammates") : null,

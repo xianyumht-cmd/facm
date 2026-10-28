@@ -318,6 +318,8 @@ namespace FACM.League
         public const string DynamicEncounterLeaderKillsTeam = "LeagueEfficiencyDynamicEncounterLeaderKillsTeam";
         public const string DynamicEncounterLeaderKpMatch = "LeagueEfficiencyDynamicEncounterLeaderKpMatch";
         public const string DynamicEncounterLeaderKpTeam = "LeagueEfficiencyDynamicEncounterLeaderKpTeam";
+        public const string DynamicEncounterLeaderCcMatch = "LeagueEfficiencyDynamicEncounterLeaderCcMatch";
+        public const string DynamicEncounterLeaderCcTeam = "LeagueEfficiencyDynamicEncounterLeaderCcTeam";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -716,6 +718,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam, "队内击杀第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch, "全场参团率第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam, "队内参团率第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch, "全场控制第一" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam, "队内控制第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

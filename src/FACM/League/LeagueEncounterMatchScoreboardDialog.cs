@@ -518,6 +518,11 @@ namespace FACM.League
             AddMatchValueLeaderTag(tags, player, all, group, participation,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam, 1100, 1050, true, t);
+            AddMatchValueLeaderTag(tags, player, all, group,
+                p => p.TimeCCingOthers.HasValue && p.TimeCCingOthers.Value >= 0
+                    ? p.TimeCCingOthers : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam, 1750, 1700, false, t, "#,##0.##");
             return tags.Count == 0 ? string.Empty :
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
                     .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
@@ -550,7 +555,7 @@ namespace FACM.League
             LeaguePlayerMatchParticipant player, List<LeaguePlayerMatchParticipant> all,
             List<LeaguePlayerMatchParticipant> group, Func<LeaguePlayerMatchParticipant, double?> metric,
             string matchKey, string teamKey, int matchPriority, int teamPriority,
-            bool percentage, Func<string, string> t)
+            bool percentage, Func<string, string> t, string valueFormat = "N0")
         {
             var own = metric(player);
             if (!own.HasValue || own.Value <= 0 || double.IsNaN(own.Value) ||
@@ -564,7 +569,7 @@ namespace FACM.League
             if (!matchBest && !teamBest) return;
             var valueText = percentage
                 ? (own.Value * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%"
-                : own.Value.ToString("N0", CultureInfo.InvariantCulture);
+                : own.Value.ToString(valueFormat, CultureInfo.InvariantCulture);
             tags.Add(new KeyValuePair<int, string>(matchBest ? matchPriority : teamPriority,
                 t(matchBest ? matchKey : teamKey) + "（" + valueText + "）"));
         }

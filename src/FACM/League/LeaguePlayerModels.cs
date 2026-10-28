@@ -215,6 +215,7 @@ namespace FACM.League
         public int? MagicDamageTaken { get; set; }
         public int? TrueDamageTaken { get; set; }
         public int? TotalHeal { get; set; }
+        public double? TimeCCingOthers { get; set; }
         public int? TotalDamageToTowers { get; set; }
         public int? TotalDamageShieldedOnTeammates { get; set; }
         public int? SoloKills { get; set; }
