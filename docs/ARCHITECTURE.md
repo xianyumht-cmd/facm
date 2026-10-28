@@ -1,3 +1,7 @@
+## Pure hero/aggregate comparison in Player analysis
+
+`LeagueHistoryChampionComparison` projects 25 nullable values plus known/eligible counts over the same region/game-deduplicated modal sample. Team/game relative values require a unique participant roster and all selected denominator fields; Cherry uses validated subgroup membership. Per-minute values require duration and raw metric evidence; zero CS without parsed components is unknown. `LeagueHistoryChampionComparisonView` owns two native selectors and a list, preserves selected hero IDs when hydration refreshes the sample, and clears old values when the sample is cleared. It lives as a tab in the existing analysis modal, adding no service, request, persistent model, loop or dependency. Synthetic model and native render verification are included; CI pending.
+
 ## Mode-aware history analysis team membership
 
 `LeagueCherryTeams.GroupId(LeaguePlayerMatchSummary, bool)` and the raw-parser `AnalysisTeamId` project the same validated Cherry subteam identity already used by the scoreboard. Player summary shares, compact metric baselines for both target and roster, teammate PUUID selection and quantified advanced filters now use that identity only when the root mode is CHERRY. Missing Cherry group fields invalidate team-relative evidence while retaining game-relative denominators; filters preserve unknown under NOT. Ordinary modes continue using raw teamId. These are pure projections with no new source reads or resource owner. Windows CI is pending for the correction.

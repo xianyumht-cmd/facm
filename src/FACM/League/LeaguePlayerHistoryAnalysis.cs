@@ -157,15 +157,21 @@ namespace FACM.League
             return LeagueHistoryOutcome.Unknown;
         }
 
-        internal static LeaguePlayerHistoryAnalysis Calculate(IEnumerable<LeaguePlayerMatchSummary> matches)
+        internal static List<LeaguePlayerMatchSummary> LoadedMatches(IEnumerable<LeaguePlayerMatchSummary> matches)
         {
-            var result = new LeaguePlayerHistoryAnalysis();
-            if (matches == null) return result;
-            var rows = matches.Where(m => m != null)
+            if (matches == null) return new List<LeaguePlayerMatchSummary>();
+            return matches.Where(m => m != null)
                 .GroupBy(m => (m.SgpServerId ?? "") + ":" + m.GameId.ToString(CultureInfo.InvariantCulture),
                     StringComparer.Ordinal)
                 .Select(g => g.OrderByDescending(m => m.StatisticsAvailable && m.ParticipantResolved).First())
                 .OrderByDescending(m => m.GameCreationLocal).ToList();
+        }
+
+        internal static LeaguePlayerHistoryAnalysis Calculate(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            var result = new LeaguePlayerHistoryAnalysis();
+            if (matches == null) return result;
+            var rows = LoadedMatches(matches);
             result.Loaded = rows.Count;
             var played = new List<LeaguePlayerMatchSummary>();
             foreach (var m in rows)
@@ -438,6 +444,15 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
             })
             {
+                var tabs = new TabControl { Dock = DockStyle.Fill };
+                var reportTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisAction));
+                var comparisonTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerCompareTitle));
+                var comparison = new LeagueHistoryChampionComparisonView(ui);
+                comparisonTab.Controls.Add(comparison);
+                tabs.TabPages.Add(reportTab);
+                tabs.TabPages.Add(comparisonTab);
+                dialog.Controls.Add(tabs);
+                comparison.RefreshData(snapshot);
                 var report = new TextBox {
                     Multiline = true, ReadOnly = true, Dock = DockStyle.Fill,
                     ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
@@ -541,7 +556,7 @@ namespace FACM.League
                     header.Controls.Add(label);
                     layout.Controls.Add(header, 0, 0);
                     layout.Controls.Add(report, 0, 1);
-                    dialog.Controls.Add(layout);
+                    reportTab.Controls.Add(layout);
                     rebuildSelector();
                     var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true,
                         Padding = new Padding(6), WrapContents = true };
@@ -571,6 +586,7 @@ namespace FACM.League
                             snapshot = result.Matches;
                             stale = result.AccountChanged;
                             a = Calculate(snapshot);
+                            comparison.RefreshData(snapshot);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
                             status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :

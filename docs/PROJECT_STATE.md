@@ -1,3 +1,9 @@
+## Active native champion comparison and verified Cherry correction
+
+Cherry team correction `b53d769e8a7c5b42501b66daa3c92a2b248d43e8` passed Windows Build #40658421279, Glass #40658421188, UI Text #40658421222 and Mayhem Source #40658421243. The preceding explicit hydration batch `71842b0d` also passed all four workflows.
+
+The next candidate adds an in-dialog native comparison tab for any two heroes or the current aggregate. Its 25 source-backed metrics include independently covered Akari score, aggregate KDA, win rate, participation, vision, per-minute damage/CS, damage/gold efficiency, solo kills and team/game-relative damage, received damage, gold, CS and tower damage. Every cell shows known/eligible sample counts; missing data never becomes zero, and source all-non-null solo-kill semantics are retained. Team ratios use verified current-mode roster membership; repeated game IDs share the existing analysis deduplication. Hydration refreshes both report and comparison from the same modal snapshot. Pure model and populated-native-render smoke fixtures are included; CI pending. No additional requests, persistence or background owner. Next: remaining comparison fields (KDA variation, kill/damage efficiency, pings), timeline-backed jungle aggregates, MatchCard/Cherry presentation, replay/server and complete options reconciliation. No Tencent/Win10 acceptance, merge or release is claimed.
+
 ## Verified analysis hydration and active Cherry team correction
 
 Executable `71842b0dbe758d2f61a8c637c1cba472e3721fec` passed Windows Build #40657974668, Glass #40657974544, UI Text #40657974542 and Mayhem Source #40657974636; the actual live Mayhem probe step also succeeded. Windows logs confirm Player and performance smoke execution. No Tencent/DPI acceptance is implied.
