@@ -145,6 +145,15 @@ namespace FACM.League
                 .Take(Math.Min(BatchSize, MaximumSamples - Math.Max(0, successful))).ToList();
         }
 
+        internal static Tuple<int, int> Coverage(IEnumerable<LeaguePlayerMatchSummary> matches,
+            string targetPuuid, ISet<string> attempted, int championId)
+        {
+            var rows = Candidates(matches, targetPuuid)
+                .Where(m => championId == 0 || m.ChampionId == championId).ToArray();
+            return Tuple.Create(rows.Length, rows.Count(m => attempted != null &&
+                attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m))));
+        }
+
         internal static List<LeaguePlayerMatchSummary> Candidates(IEnumerable<LeaguePlayerMatchSummary> matches,
             string targetPuuid)
         {

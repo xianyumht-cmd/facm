@@ -22,6 +22,15 @@ namespace FACM.League
             Require(candidates.Count == 3 && candidates.Select(m => m.GameId)
                 .SequenceEqual(new long[] { 1001, 1002, 1003 }),
                 "Only unique current-target Rift jungle matches with original source/server provenance may request timelines.");
+            var selectedAttempts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                LeaguePlayerDataService.HistoryDetailKey(first),
+                LeaguePlayerDataService.HistoryDetailKey(third) };
+            var overallCoverage = LeagueJungleHistoryAnalysis.Coverage(candidates, "target", selectedAttempts, 0);
+            var heroCoverage = LeagueJungleHistoryAnalysis.Coverage(candidates, "target", selectedAttempts, 64);
+            Require(overallCoverage.Item1 == 3 && overallCoverage.Item2 == 2 &&
+                heroCoverage.Item1 == 2 && heroCoverage.Item2 == 1 &&
+                LeagueJungleHistoryAnalysis.Coverage(candidates, "target", selectedAttempts, 11).Item1 == 1,
+                "A hero with no successful timeline must remain selectable with its own eligible/attempted coverage.");
             var loaded = Enumerable.Range(0, 20).Select(i => Match(3000 + i, 1, 64,
                 LeaguePlayerHistorySource.Lcu, null)).ToList();
             var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {

@@ -468,11 +468,12 @@ namespace FACM.League
                     Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 10f) };
                 Action refreshJungle = () =>
                 {
-                    var candidateCount = LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid).Count;
                     var selected = jungleSelector.SelectedIndex <= 0 ? 0 :
                         ((KeyValuePair<int, string>)jungleSelector.SelectedItem).Key;
+                    var coverage = LeagueJungleHistoryAnalysis.Coverage(snapshot, targetPuuid,
+                        jungleAttempted, selected);
                     jungleReport.Text = LeagueJungleHistoryAnalysis.Report(ui, jungleSamples,
-                        candidateCount, jungleAttempted.Count, selected);
+                        coverage.Item1, coverage.Item2, selected);
                 };
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleLayout.Controls.Add(jungleSelector, 0, 0);
@@ -480,16 +481,21 @@ namespace FACM.League
                 jungleTab.Controls.Add(jungleLayout);
                 Action rebuildJungleSelector = () =>
                 {
+                    var previous = jungleSelector.SelectedIndex > 0 ?
+                        ((KeyValuePair<int, string>)jungleSelector.SelectedItem).Key : 0;
                     jungleSelector.Items.Clear();
                     jungleSelector.Items.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll));
-                    foreach (var group in jungleSamples.GroupBy(s => s.Match.ChampionId).OrderBy(g => g.Key))
+                    var selectedIndex = 0;
+                    foreach (var group in LeagueJungleHistoryAnalysis.Candidates(snapshot, targetPuuid)
+                        .GroupBy(s => s.ChampionId).OrderBy(g => g.Key))
                     {
-                        var match = group.First().Match;
+                        var match = group.First();
                         jungleSelector.Items.Add(new KeyValuePair<int, string>(group.Key,
                             (string.IsNullOrWhiteSpace(match.ChampionName) ? "#" + group.Key : match.ChampionName) +
                             " (#" + group.Key.ToString(CultureInfo.InvariantCulture) + ")"));
+                        if (group.Key == previous) selectedIndex = jungleSelector.Items.Count - 1;
                     }
-                    jungleSelector.SelectedIndex = 0;
+                    jungleSelector.SelectedIndex = selectedIndex;
                 };
                 jungleSelector.Format += (sender, args) =>
                 {
@@ -642,7 +648,7 @@ namespace FACM.League
                             comparison.RefreshData(snapshot);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
-                            refreshJungle();
+                            rebuildJungleSelector();
                             status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :
                                 string.Format(CultureInfo.CurrentCulture,
                                     ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrated),
