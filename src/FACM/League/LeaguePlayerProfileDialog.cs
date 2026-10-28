@@ -188,8 +188,8 @@ namespace FACM.League
                     if (_tabs.SelectedIndex == 0) await RefreshAfterGameAsync();
                 }));
             }
-            catch (InvalidOperationException) { }
             catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
         }
 
         private async Task RefreshAfterGameAsync()
