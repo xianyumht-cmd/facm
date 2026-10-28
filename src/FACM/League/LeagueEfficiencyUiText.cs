@@ -278,6 +278,9 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardRates = "LeagueEfficiencyDynamicEncounterScoreboardRates";
         public const string DynamicEncounterScoreboardDamageSplit = "LeagueEfficiencyDynamicEncounterScoreboardDamageSplit";
         public const string DynamicEncounterScoreboardTakenSplit = "LeagueEfficiencyDynamicEncounterScoreboardTakenSplit";
+        public const string DynamicEncounterScoreboardDealtBar = "LeagueEfficiencyDynamicEncounterScoreboardDealtBar";
+        public const string DynamicEncounterScoreboardTakenBar = "LeagueEfficiencyDynamicEncounterScoreboardTakenBar";
+        public const string DynamicEncounterScoreboardDamageTooltip = "LeagueEfficiencyDynamicEncounterScoreboardDamageTooltip";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -636,6 +639,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardRates, "KDA {0} · 参团率 {1} · 伤害占比 {2}\r\n补刀/分 {3} · 金币/分 {4}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageSplit, "英雄输出 {0}（物理 {1} / 魔法 {2} / 真实 {3}）" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenSplit, "承受伤害 {0}（物理 {1} / 魔法 {2} / 真实 {3}）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar, "英雄输出" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar, "承受伤害" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageTooltip, "{0} {1} · 全场峰值占比 {2}\r\n物理 {3}（{4}） · 魔法 {5}（{6}） · 真实 {7}（{8}）" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },

@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Keep MatchCard damage bars in the existing native selection surface
+
+Follow pinned Akari `TeamTable.vue` / `DamageBarWithPopover.vue` / `DamageBar.vue` for separate outgoing and incoming damage bars, same palette, and relative match maxima, while preserving GGman's lightweight native WinForms layout rather than adding a second graphics host. Use the existing selected-player detail pane and a two-column painted strip plus its owned hover tooltips; no additional fetch, timer or persistent model is required. Retain source-nullability: absent totals/baselines do not generate percentages, and invalid or contradictory component sums are clipped to the drawing area without silently rewriting measured numbers. Preserve draft status pending full MatchCard functional work and consolidated Tencent/Win10 DPI verification.
+
 ## 2026-10-28 — Keep MatchCard damage types nullable and normalize SGP magic-taken spelling once
 
 Preserve the exact physical/magic/true outgoing-to-champions and incoming-damage fields on each selected-match participant, without inferring missing component counts from a reported total or issuing follow-up requests. Akari's SGP source spells the incoming magic counter `magicalDamageTaken`, unlike LCU's `magicDamageTaken`; canonicalize it in the existing SGP normalization boundary so both MatchCard detail and loaded Player summaries use one trustworthy key. Retain explicit known zeros and reject negative/invalid input. Use the existing scrollable native selected-member detail pane, leaving the source's richer bar/tooltip/radar widget visuals and live Tencent/Win10 proof for subsequent parity work.

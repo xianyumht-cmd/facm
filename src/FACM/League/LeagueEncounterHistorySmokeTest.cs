@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -216,6 +217,36 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(null, t).Contains(
                     "承受伤害 —（物理 — / 魔法 — / 真实 —）"),
                 "MatchCard damage details must retain distinct dealt/taken and physical/magic/true counters.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("英雄输出 800 · 全场峰值占比 80.00%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("魔法 200（25%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 1400, t)
+                    .Contains("承受伤害 700 · 全场峰值占比 50.00%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 1400, t)
+                    .Contains("物理 400（57%）"),
+                "MatchCard damage popovers must use source separate outgoing/taken maxima and type shares.");
+            Require(LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, 500, 200, 100)
+                    .SequenceEqual(new[] { 50, 20, 10 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, 900, 300, 100)
+                    .SequenceEqual(new[] { 90, 10, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, null, 200, 0)
+                    .SequenceEqual(new[] { 0, 20, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, null, 500, 200, 100)
+                    .SequenceEqual(new[] { 0, 0, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 0, 0, 0, 0)
+                    .SequenceEqual(new[] { 0, 0, 0 }),
+                "Damage bars must clip contradictory totals and keep missing baselines or parts unmeasured.");
+            using (var damageBitmap = new Bitmap(220, 42))
+            using (var damageGraphics = Graphics.FromImage(damageBitmap))
+            {
+                LeagueEncounterMatchScoreboardDialog.PaintDamageBar(damageGraphics,
+                    new Rectangle(0, 0, 220, 42), damagePlayer, false, 1000, t);
+                Require(damageBitmap.GetPixel(9, 32).ToArgb() == Color.FromArgb(224, 120, 86).ToArgb() &&
+                    damageBitmap.GetPixel(115, 32).ToArgb() == Color.FromArgb(91, 159, 215).ToArgb() &&
+                    damageBitmap.GetPixel(158, 32).ToArgb() == Color.FromArgb(168, 168, 168).ToArgb(),
+                    "The native MatchCard painter must render the source physical/magic/true colors in descending widths.");
+            }
             damagePlayer.DamageAvailable = false;
             damagePlayer.MagicDamageTaken = 0;
             damagePlayer.TrueDamageTaken = null;
@@ -224,6 +255,13 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
                     .Contains("承受伤害 700（物理 400 / 魔法 0 / 真实 —）"),
                 "Partial damage records must expose available components without fabricating unknown totals.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("英雄输出 — · 全场峰值占比 —") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("物理 500（—）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 0, t)
+                    .Contains("魔法 0（0%）"),
+                "Absent totals must not become shares, while explicit source zero remains measurable.");
             damagePlayer.TotalDamageTaken = null;
             damagePlayer.MagicDamageTaken = -1;
             Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)

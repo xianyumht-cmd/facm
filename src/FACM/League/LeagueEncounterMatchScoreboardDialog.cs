@@ -50,7 +50,7 @@ namespace FACM.League
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, isCherry ? 164 : 106));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 125));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
 
             var match = detail.Match;
@@ -108,6 +108,34 @@ namespace FACM.League
                 Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint) };
+            var damageStrip = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            damageStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            damageStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            damageStrip.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var outgoingBar = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 3, 0),
+                BackColor = FacmDesignSystem.CanvasRaised };
+            var incomingBar = new Panel { Dock = DockStyle.Fill, Margin = new Padding(3, 0, 0, 0),
+                BackColor = FacmDesignSystem.CanvasRaised };
+            outgoingBar.AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar);
+            incomingBar.AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar);
+            damageStrip.Controls.Add(outgoingBar, 0, 0);
+            damageStrip.Controls.Add(incomingBar, 1, 0);
+            var selectionLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 1, RowCount = 2, Margin = Padding.Empty };
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            selectionLayout.Controls.Add(damageStrip, 0, 0);
+            selectionLayout.Controls.Add(selectedDetails, 0, 1);
+            var maxOutgoing = detail.Participants.Where(p => p != null && p.DamageAvailable &&
+                p.DamageToChampions >= 0).Select(p => (int?)p.DamageToChampions).DefaultIfEmpty().Max();
+            var maxIncoming = detail.Participants.Where(p => p != null && p.TotalDamageTaken.HasValue &&
+                p.TotalDamageTaken.Value >= 0).Select(p => p.TotalDamageTaken).DefaultIfEmpty().Max();
+            LeaguePlayerMatchParticipant damageSelection = null;
+            outgoingBar.Paint += (sender, e) => PaintDamageBar(e.Graphics, outgoingBar.ClientRectangle,
+                damageSelection, false, maxOutgoing, t);
+            incomingBar.Paint += (sender, e) => PaintDamageBar(e.Graphics, incomingBar.ClientRectangle,
+                damageSelection, true, maxIncoming, t);
             var runeDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
                 Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
@@ -121,6 +149,11 @@ namespace FACM.League
             var catalog = detail.BuildCatalog;
             Action<LeaguePlayerMatchParticipant> showSelection = player =>
             {
+                damageSelection = player;
+                outgoingBar.Invalidate();
+                incomingBar.Invalidate();
+                _tooltips.SetToolTip(outgoingBar, FormatDamageTooltip(player, false, maxOutgoing, t));
+                _tooltips.SetToolTip(incomingBar, FormatDamageTooltip(player, true, maxIncoming, t));
                 ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t);
                 if (player == null)
                 {
@@ -255,7 +288,7 @@ namespace FACM.League
             };
             layout.Controls.Add(matchTabs, 0, 2);
             layout.Controls.Add(iconStrip, 0, 3);
-            layout.Controls.Add(selectedDetails, 0, 4);
+            layout.Controls.Add(selectionLayout, 0, 4);
             if (targetItem != null)
             {
                 targetItem.Selected = true;
@@ -378,6 +411,81 @@ namespace FACM.League
                     .Replace("{1}", count(player == null ? null : player.PhysicalDamageTaken))
                     .Replace("{2}", count(player == null ? null : player.MagicDamageTaken))
                     .Replace("{3}", count(player == null ? null : player.TrueDamageTaken));
+        }
+
+        internal static int[] DamageBarWidths(int width, int? baseline, int? physical, int? magic, int? trueDamage)
+        {
+            var widths = new int[3];
+            if (width <= 0 || !baseline.HasValue || baseline.Value <= 0) return widths;
+            var parts = new[] { physical, magic, trueDamage };
+            foreach (var index in Enumerable.Range(0, 3).OrderByDescending(i => parts[i] ?? -1).ThenBy(i => i))
+            {
+                if (!parts[index].HasValue || parts[index].Value <= 0) continue;
+                var remaining = width - widths.Sum();
+                if (remaining <= 0) break;
+                var scaled = (int)Math.Min(width, Math.Round((double)parts[index].Value /
+                    baseline.Value * width, MidpointRounding.AwayFromZero));
+                widths[index] = Math.Min(remaining, scaled);
+            }
+            return widths;
+        }
+
+        internal static string FormatDamageTooltip(LeaguePlayerMatchParticipant player, bool taken,
+            int? baseline, Func<string, string> t)
+        {
+            if (player == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
+            int? total = taken ? player.TotalDamageTaken : player.DamageAvailable && player.DamageToChampions >= 0
+                ? (int?)player.DamageToChampions : null;
+            int? physical = taken ? player.PhysicalDamageTaken : player.PhysicalDamageToChampions;
+            int? magic = taken ? player.MagicDamageTaken : player.MagicDamageToChampions;
+            int? trueDamage = taken ? player.TrueDamageTaken : player.TrueDamageToChampions;
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            Func<int?, int?, string, string> percent = (numerator, denominator, format) =>
+                numerator.HasValue && numerator.Value >= 0 && denominator.HasValue && denominator.Value >= 0
+                    ? (numerator.Value / (double)Math.Max(1, denominator.Value) * 100)
+                        .ToString(format, CultureInfo.InvariantCulture) + "%" : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageTooltip)
+                .Replace("{0}", t(taken ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar :
+                    LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar))
+                .Replace("{1}", count(total))
+                .Replace("{2}", percent(total, baseline, "0.00"))
+                .Replace("{3}", count(physical)).Replace("{4}", percent(physical, total, "0"))
+                .Replace("{5}", count(magic)).Replace("{6}", percent(magic, total, "0"))
+                .Replace("{7}", count(trueDamage)).Replace("{8}", percent(trueDamage, total, "0"));
+        }
+
+        internal static void PaintDamageBar(Graphics graphics, Rectangle bounds, LeaguePlayerMatchParticipant player,
+            bool taken, int? baseline, Func<string, string> t)
+        {
+            if (bounds.Width <= 16 || bounds.Height <= 13) return;
+            int? total = player == null ? null : taken ? player.TotalDamageTaken :
+                player.DamageAvailable && player.DamageToChampions >= 0 ? (int?)player.DamageToChampions : null;
+            var label = t(taken ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar :
+                LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar) + " " +
+                (total.HasValue && total.Value >= 0 ? total.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
+            TextRenderer.DrawText(graphics, label, SystemFonts.MessageBoxFont,
+                new Rectangle(8, 0, bounds.Width - 16, bounds.Height - 14), FacmDesignSystem.Text,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+            var bar = new Rectangle(8, bounds.Height - 12, bounds.Width - 16, 7);
+            using (var background = new SolidBrush(FacmDesignSystem.CanvasRaised.GetBrightness() < 0.5f
+                ? Color.FromArgb(58, 58, 58) : Color.FromArgb(229, 229, 229)))
+                graphics.FillRectangle(background, bar);
+            if (player == null) return;
+            var widths = taken ? DamageBarWidths(bar.Width, baseline, player.PhysicalDamageTaken,
+                player.MagicDamageTaken, player.TrueDamageTaken) :
+                DamageBarWidths(bar.Width, baseline, player.PhysicalDamageToChampions,
+                    player.MagicDamageToChampions, player.TrueDamageToChampions);
+            var colors = new[] { Color.FromArgb(224, 120, 86), Color.FromArgb(91, 159, 215),
+                Color.FromArgb(168, 168, 168) };
+            var x = bar.X;
+            foreach (var index in Enumerable.Range(0, 3).OrderByDescending(i => widths[i]).ThenBy(i => i))
+            {
+                if (widths[index] <= 0) continue;
+                using (var brush = new SolidBrush(colors[index]))
+                    graphics.FillRectangle(brush, x, bar.Y, widths[index], bar.Height);
+                x += widths[index];
+            }
         }
 
         internal static List<LeaguePlayerMatchParticipant> OrderScoreboardParticipants(
