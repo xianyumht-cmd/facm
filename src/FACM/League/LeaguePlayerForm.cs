@@ -334,12 +334,13 @@ namespace FACM.League
             _filterPanel.Controls.Add(_advancedFilterButton);
             var analysisButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerAnalysisAction),
                 Width = 90, Height = 27, FlatStyle = FlatStyle.Flat };
-            analysisButton.Click += (sender, e) =>
+            analysisButton.Click += async (sender, e) =>
             {
                 if (_loading || _profile == null || _loadedPage == null ||
                     !LeagueEncounterReplayService.SessionMatches(_pageSession,
                         _currentSession == null ? null : _currentSession())) return;
-                LeaguePlayerHistoryAnalysis.Show(this, _ui, _rows.ToArray());
+                await LeaguePlayerHistoryAnalysis.ShowAsync(this, _ui, _rows.ToArray(), _service,
+                    _profile.PuuId, _profile.PuuId, _pageSession, _lifetime.Token);
             };
             _filterPanel.Controls.Add(analysisButton);
             UpdateAdvancedFilterLabel();

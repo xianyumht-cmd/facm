@@ -4,6 +4,8 @@ using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
+using System.Threading;
+using System.Threading.Tasks;
 using FACM.Services;
 using FACM.Theming;
 
@@ -373,9 +375,8 @@ namespace FACM.League
                     ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
         }
 
-        internal static void Show(Form owner, UiTextCatalog ui, IEnumerable<LeaguePlayerMatchSummary> matches)
+        private static List<string> ReportLines(UiTextCatalog ui, LeaguePlayerHistoryAnalysis a)
         {
-            var a = Calculate(matches);
             var lines = new List<string> {
                 ui.Get(UiTextKeys.LeaguePlayerAnalysisScope), "",
                 string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeaguePlayerAnalysisTotals),
@@ -417,6 +418,19 @@ namespace FACM.League
                     PositionName(ui, role.Position), role.Games, role.WinRate.ToString("0", CultureInfo.CurrentCulture),
                     role.Kills, role.Deaths, role.Assists));
             }
+            return lines;
+        }
+
+        internal static async Task ShowAsync(Form owner, UiTextCatalog ui,
+            IEnumerable<LeaguePlayerMatchSummary> matches, LeaguePlayerDataService service,
+            string selfPuuid, string targetPuuid, LeagueClientSession session, CancellationToken parentToken)
+        {
+            var snapshot = (matches ?? Enumerable.Empty<LeaguePlayerMatchSummary>()).Take(1000).ToList();
+            var a = Calculate(snapshot);
+            var lines = ReportLines(ui, a);
+            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            Task pending = Task.CompletedTask;
+            using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(parentToken))
             using (var dialog = new Form {
                 Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisAction),
                 StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
@@ -431,9 +445,6 @@ namespace FACM.League
                     Font = new Font(SystemFonts.MessageBoxFont.FontFamily, 10f),
                     Text = string.Join(Environment.NewLine, lines)
                 };
-                if (a.AllChampions.Count == 0)
-                    dialog.Controls.Add(report);
-                else
                 {
                     var layout = new TableLayoutPanel {
                         Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2,
@@ -448,11 +459,16 @@ namespace FACM.League
                         BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
                         AccessibleName = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroSelect)
                     };
-                    selector.Items.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll));
-                    foreach (var champion in a.AllChampions)
-                        selector.Items.Add((string.IsNullOrWhiteSpace(champion.ChampionName) ?
-                            "#" + champion.ChampionId : champion.ChampionName) +
-                            " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
+                    Action rebuildSelector = () =>
+                    {
+                        selector.Items.Clear();
+                        selector.Items.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll));
+                        foreach (var champion in a.AllChampions)
+                            selector.Items.Add((string.IsNullOrWhiteSpace(champion.ChampionName) ?
+                                "#" + champion.ChampionId : champion.ChampionName) +
+                                " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
+                        selector.SelectedIndex = 0;
+                    };
                     selector.SelectedIndexChanged += (sender, args) =>
                     {
                         var updated = new List<string>(lines);
@@ -526,9 +542,74 @@ namespace FACM.League
                     layout.Controls.Add(header, 0, 0);
                     layout.Controls.Add(report, 0, 1);
                     dialog.Controls.Add(layout);
-                    selector.SelectedIndex = 0;
+                    rebuildSelector();
+                    var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true,
+                        Padding = new Padding(6), WrapContents = true };
+                    var hydrate = new Button { AutoSize = true,
+                        Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrate) };
+                    var stop = new Button { AutoSize = true, Enabled = false,
+                        Text = ui.Get(UiTextKeys.LeaguePlayerCollectStop) };
+                    var status = new Label { AutoSize = true, MaximumSize = new Size(460, 0),
+                        Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateScope) };
+                    CancellationTokenSource operation = null;
+                    bool stale = false;
+                    Action refreshAction = () => hydrate.Enabled = !stale && service != null &&
+                        snapshot.Any(m => LeaguePlayerDataService.NeedsAnalysisDetail(m) &&
+                            !attempted.Contains(LeaguePlayerDataService.HistoryDetailKey(m)));
+                    Func<Task> hydrateAsync = async () =>
+                    {
+                        hydrate.Enabled = false;
+                        stop.Enabled = true;
+                        operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                        status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrating);
+                        try
+                        {
+                            var result = await service.HydrateAnalysisAsync(selfPuuid, targetPuuid,
+                                session, snapshot, attempted, operation.Token);
+                            if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
+                            attempted.UnionWith(result.Attempted);
+                            snapshot = result.Matches;
+                            stale = result.AccountChanged;
+                            a = Calculate(snapshot);
+                            lines = ReportLines(ui, a);
+                            rebuildSelector();
+                            status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :
+                                string.Format(CultureInfo.CurrentCulture,
+                                    ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrated),
+                                    result.Updated, result.Attempted.Count,
+                                    result.TimedOut ? ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateTimeout) : "");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateStopped);
+                        }
+                        catch (Exception)
+                        {
+                            if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateFailed);
+                        }
+                        finally
+                        {
+                            operation.Dispose();
+                            operation = null;
+                            if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                            { stop.Enabled = false; refreshAction(); }
+                        }
+                    };
+                    hydrate.Click += (sender, args) => { if (operation == null) pending = hydrateAsync(); };
+                    stop.Click += (sender, args) => operation?.Cancel();
+                    dialog.FormClosed += (sender, args) => lifetime.Cancel();
+                    actions.Controls.Add(hydrate);
+                    actions.Controls.Add(stop);
+                    actions.Controls.Add(status);
+                    dialog.Controls.Add(actions);
+                    actions.BringToFront();
+                    refreshAction();
                 }
                 dialog.ShowDialog(owner);
+                lifetime.Cancel();
+                await pending;
             }
         }
     }

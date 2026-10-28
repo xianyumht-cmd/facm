@@ -585,6 +585,13 @@ namespace FACM.Services
         public const string LeaguePlayerUnknown = "LeaguePlayerUnknown";
         public const string LeaguePlayerRemake = "LeaguePlayerRemake";
         public const string LeaguePlayerAbort = "LeaguePlayerAbort";
+        public const string LeaguePlayerAnalysisHydrate = "LeaguePlayerAnalysisHydrate";
+        public const string LeaguePlayerAnalysisHydrateScope = "LeaguePlayerAnalysisHydrateScope";
+        public const string LeaguePlayerAnalysisHydrating = "LeaguePlayerAnalysisHydrating";
+        public const string LeaguePlayerAnalysisHydrated = "LeaguePlayerAnalysisHydrated";
+        public const string LeaguePlayerAnalysisHydrateTimeout = "LeaguePlayerAnalysisHydrateTimeout";
+        public const string LeaguePlayerAnalysisHydrateStopped = "LeaguePlayerAnalysisHydrateStopped";
+        public const string LeaguePlayerAnalysisHydrateFailed = "LeaguePlayerAnalysisHydrateFailed";
         public const string LeaguePlayerAnalysisAction = "LeaguePlayerAnalysisAction";
         public const string LeaguePlayerAnalysisScope = "LeaguePlayerAnalysisScope";
         public const string LeaguePlayerAnalysisTotals = "LeaguePlayerAnalysisTotals";

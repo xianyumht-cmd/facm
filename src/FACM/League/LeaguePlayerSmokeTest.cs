@@ -41,6 +41,7 @@ namespace FACM.League
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
+            LeaguePlayerHistoryHydrationSmokeTest.Validate();
             ValidateLoadedHistoryAnalysis();
             ValidateAkariScoring();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())

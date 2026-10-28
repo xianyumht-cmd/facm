@@ -1,3 +1,7 @@
+## Bounded analysis-only history hydration
+
+`LeaguePlayerHistoryHydration.cs` extends the existing Player service, sharing its request gate, source parsers and owner verifier. A modal freezes at most 1,000 current filtered summaries; a user action tries at most 20 unique source/server/game keys, each with a four-second attempt inside a 24-second batch. The original data source is strict: local game GET with no regional fallback, or selected-region SGP SUMMARY with no local probe. Target PUUID, game ID, source/region and retained known analysis fields must correlate before replacement. Account changes clear the whole batch; total deadline expiration or user cancellation cannot apply unverified partial results. Completed per-attempt data remain eligible only after a final owner check. The native analysis dialog owns cancellation and attempted-key state, recomputes its report/hero selector on verified completion, and awaits cleanup after closing. There is no cache write, history scan, persistent setting, new client, timer loop or worker. Deterministic fixtures run through the existing Player/performance smoke entry point; Windows CI pending.
+
 # FACM Architecture
 
 ## Cherry placement evidence in on-demand hero reports (Draft #357 verified source)

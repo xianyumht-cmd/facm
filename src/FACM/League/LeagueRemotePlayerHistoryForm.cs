@@ -207,11 +207,12 @@ namespace FACM.League
             filterRow.Controls.Add(_winFilter);
             filterRow.Controls.Add(_advancedFilterButton);
             var analysisButton = PageButton(UiTextKeys.LeaguePlayerAnalysisAction, 90);
-            analysisButton.Click += (sender, args) =>
+            analysisButton.Click += async (sender, args) =>
             {
                 if (!_loaded || _loading || _collectionCancellation != null ||
                     !SessionMatches(_pageSession)) return;
-                LeaguePlayerHistoryAnalysis.Show(this, _ui, CurrentFilteredRows());
+                await LeaguePlayerHistoryAnalysis.ShowAsync(this, _ui, CurrentFilteredRows(), _service,
+                    _expected.PuuId, _puuid, _pageSession, _lifetime.Token);
             };
             filterRow.Controls.Add(analysisButton);
             filterRow.Controls.Add(_collectButton);
