@@ -55,27 +55,31 @@ namespace FACM.League
                 if (LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Win &&
                     LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Loss)
                     continue;
-                if (match.ParticipantId <= 0 || match.TeamId <= 0 || match.GameDurationSeconds <= 0 ||
+                if (match.ParticipantId <= 0 || match.GameDurationSeconds <= 0 ||
                     match.ParticipantRoster == null || match.ParticipantRoster.Length == 0) continue;
                 var roster = match.ParticipantRoster;
-                var self = roster.FirstOrDefault(p => p != null && p.ParticipantId == match.ParticipantId);
-                if (self == null || self.TeamId != match.TeamId || roster.Count(p => p != null &&
-                    p.ParticipantId == match.ParticipantId) != 1) continue;
                 var hasSubteam = match.PlayerSubteamId.HasValue && match.PlayerSubteamId.Value > 0;
-                var members = roster.Where(p => p != null && p.TeamId == match.TeamId &&
-                    (!hasSubteam || p.PlayerSubteamId == match.PlayerSubteamId)).ToList();
+                if (!hasSubteam && (match.TeamId <= 0 || roster.Any(p => p != null &&
+                    p.PlayerSubteamId.HasValue && p.PlayerSubteamId.Value > 0))) continue;
+                var self = roster.FirstOrDefault(p => p != null && p.ParticipantId == match.ParticipantId);
+                if (self == null || (hasSubteam ? self.PlayerSubteamId != match.PlayerSubteamId :
+                    self.TeamId != match.TeamId) || roster.Count(p => p != null &&
+                    p.ParticipantId == match.ParticipantId) != 1) continue;
+                var members = roster.Where(p => p != null && (hasSubteam ?
+                    p.PlayerSubteamId == match.PlayerSubteamId : p.TeamId == match.TeamId)).ToList();
                 if (members.Count == 0 || members.Count > 5 ||
                     !members.Contains(self) || members.Any(p => !p.StatisticsAvailable ||
                     !Valid(p.DamageDealtToChampions) || !Valid(p.DamageTaken) ||
                     !Valid(p.GoldEarned) || !Valid(p.VisionScore)) ||
-                    !Valid(self.TotalHeal) || !Valid(match.KillParticipation))
+                    !Valid(self.TotalHeal))
                     continue;
                 double damage = members.Sum(p => p.DamageDealtToChampions.Value);
                 double taken = members.Sum(p => p.DamageTaken.Value);
                 double gold = members.Sum(p => p.GoldEarned.Value);
                 double vision = members.Sum(p => p.VisionScore.Value);
-                if (hasSubteam && members.Count < 1) continue;
                 var n = members.Count;
+                var participation = (self.Kills + self.Assists) /
+                    (double)Math.Max(1, members.Sum(p => p.Kills));
                 var csPerMinute = match.CreepScore * 60d / match.GameDurationSeconds;
                 var healing = self.TotalHeal.Value / Math.Max(1d, taken / n);
                 var individual = new[]
@@ -85,7 +89,7 @@ namespace FACM.League
                     Linear(healing, .2d, n == 1 ? 1d : 1.4d, 2d),
                     Linear(csPerMinute, 5d, 10d, 2d),
                     Linear(Contribution(self.GoldEarned.Value, gold, n), 1d, 1.5d, 2d),
-                    Linear(match.KillParticipation.Value, .3d, 1d, 2d),
+                    Linear(participation, .3d, 1d, 2d),
                     Linear(Contribution(self.VisionScore.Value, vision, n), 1d, 2d, 2d)
                 };
                 for (int i = 0; i < sums.Length; i++) sums[i] += individual[i];

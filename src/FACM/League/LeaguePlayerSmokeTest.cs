@@ -83,13 +83,25 @@ namespace FACM.League
                 "Sparse team economic data must not be fabricated into an Akari score.");
             incomplete.ParticipantRoster[1].GoldEarned = 175d;
             incomplete.KillParticipation = null;
-            Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,
-                "Missing participation must not be silently treated as zero.");
-            incomplete.KillParticipation = 0d;
+            Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) != null,
+                "Participation should be derived from the complete participant team, not missing summary ratios.");
+            incomplete.ParticipantRoster[0].Kills = 0;
+            incomplete.ParticipantRoster[0].Assists = 0;
+            incomplete.ParticipantRoster[1].Kills = 2;
             var zero = LeagueHistoryAkariScore.Calculate(new[] { incomplete });
-            Require(zero != null && zero.Participation == 0d && zero.Total <= 15d,
+            Require(zero != null && zero.Participation == 0d,
                 "Known zero participation must remain valid and score zero in its component.");
-            incomplete.KillParticipation = 1d;
+            incomplete.ParticipantRoster[0].Kills = 1;
+            incomplete.ParticipantRoster[0].Assists = 0;
+            incomplete.ParticipantRoster[1].Kills = 1;
+            incomplete.PlayerSubteamId = 7;
+            incomplete.ParticipantRoster[0].PlayerSubteamId = 7;
+            incomplete.ParticipantRoster[1].PlayerSubteamId = 7;
+            for (int i = 2; i < incomplete.ParticipantRoster.Length; i++)
+                incomplete.ParticipantRoster[i].PlayerSubteamId = 8;
+            var cherry = LeagueHistoryAkariScore.Calculate(new[] { incomplete });
+            Require(cherry != null && Math.Abs(cherry.Participation - ((0.5d - 0.3d) / 0.7d * 2d)) < .00001,
+                "Cherry participation must use the actual subteam rather than the red/blue team ID.");
             incomplete.ParticipantRoster = null;
             Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,
                 "Summary-only matches without a verified participant roster are not fully scoreable.");
