@@ -767,6 +767,7 @@ namespace FACM.League
                     PhysicalDamageTaken = ReadOptionalCount(stats, "physicalDamageTaken"),
                     MagicDamageTaken = ReadOptionalCount(stats, "magicDamageTaken"),
                     TrueDamageTaken = ReadOptionalCount(stats, "trueDamageTaken"),
+                    TotalHeal = ReadOptionalCount(stats, "totalHeal"),
                     GoldEarned = ReadInt(stats, "goldEarned"),
                     GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),

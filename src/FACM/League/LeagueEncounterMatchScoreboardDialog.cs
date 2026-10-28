@@ -147,11 +147,13 @@ namespace FACM.League
             var iconStrip = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
                 AutoScroll = true, BackColor = FacmDesignSystem.CanvasRaised };
             var catalog = detail.BuildCatalog;
+            var radar = new LeagueMatchRadarPanel(detail.Participants, detail.Teams, isCherry, t);
             Action<LeaguePlayerMatchParticipant> showSelection = player =>
             {
                 damageSelection = player;
                 outgoingBar.Invalidate();
                 incomingBar.Invalidate();
+                radar.UpdateSelection(player);
                 _tooltips.SetToolTip(outgoingBar, FormatDamageTooltip(player, false, maxOutgoing, t));
                 _tooltips.SetToolTip(incomingBar, FormatDamageTooltip(player, true, maxIncoming, t));
                 ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t);
@@ -278,6 +280,9 @@ namespace FACM.League
             runeLayout.Controls.Add(runeDetails, 1, 0);
             runesTab.Controls.Add(runeLayout);
             matchTabs.TabPages.Add(runesTab);
+            var radarTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTitle));
+            radarTab.Controls.Add(radar);
+            matchTabs.TabPages.Add(radarTab);
             var timelineTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineTitle));
             var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token, loadAsset);
             timelineTab.Controls.Add(timeline);

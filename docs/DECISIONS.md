@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Compare seven MatchCard radar axes from one verified detail snapshot
+
+Follow pinned Akari `RadarChart.vue` for the seven selected-player versus group-average dimensions, using the full match's measured maxima rather than an independent relative scale per team. Put a GDI canvas and accessible text values inside the existing match-detail tab strip instead of adding a graphics runtime or opening a modal. Include the source's `totalHeal` field in the detail-only projection, retain Cherry subteam identity, and require all known teammate values before displaying a team average for each dimension. Missing data should result in absent chart vertices, not zero-valued performance. Bound all work to the existing at-most-twenty match participants and keep Draft #357 pending consolidated Tencent/Win10 DPI acceptance.
+
 ## 2026-10-28 — Keep MatchCard damage bars in the existing native selection surface
 
 Follow pinned Akari `TeamTable.vue` / `DamageBarWithPopover.vue` / `DamageBar.vue` for separate outgoing and incoming damage bars, same palette, and relative match maxima, while preserving GGman's lightweight native WinForms layout rather than adding a second graphics host. Use the existing selected-player detail pane and a two-column painted strip plus its owned hover tooltips; no additional fetch, timer or persistent model is required. Retain source-nullability: absent totals/baselines do not generate percentages, and invalid or contradictory component sums are clipped to the drawing area without silently rewriting measured numbers. Preserve draft status pending full MatchCard functional work and consolidated Tencent/Win10 DPI verification.

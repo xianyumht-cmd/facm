@@ -210,6 +210,7 @@ namespace FACM.League
         public int? PhysicalDamageTaken { get; set; }
         public int? MagicDamageTaken { get; set; }
         public int? TrueDamageTaken { get; set; }
+        public int? TotalHeal { get; set; }
         public int GoldEarned { get; set; }
         public bool GoldAvailable { get; set; }
         public int VisionScore { get; set; }

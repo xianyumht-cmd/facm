@@ -262,6 +262,53 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 0, t)
                     .Contains("魔法 0（0%）"),
                 "Absent totals must not become shares, while explicit source zero remains measurable.");
+            var radarSelf = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 100, TotalDamageTaken = 120,
+                GoldAvailable = true, GoldEarned = 1000, CreepScoreAvailable = true, CreepScore = 50,
+                Kills = 4, Deaths = 2, Assists = 6, TotalHeal = 80 };
+            var radarAlly = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 300, TotalDamageTaken = 180,
+                GoldAvailable = true, GoldEarned = 3000, CreepScoreAvailable = true, CreepScore = 30,
+                Kills = 5, Deaths = 1, Assists = 5, TotalHeal = 0 };
+            var radarEnemy = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 400, TotalDamageTaken = 400,
+                GoldAvailable = true, GoldEarned = 4000, CreepScoreAvailable = true, CreepScore = 100,
+                Kills = 1, Deaths = 3, Assists = 1, TotalHeal = 160 };
+            var radarPlayers = new[] { radarSelf, radarAlly, radarEnemy };
+            var radarTeams = new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 20 },
+                new LeagueMatchTeamScore { TeamId = 200, Kills = 10 } };
+            var radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, false, radarSelf);
+            Require(radar != null && radar.PlayerRatio[0] == 0.25 && radar.TeamAverageRatio[0] == 0.5 &&
+                radar.PlayerRatio[4] == 0.5 && radar.TeamAverageRatio[4] == 0.75 &&
+                radar.PlayerRatio[5] == 1 && radar.TeamAverageRatio[5] == 1 &&
+                radar.PlayerRatio[6] == 0.5 && radar.TeamAverageRatio[6] == 0.25 &&
+                LeagueMatchRadarPanel.FormatDetails(radar, t).Contains("输出：100（25.0%） / 200（50.0%）") &&
+                LeagueMatchRadarPanel.FormatDetails(null, t).Contains("选择一名玩家"),
+                "Akari's seven-axis radar must normalize player and complete team averages to each game maximum.");
+            using (var radarBitmap = new Bitmap(420, 300))
+            using (var radarGraphics = Graphics.FromImage(radarBitmap))
+                LeagueMatchRadarPanel.PaintRadar(radarGraphics, new Rectangle(0, 0, 420, 300), radar, t);
+            radarAlly.TotalHeal = null;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, false, radarSelf);
+            Require(radar.PlayerRatio[6] == 0.5 && !radar.TeamAverageRatio[6].HasValue &&
+                LeagueMatchRadarPanel.FormatDetails(radar, t).Contains("治疗：80（50.0%） / —（—）"),
+                "Incomplete team healing must not be plotted as a known zero or misleading team mean.");
+            radarSelf.PlayerSubteamId = 2;
+            radarAlly.PlayerSubteamId = 1;
+            radarEnemy.PlayerSubteamId = 3;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, new[] {
+                new LeagueMatchTeamScore { TeamId = 1, Kills = 10 },
+                new LeagueMatchTeamScore { TeamId = 2, Kills = 10 },
+                new LeagueMatchTeamScore { TeamId = 3, Kills = 10 }
+            }, true, radarSelf);
+            Require(radar.TeamAverageRatio[0] == 0.25 && radar.PlayerRatio[5] == 1 &&
+                radar.TeamAverageRatio[6] == 0.5,
+                "Cherry radar must compare only verified subteam members, never an ordinary shared teamId.");
+            radarSelf.PlayerSubteamId = null;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, true, radarSelf);
+            Require(!radar.TeamAverageRatio[0].HasValue && !radar.PlayerRatio[5].HasValue &&
+                radar.PlayerRatio[0] == 0.25,
+                "An unknown Cherry subteam must not inherit ordinary-team averages or kill participation.");
             damagePlayer.TotalDamageTaken = null;
             damagePlayer.MagicDamageTaken = -1;
             Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
@@ -387,6 +434,8 @@ namespace FACM.League
                     result.Participants.Single(p => p.IsTarget).PhysicalDamageTaken == 3000 &&
                     result.Participants.Single(p => p.IsTarget).MagicDamageTaken == 1500 &&
                     result.Participants.Single(p => p.IsTarget).TrueDamageTaken == 500 &&
+                    result.Participants.Single(p => p.IsTarget).TotalHeal == 2400 &&
+                    !result.Participants.Single(p => p.PuuId == "ally").TotalHeal.HasValue &&
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
                     result.Match.ChampionName == "Ashe" &&
                     result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
@@ -732,6 +781,7 @@ namespace FACM.League
                         "\"physicalDamageDealtToChampions\":9000,\"magicDamageDealtToChampions\":7000," +
                         "\"trueDamageDealtToChampions\":2000,\"totalDamageTaken\":5000," +
                         "\"physicalDamageTaken\":3000,\"magicDamageTaken\":1500,\"trueDamageTaken\":500," +
+                        "\"totalHeal\":2400," +
                         "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
                         "\"perk0\":8005,\"perk0Var1\":777,\"perk0Var2\":-2.5,\"perk0Var3\":0,\"perk1\":9111," +
                         "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +

@@ -281,6 +281,16 @@ namespace FACM.League
         public const string DynamicEncounterScoreboardDealtBar = "LeagueEfficiencyDynamicEncounterScoreboardDealtBar";
         public const string DynamicEncounterScoreboardTakenBar = "LeagueEfficiencyDynamicEncounterScoreboardTakenBar";
         public const string DynamicEncounterScoreboardDamageTooltip = "LeagueEfficiencyDynamicEncounterScoreboardDamageTooltip";
+        public const string DynamicEncounterRadarTitle = "LeagueEfficiencyDynamicEncounterRadarTitle";
+        public const string DynamicEncounterRadarHint = "LeagueEfficiencyDynamicEncounterRadarHint";
+        public const string DynamicEncounterRadarLegend = "LeagueEfficiencyDynamicEncounterRadarLegend";
+        public const string DynamicEncounterRadarDamage = "LeagueEfficiencyDynamicEncounterRadarDamage";
+        public const string DynamicEncounterRadarTaken = "LeagueEfficiencyDynamicEncounterRadarTaken";
+        public const string DynamicEncounterRadarGold = "LeagueEfficiencyDynamicEncounterRadarGold";
+        public const string DynamicEncounterRadarCs = "LeagueEfficiencyDynamicEncounterRadarCs";
+        public const string DynamicEncounterRadarKda = "LeagueEfficiencyDynamicEncounterRadarKda";
+        public const string DynamicEncounterRadarParticipation = "LeagueEfficiencyDynamicEncounterRadarParticipation";
+        public const string DynamicEncounterRadarHeal = "LeagueEfficiencyDynamicEncounterRadarHeal";
         public const string DynamicEncounterScoreboardIconsItems = "LeagueEfficiencyDynamicEncounterScoreboardIconsItems";
         public const string DynamicEncounterScoreboardIconsBoundItem = "LeagueEfficiencyDynamicEncounterScoreboardIconsBoundItem";
         public const string DynamicEncounterScoreboardIconsSpells = "LeagueEfficiencyDynamicEncounterScoreboardIconsSpells";
@@ -642,6 +652,16 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar, "英雄输出" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar, "承受伤害" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageTooltip, "{0} {1} · 全场峰值占比 {2}\r\n物理 {3}（{4}） · 魔法 {5}（{6}） · 真实 {7}（{8}）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTitle, "表现雷达" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHint, "选择一名玩家，查看七项表现及同队平均。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarLegend, "玩家（红） / 同队平均（灰）\r\n括号内为相对本场最高值的比例；— 表示缺少证据。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarDamage, "输出" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTaken, "承伤" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarGold, "金币" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarCs, "补刀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarKda, "KDA" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarParticipation, "参团" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHeal, "治疗" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems, "装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem, "绑定装备" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells, "技能" },
