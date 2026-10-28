@@ -35,6 +35,7 @@ namespace FACM.League
         private readonly Func<string, string> _t;
         private readonly Panel _canvas;
         private readonly TextBox _details;
+        private readonly ToolTip _hoverTip = new ToolTip();
         private LeagueMatchRadarProfile _profile;
 
         internal LeagueMatchRadarPanel(IEnumerable<LeaguePlayerMatchParticipant> players,
@@ -52,6 +53,12 @@ namespace FACM.League
             _canvas = new Panel { Dock = DockStyle.Fill, BackColor = FacmDesignSystem.CanvasRaised,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTitle) };
             _canvas.Paint += (sender, e) => PaintRadar(e.Graphics, _canvas.ClientRectangle, _profile, _t);
+            _canvas.MouseMove += (sender, e) => {
+                var tip = HitTest(_canvas.ClientRectangle, _profile, e.Location, _t);
+                if (_hoverTip.GetToolTip(_canvas) != tip)
+                    _hoverTip.SetToolTip(_canvas, tip ?? string.Empty);
+            };
+            _canvas.MouseLeave += (sender, e) => _hoverTip.SetToolTip(_canvas, string.Empty);
             _details = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical, TabStop = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
@@ -65,8 +72,15 @@ namespace FACM.League
         internal void UpdateSelection(LeaguePlayerMatchParticipant player)
         {
             _profile = Project(_players, _teams, _cherry, player);
+            _hoverTip.SetToolTip(_canvas, string.Empty);
             _details.Text = FormatDetails(_profile, _t);
             _canvas.Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _hoverTip.Dispose();
+            base.Dispose(disposing);
         }
 
         internal static LeagueMatchRadarProfile Project(IEnumerable<LeaguePlayerMatchParticipant> participants,
@@ -154,16 +168,11 @@ namespace FACM.League
         internal static void PaintRadar(Graphics graphics, Rectangle bounds, LeagueMatchRadarProfile profile,
             Func<string, string> t)
         {
-            if (profile == null || bounds.Width < 145 || bounds.Height < 135) return;
-            var radius = Math.Min((bounds.Width - 105) / 2f, (bounds.Height - 88) / 2f);
-            if (radius < 20) return;
+            PointF center;
+            float radius;
+            if (profile == null || !TryGeometry(bounds, out center, out radius)) return;
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            var center = new PointF(bounds.Left + bounds.Width / 2f, bounds.Top + bounds.Height / 2f + 9);
-            Func<int, float, PointF> point = (axis, ratio) => {
-                var angle = axis * 2 * Math.PI / AxisKeys.Length;
-                return new PointF(center.X + (float)Math.Sin(angle) * radius * ratio,
-                    center.Y - (float)Math.Cos(angle) * radius * ratio);
-            };
+            Func<int, float, PointF> point = (axis, ratio) => RadarPoint(center, radius, axis, ratio);
             using (var grid = new Pen(Color.FromArgb(140, FacmDesignSystem.Text), 1))
             {
                 for (var ring = 1; ring <= 4; ring++)
@@ -180,6 +189,54 @@ namespace FACM.League
             }
             PaintSeries(graphics, point, profile.TeamAverageRatio, Color.FromArgb(113, 128, 150));
             PaintSeries(graphics, point, profile.PlayerRatio, Color.FromArgb(220, 38, 38));
+        }
+
+        internal static string HitTest(Rectangle bounds, LeagueMatchRadarProfile profile, Point cursor,
+            Func<string, string> t)
+        {
+            PointF center;
+            float radius;
+            if (profile == null || !TryGeometry(bounds, out center, out radius)) return null;
+            var closest = 12f * 12f;
+            string tooltip = null;
+            for (var series = 0; series < 2; series++)
+            {
+                var ratios = series == 0 ? profile.TeamAverageRatio : profile.PlayerRatio;
+                if (ratios == null || ratios.Length != AxisKeys.Length) continue;
+                for (var axis = 0; axis < AxisKeys.Length; axis++)
+                {
+                    var value = ratios[axis];
+                    if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value)) continue;
+                    var p = RadarPoint(center, radius, axis, (float)Math.Max(0, Math.Min(1, value.Value)));
+                    var distance = (p.X - cursor.X) * (p.X - cursor.X) +
+                        (p.Y - cursor.Y) * (p.Y - cursor.Y);
+                    if (distance > closest) continue;
+                    closest = distance;
+                    var key = series == 0 ? LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTeamTip :
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterRadarPlayerTip;
+                    tooltip = t(key).Replace("{0}", t(AxisKeys[axis]))
+                        .Replace("{1}", FormatMetric(value, "0.0%"));
+                }
+            }
+            return tooltip;
+        }
+
+        private static bool TryGeometry(Rectangle bounds, out PointF center, out float radius)
+        {
+            center = PointF.Empty;
+            radius = 0;
+            if (bounds.Width < 145 || bounds.Height < 135) return false;
+            radius = Math.Min((bounds.Width - 105) / 2f, (bounds.Height - 88) / 2f);
+            if (radius < 20) return false;
+            center = new PointF(bounds.Left + bounds.Width / 2f, bounds.Top + bounds.Height / 2f + 9);
+            return true;
+        }
+
+        private static PointF RadarPoint(PointF center, float radius, int axis, float ratio)
+        {
+            var angle = axis * 2 * Math.PI / AxisKeys.Length;
+            return new PointF(center.X + (float)Math.Sin(angle) * radius * ratio,
+                center.Y - (float)Math.Cos(angle) * radius * ratio);
         }
 
         private static void PaintSeries(Graphics graphics, Func<int, float, PointF> point,

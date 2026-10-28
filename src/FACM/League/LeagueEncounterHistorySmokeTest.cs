@@ -288,11 +288,26 @@ namespace FACM.League
             using (var radarBitmap = new Bitmap(420, 300))
             using (var radarGraphics = Graphics.FromImage(radarBitmap))
                 LeagueMatchRadarPanel.PaintRadar(radarGraphics, new Rectangle(0, 0, 420, 300), radar, t);
+            var radarBounds = new Rectangle(0, 0, 420, 300);
+            Require(LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(210, 133), t) ==
+                    "输出 · 玩家：25.0%" &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(210, 106), t) ==
+                    "输出 · 同队平均：50.0%" &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(5, 5), t) == null &&
+                LeagueMatchRadarPanel.HitTest(new Rectangle(0, 0, 120, 80), radar,
+                    new Point(60, 40), t) == null &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, null, new Point(210, 133), t) == null,
+                "Radar hover must report the pinned one-decimal normalized series, not empty chart space.");
             radarAlly.TotalHeal = null;
             radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, false, radarSelf);
             Require(radar.PlayerRatio[6] == 0.5 && !radar.TeamAverageRatio[6].HasValue &&
                 LeagueMatchRadarPanel.FormatDetails(radar, t).Contains("治疗：80（50.0%） / —（—）"),
                 "Incomplete team healing must not be plotted as a known zero or misleading team mean.");
+            var healPoint = new Point(210 + (int)Math.Round(Math.Sin(6 * 2 * Math.PI / 7) * 53),
+                159 - (int)Math.Round(Math.Cos(6 * 2 * Math.PI / 7) * 53));
+            Require(LeagueMatchRadarPanel.HitTest(radarBounds, radar, healPoint, t) ==
+                    "治疗 · 玩家：50.0%",
+                "Absent teammate healing must never generate a hover tooltip for the team series.");
             radarSelf.PlayerSubteamId = 2;
             radarAlly.PlayerSubteamId = 1;
             radarEnemy.PlayerSubteamId = 3;

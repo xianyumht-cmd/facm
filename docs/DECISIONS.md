@@ -1,5 +1,9 @@
 # GGman / FACM Decisions
 
+## 2026-10-28 — Keep radar hover in the native on-demand canvas
+
+The pinned Akari 1.5.1 Chart.js radar uses one-decimal percentage tooltips for both the player and matching team-average datasets. GGman continues to use its existing GDI match-detail canvas, with shared paint/hit geometry and one owned WinForms tooltip; it does not add a chart package, overlay window or timer. Missing series points are not hover targets, and selection changes clear old tips. Final source/CI and Tencent/Win10 DPI acceptance remain separate gates for Draft #357.
+
 ## 2026-10-28 — Compare seven MatchCard radar axes from one verified detail snapshot
 
 Follow pinned Akari `RadarChart.vue` for the seven selected-player versus group-average dimensions, using the full match's measured maxima rather than an independent relative scale per team. Put a GDI canvas and accessible text values inside the existing match-detail tab strip instead of adding a graphics runtime or opening a modal. Include the source's `totalHeal` field in the detail-only projection, retain Cherry subteam identity, and require all known teammate values before displaying a team average for each dimension. Missing data should result in absent chart vertices, not zero-valued performance. Bound all work to the existing at-most-twenty match participants and keep Draft #357 pending consolidated Tencent/Win10 DPI acceptance.

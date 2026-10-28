@@ -284,6 +284,8 @@ namespace FACM.League
         public const string DynamicEncounterRadarTitle = "LeagueEfficiencyDynamicEncounterRadarTitle";
         public const string DynamicEncounterRadarHint = "LeagueEfficiencyDynamicEncounterRadarHint";
         public const string DynamicEncounterRadarLegend = "LeagueEfficiencyDynamicEncounterRadarLegend";
+        public const string DynamicEncounterRadarPlayerTip = "LeagueEfficiencyDynamicEncounterRadarPlayerTip";
+        public const string DynamicEncounterRadarTeamTip = "LeagueEfficiencyDynamicEncounterRadarTeamTip";
         public const string DynamicEncounterRadarDamage = "LeagueEfficiencyDynamicEncounterRadarDamage";
         public const string DynamicEncounterRadarTaken = "LeagueEfficiencyDynamicEncounterRadarTaken";
         public const string DynamicEncounterRadarGold = "LeagueEfficiencyDynamicEncounterRadarGold";
@@ -655,6 +657,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTitle, "表现雷达" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHint, "选择一名玩家，查看七项表现及同队平均。" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarLegend, "玩家（红） / 同队平均（灰）\r\n括号内为相对本场最高值的比例；— 表示缺少证据。" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarPlayerTip, "{0} · 玩家：{1}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTeamTip, "{0} · 同队平均：{1}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarDamage, "输出" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTaken, "承伤" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterRadarGold, "金币" },
