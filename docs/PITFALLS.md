@@ -1,3 +1,7 @@
+## Measure native popup text with its actual rendering font (2026-10-29)
+
+A WinForms `ContextMenuStrip` can use a different default font from its owner control. Measuring overflow captions against the owner font while rendering menu items with the default menu font invalidates width caps, especially after font changes. Set the popup's font explicitly from the owner during rebuild and assert the displayed caption width with the popup font in synthetic smoke. Executable `4285252` passed all four Windows workflows; actual Win10 DPI rendering remains for consolidated acceptance.
+
 ## Theme refresh can erase semantic MatchCard button contrast (2026-10-29)
 
 `FacmThemeRuntime.ApplyControl` reapplies generic `Button` foreground and hover colors when a theme changes. A semantic tag implemented as a flat WinForms button can therefore lose its white text or show a light hover background with unreadable white text, even if its initial source color is correct. `LeagueMatchTagStrip` now reapplies source light/dark chip and hidden-menu colors after `ThemeChanged`, retains the category color on hover, and restores keyboard-focus borders; its event subscription is released on disposal. Include representative source palette and live-control hover-color assertions in synthetic smoke, and reserve physical DPI/focus-appearance checks for the consolidated Windows test. The initial `39a461b` candidate also failed CS0103 due to a missing `FACM.Theming` import in the new smoke test; final `6100aff` fixed that and passed all four Windows workflows.
