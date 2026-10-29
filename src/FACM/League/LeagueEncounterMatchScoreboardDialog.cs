@@ -50,7 +50,7 @@ namespace FACM.League
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, isCherry ? 164 : 106));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
-            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 125));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
 
             var match = detail.Match;
@@ -122,11 +122,14 @@ namespace FACM.League
             damageStrip.Controls.Add(outgoingBar, 0, 0);
             damageStrip.Controls.Add(incomingBar, 1, 0);
             var selectionLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
-                ColumnCount = 1, RowCount = 2, Margin = Padding.Empty };
+                ColumnCount = 1, RowCount = 3, Margin = Padding.Empty };
             selectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             selectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var tagStrip = new LeagueMatchTagStrip(t);
             selectionLayout.Controls.Add(damageStrip, 0, 0);
-            selectionLayout.Controls.Add(selectedDetails, 0, 1);
+            selectionLayout.Controls.Add(tagStrip, 0, 1);
+            selectionLayout.Controls.Add(selectedDetails, 0, 2);
             var maxOutgoing = detail.Participants.Where(p => p != null && p.DamageAvailable &&
                 p.DamageToChampions >= 0).Select(p => (int?)p.DamageToChampions).DefaultIfEmpty().Max();
             var maxIncoming = detail.Participants.Where(p => p != null && p.TotalDamageTaken.HasValue &&
@@ -159,6 +162,7 @@ namespace FACM.League
                 ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t);
                 if (player == null)
                 {
+                    tagStrip.SetTags(null);
                     selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
                     runeDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
                     return;
@@ -168,9 +172,11 @@ namespace FACM.League
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
                     catalog == null ? null : catalog.PerkStyles);
+                var orderedTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
+                    match.MapId, match.GameDurationSeconds);
+                tagStrip.SetTags(orderedTags.Select(tag => tag.Value));
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
-                    match.GameDurationSeconds, t) + "\r\n" + FormatCombinedMatchTags(player, detail.Participants, isCherry, t,
-                        match.MapId, match.GameDurationSeconds) +
+                    match.GameDurationSeconds, t) + "\r\n" +
                     FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
@@ -480,14 +486,22 @@ namespace FACM.League
             IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
             int mapId = 0, int gameDurationSeconds = 0)
         {
+            var tags = BuildCombinedMatchTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static List<KeyValuePair<long, string>> BuildCombinedMatchTagEntries(
+            LeaguePlayerMatchParticipant player, IEnumerable<LeaguePlayerMatchParticipant> participants,
+            bool cherry, Func<string, string> t, int mapId = 0, int gameDurationSeconds = 0)
+        {
             var tags = BuildMultikillTagEntries(player, t);
             tags.AddRange(BuildMatchPerformanceTagEntries(player, participants, cherry, t,
                 mapId, gameDurationSeconds).Select(tag =>
                     new KeyValuePair<long, string>(tag.Key, tag.Value)));
-            return tags.Count == 0 ? string.Empty :
-                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
-                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
-                        .Select(tag => tag.Value))) + "\r\n";
+            return tags.OrderByDescending(tag => tag.Key).ToList();
         }
 
         private static List<KeyValuePair<int, string>> BuildMatchPerformanceTagEntries(

@@ -536,6 +536,26 @@ namespace FACM.League
             leader.DoubleKills = null;
             leader.KillsNearEnemyTurret = null;
             leader.MaxCsAdvantageOnLaneOpponent = null;
+            var visualTags = LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                leader, leaderboard, false, t);
+            Require(visualTags.Select(tag => tag.Value).SequenceEqual(
+                    visualTags.OrderByDescending(tag => tag.Key).Select(tag => tag.Value)) &&
+                LeagueMatchTagStrip.ChipLabel("全场输出第一（1,000 / 66.67%）") == "全场输出第一" &&
+                LeagueMatchTagStrip.ChipLabel("五杀") == "五杀" &&
+                LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }) == 3 &&
+                LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }) == 2 &&
+                LeagueMatchTagStrip.VisibleCount(140, new[] { 50, 50, 50 }) == 1 &&
+                LeagueMatchTagStrip.VisibleCount(0, new[] { 50, 50, 50 }) == 0 &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch), t) ==
+                    Color.FromArgb(153, 27, 27) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta), t) ==
+                    Color.FromArgb(190, 18, 60) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t) ==
+                    Color.FromArgb(4, 120, 87),
+                "Native ManyTags colors, details and reserved +N overflow must retain source order.");
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
