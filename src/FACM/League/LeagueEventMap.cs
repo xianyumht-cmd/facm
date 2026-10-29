@@ -174,6 +174,32 @@ namespace FACM.League
             }
         }
 
+        // The compact timeline keeps coordinates but not Akari's explicit MapLanePoint.lane.
+        internal static int LaneIndex(PointF normalized)
+        {
+            return LeagueJungleAnalysis.MapZone((long)(normalized.X * 14820),
+                (long)((1f - normalized.Y) * 14881));
+        }
+
+        internal static Color LaneMarkerColor(int lane, bool kill, bool dark)
+        {
+            if (lane == 0) return Color.FromArgb(kill ? 255 : dark ? 140 : 166,
+                dark ? 248 : 220, dark ? 113 : 38, dark ? 113 : 38);
+            if (lane == 1) return Color.FromArgb(kill ? 255 : dark ? 140 : 179,
+                dark ? 250 : 245, dark ? 204 : 158, dark ? 21 : 11);
+            return Color.FromArgb(kill ? 255 : dark ? 140 : 166,
+                dark ? 96 : 37, dark ? 165 : 99, dark ? 250 : 235);
+        }
+
+        internal static void DrawLaneKillMarker(Graphics graphics, PointF center, float radius, Pen pen)
+        {
+            if (graphics == null || pen == null || radius <= 0) return;
+            graphics.DrawLine(pen, center.X - radius, center.Y - radius,
+                center.X + radius, center.Y + radius);
+            graphics.DrawLine(pen, center.X - radius, center.Y + radius,
+                center.X + radius, center.Y - radius);
+        }
+
         private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)
         {
             return (positions ?? Enumerable.Empty<PointF>()).Take(limit).Select(p => Normalize(p.X, p.Y, _mapId))
@@ -257,19 +283,28 @@ namespace FACM.League
             }
             if (_pointCloudMode)
             {
-                using (var minuteBrush = new SolidBrush(Color.FromArgb(130, 147, 197, 253)))
-                using (var gankBrush = new SolidBrush(Color.FromArgb(180, 251, 146, 60)))
+                var dark = !FacmThemeRuntime.Current.IsLight;
+                using (var topBrush = new SolidBrush(LaneMarkerColor(0, false, dark)))
+                using (var midBrush = new SolidBrush(LaneMarkerColor(1, false, dark)))
+                using (var botBrush = new SolidBrush(LaneMarkerColor(2, false, dark)))
+                using (var topKill = new Pen(LaneMarkerColor(0, true, dark), Math.Max(2f, e.Graphics.DpiX / 48f)))
+                using (var midKill = new Pen(LaneMarkerColor(1, true, dark), Math.Max(2f, e.Graphics.DpiX / 48f)))
+                using (var botKill = new Pen(LaneMarkerColor(2, true, dark), Math.Max(2f, e.Graphics.DpiX / 48f)))
                 using (var level3Pen = new Pen(Color.FromArgb(235, 74, 222, 128), Math.Max(2f, e.Graphics.DpiX / 48f)))
                 using (var level4Pen = new Pen(Color.FromArgb(235, 232, 121, 249), Math.Max(2f, e.Graphics.DpiX / 48f)))
                 {
                     var minuteRadius = Math.Max(2f, e.Graphics.DpiX / 48f);
-                    var gankRadius = Math.Max(3f, e.Graphics.DpiX / 32f);
+                    var gankRadius = Math.Max(4f, e.Graphics.DpiX / 16f);
+                    var minuteBrushes = new Brush[] { topBrush, midBrush, botBrush };
+                    var killPens = new[] { topKill, midKill, botKill };
                     foreach (var p in _minutePositions)
-                        e.Graphics.FillEllipse(minuteBrush, bounds.Left + p.X * bounds.Width - minuteRadius,
+                        e.Graphics.FillEllipse(minuteBrushes[LaneIndex(p)],
+                            bounds.Left + p.X * bounds.Width - minuteRadius,
                             bounds.Top + p.Y * bounds.Height - minuteRadius, 2 * minuteRadius, 2 * minuteRadius);
                     foreach (var p in _gankPositions)
-                        e.Graphics.FillEllipse(gankBrush, bounds.Left + p.X * bounds.Width - gankRadius,
-                            bounds.Top + p.Y * bounds.Height - gankRadius, 2 * gankRadius, 2 * gankRadius);
+                        DrawLaneKillMarker(e.Graphics,
+                            new PointF(bounds.Left + p.X * bounds.Width, bounds.Top + p.Y * bounds.Height),
+                            gankRadius, killPens[LaneIndex(p)]);
                     var level3Radius = Math.Max(4f, e.Graphics.DpiX / 24f);
                     var level4Radius = Math.Max(6f, e.Graphics.DpiX / 18f);
                     foreach (var p in _level3Positions)

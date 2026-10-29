@@ -44,6 +44,37 @@ namespace FACM.League
                 using (var empty = Graphics.FromImage(untouched))
                     LeagueEventMap.DrawJungleSideOverlay(empty, Rectangle.Empty);
             }
+            var topLane = LeagueEventMap.Normalize(1000, 12000, 11).Value;
+            var midLane = LeagueEventMap.Normalize(7410, 7440, 11).Value;
+            var botLane = LeagueEventMap.Normalize(11000, 1000, 11).Value;
+            Require(LeagueEventMap.LaneIndex(topLane) == 0 &&
+                LeagueEventMap.LaneIndex(midLane) == 1 && LeagueEventMap.LaneIndex(botLane) == 2,
+                "Jungle scatter lane colors must use the same map-zone projection as heatmap aggregation.");
+            var topColor = LeagueEventMap.LaneMarkerColor(0, true, false);
+            var midColor = LeagueEventMap.LaneMarkerColor(1, true, false);
+            var botColor = LeagueEventMap.LaneMarkerColor(2, true, false);
+            Require(topColor.R > topColor.G && midColor.R > midColor.B &&
+                midColor.G > midColor.B && botColor.B > botColor.R &&
+                LeagueEventMap.LaneMarkerColor(0, false, false).A < topColor.A &&
+                LeagueEventMap.LaneMarkerColor(1, false, true).A <
+                    LeagueEventMap.LaneMarkerColor(1, true, true).A,
+                "Pinned lane marker colors must distinguish top/mid/bot and translucent dots from kills.");
+            using (var marks = new Bitmap(90, 30))
+            using (var g = Graphics.FromImage(marks))
+            using (var topPen = new Pen(topColor, 2f))
+            using (var midPen = new Pen(midColor, 2f))
+            using (var botPen = new Pen(botColor, 2f))
+            {
+                g.Clear(Color.White);
+                LeagueEventMap.DrawLaneKillMarker(g, new PointF(15, 15), 6f, topPen);
+                LeagueEventMap.DrawLaneKillMarker(g, new PointF(45, 15), 6f, midPen);
+                LeagueEventMap.DrawLaneKillMarker(g, new PointF(75, 15), 6f, botPen);
+                Require(marks.GetPixel(15, 15).ToArgb() == topColor.ToArgb() &&
+                    marks.GetPixel(45, 15).ToArgb() == midColor.ToArgb() &&
+                    marks.GetPixel(75, 15).ToArgb() == botColor.ToArgb() &&
+                    marks.GetPixel(15, 9).ToArgb() == Color.White.ToArgb(),
+                    "Confirmed gank markers must draw lane-colored diagonal X strokes, not solid dots.");
+            }
             var weighted = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(7410, 7440), new PointF(7410, 7440) },
                 new[] { new PointF(7410, 7440) }, 11);
