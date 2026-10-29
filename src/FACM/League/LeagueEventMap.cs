@@ -144,11 +144,11 @@ namespace FACM.League
             Action<IEnumerable<PointF>, IEnumerable<int>, int, int> add = (points, lanes, limit, weight) =>
             {
                 var labels = (lanes ?? Enumerable.Empty<int>()).Take(limit).ToArray();
-                var index = 0;
+                var sourceIndex = 0;
                 foreach (var raw in (points ?? Enumerable.Empty<PointF>()).Take(limit))
                 {
-                    var explicitLane = index < labels.Length ? labels[index] : -1;
-                    index++;
+                    var explicitLane = sourceIndex < labels.Length ? labels[sourceIndex] : -1;
+                    sourceIndex++;
                     var normalized = Normalize(raw.X, raw.Y, mapId);
                     if (!normalized.HasValue) continue;
                     var point = normalized.Value;
