@@ -38,8 +38,8 @@ namespace FACM.League
         internal static string ChipLabel(string fullText)
         {
             if (string.IsNullOrWhiteSpace(fullText)) return string.Empty;
-            var detailStart = fullText.IndexOf('（');
-            return detailStart < 0 ? fullText : fullText.Substring(0, detailStart);
+            var detailStart = fullText.IndexOfAny(new[] { '（', '(' });
+            return detailStart < 0 ? fullText.TrimEnd() : fullText.Substring(0, detailStart).TrimEnd();
         }
 
         internal static int VisibleCount(int width, IList<int> chipWidths, int overflowWidth = 44)
@@ -173,7 +173,7 @@ namespace FACM.League
                 var chip = new Button {
                     Text = label, TextAlign = ContentAlignment.MiddleCenter,
                     Bounds = new Rectangle(left, Math.Max(0, (ClientSize.Height - ChipHeight) / 2), widths[i], ChipHeight),
-                    FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
+                    FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false, AutoEllipsis = true,
                     BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
                     ForeColor = Color.White, Tag = label,
                     AccessibleName = label, AccessibleDescription = fullText,
@@ -207,6 +207,7 @@ namespace FACM.League
                 Text = overflowTemplate.Replace("{0}", Math.Min(hidden.Count, 99).ToString()),
                 Width = OverflowButtonWidth(ClientSize.Width - left - 3, overflowWidth), Height = ChipHeight,
                 Location = new Point(left, Math.Max(0, (ClientSize.Height - ChipHeight) / 2)), FlatStyle = FlatStyle.Flat,
+                AutoEllipsis = true,
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore)
                     .Replace("{0}", hidden.Count.ToString()),

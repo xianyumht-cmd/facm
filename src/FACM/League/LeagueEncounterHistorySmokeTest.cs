@@ -544,6 +544,7 @@ namespace FACM.League
                     visualTags.OrderByDescending(tag => tag.Key).Select(tag => tag.Value)) &&
                 LeagueMatchTagStrip.ChipLabel("全场输出第一（1,000 / 66.67%）") == "全场输出第一" &&
                 LeagueMatchTagStrip.ChipLabel("五杀") == "五杀" &&
+                LeagueMatchTagStrip.ChipLabel("Damage leader (1,000 / 66.67%)") == "Damage leader" &&
                 LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }) == 3 &&
                 LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }) == 2 &&
                 LeagueMatchTagStrip.VisibleCount(140, new[] { 50, 50, 50 }) == 1 &&
@@ -589,7 +590,8 @@ namespace FACM.League
                         chip.FlatAppearance.MouseDownBackColor == chip.BackColor &&
                         chip.BackColor == LeagueMatchTagStrip.TagColor(
                             chip.Text, t, !FacmThemeRuntime.Current.IsLight)) &&
-                    !tagStrip.Controls.OfType<Label>().Any(),
+                    !tagStrip.Controls.OfType<Label>().Any() &&
+                    focusableChips.All(chip => chip.AutoEllipsis),
                     "Visible MatchCard chips must expose their full metric detail in keyboard tab order.");
                 tagStrip.Width = 100;
                 var compactChips = tagStrip.Controls.OfType<Button>().ToArray();
@@ -601,6 +603,14 @@ namespace FACM.League
                     !compactChips[0].Region.IsVisible(0, 0) &&
                     compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
                     "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
+                var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
+                tagStrip.Width = 900;
+                tagStrip.SetTags(new[] { longMetric });
+                var truncatedChip = tagStrip.Controls.OfType<Button>().Single();
+                Require(truncatedChip.Width == 320 && truncatedChip.AutoEllipsis &&
+                    truncatedChip.Text == LeagueMatchTagStrip.ChipLabel(longMetric) &&
+                    truncatedChip.AccessibleDescription == longMetric,
+                    "Long localized MatchCard labels must elide visually without losing full accessible metric details.");
             }
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
