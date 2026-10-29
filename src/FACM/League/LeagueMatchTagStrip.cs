@@ -227,12 +227,16 @@ namespace FACM.League
             foreach (var fullText in hidden)
             {
                 var label = ChipLabel(fullText);
-                _overflow.Items.Add(new ToolStripMenuItem(label) {
+                var item = new ToolStripMenuItem(label) {
                     BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
                     ForeColor = Color.White, Tag = label,
-                    ToolTipText = fullText, AutoToolTip = true
-                });
+                    ToolTipText = fullText, AutoToolTip = true,
+                    AccessibleName = label, AccessibleDescription = fullText
+                };
+                item.Click += (sender, e) => _tooltip.Show(fullText, overflowButton, 0, overflowButton.Height, 5000);
+                _overflow.Items.Add(item);
             }
+            overflowButton.ContextMenuStrip = _overflow;
             overflowButton.Click += (sender, e) => _overflow.Show(overflowButton, new Point(0, overflowButton.Height));
             RestoreFocusedChip(focusedIndex);
         }

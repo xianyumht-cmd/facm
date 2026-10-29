@@ -603,6 +603,13 @@ namespace FACM.League
                     !compactChips[0].Region.IsVisible(0, 0) &&
                     compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
                     "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
+                var hiddenItems = compactChips[0].ContextMenuStrip?.Items.OfType<ToolStripMenuItem>().ToArray();
+                Require(hiddenItems != null && hiddenItems.Length == tagDetails.Length &&
+                    hiddenItems.Select(item => item.AccessibleDescription).SequenceEqual(tagDetails) &&
+                    hiddenItems.All(item => item.AutoToolTip && item.ToolTipText == item.AccessibleDescription &&
+                        item.AccessibleName == LeagueMatchTagStrip.ChipLabel(item.AccessibleDescription) &&
+                        item.ForeColor == Color.White),
+                    "Hidden MatchCard tags must retain selectable full metric details, not just shortened labels.");
                 var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
                 tagStrip.Width = 900;
                 tagStrip.SetTags(new[] { longMetric });
