@@ -154,6 +154,26 @@ namespace FACM.League
                 }).ToArray();
         }
 
+        // Pinned GankMap.vue shows a blue/red diagonal Rift overlay on jungle spatial maps.
+        internal static void DrawJungleSideOverlay(Graphics graphics, Rectangle bounds)
+        {
+            if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0) return;
+            var topLeft = new PointF(bounds.Left, bounds.Top);
+            var bottomRight = new PointF(bounds.Right, bounds.Bottom);
+            using (var blue = new SolidBrush(Color.FromArgb(20, 60, 140, 255)))
+            using (var red = new SolidBrush(Color.FromArgb(20, 255, 60, 60)))
+            using (var diagonal = new Pen(Color.FromArgb(89, 255, 255, 255),
+                Math.Max(0.8f, bounds.Width * 0.008f)))
+            {
+                graphics.FillPolygon(blue, new[] { topLeft, bottomRight,
+                    new PointF(bounds.Left, bounds.Bottom) });
+                graphics.FillPolygon(red, new[] { topLeft, bottomRight,
+                    new PointF(bounds.Right, bounds.Top) });
+                diagonal.DashPattern = new[] { 5f, 3.75f };
+                graphics.DrawLine(diagonal, topLeft, bottomRight);
+            }
+        }
+
         private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)
         {
             return (positions ?? Enumerable.Empty<PointF>()).Take(limit).Select(p => Normalize(p.X, p.Y, _mapId))
@@ -212,6 +232,8 @@ namespace FACM.League
             }
             var bounds = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
             e.Graphics.DrawImage(_map, bounds);
+            if (_pointCloudMode && _mapId == 11)
+                DrawJungleSideOverlay(e.Graphics, bounds);
             if (_pointCloudMode && _heatmapMode)
             {
                 var laneColors = new[] { Color.FromArgb(220, 38, 38), Color.FromArgb(245, 158, 11),

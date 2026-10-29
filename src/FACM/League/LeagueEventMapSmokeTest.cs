@@ -29,6 +29,21 @@ namespace FACM.League
                 LeagueEventMap.Normalize(7500, 7500, 13) == null &&
                 LeagueEventMap.Position(parsed, 99) == null,
                 "Absent, nonfinite and unsupported event positions must never become a fabricated marker.");
+            using (var overlay = new Bitmap(100, 100))
+            using (var graphics = Graphics.FromImage(overlay))
+            {
+                graphics.Clear(Color.FromArgb(90, 90, 90));
+                LeagueEventMap.DrawJungleSideOverlay(graphics, new Rectangle(0, 0, 100, 100));
+                var blueSide = overlay.GetPixel(15, 80);
+                var redSide = overlay.GetPixel(80, 15);
+                Require(blueSide.B > blueSide.R && blueSide.B > blueSide.G &&
+                    redSide.R > redSide.G && redSide.R > redSide.B,
+                    "Jungle spatial maps must preserve Akari's blue lower-left and red upper-right side fills.");
+                var untouched = new Bitmap(1, 1);
+                using (untouched)
+                using (var empty = Graphics.FromImage(untouched))
+                    LeagueEventMap.DrawJungleSideOverlay(empty, Rectangle.Empty);
+            }
             var weighted = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(7410, 7440), new PointF(7410, 7440) },
                 new[] { new PointF(7410, 7440) }, 11);
