@@ -22,6 +22,7 @@ namespace FACM.League
             BackColor = FacmDesignSystem.CanvasRaised;
             AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip);
             TabStop = false;
+            FacmThemeRuntime.ThemeChanged += OnThemeChanged;
         }
 
         internal void SetTags(IEnumerable<string> tags)
@@ -63,53 +64,67 @@ namespace FACM.League
 
         internal static Color TagColor(string label, Func<string, string> t)
         {
+            return TagColor(label, t, false);
+        }
+
+        internal static Color TagColor(string label, Func<string, string> t, bool dark)
+        {
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillDouble))
-                return Color.FromArgb(190, 18, 60);
+                return dark ? Color.FromArgb(159,18,57) : Color.FromArgb(190,18,60);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch))
-                return Color.FromArgb(153, 27, 27);
+                return dark ? Color.FromArgb(153,27,27) : Color.FromArgb(153,27,27);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageTeam))
-                return Color.FromArgb(185, 28, 28);
+                return dark ? Color.FromArgb(185,28,28) : Color.FromArgb(185,28,28);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch))
-                return Color.FromArgb(77, 124, 15);
+                return dark ? Color.FromArgb(63,98,18) : Color.FromArgb(77,124,15);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyTeam))
-                return Color.FromArgb(101, 163, 13);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam))
-                return Color.FromArgb(4, 120, 87);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam))
-                return Color.FromArgb(51, 65, 85);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam))
-                return Color.FromArgb(3, 105, 161);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam))
-                return Color.FromArgb(162, 28, 175);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam))
-                return Color.FromArgb(109, 40, 217);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam))
-                return Color.FromArgb(14, 116, 144);
+                return dark ? Color.FromArgb(77,124,15) : Color.FromArgb(101,163,13);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch))
+                return dark ? Color.FromArgb(6,95,70) : Color.FromArgb(4,120,87);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam))
+                return dark ? Color.FromArgb(4,120,87) : Color.FromArgb(5,150,105);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch))
+                return dark ? Color.FromArgb(51,65,85) : Color.FromArgb(51,65,85);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam))
+                return dark ? Color.FromArgb(71,85,105) : Color.FromArgb(71,85,105);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch))
+                return dark ? Color.FromArgb(7,89,133) : Color.FromArgb(3,105,161);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam))
+                return dark ? Color.FromArgb(3,105,161) : Color.FromArgb(2,132,199);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch))
+                return dark ? Color.FromArgb(134,25,143) : Color.FromArgb(162,28,175);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam))
+                return dark ? Color.FromArgb(162,28,175) : Color.FromArgb(192,38,211);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch))
+                return dark ? Color.FromArgb(91,33,182) : Color.FromArgb(109,40,217);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam))
+                return dark ? Color.FromArgb(109,40,217) : Color.FromArgb(124,58,237);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch))
+                return dark ? Color.FromArgb(21,94,117) : Color.FromArgb(14,116,144);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam))
+                return dark ? Color.FromArgb(14,116,144) : Color.FromArgb(8,145,178);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo))
-                return Color.FromArgb(67, 56, 202);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam,
+                return dark ? Color.FromArgb(55,48,163) : Color.FromArgb(67,56,202);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch))
+                return dark ? Color.FromArgb(146,64,14) : Color.FromArgb(180,83,9);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCsAdvantage))
-                return Color.FromArgb(180, 83, 9);
-            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam,
-                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder))
-                return Color.FromArgb(68, 64, 60);
+                return dark ? Color.FromArgb(180,83,9) : Color.FromArgb(217,119,6);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch))
+                return dark ? Color.FromArgb(87,83,78) : Color.FromArgb(68,64,60);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam))
+                return dark ? Color.FromArgb(120,113,108) : Color.FromArgb(87,83,78);
+            if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder))
+                return dark ? Color.FromArgb(87,83,78) : Color.FromArgb(120,113,108);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerDive))
-                return Color.FromArgb(225, 29, 72);
+                return dark ? Color.FromArgb(190,18,60) : Color.FromArgb(225,29,72);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs))
-                return Color.FromArgb(194, 65, 12);
+                return dark ? Color.FromArgb(154,52,18) : Color.FromArgb(194,65,12);
             if (Matches(label, t, LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp))
-                return Color.FromArgb(126, 34, 206);
+                return dark ? Color.FromArgb(107,33,168) : Color.FromArgb(126,34,206);
             return Color.FromArgb(71, 85, 105);
         }
 
@@ -157,13 +172,21 @@ namespace FACM.League
                     Text = label, TextAlign = ContentAlignment.MiddleCenter,
                     Bounds = new Rectangle(left, 3, widths[i], 23),
                     FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
-                    BackColor = TagColor(label, _text), ForeColor = Color.White,
+                    BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
+                    ForeColor = Color.White, Tag = label,
                     AccessibleName = label, AccessibleDescription = fullText,
                     TabStop = true, TabIndex = i, Cursor = Cursors.Help
                 };
                 chip.FlatAppearance.BorderSize = 0;
-                chip.Enter += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
-                chip.Leave += (sender, e) => _tooltip.Hide(chip);
+                chip.Enter += (sender, e) => {
+                    chip.FlatAppearance.BorderColor = Color.White;
+                    chip.FlatAppearance.BorderSize = 1;
+                    _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
+                };
+                chip.Leave += (sender, e) => {
+                    chip.FlatAppearance.BorderSize = 0;
+                    _tooltip.Hide(chip);
+                };
                 chip.Click += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
                 Controls.Add(chip);
                 _tooltip.SetToolTip(chip, fullText);
@@ -186,6 +209,11 @@ namespace FACM.League
                 TabStop = true, TabIndex = visible, Cursor = Cursors.Hand
             };
             overflowButton.FlatAppearance.BorderSize = 0;
+            overflowButton.Enter += (sender, e) => {
+                overflowButton.FlatAppearance.BorderColor = FacmDesignSystem.Accent;
+                overflowButton.FlatAppearance.BorderSize = 1;
+            };
+            overflowButton.Leave += (sender, e) => overflowButton.FlatAppearance.BorderSize = 0;
             Controls.Add(overflowButton);
             _tooltip.SetToolTip(overflowButton, string.Join("\n", hidden));
             _overflow = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
@@ -193,12 +221,35 @@ namespace FACM.League
             {
                 var label = ChipLabel(fullText);
                 _overflow.Items.Add(new ToolStripMenuItem(label) {
-                    BackColor = TagColor(label, _text), ForeColor = Color.White,
+                    BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
+                    ForeColor = Color.White, Tag = label,
                     ToolTipText = fullText, AutoToolTip = true
                 });
             }
             overflowButton.Click += (sender, e) => _overflow.Show(overflowButton, new Point(0, overflowButton.Height));
             RestoreFocusedChip(focusedIndex);
+        }
+
+        private void OnThemeChanged(object sender, EventArgs e)
+        {
+            if (IsDisposed) return;
+            BackColor = FacmDesignSystem.CanvasRaised;
+            foreach (Button button in Controls.OfType<Button>())
+            {
+                var label = button.Tag as string;
+                button.BackColor = label == null ? FacmDesignSystem.Canvas :
+                    TagColor(label, _text, !FacmThemeRuntime.Current.IsLight);
+                button.ForeColor = label == null ? FacmDesignSystem.Text : Color.White;
+                button.FlatAppearance.BorderSize = button.Focused ? 1 : 0;
+                if (button.Focused)
+                    button.FlatAppearance.BorderColor = label == null ? FacmDesignSystem.Accent : Color.White;
+            }
+            if (_overflow == null) return;
+            foreach (ToolStripMenuItem item in _overflow.Items.OfType<ToolStripMenuItem>())
+            {
+                item.BackColor = TagColor(item.Tag as string, _text, !FacmThemeRuntime.Current.IsLight);
+                item.ForeColor = Color.White;
+            }
         }
 
         private void RestoreFocusedChip(int focusedIndex)
@@ -223,6 +274,7 @@ namespace FACM.League
         {
             if (disposing)
             {
+                FacmThemeRuntime.ThemeChanged -= OnThemeChanged;
                 if (_overflow != null) _overflow.Dispose();
                 _tooltip.Dispose();
             }

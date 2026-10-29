@@ -560,7 +560,16 @@ namespace FACM.League
                     Color.FromArgb(190, 18, 60) &&
                 LeagueMatchTagStrip.TagColor(
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t) ==
-                    Color.FromArgb(4, 120, 87),
+                    Color.FromArgb(5, 150, 105) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t, true) ==
+                    Color.FromArgb(4, 120, 87) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder), t, true) ==
+                    Color.FromArgb(87, 83, 78) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch), t, true) ==
+                    Color.FromArgb(63, 98, 18),
                 "Native ManyTags colors, details and reserved +N overflow must retain source order.");
             using (var tagStrip = new LeagueMatchTagStrip(t) { Size = new Size(900, 30) })
             {
@@ -570,7 +579,10 @@ namespace FACM.League
                 Require(focusableChips.Length == tagDetails.Length &&
                     focusableChips.Select(chip => chip.AccessibleDescription).SequenceEqual(tagDetails) &&
                     focusableChips.Select(chip => chip.TabIndex).SequenceEqual(new[] { 0, 1, 2 }) &&
-                    focusableChips.All(chip => chip.TabStop && chip.Width > 0) &&
+                    focusableChips.All(chip => chip.TabStop && chip.Width > 0 &&
+                        chip.ForeColor == Color.White &&
+                        chip.BackColor == LeagueMatchTagStrip.TagColor(
+                            chip.Text, t, !FacmThemeRuntime.Current.IsLight)) &&
                     !tagStrip.Controls.OfType<Label>().Any(),
                     "Visible MatchCard chips must expose their full metric detail in keyboard tab order.");
                 tagStrip.Width = 100;
