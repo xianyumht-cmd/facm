@@ -29,6 +29,9 @@ namespace FACM.League
                 result.ZoneWeights[0] == 18 && result.ZoneWeights[1] == 5 && result.ZoneWeights[2] == 6 &&
                 result.Ganks[0] == 1 && result.Ganks[1] == 1 && result.Ganks[2] == 1 &&
                 result.MinutePositions.Count == 14 && result.GankPositions.Count == 3 &&
+                result.MinuteLanes.Count == 14 && result.MinuteLanes[1] == 2 &&
+                result.GankLanes.Count == 3 && result.GankLanes[0] == 1 &&
+                result.GankLanes[1] == 2 && result.GankLanes[2] == 0 &&
                 result.Level3KillPositions.Count == 1 && result.Level4KillPositions.Count == 1 &&
                 result.Level3KillPositions[0].X == 6000 && result.Level4KillPositions[0].X == 10000 &&
                 result.OmittedGankMapPoints == 0 && result.OmittedEarlyMapPoints == 0 &&
