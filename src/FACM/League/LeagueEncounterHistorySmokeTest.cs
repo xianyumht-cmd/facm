@@ -668,6 +668,18 @@ namespace FACM.League
                         "Overflow captions must be measured and rendered using the same updated font.");
                     tagStrip.Font = originalFont;
                 }
+                tagStrip.Width = 100;
+                var manyTags = Enumerable.Range(1, 40)
+                    .Select(index => "指标" + index + "（详细统计）").ToArray();
+                tagStrip.SetTags(manyTags);
+                var manyOverflow = tagStrip.Controls.OfType<Button>().Single();
+                var manyItems = manyOverflow.ContextMenuStrip.Items.OfType<ToolStripMenuItem>().ToArray();
+                Require(manyItems.Length == manyTags.Length &&
+                    manyItems.Select(item => item.AccessibleDescription).SequenceEqual(manyTags) &&
+                    manyOverflow.AccessibleDescription == string.Join(" · ", manyTags) &&
+                    manyOverflow.Text == t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                        .Replace("{0}", manyTags.Length.ToString()),
+                    "Overflow must retain all source tags beyond 32, in order and with complete details.");
                 tagStrip.Width = 900;
                 tagStrip.SetTags(new[] { longMetric });
                 var truncatedChip = tagStrip.Controls.OfType<Button>().Single();

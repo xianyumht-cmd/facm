@@ -31,7 +31,7 @@ namespace FACM.League
         internal void SetTags(IEnumerable<string> tags)
         {
             _tags.Clear();
-            if (tags != null) _tags.AddRange(tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Take(32));
+            if (tags != null) _tags.AddRange(tags.Where(tag => !string.IsNullOrWhiteSpace(tag)));
             AccessibleDescription = string.Join(" · ", _tags);
             Rebuild(false);
         }
