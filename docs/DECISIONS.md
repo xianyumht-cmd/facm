@@ -1,3 +1,7 @@
+## 2026-10-29 — MatchCard semantic tag colors follow pinned source light/dark variants
+
+The native `LeagueMatchTagStrip` retains Akari 1.5.1 tag-category colors in both theme modes, rather than letting GGman's generic button theme override them. Preserve the original white chip foreground, category background on hover, and explicit keyboard focus border; apply new theme colors after `FacmThemeRuntime` refreshes open forms. Keep this work within the existing native strip, without a new rendering framework, timer or request. Executable `6100aff` passed four Windows workflows; live Tencent/Win10 DPI and pixel geometry remain separate acceptance gates.
+
 ## 2026-10-29 — MatchCard turret challenges require verified map and duration
 
 Preserve pinned Akari 1.5.1 `computeTowerKillTags` using SGP-only optional `killsNearEnemyTurret` / `killsUnderOwnTurret`, actual map ID and positive game duration. Map 11 uses 5/6-minute ratios; map 12 uses 1.5/1.5. Unknown map, missing duration or absent challenge counts must not generate a label, even if a zero-duration fallback would make the threshold trivially true. Reuse the existing selected-match data and native text surface; defer colored ManyTags/overflow and live Tencent/Win10 DPI acceptance. Executable `7a56cf5` passed all four Windows workflows.

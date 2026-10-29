@@ -1,3 +1,7 @@
+## Theme refresh can erase semantic MatchCard button contrast (2026-10-29)
+
+`FacmThemeRuntime.ApplyControl` reapplies generic `Button` foreground and hover colors when a theme changes. A semantic tag implemented as a flat WinForms button can therefore lose its white text or show a light hover background with unreadable white text, even if its initial source color is correct. `LeagueMatchTagStrip` now reapplies source light/dark chip and hidden-menu colors after `ThemeChanged`, retains the category color on hover, and restores keyboard-focus borders; its event subscription is released on disposal. Include representative source palette and live-control hover-color assertions in synthetic smoke, and reserve physical DPI/focus-appearance checks for the consolidated Windows test. The initial `39a461b` candidate also failed CS0103 due to a missing `FACM.Theming` import in the new smoke test; final `6100aff` fixed that and passed all four Windows workflows.
+
 # FACM Pitfalls
 
 ## Do not display cumulative kill-streak counters as independent event counts (2026-10-28)
