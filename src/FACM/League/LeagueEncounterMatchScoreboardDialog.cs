@@ -169,8 +169,7 @@ namespace FACM.League
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
                     catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
-                    match.GameDurationSeconds, t) + "\r\n" + FormatMultikillTags(player, t) +
-                    FormatMatchPerformanceTags(player, detail.Participants, isCherry, t,
+                    match.GameDurationSeconds, t) + "\r\n" + FormatCombinedMatchTags(player, detail.Participants, isCherry, t,
                         match.MapId, match.GameDurationSeconds) +
                     FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
@@ -423,7 +422,18 @@ namespace FACM.League
 
         internal static string FormatMultikillTags(LeaguePlayerMatchParticipant player, Func<string, string> t)
         {
-            if (player == null) return string.Empty;
+            var tags = BuildMultikillTagEntries(player, t);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        private static List<KeyValuePair<long, string>> BuildMultikillTagEntries(
+            LeaguePlayerMatchParticipant player, Func<string, string> t)
+        {
+            var tags = new List<KeyValuePair<long, string>>();
+            if (player == null) return tags;
             var penta = player.PentaKills;
             var quadra = player.QuadraKills.HasValue && penta.HasValue &&
                 player.QuadraKills.Value >= penta.Value
@@ -439,7 +449,6 @@ namespace FACM.League
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillDouble };
-            var tags = new List<KeyValuePair<long, string>>();
             for (var index = 0; index < counts.Length; index++)
             {
                 if (!counts[index].HasValue || counts[index].Value <= 0) continue;
@@ -452,23 +461,70 @@ namespace FACM.League
                     index == 2 ? 300L + counts[index].Value * 15L : 100L + counts[index].Value * 10L;
                 tags.Add(new KeyValuePair<long, string>(priority, label));
             }
-            return tags.Count == 0 ? string.Empty :
-                t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle)
-                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
-                        .Select(tag => tag.Value))) + "\r\n";
+            return tags;
         }
 
         internal static string FormatMatchPerformanceTags(LeaguePlayerMatchParticipant player,
             IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
             int mapId = 0, int gameDurationSeconds = 0)
         {
-            if (player == null || participants == null) return string.Empty;
+            var tags = BuildMatchPerformanceTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static string FormatCombinedMatchTags(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
+        {
+            var tags = BuildMultikillTagEntries(player, t);
+            tags.AddRange(BuildMatchPerformanceTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds).Select(tag =>
+                    new KeyValuePair<long, string>(tag.Key, tag.Value)));
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        private static List<KeyValuePair<int, string>> BuildMatchPerformanceTagEntries(
+            LeaguePlayerMatchParticipant player, IEnumerable<LeaguePlayerMatchParticipant> participants,
+            bool cherry, Func<string, string> t, int mapId, int gameDurationSeconds)
+        {
+            var tags = new List<KeyValuePair<int, string>>();
+            if (player == null || participants == null) return tags;
             var all = participants.Where(p => p != null).Take(21).ToList();
             if (all.Count == 0 || all.Count > 20 || !all.Contains(player) ||
-                all.Any(p => LeagueCherryTeams.GroupId(p, cherry) <= 0)) return string.Empty;
+                all.Any(p => LeagueCherryTeams.GroupId(p, cherry) <= 0)) return tags;
             var groupId = LeagueCherryTeams.GroupId(player, cherry);
             var group = all.Where(p => LeagueCherryTeams.GroupId(p, cherry) == groupId).ToList();
-            var tags = new List<KeyValuePair<int, string>>();
+            if ((mapId == 11 || mapId == 12) && gameDurationSeconds > 0)
+            {
+                var durationMinutes = gameDurationSeconds / 60d;
+                var nearThreshold = mapId == 11 ? 5d : 1.5d;
+                var ownThreshold = mapId == 11 ? 6d : 1.5d;
+                if (player.KillsNearEnemyTurret.HasValue &&
+                    player.KillsNearEnemyTurret.Value > 0 &&
+                    player.KillsNearEnemyTurret.Value >= durationMinutes / nearThreshold)
+                {
+                    var count = player.KillsNearEnemyTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerDive);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1660, label));
+                }
+                if (player.KillsUnderOwnTurret.HasValue &&
+                    player.KillsUnderOwnTurret.Value > 0 &&
+                    player.KillsUnderOwnTurret.Value >= durationMinutes / ownThreshold)
+                {
+                    var count = player.KillsUnderOwnTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1640, label));
+                }
+            }
             AddMatchLeaderTag(tags, player, all, group,
                 p => p.DamageAvailable && p.DamageToChampions >= 0 ? (int?)p.DamageToChampions : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch,
@@ -530,30 +586,6 @@ namespace FACM.League
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp)
                         .Replace("{0}", player.KnockEnemyIntoTeamAndKill.Value
                             .ToString("N0", CultureInfo.InvariantCulture))));
-            if ((mapId == 11 || mapId == 12) && gameDurationSeconds > 0)
-            {
-                var durationMinutes = gameDurationSeconds / 60d;
-                var nearThreshold = mapId == 11 ? 5d : 1.5d;
-                var ownThreshold = mapId == 11 ? 6d : 1.5d;
-                if (player.KillsNearEnemyTurret.HasValue &&
-                    player.KillsNearEnemyTurret.Value > 0 &&
-                    player.KillsNearEnemyTurret.Value >= durationMinutes / nearThreshold)
-                {
-                    var count = player.KillsNearEnemyTurret.Value;
-                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerDive);
-                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
-                    tags.Add(new KeyValuePair<int, string>(1660, label));
-                }
-                if (player.KillsUnderOwnTurret.HasValue &&
-                    player.KillsUnderOwnTurret.Value > 0 &&
-                    player.KillsUnderOwnTurret.Value >= durationMinutes / ownThreshold)
-                {
-                    var count = player.KillsUnderOwnTurret.Value;
-                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder);
-                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
-                    tags.Add(new KeyValuePair<int, string>(1640, label));
-                }
-            }
             AddMatchValueLeaderTag(tags, player, all, group,
                 p => p.Kills >= 0 ? (double?)p.Kills : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch,
@@ -575,10 +607,7 @@ namespace FACM.League
                     ? p.TimeCCingOthers : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam, 1750, 1700, false, t, "#,##0.##");
-            return tags.Count == 0 ? string.Empty :
-                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
-                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
-                        .Select(tag => tag.Value))) + "\r\n";
+            return tags;
         }
 
         private static void AddMatchLeaderTag(List<KeyValuePair<int, string>> tags,
