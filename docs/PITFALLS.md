@@ -1,3 +1,7 @@
+## WinForms ToolStripItemCollection requires an explicit LINQ cast (2026-10-29)
+
+`ToolStripItemCollection` is not `IEnumerable<ToolStripItem>`. Calling `Items.Single()` directly in smoke produced CS0411 in Windows Build #40901670965. Use `Items.Cast<ToolStripItem>().Single()` (or indexed access) when inspecting hosted popup controls. Executable `07c924b` corrected the test and passed all four Windows workflows.
+
 ## Do not silently truncate computed MatchCard tags (2026-10-29)
 
 Pinned Akari `ManyTags.vue` presents the entire sorted `usePlayerTags()` stream, hiding only visually overflowing entries. A fixed `Take(32)` in native `LeagueMatchTagStrip.SetTags` discarded valid tags before overflow and accessibility processing. Keep the complete nonblank computed stream and test a case above 32 entries; retain the source's 99-count visual cap only on the `+N` caption, not on the underlying items. Executable `d15b573` passed all four Windows workflows. Long-menu orientation and physical DPI remain separate parity checks.
