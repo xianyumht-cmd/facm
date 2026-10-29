@@ -554,6 +554,18 @@ namespace FACM.League
                 LeagueMatchTagStrip.OverflowButtonWidth(29, 44) == 29 &&
                 LeagueMatchTagStrip.OverflowButtonWidth(155, 62) == 62 &&
                 LeagueMatchTagStrip.OverflowButtonWidth(-1, 44) == 0 &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(300, 300, 44, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(300, 320) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(300, 365, 44, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(300, 285) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(470, 300, 30, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(380, 320) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(470, 365, 30, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(600, 500)) == new Point(100, 100) &&
                 LeagueMatchTagStrip.TagColor(
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch), t) ==
                     Color.FromArgb(153, 27, 27) &&

@@ -86,6 +86,20 @@ namespace FACM.League
             return Math.Max(0, Math.Min(availableWidth, desiredWidth));
         }
 
+        internal static Point PopupLocation(Rectangle anchor, Rectangle workingArea, Size popupSize)
+        {
+            var width = Math.Max(0, popupSize.Width);
+            var height = Math.Max(0, popupSize.Height);
+            var left = Math.Max(workingArea.Left,
+                Math.Min(anchor.Left, Math.Max(workingArea.Left, workingArea.Right - width)));
+            var below = anchor.Bottom;
+            var above = anchor.Top - height;
+            var top = below + height <= workingArea.Bottom ? below :
+                above >= workingArea.Top ? above :
+                Math.Max(workingArea.Top, Math.Min(below, workingArea.Bottom - height));
+            return new Point(left, top);
+        }
+
         internal static Color TagColor(string label, Func<string, string> t)
         {
             return TagColor(label, t, false);
@@ -259,7 +273,11 @@ namespace FACM.League
                 _overflow.Items.Add(item);
             }
             overflowButton.ContextMenuStrip = _overflow;
-            overflowButton.Click += (sender, e) => _overflow.Show(overflowButton, new Point(0, overflowButton.Height));
+            overflowButton.Click += (sender, e) => {
+                var anchor = overflowButton.RectangleToScreen(overflowButton.ClientRectangle);
+                var workingArea = Screen.FromControl(overflowButton).WorkingArea;
+                _overflow.Show(PopupLocation(anchor, workingArea, _overflow.GetPreferredSize(Size.Empty)));
+            };
             RestoreFocusedChip(focusedIndex);
         }
 
