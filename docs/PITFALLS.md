@@ -1,3 +1,11 @@
+## Preserve lane labels before normalized-map round trips (2026-10-30)
+
+Reclassifying a map point after float normalization can lose the original strict-versus-broad lane decision at a geometric boundary. Store the pinned `MapZone`/`GankLane` decision beside each bounded source point, keep labels aligned through aggregation and sampling, and use geometry only when older samples have no label. Synthetic smoke must deliberately supply labels that differ from coordinate inference. [executable 5b7357b](https://github.com/xianyumht-cmd/facm/commit/5b7357be06fce2f634603460e1d93c8914e07c85) passed all four Windows workflows.
+
+## Avoid shadowed cursor names inside C# lambdas (2026-10-30)
+
+The first lane-metadata candidate 054fc3e failed Glass build with CS0841/CS0136: a heatmap lambda used `index` for both its source-array cursor and the grid-cell key. C# local-variable scope forbids that shadowing. Keep distinct `sourceIndex` and `index` names and use Windows CI as the compilation gate; corrected [executable 5b7357b](https://github.com/xianyumht-cmd/facm/commit/5b7357be06fce2f634603460e1d93c8914e07c85) passed all four workflows.
+
 ## Do not conflate gank lanes with minute-position activity zones (2026-10-30)
 
 Pinned Akari `classifyGankLane` is stricter than `classifyMapZone` but may classify a mid gank in a location that the broad zone calls top/bot (e.g. x=5000, y=8700). Reusing `MapZone` for native gank X colors, quota buckets or weighted heatmap ownership silently changes source semantics. Keep broad zones for minute positions, strict lanes for confirmed ganks and a deliberate fallback for missing strict labels; test the divergent boundary. Executable [962223a](https://github.com/xianyumht-cmd/facm/commit/962223a92a8f301313fdf68dd1c870597939f68b) passed all four Windows workflows.
