@@ -50,6 +50,12 @@ namespace FACM.League
             Require(LeagueEventMap.LaneIndex(topLane) == 0 &&
                 LeagueEventMap.LaneIndex(midLane) == 1 && LeagueEventMap.LaneIndex(botLane) == 2,
                 "Jungle scatter lane colors must use the same map-zone projection as heatmap aggregation.");
+            var strictMidGank = LeagueEventMap.Normalize(5000, 8700, 11).Value;
+            Require(LeagueEventMap.LaneIndex(strictMidGank) == 0 &&
+                LeagueEventMap.GankLaneIndex(strictMidGank) == 1 &&
+                LeagueJungleAnalysis.GankLane(5000, 8700) == 1 &&
+                LeagueJungleAnalysis.MapZone(5000, 8700) == 0,
+                "Source gank lanes must not be overwritten by the broader activity-zone classification.");
             var laneHeavy = Enumerable.Range(0, 60).Select(i => new PointF(1000 + i, 12000))
                 .Concat(Enumerable.Range(0, 20).Select(i => new PointF(6000 + i, 6000)))
                 .Concat(Enumerable.Range(0, 20).Select(i => new PointF(11000 + i, 1000)))
@@ -64,6 +70,16 @@ namespace FACM.League
                 balanced[18] == normalizedHeavy[60] && balanced[35] == normalizedHeavy[79] &&
                 balanced[36] == normalizedHeavy[80] && balanced[53] == normalizedHeavy[99],
                 "Balanced sampling must preserve first/last points per lane and original source ordering.");
+            var gankHeavy = Enumerable.Range(0, 60).Select(i => new PointF(1000 + i, 12000))
+                .Concat(Enumerable.Range(0, 20).Select(i => new PointF(5000 + i, 8700)))
+                .Concat(Enumerable.Range(0, 20).Select(i => new PointF(11000 + i, 1000)))
+                .Select(p => LeagueEventMap.Normalize(p.X, p.Y, 11).Value).ToArray();
+            var gankBalanced = LeagueEventMap.BalanceByLane(gankHeavy, 54, true);
+            Require(gankBalanced.Length == 54 &&
+                gankBalanced.Count(p => LeagueEventMap.GankLaneIndex(p) == 0) == 18 &&
+                gankBalanced.Count(p => LeagueEventMap.GankLaneIndex(p) == 1) == 18 &&
+                gankBalanced.Count(p => LeagueEventMap.GankLaneIndex(p) == 2) == 18,
+                "Gank sampling must balance strict source gank lanes rather than map activity zones.");
             var sparse = normalizedHeavy.Take(60).Concat(normalizedHeavy.Skip(60).Take(3))
                 .Concat(normalizedHeavy.Skip(80).Take(5)).ToArray();
             var sparseSample = LeagueEventMap.BalanceByLane(sparse, 20);
@@ -111,6 +127,10 @@ namespace FACM.League
             Require(weighted.Length == 1 && weighted[0].Weight == 7 &&
                 Math.Abs(weighted[0].Intensity - 1f) < .0001f && weighted[0].Lane == 1,
                 "Pinned 7x7 heatmap must weigh source-confirmed ganks five times minute samples.");
+            var edgeCell = LeagueEventMap.BuildHeatmap(
+                new[] { new PointF(5000, 8700) }, new[] { new PointF(5000, 8700) }, 11);
+            Require(edgeCell.Length == 1 && edgeCell[0].Weight == 6 && edgeCell[0].Lane == 1,
+                "Gank-weighted heat cells must use strict source lane ownership at mid-lane edges.");
             var mixed = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(1000, 12000), new PointF(1000, 12000),
                     new PointF(11000, 1000), new PointF(float.NaN, 1000) },

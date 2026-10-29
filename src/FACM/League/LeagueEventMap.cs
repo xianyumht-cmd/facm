@@ -89,7 +89,7 @@ namespace FACM.League
             // The density map below still uses all bounded source-confirmed points.
             _minutePositions = BalanceByLane(NormalizePoints(minutePositions, 40 * 14), 54);
             _gankPositions = BalanceByLane(NormalizePoints(gankPositions,
-                40 * LeagueJungleAnalysis.MaximumGankMapPoints), 100);
+                40 * LeagueJungleAnalysis.MaximumGankMapPoints), 100, true);
             _level3Positions = NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _level4Positions = NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId);
@@ -138,7 +138,8 @@ namespace FACM.League
                     cell.Weight += weight;
                     cell.X += point.X * weight;
                     cell.Y += point.Y * weight;
-                    cell.LaneWeights[LeagueJungleAnalysis.MapZone((long)raw.X, (long)raw.Y)] += weight;
+                    var lane = weight == 5 ? LeagueJungleAnalysis.GankLane((long)raw.X, (long)raw.Y) : null;
+                    cell.LaneWeights[lane ?? LeagueJungleAnalysis.MapZone((long)raw.X, (long)raw.Y)] += weight;
                 }
             };
             add(minutes, 40 * 14, 1);
@@ -184,6 +185,14 @@ namespace FACM.League
                 (long)((1f - normalized.Y) * 14881));
         }
 
+        // Gank points use the stricter source lane classification, not the broad activity zone.
+        internal static int GankLaneIndex(PointF normalized)
+        {
+            var x = (long)Math.Round(normalized.X * 14820d);
+            var y = (long)Math.Round((1d - normalized.Y) * 14881d);
+            return LeagueJungleAnalysis.GankLane(x, y) ?? LeagueJungleAnalysis.MapZone(x, y);
+        }
+
         internal static Color LaneMarkerColor(int lane, bool kill, bool dark)
         {
             if (lane == 0) return Color.FromArgb(kill ? 255 : dark ? 140 : 166,
@@ -206,13 +215,13 @@ namespace FACM.League
         // Pinned GankMap.vue: equal lane quotas first, then distribute remaining slots
         // by available lane capacity; choose evenly spaced points in original order.
         // Native lane membership is coordinate-inferred until explicit source labels exist.
-        internal static PointF[] BalanceByLane(PointF[] points, int limit)
+        internal static PointF[] BalanceByLane(PointF[] points, int limit, bool gank = false)
         {
             if (points == null || limit <= 0) return new PointF[0];
             if (points.Length <= limit) return points;
             var buckets = new[] { new List<int>(), new List<int>(), new List<int>() };
             for (var i = 0; i < points.Length; i++)
-                buckets[LaneIndex(points[i])].Add(i);
+                buckets[gank ? GankLaneIndex(points[i]) : LaneIndex(points[i])].Add(i);
             var active = Enumerable.Range(0, 3).Where(lane => buckets[lane].Count > 0).ToArray();
             var picked = new int[3];
             var quota = limit >= active.Length ? limit / active.Length : 0;
@@ -350,7 +359,7 @@ namespace FACM.League
                     foreach (var p in _gankPositions)
                         DrawLaneKillMarker(e.Graphics,
                             new PointF(bounds.Left + p.X * bounds.Width, bounds.Top + p.Y * bounds.Height),
-                            gankRadius, killPens[LaneIndex(p)]);
+                            gankRadius, killPens[GankLaneIndex(p)]);
                     var level3Radius = Math.Max(4f, e.Graphics.DpiX / 24f);
                     var level4Radius = Math.Max(6f, e.Graphics.DpiX / 18f);
                     foreach (var p in _level3Positions)
