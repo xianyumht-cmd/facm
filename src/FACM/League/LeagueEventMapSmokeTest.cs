@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using FACM.Services;
 
 namespace FACM.League
@@ -28,6 +29,25 @@ namespace FACM.League
                 LeagueEventMap.Normalize(7500, 7500, 13) == null &&
                 LeagueEventMap.Position(parsed, 99) == null,
                 "Absent, nonfinite and unsupported event positions must never become a fabricated marker.");
+            var weighted = LeagueEventMap.BuildHeatmap(
+                new[] { new PointF(7410, 7440), new PointF(7410, 7440) },
+                new[] { new PointF(7410, 7440) }, 11);
+            Require(weighted.Length == 1 && weighted[0].Weight == 7 &&
+                Math.Abs(weighted[0].Intensity - 1f) < .0001f && weighted[0].Lane == 1,
+                "Pinned 7x7 heatmap must weigh source-confirmed ganks five times minute samples.");
+            var mixed = LeagueEventMap.BuildHeatmap(
+                new[] { new PointF(1000, 12000), new PointF(1000, 12000),
+                    new PointF(11000, 1000), new PointF(float.NaN, 1000) },
+                new[] { new PointF(11000, 1000), new PointF(float.PositiveInfinity, 1000) }, 11);
+            Require(mixed.Length == 2 && mixed[0].Weight == 6 && mixed[0].Lane == 2 &&
+                mixed[1].Weight == 2 && mixed[1].Lane == 0 &&
+                LeagueEventMap.BuildHeatmap(null, null, 11).Length == 0 &&
+                LeagueEventMap.BuildHeatmap(new[] { new PointF(7410, 7440) }, null, 12).Length == 0,
+                "Heatmap must reject invalid positions and unsupported maps, preserving lane color ownership.");
+            var gridPoints = Enumerable.Range(0, 25).Select(i => new PointF(
+                (float)((i % 7 + 0.5) * 14820 / 7), (float)(14881 - (i / 7 + 0.5) * 14881 / 7)));
+            Require(LeagueEventMap.BuildHeatmap(gridPoints, null, 11).Length == 14,
+                "The pinned heatmap shows at most fourteen weighted grid cells.");
             foreach (var mapId in new[] { 11, 12, 21 })
                 using (var map = new LeagueEventMap(UiTextCatalog.Load(), mapId))
                 using (var bitmap = new Bitmap(220, 220))
@@ -47,6 +67,16 @@ namespace FACM.League
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                         Require(bitmap.GetPixel(110, 110).ToArgb() != Color.FromArgb(147, 197, 253).ToArgb(),
                             "The multi-match point cloud must render an independent gank layer over minute samples.");
+                        var scatterPixel = bitmap.GetPixel(110, 110).ToArgb();
+                        map.SetHeatmapMode(true);
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(map.HeatmapMode && map.HeatmapCellCount == 1 &&
+                            bitmap.GetPixel(110, 110).ToArgb() != scatterPixel,
+                            "The opt-in density mode must render weighted heat cells instead of scatter dots.");
+                        map.SetHeatmapMode(false);
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(!map.HeatmapMode && bitmap.GetPixel(110, 110).ToArgb() == scatterPixel,
+                            "Switching back must restore the original source-confirmed scatter layers.");
                         using (var baseline = new Bitmap(220, 220))
                         {
                             map.SetEvent(At(1000, 1000));

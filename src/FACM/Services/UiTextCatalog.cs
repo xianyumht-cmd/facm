@@ -669,6 +669,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleMapEmpty, "暂无已验证的位置坐标；可按需读取打野时间线。"),
             Pair(UiTextKeys.LeagueJungleMapLegend, "蓝点为前14分钟位置采样，橙点为已判定路线的抓人落点；绿圈为3分钟前击杀参与，紫圈为3—4分钟击杀参与。散点不代表完整轨迹或热度。"),
             Pair(UiTextKeys.LeagueJungleMapCoverage, "蓝{0} 橙{1} 绿圈3级{2} 紫圈4级{3} 溢出{4}"),
+            Pair(UiTextKeys.LeagueJungleMapHeatmapToggle, "热度分布"),
+            Pair(UiTextKeys.LeagueJungleMapHeatmapLegend, "7×7 位置热度：前14分钟采样权重1，已判定抓人权重5；仅显示权重最高的14格。颜色表示上中下区域，不代表完整路线。"),
             Pair(UiTextKeys.LeagueJungleHistoryCamps, "首分钟最近营地（推断）覆盖 {0}/{1} 场；按阵营/入侵方向计数："),
             Pair(UiTextKeys.LeagueJungleHistoryCampRow, "{0} · {1} · {2}：{3} 场"),
             Pair(UiTextKeys.LeagueJungleHistoryNormal, "己方野区"),

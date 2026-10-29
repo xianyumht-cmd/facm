@@ -477,7 +477,16 @@ namespace FACM.League
                 mapLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
                 var mapStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
                     TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text };
-                mapLayout.Controls.Add(mapStatus, 0, 0);
+                var mapHeader = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
+                    RowCount = 1, Margin = Padding.Empty, Padding = Padding.Empty };
+                mapHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                mapHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                var heatmapToggle = new CheckBox { AutoSize = true, Dock = DockStyle.Fill,
+                    Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle),
+                    AccessibleName = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
+                mapHeader.Controls.Add(mapStatus, 0, 0);
+                mapHeader.Controls.Add(heatmapToggle, 1, 0);
+                mapLayout.Controls.Add(mapHeader, 0, 0);
                 jungleMapPage.Controls.Add(mapLayout);
                 LeagueEventMap mapView = null;
                 Action refreshJungle = () =>
@@ -501,11 +510,13 @@ namespace FACM.League
                             (projection?.OmittedGankMapPoints ?? 0) + (projection?.OmittedEarlyMapPoints ?? 0));
                     }
                 };
+                heatmapToggle.CheckedChanged += (sender, args) => mapView?.SetHeatmapMode(heatmapToggle.Checked);
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleViews.SelectedIndexChanged += (sender, args) =>
                 {
                     if (jungleViews.SelectedTab != jungleMapPage || mapView != null || dialog.IsDisposed) return;
                     mapView = new LeagueEventMap(ui, 11);
+                    mapView.SetHeatmapMode(heatmapToggle.Checked);
                     mapLayout.Controls.Add(mapView, 0, 1);
                     refreshJungle();
                 };

@@ -20,6 +20,25 @@ namespace FACM.League
         private PointF[] _level3Positions = new PointF[0];
         private PointF[] _level4Positions = new PointF[0];
         private bool _pointCloudMode;
+        private bool _heatmapMode;
+        private HeatmapCell[] _heatmapCells = new HeatmapCell[0];
+
+        internal sealed class HeatmapCell
+        {
+            internal PointF Center;
+            internal int Weight, Lane;
+            internal float Intensity;
+        }
+
+        private sealed class HeatmapAccumulator
+        {
+            internal int Weight;
+            internal double X, Y;
+            internal readonly int[] LaneWeights = new int[3];
+        }
+
+        internal bool HeatmapMode { get { return _heatmapMode; } }
+        internal int HeatmapCellCount { get { return _heatmapCells.Length; } }
 
         internal LeagueEventMap(UiTextCatalog ui, int mapId)
         {
@@ -48,6 +67,7 @@ namespace FACM.League
             _gankPositions = new PointF[0];
             _level3Positions = new PointF[0];
             _level4Positions = new PointF[0];
+            _heatmapCells = new HeatmapCell[0];
             _position = Position(entry, _mapId);
             AccessibleDescription = _position.HasValue ? AccessibleName :
                 _ui.Get(Supported(_mapId) ? UiTextKeys.LeagueEventMapMissing : UiTextKeys.LeagueEventMapUnsupported);
@@ -69,10 +89,69 @@ namespace FACM.League
             _gankPositions = NormalizePoints(gankPositions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _level3Positions = NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _level4Positions = NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
-            AccessibleDescription = _ui.Get(_minutePositions.Length + _gankPositions.Length +
-                _level3Positions.Length + _level4Positions.Length > 0 ?
-                UiTextKeys.LeagueJungleMapLegend : UiTextKeys.LeagueJungleMapEmpty);
+            _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId);
+            UpdatePointCloudDescription();
             Invalidate();
+        }
+
+        internal void SetHeatmapMode(bool enabled)
+        {
+            if (IsDisposed || _heatmapMode == enabled) return;
+            _heatmapMode = enabled;
+            if (_pointCloudMode) UpdatePointCloudDescription();
+            Invalidate();
+        }
+
+        private void UpdatePointCloudDescription()
+        {
+            AccessibleDescription = _ui.Get(_minutePositions.Length + _gankPositions.Length +
+                _level3Positions.Length + _level4Positions.Length == 0 ?
+                UiTextKeys.LeagueJungleMapEmpty : _heatmapMode ?
+                UiTextKeys.LeagueJungleMapHeatmapLegend : UiTextKeys.LeagueJungleMapLegend);
+        }
+
+        // Matches the pinned GankMap 7x7 grid: minute samples weigh 1, confirmed ganks weigh 5.
+        internal static HeatmapCell[] BuildHeatmap(IEnumerable<PointF> minutes, IEnumerable<PointF> ganks, int mapId)
+        {
+            if (mapId != 11) return new HeatmapCell[0];
+            const int grid = 7;
+            var cells = new Dictionary<int, HeatmapAccumulator>();
+            Action<IEnumerable<PointF>, int, int> add = (points, limit, weight) =>
+            {
+                foreach (var raw in (points ?? Enumerable.Empty<PointF>()).Take(limit))
+                {
+                    var normalized = Normalize(raw.X, raw.Y, mapId);
+                    if (!normalized.HasValue) continue;
+                    var point = normalized.Value;
+                    var x = Math.Min(grid - 1, (int)(point.X * grid));
+                    var y = Math.Min(grid - 1, (int)(point.Y * grid));
+                    var index = y * grid + x;
+                    HeatmapAccumulator cell;
+                    if (!cells.TryGetValue(index, out cell))
+                    {
+                        cell = new HeatmapAccumulator();
+                        cells.Add(index, cell);
+                    }
+                    cell.Weight += weight;
+                    cell.X += point.X * weight;
+                    cell.Y += point.Y * weight;
+                    cell.LaneWeights[LeagueJungleAnalysis.MapZone((long)raw.X, (long)raw.Y)] += weight;
+                }
+            };
+            add(minutes, 40 * 14, 1);
+            add(ganks, 40 * LeagueJungleAnalysis.MaximumGankMapPoints, 5);
+            if (cells.Count == 0) return new HeatmapCell[0];
+            var maxWeight = cells.Values.Max(c => c.Weight);
+            return cells.OrderByDescending(pair => pair.Value.Weight).ThenBy(pair => pair.Key)
+                .Take(14).Select(pair =>
+                {
+                    var cell = pair.Value;
+                    var lane = Enumerable.Range(0, 3).OrderByDescending(i => cell.LaneWeights[i]).First();
+                    return new HeatmapCell {
+                        Center = new PointF((float)(cell.X / cell.Weight), (float)(cell.Y / cell.Weight)),
+                        Weight = cell.Weight, Lane = lane, Intensity = (float)cell.Weight / maxWeight
+                    };
+                }).ToArray();
         }
 
         private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)
@@ -133,6 +212,27 @@ namespace FACM.League
             }
             var bounds = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
             e.Graphics.DrawImage(_map, bounds);
+            if (_pointCloudMode && _heatmapMode)
+            {
+                var laneColors = new[] { Color.FromArgb(220, 38, 38), Color.FromArgb(245, 158, 11),
+                    Color.FromArgb(37, 99, 235) };
+                foreach (var cell in _heatmapCells.OrderBy(c => c.Intensity))
+                {
+                    var diameter = Math.Max(3f, Math.Min(8f, side / 7f * (0.45f + cell.Intensity * 0.9f)));
+                    var centerX = bounds.Left + cell.Center.X * bounds.Width;
+                    var centerY = bounds.Top + cell.Center.Y * bounds.Height;
+                    using (var brush = new SolidBrush(Color.FromArgb(
+                        (int)(255f * (0.28f + cell.Intensity * 0.5f)), laneColors[cell.Lane])))
+                    using (var pen = new Pen(Color.FromArgb(128, Color.White), Math.Max(1f, e.Graphics.DpiX / 96f)))
+                    {
+                        e.Graphics.FillEllipse(brush, centerX - diameter / 2, centerY - diameter / 2,
+                            diameter, diameter);
+                        e.Graphics.DrawEllipse(pen, centerX - diameter / 2, centerY - diameter / 2,
+                            diameter, diameter);
+                    }
+                }
+                return;
+            }
             if (_pointCloudMode)
             {
                 using (var minuteBrush = new SolidBrush(Color.FromArgb(130, 147, 197, 253)))
