@@ -29,7 +29,7 @@ namespace FACM.League
             _tags.Clear();
             if (tags != null) _tags.AddRange(tags.Where(tag => !string.IsNullOrWhiteSpace(tag)).Take(32));
             AccessibleDescription = string.Join(" · ", _tags);
-            Rebuild();
+            Rebuild(false);
         }
 
         internal static string ChipLabel(string fullText)
@@ -128,8 +128,9 @@ namespace FACM.League
             return false;
         }
 
-        private void Rebuild()
+        private void Rebuild(bool restoreFocus = true)
         {
+            var focusedIndex = restoreFocus ? Controls.Cast<Control>().ToList().FindIndex(control => control.Focused) : -1;
             if (_overflow != null) { _overflow.Dispose(); _overflow = null; }
             while (Controls.Count > 0)
             {
@@ -151,17 +152,28 @@ namespace FACM.League
             for (var i = 0; i < visible; i++)
             {
                 var label = ChipLabel(_tags[i]);
-                var chip = new Label {
-                    Text = label, AutoSize = false, TextAlign = ContentAlignment.MiddleCenter,
+                var fullText = _tags[i];
+                var chip = new Button {
+                    Text = label, TextAlign = ContentAlignment.MiddleCenter,
                     Bounds = new Rectangle(left, 3, widths[i], 23),
+                    FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
                     BackColor = TagColor(label, _text), ForeColor = Color.White,
-                    AccessibleName = label, AccessibleDescription = _tags[i]
+                    AccessibleName = label, AccessibleDescription = fullText,
+                    TabStop = true, TabIndex = i, Cursor = Cursors.Help
                 };
+                chip.FlatAppearance.BorderSize = 0;
+                chip.Enter += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
+                chip.Leave += (sender, e) => _tooltip.Hide(chip);
+                chip.Click += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
                 Controls.Add(chip);
-                _tooltip.SetToolTip(chip, _tags[i]);
+                _tooltip.SetToolTip(chip, fullText);
                 left += widths[i] + 4;
             }
-            if (visible == _tags.Count) return;
+            if (visible == _tags.Count)
+            {
+                RestoreFocusedChip(focusedIndex);
+                return;
+            }
             var hidden = _tags.Skip(visible).ToList();
             var overflowButton = new Button {
                 Text = overflowTemplate.Replace("{0}", Math.Min(hidden.Count, 99).ToString()),
@@ -171,7 +183,7 @@ namespace FACM.League
                 AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore)
                     .Replace("{0}", hidden.Count.ToString()),
                 AccessibleDescription = string.Join(" · ", hidden),
-                TabStop = true, Cursor = Cursors.Hand
+                TabStop = true, TabIndex = visible, Cursor = Cursors.Hand
             };
             overflowButton.FlatAppearance.BorderSize = 0;
             Controls.Add(overflowButton);
@@ -186,6 +198,13 @@ namespace FACM.League
                 });
             }
             overflowButton.Click += (sender, e) => _overflow.Show(overflowButton, new Point(0, overflowButton.Height));
+            RestoreFocusedChip(focusedIndex);
+        }
+
+        private void RestoreFocusedChip(int focusedIndex)
+        {
+            if (focusedIndex >= 0 && Controls.Count > 0)
+                Controls[Math.Min(focusedIndex, Controls.Count - 1)].Focus();
         }
 
         protected override void OnResize(EventArgs eventArgs)

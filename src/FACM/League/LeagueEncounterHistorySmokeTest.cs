@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using FACM.Performance;
 
 namespace FACM.League
@@ -561,6 +562,25 @@ namespace FACM.League
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t) ==
                     Color.FromArgb(4, 120, 87),
                 "Native ManyTags colors, details and reserved +N overflow must retain source order.");
+            using (var tagStrip = new LeagueMatchTagStrip(t) { Size = new Size(900, 30) })
+            {
+                var tagDetails = new[] { "五杀", "全场输出第一（1,000 / 66.67%）", "队内治疗第一（250）" };
+                tagStrip.SetTags(tagDetails);
+                var focusableChips = tagStrip.Controls.OfType<Button>().ToArray();
+                Require(focusableChips.Length == tagDetails.Length &&
+                    focusableChips.Select(chip => chip.AccessibleDescription).SequenceEqual(tagDetails) &&
+                    focusableChips.Select(chip => chip.TabIndex).SequenceEqual(new[] { 0, 1, 2 }) &&
+                    focusableChips.All(chip => chip.TabStop && chip.Width > 0) &&
+                    !tagStrip.Controls.OfType<Label>().Any(),
+                    "Visible MatchCard chips must expose their full metric detail in keyboard tab order.");
+                tagStrip.Width = 100;
+                var compactChips = tagStrip.Controls.OfType<Button>().ToArray();
+                Require(compactChips.Length == 1 && compactChips[0].TabStop &&
+                    compactChips[0].AccessibleDescription.Contains(tagDetails[0]) &&
+                    compactChips[0].Right <= tagStrip.ClientSize.Width &&
+                    compactChips[0].Width > 0,
+                    "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
+            }
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
