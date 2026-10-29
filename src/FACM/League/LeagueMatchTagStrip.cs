@@ -277,15 +277,15 @@ namespace FACM.League
             RoundTag(overflowButton);
             Controls.Add(overflowButton);
             _tooltip.SetToolTip(overflowButton, string.Join("\n", hidden));
-            var workingArea = Screen.FromControl(overflowButton).WorkingArea;
+            var popupWorkingArea = Screen.FromControl(overflowButton).WorkingArea;
             var popupWidths = hidden.Select(fullText =>
                 Math.Min(296, TextRenderer.MeasureText(
                     BoundedMenuLabel(ChipLabel(fullText), Font, 280), Font,
                     new Size(int.MaxValue, 25),
                     TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 16)).ToList();
             var panelSize = OverflowPanelSize(popupWidths,
-                Math.Max(1, Math.Min(480, workingArea.Width - 24)),
-                Math.Max(1, Math.Min(240, workingArea.Height - 24)));
+                Math.Max(1, Math.Min(480, popupWorkingArea.Width - 24)),
+                Math.Max(1, Math.Min(240, popupWorkingArea.Height - 24)));
             _overflowPanel = new FlowLayoutPanel {
                 Size = panelSize, AutoSize = false, AutoScroll = true,
                 WrapContents = true, FlowDirection = FlowDirection.LeftToRight,
