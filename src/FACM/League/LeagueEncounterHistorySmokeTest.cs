@@ -581,6 +581,8 @@ namespace FACM.League
                     focusableChips.Select(chip => chip.TabIndex).SequenceEqual(new[] { 0, 1, 2 }) &&
                     focusableChips.All(chip => chip.TabStop && chip.Width > 0 &&
                         chip.ForeColor == Color.White &&
+                        chip.FlatAppearance.MouseOverBackColor == chip.BackColor &&
+                        chip.FlatAppearance.MouseDownBackColor == chip.BackColor &&
                         chip.BackColor == LeagueMatchTagStrip.TagColor(
                             chip.Text, t, !FacmThemeRuntime.Current.IsLight)) &&
                     !tagStrip.Controls.OfType<Label>().Any(),

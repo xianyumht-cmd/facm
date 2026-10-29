@@ -178,6 +178,8 @@ namespace FACM.League
                     TabStop = true, TabIndex = i, Cursor = Cursors.Help
                 };
                 chip.FlatAppearance.BorderSize = 0;
+                chip.FlatAppearance.MouseOverBackColor = chip.BackColor;
+                chip.FlatAppearance.MouseDownBackColor = chip.BackColor;
                 chip.Enter += (sender, e) => {
                     chip.FlatAppearance.BorderColor = Color.White;
                     chip.FlatAppearance.BorderSize = 1;
@@ -240,6 +242,10 @@ namespace FACM.League
                 button.BackColor = label == null ? FacmDesignSystem.Canvas :
                     TagColor(label, _text, !FacmThemeRuntime.Current.IsLight);
                 button.ForeColor = label == null ? FacmDesignSystem.Text : Color.White;
+                button.FlatAppearance.MouseOverBackColor = label == null ?
+                    FacmDesignSystem.SurfaceHover : button.BackColor;
+                button.FlatAppearance.MouseDownBackColor = label == null ?
+                    FacmDesignSystem.SurfaceHover : button.BackColor;
                 button.FlatAppearance.BorderSize = button.Focused ? 1 : 0;
                 if (button.Focused)
                     button.FlatAppearance.BorderColor = label == null ? FacmDesignSystem.Accent : Color.White;
