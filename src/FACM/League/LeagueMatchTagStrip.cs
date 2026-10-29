@@ -20,7 +20,7 @@ namespace FACM.League
             _text = text ?? throw new ArgumentNullException(nameof(text));
             Dock = DockStyle.Fill;
             BackColor = FacmDesignSystem.CanvasRaised;
-            AccessibleName = "对局表现标签";
+            AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip);
             TabStop = false;
         }
 
@@ -155,10 +155,12 @@ namespace FACM.League
             if (visible == _tags.Count) return;
             var hidden = _tags.Skip(visible).ToList();
             var overflowButton = new Button {
-                Text = "+" + Math.Min(hidden.Count, 99), Width = 44, Height = 23,
+                Text = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                    .Replace("{0}", Math.Min(hidden.Count, 99).ToString()), Width = 44, Height = 23,
                 Location = new Point(left, 3), FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text,
-                AccessibleName = "更多对局表现标签 +" + hidden.Count,
+                AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore)
+                    .Replace("{0}", hidden.Count.ToString()),
                 AccessibleDescription = string.Join(" · ", hidden),
                 TabStop = true, Cursor = Cursors.Hand
             };

@@ -299,6 +299,9 @@ namespace FACM.League
         public const string DynamicEncounterMultikillTriple = "LeagueEfficiencyDynamicEncounterMultikillTriple";
         public const string DynamicEncounterMultikillQuadra = "LeagueEfficiencyDynamicEncounterMultikillQuadra";
         public const string DynamicEncounterMultikillPenta = "LeagueEfficiencyDynamicEncounterMultikillPenta";
+        public const string DynamicEncounterTagStrip = "LeagueEfficiencyDynamicEncounterTagStrip";
+        public const string DynamicEncounterTagOverflow = "LeagueEfficiencyDynamicEncounterTagOverflow";
+        public const string DynamicEncounterTagMore = "LeagueEfficiencyDynamicEncounterTagMore";
         public const string DynamicEncounterLeaderTitle = "LeagueEfficiencyDynamicEncounterLeaderTitle";
         public const string DynamicEncounterLeaderDamageMatch = "LeagueEfficiencyDynamicEncounterLeaderDamageMatch";
         public const string DynamicEncounterLeaderDamageTeam = "LeagueEfficiencyDynamicEncounterLeaderDamageTeam";
@@ -705,6 +708,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple, "三杀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra, "四杀" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta, "五杀" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip, "对局表现标签" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow, "+{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore, "更多对局表现标签 +{0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle, "对局表现：{0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch, "全场输出第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageTeam, "队内输出第一" },
