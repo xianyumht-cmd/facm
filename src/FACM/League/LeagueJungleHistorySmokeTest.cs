@@ -51,7 +51,9 @@ namespace FACM.League
             a.ZoneWeights[0] = 5; a.ZoneWeights[1] = 1;
             a.Ganks[0] = 2;
             a.MinutePositions.Add(new PointF(1000, 12000));
+            a.MinuteLanes.Add(2);
             a.GankPositions.Add(new PointF(2000, 11000));
+            a.GankLanes.Add(1);
             a.Level3KillPositions.Add(new PointF(3000, 9000));
             a.OmittedGankMapPoints = 1;
             a.OmittedEarlyMapPoints = 1;
@@ -61,7 +63,9 @@ namespace FACM.League
                 Dragons = 0, FirstVoidgrubTime = 480000 };
             b.ZoneWeights[1] = 4; b.Ganks[1] = 1;
             b.MinutePositions.Add(new PointF(5000, 6000));
+            b.MinuteLanes.Add(1);
             b.GankPositions.Add(new PointF(6000, 6000));
+            b.GankLanes.Add(1);
             b.Level4KillPositions.Add(new PointF(7000, 6000));
             var unavailable = new LeagueJungleAnalysis { ObjectivesAvailable = false, Level3Gank = null,
                 Level4Gank = null, MissingKillPositions = 2 };
@@ -83,7 +87,9 @@ namespace FACM.League
                 aggregate.OmittedGankMapPoints == 1 && aggregate.OmittedEarlyMapPoints == 1 &&
                 aggregate.Level3KillPositions.Count == 1 && aggregate.Level4KillPositions.Count == 1 &&
                 aggregate.Level3KillPositions[0].Y == 9000 && aggregate.Level4KillPositions[0].X == 7000 &&
-                aggregate.MinutePositions[0].X == 1000 && aggregate.GankPositions[1].Y == 6000,
+                aggregate.MinutePositions[0].X == 1000 && aggregate.GankPositions[1].Y == 6000 &&
+                aggregate.MinuteLanes.SequenceEqual(new[] { 2, 1 }) &&
+                aggregate.GankLanes.SequenceEqual(new[] { 1, 1 }),
                 "A distinct-game aggregate must preserve bounded minute and gank coordinates without replaying raw timeline frames.");
             Require(aggregate.ObjectiveGames == 2 && aggregate.FirstDragonKnown == 1 &&
                 aggregate.FirstDragonWon == 0 && aggregate.Dragons == 2 && aggregate.SoloDragons == 1 &&
@@ -125,6 +131,8 @@ namespace FACM.League
                 redMap.MinutePositions.Single().X == 12000 &&
                 redMap.GankPositions.Single().X == 13000 &&
                 allMap.Games == 3 && allMap.MinutePositions.Count == 3 &&
+                redMap.MinuteLanes.SequenceEqual(new[] { -1 }) &&
+                redMap.GankLanes.SequenceEqual(new[] { -1 }) &&
                 LeagueJungleHistoryAnalysis.MapSamples(withRed, 11, 200).Count() == 0 &&
                 !LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 300).Any(),
                 "Side-filtered spatial samples must not mix blue/red teams, champions or unknown sides.");
