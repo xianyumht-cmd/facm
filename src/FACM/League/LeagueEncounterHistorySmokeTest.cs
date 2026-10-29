@@ -616,7 +616,7 @@ namespace FACM.League
                     compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
                     "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
                 var popupPanel = (FlowLayoutPanel)((ToolStripControlHost)
-                    compactChips[0].ContextMenuStrip.Items.Single()).Control;
+                    compactChips[0].ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
                 var hiddenItems = popupPanel.Controls.OfType<Button>().ToArray();
                 Require(hiddenItems != null && hiddenItems.Length == tagDetails.Length &&
                     hiddenItems.Select(item => item.AccessibleDescription).SequenceEqual(tagDetails) &&
@@ -653,7 +653,7 @@ namespace FACM.League
                     "Overflow menu captions must be bounded without splitting localized text elements.");
                 tagStrip.SetTags(new[] { longMetric, "五杀", "队内治疗第一（250）" });
                 var boundedPanel = (FlowLayoutPanel)((ToolStripControlHost)tagStrip.Controls
-                    .OfType<Button>().Single().ContextMenuStrip.Items.Single()).Control;
+                    .OfType<Button>().Single().ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
                 var boundedItem = boundedPanel.Controls.OfType<Button>().First();
                 Require(boundedItem.Text == compactMenuText &&
                     boundedItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric) &&
@@ -667,7 +667,7 @@ namespace FACM.League
                     tagStrip.Font = largerFont;
                     var scaledMenu = tagStrip.Controls.OfType<Button>().Single().ContextMenuStrip;
                     var scaledPanel = (FlowLayoutPanel)((ToolStripControlHost)
-                        scaledMenu.Items.Single()).Control;
+                        scaledMenu.Items.Cast<ToolStripItem>().Single()).Control;
                     var scaledItem = scaledPanel.Controls.OfType<Button>().First();
                     var scaledCaptionWidth = TextRenderer.MeasureText(scaledItem.Text, scaledMenu.Font,
                         new Size(int.MaxValue, 25),
@@ -686,7 +686,7 @@ namespace FACM.League
                 tagStrip.SetTags(manyTags);
                 var manyOverflow = tagStrip.Controls.OfType<Button>().Single();
                 var manyPanel = (FlowLayoutPanel)((ToolStripControlHost)
-                    manyOverflow.ContextMenuStrip.Items.Single()).Control;
+                    manyOverflow.ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
                 var manyItems = manyPanel.Controls.OfType<Button>().ToArray();
                 Require(manyItems.Length == manyTags.Length &&
                     manyPanel.AutoScroll && manyPanel.Height <= 240 &&
