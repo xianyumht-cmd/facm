@@ -615,12 +615,20 @@ namespace FACM.League
                     !compactChips[0].Region.IsVisible(0, 0) &&
                     compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
                     "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
-                var hiddenItems = compactChips[0].ContextMenuStrip?.Items.OfType<ToolStripMenuItem>().ToArray();
+                var popupPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                    compactChips[0].ContextMenuStrip.Items.Single()).Control;
+                var hiddenItems = popupPanel.Controls.OfType<Button>().ToArray();
                 Require(hiddenItems != null && hiddenItems.Length == tagDetails.Length &&
                     hiddenItems.Select(item => item.AccessibleDescription).SequenceEqual(tagDetails) &&
-                    hiddenItems.All(item => item.AutoToolTip && item.ToolTipText == item.AccessibleDescription &&
+                    hiddenItems.All(item => item.AutoEllipsis &&
                         item.AccessibleName == LeagueMatchTagStrip.ChipLabel(item.AccessibleDescription) &&
-                        item.ForeColor == Color.White),
+                        item.ForeColor == Color.White && item.TabStop) &&
+                    popupPanel.AutoScroll && popupPanel.WrapContents &&
+                    popupPanel.FlowDirection == FlowDirection.LeftToRight &&
+                    LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 200) ==
+                        new Size(200, 56) &&
+                    LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 32) ==
+                        new Size(200, 32),
                     "Hidden MatchCard tags must retain selectable full metric details, not just shortened labels.");
                 var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
                 var compactMenuText = LeagueMatchTagStrip.BoundedMenuLabel(
@@ -644,12 +652,13 @@ namespace FACM.League
                         tagStrip.Font, 280).EndsWith("…", StringComparison.Ordinal),
                     "Overflow menu captions must be bounded without splitting localized text elements.");
                 tagStrip.SetTags(new[] { longMetric, "五杀", "队内治疗第一（250）" });
-                var boundedItem = tagStrip.Controls.OfType<Button>().Single()
-                    .ContextMenuStrip.Items.OfType<ToolStripMenuItem>().First();
+                var boundedPanel = (FlowLayoutPanel)((ToolStripControlHost)tagStrip.Controls
+                    .OfType<Button>().Single().ContextMenuStrip.Items.Single()).Control;
+                var boundedItem = boundedPanel.Controls.OfType<Button>().First();
                 Require(boundedItem.Text == compactMenuText &&
                     boundedItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric) &&
                     boundedItem.AccessibleDescription == longMetric &&
-                    boundedItem.ToolTipText == longMetric,
+                    boundedItem.AutoEllipsis && boundedItem.TabStop,
                     "Clipped overflow captions must preserve the original accessible label and full metric detail.");
                 var originalFont = tagStrip.Font;
                 using (var largerFont = new Font(originalFont.FontFamily,
@@ -657,11 +666,14 @@ namespace FACM.League
                 {
                     tagStrip.Font = largerFont;
                     var scaledMenu = tagStrip.Controls.OfType<Button>().Single().ContextMenuStrip;
-                    var scaledItem = scaledMenu.Items.OfType<ToolStripMenuItem>().First();
+                    var scaledPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                        scaledMenu.Items.Single()).Control;
+                    var scaledItem = scaledPanel.Controls.OfType<Button>().First();
                     var scaledCaptionWidth = TextRenderer.MeasureText(scaledItem.Text, scaledMenu.Font,
                         new Size(int.MaxValue, 25),
                         TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
                     Require(scaledMenu.Font.Equals(largerFont) &&
+                        scaledPanel.Font.Equals(largerFont) && scaledItem.Font.Equals(largerFont) &&
                         scaledCaptionWidth <= 280 &&
                         scaledItem.AccessibleDescription == longMetric &&
                         scaledItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric),
@@ -673,8 +685,13 @@ namespace FACM.League
                     .Select(index => "指标" + index + "（详细统计）").ToArray();
                 tagStrip.SetTags(manyTags);
                 var manyOverflow = tagStrip.Controls.OfType<Button>().Single();
-                var manyItems = manyOverflow.ContextMenuStrip.Items.OfType<ToolStripMenuItem>().ToArray();
+                var manyPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                    manyOverflow.ContextMenuStrip.Items.Single()).Control;
+                var manyItems = manyPanel.Controls.OfType<Button>().ToArray();
                 Require(manyItems.Length == manyTags.Length &&
+                    manyPanel.AutoScroll && manyPanel.Height <= 240 &&
+                    manyPanel.Width <= 480 &&
+                    manyItems.Select(item => item.TabIndex).SequenceEqual(Enumerable.Range(0, 40)) &&
                     manyItems.Select(item => item.AccessibleDescription).SequenceEqual(manyTags) &&
                     manyOverflow.AccessibleDescription == string.Join(" · ", manyTags) &&
                     manyOverflow.Text == t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)

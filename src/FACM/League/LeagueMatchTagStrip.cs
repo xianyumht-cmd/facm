@@ -17,6 +17,7 @@ namespace FACM.League
         private readonly ToolTip _tooltip = new ToolTip();
         private readonly List<string> _tags = new List<string>();
         private ContextMenuStrip _overflow;
+        private FlowLayoutPanel _overflowPanel;
 
         internal LeagueMatchTagStrip(Func<string, string> text)
         {
@@ -99,6 +100,21 @@ namespace FACM.League
                 above >= workingArea.Top ? above :
                 Math.Max(workingArea.Top, Math.Min(below, workingArea.Bottom - height));
             return new Point(left, top);
+        }
+
+        internal static Size OverflowPanelSize(IList<int> chipWidths, int maxWidth, int maxHeight)
+        {
+            var width = Math.Max(1, Math.Min(maxWidth, 8 + chipWidths.Sum() + chipWidths.Count * 4));
+            var available = Math.Max(1, width - 8);
+            var rows = 1;
+            var used = 0;
+            foreach (var chipWidth in chipWidths)
+            {
+                var item = Math.Min(chipWidth, available) + 4;
+                if (used > 0 && used + item > available) { rows++; used = 0; }
+                used += item;
+            }
+            return new Size(width, Math.Max(1, Math.Min(maxHeight, 8 + rows * 24)));
         }
 
         internal static Color TagColor(string label, Func<string, string> t)
@@ -186,6 +202,7 @@ namespace FACM.League
         {
             var focusedIndex = restoreFocus ? Controls.Cast<Control>().ToList().FindIndex(control => control.Focused) : -1;
             if (_overflow != null) { _overflow.Dispose(); _overflow = null; }
+            _overflowPanel = null;
             while (Controls.Count > 0)
             {
                 var child = Controls[0];
@@ -260,19 +277,57 @@ namespace FACM.League
             RoundTag(overflowButton);
             Controls.Add(overflowButton);
             _tooltip.SetToolTip(overflowButton, string.Join("\n", hidden));
-            _overflow = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false, Font = Font };
-            foreach (var fullText in hidden)
+            var workingArea = Screen.FromControl(overflowButton).WorkingArea;
+            var popupWidths = hidden.Select(fullText =>
+                Math.Min(296, TextRenderer.MeasureText(
+                    BoundedMenuLabel(ChipLabel(fullText), Font, 280), Font,
+                    new Size(int.MaxValue, 25),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 16)).ToList();
+            var panelSize = OverflowPanelSize(popupWidths,
+                Math.Max(1, Math.Min(480, workingArea.Width - 24)),
+                Math.Max(1, Math.Min(240, workingArea.Height - 24)));
+            _overflowPanel = new FlowLayoutPanel {
+                Size = panelSize, AutoSize = false, AutoScroll = true,
+                WrapContents = true, FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(4), BackColor = FacmDesignSystem.Canvas,
+                Font = Font, TabStop = false
+            };
+            for (var index = 0; index < hidden.Count; index++)
             {
+                var fullText = hidden[index];
                 var label = ChipLabel(fullText);
-                var item = new ToolStripMenuItem(BoundedMenuLabel(label, Font, 280)) {
+                var chip = new Button {
+                    Text = BoundedMenuLabel(label, Font, 280),
+                    Size = new Size(Math.Min(popupWidths[index], Math.Max(1, panelSize.Width - 12)), ChipHeight),
+                    Margin = new Padding(2), FlatStyle = FlatStyle.Flat,
+                    UseVisualStyleBackColor = false, AutoEllipsis = true,
+                    TextAlign = ContentAlignment.MiddleCenter, Font = Font,
                     BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
-                    ForeColor = Color.White, Tag = label,
-                    ToolTipText = fullText, AutoToolTip = true,
-                    AccessibleName = label, AccessibleDescription = fullText
+                    ForeColor = Color.White, Tag = label, TabStop = true, TabIndex = index,
+                    AccessibleName = label, AccessibleDescription = fullText,
+                    Cursor = Cursors.Help
                 };
-                item.Click += (sender, e) => _tooltip.Show(fullText, overflowButton, 0, overflowButton.Height, 5000);
-                _overflow.Items.Add(item);
+                chip.FlatAppearance.BorderSize = 0;
+                chip.FlatAppearance.MouseOverBackColor = chip.BackColor;
+                chip.FlatAppearance.MouseDownBackColor = chip.BackColor;
+                chip.Enter += (sender, e) => {
+                    chip.FlatAppearance.BorderColor = Color.White;
+                    chip.FlatAppearance.BorderSize = 1;
+                    _overflowPanel.ScrollControlIntoView(chip);
+                };
+                chip.Leave += (sender, e) => chip.FlatAppearance.BorderSize = 0;
+                chip.Click += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
+                RoundTag(chip);
+                _tooltip.SetToolTip(chip, fullText);
+                _overflowPanel.Controls.Add(chip);
             }
+            _overflow = new ContextMenuStrip {
+                ShowImageMargin = false, ShowCheckMargin = false,
+                Font = Font, Padding = Padding.Empty
+            };
+            _overflow.Items.Add(new ToolStripControlHost(_overflowPanel) {
+                AutoSize = false, Size = panelSize, Margin = Padding.Empty, Padding = Padding.Empty
+            });
             overflowButton.ContextMenuStrip = _overflow;
             overflowButton.Click += (sender, e) => {
                 var anchor = overflowButton.RectangleToScreen(overflowButton.ClientRectangle);
@@ -316,10 +371,14 @@ namespace FACM.League
                     button.FlatAppearance.BorderColor = label == null ? FacmDesignSystem.Accent : Color.White;
             }
             if (_overflow == null) return;
-            foreach (ToolStripMenuItem item in _overflow.Items.OfType<ToolStripMenuItem>())
+            if (_overflowPanel == null) return;
+            _overflowPanel.BackColor = FacmDesignSystem.Canvas;
+            foreach (Button chip in _overflowPanel.Controls.OfType<Button>())
             {
-                item.BackColor = TagColor(item.Tag as string, _text, !FacmThemeRuntime.Current.IsLight);
-                item.ForeColor = Color.White;
+                chip.BackColor = TagColor(chip.Tag as string, _text, !FacmThemeRuntime.Current.IsLight);
+                chip.ForeColor = Color.White;
+                chip.FlatAppearance.MouseOverBackColor = chip.BackColor;
+                chip.FlatAppearance.MouseDownBackColor = chip.BackColor;
             }
         }
 
