@@ -88,6 +88,11 @@ namespace FACM.League
             return Math.Max(0, Math.Min(availableWidth, desiredWidth));
         }
 
+        internal static bool RestoreFocusAfterOverflowClose(ToolStripDropDownCloseReason reason)
+        {
+            return reason == ToolStripDropDownCloseReason.Keyboard;
+        }
+
         internal static Point PopupLocation(Rectangle anchor, Rectangle workingArea, Size popupSize)
         {
             var width = Math.Max(0, popupSize.Width);
@@ -317,6 +322,13 @@ namespace FACM.League
                 };
                 chip.Leave += (sender, e) => chip.FlatAppearance.BorderSize = 0;
                 chip.Click += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
+                chip.KeyDown += (sender, e) => {
+                    if (e.KeyCode != Keys.Escape) return;
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                    if (_overflow != null && _overflow.Visible)
+                        _overflow.Close(ToolStripDropDownCloseReason.Keyboard);
+                };
                 RoundTag(chip);
                 _tooltip.SetToolTip(chip, fullText);
                 _overflowPanel.Controls.Add(chip);
@@ -328,6 +340,15 @@ namespace FACM.League
             _overflow.Items.Add(new ToolStripControlHost(_overflowPanel) {
                 AutoSize = false, Size = panelSize, Margin = Padding.Empty, Padding = Padding.Empty
             });
+            _overflow.Opened += (sender, e) => {
+                var first = _overflowPanel.Controls.OfType<Button>().FirstOrDefault();
+                if (first != null) first.Focus();
+            };
+            _overflow.Closed += (sender, e) => {
+                if (RestoreFocusAfterOverflowClose(e.CloseReason) &&
+                    !overflowButton.IsDisposed && overflowButton.CanFocus)
+                    overflowButton.Focus();
+            };
             overflowButton.ContextMenuStrip = _overflow;
             overflowButton.Click += (sender, e) => {
                 var anchor = overflowButton.RectangleToScreen(overflowButton.ClientRectangle);

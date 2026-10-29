@@ -625,6 +625,13 @@ namespace FACM.League
                         item.ForeColor == Color.White && item.TabStop) &&
                     popupPanel.AutoScroll && popupPanel.WrapContents &&
                     popupPanel.FlowDirection == FlowDirection.LeftToRight &&
+                    hiddenItems[0].TabIndex == 0 &&
+                    LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.Keyboard) &&
+                    !LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.AppClicked) &&
+                    !LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.ItemClicked) &&
                     LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 200) ==
                         new Size(200, 56) &&
                     LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 32) ==
