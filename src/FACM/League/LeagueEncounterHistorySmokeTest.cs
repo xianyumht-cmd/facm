@@ -496,6 +496,46 @@ namespace FACM.League
             leader.KillsUnderOwnTurret = null;
             leader.MaxCsAdvantageOnLaneOpponent = null;
             leader.KnockEnemyIntoTeamAndKill = null;
+            leader.PentaKills = 1;
+            leader.QuadraKills = 1;
+            leader.TripleKills = 1;
+            leader.DoubleKills = 171;
+            leader.KillsNearEnemyTurret = 1;
+            leader.MaxCsAdvantageOnLaneOpponent = 91;
+            var combinedTags = LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                leader, leaderboard, false, t, 11, 60);
+            var doubleIndex = combinedTags.IndexOf("双杀 ×170", StringComparison.Ordinal);
+            var damageIndex = combinedTags.IndexOf("全场输出第一", StringComparison.Ordinal);
+            var efficiencyIndex = combinedTags.IndexOf("全场伤害经济效率第一", StringComparison.Ordinal);
+            var towerIndex = combinedTags.IndexOf("越塔", StringComparison.Ordinal);
+            var csAdvantageIndex = combinedTags.IndexOf("补刀压制", StringComparison.Ordinal);
+            Require(combinedTags.StartsWith("对局表现：五杀 · 双杀 ×170", StringComparison.Ordinal) &&
+                doubleIndex > 0 && damageIndex > doubleIndex &&
+                efficiencyIndex > damageIndex && towerIndex > efficiencyIndex &&
+                csAdvantageIndex > towerIndex && !combinedTags.Contains("连杀表现：") &&
+                combinedTags.EndsWith("\r\n", StringComparison.Ordinal) &&
+                combinedTags.IndexOf("\r\n", StringComparison.Ordinal) ==
+                    combinedTags.Length - 2,
+                "MatchCard must globally sort multikills and performance by pinned priority, " +
+                "retain source order on ties and render one accessible tag group.");
+            leader.DoubleKills = 181;
+            combinedTags = LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                leader, leaderboard, false, t, 11, 60);
+            Require(combinedTags.IndexOf("双杀 ×180", StringComparison.Ordinal) <
+                    combinedTags.IndexOf("全场输出第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                    leader, new[] { leader, new LeaguePlayerMatchParticipant() }, false, t)
+                    .Contains("双杀 ×180") &&
+                LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                    null, leaderboard, false, t) == string.Empty,
+                "Dynamic multikill priorities must cross leader thresholds; incomplete roster " +
+                "evidence must not erase valid streak tags or invent performance leaders.");
+            leader.PentaKills = null;
+            leader.QuadraKills = null;
+            leader.TripleKills = null;
+            leader.DoubleKills = null;
+            leader.KillsNearEnemyTurret = null;
+            leader.MaxCsAdvantageOnLaneOpponent = null;
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
