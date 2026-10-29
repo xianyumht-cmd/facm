@@ -1,3 +1,7 @@
+## Do not conflate gank lanes with minute-position activity zones (2026-10-30)
+
+Pinned Akari `classifyGankLane` is stricter than `classifyMapZone` but may classify a mid gank in a location that the broad zone calls top/bot (e.g. x=5000, y=8700). Reusing `MapZone` for native gank X colors, quota buckets or weighted heatmap ownership silently changes source semantics. Keep broad zones for minute positions, strict lanes for confirmed ganks and a deliberate fallback for missing strict labels; test the divergent boundary. Executable [962223a](https://github.com/xianyumht-cmd/facm/commit/962223a92a8f301313fdf68dd1c870597939f68b) passed all four Windows workflows.
+
 ## WinForms ToolStripItemCollection requires an explicit LINQ cast (2026-10-29)
 
 `ToolStripItemCollection` is not `IEnumerable<ToolStripItem>`. Calling `Items.Single()` directly in smoke produced CS0411 in Windows Build #40901670965. Use `Items.Cast<ToolStripItem>().Single()` (or indexed access) when inspecting hosted popup controls. Executable `07c924b` corrected the test and passed all four Windows workflows.
