@@ -625,6 +625,16 @@ namespace FACM.League
                 var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
                 var compactMenuText = LeagueMatchTagStrip.BoundedMenuLabel(
                     LeagueMatchTagStrip.ChipLabel(longMetric), tagStrip.Font, 280);
+                var ellipsisWidth = TextRenderer.MeasureText("…", tagStrip.Font,
+                    new Size(int.MaxValue, 25),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+                Require(ellipsisWidth > 0 &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font, 0) == string.Empty &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font,
+                        ellipsisWidth - 1) == string.Empty &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font,
+                        ellipsisWidth) == "…",
+                    "Tiny popup widths must not emit an ellipsis wider than the available text area.");
                 Require(compactMenuText.EndsWith("…", StringComparison.Ordinal) &&
                     TextRenderer.MeasureText(compactMenuText, tagStrip.Font,
                         new Size(int.MaxValue, 25),
