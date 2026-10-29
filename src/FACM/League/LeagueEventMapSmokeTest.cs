@@ -64,7 +64,7 @@ namespace FACM.League
                 balanced[18] == normalizedHeavy[60] && balanced[35] == normalizedHeavy[79] &&
                 balanced[36] == normalizedHeavy[80] && balanced[53] == normalizedHeavy[99],
                 "Balanced sampling must preserve first/last points per lane and original source ordering.");
-            var sparse = normalizedHeavy.Take(80).Concat(normalizedHeavy.Skip(60).Take(3))
+            var sparse = normalizedHeavy.Take(60).Concat(normalizedHeavy.Skip(60).Take(3))
                 .Concat(normalizedHeavy.Skip(80).Take(5)).ToArray();
             var sparseSample = LeagueEventMap.BalanceByLane(sparse, 20);
             Require(sparseSample.Length == 20 &&
