@@ -784,6 +784,12 @@ namespace FACM.League
                     KnockEnemyIntoTeamAndKill = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(ReadObject(stats, "challenges"),
                             "knockEnemyIntoTeamAndKill") : null,
+                    KillsNearEnemyTurret = ReadBool(game, "_sgp")
+                        ? ReadOptionalCount(ReadObject(stats, "challenges"),
+                            "killsNearEnemyTurret") : null,
+                    KillsUnderOwnTurret = ReadBool(game, "_sgp")
+                        ? ReadOptionalCount(ReadObject(stats, "challenges"),
+                            "killsUnderOwnTurret") : null,
                     GoldEarned = ReadInt(stats, "goldEarned"),
                     GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),

@@ -455,6 +455,45 @@ namespace FACM.League
                 leader, leaderboard, true, t);
             Require(!challengeTags.Contains("补刀压制") && !challengeTags.Contains("击飞配合击杀"),
                 "Invalid SGP challenge metrics must not create tags.");
+            leader.KillsNearEnemyTurret = 6;
+            leader.KillsUnderOwnTurret = 5;
+            var towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(towerTags.Contains("越塔 ×6") && towerTags.Contains("塔之子 ×5") &&
+                towerTags.IndexOf("越塔 ×6", StringComparison.Ordinal) <
+                    towerTags.IndexOf("塔之子 ×5", StringComparison.Ordinal),
+                "Rift tower-area kill tags must honor source duration ratios and priorities.");
+            leader.KillsNearEnemyTurret = 5;
+            leader.KillsUnderOwnTurret = 4;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(!towerTags.Contains("越塔") && !towerTags.Contains("塔之子"),
+                "Rift tower-area thresholds must not round up near-miss counts.");
+            leader.KillsNearEnemyTurret = 10;
+            leader.KillsUnderOwnTurret = 10;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 12, 900);
+            Require(towerTags.Contains("越塔 ×10") && towerTags.Contains("塔之子 ×10") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t, 21, 900).Contains("越塔") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t, 12, 0).Contains("塔之子"),
+                "ARAM uses 1.5-minute thresholds; unsupported maps or missing duration emit no tags.");
+            leader.KillsNearEnemyTurret = 1;
+            leader.KillsUnderOwnTurret = 1;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 60);
+            Require(towerTags.Contains("越塔 · 塔之子") &&
+                !towerTags.Contains("越塔 ×") && !towerTags.Contains("塔之子 ×"),
+                "A single tower-area kill must keep the pinned uncounted label.");
+            leader.KillsNearEnemyTurret = null;
+            leader.KillsUnderOwnTurret = -1;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(!towerTags.Contains("越塔") && !towerTags.Contains("塔之子"),
+                "Missing or invalid SGP tower-area evidence must not create tags.");
+            leader.KillsNearEnemyTurret = null;
+            leader.KillsUnderOwnTurret = null;
             leader.MaxCsAdvantageOnLaneOpponent = null;
             leader.KnockEnemyIntoTeamAndKill = null;
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
@@ -640,7 +679,9 @@ namespace FACM.League
                             { "magicalDamageTaken", 321 }, { "magicDamageTaken", 999 },
                             { "challenges", new Dictionary<string, object> {
                                 { "maxCsAdvantageOnLaneOpponent", 40.5 },
-                                { "knockEnemyIntoTeamAndKill", 6 } } },
+                                { "knockEnemyIntoTeamAndKill", 6 },
+                                { "killsNearEnemyTurret", 6 },
+                                { "killsUnderOwnTurret", 5 } } },
                             { "perks", new Dictionary<string, object> {
                                 { "statPerks", new Dictionary<string, object> {
                                     { "offense", 5008 }, { "flex", 5002 } } },
@@ -666,6 +707,10 @@ namespace FACM.League
                     .ToString() == "40.5" &&
                 ((Dictionary<string, object>)stats["challenges"])["knockEnemyIntoTeamAndKill"]
                     .ToString() == "6" &&
+                ((Dictionary<string, object>)stats["challenges"])["killsNearEnemyTurret"]
+                    .ToString() == "6" &&
+                ((Dictionary<string, object>)stats["challenges"])["killsUnderOwnTurret"]
+                    .ToString() == "5" &&
                 stats["perkStatOffense"].ToString() == "5008" &&
                 stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
                 "SGP normalization must retain raw rune selection variables and nullable stat shards.");

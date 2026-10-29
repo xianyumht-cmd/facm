@@ -170,7 +170,8 @@ namespace FACM.League
                     catalog == null ? null : catalog.PerkStyles);
                 selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
                     match.GameDurationSeconds, t) + "\r\n" + FormatMultikillTags(player, t) +
-                    FormatMatchPerformanceTags(player, detail.Participants, isCherry, t) +
+                    FormatMatchPerformanceTags(player, detail.Participants, isCherry, t,
+                        match.MapId, match.GameDurationSeconds) +
                     FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
                     .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
@@ -458,7 +459,8 @@ namespace FACM.League
         }
 
         internal static string FormatMatchPerformanceTags(LeaguePlayerMatchParticipant player,
-            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t)
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
         {
             if (player == null || participants == null) return string.Empty;
             var all = participants.Where(p => p != null).Take(21).ToList();
@@ -528,6 +530,30 @@ namespace FACM.League
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp)
                         .Replace("{0}", player.KnockEnemyIntoTeamAndKill.Value
                             .ToString("N0", CultureInfo.InvariantCulture))));
+            if ((mapId == 11 || mapId == 12) && gameDurationSeconds > 0)
+            {
+                var durationMinutes = gameDurationSeconds / 60d;
+                var nearThreshold = mapId == 11 ? 5d : 1.5d;
+                var ownThreshold = mapId == 11 ? 6d : 1.5d;
+                if (player.KillsNearEnemyTurret.HasValue &&
+                    player.KillsNearEnemyTurret.Value > 0 &&
+                    player.KillsNearEnemyTurret.Value >= durationMinutes / nearThreshold)
+                {
+                    var count = player.KillsNearEnemyTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerDive);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1660, label));
+                }
+                if (player.KillsUnderOwnTurret.HasValue &&
+                    player.KillsUnderOwnTurret.Value > 0 &&
+                    player.KillsUnderOwnTurret.Value >= durationMinutes / ownThreshold)
+                {
+                    var count = player.KillsUnderOwnTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1640, label));
+                }
+            }
             AddMatchValueLeaderTag(tags, player, all, group,
                 p => p.Kills >= 0 ? (double?)p.Kills : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch,

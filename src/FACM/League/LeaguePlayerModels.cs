@@ -221,6 +221,8 @@ namespace FACM.League
         public int? SoloKills { get; set; }
         public double? MaxCsAdvantageOnLaneOpponent { get; set; }
         public int? KnockEnemyIntoTeamAndKill { get; set; }
+        public int? KillsNearEnemyTurret { get; set; }
+        public int? KillsUnderOwnTurret { get; set; }
         public int GoldEarned { get; set; }
         public bool GoldAvailable { get; set; }
         public int VisionScore { get; set; }
