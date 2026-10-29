@@ -1,3 +1,7 @@
+## Source-weighted jungle density mode in the existing map owner (Draft #357)
+
+`LeagueEventMap` retains the source-confirmed scatter projection and adds an explicit user-toggleable, cached 7x7 weighted density projection for Rift map 11. Each minute sample contributes weight 1 and each lane-classified gank contributes weight 5; the fourteen heaviest cells use weighted centroids, dominant top/mid/bot zone colors and intensity-based opacity. The projection is recomputed only when the existing on-demand jungle sample changes, never during `OnPaint` or via a new network timer. `LeaguePlayerHistoryAnalysis` owns the toggle in the already-lazy jungle map tab; `LeagueEventMapSmokeTest` checks source-shaped weighting and toggling. Executable candidate [bf209a5](https://github.com/xianyumht-cmd/facm/commit/bf209a5967529d79c31e7a4186aae4e00c1a41c5) is awaiting four Windows CI gates; final Tencent/Win10 DPI remains deferred.
+
 ## Verified native MatchCard colored chips and bounded overflow (Draft #357)
 
 ## MatchCard overflow popover (Draft #357, 2026-10-29)
