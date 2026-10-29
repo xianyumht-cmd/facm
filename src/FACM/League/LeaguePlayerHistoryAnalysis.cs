@@ -514,7 +514,8 @@ namespace FACM.League
                         var mapSamples = LeagueJungleHistoryAnalysis.MapSamples(jungleSamples, selected, side);
                         var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
                         mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions,
-                            projection?.Level3KillPositions, projection?.Level4KillPositions);
+                            projection?.Level3KillPositions, projection?.Level4KillPositions,
+                            projection?.MinuteLanes, projection?.GankLanes);
                         mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
                             ui.Get(UiTextKeys.LeagueJungleMapCoverage),
                             projection?.MinutePositions.Count ?? 0, projection?.GankPositions.Count ?? 0,
