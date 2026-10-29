@@ -581,6 +581,9 @@ namespace FACM.League
                     focusableChips.Select(chip => chip.AccessibleDescription).SequenceEqual(tagDetails) &&
                     focusableChips.Select(chip => chip.TabIndex).SequenceEqual(new[] { 0, 1, 2 }) &&
                     focusableChips.All(chip => chip.TabStop && chip.Width > 0 &&
+                        chip.Height == 20 && chip.Top == 5 && chip.Region != null &&
+                        !chip.Region.IsVisible(0, 0) &&
+                        chip.Region.IsVisible(chip.Width / 2, chip.Height / 2) &&
                         chip.ForeColor == Color.White &&
                         chip.FlatAppearance.MouseOverBackColor == chip.BackColor &&
                         chip.FlatAppearance.MouseDownBackColor == chip.BackColor &&
@@ -593,7 +596,10 @@ namespace FACM.League
                 Require(compactChips.Length == 1 && compactChips[0].TabStop &&
                     compactChips[0].AccessibleDescription.Contains(tagDetails[0]) &&
                     compactChips[0].Right <= tagStrip.ClientSize.Width &&
-                    compactChips[0].Width > 0,
+                    compactChips[0].Width > 0 && compactChips[0].Height == 20 &&
+                    compactChips[0].Region != null &&
+                    !compactChips[0].Region.IsVisible(0, 0) &&
+                    compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
                     "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
             }
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,

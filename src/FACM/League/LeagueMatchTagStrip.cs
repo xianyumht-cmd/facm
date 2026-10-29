@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Theming;
@@ -10,6 +11,7 @@ namespace FACM.League
     // A bounded native equivalent of MatchCard's single-line ManyTags surface.
     internal sealed class LeagueMatchTagStrip : Panel
     {
+        private const int ChipHeight = 20;
         private readonly Func<string, string> _text;
         private readonly ToolTip _tooltip = new ToolTip();
         private readonly List<string> _tags = new List<string>();
@@ -156,12 +158,12 @@ namespace FACM.League
             if (_tags.Count == 0 || ClientSize.Width <= 0) return;
             var widths = _tags.Select(tag => Math.Min(320,
                 TextRenderer.MeasureText(ChipLabel(tag), Font,
-                    new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 18))
+                    new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 16))
                 .ToList();
             var overflowTemplate = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow);
             var widestOverflow = overflowTemplate.Replace("{0}", Math.Min(_tags.Count, 99).ToString());
             var overflowWidth = Math.Max(44, TextRenderer.MeasureText(widestOverflow, Font,
-                new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 18);
+                new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 16);
             var visible = VisibleCount(Math.Max(0, ClientSize.Width - 6), widths, overflowWidth);
             var left = 3;
             for (var i = 0; i < visible; i++)
@@ -170,7 +172,7 @@ namespace FACM.League
                 var fullText = _tags[i];
                 var chip = new Button {
                     Text = label, TextAlign = ContentAlignment.MiddleCenter,
-                    Bounds = new Rectangle(left, 3, widths[i], 23),
+                    Bounds = new Rectangle(left, Math.Max(0, (ClientSize.Height - ChipHeight) / 2), widths[i], ChipHeight),
                     FlatStyle = FlatStyle.Flat, UseVisualStyleBackColor = false,
                     BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
                     ForeColor = Color.White, Tag = label,
@@ -190,6 +192,7 @@ namespace FACM.League
                     _tooltip.Hide(chip);
                 };
                 chip.Click += (sender, e) => _tooltip.Show(fullText, chip, 0, chip.Height, 5000);
+                RoundTag(chip);
                 Controls.Add(chip);
                 _tooltip.SetToolTip(chip, fullText);
                 left += widths[i] + 4;
@@ -202,8 +205,8 @@ namespace FACM.League
             var hidden = _tags.Skip(visible).ToList();
             var overflowButton = new Button {
                 Text = overflowTemplate.Replace("{0}", Math.Min(hidden.Count, 99).ToString()),
-                Width = OverflowButtonWidth(ClientSize.Width - left - 3, overflowWidth), Height = 23,
-                Location = new Point(left, 3), FlatStyle = FlatStyle.Flat,
+                Width = OverflowButtonWidth(ClientSize.Width - left - 3, overflowWidth), Height = ChipHeight,
+                Location = new Point(left, Math.Max(0, (ClientSize.Height - ChipHeight) / 2)), FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore)
                     .Replace("{0}", hidden.Count.ToString()),
@@ -216,6 +219,7 @@ namespace FACM.League
                 overflowButton.FlatAppearance.BorderSize = 1;
             };
             overflowButton.Leave += (sender, e) => overflowButton.FlatAppearance.BorderSize = 0;
+            RoundTag(overflowButton);
             Controls.Add(overflowButton);
             _tooltip.SetToolTip(overflowButton, string.Join("\n", hidden));
             _overflow = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
@@ -230,6 +234,21 @@ namespace FACM.League
             }
             overflowButton.Click += (sender, e) => _overflow.Show(overflowButton, new Point(0, overflowButton.Height));
             RestoreFocusedChip(focusedIndex);
+        }
+
+        private static void RoundTag(Button button)
+        {
+            if (button.Width < 2 || button.Height < 2) return;
+            var diameter = Math.Min(24, Math.Min(button.Width, button.Height));
+            using (var path = new GraphicsPath())
+            {
+                path.AddArc(0, 0, diameter, diameter, 180, 90);
+                path.AddArc(button.Width - diameter, 0, diameter, diameter, 270, 90);
+                path.AddArc(button.Width - diameter, button.Height - diameter, diameter, diameter, 0, 90);
+                path.AddArc(0, button.Height - diameter, diameter, diameter, 90, 90);
+                path.CloseFigure();
+                button.Region = new Region(path);
+            }
         }
 
         private void OnThemeChanged(object sender, EventArgs e)
