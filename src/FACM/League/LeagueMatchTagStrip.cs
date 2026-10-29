@@ -260,7 +260,7 @@ namespace FACM.League
             RoundTag(overflowButton);
             Controls.Add(overflowButton);
             _tooltip.SetToolTip(overflowButton, string.Join("\n", hidden));
-            _overflow = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false };
+            _overflow = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = false, Font = Font };
             foreach (var fullText in hidden)
             {
                 var label = ChipLabel(fullText);
