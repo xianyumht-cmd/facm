@@ -85,8 +85,11 @@ namespace FACM.League
             if (IsDisposed) return;
             _pointCloudMode = true;
             _position = null;
-            _minutePositions = NormalizePoints(minutePositions, 40 * 14);
-            _gankPositions = NormalizePoints(gankPositions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
+            // GankPreferenceSummary.vue caps visible dots at 54/100 and balances lanes.
+            // The density map below still uses all bounded source-confirmed points.
+            _minutePositions = BalanceByLane(NormalizePoints(minutePositions, 40 * 14), 54);
+            _gankPositions = BalanceByLane(NormalizePoints(gankPositions,
+                40 * LeagueJungleAnalysis.MaximumGankMapPoints), 100);
             _level3Positions = NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _level4Positions = NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId);
@@ -198,6 +201,49 @@ namespace FACM.League
                 center.X + radius, center.Y + radius);
             graphics.DrawLine(pen, center.X - radius, center.Y + radius,
                 center.X + radius, center.Y - radius);
+        }
+
+        // Pinned GankMap.vue: equal lane quotas first, then distribute remaining slots
+        // by available lane capacity; choose evenly spaced points in original order.
+        // Native lane membership is coordinate-inferred until explicit source labels exist.
+        internal static PointF[] BalanceByLane(PointF[] points, int limit)
+        {
+            if (points == null || limit <= 0) return new PointF[0];
+            if (points.Length <= limit) return points;
+            var buckets = new[] { new List<int>(), new List<int>(), new List<int>() };
+            for (var i = 0; i < points.Length; i++)
+                buckets[LaneIndex(points[i])].Add(i);
+            var active = Enumerable.Range(0, 3).Where(lane => buckets[lane].Count > 0).ToArray();
+            var picked = new int[3];
+            var quota = limit >= active.Length ? limit / active.Length : 0;
+            foreach (var lane in active)
+                picked[lane] = Math.Min(quota, buckets[lane].Count);
+            var remaining = limit - picked.Sum();
+            while (remaining > 0)
+            {
+                var candidates = active.Where(lane => picked[lane] < buckets[lane].Count)
+                    .OrderByDescending(lane => buckets[lane].Count - picked[lane])
+                    .ThenByDescending(lane => buckets[lane].Count).ToArray();
+                if (candidates.Length == 0) break;
+                foreach (var lane in candidates)
+                {
+                    if (remaining == 0) break;
+                    picked[lane]++;
+                    remaining--;
+                }
+            }
+            var selected = new bool[points.Length];
+            foreach (var lane in active)
+            {
+                var bucket = buckets[lane];
+                for (var i = 0; i < picked[lane]; i++)
+                {
+                    var index = picked[lane] == 1 ? (bucket.Count - 1) / 2 :
+                        (int)Math.Floor((double)i * (bucket.Count - 1) / (picked[lane] - 1) + 0.5d);
+                    selected[bucket[index]] = true;
+                }
+            }
+            return points.Where((point, index) => selected[index]).ToArray();
         }
 
         private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)

@@ -50,6 +50,36 @@ namespace FACM.League
             Require(LeagueEventMap.LaneIndex(topLane) == 0 &&
                 LeagueEventMap.LaneIndex(midLane) == 1 && LeagueEventMap.LaneIndex(botLane) == 2,
                 "Jungle scatter lane colors must use the same map-zone projection as heatmap aggregation.");
+            var laneHeavy = Enumerable.Range(0, 60).Select(i => new PointF(1000 + i, 12000))
+                .Concat(Enumerable.Range(0, 20).Select(i => new PointF(6000 + i, 6000)))
+                .Concat(Enumerable.Range(0, 20).Select(i => new PointF(11000 + i, 1000)))
+                .ToArray();
+            var normalizedHeavy = laneHeavy.Select(p => LeagueEventMap.Normalize(p.X, p.Y, 11).Value).ToArray();
+            var balanced = LeagueEventMap.BalanceByLane(normalizedHeavy, 54);
+            Require(balanced.Length == 54 &&
+                balanced.Count(p => LeagueEventMap.LaneIndex(p) == 0) == 18 &&
+                balanced.Count(p => LeagueEventMap.LaneIndex(p) == 1) == 18 &&
+                balanced.Count(p => LeagueEventMap.LaneIndex(p) == 2) == 18 &&
+                balanced[0] == normalizedHeavy[0] && balanced[17] == normalizedHeavy[59] &&
+                balanced[18] == normalizedHeavy[60] && balanced[35] == normalizedHeavy[79] &&
+                balanced[36] == normalizedHeavy[80] && balanced[53] == normalizedHeavy[99],
+                "Balanced sampling must preserve first/last points per lane and original source ordering.");
+            var sparse = normalizedHeavy.Take(80).Concat(normalizedHeavy.Skip(60).Take(3))
+                .Concat(normalizedHeavy.Skip(80).Take(5)).ToArray();
+            var sparseSample = LeagueEventMap.BalanceByLane(sparse, 20);
+            Require(sparseSample.Length == 20 &&
+                sparseSample.Count(p => LeagueEventMap.LaneIndex(p) == 0) == 12 &&
+                sparseSample.Count(p => LeagueEventMap.LaneIndex(p) == 1) == 3 &&
+                sparseSample.Count(p => LeagueEventMap.LaneIndex(p) == 2) == 5 &&
+                LeagueEventMap.BalanceByLane(normalizedHeavy, 1).Single() == normalizedHeavy[29] &&
+                LeagueEventMap.BalanceByLane(normalizedHeavy, 0).Length == 0 &&
+                LeagueEventMap.BalanceByLane(null, 54).Length == 0,
+                "Unfilled quotas must flow to remaining lanes, with deterministic midpoint and empty guards.");
+            var repeated = Enumerable.Repeat(normalizedHeavy[0], 4)
+                .Concat(new[] { normalizedHeavy[60], normalizedHeavy[80] }).ToArray();
+            Require(LeagueEventMap.BalanceByLane(repeated, 4).Length == 4 &&
+                LeagueEventMap.BalanceByLane(repeated, 4).Count(p => p == normalizedHeavy[0]) == 2,
+                "Distinct timeline samples at identical coordinates must not collapse during lane balancing.");
             var topColor = LeagueEventMap.LaneMarkerColor(0, true, false);
             var midColor = LeagueEventMap.LaneMarkerColor(1, true, false);
             var botColor = LeagueEventMap.LaneMarkerColor(2, true, false);
