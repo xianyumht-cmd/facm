@@ -1,3 +1,7 @@
+## 2026-10-29 — MatchCard turret challenges require verified map and duration
+
+Preserve pinned Akari 1.5.1 `computeTowerKillTags` using SGP-only optional `killsNearEnemyTurret` / `killsUnderOwnTurret`, actual map ID and positive game duration. Map 11 uses 5/6-minute ratios; map 12 uses 1.5/1.5. Unknown map, missing duration or absent challenge counts must not generate a label, even if a zero-duration fallback would make the threshold trivially true. Reuse the existing selected-match data and native text surface; defer colored ManyTags/overflow and live Tencent/Win10 DPI acceptance. Executable `7a56cf5` passed all four Windows workflows.
+
 ## 2026-10-29 — Reuse verified group kill totals for MatchCard participation tags
 
 Follow pinned Akari 1.5.1 `computeKillsTags` (1200/1150) and `computeKpTags` (1100/1050) using the existing bounded match detail rather than introducing a second participant fetch. Kill participation is `(kills + assists) / teamKills` for the verified ordinary team or Cherry subteam; missing/invalid groups and impossible zero-denominator claims are omitted rather than presented as a record. The source uses match-over-team precedence and retains ties. Keep native accessible text until full ManyTags chip/overflow presentation and consolidated Tencent/Win10 DPI acceptance. Executable `bf5f3ce` passed all four Windows workflows.
