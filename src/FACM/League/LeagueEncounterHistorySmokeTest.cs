@@ -611,6 +611,24 @@ namespace FACM.League
                         item.ForeColor == Color.White),
                     "Hidden MatchCard tags must retain selectable full metric details, not just shortened labels.");
                 var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
+                var compactMenuText = LeagueMatchTagStrip.BoundedMenuLabel(
+                    LeagueMatchTagStrip.ChipLabel(longMetric), tagStrip.Font, 280);
+                Require(compactMenuText.EndsWith("…", StringComparison.Ordinal) &&
+                    TextRenderer.MeasureText(compactMenuText, tagStrip.Font,
+                        new Size(int.MaxValue, 25),
+                        TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width <= 280 &&
+                    LeagueMatchTagStrip.BoundedMenuLabel("五杀", tagStrip.Font, 280) == "五杀" &&
+                    LeagueMatchTagStrip.BoundedMenuLabel("🙂🙂🙂" + new string('X', 200),
+                        tagStrip.Font, 280).EndsWith("…", StringComparison.Ordinal),
+                    "Overflow menu captions must be bounded without splitting localized text elements.");
+                tagStrip.SetTags(new[] { longMetric, "五杀", "队内治疗第一（250）" });
+                var boundedItem = tagStrip.Controls.OfType<Button>().Single()
+                    .ContextMenuStrip.Items.OfType<ToolStripMenuItem>().First();
+                Require(boundedItem.Text == compactMenuText &&
+                    boundedItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric) &&
+                    boundedItem.AccessibleDescription == longMetric &&
+                    boundedItem.ToolTipText == longMetric,
+                    "Clipped overflow captions must preserve the original accessible label and full metric detail.");
                 tagStrip.Width = 900;
                 tagStrip.SetTags(new[] { longMetric });
                 var truncatedChip = tagStrip.Controls.OfType<Button>().Single();

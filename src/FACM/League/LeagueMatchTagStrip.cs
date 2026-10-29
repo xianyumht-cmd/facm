@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Theming;
@@ -40,6 +41,27 @@ namespace FACM.League
             if (string.IsNullOrWhiteSpace(fullText)) return string.Empty;
             var detailStart = fullText.IndexOfAny(new[] { '（', '(' });
             return detailStart < 0 ? fullText.TrimEnd() : fullText.Substring(0, detailStart).TrimEnd();
+        }
+
+        internal static string BoundedMenuLabel(string label, Font font, int maxWidth)
+        {
+            if (string.IsNullOrEmpty(label) || maxWidth <= 0) return string.Empty;
+            var flags = TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
+            var measure = new Func<string, int>(value =>
+                TextRenderer.MeasureText(value, font, new Size(int.MaxValue, 25), flags).Width);
+            if (measure(label) <= maxWidth) return label;
+            var boundaries = StringInfo.ParseCombiningCharacters(label);
+            var low = 0;
+            var high = boundaries.Length;
+            while (low < high)
+            {
+                var mid = low + (high - low + 1) / 2;
+                var end = mid == boundaries.Length ? label.Length : boundaries[mid];
+                if (measure(label.Substring(0, end) + "…") <= maxWidth) low = mid;
+                else high = mid - 1;
+            }
+            var cut = low == boundaries.Length ? label.Length : boundaries[low];
+            return label.Substring(0, cut) + "…";
         }
 
         internal static int VisibleCount(int width, IList<int> chipWidths, int overflowWidth = 44)
@@ -227,7 +249,7 @@ namespace FACM.League
             foreach (var fullText in hidden)
             {
                 var label = ChipLabel(fullText);
-                var item = new ToolStripMenuItem(label) {
+                var item = new ToolStripMenuItem(BoundedMenuLabel(label, Font, 280)) {
                     BackColor = TagColor(label, _text, !FacmThemeRuntime.Current.IsLight),
                     ForeColor = Color.White, Tag = label,
                     ToolTipText = fullText, AutoToolTip = true,
