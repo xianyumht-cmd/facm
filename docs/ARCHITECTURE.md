@@ -1,3 +1,7 @@
+## Jungle scatter marker ownership (Draft #357)
+
+`LeagueEventMap` renders the existing compact Rift jungle-history positions as top/mid/bot translucent circles and lane-colored X gank markers, using three cached brushes and three pens per paint rather than per-point GDI allocation. `LaneIndex` maps normalized image coordinates back into the existing `LeagueJungleAnalysis.MapZone` geometric lane classifier; unlike pinned Akari's explicit `MapLanePoint.lane`, this is a best-effort coordinate projection. The original level-3/4 rings, weighted heatmap and single-event mode remain independent. Synthetic drawing/palette smoke and four Windows CI workflows passed for executable [94a33b1](https://github.com/xianyumht-cmd/facm/commit/94a33b13caa161b166dd94002d5dd05a9d9b1ba0); real client and DPI visual acceptance are pending.
+
 ## Jungle spatial side overlay (Draft #357)
 
 `LeagueEventMap` draws the pinned `GankMap.vue` blue/red diagonal territory tint and dashed white dividing line only for Rift map 11's existing point-cloud owner, before scatter or heatmap markers. It does not alter the map's coordinates, source provenance, selection, I/O or single-event mode. `LeagueEventMapSmokeTest` checks polygon orientation. Executable [850d2d8](https://github.com/xianyumht-cmd/facm/commit/850d2d8e7faecec41c750b9dce6491bd4a8c6069) passed all four Windows workflows; live DPI and visual acceptance remain pending.
