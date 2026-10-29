@@ -664,6 +664,8 @@ namespace FACM.Services
         public const string LeagueJungleMapLegend = "LeagueJungleMapLegend";
         public const string LeagueJungleMapCoverage = "LeagueJungleMapCoverage";
         public const string LeagueJungleMapHeatmapToggle = "LeagueJungleMapHeatmapToggle";
+        public const string LeagueJungleMapSideFilter = "LeagueJungleMapSideFilter";
+        public const string LeagueJungleMapAllSides = "LeagueJungleMapAllSides";
         public const string LeagueJungleMapHeatmapLegend = "LeagueJungleMapHeatmapLegend";
         public const string LeagueJungleHistoryCamps = "LeagueJungleHistoryCamps";
         public const string LeagueJungleHistoryCampRow = "LeagueJungleHistoryCampRow";

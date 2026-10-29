@@ -102,8 +102,11 @@ namespace FACM.League
             red.TeamId = 200;
             var redAnalysis = new LeagueJungleAnalysis { Level3Gank = true, Level4Gank = false,
                 ObjectivesAvailable = true, StartCamp = "raptors", StartBlue = false };
-            var sides = LeagueJungleHistoryAggregate.Calculate(samples.Concat(new[] {
-                new LeagueJungleHistorySample { Match = red, Analysis = redAnalysis } }));
+            redAnalysis.MinutePositions.Add(new PointF(12000, 2000));
+            redAnalysis.GankPositions.Add(new PointF(13000, 2500));
+            var withRed = samples.Concat(new[] {
+                new LeagueJungleHistorySample { Match = red, Analysis = redAnalysis } }).ToArray();
+            var sides = LeagueJungleHistoryAggregate.Calculate(withRed);
             Require(sides.BlueGames == 3 && sides.RedGames == 1 &&
                 sides.BlueLevel3Known == 2 && sides.BlueLevel3Detected == 1 &&
                 sides.BlueLevel4Known == 1 && sides.BlueLevel4Detected == 1 &&
@@ -111,7 +114,30 @@ namespace FACM.League
                 sides.RedLevel4Known == 1 && sides.RedLevel4Detected == 0 &&
                 sides.Camps["red/normal/raptors"] == 1,
                 "Pinned by-team early-gank rates and first-camp sides require separate blue/red coverage.");
+            var blueMap = LeagueJungleHistoryAggregate.Calculate(
+                LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 100));
+            var redMap = LeagueJungleHistoryAggregate.Calculate(
+                LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 200));
+            var allMap = LeagueJungleHistoryAggregate.Calculate(
+                LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 0));
+            Require(blueMap.Games == 2 && blueMap.MinutePositions.Count == 2 &&
+                blueMap.GankPositions.Count == 2 && redMap.Games == 1 &&
+                redMap.MinutePositions.Single().X == 12000 &&
+                redMap.GankPositions.Single().X == 13000 &&
+                allMap.Games == 3 && allMap.MinutePositions.Count == 3 &&
+                LeagueJungleHistoryAnalysis.MapSamples(withRed, 11, 200).Count() == 0 &&
+                !LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 300).Any(),
+                "Side-filtered spatial samples must not mix blue/red teams, champions or unknown sides.");
+            var blueHeat = LeagueEventMap.BuildHeatmap(blueMap.MinutePositions, blueMap.GankPositions, 11);
+            var redHeat = LeagueEventMap.BuildHeatmap(redMap.MinutePositions, redMap.GankPositions, 11);
+            Require(blueHeat.Length > 0 && redHeat.Length > 0 &&
+                !blueHeat.Any(c => c.Center.X > .75f) &&
+                redHeat.Any(c => c.Center.X > .75f),
+                "Side selection must isolate both scatter and weighted heatmap inputs.");
             var ui = UiTextCatalog.Load();
+            Require(ui.Get(UiTextKeys.LeagueJungleMapAllSides) !=
+                ui.Get(UiTextKeys.LeagueJungleMapSideFilter),
+                "Map side selector must expose distinct localized label and all-sides choice.");
             var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
             Require(text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&
                 LeagueJungleHistoryAnalysis.Report(ui, new LeagueJungleHistorySample[0], 1, 0)

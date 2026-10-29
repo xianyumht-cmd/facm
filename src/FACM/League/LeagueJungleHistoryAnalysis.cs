@@ -187,6 +187,18 @@ namespace FACM.League
                 .Select(g => g.First()).ToList();
         }
 
+        internal static IEnumerable<LeagueJungleHistorySample> MapSamples(
+            IEnumerable<LeagueJungleHistorySample> samples, int championId, int teamId)
+        {
+            if (teamId != 0 && teamId != 100 && teamId != 200)
+                return Enumerable.Empty<LeagueJungleHistorySample>();
+            return (samples ?? Enumerable.Empty<LeagueJungleHistorySample>())
+                .Where(s => s != null && s.Match != null && s.Analysis != null &&
+                    (s.Match.TeamId == 100 || s.Match.TeamId == 200) &&
+                    (championId == 0 || s.Match.ChampionId == championId) &&
+                    (teamId == 0 || s.Match.TeamId == teamId));
+        }
+
         internal static string Report(UiTextCatalog ui, IEnumerable<LeagueJungleHistorySample> entries,
             int eligible, int attempted, int championId = 0)
         {

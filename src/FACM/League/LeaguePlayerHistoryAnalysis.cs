@@ -477,15 +477,25 @@ namespace FACM.League
                 mapLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
                 var mapStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
                     TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text };
-                var mapHeader = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
+                var mapHeader = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3,
                     RowCount = 1, Margin = Padding.Empty, Padding = Padding.Empty };
                 mapHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+                mapHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112f));
                 mapHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                var mapSideSelector = new ComboBox { Dock = DockStyle.Fill,
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                    AccessibleName = ui.Get(UiTextKeys.LeagueJungleMapSideFilter) };
+                mapSideSelector.Items.Add(ui.Get(UiTextKeys.LeagueJungleMapAllSides));
+                mapSideSelector.Items.Add(ui.Get(UiTextKeys.LeagueJungleBlueSide));
+                mapSideSelector.Items.Add(ui.Get(UiTextKeys.LeagueJungleRedSide));
+                mapSideSelector.SelectedIndex = 0;
                 var heatmapToggle = new CheckBox { AutoSize = true, Dock = DockStyle.Fill,
                     Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle),
                     AccessibleName = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
                 mapHeader.Controls.Add(mapStatus, 0, 0);
-                mapHeader.Controls.Add(heatmapToggle, 1, 0);
+                mapHeader.Controls.Add(mapSideSelector, 1, 0);
+                mapHeader.Controls.Add(heatmapToggle, 2, 0);
                 mapLayout.Controls.Add(mapHeader, 0, 0);
                 jungleMapPage.Controls.Add(mapLayout);
                 LeagueEventMap mapView = null;
@@ -499,7 +509,9 @@ namespace FACM.League
                         coverage.Item1, coverage.Item2, selected);
                     if (mapView != null)
                     {
-                        var mapSamples = jungleSamples.Where(s => selected == 0 || s.Match.ChampionId == selected);
+                        var side = mapSideSelector.SelectedIndex == 1 ? 100 :
+                            mapSideSelector.SelectedIndex == 2 ? 200 : 0;
+                        var mapSamples = LeagueJungleHistoryAnalysis.MapSamples(jungleSamples, selected, side);
                         var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
                         mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions,
                             projection?.Level3KillPositions, projection?.Level4KillPositions);
@@ -511,6 +523,7 @@ namespace FACM.League
                     }
                 };
                 heatmapToggle.CheckedChanged += (sender, args) => mapView?.SetHeatmapMode(heatmapToggle.Checked);
+                mapSideSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleViews.SelectedIndexChanged += (sender, args) =>
                 {
