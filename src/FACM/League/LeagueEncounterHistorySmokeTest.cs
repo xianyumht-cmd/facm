@@ -651,6 +651,23 @@ namespace FACM.League
                     boundedItem.AccessibleDescription == longMetric &&
                     boundedItem.ToolTipText == longMetric,
                     "Clipped overflow captions must preserve the original accessible label and full metric detail.");
+                var originalFont = tagStrip.Font;
+                using (var largerFont = new Font(originalFont.FontFamily,
+                    originalFont.Size + 4f, originalFont.Style, originalFont.Unit))
+                {
+                    tagStrip.Font = largerFont;
+                    var scaledMenu = tagStrip.Controls.OfType<Button>().Single().ContextMenuStrip;
+                    var scaledItem = scaledMenu.Items.OfType<ToolStripMenuItem>().First();
+                    var scaledCaptionWidth = TextRenderer.MeasureText(scaledItem.Text, scaledMenu.Font,
+                        new Size(int.MaxValue, 25),
+                        TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+                    Require(scaledMenu.Font.Equals(largerFont) &&
+                        scaledCaptionWidth <= 280 &&
+                        scaledItem.AccessibleDescription == longMetric &&
+                        scaledItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric),
+                        "Overflow captions must be measured and rendered using the same updated font.");
+                    tagStrip.Font = originalFont;
+                }
                 tagStrip.Width = 900;
                 tagStrip.SetTags(new[] { longMetric });
                 var truncatedChip = tagStrip.Controls.OfType<Button>().Single();
