@@ -24,6 +24,8 @@ namespace FACM.League
         internal int OmittedGankMapPoints, OmittedEarlyMapPoints;
         internal readonly List<PointF> MinutePositions = new List<PointF>();
         internal readonly List<PointF> GankPositions = new List<PointF>();
+        internal readonly List<int> MinuteLanes = new List<int>();
+        internal readonly List<int> GankLanes = new List<int>();
         internal readonly List<PointF> Level3KillPositions = new List<PointF>();
         internal readonly List<PointF> Level4KillPositions = new List<PointF>();
         internal readonly int[] ZoneWeights = new int[3];
@@ -87,8 +89,14 @@ namespace FACM.League
                 }
                 if (a.ZoneWeights.Sum() > 0) result.PositionGames++;
                 result.MissingKillPositions += a.MissingKillPositions;
-                result.MinutePositions.AddRange(a.MinutePositions.Take(14));
-                result.GankPositions.AddRange(a.GankPositions.Take(LeagueJungleAnalysis.MaximumGankMapPoints));
+                var minuteCount = Math.Min(14, a.MinutePositions.Count);
+                result.MinutePositions.AddRange(a.MinutePositions.Take(minuteCount));
+                for (var i = 0; i < minuteCount; i++)
+                    result.MinuteLanes.Add(i < a.MinuteLanes.Count ? a.MinuteLanes[i] : -1);
+                var gankCount = Math.Min(LeagueJungleAnalysis.MaximumGankMapPoints, a.GankPositions.Count);
+                result.GankPositions.AddRange(a.GankPositions.Take(gankCount));
+                for (var i = 0; i < gankCount; i++)
+                    result.GankLanes.Add(i < a.GankLanes.Count ? a.GankLanes[i] : -1);
                 result.OmittedGankMapPoints += a.OmittedGankMapPoints +
                     Math.Max(0, a.GankPositions.Count - LeagueJungleAnalysis.MaximumGankMapPoints);
                 result.Level3KillPositions.AddRange(a.Level3KillPositions.Take(LeagueJungleAnalysis.MaximumGankMapPoints));
