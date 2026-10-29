@@ -50,6 +50,7 @@ namespace FACM.League
             var measure = new Func<string, int>(value =>
                 TextRenderer.MeasureText(value, font, new Size(int.MaxValue, 25), flags).Width);
             if (measure(label) <= maxWidth) return label;
+            if (measure("…") > maxWidth) return string.Empty;
             var boundaries = StringInfo.ParseCombiningCharacters(label);
             var low = 0;
             var high = boundaries.Length;
