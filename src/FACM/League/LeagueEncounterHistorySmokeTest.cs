@@ -545,7 +545,12 @@ namespace FACM.League
                 LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }) == 3 &&
                 LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }) == 2 &&
                 LeagueMatchTagStrip.VisibleCount(140, new[] { 50, 50, 50 }) == 1 &&
+                LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }, 62) == 1 &&
+                LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }, 62) == 3 &&
                 LeagueMatchTagStrip.VisibleCount(0, new[] { 50, 50, 50 }) == 0 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(29, 44) == 29 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(155, 62) == 62 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(-1, 44) == 0 &&
                 LeagueMatchTagStrip.TagColor(
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch), t) ==
                     Color.FromArgb(153, 27, 27) &&

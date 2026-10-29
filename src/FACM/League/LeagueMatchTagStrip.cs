@@ -39,7 +39,7 @@ namespace FACM.League
             return detailStart < 0 ? fullText : fullText.Substring(0, detailStart);
         }
 
-        internal static int VisibleCount(int width, IList<int> chipWidths)
+        internal static int VisibleCount(int width, IList<int> chipWidths, int overflowWidth = 44)
         {
             if (width <= 0 || chipWidths == null || chipWidths.Count == 0) return 0;
             var total = chipWidths.Sum() + (chipWidths.Count - 1) * 4;
@@ -49,11 +49,16 @@ namespace FACM.League
             foreach (var chipWidth in chipWidths)
             {
                 var next = used + (visible > 0 ? 4 : 0) + chipWidth;
-                if (next + 4 + 44 > width) break;
+                if (next + 4 + Math.Max(0, overflowWidth) > width) break;
                 used = next;
                 visible++;
             }
             return visible;
+        }
+
+        internal static int OverflowButtonWidth(int availableWidth, int desiredWidth)
+        {
+            return Math.Max(0, Math.Min(availableWidth, desiredWidth));
         }
 
         internal static Color TagColor(string label, Func<string, string> t)
@@ -137,7 +142,11 @@ namespace FACM.League
                 TextRenderer.MeasureText(ChipLabel(tag), Font,
                     new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 18))
                 .ToList();
-            var visible = VisibleCount(Math.Max(0, ClientSize.Width - 6), widths);
+            var overflowTemplate = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow);
+            var widestOverflow = overflowTemplate.Replace("{0}", Math.Min(_tags.Count, 99).ToString());
+            var overflowWidth = Math.Max(44, TextRenderer.MeasureText(widestOverflow, Font,
+                new Size(int.MaxValue, 25), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 18);
+            var visible = VisibleCount(Math.Max(0, ClientSize.Width - 6), widths, overflowWidth);
             var left = 3;
             for (var i = 0; i < visible; i++)
             {
@@ -155,8 +164,8 @@ namespace FACM.League
             if (visible == _tags.Count) return;
             var hidden = _tags.Skip(visible).ToList();
             var overflowButton = new Button {
-                Text = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
-                    .Replace("{0}", Math.Min(hidden.Count, 99).ToString()), Width = 44, Height = 23,
+                Text = overflowTemplate.Replace("{0}", Math.Min(hidden.Count, 99).ToString()),
+                Width = OverflowButtonWidth(ClientSize.Width - left - 3, overflowWidth), Height = 23,
                 Location = new Point(left, 3), FlatStyle = FlatStyle.Flat,
                 BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = _text(LeagueEfficiencyUiTextKeys.DynamicEncounterTagMore)
