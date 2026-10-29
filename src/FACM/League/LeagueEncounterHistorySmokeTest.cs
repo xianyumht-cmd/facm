@@ -426,6 +426,37 @@ namespace FACM.League
             Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, true, t).Contains("控制第一"),
                 "Invalid negative control time must not qualify for a leader tag.");
+            leader.MaxCsAdvantageOnLaneOpponent = 40.5;
+            leader.KnockEnemyIntoTeamAndKill = 6;
+            var challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(challengeTags.Contains("补刀压制 ×41") &&
+                challengeTags.Contains("击飞配合击杀 ×6") &&
+                challengeTags.IndexOf("补刀压制 ×41", StringComparison.Ordinal) <
+                    challengeTags.IndexOf("全场经济第一", StringComparison.Ordinal) &&
+                challengeTags.IndexOf("全场经济第一", StringComparison.Ordinal) <
+                    challengeTags.IndexOf("击飞配合击杀 ×6", StringComparison.Ordinal),
+                "SGP CS advantage and knock-up tags must preserve source thresholds, rounding and priorities.");
+            leader.MaxCsAdvantageOnLaneOpponent = 200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).IndexOf("补刀压制 ×200", StringComparison.Ordinal) <
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).IndexOf("全场输出第一", StringComparison.Ordinal),
+                "High CS advantage must use the pinned dynamic priority.");
+            leader.MaxCsAdvantageOnLaneOpponent = 39.9;
+            leader.KnockEnemyIntoTeamAndKill = 5;
+            challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!challengeTags.Contains("补刀压制") && !challengeTags.Contains("击飞配合击杀"),
+                "Below-threshold SGP challenge counts must not create tags.");
+            leader.MaxCsAdvantageOnLaneOpponent = double.NaN;
+            leader.KnockEnemyIntoTeamAndKill = -1;
+            challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!challengeTags.Contains("补刀压制") && !challengeTags.Contains("击飞配合击杀"),
+                "Invalid SGP challenge metrics must not create tags.");
+            leader.MaxCsAdvantageOnLaneOpponent = null;
+            leader.KnockEnemyIntoTeamAndKill = null;
             var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
                 DamageToChampions = 800, PhysicalDamageToChampions = 500,
                 MagicDamageToChampions = 200, TrueDamageToChampions = 100,
@@ -607,6 +638,9 @@ namespace FACM.League
                             { "doubleKills", 3 }, { "tripleKills", 1 },
                             { "quadraKills", 0 }, { "pentaKills", 0 },
                             { "magicalDamageTaken", 321 }, { "magicDamageTaken", 999 },
+                            { "challenges", new Dictionary<string, object> {
+                                { "maxCsAdvantageOnLaneOpponent", 40.5 },
+                                { "knockEnemyIntoTeamAndKill", 6 } } },
                             { "perks", new Dictionary<string, object> {
                                 { "statPerks", new Dictionary<string, object> {
                                     { "offense", 5008 }, { "flex", 5002 } } },
@@ -628,6 +662,10 @@ namespace FACM.League
                 stats["magicDamageTaken"].ToString() == "321" &&
                 stats["doubleKills"].ToString() == "3" &&
                 stats["tripleKills"].ToString() == "1" &&
+                ((Dictionary<string, object>)stats["challenges"])["maxCsAdvantageOnLaneOpponent"]
+                    .ToString() == "40.5" &&
+                ((Dictionary<string, object>)stats["challenges"])["knockEnemyIntoTeamAndKill"]
+                    .ToString() == "6" &&
                 stats["perkStatOffense"].ToString() == "5008" &&
                 stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
                 "SGP normalization must retain raw rune selection variables and nullable stat shards.");

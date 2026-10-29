@@ -778,6 +778,12 @@ namespace FACM.League
                         ? ReadOptionalCount(stats, "totalDamageShieldedOnTeammates") : null,
                     SoloKills = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(ReadObject(stats, "challenges"), "soloKills") : null,
+                    MaxCsAdvantageOnLaneOpponent = ReadBool(game, "_sgp")
+                        ? ReadOptionalFiniteNumber(ReadObject(stats, "challenges"),
+                            "maxCsAdvantageOnLaneOpponent") : null,
+                    KnockEnemyIntoTeamAndKill = ReadBool(game, "_sgp")
+                        ? ReadOptionalCount(ReadObject(stats, "challenges"),
+                            "knockEnemyIntoTeamAndKill") : null,
                     GoldEarned = ReadInt(stats, "goldEarned"),
                     GoldAvailable = ReadOptionalCount(stats, "goldEarned").HasValue,
                     VisionScore = ReadInt(stats, "visionScore"),

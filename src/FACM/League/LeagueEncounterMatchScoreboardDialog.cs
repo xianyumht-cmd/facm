@@ -509,6 +509,25 @@ namespace FACM.League
                 tags.Add(new KeyValuePair<int, string>(600,
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs)
                         .Replace("{0}", player.CreepScore.ToString("N0", CultureInfo.InvariantCulture))));
+            if (player.MaxCsAdvantageOnLaneOpponent.HasValue &&
+                player.MaxCsAdvantageOnLaneOpponent.Value >= 40 &&
+                !double.IsNaN(player.MaxCsAdvantageOnLaneOpponent.Value) &&
+                !double.IsInfinity(player.MaxCsAdvantageOnLaneOpponent.Value))
+            {
+                var advantage = player.MaxCsAdvantageOnLaneOpponent.Value;
+                var priority = (int)Math.Min(int.MaxValue,
+                    Math.Round(750 + advantage * 10, MidpointRounding.AwayFromZero));
+                tags.Add(new KeyValuePair<int, string>(priority,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCsAdvantage)
+                        .Replace("{0}", Math.Round(advantage, MidpointRounding.AwayFromZero)
+                            .ToString("N0", CultureInfo.InvariantCulture))));
+            }
+            if (player.KnockEnemyIntoTeamAndKill.HasValue &&
+                player.KnockEnemyIntoTeamAndKill.Value >= 6)
+                tags.Add(new KeyValuePair<int, string>(660,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp)
+                        .Replace("{0}", player.KnockEnemyIntoTeamAndKill.Value
+                            .ToString("N0", CultureInfo.InvariantCulture))));
             AddMatchValueLeaderTag(tags, player, all, group,
                 p => p.Kills >= 0 ? (double?)p.Kills : null,
                 LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch,

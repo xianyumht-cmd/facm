@@ -316,6 +316,8 @@ namespace FACM.League
         public const string DynamicEncounterLeaderShieldTeam = "LeagueEfficiencyDynamicEncounterLeaderShieldTeam";
         public const string DynamicEncounterLeaderSolo = "LeagueEfficiencyDynamicEncounterLeaderSolo";
         public const string DynamicEncounterLeaderCs = "LeagueEfficiencyDynamicEncounterLeaderCs";
+        public const string DynamicEncounterLeaderCsAdvantage = "LeagueEfficiencyDynamicEncounterLeaderCsAdvantage";
+        public const string DynamicEncounterLeaderKnockUp = "LeagueEfficiencyDynamicEncounterLeaderKnockUp";
         public const string DynamicEncounterLeaderKillsMatch = "LeagueEfficiencyDynamicEncounterLeaderKillsMatch";
         public const string DynamicEncounterLeaderKillsTeam = "LeagueEfficiencyDynamicEncounterLeaderKillsTeam";
         public const string DynamicEncounterLeaderKpMatch = "LeagueEfficiencyDynamicEncounterLeaderKpMatch";
@@ -718,6 +720,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam, "队内护盾第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo, "单杀 ×{0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs, "全场补刀第一（{0}）" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCsAdvantage, "补刀压制 ×{0}" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp, "击飞配合击杀 ×{0}" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch, "全场击杀第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam, "队内击杀第一" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch, "全场参团率第一" },
