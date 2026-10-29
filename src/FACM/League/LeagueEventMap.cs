@@ -17,6 +17,8 @@ namespace FACM.League
         private PointF? _position;
         private PointF[] _minutePositions = new PointF[0];
         private PointF[] _gankPositions = new PointF[0];
+        private int[] _minuteLanes = new int[0];
+        private int[] _gankLanes = new int[0];
         private PointF[] _level3Positions = new PointF[0];
         private PointF[] _level4Positions = new PointF[0];
         private bool _pointCloudMode;
@@ -65,6 +67,8 @@ namespace FACM.League
             _pointCloudMode = false;
             _minutePositions = new PointF[0];
             _gankPositions = new PointF[0];
+            _minuteLanes = new int[0];
+            _gankLanes = new int[0];
             _level3Positions = new PointF[0];
             _level4Positions = new PointF[0];
             _heatmapCells = new HeatmapCell[0];
@@ -82,17 +86,29 @@ namespace FACM.League
         internal void SetPointCloud(IEnumerable<PointF> minutePositions, IEnumerable<PointF> gankPositions,
             IEnumerable<PointF> level3Positions, IEnumerable<PointF> level4Positions)
         {
+            SetPointCloud(minutePositions, gankPositions, level3Positions, level4Positions, null, null);
+        }
+
+        internal void SetPointCloud(IEnumerable<PointF> minutePositions, IEnumerable<PointF> gankPositions,
+            IEnumerable<PointF> level3Positions, IEnumerable<PointF> level4Positions,
+            IEnumerable<int> minuteLanes, IEnumerable<int> gankLanes)
+        {
             if (IsDisposed) return;
             _pointCloudMode = true;
             _position = null;
-            // GankPreferenceSummary.vue caps visible dots at 54/100 and balances lanes.
-            // The density map below still uses all bounded source-confirmed points.
-            _minutePositions = BalanceByLane(NormalizePoints(minutePositions, 40 * 14), 54);
-            _gankPositions = BalanceByLane(NormalizePoints(gankPositions,
-                40 * LeagueJungleAnalysis.MaximumGankMapPoints), 100, true);
+            // Preserve source lane ownership through normalization and visible-point sampling.
+            var minutes = NormalizeLanePoints(minutePositions, minuteLanes, 40 * 14, false);
+            var ganks = NormalizeLanePoints(gankPositions, gankLanes,
+                40 * LeagueJungleAnalysis.MaximumGankMapPoints, true);
+            var minuteIndices = BalanceIndices(minutes.Item2, 54);
+            var gankIndices = BalanceIndices(ganks.Item2, 100);
+            _minutePositions = minuteIndices.Select(i => minutes.Item1[i]).ToArray();
+            _minuteLanes = minuteIndices.Select(i => minutes.Item2[i]).ToArray();
+            _gankPositions = gankIndices.Select(i => ganks.Item1[i]).ToArray();
+            _gankLanes = gankIndices.Select(i => ganks.Item2[i]).ToArray();
             _level3Positions = NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
             _level4Positions = NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints);
-            _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId);
+            _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId, minuteLanes, gankLanes);
             UpdatePointCloudDescription();
             Invalidate();
         }
@@ -116,13 +132,23 @@ namespace FACM.League
         // Matches the pinned GankMap 7x7 grid: minute samples weigh 1, confirmed ganks weigh 5.
         internal static HeatmapCell[] BuildHeatmap(IEnumerable<PointF> minutes, IEnumerable<PointF> ganks, int mapId)
         {
+            return BuildHeatmap(minutes, ganks, mapId, null, null);
+        }
+
+        internal static HeatmapCell[] BuildHeatmap(IEnumerable<PointF> minutes, IEnumerable<PointF> ganks,
+            int mapId, IEnumerable<int> minuteLanes, IEnumerable<int> gankLanes)
+        {
             if (mapId != 11) return new HeatmapCell[0];
             const int grid = 7;
             var cells = new Dictionary<int, HeatmapAccumulator>();
-            Action<IEnumerable<PointF>, int, int> add = (points, limit, weight) =>
+            Action<IEnumerable<PointF>, IEnumerable<int>, int, int> add = (points, lanes, limit, weight) =>
             {
+                var labels = (lanes ?? Enumerable.Empty<int>()).Take(limit).ToArray();
+                var index = 0;
                 foreach (var raw in (points ?? Enumerable.Empty<PointF>()).Take(limit))
                 {
+                    var explicitLane = index < labels.Length ? labels[index] : -1;
+                    index++;
                     var normalized = Normalize(raw.X, raw.Y, mapId);
                     if (!normalized.HasValue) continue;
                     var point = normalized.Value;
@@ -138,12 +164,14 @@ namespace FACM.League
                     cell.Weight += weight;
                     cell.X += point.X * weight;
                     cell.Y += point.Y * weight;
-                    var lane = weight == 5 ? LeagueJungleAnalysis.GankLane((long)raw.X, (long)raw.Y) : null;
-                    cell.LaneWeights[lane ?? LeagueJungleAnalysis.MapZone((long)raw.X, (long)raw.Y)] += weight;
+                    var sourceLane = weight == 5 ? LeagueJungleAnalysis.GankLane((long)raw.X, (long)raw.Y) : null;
+                    var lane = explicitLane >= 0 && explicitLane < 3 ? explicitLane :
+                        sourceLane ?? LeagueJungleAnalysis.MapZone((long)raw.X, (long)raw.Y);
+                    cell.LaneWeights[lane] += weight;
                 }
             };
-            add(minutes, 40 * 14, 1);
-            add(ganks, 40 * LeagueJungleAnalysis.MaximumGankMapPoints, 5);
+            add(minutes, minuteLanes, 40 * 14, 1);
+            add(ganks, gankLanes, 40 * LeagueJungleAnalysis.MaximumGankMapPoints, 5);
             if (cells.Count == 0) return new HeatmapCell[0];
             var maxWeight = cells.Values.Max(c => c.Weight);
             return cells.OrderByDescending(pair => pair.Value.Weight).ThenBy(pair => pair.Key)
@@ -212,16 +240,21 @@ namespace FACM.League
                 center.X + radius, center.Y - radius);
         }
 
-        // Pinned GankMap.vue: equal lane quotas first, then distribute remaining slots
-        // by available lane capacity; choose evenly spaced points in original order.
-        // Native lane membership is coordinate-inferred until explicit source labels exist.
+        // Pinned GankMap.vue: equal lane quotas, spare-slot redistribution and ordered picks.
         internal static PointF[] BalanceByLane(PointF[] points, int limit, bool gank = false)
         {
-            if (points == null || limit <= 0) return new PointF[0];
-            if (points.Length <= limit) return points;
+            if (points == null) return new PointF[0];
+            var lanes = points.Select(p => gank ? GankLaneIndex(p) : LaneIndex(p)).ToArray();
+            return BalanceIndices(lanes, limit).Select(i => points[i]).ToArray();
+        }
+
+        internal static int[] BalanceIndices(int[] lanes, int limit)
+        {
+            if (lanes == null || limit <= 0) return new int[0];
+            if (lanes.Length <= limit) return Enumerable.Range(0, lanes.Length).ToArray();
             var buckets = new[] { new List<int>(), new List<int>(), new List<int>() };
-            for (var i = 0; i < points.Length; i++)
-                buckets[gank ? GankLaneIndex(points[i]) : LaneIndex(points[i])].Add(i);
+            for (var i = 0; i < lanes.Length; i++)
+                buckets[lanes[i] >= 0 && lanes[i] < 3 ? lanes[i] : 1].Add(i);
             var active = Enumerable.Range(0, 3).Where(lane => buckets[lane].Count > 0).ToArray();
             var picked = new int[3];
             var quota = limit >= active.Length ? limit / active.Length : 0;
@@ -241,7 +274,7 @@ namespace FACM.League
                     remaining--;
                 }
             }
-            var selected = new bool[points.Length];
+            var selected = new bool[lanes.Length];
             foreach (var lane in active)
             {
                 var bucket = buckets[lane];
@@ -252,7 +285,25 @@ namespace FACM.League
                     selected[bucket[index]] = true;
                 }
             }
-            return points.Where((point, index) => selected[index]).ToArray();
+            return Enumerable.Range(0, lanes.Length).Where(i => selected[i]).ToArray();
+        }
+
+        private Tuple<PointF[], int[]> NormalizeLanePoints(IEnumerable<PointF> positions,
+            IEnumerable<int> lanes, int limit, bool gank)
+        {
+            var raw = (positions ?? Enumerable.Empty<PointF>()).Take(limit).ToArray();
+            var labels = (lanes ?? Enumerable.Empty<int>()).Take(limit).ToArray();
+            var points = new List<PointF>();
+            var resolved = new List<int>();
+            for (var i = 0; i < raw.Length; i++)
+            {
+                var point = Normalize(raw[i].X, raw[i].Y, _mapId);
+                if (!point.HasValue) continue;
+                points.Add(point.Value);
+                resolved.Add(i < labels.Length && labels[i] >= 0 && labels[i] < 3 ? labels[i] :
+                    gank ? GankLaneIndex(point.Value) : LaneIndex(point.Value));
+            }
+            return Tuple.Create(points.ToArray(), resolved.ToArray());
         }
 
         private PointF[] NormalizePoints(IEnumerable<PointF> positions, int limit)
@@ -352,14 +403,20 @@ namespace FACM.League
                     var gankRadius = Math.Max(4f, e.Graphics.DpiX / 16f);
                     var minuteBrushes = new Brush[] { topBrush, midBrush, botBrush };
                     var killPens = new[] { topKill, midKill, botKill };
-                    foreach (var p in _minutePositions)
-                        e.Graphics.FillEllipse(minuteBrushes[LaneIndex(p)],
+                    for (var i = 0; i < _minutePositions.Length; i++)
+                    {
+                        var p = _minutePositions[i];
+                        e.Graphics.FillEllipse(minuteBrushes[_minuteLanes[i]],
                             bounds.Left + p.X * bounds.Width - minuteRadius,
                             bounds.Top + p.Y * bounds.Height - minuteRadius, 2 * minuteRadius, 2 * minuteRadius);
-                    foreach (var p in _gankPositions)
+                    }
+                    for (var i = 0; i < _gankPositions.Length; i++)
+                    {
+                        var p = _gankPositions[i];
                         DrawLaneKillMarker(e.Graphics,
                             new PointF(bounds.Left + p.X * bounds.Width, bounds.Top + p.Y * bounds.Height),
-                            gankRadius, killPens[GankLaneIndex(p)]);
+                            gankRadius, killPens[_gankLanes[i]]);
+                    }
                     var level3Radius = Math.Max(4f, e.Graphics.DpiX / 24f);
                     var level4Radius = Math.Max(6f, e.Graphics.DpiX / 18f);
                     foreach (var p in _level3Positions)
