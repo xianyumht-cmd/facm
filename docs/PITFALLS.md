@@ -1,3 +1,7 @@
+## Do not silently truncate computed MatchCard tags (2026-10-29)
+
+Pinned Akari `ManyTags.vue` presents the entire sorted `usePlayerTags()` stream, hiding only visually overflowing entries. A fixed `Take(32)` in native `LeagueMatchTagStrip.SetTags` discarded valid tags before overflow and accessibility processing. Keep the complete nonblank computed stream and test a case above 32 entries; retain the source's 99-count visual cap only on the `+N` caption, not on the underlying items. Executable `d15b573` passed all four Windows workflows. Long-menu orientation and physical DPI remain separate parity checks.
+
 ## Measure native popup text with its actual rendering font (2026-10-29)
 
 A WinForms `ContextMenuStrip` can use a different default font from its owner control. Measuring overflow captions against the owner font while rendering menu items with the default menu font invalidates width caps, especially after font changes. Set the popup's font explicitly from the owner during rebuild and assert the displayed caption width with the popup font in synthetic smoke. Executable `4285252` passed all four Windows workflows; actual Win10 DPI rendering remains for consolidated acceptance.
