@@ -80,6 +80,15 @@ namespace FACM.League
                 gankBalanced.Count(p => LeagueEventMap.GankLaneIndex(p) == 1) == 18 &&
                 gankBalanced.Count(p => LeagueEventMap.GankLaneIndex(p) == 2) == 18,
                 "Gank sampling must balance strict source gank lanes rather than map activity zones.");
+            var sourceLanes = Enumerable.Repeat(2, 60).Concat(Enumerable.Repeat(1, 20))
+                .Concat(Enumerable.Repeat(0, 20)).ToArray();
+            var sourcePicks = LeagueEventMap.BalanceIndices(sourceLanes, 54);
+            Require(sourcePicks.Length == 54 &&
+                sourcePicks.Count(i => sourceLanes[i] == 0) == 18 &&
+                sourcePicks.Count(i => sourceLanes[i] == 1) == 18 &&
+                sourcePicks.Count(i => sourceLanes[i] == 2) == 18 &&
+                sourcePicks.SequenceEqual(sourcePicks.OrderBy(i => i)),
+                "Explicit source lanes must drive ordered scatter quotas independently of coordinate inference.");
             var sparse = normalizedHeavy.Take(60).Concat(normalizedHeavy.Skip(60).Take(3))
                 .Concat(normalizedHeavy.Skip(80).Take(5)).ToArray();
             var sparseSample = LeagueEventMap.BalanceByLane(sparse, 20);
@@ -127,6 +136,12 @@ namespace FACM.League
             Require(weighted.Length == 1 && weighted[0].Weight == 7 &&
                 Math.Abs(weighted[0].Intensity - 1f) < .0001f && weighted[0].Lane == 1,
                 "Pinned 7x7 heatmap must weigh source-confirmed ganks five times minute samples.");
+            var explicitCell = LeagueEventMap.BuildHeatmap(
+                new[] { new PointF(5000, 8700) }, new[] { new PointF(5000, 8700) },
+                11, new[] { 2 }, new[] { 2 });
+            Require(explicitCell.Length == 1 && explicitCell[0].Lane == 2 &&
+                explicitCell[0].Weight == 6,
+                "Source lane labels must override geometry in weighted heatmap ownership.");
             var edgeCell = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(5000, 8700) }, new[] { new PointF(5000, 8700) }, 11);
             Require(edgeCell.Length == 1 && edgeCell[0].Weight == 6 && edgeCell[0].Lane == 1,
