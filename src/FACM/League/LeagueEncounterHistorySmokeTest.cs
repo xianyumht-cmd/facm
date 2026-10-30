@@ -228,6 +228,32 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.MatchCardWidth(800) >= 260 &&
                 LeagueEncounterMatchScoreboardDialog.MatchCardWidth(1200) >= 260,
                 "MatchCard cards must reflow from one to three columns without negative or clipped widths.");
+            Require(LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 3, Keys.Right) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(2, 10, 3, Keys.Right) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Left) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Up) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Down) == 7 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(8, 10, 3, Keys.Down) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 1, Keys.Right) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 1, Keys.Down) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 0, 3, Keys.Down) == -1,
+                "Keyboard card navigation must respect actual responsive columns and incomplete last rows.");
+            using (var surface = new Bitmap(48, 48))
+            using (var portrait = new Bitmap(2, 2))
+            using (var canvas = Graphics.FromImage(surface))
+            using (var portraitCanvas = Graphics.FromImage(portrait))
+            {
+                portraitCanvas.Clear(Color.CornflowerBlue);
+                var icons = new Dictionary<int, Bitmap> { { 42, portrait } };
+                Require(LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 42, icons, Color.White, Color.Black) &&
+                    surface.GetPixel(12, 12).ToArgb() == Color.CornflowerBlue.ToArgb() &&
+                    !LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 43, icons, Color.White, Color.Black) &&
+                    !LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 0, null, Color.White, Color.Black),
+                    "MatchCard portraits must draw cached champion images and retain ID/unknown fallback.");
+            }
             var cardMetrics = LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(
                 new LeaguePlayerMatchParticipant { DamageAvailable = true, DamageToChampions = 5000,
                     TotalHeal = 0, GoldAvailable = true, GoldEarned = 10000 }, t);

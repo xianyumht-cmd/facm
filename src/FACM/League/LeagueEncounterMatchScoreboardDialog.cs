@@ -24,6 +24,7 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
         private readonly Dictionary<int, Bitmap> _rowItemIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowChampionIcons = new Dictionary<int, Bitmap>();
         private readonly Dictionary<int, Bitmap> _rowSpellIcons = new Dictionary<int, Bitmap>();
         private readonly Dictionary<int, Bitmap> _rowRuneIcons = new Dictionary<int, Bitmap>();
         private readonly ToolTip _tooltips = new ToolTip();
@@ -335,18 +336,19 @@ namespace FACM.League
                 WrapContents = true, FlowDirection = FlowDirection.LeftToRight,
                 Padding = new Padding(6), BackColor = FacmDesignSystem.Canvas };
             _matchCardHost = cards;
+            var cardActivators = new List<Action>();
             for (var index = 0; index < rows.Items.Count; index++)
             {
                 var row = rows.Items[index];
                 var player = row.Tag as LeaguePlayerMatchParticipant;
                 if (player == null) continue;
                 var card = new MatchCardView(index, player,
-                    row.SubItems[1].Text + " · " + row.SubItems[2].Text + " · " +
-                        row.SubItems[3].Text + " · " + row.SubItems[12].Text,
+                    row.SubItems[1].Text,
+                    row.SubItems[2].Text + " · " + row.SubItems[12].Text,
                     FormatParticipantRates(player, scores, isCherry, match.GameDurationSeconds, t),
                     FormatMatchCardMetrics(player, t),
                     row.SubItems[8].Text, match.GameMode, t,
-                    _rowItemIcons, _rowSpellIcons, _rowRuneIcons);
+                    _rowItemIcons, _rowSpellIcons, _rowRuneIcons, _rowChampionIcons);
                 card.AccessibleDescription = row.ToolTipText + "\r\n" +
                     FormatParticipantDamageDetails(player, t);
                 _tooltips.SetToolTip(card, card.AccessibleDescription);
@@ -369,6 +371,7 @@ namespace FACM.League
                     }
                     card.Focus();
                 };
+                cardActivators.Add(activate);
                 card.Click += (sender, e) => activate();
                 card.KeyDown += (sender, e) =>
                 {
@@ -377,7 +380,14 @@ namespace FACM.League
                         activate();
                         e.Handled = true;
                         e.SuppressKeyPress = true;
+                        return;
                     }
+                    var next = MatchCardNavigationTarget(rowIndex, cardActivators.Count,
+                        MatchCardColumns(cards.ClientSize.Width), e.KeyCode);
+                    if (next < 0) return;
+                    cardActivators[next]();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
                 };
                 cards.Controls.Add(card);
                 _matchCards.Add(card);
@@ -472,6 +482,9 @@ namespace FACM.League
             {
                 if (catalog == null || loadAsset == null) return;
                 foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .Select(p => p.ChampionId), id => HasIconReference(catalog.ChampionIcons, id), 32))
+                    _ = LoadRowIconAsync(id, catalog.ChampionIcons[id], loadAsset, _rowChampionIcons, _lifetime.Token);
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
                     .SelectMany(GetMatchRowItemSlots), id => HasIconReference(catalog.ItemIcons, id), 48))
                     _ = LoadRowIconAsync(id, catalog.ItemIcons[id], loadAsset, _rowItemIcons, _lifetime.Token);
                 foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
@@ -500,6 +513,8 @@ namespace FACM.League
                 _ownedIcons.Clear();
                 foreach (var bitmap in _rowItemIcons.Values) bitmap.Dispose();
                 _rowItemIcons.Clear();
+                foreach (var bitmap in _rowChampionIcons.Values) bitmap.Dispose();
+                _rowChampionIcons.Clear();
                 foreach (var bitmap in _rowSpellIcons.Values) bitmap.Dispose();
                 _rowSpellIcons.Clear();
                 foreach (var bitmap in _rowRuneIcons.Values) bitmap.Dispose();
@@ -519,6 +534,34 @@ namespace FACM.League
         {
             var available = Math.Max(260, clientWidth - 24 - SystemInformation.VerticalScrollBarWidth);
             return Math.Max(260, available / MatchCardColumns(clientWidth) - 10);
+        }
+
+        internal static int MatchCardNavigationTarget(int index, int count, int columns, Keys key)
+        {
+            if (count <= 0 || index < 0 || index >= count || columns <= 0) return -1;
+            var column = index % columns;
+            if (key == Keys.Left && column > 0) return index - 1;
+            if (key == Keys.Right && column < columns - 1 && index + 1 < count) return index + 1;
+            if (key == Keys.Up && index >= columns) return index - columns;
+            if (key == Keys.Down && index + columns < count) return index + columns;
+            return -1;
+        }
+
+        internal static bool DrawMatchCardChampionPortrait(Graphics graphics, Rectangle bounds,
+            int championId, IDictionary<int, Bitmap> icons, Color background, Color foreground)
+        {
+            using (var fill = new SolidBrush(background))
+                graphics.FillRectangle(fill, bounds);
+            Bitmap icon;
+            if (championId > 0 && icons != null && icons.TryGetValue(championId, out icon) && icon != null)
+            {
+                graphics.DrawImage(icon, bounds);
+                return true;
+            }
+            TextRenderer.DrawText(graphics, championId > 0 ? "#" + championId : "—",
+                SystemFonts.DefaultFont, bounds, foreground, TextFormatFlags.HorizontalCenter |
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            return false;
         }
 
         internal static string FormatMatchCardMetrics(LeaguePlayerMatchParticipant player,
@@ -1582,28 +1625,36 @@ namespace FACM.League
         private sealed class MatchCardView : Control
         {
             private readonly LeaguePlayerMatchParticipant _player;
-            private readonly string _header, _rates, _metrics, _tags, _mode;
+            private readonly string _header, _subtitle, _rates, _metrics, _tags, _mode;
             private readonly Func<string, string> _t;
-            private readonly IDictionary<int, Bitmap> _items, _spells, _runes;
+            private readonly IDictionary<int, Bitmap> _items, _spells, _runes, _champions;
 
             internal int RowIndex { get; private set; }
             internal bool IsSelected { get; set; }
 
             internal MatchCardView(int rowIndex, LeaguePlayerMatchParticipant player,
-                string header, string rates, string metrics, string tags, string mode,
+                string header, string subtitle, string rates, string metrics, string tags, string mode,
                 Func<string, string> t, IDictionary<int, Bitmap> items,
-                IDictionary<int, Bitmap> spells, IDictionary<int, Bitmap> runes)
+                IDictionary<int, Bitmap> spells, IDictionary<int, Bitmap> runes,
+                IDictionary<int, Bitmap> champions)
             {
-                RowIndex = rowIndex; _player = player; _header = header; _rates = rates;
-                _metrics = metrics; _tags = tags; _mode = mode; _t = t;
-                _items = items; _spells = spells; _runes = runes;
-                Height = 144; Width = 380; Margin = new Padding(4);
+                RowIndex = rowIndex; _player = player; _header = header; _subtitle = subtitle;
+                _rates = rates; _metrics = metrics; _tags = tags; _mode = mode; _t = t;
+                _items = items; _spells = spells; _runes = runes; _champions = champions;
+                Height = 170; Width = 380; Margin = new Padding(4);
                 TabStop = true; Cursor = Cursors.Hand;
                 SetStyle(ControlStyles.Selectable, true);
                 AccessibleRole = AccessibleRole.ListItem;
-                AccessibleName = header;
+                AccessibleName = header + " · " + subtitle;
                 SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
                     ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override bool IsInputKey(Keys keyData)
+            {
+                var key = keyData & Keys.KeyCode;
+                return key == Keys.Left || key == Keys.Right || key == Keys.Up || key == Keys.Down ||
+                    base.IsInputKey(keyData);
             }
 
             protected override void OnPaint(PaintEventArgs e)
@@ -1613,30 +1664,35 @@ namespace FACM.League
                 var foreground = IsSelected ? SystemColors.HighlightText : FacmDesignSystem.Text;
                 using (var fill = new SolidBrush(background))
                     e.Graphics.FillRectangle(fill, ClientRectangle);
-                using (var border = new Pen(IsSelected ? SystemColors.Highlight : FacmDesignSystem.Border))
+                using (var border = new Pen(IsSelected ? SystemColors.Highlight :
+                    _player.Win ? FacmDesignSystem.Accent : FacmDesignSystem.Error))
                     e.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
                 var innerWidth = Math.Max(0, Width - 16);
                 var single = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
                     TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
+                DrawMatchCardChampionPortrait(e.Graphics, new Rectangle(8, 6, 40, 40),
+                    _player.ChampionId, _champions, FacmDesignSystem.Surface, foreground);
                 TextRenderer.DrawText(e.Graphics, _header, Font,
-                    new Rectangle(8, 5, innerWidth, 23), foreground, single);
+                    new Rectangle(56, 5, Math.Max(0, innerWidth - 48), 23), foreground, single);
+                TextRenderer.DrawText(e.Graphics, _subtitle, Font,
+                    new Rectangle(56, 27, Math.Max(0, innerWidth - 48), 19), foreground, single);
                 TextRenderer.DrawText(e.Graphics, _rates, Font,
-                    new Rectangle(8, 30, innerWidth, 35), foreground,
+                    new Rectangle(8, 50, innerWidth, 38), foreground,
                     TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
                 TextRenderer.DrawText(e.Graphics, _metrics, Font,
-                    new Rectangle(8, 66, innerWidth, 20), foreground, single);
+                    new Rectangle(8, 90, innerWidth, 20), foreground, single);
                 var itemWidth = Math.Min(156, Math.Max(70, (innerWidth - 12) / 2));
                 var spellWidth = Math.Min(58, Math.Max(38, (innerWidth - itemWidth) / 3));
                 var runeWidth = Math.Max(0, innerWidth - itemWidth - spellWidth - 8);
-                DrawMatchRowItemIcons(e.Graphics, new Rectangle(8, 88, itemWidth, 22),
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(8, 115, itemWidth, 22),
                     GetMatchRowItemSlots(_player), _items, background, foreground, _t);
-                DrawMatchRowItemIcons(e.Graphics, new Rectangle(12 + itemWidth, 88, spellWidth, 22),
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(12 + itemWidth, 115, spellWidth, 22),
                     GetMatchRowSpellSlots(_player), _spells, background, foreground, _t);
-                DrawMatchRowItemIcons(e.Graphics, new Rectangle(16 + itemWidth + spellWidth, 88,
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(16 + itemWidth + spellWidth, 115,
                         runeWidth, 22), GetMatchRowRuneSlots(_player, _mode),
                     _runes, background, foreground, _t);
                 TextRenderer.DrawText(e.Graphics, _tags, Font,
-                    new Rectangle(8, 114, innerWidth, 22), foreground, single);
+                    new Rectangle(8, 142, innerWidth, 20), foreground, single);
                 if (Focused)
                     ControlPaint.DrawFocusRectangle(e.Graphics,
                         new Rectangle(2, 2, Math.Max(1, Width - 5), Math.Max(1, Height - 5)),
