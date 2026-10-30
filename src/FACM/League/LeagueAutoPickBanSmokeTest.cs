@@ -178,7 +178,15 @@ namespace FACM.League
             };
             var encoded = LeagueAutoSelectProfiles.Serialize(profiles);
             var decoded = LeagueAutoSelectProfiles.Parse(encoded);
-            Require(decoded.Count == 2 && LeagueAutoSelectProfiles.Serialize(decoded) == encoded,
+            Require(decoded.Count == 2 &&
+                decoded[0].Mode == "rift" && decoded[0].Role == "top" &&
+                decoded[0].Picks.SequenceEqual(new[] { 67, 22 }) &&
+                decoded[0].Bans.SequenceEqual(new[] { 99 }) &&
+                decoded[0].PickStrategy == "just-show" && decoded[0].PickDelayMs == 1500 &&
+                decoded[1].Mode == "aram" && decoded[1].Role == "default" &&
+                decoded[1].Picks.SequenceEqual(new[] { 157 }) &&
+                decoded[1].Bans.Count == 0 &&
+                LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles.Serialize(decoded)).Count == 2,
                 "Priority profiles must round-trip without order loss.");
             Require(LeagueAutoSelectProfiles.ModeFor(420, "CLASSIC") == "rift" &&
                     LeagueAutoSelectProfiles.ModeFor(450, "ARAM") == "aram" &&
