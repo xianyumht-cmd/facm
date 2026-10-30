@@ -1,3 +1,7 @@
+## MatchCard roster identity boundary (Draft #357, 2026-10-30)
+
+`LeagueEncounterMatchScoreboardDialog.BuildMatchPerformanceTagEntries` requires one positive, distinct participant ID per selected-match roster entry before computing leader tags, in addition to its existing team/subteam and metric-completeness checks. The guard rejects duplicate snapshot entries rather than silently deduplicating their contributions to team totals; valid bounded rosters keep the existing source-pinned match/team priority and percentage behavior. Executable `12068b6` and synthetic `964cbe6` passed all four Windows workflows (Build #41032588769, Glass #41032588835, UI Text #41032588942, Mayhem #41032588721). No new data owner or network request.
+
 ## MatchCard peer metric evidence boundary (Draft #357, 2026-10-30)
 
 `LeagueEncounterMatchScoreboardDialog.BuildMatchPerformanceTagEntries` reuses one bounded selected-match roster for pinned Akari v1.5.1 leader tags. Its integer and floating leader helpers require complete nonnegative teammate metrics before calculating a share or emitting team labels, and require complete nonnegative, finite **all-roster** metrics before certifying a match-wide label. Invalid opponents leave valid team-only comparisons available; invalid teammates suppress the affected category entirely. This is pure presentation logic, not a new data request or normalization owner. Executable `4c97ab4` passed four Windows CI workflows; source-wide visual and Tencent/DPI acceptance remain separate.
