@@ -73,6 +73,7 @@ namespace FACM.League
 
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, HideSelection = false, MultiSelect = false, GridLines = true,
+                ShowItemToolTips = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
@@ -255,6 +256,8 @@ namespace FACM.League
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
                 item.Tag = player;
+                item.ToolTipText = FormatMatchRowTagTooltip(player, detail.Participants, isCherry, t,
+                    match.MapId, match.GameDurationSeconds);
                 ListViewGroup participantGroup;
                 if (teamId > 0 && participantGroups.TryGetValue(teamId, out participantGroup))
                     item.Group = participantGroup;
@@ -491,6 +494,14 @@ namespace FACM.League
             return tags.Count == 0 ? string.Empty :
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
                     .Replace("{0}", string.Join(" · ", tags.Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static string FormatMatchRowTagTooltip(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
+        {
+            return string.Join("\r\n", BuildCombinedMatchTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds).Select(tag => tag.Value));
         }
 
         internal static List<KeyValuePair<long, string>> BuildCombinedMatchTagEntries(
