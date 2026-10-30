@@ -42,7 +42,7 @@ namespace FACM.League
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
-            Width = 960; Height = 685; MinimumSize = new Size(680, 510);
+            Width = 1070; Height = 685; MinimumSize = new Size(680, 510);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
@@ -81,14 +81,15 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 145);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 110);
-            rows.Columns.Add("K/D/A", 80);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 65);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 135);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 100);
+            rows.Columns.Add("K/D/A", 75);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 60);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 90);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 80);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 60);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 55);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 110);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
             _scoreboardRows = rows;
@@ -262,6 +263,7 @@ namespace FACM.League
                 var rowTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
                     match.MapId, match.GameDurationSeconds);
                 item.SubItems.Add(FormatMatchRowTagPreview(rowTags, t));
+                item.SubItems.Add(FormatMatchRowItemPreview(player, catalog, t));
                 item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
@@ -547,6 +549,22 @@ namespace FACM.League
             return entries.Count == 1 ? first : first + " " +
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
                     .Replace("{0}", Math.Min(entries.Count - 1, 99).ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static string FormatMatchRowItemPreview(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        {
+            if (player == null) return "—";
+            var ids = (player.ItemIds ?? new int[0]).Where(id => id > 0).Take(7).ToList();
+            var boundId = player.RoleBoundItemId.GetValueOrDefault();
+            if (boundId > 0 && !ids.Contains(boundId)) ids.Add(boundId);
+            if (ids.Count == 0) return "—";
+            var names = catalog == null ? null : catalog.Items;
+            var preview = string.Join(" · ", ids.Take(2)
+                .Select(id => FormatNamedIds(new[] { id }, names)));
+            return ids.Count <= 2 ? preview : preview + " " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                    .Replace("{0}", (ids.Count - 2).ToString(CultureInfo.InvariantCulture));
         }
 
         internal static string FormatMatchRowTooltip(IEnumerable<KeyValuePair<long, string>> tags,

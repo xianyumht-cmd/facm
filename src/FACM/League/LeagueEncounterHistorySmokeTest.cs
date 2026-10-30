@@ -312,6 +312,19 @@ namespace FACM.League
                 arenaBuild.Contains("Augment") && !arenaBuild.Contains("Press the Attack") &&
                 kiwiBuild.Contains("Augment") && !kiwiBuild.Contains("Press the Attack"),
                 "Each MatchCard row must expose existing item/spell and mode-specific rune or augment evidence.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    buildPlayer, rowCatalog, t) == "Boots · #9999 +1" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    new LeaguePlayerMatchParticipant { RoleBoundItemId = 4000 }, null, t) == "#4000" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -1 } }, rowCatalog, t) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(null, rowCatalog, t) == "—",
+                "Each MatchCard row must expose a bounded inline equipment summary without duplicating bound items.");
+            buildPlayer.RoleBoundItemId = 4000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    buildPlayer, rowCatalog, t) == "Boots · #9999 +2",
+                "A distinct role-bound item must remain discoverable in the inline equipment count.");
+            buildPlayer.RoleBoundItemId = 3006;
             Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
                 LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&
                 !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("CLASSIC") &&
