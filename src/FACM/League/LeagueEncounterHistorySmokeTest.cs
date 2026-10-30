@@ -260,6 +260,17 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, false, t).Contains("队内经济第一（1,100 / 61.11%）"),
                 "MatchCard leader tags must use pinned match/team precedence, metric-specific totals and priority.");
+            var rowTags = LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                leader, leaderboard, false, t);
+            Require(rowTags.StartsWith("全场输出第一（1,000 / 66.67%）\r\n") &&
+                rowTags.Contains("全场治疗第一（200 / 66.67%）") &&
+                rowTags.Contains("全场经济第一（1,200 / 54.55%）") &&
+                !rowTags.Contains("对局表现：") && !rowTags.EndsWith("\r\n") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                    ally, leaderboard, false, t).Contains("全场承伤第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                    new LeaguePlayerMatchParticipant(), leaderboard, false, t) == string.Empty,
+                "Each MatchCard roster row must expose its own ordered full tags without a duplicate heading.");
             var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                 leader, leaderboard, false, t);
             Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&
