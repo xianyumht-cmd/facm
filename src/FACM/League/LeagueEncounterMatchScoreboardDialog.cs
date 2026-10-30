@@ -266,7 +266,7 @@ namespace FACM.League
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
                 item.Tag = player;
-                item.ToolTipText = string.Join("\r\n", rowTags.Select(tag => tag.Value));
+                item.ToolTipText = FormatMatchRowTooltip(rowTags, player, catalog, match.GameMode, t);
                 ListViewGroup participantGroup;
                 if (teamId > 0 && participantGroups.TryGetValue(teamId, out participantGroup))
                     item.Group = participantGroup;
@@ -547,6 +547,58 @@ namespace FACM.League
             return entries.Count == 1 ? first : first + " " +
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
                     .Replace("{0}", Math.Min(entries.Count - 1, 99).ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static string FormatMatchRowTooltip(IEnumerable<KeyValuePair<long, string>> tags,
+            LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,
+            string gameMode, Func<string, string> t)
+        {
+            var tagText = string.Join("\r\n", (tags ?? Enumerable.Empty<KeyValuePair<long, string>>())
+                .Where(tag => !string.IsNullOrWhiteSpace(tag.Value)).Select(tag => tag.Value));
+            var buildText = FormatMatchRowBuildTooltip(player, catalog, gameMode, t);
+            return tagText.Length == 0 ? buildText : buildText.Length == 0
+                ? tagText : tagText + "\r\n\r\n" + buildText;
+        }
+
+        internal static string FormatMatchRowBuildTooltip(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, string gameMode, Func<string, string> t)
+        {
+            if (player == null) return string.Empty;
+            var lines = new List<string>();
+            var items = FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items);
+            if (items != "—")
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems) + "：" + items);
+            if (player.RoleBoundItemId.GetValueOrDefault() > 0 &&
+                (player.ItemIds == null || Array.IndexOf(player.ItemIds, player.RoleBoundItemId.Value) < 0))
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem) + "：" +
+                    FormatBoundItem(player.RoleBoundItemId, catalog == null ? null : catalog.Items));
+            var spells = FormatNamedIds(player.SpellIds, catalog == null ? null : catalog.Spells);
+            if (spells != "—")
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells) + "：" + spells);
+            var augmentMode = string.Equals(gameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase);
+            if (augmentMode)
+            {
+                var augments = FormatAugments(player.AugmentIds, catalog, t);
+                if (augments != "—")
+                    lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments) +
+                        "：" + augments);
+            }
+            else
+            {
+                for (var group = 0; group < 2; group++)
+                {
+                    var styleId = group == 0 ? player.PrimaryPerkStyleId : player.SecondaryPerkStyleId;
+                    var perks = PerkSlots(player.PerkIds, group == 0 ? 0 : 4, group == 0 ? 4 : 2);
+                    if (styleId <= 0 && (perks == null || !perks.Any(id => id > 0))) continue;
+                    var heading = t(group == 0 ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary :
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary);
+                    lines.Add(FormatPerkGroupHeading(heading, styleId,
+                        catalog == null ? null : catalog.PerkStyles) + "：" +
+                        FormatNamedIds(perks, catalog == null ? null : catalog.Perks));
+                }
+            }
+            return string.Join("\r\n", lines);
         }
 
         internal static void StyleMatchRowTag(ListViewItem item,

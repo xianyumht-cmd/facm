@@ -284,6 +284,46 @@ namespace FACM.League
                     new KeyValuePair<long, string>[0], t) == "—" &&
                 LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(null, t) == "—",
                 "MatchCard rows must show a compact first tag and remaining count without hiding hover details.");
+            var rowCatalog = new LeagueBuildAdvisorCatalog();
+            rowCatalog.Items[3006] = "Boots";
+            rowCatalog.Spells[4] = "Flash";
+            rowCatalog.Perks[8005] = "Press the Attack";
+            rowCatalog.PerkStyles[8000] = "Precision";
+            rowCatalog.PerkStyles[8300] = "Inspiration";
+            rowCatalog.Augments[1234] = "Augment";
+            var buildPlayer = new LeaguePlayerMatchParticipant {
+                ItemIds = new[] { 3006, 0, 9999, 0, 0, 0, 3340 },
+                RoleBoundItemId = 3006, SpellIds = new[] { 4, 0 },
+                PerkIds = new[] { 8005, 0, 0, 0, 9998, 0 },
+                PrimaryPerkStyleId = 8000, SecondaryPerkStyleId = 8300,
+                AugmentIds = new[] { 1234 }
+            };
+            var regularBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "CLASSIC", t);
+            var arenaBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "cherry", t);
+            var kiwiBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "KIWI", t);
+            Require(regularBuild.Contains("Boots / #9999 / #3340") &&
+                regularBuild.Contains("Flash") && regularBuild.Contains("Press the Attack") &&
+                regularBuild.Contains("Precision") && regularBuild.Contains("Inspiration") &&
+                regularBuild.Contains("#9998") && !regularBuild.Contains("Augment") &&
+                !regularBuild.Contains("专属装备") &&
+                arenaBuild.Contains("Augment") && !arenaBuild.Contains("Press the Attack") &&
+                kiwiBuild.Contains("Augment") && !kiwiBuild.Contains("Press the Attack"),
+                "Each MatchCard row must expose existing item/spell and mode-specific rune or augment evidence.");
+            buildPlayer.RoleBoundItemId = 4000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                    buildPlayer, rowCatalog, "ARAM", t).Contains("#4000") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    new[] { new KeyValuePair<long, string>(1, "Damage leader") },
+                    buildPlayer, rowCatalog, "ARAM", t).StartsWith("Damage leader\r\n\r\n") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    null, new LeaguePlayerMatchParticipant(), null, "CLASSIC", t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    new[] { new KeyValuePair<long, string>(1, "Damage leader") },
+                    null, null, "CLASSIC", t) == "Damage leader",
+                "Row hover must retain complete tags, show a distinct role-bound item once and avoid invented builds.");
             var overflowTags = Enumerable.Range(0, 105)
                 .Select(index => new KeyValuePair<long, string>(2000 - index,
                     "Damage leader (1,000 / 66.67%)")).ToArray();
