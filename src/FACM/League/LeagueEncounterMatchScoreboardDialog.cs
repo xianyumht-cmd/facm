@@ -167,7 +167,7 @@ namespace FACM.League
                 radar.UpdateSelection(player);
                 _tooltips.SetToolTip(outgoingBar, FormatDamageTooltip(player, false, maxOutgoing, t));
                 _tooltips.SetToolTip(incomingBar, FormatDamageTooltip(player, true, maxIncoming, t));
-                ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t);
+                ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t, match.GameMode);
                 if (player == null)
                 {
                     tagStrip.SetTags(null);
@@ -175,7 +175,7 @@ namespace FACM.League
                     runeDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
                     return;
                 }
-                runeDetails.Text = FormatParticipantRuneDetails(player, catalog, t);
+                runeDetails.Text = FormatParticipantRuneDetails(player, catalog, t, match.GameMode);
                 var champion = string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
                 var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
@@ -575,8 +575,7 @@ namespace FACM.League
             var spells = FormatNamedIds(player.SpellIds, catalog == null ? null : catalog.Spells);
             if (spells != "—")
                 lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells) + "：" + spells);
-            var augmentMode = string.Equals(gameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase);
+            var augmentMode = IsAugmentMatchMode(gameMode);
             if (augmentMode)
             {
                 var augments = FormatAugments(player.AugmentIds, catalog, t);
@@ -1002,7 +1001,7 @@ namespace FACM.League
 
         private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,
             FlowLayoutPanel strip, Func<string, CancellationToken, Task<Bitmap>> loadAsset,
-            Func<string, string> t)
+            Func<string, string> t, string gameMode)
         {
             _selectionVersion++;
             _selectionCancellation?.Cancel();
@@ -1026,20 +1025,32 @@ namespace FACM.League
                     new[] { player.RoleBoundItemId.Value }, catalog.Items, catalog.ItemIcons, loadAsset);
             AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells),
                 player.SpellIds, catalog.Spells, catalog.SpellIcons, loadAsset);
-            AddIconGroup(strip, FormatPerkGroupHeading(
-                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
-                    player.PrimaryPerkStyleId, catalog.PerkStyles),
-                PerkSlots(player.PerkIds, 0, 4), catalog.Perks, catalog.PerkIcons, loadAsset);
-            AddIconGroup(strip, FormatPerkGroupHeading(
-                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
-                    player.SecondaryPerkStyleId, catalog.PerkStyles),
-                PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
-            if (player.StatPerkIds != null)
-                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards),
-                    Array.ConvertAll(player.StatPerkIds, value => value.GetValueOrDefault()),
-                    catalog.Perks, catalog.PerkIcons, loadAsset);
-            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
-                player.AugmentIds, BuildAugmentLabels(catalog, t), catalog.AugmentIcons, loadAsset);
+            if (IsAugmentMatchMode(gameMode))
+            {
+                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
+                    player.AugmentIds, BuildAugmentLabels(catalog, t), catalog.AugmentIcons, loadAsset);
+            }
+            else
+            {
+                AddIconGroup(strip, FormatPerkGroupHeading(
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
+                        player.PrimaryPerkStyleId, catalog.PerkStyles),
+                    PerkSlots(player.PerkIds, 0, 4), catalog.Perks, catalog.PerkIcons, loadAsset);
+                AddIconGroup(strip, FormatPerkGroupHeading(
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
+                        player.SecondaryPerkStyleId, catalog.PerkStyles),
+                    PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
+                if (player.StatPerkIds != null)
+                    AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards),
+                        Array.ConvertAll(player.StatPerkIds, value => value.GetValueOrDefault()),
+                        catalog.Perks, catalog.PerkIcons, loadAsset);
+            }
+        }
+
+        internal static bool IsAugmentMatchMode(string gameMode)
+        {
+            return string.Equals(gameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase);
         }
 
         private static int[] PerkSlots(int[] perks, int offset, int count)
@@ -1102,9 +1113,14 @@ namespace FACM.League
         }
 
         internal static string FormatParticipantRuneDetails(LeaguePlayerMatchParticipant player,
-            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t, string gameMode = null)
         {
             if (player == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
+            if (IsAugmentMatchMode(gameMode))
+                return (string.IsNullOrWhiteSpace(player.PlayerName)
+                    ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName) +
+                    "\r\n" + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments) +
+                    "：" + FormatAugments(player.AugmentIds, catalog, t);
             var output = new StringBuilder(750);
             output.AppendLine(string.IsNullOrWhiteSpace(player.PlayerName)
                 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName);
