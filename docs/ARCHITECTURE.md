@@ -1,3 +1,7 @@
+## MatchCard per-row tag presentation (Draft #357, 2026-10-30; CI pending)
+
+The existing `LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries` remains the single source for multikill/performance priorities. The selected-player `LeagueMatchTagStrip` still owns clickable chips and overflow. Each scoreboard `ListViewItem.ToolTipText` now projects the same sorted labels into newline-separated hover details through `FormatMatchRowTagTooltip`, with no additional data loading or duplicated metric calculation. This is a native approximation of Akari's per-participant `ManyTags`, not pixel-equivalent inline tags. Executable `8c15697`, synthetic `e7b0c9f`; four Windows CI gates pending.
+
 ## MatchCard roster identity boundary (Draft #357, 2026-10-30)
 
 `LeagueEncounterMatchScoreboardDialog.BuildMatchPerformanceTagEntries` requires one positive, distinct participant ID per selected-match roster entry before computing leader tags, in addition to its existing team/subteam and metric-completeness checks. The guard rejects duplicate snapshot entries rather than silently deduplicating their contributions to team totals; valid bounded rosters keep the existing source-pinned match/team priority and percentage behavior. Executable `12068b6` and synthetic `964cbe6` passed all four Windows workflows (Build #41032588769, Glass #41032588835, UI Text #41032588942, Mayhem #41032588721). No new data owner or network request.
