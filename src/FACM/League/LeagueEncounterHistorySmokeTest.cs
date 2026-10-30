@@ -287,6 +287,7 @@ namespace FACM.League
             var rowCatalog = new LeagueBuildAdvisorCatalog();
             rowCatalog.Items[3006] = "Boots";
             rowCatalog.Spells[4] = "Flash";
+            rowCatalog.Spells[7] = "Heal";
             rowCatalog.Perks[8005] = "Press the Attack";
             rowCatalog.PerkStyles[8000] = "Precision";
             rowCatalog.PerkStyles[8300] = "Inspiration";
@@ -336,6 +337,17 @@ namespace FACM.League
                         RoleBoundItemId = 0 }).SequenceEqual(new int[7]) &&
                 LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(null).Length == 0,
                 "Seven item slots must preserve empty positions, the trinket slot and a distinct bound item.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 4, 7, 12 } })
+                    .SequenceEqual(new[] { 4, 7 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 0, -5 } })
+                    .SequenceEqual(new int[2]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 4 } })
+                    .SequenceEqual(new[] { 4, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(null).Length == 0,
+                "Per-player summoner spell icons must preserve both positions and reject invalid IDs.");
             Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer)
                     .SequenceEqual(new[] { 3006, 9999, 3340 }) &&
                 LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(
@@ -373,6 +385,24 @@ namespace FACM.League
                     Color.White, Color.Black, t);
                 Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
                     "Missing equipment must not retain an icon from the previous participant.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28), new[] { 4, 7 },
+                    new Dictionary<int, Bitmap> { { 4, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 &&
+                    canvas.GetPixel(12, 14).G < 80 &&
+                    canvas.GetPixel(30, 6).ToArgb() != Color.White.ToArgb() &&
+                    LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 4, 7 }, new Dictionary<int, Bitmap> { { 4, icon } }) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 4, 7 }, new Dictionary<int, Bitmap>()),
+                    "Spell rows must paint cached icons and show an unknown second spell slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28), new int[2],
+                    new Dictionary<int, Bitmap> { { 4, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
+                    "Missing spells must not inherit a previous player's cached icon.");
                 using (var trinket = new Bitmap(4, 4))
                 using (var bound = new Bitmap(4, 4))
                 using (var sevenCanvas = new Bitmap(160, 24))
