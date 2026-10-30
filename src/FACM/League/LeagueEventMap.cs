@@ -24,6 +24,9 @@ namespace FACM.League
         private bool _pointCloudMode;
         private bool _firstCampMode;
         private CampMarker[] _campMarkers = new CampMarker[0];
+        private readonly ToolTip _campTooltip = new ToolTip { AutoPopDelay = 12000 };
+        private CampMarker _hoveredCamp;
+        private float _lastDpi = 96f;
         private bool _heatmapMode;
         private HeatmapCell[] _heatmapCells = new HeatmapCell[0];
 
@@ -32,6 +35,7 @@ namespace FACM.League
             internal string Camp, CampSide;
             internal PointF Position;
             internal int OwnCount, InvadeCount;
+            internal int OwnKindTotal, InvadeKindTotal, OwnSideTotal, InvadeSideTotal;
         }
 
         internal sealed class HeatmapCell
@@ -75,6 +79,7 @@ namespace FACM.League
         internal void SetEvent(LeagueMatchTimelineEvent entry)
         {
             if (IsDisposed) return;
+            ClearCampHover();
             _pointCloudMode = false;
             _firstCampMode = false;
             _campMarkers = new CampMarker[0];
@@ -107,6 +112,7 @@ namespace FACM.League
             IEnumerable<int> minuteLanes, IEnumerable<int> gankLanes)
         {
             if (IsDisposed) return;
+            ClearCampHover();
             _pointCloudMode = true;
             _firstCampMode = false;
             _campMarkers = new CampMarker[0];
@@ -152,14 +158,103 @@ namespace FACM.League
                 if (own <= 0 && invade <= 0) continue;
                 camp.OwnCount = Math.Max(0, own);
                 camp.InvadeCount = Math.Max(0, invade);
+                camp.OwnKindTotal = CampKindTotal(aggregate, camp.CampSide, "normal");
+                camp.InvadeKindTotal = CampKindTotal(aggregate, opposingSide, "invade");
+                camp.OwnSideTotal = Math.Max(0, camp.CampSide == "blue" ?
+                    aggregate.BlueFirstCampGames : aggregate.RedFirstCampGames);
+                camp.InvadeSideTotal = Math.Max(0, opposingSide == "blue" ?
+                    aggregate.BlueFirstCampGames : aggregate.RedFirstCampGames);
                 visible.Add(camp);
             }
             return visible.ToArray();
         }
 
+        private static int CampKindTotal(LeagueJungleHistoryAggregate aggregate, string side, string kind)
+        {
+            return aggregate.Camps.Where(c => c.Key.StartsWith(side + "/" + kind + "/",
+                StringComparison.Ordinal)).Sum(c => Math.Max(0, c.Value));
+        }
+
+        internal static string CampMarkerTooltip(UiTextCatalog ui, CampMarker marker)
+        {
+            if (ui == null || marker == null || (marker.OwnCount <= 0 && marker.InvadeCount <= 0))
+                return string.Empty;
+            var campKey = marker.Camp == "red" ? UiTextKeys.LeagueJungleCampRed :
+                marker.Camp == "blue" ? UiTextKeys.LeagueJungleCampBlue :
+                marker.Camp == "wolves" ? UiTextKeys.LeagueJungleCampWolves :
+                UiTextKeys.LeagueJungleCampRaptors;
+            var title = string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleMapCampDetailTitle),
+                ui.Get(marker.CampSide == "blue" ? UiTextKeys.LeagueJungleBlueSide :
+                    UiTextKeys.LeagueJungleRedSide), ui.Get(campKey));
+            var lines = new List<string> { title };
+            if (marker.OwnCount > 0)
+                lines.Add(string.Format(CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeagueJungleMapCampOwnDetail),
+                    ui.Get(marker.CampSide == "blue" ? UiTextKeys.LeagueJungleMapCampBlueTeam :
+                        UiTextKeys.LeagueJungleMapCampRedTeam), marker.OwnCount,
+                    marker.OwnKindTotal, marker.OwnSideTotal));
+            if (marker.InvadeCount > 0)
+                lines.Add(string.Format(CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeagueJungleMapCampInvadeDetail),
+                    ui.Get(marker.CampSide == "blue" ? UiTextKeys.LeagueJungleMapCampRedTeam :
+                        UiTextKeys.LeagueJungleMapCampBlueTeam), marker.InvadeCount,
+                    marker.InvadeKindTotal, marker.InvadeSideTotal));
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        internal static CampMarker HitTestCampMarker(IEnumerable<CampMarker> markers, Rectangle bounds,
+            Point cursor, float radius)
+        {
+            if (markers == null || bounds.Width <= 0 || bounds.Height <= 0 || radius <= 0)
+                return null;
+            var hitRadius = radius + 3f;
+            foreach (var marker in markers)
+            {
+                if (marker == null) continue;
+                var dx = bounds.Left + marker.Position.X * bounds.Width - cursor.X;
+                var dy = bounds.Top + marker.Position.Y * bounds.Height - cursor.Y;
+                if (dx * dx + dy * dy <= hitRadius * hitRadius) return marker;
+            }
+            return null;
+        }
+
+        private static Rectangle MapBounds(Size size, float dpi)
+        {
+            var padding = Math.Max(6, (int)(dpi / 16f));
+            var side = Math.Min(size.Width, size.Height) - 2 * padding;
+            return side > 0 ? new Rectangle((size.Width - side) / 2, (size.Height - side) / 2,
+                side, side) : Rectangle.Empty;
+        }
+
+        private void ClearCampHover()
+        {
+            _hoveredCamp = null;
+            _campTooltip.Hide(this);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            var marker = _firstCampMode && _map != null ? HitTestCampMarker(_campMarkers,
+                MapBounds(ClientSize, _lastDpi), e.Location, Math.Max(5f, _lastDpi / 19.2f)) : null;
+            if (ReferenceEquals(marker, _hoveredCamp)) return;
+            ClearCampHover();
+            if (marker == null) return;
+            _hoveredCamp = marker;
+            _campTooltip.Show(CampMarkerTooltip(_ui, marker), this, e.X + 12, e.Y + 12, 12000);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            ClearCampHover();
+        }
+
         internal void SetFirstCampMap(LeagueJungleHistoryAggregate aggregate)
         {
             if (IsDisposed) return;
+            ClearCampHover();
             _firstCampMode = true;
             _pointCloudMode = false;
             _position = null;
@@ -426,8 +521,9 @@ namespace FACM.League
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            var padding = Math.Max(6, (int)(e.Graphics.DpiX / 16));
-            var side = Math.Min(ClientSize.Width, ClientSize.Height) - 2 * padding;
+            _lastDpi = e.Graphics.DpiX;
+            var bounds = MapBounds(ClientSize, _lastDpi);
+            var side = bounds.Width;
             if (side <= 0) return;
             if ((_firstCampMode ? _campMarkers.Length == 0 :
                 !_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0 &&
@@ -441,7 +537,6 @@ namespace FACM.League
                     TextFormatFlags.VerticalCenter);
                 return;
             }
-            var bounds = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
             e.Graphics.DrawImage(_map, bounds);
             if ((_pointCloudMode || _firstCampMode) && _mapId == 11)
                 DrawJungleSideOverlay(e.Graphics, bounds);
@@ -530,7 +625,12 @@ namespace FACM.League
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing) { _map?.Dispose(); _map = null; }
+            if (disposing)
+            {
+                _campTooltip.Dispose();
+                _map?.Dispose();
+                _map = null;
+            }
             base.Dispose(disposing);
         }
     }

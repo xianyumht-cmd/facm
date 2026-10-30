@@ -131,20 +131,47 @@ namespace FACM.League
                     "Confirmed gank markers must draw lane-colored diagonal X strokes, not solid dots.");
             }
             var camps = new LeagueJungleHistoryAggregate();
+            camps.BlueFirstCampGames = 5;
+            camps.RedFirstCampGames = 6;
             camps.Camps["blue/normal/blue"] = 2;
+            camps.Camps["blue/normal/red"] = 1;
             camps.Camps["red/invade/blue"] = 1;
+            camps.Camps["red/invade/wolves"] = 2;
             camps.Camps["red/normal/red"] = 3;
             var markers = LeagueEventMap.BuildCampMarkers(camps);
-            Require(markers.Length == 2 &&
+            Require(markers.Length == 4 &&
                 markers.Any(p => p.CampSide == "blue" && p.Camp == "blue" &&
                     p.OwnCount == 2 && p.InvadeCount == 1 &&
+                    p.OwnKindTotal == 3 && p.InvadeKindTotal == 3 &&
+                    p.OwnSideTotal == 5 && p.InvadeSideTotal == 6 &&
                     p.Position == LeagueEventMap.Normalize(3830, 7880, 11).Value) &&
                 markers.Any(p => p.CampSide == "red" && p.Camp == "red" &&
                     p.OwnCount == 3 && p.InvadeCount == 0 &&
+                    p.OwnKindTotal == 3 && p.OwnSideTotal == 6 &&
                     p.Position == LeagueEventMap.Normalize(7060, 10870, 11).Value) &&
                 LeagueEventMap.BuildCampMarkers(null).Length == 0 &&
                 LeagueEventMap.BuildCampMarkers(new LeagueJungleHistoryAggregate()).Length == 0,
                 "First-clear markers use pinned physical camp coordinates and isolate own/invade sides.");
+            var blueMarker = markers.Single(p => p.CampSide == "blue" && p.Camp == "blue");
+            var redMarker = markers.Single(p => p.CampSide == "red" && p.Camp == "red");
+            var campUi = UiTextCatalog.Load();
+            var blueTooltip = LeagueEventMap.CampMarkerTooltip(campUi, blueMarker);
+            var redTooltip = LeagueEventMap.CampMarkerTooltip(campUi, redMarker);
+            Require(blueTooltip.Contains("蓝方己方开野：该营地 2 场 / 同类 3 场 / 阵营有效样本 5 场") &&
+                blueTooltip.Contains("红方入侵开野：该营地 1 场 / 同类 3 场 / 阵营有效样本 6 场") &&
+                redTooltip.Contains("红方己方开野：该营地 3 场 / 同类 3 场 / 阵营有效样本 6 场") &&
+                !redTooltip.Contains("入侵开野") &&
+                LeagueEventMap.CampMarkerTooltip(campUi, null) == string.Empty,
+                "Camp hover details must preserve physical side, actor side and both sample denominators.");
+            var hitBounds = new Rectangle(10, 10, 200, 200);
+            var campCenter = new Point((int)Math.Round(10 + blueMarker.Position.X * 200),
+                (int)Math.Round(10 + blueMarker.Position.Y * 200));
+            Require(ReferenceEquals(LeagueEventMap.HitTestCampMarker(markers, hitBounds,
+                    campCenter, 5f), blueMarker) &&
+                LeagueEventMap.HitTestCampMarker(markers, hitBounds, new Point(0, 0), 5f) == null &&
+                LeagueEventMap.HitTestCampMarker(markers, Rectangle.Empty, campCenter, 5f) == null &&
+                LeagueEventMap.HitTestCampMarker(null, hitBounds, campCenter, 5f) == null,
+                "Camp hover hit testing must track painted normalized positions and ignore empty map bounds.");
             using (var campImage = new Bitmap(36, 18))
             using (var campGraphics = Graphics.FromImage(campImage))
             {
@@ -236,7 +263,7 @@ namespace FACM.League
                         }
                         map.SetFirstCampMap(camps);
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                        Require(map.FirstCampMode && map.CampMarkerCount == 2,
+                        Require(map.FirstCampMode && map.CampMarkerCount == 4,
                             "The optional first-clear view must show only camps with observed starts.");
                         map.SetPointCloud(new[] { new PointF(float.NaN, 1) },
                             new[] { new PointF(float.PositiveInfinity, 1) });
