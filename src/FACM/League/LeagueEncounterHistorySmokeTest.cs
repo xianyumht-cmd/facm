@@ -349,6 +349,13 @@ namespace FACM.League
                     canvas.GetPixel(12, 14).B < 80 &&
                     canvas.GetPixel(30, 2).ToArgb() != Color.White.ToArgb(),
                     "Inline MatchCard must paint a cached first-item image and preserve an unknown-ID slot.");
+                Require(LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 3006, 9999 }, new Dictionary<int, Bitmap> { { 3006, icon } }) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 3006, 9999 }, new Dictionary<int, Bitmap>()) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new int[0], new Dictionary<int, Bitmap> { { 3006, icon } }),
+                    "Rows without cached images must keep the existing readable item-name preview.");
                 graphics.Clear(Color.White);
                 LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
                     new Rectangle(0, 0, 110, 28), new int[0], null,
