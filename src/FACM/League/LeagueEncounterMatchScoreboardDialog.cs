@@ -27,6 +27,10 @@ namespace FACM.League
         private readonly ToolTip _teamTooltips = new ToolTip();
         private CancellationTokenSource _selectionCancellation;
         private int _selectionVersion;
+        private readonly Dictionary<ListViewItem, List<KeyValuePair<long, string>>> _rowTags =
+            new Dictionary<ListViewItem, List<KeyValuePair<long, string>>>();
+        private ListView _scoreboardRows;
+        private Func<string, string> _scoreboardText;
 
         internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
@@ -87,6 +91,8 @@ namespace FACM.League
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
+            _scoreboardRows = rows;
+            _scoreboardText = t;
             var participantGroups = new Dictionary<int, ListViewGroup>();
             if (scores != null)
             {
@@ -279,6 +285,7 @@ namespace FACM.League
                     targetItem = item;
                 }
                 StyleMatchRowTag(item, rowTags, t, player.IsTarget);
+                _rowTags[item] = rowTags;
                 rows.Items.Add(item);
                 runePlayers.Items.Add(name + " · " + (string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName));
@@ -355,6 +362,7 @@ namespace FACM.League
             layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
             CancelButton = close;
+            FacmThemeRuntime.ThemeChanged += OnThemeChanged;
             FormClosed += (sender, e) =>
             {
                 _lifetime.Cancel();
@@ -366,6 +374,27 @@ namespace FACM.League
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
             };
+        }
+
+        private void OnThemeChanged(object sender, EventArgs e)
+        {
+            if (IsDisposed || _scoreboardRows == null || _scoreboardRows.IsDisposed) return;
+            _scoreboardRows.BackColor = FacmDesignSystem.CanvasRaised;
+            _scoreboardRows.ForeColor = FacmDesignSystem.Text;
+            foreach (ListViewItem item in _scoreboardRows.Items)
+            {
+                List<KeyValuePair<long, string>> tags;
+                _rowTags.TryGetValue(item, out tags);
+                var player = item.Tag as LeaguePlayerMatchParticipant;
+                StyleMatchRowTag(item, tags, _scoreboardText, player != null && player.IsTarget);
+            }
+            _scoreboardRows.Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) FacmThemeRuntime.ThemeChanged -= OnThemeChanged;
+            base.Dispose(disposing);
         }
 
         internal static List<LeagueMatchTeamScore> OrderedScoreboardTeams(
@@ -521,7 +550,8 @@ namespace FACM.League
         }
 
         internal static void StyleMatchRowTag(ListViewItem item,
-            IList<KeyValuePair<long, string>> tags, Func<string, string> t, bool isTarget)
+            IList<KeyValuePair<long, string>> tags, Func<string, string> t, bool isTarget,
+            bool? isLightTheme = null)
         {
             if (item == null || item.SubItems.Count <= 8) return;
             item.UseItemStyleForSubItems = false;
@@ -535,7 +565,7 @@ namespace FACM.League
                 .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
             if (first == null) return;
             var chipBackground = LeagueMatchTagStrip.TagColor(LeagueMatchTagStrip.ChipLabel(first),
-                t, !FacmThemeRuntime.Current.IsLight);
+                t, !(isLightTheme ?? FacmThemeRuntime.Current.IsLight));
             item.SubItems[8].BackColor = chipBackground;
             item.SubItems[8].ForeColor = FacmDesignSystem.ReadableTextOn(chipBackground, Color.White);
         }
