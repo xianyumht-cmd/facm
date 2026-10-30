@@ -77,14 +77,15 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 165);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 125);
-            rows.Columns.Add("K/D/A", 90);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 145);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 110);
+            rows.Columns.Add("K/D/A", 80);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 65);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 95);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 85);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 65);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 70);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 90);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 80);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 60);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
             var participantGroups = new Dictionary<int, ListViewGroup>();
             if (scores != null)
@@ -252,12 +253,14 @@ namespace FACM.League
                 item.SubItems.Add(player.DamageAvailable ? player.DamageToChampions.ToString("N0") : "—");
                 item.SubItems.Add(player.GoldAvailable ? player.GoldEarned.ToString("N0") : "—");
                 item.SubItems.Add(player.VisionScore.ToString());
+                var rowTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
+                    match.MapId, match.GameDurationSeconds);
+                item.SubItems.Add(FormatMatchRowTagPreview(rowTags, t));
                 item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
                 item.Tag = player;
-                item.ToolTipText = FormatMatchRowTagTooltip(player, detail.Participants, isCherry, t,
-                    match.MapId, match.GameDurationSeconds);
+                item.ToolTipText = string.Join("\r\n", rowTags.Select(tag => tag.Value));
                 ListViewGroup participantGroup;
                 if (teamId > 0 && participantGroups.TryGetValue(teamId, out participantGroup))
                     item.Group = participantGroup;
@@ -502,6 +505,20 @@ namespace FACM.League
         {
             return string.Join("\r\n", BuildCombinedMatchTagEntries(player, participants, cherry, t,
                 mapId, gameDurationSeconds).Select(tag => tag.Value));
+        }
+
+        internal static string FormatMatchRowTagPreview(IEnumerable<KeyValuePair<long, string>> tags,
+            Func<string, string> t)
+        {
+            if (tags == null) return "—";
+            var entries = tags.Where(tag => !string.IsNullOrWhiteSpace(tag.Value)).ToList();
+            if (entries.Count == 0) return "—";
+            var first = entries[0].Value;
+            var detailStart = first.IndexOf('（');
+            if (detailStart >= 0) first = first.Substring(0, detailStart);
+            return entries.Count == 1 ? first : first + " " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                    .Replace("{0}", (entries.Count - 1).ToString(CultureInfo.InvariantCulture));
         }
 
         internal static List<KeyValuePair<long, string>> BuildCombinedMatchTagEntries(

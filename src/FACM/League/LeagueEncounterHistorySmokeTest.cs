@@ -271,6 +271,19 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
                     new LeaguePlayerMatchParticipant(), leaderboard, false, t) == string.Empty,
                 "Each MatchCard roster row must expose its own ordered full tags without a duplicate heading.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                        leader, leaderboard, false, t), t) == "全场输出第一 +3" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                        ally, leaderboard, false, t), t) == "全场承伤第一" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new[] { new KeyValuePair<long, string>(2000, "五杀"),
+                        new KeyValuePair<long, string>(1800, "全场输出第一（1,000 / 66.67%）") }, t) == "五杀 +1" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new KeyValuePair<long, string>[0], t) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(null, t) == "—",
+                "MatchCard rows must show a compact first tag and remaining count without hiding hover details.");
             var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                 leader, leaderboard, false, t);
             Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&
