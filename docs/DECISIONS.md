@@ -1,3 +1,7 @@
+## 2026-10-30 — Preserve source jungle preference thresholds with evidence-aware unknown state
+
+Use the existing bounded jungle aggregate for the pinned `preference.ts` two-lane and single-lane classification, without another timeline request or view owner. Source thresholds and precedence are mandatory when position weights exist; absent/malformed weights are unknown rather than a fabricated balanced preference. Present the result in the existing native multi-game report, and keep the map legend aligned with actual lane-colored dot/X semantics. Executable [4e94053](https://github.com/xianyumht-cmd/facm/commit/4e9405309c98324992c9a14f9a321738b3306fa2) passed all four Windows workflows; final Tencent CN/Win10 DPI acceptance remains open.
+
 ## 2026-10-29 — MatchCard semantic tag colors follow pinned source light/dark variants
 
 The native `LeagueMatchTagStrip` retains Akari 1.5.1 tag-category colors in both theme modes, rather than letting GGman's generic button theme override them. Preserve the original white chip foreground, category background on hover, and explicit keyboard focus border; apply new theme colors after `FacmThemeRuntime` refreshes open forms. Keep this work within the existing native strip, without a new rendering framework, timer or request. Executable `6100aff` passed four Windows workflows; live Tencent/Win10 DPI and pixel geometry remain separate acceptance gates.

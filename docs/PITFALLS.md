@@ -1,3 +1,7 @@
+## Do not classify unavailable jungle position data as a balanced preference (2026-10-30)
+
+Pinned Akari `preference.ts` receives normalized shares and falls back to balanced, but GGman's on-demand regional timelines can have zero verified position weights. Displaying `balanced` in that case would assert a playstyle without evidence. Resolve preference only from positive, nonnegative aggregate zone weights and use an explicit unavailable label otherwise; keep the source's two-lane-first 70%/28% and single-lane 40%/8% precedence when evidence exists. The older map legend also described blue/orange dots after the renderer had switched to lane-colored circles and X markers; update accessible legend and coverage wording whenever marker semantics change. Synthetic checks and four CI workflows passed for [4e94053](https://github.com/xianyumht-cmd/facm/commit/4e9405309c98324992c9a14f9a321738b3306fa2).
+
 ## Preserve lane labels before normalized-map round trips (2026-10-30)
 
 Reclassifying a map point after float normalization can lose the original strict-versus-broad lane decision at a geometric boundary. Store the pinned `MapZone`/`GankLane` decision beside each bounded source point, keep labels aligned through aggregation and sampling, and use geometry only when older samples have no label. Synthetic smoke must deliberately supply labels that differ from coordinate inference. [executable 5b7357b](https://github.com/xianyumht-cmd/facm/commit/5b7357be06fce2f634603460e1d93c8914e07c85) passed all four Windows workflows.
