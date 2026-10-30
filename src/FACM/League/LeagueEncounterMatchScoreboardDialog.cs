@@ -512,7 +512,8 @@ namespace FACM.League
             if (player == null || participants == null) return tags;
             var all = participants.Where(p => p != null).Take(21).ToList();
             if (all.Count == 0 || all.Count > 20 || !all.Contains(player) ||
-                all.Any(p => LeagueCherryTeams.GroupId(p, cherry) <= 0)) return tags;
+                all.Any(p => p.ParticipantId <= 0 || LeagueCherryTeams.GroupId(p, cherry) <= 0) ||
+                all.Select(p => p.ParticipantId).Distinct().Count() != all.Count) return tags;
             var groupId = LeagueCherryTeams.GroupId(player, cherry);
             var group = all.Where(p => LeagueCherryTeams.GroupId(p, cherry) == groupId).ToList();
             if ((mapId == 11 || mapId == 12) && gameDurationSeconds > 0)
