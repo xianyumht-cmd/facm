@@ -256,6 +256,7 @@ namespace FACM.League
         public const string DynamicEncounterMatchWon = "LeagueEfficiencyDynamicEncounterMatchWon";
         public const string DynamicEncounterMatchLost = "LeagueEfficiencyDynamicEncounterMatchLost";
         public const string DynamicEncounterScoreboardTitle = "LeagueEfficiencyDynamicEncounterScoreboardTitle";
+        public const string DynamicEncounterScoreboardCards = "LeagueEfficiencyDynamicEncounterScoreboardCards";
         public const string DynamicEncounterReplay = "LeagueEfficiencyDynamicEncounterReplay";
         public const string DynamicEncounterReplayChecking = "LeagueEfficiencyDynamicEncounterReplayChecking";
         public const string DynamicEncounterReplayDownloadRequested = "LeagueEfficiencyDynamicEncounterReplayDownloadRequested";
@@ -665,6 +666,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon, "胜利" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost, "失败" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle, "本场对局 · 玩家记分板" },
+            { LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCards, "玩家卡片" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterReplay, "下载 / 观看回放" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking, "正在检查回放状态…" },
             { LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloadRequested, "已向客户端提交下载；稍后可再次点击观看。" },

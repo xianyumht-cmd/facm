@@ -33,6 +33,8 @@ namespace FACM.League
         private readonly Dictionary<ListViewItem, List<KeyValuePair<long, string>>> _rowTags =
             new Dictionary<ListViewItem, List<KeyValuePair<long, string>>>();
         private ListView _scoreboardRows;
+        private FlowLayoutPanel _matchCardHost;
+        private readonly List<MatchCardView> _matchCards = new List<MatchCardView>();
         private Func<string, string> _scoreboardText;
 
         internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
@@ -258,6 +260,11 @@ namespace FACM.League
                 var selected = rows.SelectedIndices.Count == 1 ? rows.SelectedIndices[0] : -1;
                 if (runePlayers.SelectedIndex != selected) runePlayers.SelectedIndex = selected;
                 showSelection(selected >= 0 ? rows.Items[selected].Tag as LeaguePlayerMatchParticipant : null);
+                foreach (var card in _matchCards)
+                {
+                    card.IsSelected = card.RowIndex == selected;
+                    card.Invalidate();
+                }
             };
             runePlayers.SelectedIndexChanged += (sender, e) =>
             {
@@ -321,6 +328,56 @@ namespace FACM.League
                     ? player.ChampionId.ToString() : player.ChampionName));
             }
             var matchTabs = new TabControl { Dock = DockStyle.Fill };
+            var cardsTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCards));
+            var cards = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
+                WrapContents = true, FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(6), BackColor = FacmDesignSystem.Canvas };
+            _matchCardHost = cards;
+            for (var index = 0; index < rows.Items.Count; index++)
+            {
+                var row = rows.Items[index];
+                var player = row.Tag as LeaguePlayerMatchParticipant;
+                if (player == null) continue;
+                var card = new MatchCardView(index, player,
+                    row.SubItems[1].Text + " · " + row.SubItems[2].Text + " · " +
+                        row.SubItems[3].Text + " · " + row.SubItems[12].Text,
+                    FormatParticipantRates(player, scores, isCherry, match.GameDurationSeconds, t),
+                    FormatMatchCardMetrics(player, t),
+                    row.SubItems[8].Text, match.GameMode, t,
+                    _rowItemIcons, _rowSpellIcons, _rowRuneIcons);
+                card.AccessibleDescription = row.ToolTipText + "\r\n" +
+                    FormatParticipantDamageDetails(player, t);
+                _tooltips.SetToolTip(card, card.AccessibleDescription);
+                var rowIndex = index;
+                Action activate = () =>
+                {
+                    if (rows.Items[rowIndex].Selected) showSelection(player);
+                    else rows.Items[rowIndex].Selected = true;
+                    card.Focus();
+                };
+                card.Click += (sender, e) => activate();
+                card.KeyDown += (sender, e) =>
+                {
+                    if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+                    {
+                        activate();
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                    }
+                };
+                cards.Controls.Add(card);
+                _matchCards.Add(card);
+            }
+            Action fitCards = () =>
+            {
+                var width = MatchCardWidth(cards.ClientSize.Width);
+                foreach (var card in _matchCards)
+                    if (card.Width != width) card.Width = width;
+            };
+            cards.SizeChanged += (sender, e) => fitCards();
+            fitCards();
+            cardsTab.Controls.Add(cards);
+            matchTabs.TabPages.Add(cardsTab);
             var participantsTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineParticipants));
             participantsTab.Controls.Add(rows);
             matchTabs.TabPages.Add(participantsTab);
@@ -434,6 +491,30 @@ namespace FACM.League
             };
         }
 
+        internal static int MatchCardColumns(int clientWidth)
+        {
+            return clientWidth >= 1080 ? 3 : clientWidth >= 690 ? 2 : 1;
+        }
+
+        internal static int MatchCardWidth(int clientWidth)
+        {
+            var available = Math.Max(260, clientWidth - 24 - SystemInformation.VerticalScrollBarWidth);
+            return Math.Max(260, available / MatchCardColumns(clientWidth) - 10);
+        }
+
+        internal static string FormatMatchCardMetrics(LeaguePlayerMatchParticipant player,
+            Func<string, string> t)
+        {
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage) + " " +
+                count(player != null && player.DamageAvailable ? (int?)player.DamageToChampions : null) +
+                " · " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHeal) + " " +
+                count(player == null ? null : player.TotalHeal) +
+                " · " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold) + " " +
+                count(player != null && player.GoldAvailable ? (int?)player.GoldEarned : null);
+        }
+
         internal static List<int> SelectMatchRowIconIds(IEnumerable<int> ids, Func<int, bool> hasReference, int limit)
         {
             if (ids == null || hasReference == null || limit <= 0) return new List<int>();
@@ -460,6 +541,10 @@ namespace FACM.League
                 StyleMatchRowTag(item, tags, _scoreboardText, player != null && player.IsTarget);
             }
             _scoreboardRows.Invalidate();
+            if (_matchCardHost != null && !_matchCardHost.IsDisposed)
+                _matchCardHost.BackColor = FacmDesignSystem.Canvas;
+            foreach (var card in _matchCards)
+                if (!card.IsDisposed) card.Invalidate();
         }
 
         protected override void Dispose(bool disposing)
@@ -1423,6 +1508,8 @@ namespace FACM.League
                 bitmap = null;
                 if (_scoreboardRows != null && !_scoreboardRows.IsDisposed)
                     _scoreboardRows.Invalidate();
+                foreach (var card in _matchCards)
+                    if (!card.IsDisposed) card.Invalidate();
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
@@ -1471,6 +1558,70 @@ namespace FACM.League
         {
             return value.HasValue && value.Value > 0 ?
                 FormatNamedIds(new[] { value.Value }, names) : "—";
+        }
+
+        private sealed class MatchCardView : Control
+        {
+            private readonly LeaguePlayerMatchParticipant _player;
+            private readonly string _header, _rates, _metrics, _tags, _mode;
+            private readonly Func<string, string> _t;
+            private readonly IDictionary<int, Bitmap> _items, _spells, _runes;
+
+            internal int RowIndex { get; private set; }
+            internal bool IsSelected { get; set; }
+
+            internal MatchCardView(int rowIndex, LeaguePlayerMatchParticipant player,
+                string header, string rates, string metrics, string tags, string mode,
+                Func<string, string> t, IDictionary<int, Bitmap> items,
+                IDictionary<int, Bitmap> spells, IDictionary<int, Bitmap> runes)
+            {
+                RowIndex = rowIndex; _player = player; _header = header; _rates = rates;
+                _metrics = metrics; _tags = tags; _mode = mode; _t = t;
+                _items = items; _spells = spells; _runes = runes;
+                Height = 144; Width = 380; Margin = new Padding(4);
+                TabStop = true; Cursor = Cursors.Hand;
+                AccessibleRole = AccessibleRole.ListItem;
+                AccessibleName = header;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                var background = IsSelected ? SystemColors.Highlight : FacmDesignSystem.CanvasRaised;
+                var foreground = IsSelected ? SystemColors.HighlightText : FacmDesignSystem.Text;
+                using (var fill = new SolidBrush(background))
+                    e.Graphics.FillRectangle(fill, ClientRectangle);
+                using (var border = new Pen(IsSelected ? SystemColors.Highlight : FacmDesignSystem.Border))
+                    e.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
+                var innerWidth = Math.Max(0, Width - 16);
+                var single = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
+                    TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
+                TextRenderer.DrawText(e.Graphics, _header, Font,
+                    new Rectangle(8, 5, innerWidth, 23), foreground, single);
+                TextRenderer.DrawText(e.Graphics, _rates, Font,
+                    new Rectangle(8, 30, innerWidth, 35), foreground,
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(e.Graphics, _metrics, Font,
+                    new Rectangle(8, 66, innerWidth, 20), foreground, single);
+                var itemWidth = Math.Min(156, Math.Max(70, (innerWidth - 12) / 2));
+                var spellWidth = Math.Min(58, Math.Max(38, (innerWidth - itemWidth) / 3));
+                var runeWidth = Math.Max(0, innerWidth - itemWidth - spellWidth - 8);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(8, 88, itemWidth, 22),
+                    GetMatchRowItemSlots(_player), _items, background, foreground, _t);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(12 + itemWidth, 88, spellWidth, 22),
+                    GetMatchRowSpellSlots(_player), _spells, background, foreground, _t);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(16 + itemWidth + spellWidth, 88,
+                        runeWidth, 22), GetMatchRowRuneSlots(_player, _mode),
+                    _runes, background, foreground, _t);
+                TextRenderer.DrawText(e.Graphics, _tags, Font,
+                    new Rectangle(8, 114, innerWidth, 22), foreground, single);
+                if (Focused)
+                    ControlPaint.DrawFocusRectangle(e.Graphics,
+                        new Rectangle(2, 2, Math.Max(1, Width - 5), Math.Max(1, Height - 5)),
+                        foreground, background);
+            }
         }
 
         private static string FormatIds(int[] values, string empty)

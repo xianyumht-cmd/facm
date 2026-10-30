@@ -221,6 +221,22 @@ namespace FACM.League
                     new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
                     false, 600, t).Contains("补刀/分 0.0 · 金币/分 0.0"),
                 "Explicitly verified zero values must remain distinguishable from unknown fields.");
+            Require(LeagueEncounterMatchScoreboardDialog.MatchCardColumns(600) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardColumns(800) == 2 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardColumns(1200) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(600) >= 260 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(800) >= 260 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(1200) >= 260,
+                "MatchCard cards must reflow from one to three columns without negative or clipped widths.");
+            var cardMetrics = LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(
+                new LeaguePlayerMatchParticipant { DamageAvailable = true, DamageToChampions = 5000,
+                    TotalHeal = 0, GoldAvailable = true, GoldEarned = 10000 }, t);
+            Require(cardMetrics == "英雄伤害 5,000 · 治疗 0 · 金币 10,000" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(
+                    new LeaguePlayerMatchParticipant(), t) == "英雄伤害 — · 治疗 — · 金币 —" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(null, t) ==
+                    "英雄伤害 — · 治疗 — · 金币 —",
+                "Cards must expose damage/healing/economy without inventing missing values or hiding zero.");
             var streaks = new LeaguePlayerMatchParticipant { DoubleKills = 6, TripleKills = 3,
                 QuadraKills = 2, PentaKills = 1 };
             Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
