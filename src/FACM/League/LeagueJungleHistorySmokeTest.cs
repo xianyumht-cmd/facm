@@ -142,12 +142,46 @@ namespace FACM.League
                 !blueHeat.Any(c => c.Center.X > .75f) &&
                 redHeat.Any(c => c.Center.X > .75f),
                 "Side selection must isolate both scatter and weighted heatmap inputs.");
+            Func<int, int, int, Tuple<LeagueJungleHistoryAnalysis.MapPreferenceKind, int?>> preference =
+                (top, mid, bot) => {
+                    var data = new LeagueJungleHistoryAggregate();
+                    data.ZoneWeights[0] = top;
+                    data.ZoneWeights[1] = mid;
+                    data.ZoneWeights[2] = bot;
+                    return LeagueJungleHistoryAnalysis.ResolveMapPreference(data);
+                };
+            var unknown = preference(0, 0, 0);
+            Require(unknown.Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Unknown &&
+                !unknown.Item2.HasValue &&
+                LeagueJungleHistoryAnalysis.ResolveMapPreference(null).Item1 ==
+                    LeagueJungleHistoryAnalysis.MapPreferenceKind.Unknown &&
+                preference(-1, 2, 3).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Unknown,
+                "Absent or malformed position weights must not be labeled as a balanced playstyle.");
+            Require(preference(20, 40, 40).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.MidBot &&
+                preference(20, 40, 40).Item2 == 80 &&
+                preference(40, 40, 20).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.TopMid &&
+                preference(40, 40, 20).Item2 == 80 &&
+                preference(28, 42, 30).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.MidBot &&
+                preference(30, 42, 28).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.TopMid,
+                "Pinned preference.ts must prioritize the two-lane 70%/28% thresholds.");
+            Require(preference(48, 15, 37).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Top &&
+                preference(29, 42, 29).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Mid &&
+                preference(37, 15, 48).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Bot &&
+                preference(81, 61, 58).Item2 == 41 &&
+                preference(34, 33, 33).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Balanced &&
+                !preference(34, 33, 33).Item2.HasValue,
+                "Single-lane 40%/8% dominance, midpoint rounding and balanced fallback must match the pinned source.");
             var ui = UiTextCatalog.Load();
             Require(ui.Get(UiTextKeys.LeagueJungleMapAllSides) !=
                 ui.Get(UiTextKeys.LeagueJungleMapSideFilter),
                 "Map side selector must expose distinct localized label and all-sides choice.");
             var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
             Require(text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&
+                text.Contains(ui.Get(UiTextKeys.LeagueJungleHistoryPreferenceTopMid) + " 100%") &&
+                LeagueJungleHistoryAnalysis.MapPreferenceText(ui, new LeagueJungleHistoryAggregate())
+                    .Contains(ui.Get(UiTextKeys.LeagueJungleHistoryPreferenceUnknown)) &&
+                ui.Get(UiTextKeys.LeagueJungleMapLegend).Contains("同色X") &&
+                ui.Get(UiTextKeys.LeagueJungleMapCoverage).Contains("抓人X") &&
                 LeagueJungleHistoryAnalysis.Report(ui, new LeagueJungleHistorySample[0], 1, 0)
                     .Contains(ui.Get(UiTextKeys.LeagueJungleHistoryUnavailable)),
                 "Native report must expose attempted/eligible coverage and never present a missing timeline as a loss.");

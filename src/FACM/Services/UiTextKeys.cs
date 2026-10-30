@@ -656,6 +656,14 @@ namespace FACM.Services
         public const string LeagueJungleHistoryCoverage = "LeagueJungleHistoryCoverage";
         public const string LeagueJungleHistoryUnavailable = "LeagueJungleHistoryUnavailable";
         public const string LeagueJungleHistoryLane = "LeagueJungleHistoryLane";
+        public const string LeagueJungleHistoryPreference = "LeagueJungleHistoryPreference";
+        public const string LeagueJungleHistoryPreferenceTop = "LeagueJungleHistoryPreferenceTop";
+        public const string LeagueJungleHistoryPreferenceMid = "LeagueJungleHistoryPreferenceMid";
+        public const string LeagueJungleHistoryPreferenceBot = "LeagueJungleHistoryPreferenceBot";
+        public const string LeagueJungleHistoryPreferenceTopMid = "LeagueJungleHistoryPreferenceTopMid";
+        public const string LeagueJungleHistoryPreferenceMidBot = "LeagueJungleHistoryPreferenceMidBot";
+        public const string LeagueJungleHistoryPreferenceBalanced = "LeagueJungleHistoryPreferenceBalanced";
+        public const string LeagueJungleHistoryPreferenceUnknown = "LeagueJungleHistoryPreferenceUnknown";
         public const string LeagueJungleHistoryEarly = "LeagueJungleHistoryEarly";
         public const string LeagueJungleHistoryBySide = "LeagueJungleHistoryBySide";
         public const string LeagueJungleHistoryReportTab = "LeagueJungleHistoryReportTab";

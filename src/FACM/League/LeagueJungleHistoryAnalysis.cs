@@ -207,6 +207,60 @@ namespace FACM.League
                     (teamId == 0 || s.Match.TeamId == teamId));
         }
 
+        internal enum MapPreferenceKind { Unknown, Top, Mid, Bot, TopMid, MidBot, Balanced }
+
+        // Source preference.ts checks combined lanes before individual lane dominance.
+        internal static Tuple<MapPreferenceKind, int?> ResolveMapPreference(LeagueJungleHistoryAggregate aggregate)
+        {
+            if (aggregate == null || aggregate.ZoneWeights.Any(weight => weight < 0))
+                return Tuple.Create(MapPreferenceKind.Unknown, (int?)null);
+            var total = aggregate.ZoneWeights.Sum(weight => (long)weight);
+            if (total <= 0) return Tuple.Create(MapPreferenceKind.Unknown, (int?)null);
+
+            var top = (double)aggregate.ZoneWeights[0] / total;
+            var mid = (double)aggregate.ZoneWeights[1] / total;
+            var bot = (double)aggregate.ZoneWeights[2] / total;
+            if (mid + bot >= .7d && top <= .28d)
+                return Tuple.Create(MapPreferenceKind.MidBot, (int?)PreferencePercent(mid + bot));
+            if (top + mid >= .7d && bot <= .28d)
+                return Tuple.Create(MapPreferenceKind.TopMid, (int?)PreferencePercent(top + mid));
+
+            var ranked = new[] {
+                new { Kind = MapPreferenceKind.Top, Share = top },
+                new { Kind = MapPreferenceKind.Mid, Share = mid },
+                new { Kind = MapPreferenceKind.Bot, Share = bot }
+            }.OrderByDescending(lane => lane.Share).ToArray();
+            if (ranked[0].Share >= .4d && ranked[0].Share - ranked[1].Share >= .08d)
+                return Tuple.Create(ranked[0].Kind, (int?)PreferencePercent(ranked[0].Share));
+            return Tuple.Create(MapPreferenceKind.Balanced, (int?)null);
+        }
+
+        private static int PreferencePercent(double share)
+        {
+            return (int)Math.Round(share * 100d, MidpointRounding.AwayFromZero);
+        }
+
+        internal static string MapPreferenceText(UiTextCatalog ui, LeagueJungleHistoryAggregate aggregate)
+        {
+            var preference = ResolveMapPreference(aggregate);
+            string labelKey;
+            switch (preference.Item1)
+            {
+                case MapPreferenceKind.Top: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceTop; break;
+                case MapPreferenceKind.Mid: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceMid; break;
+                case MapPreferenceKind.Bot: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceBot; break;
+                case MapPreferenceKind.TopMid: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceTopMid; break;
+                case MapPreferenceKind.MidBot: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceMidBot; break;
+                case MapPreferenceKind.Balanced: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceBalanced; break;
+                default: labelKey = UiTextKeys.LeagueJungleHistoryPreferenceUnknown; break;
+            }
+            var label = ui.Get(labelKey);
+            if (preference.Item2.HasValue)
+                label += " " + preference.Item2.Value.ToString(CultureInfo.CurrentCulture) + "%";
+            return string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryPreference), label);
+        }
+
         internal static string Report(UiTextCatalog ui, IEnumerable<LeagueJungleHistorySample> entries,
             int eligible, int attempted, int championId = 0)
         {
@@ -223,6 +277,7 @@ namespace FACM.League
                 return string.Join(Environment.NewLine, lines);
             }
             lines.Add(string.Empty);
+            lines.Add(MapPreferenceText(ui, a));
             var lanes = new[] { UiTextKeys.LeaguePlayerAnalysisPositionTop,
                 UiTextKeys.LeaguePlayerAnalysisPositionMiddle, UiTextKeys.LeaguePlayerAnalysisPositionBottom };
             for (var i = 0; i < 3; i++)
