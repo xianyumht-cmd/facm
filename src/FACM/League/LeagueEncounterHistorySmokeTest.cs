@@ -284,6 +284,32 @@ namespace FACM.League
                     new KeyValuePair<long, string>[0], t) == "—" &&
                 LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(null, t) == "—",
                 "MatchCard rows must show a compact first tag and remaining count without hiding hover details.");
+            var overflowTags = Enumerable.Range(0, 105)
+                .Select(index => new KeyValuePair<long, string>(2000 - index,
+                    "Damage leader (1,000 / 66.67%)")).ToArray();
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    overflowTags, t) == "Damage leader +99" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new[] { overflowTags[0] }, t) == "Damage leader",
+                "Inline MatchCard previews must share chip-label parsing and the pinned +99 overflow cap.");
+            var styledRow = new ListViewItem("100");
+            for (var index = 0; index < 9; index++) styledRow.SubItems.Add("value");
+            var coloredTags = new[] {
+                new KeyValuePair<long, string>(1800, "全场输出第一（1,000 / 66.67%）") };
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, coloredTags, t, false);
+            var expectedTagColor = LeagueMatchTagStrip.TagColor("全场输出第一", t,
+                !FacmThemeRuntime.Current.IsLight);
+            Require(!styledRow.UseItemStyleForSubItems &&
+                styledRow.SubItems[8].BackColor == expectedTagColor &&
+                styledRow.SubItems[8].ForeColor ==
+                    FacmDesignSystem.ReadableTextOn(expectedTagColor, Color.White) &&
+                styledRow.SubItems[7].BackColor == FacmDesignSystem.CanvasRaised,
+                "Only the first MatchCard tag cell should use the pinned tag color with readable text.");
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, null, t, true);
+            Require(styledRow.SubItems[8].BackColor == FacmDesignSystem.Canvas &&
+                styledRow.SubItems[8].ForeColor == FacmDesignSystem.Text &&
+                styledRow.SubItems[0].BackColor == FacmDesignSystem.Canvas,
+                "Empty tags and the target row must retain their native surface colors.");
             var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                 leader, leaderboard, false, t);
             Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&

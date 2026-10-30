@@ -278,6 +278,7 @@ namespace FACM.League
                     item.BackColor = FacmDesignSystem.Canvas;
                     targetItem = item;
                 }
+                StyleMatchRowTag(item, rowTags, t, player.IsTarget);
                 rows.Items.Add(item);
                 runePlayers.Items.Add(name + " · " + (string.IsNullOrWhiteSpace(player.ChampionName)
                     ? player.ChampionId.ToString() : player.ChampionName));
@@ -513,12 +514,30 @@ namespace FACM.League
             if (tags == null) return "—";
             var entries = tags.Where(tag => !string.IsNullOrWhiteSpace(tag.Value)).ToList();
             if (entries.Count == 0) return "—";
-            var first = entries[0].Value;
-            var detailStart = first.IndexOf('（');
-            if (detailStart >= 0) first = first.Substring(0, detailStart);
+            var first = LeagueMatchTagStrip.ChipLabel(entries[0].Value);
             return entries.Count == 1 ? first : first + " " +
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
-                    .Replace("{0}", (entries.Count - 1).ToString(CultureInfo.InvariantCulture));
+                    .Replace("{0}", Math.Min(entries.Count - 1, 99).ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static void StyleMatchRowTag(ListViewItem item,
+            IList<KeyValuePair<long, string>> tags, Func<string, string> t, bool isTarget)
+        {
+            if (item == null || item.SubItems.Count <= 8) return;
+            item.UseItemStyleForSubItems = false;
+            var background = isTarget ? FacmDesignSystem.Canvas : FacmDesignSystem.CanvasRaised;
+            foreach (ListViewItem.ListViewSubItem cell in item.SubItems)
+            {
+                cell.BackColor = background;
+                cell.ForeColor = FacmDesignSystem.Text;
+            }
+            var first = tags == null ? null : tags.Select(tag => tag.Value)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+            if (first == null) return;
+            var chipBackground = LeagueMatchTagStrip.TagColor(LeagueMatchTagStrip.ChipLabel(first),
+                t, !FacmThemeRuntime.Current.IsLight);
+            item.SubItems[8].BackColor = chipBackground;
+            item.SubItems[8].ForeColor = FacmDesignSystem.ReadableTextOn(chipBackground, Color.White);
         }
 
         internal static List<KeyValuePair<long, string>> BuildCombinedMatchTagEntries(
