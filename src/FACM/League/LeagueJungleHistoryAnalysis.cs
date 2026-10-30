@@ -278,6 +278,11 @@ namespace FACM.League
             }
             lines.Add(string.Empty);
             lines.Add(MapPreferenceText(ui, a));
+            lines.Add(string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryZoneWeights),
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionTop), FormatZoneWeight(a.ZoneWeights[0]),
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionMiddle), FormatZoneWeight(a.ZoneWeights[1]),
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionBottom), FormatZoneWeight(a.ZoneWeights[2])));
             var lanes = new[] { UiTextKeys.LeaguePlayerAnalysisPositionTop,
                 UiTextKeys.LeaguePlayerAnalysisPositionMiddle, UiTextKeys.LeaguePlayerAnalysisPositionBottom };
             for (var i = 0; i < 3; i++)
@@ -321,6 +326,12 @@ namespace FACM.League
                         ((double)counts[i] / a.ObjectiveGames).ToString("0.00", CultureInfo.CurrentCulture)),
                     times[i].HasValue ? LeagueMatchTimelineParser.Time((long)(times[i].Value * 1000d)) : "--"));
             return string.Join(Environment.NewLine, lines);
+        }
+
+        internal static string FormatZoneWeight(int weight)
+        {
+            return weight < 0 ? "--" : weight > 999 ? "999+" :
+                weight.ToString(CultureInfo.CurrentCulture);
         }
 
         private static string Percent(double? rate)

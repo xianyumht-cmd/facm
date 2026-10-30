@@ -171,12 +171,23 @@ namespace FACM.League
                 preference(34, 33, 33).Item1 == LeagueJungleHistoryAnalysis.MapPreferenceKind.Balanced &&
                 !preference(34, 33, 33).Item2.HasValue,
                 "Single-lane 40%/8% dominance, midpoint rounding and balanced fallback must match the pinned source.");
+            Require(LeagueJungleHistoryAnalysis.FormatZoneWeight(0) == "0" &&
+                LeagueJungleHistoryAnalysis.FormatZoneWeight(999) == "999" &&
+                LeagueJungleHistoryAnalysis.FormatZoneWeight(1000) == "999+" &&
+                LeagueJungleHistoryAnalysis.FormatZoneWeight(-1) == "--",
+                "Pinned MapPreferenceSummary weight labels cap at 999+ and reject malformed negative weights.");
             var ui = UiTextCatalog.Load();
             Require(ui.Get(UiTextKeys.LeagueJungleMapAllSides) !=
                 ui.Get(UiTextKeys.LeagueJungleMapSideFilter),
                 "Map side selector must expose distinct localized label and all-sides choice.");
             var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
-            Require(text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&
+            var weightRow = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryZoneWeights),
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionTop), "5",
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionMiddle), "5",
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionBottom), "0");
+            Require(text.Contains(weightRow) &&
+                text.Contains("2/7") && text.Contains("0/1") && text.Contains("1/2") &&
                 text.Contains(ui.Get(UiTextKeys.LeagueJungleHistoryPreferenceTopMid) + " 100%") &&
                 LeagueJungleHistoryAnalysis.MapPreferenceText(ui, new LeagueJungleHistoryAggregate())
                     .Contains(ui.Get(UiTextKeys.LeagueJungleHistoryPreferenceUnknown)) &&

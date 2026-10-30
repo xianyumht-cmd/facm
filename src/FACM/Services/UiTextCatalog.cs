@@ -663,6 +663,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleHistoryUnavailable, "尚无可分析的时间线。点击下方按钮分批补全（8场/轮，总预算48秒）。"),
             Pair(UiTextKeys.LeagueJungleHistoryLane, "{0}：位置加权 {1}；击杀参与抓人 {2} 次（位置覆盖 {3} 场）"),
             Pair(UiTextKeys.LeagueJungleHistoryPreference, "区域倾向：{0}"),
+            Pair(UiTextKeys.LeagueJungleHistoryZoneWeights, "分路位置权重：{0} {1} | {2} {3} | {4} {5}"),
             Pair(UiTextKeys.LeagueJungleHistoryPreferenceTop, "偏上路"),
             Pair(UiTextKeys.LeagueJungleHistoryPreferenceMid, "偏中路"),
             Pair(UiTextKeys.LeagueJungleHistoryPreferenceBot, "偏下路"),

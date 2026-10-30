@@ -657,6 +657,7 @@ namespace FACM.Services
         public const string LeagueJungleHistoryUnavailable = "LeagueJungleHistoryUnavailable";
         public const string LeagueJungleHistoryLane = "LeagueJungleHistoryLane";
         public const string LeagueJungleHistoryPreference = "LeagueJungleHistoryPreference";
+        public const string LeagueJungleHistoryZoneWeights = "LeagueJungleHistoryZoneWeights";
         public const string LeagueJungleHistoryPreferenceTop = "LeagueJungleHistoryPreferenceTop";
         public const string LeagueJungleHistoryPreferenceMid = "LeagueJungleHistoryPreferenceMid";
         public const string LeagueJungleHistoryPreferenceBot = "LeagueJungleHistoryPreferenceBot";
