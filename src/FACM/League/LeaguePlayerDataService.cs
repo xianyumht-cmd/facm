@@ -743,6 +743,8 @@ namespace FACM.League
                     PuuId = puuid,
                     PlayerName = SafeDisplayName(name),
                     ChampionId = ReadInt(participant, "championId"),
+                    Position = ReadBool(game, "_sgp") ?
+                        ReadString(participant, "teamPosition") ?? ReadString(stats, "teamPosition") : null,
                     ItemIds = Enumerable.Range(0, 7).Select(slot => ReadInt(stats, "item" + slot)).ToArray(),
                     RoleBoundItemId = ReadOptionalNonNegative(stats, "roleBoundItem"),
                     SpellIds = new[] { ReadInt(participant, "spell1Id"), ReadInt(participant, "spell2Id") },

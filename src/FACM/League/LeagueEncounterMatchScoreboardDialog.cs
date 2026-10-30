@@ -342,9 +342,11 @@ namespace FACM.League
                 var row = rows.Items[index];
                 var player = row.Tag as LeaguePlayerMatchParticipant;
                 if (player == null) continue;
+                var position = FormatMatchCardPosition(player.Position);
                 var card = new MatchCardView(index, player,
                     row.SubItems[1].Text,
-                    row.SubItems[2].Text + " · " + row.SubItems[12].Text,
+                    row.SubItems[2].Text + (position == null ? "" : " · " + position) +
+                        " · " + row.SubItems[12].Text,
                     FormatParticipantRates(player, scores, isCherry, match.GameDurationSeconds, t),
                     FormatMatchCardMetrics(player, t),
                     row.SubItems[8].Text, match.GameMode, t,
@@ -534,6 +536,19 @@ namespace FACM.League
         {
             var available = Math.Max(260, clientWidth - 24 - SystemInformation.VerticalScrollBarWidth);
             return Math.Max(260, available / MatchCardColumns(clientWidth) - 10);
+        }
+
+        internal static string FormatMatchCardPosition(string position)
+        {
+            switch ((position ?? "").Trim().ToUpperInvariant())
+            {
+                case "TOP": return "TOP";
+                case "JUNGLE": return "JG";
+                case "MIDDLE": return "MID";
+                case "BOTTOM": return "BOT";
+                case "UTILITY": return "SUP";
+                default: return null;
+            }
         }
 
         internal static int MatchCardNavigationTarget(int index, int count, int columns, Keys key)

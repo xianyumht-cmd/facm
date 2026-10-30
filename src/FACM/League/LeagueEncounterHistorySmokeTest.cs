@@ -228,6 +228,12 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.MatchCardWidth(800) >= 260 &&
                 LeagueEncounterMatchScoreboardDialog.MatchCardWidth(1200) >= 260,
                 "MatchCard cards must reflow from one to three columns without negative or clipped widths.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("MIDDLE") == "MID" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition(" jungle ") == "JG" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("UTILITY") == "SUP" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("UNKNOWN") == null &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition(null) == null,
+                "Only verified SGP lane positions may be shown on participant cards.");
             Require(LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 3, Keys.Right) == 1 &&
                 LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(2, 10, 3, Keys.Right) == -1 &&
                 LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Left) == 3 &&
@@ -1374,6 +1380,7 @@ namespace FACM.League
                     !result.Participants.Single(p => p.PuuId == "ally").DoubleKills.HasValue &&
                     !result.Participants.Single(p => p.PuuId == "ally").TotalHeal.HasValue &&
                     result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
+                    result.Participants.All(p => p.Position == null) &&
                     result.Match.ChampionName == "Ashe" &&
                     result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
                     result.Participants.Single(p => p.IsTarget).RoleBoundItemId == 3158 &&
