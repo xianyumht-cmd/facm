@@ -16,6 +16,7 @@ namespace FACM.League
     internal sealed class LeagueJungleHistoryAggregate
     {
         internal int Games, PositionGames, FirstCampGames, ObjectiveGames;
+        internal int BlueFirstCampGames, RedFirstCampGames;
         internal int Level3Known, Level3Detected, Level4Known, Level4Detected;
         internal int BlueGames, RedGames, BlueLevel3Known, BlueLevel3Detected, BlueLevel4Known, BlueLevel4Detected;
         internal int RedLevel3Known, RedLevel3Detected, RedLevel4Known, RedLevel4Detected;
@@ -118,6 +119,8 @@ namespace FACM.League
                     (entry.Match.TeamId == 100 || entry.Match.TeamId == 200))
                 {
                     result.FirstCampGames++;
+                    if (entry.Match.TeamId == 100) result.BlueFirstCampGames++;
+                    else result.RedFirstCampGames++;
                     var side = entry.Match.TeamId == 100 ? "blue" : "red";
                     var key = side + "/" + (a.StartBlue.Value == (side == "blue") ? "normal/" : "invade/") + a.StartCamp;
                     int count;
@@ -299,6 +302,10 @@ namespace FACM.League
             lines.Add(string.Empty);
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCamps),
                 a.FirstCampGames, a.Games));
+            lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
+                ui.Get(UiTextKeys.LeagueJungleBlueSide), a.BlueFirstCampGames, a.BlueGames));
+            lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
+                ui.Get(UiTextKeys.LeagueJungleRedSide), a.RedFirstCampGames, a.RedGames));
             foreach (var camp in a.Camps.OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal))
             {
                 var parts = camp.Key.Split('/');
@@ -309,7 +316,9 @@ namespace FACM.League
                 lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
                     ui.Get(parts[0] == "blue" ? UiTextKeys.LeagueJungleBlueSide : UiTextKeys.LeagueJungleRedSide),
                     ui.Get(parts[1] == "normal" ? UiTextKeys.LeagueJungleHistoryNormal : UiTextKeys.LeagueJungleHistoryInvade),
-                    ui.Get(campKey), camp.Value));
+                    ui.Get(campKey), camp.Value,
+                    Percent((double)camp.Value / (parts[0] == "blue" ?
+                        Math.Max(1, a.BlueFirstCampGames) : Math.Max(1, a.RedFirstCampGames)))));
             }
             lines.Add(string.Empty);
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryObjectives),
