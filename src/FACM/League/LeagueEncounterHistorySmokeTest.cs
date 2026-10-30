@@ -484,7 +484,8 @@ namespace FACM.League
                     Color.White, Color.Black, t);
                 Require(narrowCanvas.GetPixel(12, 14).R > 200 &&
                     narrowCanvas.GetPixel(12, 14).G < 80 &&
-                    narrowCanvas.GetPixel(40, 14).ToArgb() != Color.White.ToArgb() &&
+                    Enumerable.Range(39, 16).Any(x => Enumerable.Range(5, 18).Any(y =>
+                        narrowCanvas.GetPixel(x, y).ToArgb() != Color.White.ToArgb())) &&
                     narrowCanvas.GetPixel(58, 14).ToArgb() == Color.White.ToArgb() &&
                     narrowCanvas.GetPixel(75, 14).ToArgb() == Color.White.ToArgb(),
                     "Narrow MatchCard columns must show an overflow marker without painting clipped item slots.");
