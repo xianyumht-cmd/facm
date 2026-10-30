@@ -312,6 +312,25 @@ namespace FACM.League
                 arenaBuild.Contains("Augment") && !arenaBuild.Contains("Press the Attack") &&
                 kiwiBuild.Contains("Augment") && !kiwiBuild.Contains("Press the Attack"),
                 "Each MatchCard row must expose existing item/spell and mode-specific rune or augment evidence.");
+            Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
+                LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&
+                !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("CLASSIC") &&
+                !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode(null),
+                "The selected MatchCard icon strip must use the source's Cherry/Kiwi mode boundary.");
+            var arenaDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "CHERRY");
+            var kiwiDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "kiwi");
+            var classicDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "CLASSIC");
+            Require(arenaDetails.Contains("Augment") && kiwiDetails.Contains("Augment") &&
+                !arenaDetails.Contains("Press the Attack") &&
+                !arenaDetails.Contains("主系符文") &&
+                classicDetails.Contains("Press the Attack") && !classicDetails.Contains("Augment") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                    new LeaguePlayerMatchParticipant(), rowCatalog, t, "CHERRY").Contains("—"),
+                "Selected-player rune details must show only mode-relevant build evidence, including unknown augments.");
+
             buildPlayer.RoleBoundItemId = 4000;
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
                     buildPlayer, rowCatalog, "ARAM", t).Contains("#4000") &&
