@@ -465,6 +465,30 @@ namespace FACM.League
                         "The seventh trinket and distinct eighth bound item must render in their own slots.");
                 }
             }
+            Require(LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(160, 24, 8) == 8 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(70, 28, 8) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(38, 28, 8) == 2 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(18, 28, 8) == 0 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(70, 28, 2) == 2,
+                "MatchCard icon columns must reserve a bounded overflow slot when resized narrow.");
+            using (var narrowIcon = new Bitmap(4, 4))
+            using (var narrowCanvas = new Bitmap(90, 28))
+            using (var narrowGraphics = Graphics.FromImage(narrowCanvas))
+            {
+                using (var red = Graphics.FromImage(narrowIcon))
+                    red.Clear(Color.Red);
+                narrowGraphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(narrowGraphics,
+                    new Rectangle(0, 0, 70, 28), new[] { 3006, 9999, 3340, 4000 },
+                    new Dictionary<int, Bitmap> { { 3006, narrowIcon } },
+                    Color.White, Color.Black, t);
+                Require(narrowCanvas.GetPixel(12, 14).R > 200 &&
+                    narrowCanvas.GetPixel(12, 14).G < 80 &&
+                    narrowCanvas.GetPixel(40, 14).ToArgb() != Color.White.ToArgb() &&
+                    narrowCanvas.GetPixel(58, 14).ToArgb() == Color.White.ToArgb() &&
+                    narrowCanvas.GetPixel(75, 14).ToArgb() == Color.White.ToArgb(),
+                    "Narrow MatchCard columns must show an overflow marker without painting clipped item slots.");
+            }
             Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
                 LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&
                 !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("CLASSIC") &&

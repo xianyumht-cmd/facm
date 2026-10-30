@@ -694,11 +694,12 @@ namespace FACM.League
                 return;
             }
             var size = Math.Min(16, Math.Max(10, bounds.Height - 4));
-            for (var index = 0; index < Math.Min(8, ids.Length); index++)
+            var visibleSlots = MatchRowVisibleSlotCount(bounds.Width, bounds.Height, ids.Length);
+            var drawnSlots = ids.Length > visibleSlots ? Math.Max(0, visibleSlots - 1) : visibleSlots;
+            for (var index = 0; index < drawnSlots; index++)
             {
                 var slot = new Rectangle(bounds.Left + 3 + index * (size + 2),
                     bounds.Top + (bounds.Height - size) / 2, size, size);
-                if (slot.Right > bounds.Right) break;
                 var id = ids[index];
                 if (id > 0)
                 {
@@ -712,6 +713,24 @@ namespace FACM.League
                 using (var border = new Pen(id > 0 ? foreground : Color.FromArgb(80, foreground)))
                     graphics.DrawRectangle(border, slot.Left, slot.Top, slot.Width - 1, slot.Height - 1);
             }
+            if (ids.Length > drawnSlots)
+            {
+                var remaining = "+" + (ids.Length - drawnSlots).ToString(CultureInfo.InvariantCulture);
+                var overflow = visibleSlots > 0
+                    ? new Rectangle(bounds.Left + 3 + drawnSlots * (size + 2),
+                        bounds.Top + (bounds.Height - size) / 2, size, size)
+                    : bounds;
+                TextRenderer.DrawText(graphics, remaining, SystemFonts.DefaultFont, overflow, foreground,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            }
+        }
+
+        internal static int MatchRowVisibleSlotCount(int width, int height, int count)
+        {
+            if (width <= 0 || height <= 0 || count <= 0) return 0;
+            var size = Math.Min(16, Math.Max(10, height - 4));
+            return Math.Min(Math.Min(8, count), Math.Max(0, (width - 1) / (size + 2)));
         }
 
         internal static string FormatMatchRowItemPreview(LeaguePlayerMatchParticipant player,
