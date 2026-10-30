@@ -447,10 +447,10 @@ namespace FACM.League
                 DrawJungleSideOverlay(e.Graphics, bounds);
             if (_firstCampMode)
             {
-                var radius = Math.Max(5f, e.Graphics.DpiX / 19.2f);
+                var campRadius = Math.Max(5f, e.Graphics.DpiX / 19.2f);
                 foreach (var marker in _campMarkers)
                     DrawCampMarker(e.Graphics, new PointF(bounds.Left + marker.Position.X * bounds.Width,
-                        bounds.Top + marker.Position.Y * bounds.Height), radius,
+                        bounds.Top + marker.Position.Y * bounds.Height), campRadius,
                         CampMarkerColor(marker.Camp), marker.InvadeCount > 0);
                 return;
             }
