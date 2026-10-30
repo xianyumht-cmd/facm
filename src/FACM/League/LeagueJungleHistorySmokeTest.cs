@@ -95,7 +95,8 @@ namespace FACM.League
                 aggregate.FirstDragonWon == 0 && aggregate.Dragons == 2 && aggregate.SoloDragons == 1 &&
                 Math.Abs(aggregate.FirstDragonSeconds.Value - 600d) < .0001 &&
                 Math.Abs(aggregate.FirstVoidgrubSeconds.Value - 420d) < .0001 &&
-                aggregate.FirstCampGames == 2 && aggregate.Camps["blue/normal/blue"] == 1 &&
+                aggregate.FirstCampGames == 2 && aggregate.BlueFirstCampGames == 2 &&
+                aggregate.RedFirstCampGames == 0 && aggregate.Camps["blue/normal/blue"] == 1 &&
                 aggregate.Camps["blue/invade/raptors"] == 1,
                 "Objective averages and camp-side grouping must exclude unknown teams/times and duplicated games.");
             var hero = LeagueJungleHistoryAggregate.Calculate(samples.Where(s => s.Match.ChampionId == 64));
@@ -118,7 +119,8 @@ namespace FACM.League
                 sides.BlueLevel4Known == 1 && sides.BlueLevel4Detected == 1 &&
                 sides.RedLevel3Known == 1 && sides.RedLevel3Detected == 1 &&
                 sides.RedLevel4Known == 1 && sides.RedLevel4Detected == 0 &&
-                sides.Camps["red/normal/raptors"] == 1,
+                sides.FirstCampGames == 3 && sides.BlueFirstCampGames == 2 &&
+                sides.RedFirstCampGames == 1 && sides.Camps["red/normal/raptors"] == 1,
                 "Pinned by-team early-gank rates and first-camp sides require separate blue/red coverage.");
             var blueMap = LeagueJungleHistoryAggregate.Calculate(
                 LeagueJungleHistoryAnalysis.MapSamples(withRed, 64, 100));
@@ -181,6 +183,27 @@ namespace FACM.League
                 ui.Get(UiTextKeys.LeagueJungleMapSideFilter),
                 "Map side selector must expose distinct localized label and all-sides choice.");
             var text = LeagueJungleHistoryAnalysis.Report(ui, samples, 7, 4, 64);
+            var firstClearText = LeagueJungleHistoryAnalysis.Report(ui, withRed, 8, 5, 64);
+            var blueCoverageText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
+                ui.Get(UiTextKeys.LeagueJungleBlueSide), 2, 2);
+            var redCoverageText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
+                ui.Get(UiTextKeys.LeagueJungleRedSide), 1, 1);
+            var blueCampText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
+                ui.Get(UiTextKeys.LeagueJungleBlueSide),
+                ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
+                ui.Get(UiTextKeys.LeagueJungleCampBlue), 1, "50.0%");
+            var redCampText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
+                ui.Get(UiTextKeys.LeagueJungleRedSide),
+                ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
+                ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, "100.0%");
+            Require(firstClearText.Contains(blueCoverageText) &&
+                firstClearText.Contains(redCoverageText) &&
+                firstClearText.Contains(blueCampText) && firstClearText.Contains(redCampText),
+                "First-clear percentages must use known starts on the same team side, not all games or both sides.");
             var weightRow = string.Format(System.Globalization.CultureInfo.CurrentCulture,
                 ui.Get(UiTextKeys.LeagueJungleHistoryZoneWeights),
                 ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionTop), "5",
