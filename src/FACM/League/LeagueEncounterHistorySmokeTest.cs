@@ -309,6 +309,18 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     leader, null, false, t) == string.Empty,
                 "Unknown team membership or missing selection must not fabricate leader claims.");
+            var duplicateId = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { duplicateId }), false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { leader }), false, t) == string.Empty,
+                "Duplicate participant IDs or repeated snapshots must not inflate MatchCard shares or certify leaders.");
+            var missingId = new LeaguePlayerMatchParticipant { ParticipantId = 0, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { missingId }), false, t) == string.Empty,
+                "Unidentified roster entries must not qualify as complete match-wide leader evidence.");
             leader.PlayerSubteamId = 2;
             ally.PlayerSubteamId = 2;
             enemy.PlayerSubteamId = 1;
