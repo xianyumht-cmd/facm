@@ -178,6 +178,12 @@ namespace FACM.League
                 LeagueJungleHistoryAnalysis.FormatZoneWeight(1000) == "999+" &&
                 LeagueJungleHistoryAnalysis.FormatZoneWeight(-1) == "--",
                 "Pinned MapPreferenceSummary weight labels cap at 999+ and reject malformed negative weights.");
+            Require(LeagueJungleHistoryAnalysis.FirstClearPercent(1, 3) == "33%" &&
+                LeagueJungleHistoryAnalysis.FirstClearPercent(2, 3) == "67%" &&
+                LeagueJungleHistoryAnalysis.FirstClearPercent(1, 8) == "13%" &&
+                LeagueJungleHistoryAnalysis.FirstClearPercent(0, 0) == "--" &&
+                LeagueJungleHistoryAnalysis.FirstClearPercent(2, 1) == "--",
+                "First-clear ratios use pinned Math.round whole-percent semantics and reject invalid denominators.");
             var ui = UiTextCatalog.Load();
             Require(ui.Get(UiTextKeys.LeagueJungleMapAllSides) !=
                 ui.Get(UiTextKeys.LeagueJungleMapSideFilter),
@@ -193,12 +199,11 @@ namespace FACM.League
             Func<string, string, int, int, string> kindSummary = (side, kind, count, total) =>
                 string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     ui.Get(UiTextKeys.LeagueJungleHistoryCampKindSummary), side, kind, count, total,
-                    total > 0 ? (count * 100d / total).ToString("0.0",
-                        System.Globalization.CultureInfo.CurrentCulture) + "%" : "--");
-            Func<string, string, string, int, double, string> campRow = (side, kind, camp, count, rate) =>
+                    LeagueJungleHistoryAnalysis.FirstClearPercent(count, total));
+            Func<string, string, string, int, int, string> campRow = (side, kind, camp, count, rate) =>
                 string.Format(System.Globalization.CultureInfo.CurrentCulture,
                     ui.Get(UiTextKeys.LeagueJungleHistoryCampWithinKindRow), side, kind, camp, count,
-                    rate.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
+                    rate.ToString(System.Globalization.CultureInfo.CurrentCulture) + "%");
             var blueSide = ui.Get(UiTextKeys.LeagueJungleBlueSide);
             var redSide = ui.Get(UiTextKeys.LeagueJungleRedSide);
             var own = ui.Get(UiTextKeys.LeagueJungleHistoryNormal);
@@ -213,6 +218,18 @@ namespace FACM.League
                 firstClearText.Contains(campRow(blueSide, invade, ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, 100)) &&
                 firstClearText.Contains(campRow(redSide, own, ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, 100)),
                 "Own/invade rates use known starts on each side; camp shares use only the same start kind.");
+            var tieMatch = Match(1010, 1, 64, LeaguePlayerHistorySource.Lcu, null);
+            var tieReport = LeagueJungleHistoryAnalysis.Report(ui, new[] {
+                new LeagueJungleHistorySample { Match = first, Analysis = a },
+                new LeagueJungleHistorySample { Match = tieMatch,
+                    Analysis = new LeagueJungleAnalysis { StartCamp = "red", StartBlue = true } }
+            }, 2, 2);
+            var redCampRow = campRow(blueSide, own, ui.Get(UiTextKeys.LeagueJungleCampRed), 1, 50);
+            var blueCampRow = campRow(blueSide, own, ui.Get(UiTextKeys.LeagueJungleCampBlue), 1, 50);
+            Require(tieReport.IndexOf(redCampRow, StringComparison.Ordinal) >= 0 &&
+                tieReport.IndexOf(blueCampRow, StringComparison.Ordinal) >
+                    tieReport.IndexOf(redCampRow, StringComparison.Ordinal),
+                "Equal-frequency first-clear camps retain pinned red/blue/wolves/raptors source order.");
             var noCampData = LeagueJungleHistoryAnalysis.Report(ui,
                 new[] { new LeagueJungleHistorySample { Match = first, Analysis = unavailable } }, 1, 1);
             Require(noCampData.Contains(kindSummary(blueSide, own, 0, 0)) &&
