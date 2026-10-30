@@ -27,6 +27,19 @@ namespace FACM.League
                 "Encountered-match icon loading must be restricted to safe local game-data paths.");
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
             ValidateCardPresentation();
+            var availableIcons = new HashSet<int> { 4, 5, 6 };
+            Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { 1, 2, 3, 4, 4, 5, 6 }, availableIcons.Contains, 2)
+                    .SequenceEqual(new[] { 4, 5 }) &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { -1, 0, 4, 6 }, availableIcons.Contains, 2)
+                    .SequenceEqual(new[] { 4, 6 }) &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    null, availableIcons.Contains, 2).Count == 0 &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { 4 }, availableIcons.Contains, 0).Count == 0,
+                "Invalid catalog IDs must not consume the bounded row icon request budget.");
+
             ValidateReplayAsync().GetAwaiter().GetResult();
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var game = new LeagueLiveSnapshot();

@@ -395,34 +395,23 @@ namespace FACM.League
             Shown += (sender, e) =>
             {
                 if (catalog == null || loadAsset == null) return;
-                foreach (var id in detail.Participants.Where(p => p != null)
-                    .SelectMany(GetMatchRowItemSlots).Where(id => id > 0).Distinct().Take(48))
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(GetMatchRowItemSlots), id => HasIconReference(catalog.ItemIcons, id), 48))
+                    _ = LoadRowIconAsync(id, catalog.ItemIcons[id], loadAsset, _rowItemIcons, _lifetime.Token);
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(GetMatchRowSpellSlots), id => HasIconReference(catalog.SpellIcons, id), 24))
+                    _ = LoadRowIconAsync(id, catalog.SpellIcons[id], loadAsset, _rowSpellIcons, _lifetime.Token);
+                var runeCatalog = isAugmentMode ? catalog.AugmentIcons : catalog.PerkIcons;
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(p => GetMatchRowRuneSlots(p, match.GameMode)),
+                    id => HasIconReference(runeCatalog, id) ||
+                        (!isAugmentMode && HasIconReference(catalog.PerkStyleIcons, id)), 48))
                 {
                     string reference;
-                    if (catalog.ItemIcons.TryGetValue(id, out reference) &&
-                        !string.IsNullOrWhiteSpace(reference))
-                        _ = LoadRowIconAsync(id, reference, loadAsset, _rowItemIcons, _lifetime.Token);
-                }
-                if (catalog.SpellIcons != null)
-                    foreach (var id in detail.Participants.Where(p => p != null)
-                        .SelectMany(GetMatchRowSpellSlots).Where(id => id > 0).Distinct().Take(24))
-                    {
-                        string reference;
-                        if (catalog.SpellIcons.TryGetValue(id, out reference) &&
-                            !string.IsNullOrWhiteSpace(reference))
-                            _ = LoadRowIconAsync(id, reference, loadAsset, _rowSpellIcons, _lifetime.Token);
-                    }
-                foreach (var id in detail.Participants.Where(p => p != null)
-                    .SelectMany(p => GetMatchRowRuneSlots(p, match.GameMode))
-                    .Where(id => id > 0).Distinct().Take(48))
-                {
-                    string reference;
-                    var found = isAugmentMode
-                        ? catalog.AugmentIcons.TryGetValue(id, out reference)
-                        : catalog.PerkIcons.TryGetValue(id, out reference) ||
-                            catalog.PerkStyleIcons.TryGetValue(id, out reference);
-                    if (found && !string.IsNullOrWhiteSpace(reference))
-                        _ = LoadRowIconAsync(id, reference, loadAsset, _rowRuneIcons, _lifetime.Token);
+                    if (!runeCatalog.TryGetValue(id, out reference) ||
+                        string.IsNullOrWhiteSpace(reference))
+                        reference = catalog.PerkStyleIcons[id];
+                    _ = LoadRowIconAsync(id, reference, loadAsset, _rowRuneIcons, _lifetime.Token);
                 }
             };
             FacmThemeRuntime.ThemeChanged += OnThemeChanged;
@@ -443,6 +432,19 @@ namespace FACM.League
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
             };
+        }
+
+        internal static List<int> SelectMatchRowIconIds(IEnumerable<int> ids, Func<int, bool> hasReference, int limit)
+        {
+            if (ids == null || hasReference == null || limit <= 0) return new List<int>();
+            return ids.Where(id => id > 0).Distinct().Where(hasReference).Take(limit).ToList();
+        }
+
+        private static bool HasIconReference(IDictionary<int, string> icons, int id)
+        {
+            string reference;
+            return icons != null && icons.TryGetValue(id, out reference) &&
+                !string.IsNullOrWhiteSpace(reference);
         }
 
         private void OnThemeChanged(object sender, EventArgs e)
