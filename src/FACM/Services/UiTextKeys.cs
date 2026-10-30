@@ -679,6 +679,8 @@ namespace FACM.Services
         public const string LeagueJungleHistoryCamps = "LeagueJungleHistoryCamps";
         public const string LeagueJungleHistoryCampRow = "LeagueJungleHistoryCampRow";
         public const string LeagueJungleHistoryCampSideCoverage = "LeagueJungleHistoryCampSideCoverage";
+        public const string LeagueJungleHistoryCampKindSummary = "LeagueJungleHistoryCampKindSummary";
+        public const string LeagueJungleHistoryCampWithinKindRow = "LeagueJungleHistoryCampWithinKindRow";
         public const string LeagueJungleHistoryNormal = "LeagueJungleHistoryNormal";
         public const string LeagueJungleHistoryInvade = "LeagueJungleHistoryInvade";
         public const string LeagueJungleHistoryObjectives = "LeagueJungleHistoryObjectives";

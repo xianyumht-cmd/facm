@@ -306,19 +306,33 @@ namespace FACM.League
                 ui.Get(UiTextKeys.LeagueJungleBlueSide), a.BlueFirstCampGames, a.BlueGames));
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
                 ui.Get(UiTextKeys.LeagueJungleRedSide), a.RedFirstCampGames, a.RedGames));
-            foreach (var camp in a.Camps.OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal))
+            foreach (var side in new[] { "blue", "red" })
             {
-                var parts = camp.Key.Split('/');
-                if (parts.Length != 3) continue;
-                var campKey = parts[2] == "blue" ? UiTextKeys.LeagueJungleCampBlue :
-                    parts[2] == "wolves" ? UiTextKeys.LeagueJungleCampWolves :
-                    parts[2] == "red" ? UiTextKeys.LeagueJungleCampRed : UiTextKeys.LeagueJungleCampRaptors;
-                var sideKnown = parts[0] == "blue" ? a.BlueFirstCampGames : a.RedFirstCampGames;
-                lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
-                    ui.Get(parts[0] == "blue" ? UiTextKeys.LeagueJungleBlueSide : UiTextKeys.LeagueJungleRedSide),
-                    ui.Get(parts[1] == "normal" ? UiTextKeys.LeagueJungleHistoryNormal : UiTextKeys.LeagueJungleHistoryInvade),
-                    ui.Get(campKey), camp.Value,
-                    Percent(sideKnown > 0 ? (double?)camp.Value / sideKnown : null)));
+                var sideKnown = side == "blue" ? a.BlueFirstCampGames : a.RedFirstCampGames;
+                var sideLabel = ui.Get(side == "blue" ? UiTextKeys.LeagueJungleBlueSide : UiTextKeys.LeagueJungleRedSide);
+                foreach (var kind in new[] { "normal", "invade" })
+                {
+                    var kindLabel = ui.Get(kind == "normal" ? UiTextKeys.LeagueJungleHistoryNormal : UiTextKeys.LeagueJungleHistoryInvade);
+                    var camps = a.Camps.Where(c => c.Key.StartsWith(side + "/" + kind + "/", StringComparison.Ordinal))
+                        .OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal).ToArray();
+                    var kindTotal = camps.Sum(c => c.Value);
+                    lines.Add(string.Format(CultureInfo.CurrentCulture,
+                        ui.Get(UiTextKeys.LeagueJungleHistoryCampKindSummary),
+                        sideLabel, kindLabel, kindTotal, sideKnown,
+                        Percent(sideKnown > 0 ? (double?)kindTotal / sideKnown : null)));
+                    foreach (var camp in camps)
+                    {
+                        var parts = camp.Key.Split('/');
+                        if (parts.Length != 3) continue;
+                        var campKey = parts[2] == "blue" ? UiTextKeys.LeagueJungleCampBlue :
+                            parts[2] == "wolves" ? UiTextKeys.LeagueJungleCampWolves :
+                            parts[2] == "red" ? UiTextKeys.LeagueJungleCampRed : UiTextKeys.LeagueJungleCampRaptors;
+                        lines.Add(string.Format(CultureInfo.CurrentCulture,
+                            ui.Get(UiTextKeys.LeagueJungleHistoryCampWithinKindRow),
+                            sideLabel, kindLabel, ui.Get(campKey), camp.Value,
+                            Percent(kindTotal > 0 ? (double?)camp.Value / kindTotal : null)));
+                    }
+                }
             }
             lines.Add(string.Empty);
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryObjectives),

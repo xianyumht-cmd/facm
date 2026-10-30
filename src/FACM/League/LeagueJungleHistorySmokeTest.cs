@@ -190,22 +190,34 @@ namespace FACM.League
             var redCoverageText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
                 ui.Get(UiTextKeys.LeagueJungleHistoryCampSideCoverage),
                 ui.Get(UiTextKeys.LeagueJungleRedSide), 1, 1);
-            var blueCampText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
-                ui.Get(UiTextKeys.LeagueJungleBlueSide),
-                ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
-                ui.Get(UiTextKeys.LeagueJungleCampBlue), 1,
-                50d.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
-            var redCampText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
-                ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
-                ui.Get(UiTextKeys.LeagueJungleRedSide),
-                ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
-                ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1,
-                100d.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
+            Func<string, string, int, int, string> kindSummary = (side, kind, count, total) =>
+                string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeagueJungleHistoryCampKindSummary), side, kind, count, total,
+                    total > 0 ? (count * 100d / total).ToString("0.0",
+                        System.Globalization.CultureInfo.CurrentCulture) + "%" : "--");
+            Func<string, string, string, int, double, string> campRow = (side, kind, camp, count, rate) =>
+                string.Format(System.Globalization.CultureInfo.CurrentCulture,
+                    ui.Get(UiTextKeys.LeagueJungleHistoryCampWithinKindRow), side, kind, camp, count,
+                    rate.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
+            var blueSide = ui.Get(UiTextKeys.LeagueJungleBlueSide);
+            var redSide = ui.Get(UiTextKeys.LeagueJungleRedSide);
+            var own = ui.Get(UiTextKeys.LeagueJungleHistoryNormal);
+            var invade = ui.Get(UiTextKeys.LeagueJungleHistoryInvade);
             Require(firstClearText.Contains(blueCoverageText) &&
                 firstClearText.Contains(redCoverageText) &&
-                firstClearText.Contains(blueCampText) && firstClearText.Contains(redCampText),
-                "First-clear percentages must use known starts on the same team side, not all games or both sides.");
+                firstClearText.Contains(kindSummary(blueSide, own, 1, 2)) &&
+                firstClearText.Contains(kindSummary(blueSide, invade, 1, 2)) &&
+                firstClearText.Contains(kindSummary(redSide, own, 1, 1)) &&
+                firstClearText.Contains(kindSummary(redSide, invade, 0, 1)) &&
+                firstClearText.Contains(campRow(blueSide, own, ui.Get(UiTextKeys.LeagueJungleCampBlue), 1, 100)) &&
+                firstClearText.Contains(campRow(blueSide, invade, ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, 100)) &&
+                firstClearText.Contains(campRow(redSide, own, ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, 100)),
+                "Own/invade rates use known starts on each side; camp shares use only the same start kind.");
+            var noCampData = LeagueJungleHistoryAnalysis.Report(ui,
+                new[] { new LeagueJungleHistorySample { Match = first, Analysis = unavailable } }, 1, 1);
+            Require(noCampData.Contains(kindSummary(blueSide, own, 0, 0)) &&
+                noCampData.Contains(kindSummary(redSide, invade, 0, 0)),
+                "Unknown first camps must not produce fabricated 0% own/invade rates.");
             var weightRow = string.Format(System.Globalization.CultureInfo.CurrentCulture,
                 ui.Get(UiTextKeys.LeagueJungleHistoryZoneWeights),
                 ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionTop), "5",

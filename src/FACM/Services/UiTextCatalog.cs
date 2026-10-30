@@ -685,6 +685,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleHistoryCamps, "首分钟最近营地（推断）覆盖 {0}/{1} 场；按阵营/入侵方向计数："),
             Pair(UiTextKeys.LeagueJungleHistoryCampRow, "{0} · {1} · {2}：{3} 场（已知首营地中占 {4}）"),
             Pair(UiTextKeys.LeagueJungleHistoryCampSideCoverage, "{0}首营地样本：{1}/{2} 场"),
+            Pair(UiTextKeys.LeagueJungleHistoryCampKindSummary, "{0} · {1}开野：{2}/{3} 场（占该阵营已知首营地 {4}）"),
+            Pair(UiTextKeys.LeagueJungleHistoryCampWithinKindRow, "{0} · {1} · {2}：{3} 场（该开野方向中占 {4}）"),
             Pair(UiTextKeys.LeagueJungleHistoryNormal, "己方野区"),
             Pair(UiTextKeys.LeagueJungleHistoryInvade, "入侵对面野区"),
             Pair(UiTextKeys.LeagueJungleHistoryObjectives, "资源归属覆盖 {0}/{1} 场；己方首龙 {2}/{3}（仅归属已知）；本人单杀小龙占己方小龙比例 {4}"),
