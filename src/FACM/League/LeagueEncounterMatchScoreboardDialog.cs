@@ -255,8 +255,10 @@ namespace FACM.League
                     _teamTooltips.SetToolTip(card, fullText);
                 }
             }
+            var cardSelectionInProgress = false;
             rows.SelectedIndexChanged += (sender, e) =>
             {
+                if (cardSelectionInProgress) return;
                 var selected = rows.SelectedIndices.Count == 1 ? rows.SelectedIndices[0] : -1;
                 if (runePlayers.SelectedIndex != selected) runePlayers.SelectedIndex = selected;
                 showSelection(selected >= 0 ? rows.Items[selected].Tag as LeaguePlayerMatchParticipant : null);
@@ -351,8 +353,20 @@ namespace FACM.League
                 var rowIndex = index;
                 Action activate = () =>
                 {
-                    if (rows.Items[rowIndex].Selected) showSelection(player);
-                    else rows.Items[rowIndex].Selected = true;
+                    cardSelectionInProgress = true;
+                    try
+                    {
+                        rows.Items[rowIndex].Selected = true;
+                        if (runePlayers.SelectedIndex != rowIndex)
+                            runePlayers.SelectedIndex = rowIndex;
+                    }
+                    finally { cardSelectionInProgress = false; }
+                    showSelection(player);
+                    foreach (var other in _matchCards)
+                    {
+                        other.IsSelected = other.RowIndex == rowIndex;
+                        other.Invalidate();
+                    }
                     card.Focus();
                 };
                 card.Click += (sender, e) => activate();
@@ -407,6 +421,11 @@ namespace FACM.League
             {
                 targetItem.Selected = true;
                 showSelection(targetItem.Tag as LeaguePlayerMatchParticipant);
+                foreach (var card in _matchCards)
+                {
+                    card.IsSelected = card.RowIndex == targetItem.Index;
+                    card.Invalidate();
+                }
             }
 
             var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
@@ -1580,6 +1599,7 @@ namespace FACM.League
                 _items = items; _spells = spells; _runes = runes;
                 Height = 144; Width = 380; Margin = new Padding(4);
                 TabStop = true; Cursor = Cursors.Hand;
+                SetStyle(ControlStyles.Selectable, true);
                 AccessibleRole = AccessibleRole.ListItem;
                 AccessibleName = header;
                 SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
