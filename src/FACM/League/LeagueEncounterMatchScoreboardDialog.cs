@@ -23,6 +23,7 @@ namespace FACM.League
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowItemIcons = new Dictionary<int, Bitmap>();
         private readonly ToolTip _tooltips = new ToolTip();
         private readonly ToolTip _teamTooltips = new ToolTip();
         private CancellationTokenSource _selectionCancellation;
@@ -77,7 +78,7 @@ namespace FACM.League
 
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, HideSelection = false, MultiSelect = false, GridLines = true,
-                ShowItemToolTips = true,
+                ShowItemToolTips = true, OwnerDraw = true,
                 BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
                 AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
@@ -92,6 +93,16 @@ namespace FACM.League
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 110);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
+            rows.DrawColumnHeader += (sender, e) => e.DrawDefault = true;
+            rows.DrawItem += (sender, e) => { if (rows.View != View.Details) e.DrawDefault = true; };
+            rows.DrawSubItem += (sender, e) =>
+            {
+                if (e.ColumnIndex != 9) { e.DrawDefault = true; return; }
+                var participant = e.Item.Tag as LeaguePlayerMatchParticipant;
+                DrawMatchRowItemIcons(e.Graphics, e.Bounds, GetMatchRowItemIds(participant),
+                    _rowItemIcons, e.Item.Selected ? SystemColors.Highlight : e.SubItem.BackColor,
+                    e.Item.Selected ? SystemColors.HighlightText : e.SubItem.ForeColor, t);
+            };
             _scoreboardRows = rows;
             _scoreboardText = t;
             var participantGroups = new Dictionary<int, ListViewGroup>();
@@ -364,6 +375,18 @@ namespace FACM.League
             layout.Controls.Add(footer, 0, 5);
             Controls.Add(layout);
             CancelButton = close;
+            Shown += (sender, e) =>
+            {
+                if (catalog == null || loadAsset == null) return;
+                foreach (var id in detail.Participants.Where(p => p != null)
+                    .SelectMany(p => GetMatchRowItemIds(p).Take(2)).Distinct().Take(24))
+                {
+                    string reference;
+                    if (catalog.ItemIcons.TryGetValue(id, out reference) &&
+                        !string.IsNullOrWhiteSpace(reference))
+                        _ = LoadRowItemIconAsync(id, reference, loadAsset, _lifetime.Token);
+                }
+            };
             FacmThemeRuntime.ThemeChanged += OnThemeChanged;
             FormClosed += (sender, e) =>
             {
@@ -372,6 +395,8 @@ namespace FACM.League
                 _selectionCancellation?.Dispose();
                 foreach (var bitmap in _ownedIcons) bitmap.Dispose();
                 _ownedIcons.Clear();
+                foreach (var bitmap in _rowItemIcons.Values) bitmap.Dispose();
+                _rowItemIcons.Clear();
                 _tooltips.Dispose();
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
@@ -551,14 +576,60 @@ namespace FACM.League
                     .Replace("{0}", Math.Min(entries.Count - 1, 99).ToString(CultureInfo.InvariantCulture));
         }
 
-        internal static string FormatMatchRowItemPreview(LeaguePlayerMatchParticipant player,
-            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        internal static int[] GetMatchRowItemIds(LeaguePlayerMatchParticipant player)
         {
-            if (player == null) return "—";
+            if (player == null) return new int[0];
             var ids = (player.ItemIds ?? new int[0]).Where(id => id > 0).Take(7).ToList();
             var boundId = player.RoleBoundItemId.GetValueOrDefault();
             if (boundId > 0 && !ids.Contains(boundId)) ids.Add(boundId);
-            if (ids.Count == 0) return "—";
+            return ids.ToArray();
+        }
+
+        internal static void DrawMatchRowItemIcons(Graphics graphics, Rectangle bounds, int[] ids,
+            IDictionary<int, Bitmap> icons, Color background, Color foreground, Func<string, string> t)
+        {
+            if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0) return;
+            using (var fill = new SolidBrush(background))
+                graphics.FillRectangle(fill, bounds);
+            if (ids == null || ids.Length == 0)
+            {
+                TextRenderer.DrawText(graphics, "—", SystemFonts.DefaultFont, bounds, foreground,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+                return;
+            }
+            var size = Math.Min(24, Math.Max(10, bounds.Height - 4));
+            for (var index = 0; index < Math.Min(2, ids.Length); index++)
+            {
+                var slot = new Rectangle(bounds.Left + 3 + index * (size + 3),
+                    bounds.Top + (bounds.Height - size) / 2, size, size);
+                if (slot.Right > bounds.Right) break;
+                Bitmap bitmap;
+                if (icons != null && icons.TryGetValue(ids[index], out bitmap) && bitmap != null)
+                    graphics.DrawImage(bitmap, slot);
+                else
+                    TextRenderer.DrawText(graphics, "#", SystemFonts.DefaultFont, slot, foreground,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                using (var border = new Pen(foreground))
+                    graphics.DrawRectangle(border, slot.Left, slot.Top, slot.Width - 1, slot.Height - 1);
+            }
+            if (ids.Length > 2)
+            {
+                var left = bounds.Left + 3 + 2 * (size + 3);
+                if (left < bounds.Right)
+                    TextRenderer.DrawText(graphics,
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                            .Replace("{0}", (ids.Length - 2).ToString(CultureInfo.InvariantCulture)),
+                        SystemFonts.DefaultFont,
+                        new Rectangle(left, bounds.Top, bounds.Right - left, bounds.Height), foreground,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            }
+        }
+
+        internal static string FormatMatchRowItemPreview(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        {
+            var ids = GetMatchRowItemIds(player);
+            if (ids.Length == 0) return "—";
             var names = catalog == null ? null : catalog.Items;
             var preview = string.Join(" · ", ids.Take(2)
                 .Select(id => FormatNamedIds(new[] { id }, names)));
@@ -1225,6 +1296,27 @@ namespace FACM.League
                     _ = LoadIconAsync(picture, fallback, reference, loadAsset,
                         _selectionVersion, _selectionCancellation.Token);
             }
+        }
+
+        private async Task LoadRowItemIconAsync(int id, string reference,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset, CancellationToken token)
+        {
+            Bitmap bitmap = null;
+            try
+            {
+                await IconRequestGate.WaitAsync(token);
+                try { bitmap = await loadAsset(reference, token); }
+                finally { IconRequestGate.Release(); }
+                if (bitmap == null || token.IsCancellationRequested || IsDisposed) return;
+                _rowItemIcons[id] = bitmap;
+                bitmap = null;
+                if (_scoreboardRows != null && !_scoreboardRows.IsDisposed)
+                    _scoreboardRows.Invalidate();
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { bitmap?.Dispose(); }
         }
 
         private async Task LoadIconAsync(PictureBox picture, Label fallback, string reference,
