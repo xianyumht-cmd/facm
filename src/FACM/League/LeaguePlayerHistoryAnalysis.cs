@@ -490,12 +490,19 @@ namespace FACM.League
                 mapSideSelector.Items.Add(ui.Get(UiTextKeys.LeagueJungleBlueSide));
                 mapSideSelector.Items.Add(ui.Get(UiTextKeys.LeagueJungleRedSide));
                 mapSideSelector.SelectedIndex = 0;
-                var heatmapToggle = new CheckBox { AutoSize = true, Dock = DockStyle.Fill,
+                var heatmapToggle = new CheckBox { AutoSize = true,
                     Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle),
                     AccessibleName = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
+                var campToggle = new CheckBox { AutoSize = true,
+                    Text = ui.Get(UiTextKeys.LeagueJungleMapCampToggle),
+                    AccessibleName = ui.Get(UiTextKeys.LeagueJungleMapCampToggle) };
+                var mapModes = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true,
+                    WrapContents = false, Margin = Padding.Empty, Padding = Padding.Empty };
+                mapModes.Controls.Add(heatmapToggle);
+                mapModes.Controls.Add(campToggle);
                 mapHeader.Controls.Add(mapStatus, 0, 0);
                 mapHeader.Controls.Add(mapSideSelector, 1, 0);
-                mapHeader.Controls.Add(heatmapToggle, 2, 0);
+                mapHeader.Controls.Add(mapModes, 2, 0);
                 mapLayout.Controls.Add(mapHeader, 0, 0);
                 jungleMapPage.Controls.Add(mapLayout);
                 LeagueEventMap mapView = null;
@@ -513,17 +520,33 @@ namespace FACM.League
                             mapSideSelector.SelectedIndex == 2 ? 200 : 0;
                         var mapSamples = LeagueJungleHistoryAnalysis.MapSamples(jungleSamples, selected, side);
                         var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
-                        mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions,
-                            projection?.Level3KillPositions, projection?.Level4KillPositions,
-                            projection?.MinuteLanes, projection?.GankLanes);
-                        mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
-                            ui.Get(UiTextKeys.LeagueJungleMapCoverage),
-                            projection?.MinutePositions.Count ?? 0, projection?.GankPositions.Count ?? 0,
-                            projection?.Level3KillPositions.Count ?? 0, projection?.Level4KillPositions.Count ?? 0,
-                            (projection?.OmittedGankMapPoints ?? 0) + (projection?.OmittedEarlyMapPoints ?? 0));
+                        if (campToggle.Checked)
+                        {
+                            mapView.SetFirstCampMap(projection);
+                            mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
+                                ui.Get(UiTextKeys.LeagueJungleMapCampCoverage),
+                                projection?.FirstCampGames ?? 0, projection?.Games ?? 0, mapView.CampMarkerCount);
+                        }
+                        else
+                        {
+                            mapView.SetPointCloud(projection?.MinutePositions, projection?.GankPositions,
+                                projection?.Level3KillPositions, projection?.Level4KillPositions,
+                                projection?.MinuteLanes, projection?.GankLanes);
+                            mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
+                                ui.Get(UiTextKeys.LeagueJungleMapCoverage),
+                                projection?.MinutePositions.Count ?? 0, projection?.GankPositions.Count ?? 0,
+                                projection?.Level3KillPositions.Count ?? 0, projection?.Level4KillPositions.Count ?? 0,
+                                (projection?.OmittedGankMapPoints ?? 0) + (projection?.OmittedEarlyMapPoints ?? 0));
+                        }
                     }
                 };
                 heatmapToggle.CheckedChanged += (sender, args) => mapView?.SetHeatmapMode(heatmapToggle.Checked);
+                campToggle.CheckedChanged += (sender, args) =>
+                {
+                    heatmapToggle.Enabled = !campToggle.Checked;
+                    if (campToggle.Checked) heatmapToggle.Checked = false;
+                    refreshJungle();
+                };
                 mapSideSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleSelector.SelectedIndexChanged += (sender, args) => refreshJungle();
                 jungleViews.SelectedIndexChanged += (sender, args) =>

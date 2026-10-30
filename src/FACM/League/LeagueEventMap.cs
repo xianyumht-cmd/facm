@@ -22,8 +22,17 @@ namespace FACM.League
         private PointF[] _level3Positions = new PointF[0];
         private PointF[] _level4Positions = new PointF[0];
         private bool _pointCloudMode;
+        private bool _firstCampMode;
+        private CampMarker[] _campMarkers = new CampMarker[0];
         private bool _heatmapMode;
         private HeatmapCell[] _heatmapCells = new HeatmapCell[0];
+
+        internal sealed class CampMarker
+        {
+            internal string Camp, CampSide;
+            internal PointF Position;
+            internal int OwnCount, InvadeCount;
+        }
 
         internal sealed class HeatmapCell
         {
@@ -41,6 +50,8 @@ namespace FACM.League
 
         internal bool HeatmapMode { get { return _heatmapMode; } }
         internal int HeatmapCellCount { get { return _heatmapCells.Length; } }
+        internal int CampMarkerCount { get { return _campMarkers.Length; } }
+        internal bool FirstCampMode { get { return _firstCampMode; } }
 
         internal LeagueEventMap(UiTextCatalog ui, int mapId)
         {
@@ -65,6 +76,8 @@ namespace FACM.League
         {
             if (IsDisposed) return;
             _pointCloudMode = false;
+            _firstCampMode = false;
+            _campMarkers = new CampMarker[0];
             _minutePositions = new PointF[0];
             _gankPositions = new PointF[0];
             _minuteLanes = new int[0];
@@ -95,6 +108,8 @@ namespace FACM.League
         {
             if (IsDisposed) return;
             _pointCloudMode = true;
+            _firstCampMode = false;
+            _campMarkers = new CampMarker[0];
             _position = null;
             // Preserve source lane ownership through normalization and visible-point sampling.
             var minutes = NormalizeLanePoints(minutePositions, minuteLanes, 40 * 14, false);
@@ -111,6 +126,68 @@ namespace FACM.League
             _heatmapCells = BuildHeatmap(minutePositions, gankPositions, _mapId, minuteLanes, gankLanes);
             UpdatePointCloudDescription();
             Invalidate();
+        }
+
+        // Pinned FirstClearAndGankSummary.vue: camp locations are fixed; only observed starts get markers.
+        internal static CampMarker[] BuildCampMarkers(LeagueJungleHistoryAggregate aggregate)
+        {
+            if (aggregate == null) return new CampMarker[0];
+            var camps = new[] {
+                new CampMarker { Camp = "blue", CampSide = "blue", Position = Normalize(3830, 7880, 11).Value },
+                new CampMarker { Camp = "wolves", CampSide = "blue", Position = Normalize(3800, 6440, 11).Value },
+                new CampMarker { Camp = "red", CampSide = "blue", Position = Normalize(7760, 4010, 11).Value },
+                new CampMarker { Camp = "raptors", CampSide = "blue", Position = Normalize(6970, 5460, 11).Value },
+                new CampMarker { Camp = "blue", CampSide = "red", Position = Normalize(10990, 7000, 11).Value },
+                new CampMarker { Camp = "wolves", CampSide = "red", Position = Normalize(11020, 8440, 11).Value },
+                new CampMarker { Camp = "red", CampSide = "red", Position = Normalize(7060, 10870, 11).Value },
+                new CampMarker { Camp = "raptors", CampSide = "red", Position = Normalize(7850, 9420, 11).Value }
+            };
+            var visible = new List<CampMarker>();
+            foreach (var camp in camps)
+            {
+                var opposingSide = camp.CampSide == "blue" ? "red" : "blue";
+                int own, invade;
+                aggregate.Camps.TryGetValue(camp.CampSide + "/normal/" + camp.Camp, out own);
+                aggregate.Camps.TryGetValue(opposingSide + "/invade/" + camp.Camp, out invade);
+                if (own <= 0 && invade <= 0) continue;
+                camp.OwnCount = Math.Max(0, own);
+                camp.InvadeCount = Math.Max(0, invade);
+                visible.Add(camp);
+            }
+            return visible.ToArray();
+        }
+
+        internal void SetFirstCampMap(LeagueJungleHistoryAggregate aggregate)
+        {
+            if (IsDisposed) return;
+            _firstCampMode = true;
+            _pointCloudMode = false;
+            _position = null;
+            _campMarkers = _mapId == 11 ? BuildCampMarkers(aggregate) : new CampMarker[0];
+            AccessibleDescription = _ui.Get(_campMarkers.Length == 0 ?
+                UiTextKeys.LeagueJungleMapCampEmpty : UiTextKeys.LeagueJungleMapCampLegend);
+            Invalidate();
+        }
+
+        internal static Color CampMarkerColor(string camp)
+        {
+            if (camp == "red") return Color.FromArgb(128, 255, 60, 60);
+            if (camp == "blue") return Color.FromArgb(128, 60, 140, 255);
+            if (camp == "wolves") return Color.FromArgb(128, 180, 180, 180);
+            return Color.FromArgb(128, 200, 120, 255);
+        }
+
+        internal static void DrawCampMarker(Graphics graphics, PointF center, float radius,
+            Color fill, bool invaded)
+        {
+            if (graphics == null || radius <= 0) return;
+            using (var brush = new SolidBrush(fill))
+            using (var border = new Pen(invaded ? Color.FromArgb(217, 251, 191, 36) :
+                Color.FromArgb(102, 255, 255, 255), 1.5f))
+            {
+                graphics.FillEllipse(brush, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+                graphics.DrawEllipse(border, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            }
         }
 
         internal void SetHeatmapMode(bool enabled)
@@ -352,11 +429,13 @@ namespace FACM.League
             var padding = Math.Max(6, (int)(e.Graphics.DpiX / 16));
             var side = Math.Min(ClientSize.Width, ClientSize.Height) - 2 * padding;
             if (side <= 0) return;
-            if ((!_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0 &&
+            if ((_firstCampMode ? _campMarkers.Length == 0 :
+                !_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0 &&
                 _level3Positions.Length == 0 && _level4Positions.Length == 0) || _map == null)
             {
                 TextRenderer.DrawText(e.Graphics, _ui.Get(!Supported(_mapId) ?
-                    UiTextKeys.LeagueEventMapUnsupported : _pointCloudMode ?
+                    UiTextKeys.LeagueEventMapUnsupported : _firstCampMode ?
+                    UiTextKeys.LeagueJungleMapCampEmpty : _pointCloudMode ?
                     UiTextKeys.LeagueJungleMapEmpty : UiTextKeys.LeagueEventMapMissing), Font,
                     ClientRectangle, ForeColor, TextFormatFlags.WordBreak | TextFormatFlags.HorizontalCenter |
                     TextFormatFlags.VerticalCenter);
@@ -364,8 +443,17 @@ namespace FACM.League
             }
             var bounds = new Rectangle((Width - side) / 2, (Height - side) / 2, side, side);
             e.Graphics.DrawImage(_map, bounds);
-            if (_pointCloudMode && _mapId == 11)
+            if ((_pointCloudMode || _firstCampMode) && _mapId == 11)
                 DrawJungleSideOverlay(e.Graphics, bounds);
+            if (_firstCampMode)
+            {
+                var radius = Math.Max(5f, e.Graphics.DpiX / 19.2f);
+                foreach (var marker in _campMarkers)
+                    DrawCampMarker(e.Graphics, new PointF(bounds.Left + marker.Position.X * bounds.Width,
+                        bounds.Top + marker.Position.Y * bounds.Height), radius,
+                        CampMarkerColor(marker.Camp), marker.InvadeCount > 0);
+                return;
+            }
             if (_pointCloudMode && _heatmapMode)
             {
                 var laneColors = new[] { Color.FromArgb(220, 38, 38), Color.FromArgb(245, 158, 11),

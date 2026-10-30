@@ -130,6 +130,38 @@ namespace FACM.League
                     marks.GetPixel(15, 9).ToArgb() == Color.White.ToArgb(),
                     "Confirmed gank markers must draw lane-colored diagonal X strokes, not solid dots.");
             }
+            var camps = new LeagueJungleHistoryAggregate();
+            camps.Camps["blue/normal/blue"] = 2;
+            camps.Camps["red/invade/blue"] = 1;
+            camps.Camps["red/normal/red"] = 3;
+            var markers = LeagueEventMap.BuildCampMarkers(camps);
+            Require(markers.Length == 2 &&
+                markers.Any(p => p.CampSide == "blue" && p.Camp == "blue" &&
+                    p.OwnCount == 2 && p.InvadeCount == 1 &&
+                    p.Position == LeagueEventMap.Normalize(3830, 7880, 11).Value) &&
+                markers.Any(p => p.CampSide == "red" && p.Camp == "red" &&
+                    p.OwnCount == 3 && p.InvadeCount == 0 &&
+                    p.Position == LeagueEventMap.Normalize(7060, 10870, 11).Value) &&
+                LeagueEventMap.BuildCampMarkers(null).Length == 0 &&
+                LeagueEventMap.BuildCampMarkers(new LeagueJungleHistoryAggregate()).Length == 0,
+                "First-clear markers use pinned physical camp coordinates and isolate own/invade sides.");
+            using (var campImage = new Bitmap(36, 18))
+            using (var campGraphics = Graphics.FromImage(campImage))
+            {
+                campGraphics.Clear(Color.Black);
+                LeagueEventMap.DrawCampMarker(campGraphics, new PointF(9, 9), 5f,
+                    LeagueEventMap.CampMarkerColor("red"), true);
+                LeagueEventMap.DrawCampMarker(campGraphics, new PointF(27, 9), 5f,
+                    LeagueEventMap.CampMarkerColor("blue"), false);
+                Require(campImage.GetPixel(9, 9).R > campImage.GetPixel(9, 9).B &&
+                    campImage.GetPixel(27, 9).B > campImage.GetPixel(27, 9).R &&
+                    Enumerable.Range(3, 12).Any(y => Enumerable.Range(3, 12).Any(x => {
+                        var color = campImage.GetPixel(x, y);
+                        return color.R > 180 && color.G > 100 && color.G < color.R &&
+                            color.B < 90;
+                    })),
+                    "Camp marker colors and amber invasion border must remain visible.");
+            }
             var weighted = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(7410, 7440), new PointF(7410, 7440) },
                 new[] { new PointF(7410, 7440) }, 11);
@@ -202,13 +234,18 @@ namespace FACM.League
                             Require(ChangedTintPixels(baseline, bitmap, false) > 3,
                                 "Level-4 early kill positions must have their independent visible ring layer.");
                         }
+                        map.SetFirstCampMap(camps);
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(map.FirstCampMode && map.CampMarkerCount == 2,
+                            "The optional first-clear view must show only camps with observed starts.");
                         map.SetPointCloud(new[] { new PointF(float.NaN, 1) },
                             new[] { new PointF(float.PositiveInfinity, 1) });
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                         map.SetEvent(center);
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                        Require(bitmap.GetPixel(110, 110).ToArgb() == Color.FromArgb(147, 197, 253).ToArgb(),
-                            "Returning to one selected event must clear both previous point-cloud layers.");
+                        Require(!map.FirstCampMode && map.CampMarkerCount == 0 &&
+                            bitmap.GetPixel(110, 110).ToArgb() == Color.FromArgb(147, 197, 253).ToArgb(),
+                            "Returning to one selected event must clear camp markers and point-cloud layers.");
                     }
                     map.SetEvent(null);
                     map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
