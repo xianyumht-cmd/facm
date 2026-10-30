@@ -310,6 +310,23 @@ namespace FACM.League
                 styledRow.SubItems[8].ForeColor == FacmDesignSystem.Text &&
                 styledRow.SubItems[0].BackColor == FacmDesignSystem.Canvas,
                 "Empty tags and the target row must retain their native surface colors.");
+            var healingTags = new[] {
+                new KeyValuePair<long, string>(1650, "全场治疗第一（200 / 66.67%）") };
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, healingTags, t, false, true);
+            var lightHealing = styledRow.SubItems[8].BackColor;
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, healingTags, t, false, false);
+            var darkHealing = styledRow.SubItems[8].BackColor;
+            Require(lightHealing == LeagueMatchTagStrip.TagColor("全场治疗第一", t, false) &&
+                darkHealing == LeagueMatchTagStrip.TagColor("全场治疗第一", t, true) &&
+                lightHealing != darkHealing &&
+                styledRow.SubItems[8].ForeColor ==
+                    FacmDesignSystem.ReadableTextOn(darkHealing, Color.White) &&
+                styledRow.SubItems[7].BackColor == FacmDesignSystem.CanvasRaised,
+                "MatchCard row tag colors must be restylable for both palettes without changing other cells.");
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, null, t, false, false);
+            Require(styledRow.SubItems[8].BackColor == FacmDesignSystem.CanvasRaised &&
+                styledRow.SubItems[8].ForeColor == FacmDesignSystem.Text,
+                "Restyling a cleared MatchCard tag must remove its previous category color.");
             var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                 leader, leaderboard, false, t);
             Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&
