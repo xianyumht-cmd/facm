@@ -161,6 +161,7 @@ namespace FACM.League
     {
         internal const int BatchSize = 8;
         internal const int MaximumSamples = 40;
+        private static readonly string[] FirstClearCampOrder = { "red", "blue", "wolves", "raptors" };
 
         internal static List<LeaguePlayerMatchSummary> PendingBatch(IEnumerable<LeaguePlayerMatchSummary> matches,
             string targetPuuid, ISet<string> attempted, int successful)
@@ -314,12 +315,14 @@ namespace FACM.League
                 {
                     var kindLabel = ui.Get(kind == "normal" ? UiTextKeys.LeagueJungleHistoryNormal : UiTextKeys.LeagueJungleHistoryInvade);
                     var camps = a.Camps.Where(c => c.Key.StartsWith(side + "/" + kind + "/", StringComparison.Ordinal))
-                        .OrderByDescending(c => c.Value).ThenBy(c => c.Key, StringComparer.Ordinal).ToArray();
+                        .OrderByDescending(c => c.Value)
+                        .ThenBy(c => Array.IndexOf(FirstClearCampOrder, c.Key.Substring((side + "/" + kind + "/").Length)))
+                        .ToArray();
                     var kindTotal = camps.Sum(c => c.Value);
                     lines.Add(string.Format(CultureInfo.CurrentCulture,
                         ui.Get(UiTextKeys.LeagueJungleHistoryCampKindSummary),
                         sideLabel, kindLabel, kindTotal, sideKnown,
-                        Percent(sideKnown > 0 ? (double?)kindTotal / sideKnown : null)));
+                        FirstClearPercent(kindTotal, sideKnown)));
                     foreach (var camp in camps)
                     {
                         var parts = camp.Key.Split('/');
@@ -330,7 +333,7 @@ namespace FACM.League
                         lines.Add(string.Format(CultureInfo.CurrentCulture,
                             ui.Get(UiTextKeys.LeagueJungleHistoryCampWithinKindRow),
                             sideLabel, kindLabel, ui.Get(campKey), camp.Value,
-                            Percent(kindTotal > 0 ? (double?)camp.Value / kindTotal : null)));
+                            FirstClearPercent(camp.Value, kindTotal)));
                     }
                 }
             }
@@ -355,6 +358,13 @@ namespace FACM.League
         {
             return weight < 0 ? "--" : weight > 999 ? "999+" :
                 weight.ToString(CultureInfo.CurrentCulture);
+        }
+
+        internal static string FirstClearPercent(int count, int total)
+        {
+            return total <= 0 || count < 0 || count > total ? "--" :
+                Math.Round(count * 100d / total, 0, MidpointRounding.AwayFromZero)
+                    .ToString("0", CultureInfo.CurrentCulture) + "%";
         }
 
         private static string Percent(double? rate)
