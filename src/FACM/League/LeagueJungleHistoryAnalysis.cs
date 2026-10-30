@@ -313,12 +313,12 @@ namespace FACM.League
                 var campKey = parts[2] == "blue" ? UiTextKeys.LeagueJungleCampBlue :
                     parts[2] == "wolves" ? UiTextKeys.LeagueJungleCampWolves :
                     parts[2] == "red" ? UiTextKeys.LeagueJungleCampRed : UiTextKeys.LeagueJungleCampRaptors;
+                var sideKnown = parts[0] == "blue" ? a.BlueFirstCampGames : a.RedFirstCampGames;
                 lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
                     ui.Get(parts[0] == "blue" ? UiTextKeys.LeagueJungleBlueSide : UiTextKeys.LeagueJungleRedSide),
                     ui.Get(parts[1] == "normal" ? UiTextKeys.LeagueJungleHistoryNormal : UiTextKeys.LeagueJungleHistoryInvade),
                     ui.Get(campKey), camp.Value,
-                    Percent((double)camp.Value / (parts[0] == "blue" ?
-                        Math.Max(1, a.BlueFirstCampGames) : Math.Max(1, a.RedFirstCampGames)))));
+                    Percent(sideKnown > 0 ? (double?)camp.Value / sideKnown : null)));
             }
             lines.Add(string.Empty);
             lines.Add(string.Format(CultureInfo.CurrentCulture, ui.Get(UiTextKeys.LeagueJungleHistoryObjectives),
