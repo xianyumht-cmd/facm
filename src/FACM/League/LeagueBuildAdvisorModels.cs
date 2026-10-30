@@ -90,6 +90,7 @@ namespace FACM.League
             ItemIcons = new Dictionary<int, string>();
             SpellIcons = new Dictionary<int, string>();
             PerkIcons = new Dictionary<int, string>();
+            PerkStyleIcons = new Dictionary<int, string>();
             AugmentIcons = new Dictionary<int, string>();
             ChampionIcons = new Dictionary<int, string>();
         }
@@ -105,6 +106,7 @@ namespace FACM.League
         public Dictionary<int, string> ItemIcons { get; private set; }
         public Dictionary<int, string> SpellIcons { get; private set; }
         public Dictionary<int, string> PerkIcons { get; private set; }
+        public Dictionary<int, string> PerkStyleIcons { get; private set; }
         public Dictionary<int, string> AugmentIcons { get; private set; }
         public Dictionary<int, string> ChampionIcons { get; private set; }
     }

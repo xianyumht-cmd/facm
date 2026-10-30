@@ -25,6 +25,7 @@ namespace FACM.League
         private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
         private readonly Dictionary<int, Bitmap> _rowItemIcons = new Dictionary<int, Bitmap>();
         private readonly Dictionary<int, Bitmap> _rowSpellIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowRuneIcons = new Dictionary<int, Bitmap>();
         private readonly ToolTip _tooltips = new ToolTip();
         private readonly ToolTip _teamTooltips = new ToolTip();
         private CancellationTokenSource _selectionCancellation;
@@ -44,7 +45,8 @@ namespace FACM.League
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
-            Width = 1120; Height = 685; MinimumSize = new Size(680, 510);
+            Width = IsAugmentMatchMode(detail.Match.GameMode) ? 1320 : 1240;
+            Height = 685; MinimumSize = new Size(680, 510);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
@@ -52,6 +54,7 @@ namespace FACM.League
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
                 ColumnCount = 1, RowCount = 6 };
             var isCherry = LeagueCherryTeams.IsCherry(detail.Match.GameMode);
+            var isAugmentMode = IsAugmentMatchMode(detail.Match.GameMode);
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, isCherry ? 164 : 106));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -93,17 +96,22 @@ namespace FACM.League
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 155);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells), 78);
+            rows.Columns.Add(t(isAugmentMode ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments :
+                LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab), isAugmentMode ? 120 : 66);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
             rows.DrawColumnHeader += (sender, e) => e.DrawDefault = true;
             rows.DrawItem += (sender, e) => { if (rows.View != View.Details) e.DrawDefault = true; };
             rows.DrawSubItem += (sender, e) =>
             {
-                if (e.ColumnIndex != 9 && e.ColumnIndex != 10) { e.DrawDefault = true; return; }
+                if (e.ColumnIndex != 9 && e.ColumnIndex != 10 && e.ColumnIndex != 11)
+                { e.DrawDefault = true; return; }
                 var participant = e.Item.Tag as LeaguePlayerMatchParticipant;
-                var ids = e.ColumnIndex == 9
-                    ? GetMatchRowItemSlots(participant) : GetMatchRowSpellSlots(participant);
-                var icons = e.ColumnIndex == 9 ? _rowItemIcons : _rowSpellIcons;
+                var ids = e.ColumnIndex == 9 ? GetMatchRowItemSlots(participant) :
+                    e.ColumnIndex == 10 ? GetMatchRowSpellSlots(participant) :
+                        GetMatchRowRuneSlots(participant, detail.Match.GameMode);
+                var icons = e.ColumnIndex == 9 ? _rowItemIcons :
+                    e.ColumnIndex == 10 ? _rowSpellIcons : _rowRuneIcons;
                 if (!HasMatchRowItemIcon(ids, icons)) { e.DrawDefault = true; return; }
                 DrawMatchRowItemIcons(e.Graphics, e.Bounds, ids,
                     icons, e.Item.Selected ? SystemColors.Highlight : e.SubItem.BackColor,
@@ -283,6 +291,7 @@ namespace FACM.League
                 item.SubItems.Add(FormatMatchRowItemPreview(player, catalog, t));
                 item.SubItems.Add(FormatNamedIds(GetMatchRowSpellSlots(player),
                     catalog == null ? null : catalog.Spells));
+                item.SubItems.Add(FormatMatchRowRunePreview(player, catalog, match.GameMode, t));
                 item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
                     player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
@@ -403,6 +412,18 @@ namespace FACM.League
                             !string.IsNullOrWhiteSpace(reference))
                             _ = LoadRowIconAsync(id, reference, loadAsset, _rowSpellIcons, _lifetime.Token);
                     }
+                foreach (var id in detail.Participants.Where(p => p != null)
+                    .SelectMany(p => GetMatchRowRuneSlots(p, match.GameMode))
+                    .Where(id => id > 0).Distinct().Take(48))
+                {
+                    string reference;
+                    var found = isAugmentMode
+                        ? catalog.AugmentIcons.TryGetValue(id, out reference)
+                        : catalog.PerkIcons.TryGetValue(id, out reference) ||
+                            catalog.PerkStyleIcons.TryGetValue(id, out reference);
+                    if (found && !string.IsNullOrWhiteSpace(reference))
+                        _ = LoadRowIconAsync(id, reference, loadAsset, _rowRuneIcons, _lifetime.Token);
+                }
             };
             FacmThemeRuntime.ThemeChanged += OnThemeChanged;
             FormClosed += (sender, e) =>
@@ -416,6 +437,8 @@ namespace FACM.League
                 _rowItemIcons.Clear();
                 foreach (var bitmap in _rowSpellIcons.Values) bitmap.Dispose();
                 _rowSpellIcons.Clear();
+                foreach (var bitmap in _rowRuneIcons.Values) bitmap.Dispose();
+                _rowRuneIcons.Clear();
                 _tooltips.Dispose();
                 _teamTooltips.Dispose();
                 _lifetime.Dispose();
@@ -625,6 +648,28 @@ namespace FACM.League
                 for (var index = 0; index < Math.Min(slots.Length, player.SpellIds.Length); index++)
                     slots[index] = Math.Max(0, player.SpellIds[index]);
             return slots;
+        }
+
+        internal static int[] GetMatchRowRuneSlots(LeaguePlayerMatchParticipant player, string gameMode)
+        {
+            if (player == null) return new int[0];
+            if (IsAugmentMatchMode(gameMode))
+                return (player.AugmentIds ?? new int[0]).Take(6).Select(id => Math.Max(0, id)).ToArray();
+            return new[] {
+                player.PerkIds != null && player.PerkIds.Length > 0 ? Math.Max(0, player.PerkIds[0]) : 0,
+                Math.Max(0, player.SecondaryPerkStyleId)
+            };
+        }
+
+        internal static string FormatMatchRowRunePreview(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, string gameMode, Func<string, string> t)
+        {
+            if (player == null) return "—";
+            if (IsAugmentMatchMode(gameMode)) return FormatAugments(player.AugmentIds, catalog, t);
+            var slots = GetMatchRowRuneSlots(player, gameMode);
+            var primary = FormatNamedIds(new[] { slots[0] }, catalog == null ? null : catalog.Perks);
+            var secondary = FormatNamedIds(new[] { slots[1] }, catalog == null ? null : catalog.PerkStyles);
+            return primary == "—" ? secondary : secondary == "—" ? primary : primary + " / " + secondary;
         }
 
         internal static bool HasMatchRowItemIcon(int[] ids, IDictionary<int, Bitmap> icons)

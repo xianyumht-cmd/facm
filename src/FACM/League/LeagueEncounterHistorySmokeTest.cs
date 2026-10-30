@@ -348,6 +348,27 @@ namespace FACM.League
                     .SequenceEqual(new[] { 4, 0 }) &&
                 LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(null).Length == 0,
                 "Per-player summoner spell icons must preserve both positions and reject invalid IDs.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CLASSIC")
+                    .SequenceEqual(new[] { 8005, 8300 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "cherry")
+                    .SequenceEqual(new[] { 1234 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "KIWI")
+                    .SequenceEqual(new[] { 1234 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(
+                    new LeaguePlayerMatchParticipant { PerkIds = new[] { -1 },
+                        SecondaryPerkStyleId = 0 }, "CLASSIC").SequenceEqual(new int[2]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(null, "CLASSIC").Length == 0 &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(buildPlayer,
+                    rowCatalog, "CLASSIC", t) == "Press the Attack / Inspiration" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(buildPlayer,
+                    rowCatalog, "KIWI", t) == "Augment" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(null,
+                    rowCatalog, "CLASSIC", t) == "—",
+                "MatchCard must project source primary-perk/secondary-style or Cherry/Kiwi augments per participant.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(
+                    new LeaguePlayerMatchParticipant { AugmentIds = new[] { 1, 0, -2, 3, 4, 5, 6, 7 } },
+                    "CHERRY").SequenceEqual(new[] { 1, 0, 0, 3, 4, 5 }),
+                "MatchCard augment slots must remain positional and bounded to six.");
             Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer)
                     .SequenceEqual(new[] { 3006, 9999, 3340 }) &&
                 LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(
@@ -397,6 +418,20 @@ namespace FACM.League
                     !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
                         new[] { 4, 7 }, new Dictionary<int, Bitmap>()),
                     "Spell rows must paint cached icons and show an unknown second spell slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CLASSIC"),
+                    new Dictionary<int, Bitmap> { { 8005, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 && canvas.GetPixel(30, 6).ToArgb() != Color.White.ToArgb(),
+                    "Classic MatchCard must render the primary rune and reserve the secondary-style slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CHERRY"),
+                    new Dictionary<int, Bitmap> { { 1234, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200,
+                    "Cherry MatchCard must render its augment without leaking classic runes.");
                 graphics.Clear(Color.White);
                 LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
                     new Rectangle(0, 0, 70, 28), new int[2],

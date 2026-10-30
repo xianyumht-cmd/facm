@@ -355,6 +355,11 @@ namespace FACM.League
                 var id = ReadInt(row, "id");
                 var name = ReadString(row, "name");
                 if (id > 0 && !string.IsNullOrWhiteSpace(name)) catalog.PerkStyles[id] = name.Trim();
+                var iconPath = ReadString(row, "iconPath");
+                if (id <= 0 || string.IsNullOrWhiteSpace(iconPath)) continue;
+                var reference = AssetReference(iconPath);
+                if (FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(reference))
+                    catalog.PerkStyleIcons[id] = reference;
             }
         }
 
@@ -997,6 +1002,7 @@ namespace FACM.League
             Copy(source.ItemIcons, clone.ItemIcons);
             Copy(source.SpellIcons, clone.SpellIcons);
             Copy(source.PerkIcons, clone.PerkIcons);
+            Copy(source.PerkStyleIcons, clone.PerkStyleIcons);
             Copy(source.AugmentIcons, clone.AugmentIcons);
             Copy(source.ChampionIcons, clone.ChampionIcons);
             return clone;
