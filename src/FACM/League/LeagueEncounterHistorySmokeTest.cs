@@ -325,6 +325,17 @@ namespace FACM.League
                     buildPlayer, rowCatalog, t) == "Boots · #9999 +2",
                 "A distinct role-bound item must remain discoverable in the inline equipment count.");
             buildPlayer.RoleBoundItemId = 3006;
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(buildPlayer)
+                    .SequenceEqual(new[] { 3006, 0, 9999, 0, 0, 0, 3340 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 3006, 0 },
+                        RoleBoundItemId = 4000 }).SequenceEqual(
+                            new[] { 3006, 0, 0, 0, 0, 0, 0, 4000 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -1 },
+                        RoleBoundItemId = 0 }).SequenceEqual(new int[7]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(null).Length == 0,
+                "Seven item slots must preserve empty positions, the trinket slot and a distinct bound item.");
             Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer)
                     .SequenceEqual(new[] { 3006, 9999, 3340 }) &&
                 LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(
@@ -347,7 +358,7 @@ namespace FACM.League
                 Require(canvas.GetPixel(12, 14).R > 200 &&
                     canvas.GetPixel(12, 14).G < 80 &&
                     canvas.GetPixel(12, 14).B < 80 &&
-                    canvas.GetPixel(30, 2).ToArgb() != Color.White.ToArgb(),
+                    canvas.GetPixel(21, 6).ToArgb() != Color.White.ToArgb(),
                     "Inline MatchCard must paint a cached first-item image and preserve an unknown-ID slot.");
                 Require(LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
                         new[] { 3006, 9999 }, new Dictionary<int, Bitmap> { { 3006, icon } }) &&
@@ -362,6 +373,32 @@ namespace FACM.League
                     Color.White, Color.Black, t);
                 Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
                     "Missing equipment must not retain an icon from the previous participant.");
+                using (var trinket = new Bitmap(4, 4))
+                using (var bound = new Bitmap(4, 4))
+                using (var sevenCanvas = new Bitmap(160, 24))
+                using (var sevenGraphics = Graphics.FromImage(sevenCanvas))
+                {
+                    using (var trinketGraphics = Graphics.FromImage(trinket))
+                        trinketGraphics.Clear(Color.Blue);
+                    using (var boundGraphics = Graphics.FromImage(bound))
+                        boundGraphics.Clear(Color.Lime);
+                    sevenGraphics.Clear(Color.White);
+                    var sevenSlots = LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                        new LeaguePlayerMatchParticipant {
+                            ItemIds = new[] { 3006, 0, 9999, 0, 0, 0, 3340 },
+                            RoleBoundItemId = 4000 });
+                    var sevenIcons = new Dictionary<int, Bitmap> {
+                        { 3006, icon }, { 3340, trinket }, { 4000, bound } };
+                    LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(
+                        sevenGraphics, new Rectangle(0, 0, 160, 24), sevenSlots,
+                        sevenIcons, Color.White, Color.Black, t);
+                    Require(sevenCanvas.GetPixel(119, 12).B > 200 &&
+                        sevenCanvas.GetPixel(137, 12).G > 200 &&
+                        sevenCanvas.GetPixel(29, 12).ToArgb() == Color.White.ToArgb() &&
+                        LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                            sevenSlots, new Dictionary<int, Bitmap> { { 3340, trinket } }),
+                        "The seventh trinket and distinct eighth bound item must render in their own slots.");
+                }
             }
             Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
                 LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&

@@ -43,7 +43,7 @@ namespace FACM.League
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
-            Width = 1070; Height = 685; MinimumSize = new Size(680, 510);
+            Width = 1120; Height = 685; MinimumSize = new Size(680, 510);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
@@ -90,7 +90,7 @@ namespace FACM.League
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 80);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 55);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
-            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 110);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 155);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
             rows.ShowGroups = true;
             rows.DrawColumnHeader += (sender, e) => e.DrawDefault = true;
@@ -99,7 +99,7 @@ namespace FACM.League
             {
                 if (e.ColumnIndex != 9) { e.DrawDefault = true; return; }
                 var participant = e.Item.Tag as LeaguePlayerMatchParticipant;
-                var ids = GetMatchRowItemIds(participant);
+                var ids = GetMatchRowItemSlots(participant);
                 if (!HasMatchRowItemIcon(ids, _rowItemIcons)) { e.DrawDefault = true; return; }
                 DrawMatchRowItemIcons(e.Graphics, e.Bounds, ids,
                     _rowItemIcons, e.Item.Selected ? SystemColors.Highlight : e.SubItem.BackColor,
@@ -381,7 +381,7 @@ namespace FACM.League
             {
                 if (catalog == null || loadAsset == null) return;
                 foreach (var id in detail.Participants.Where(p => p != null)
-                    .SelectMany(p => GetMatchRowItemIds(p).Take(2)).Distinct().Take(24))
+                    .SelectMany(GetMatchRowItemSlots).Where(id => id > 0).Distinct().Take(48))
                 {
                     string reference;
                     if (catalog.ItemIcons.TryGetValue(id, out reference) &&
@@ -587,12 +587,25 @@ namespace FACM.League
             return ids.ToArray();
         }
 
+        internal static int[] GetMatchRowItemSlots(LeaguePlayerMatchParticipant player)
+        {
+            if (player == null) return new int[0];
+            var slots = new int[7];
+            if (player.ItemIds != null)
+                for (var index = 0; index < Math.Min(slots.Length, player.ItemIds.Length); index++)
+                    slots[index] = Math.Max(0, player.ItemIds[index]);
+            var boundId = player.RoleBoundItemId.GetValueOrDefault();
+            if (boundId > 0 && Array.IndexOf(slots, boundId) < 0)
+                return slots.Concat(new[] { boundId }).ToArray();
+            return slots;
+        }
+
         internal static bool HasMatchRowItemIcon(int[] ids, IDictionary<int, Bitmap> icons)
         {
-            return ids != null && icons != null && ids.Take(2).Any(id =>
+            return ids != null && icons != null && ids.Any(id =>
             {
                 Bitmap bitmap;
-                return icons.TryGetValue(id, out bitmap) && bitmap != null;
+                return id > 0 && icons.TryGetValue(id, out bitmap) && bitmap != null;
             });
         }
 
@@ -608,31 +621,24 @@ namespace FACM.League
                     TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
                 return;
             }
-            var size = Math.Min(24, Math.Max(10, bounds.Height - 4));
-            for (var index = 0; index < Math.Min(2, ids.Length); index++)
+            var size = Math.Min(16, Math.Max(10, bounds.Height - 4));
+            for (var index = 0; index < Math.Min(8, ids.Length); index++)
             {
-                var slot = new Rectangle(bounds.Left + 3 + index * (size + 3),
+                var slot = new Rectangle(bounds.Left + 3 + index * (size + 2),
                     bounds.Top + (bounds.Height - size) / 2, size, size);
                 if (slot.Right > bounds.Right) break;
-                Bitmap bitmap;
-                if (icons != null && icons.TryGetValue(ids[index], out bitmap) && bitmap != null)
-                    graphics.DrawImage(bitmap, slot);
-                else
-                    TextRenderer.DrawText(graphics, "#", SystemFonts.DefaultFont, slot, foreground,
-                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-                using (var border = new Pen(foreground))
+                var id = ids[index];
+                if (id > 0)
+                {
+                    Bitmap bitmap;
+                    if (icons != null && icons.TryGetValue(id, out bitmap) && bitmap != null)
+                        graphics.DrawImage(bitmap, slot);
+                    else
+                        TextRenderer.DrawText(graphics, "#", SystemFonts.DefaultFont, slot, foreground,
+                            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                }
+                using (var border = new Pen(id > 0 ? foreground : Color.FromArgb(80, foreground)))
                     graphics.DrawRectangle(border, slot.Left, slot.Top, slot.Width - 1, slot.Height - 1);
-            }
-            if (ids.Length > 2)
-            {
-                var left = bounds.Left + 3 + 2 * (size + 3);
-                if (left < bounds.Right)
-                    TextRenderer.DrawText(graphics,
-                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
-                            .Replace("{0}", (ids.Length - 2).ToString(CultureInfo.InvariantCulture)),
-                        SystemFonts.DefaultFont,
-                        new Rectangle(left, bounds.Top, bounds.Right - left, bounds.Height), foreground,
-                        TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             }
         }
 
