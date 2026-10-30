@@ -325,6 +325,37 @@ namespace FACM.League
                     buildPlayer, rowCatalog, t) == "Boots · #9999 +2",
                 "A distinct role-bound item must remain discoverable in the inline equipment count.");
             buildPlayer.RoleBoundItemId = 3006;
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer)
+                    .SequenceEqual(new[] { 3006, 9999, 3340 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -5 },
+                        RoleBoundItemId = 4000 }).SequenceEqual(new[] { 4000 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(null).Length == 0,
+                "Inline MatchCard icons must project positive items and nonduplicated bound items only.");
+            using (var icon = new Bitmap(4, 4))
+            using (var canvas = new Bitmap(110, 28))
+            using (var graphics = Graphics.FromImage(canvas))
+            {
+                using (var brush = new SolidBrush(Color.Red))
+                using (var iconGraphics = Graphics.FromImage(icon))
+                    iconGraphics.FillRectangle(brush, 0, 0, 4, 4);
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 110, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer),
+                    new Dictionary<int, Bitmap> { { 3006, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 &&
+                    canvas.GetPixel(12, 14).G < 80 &&
+                    canvas.GetPixel(12, 14).B < 80 &&
+                    canvas.GetPixel(30, 2).ToArgb() != Color.White.ToArgb(),
+                    "Inline MatchCard must paint a cached first-item image and preserve an unknown-ID slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 110, 28), new int[0], null,
+                    Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
+                    "Missing equipment must not retain an icon from the previous participant.");
+            }
             Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
                 LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&
                 !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("CLASSIC") &&
