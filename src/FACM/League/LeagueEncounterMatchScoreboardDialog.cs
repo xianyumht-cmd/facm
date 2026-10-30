@@ -99,7 +99,9 @@ namespace FACM.League
             {
                 if (e.ColumnIndex != 9) { e.DrawDefault = true; return; }
                 var participant = e.Item.Tag as LeaguePlayerMatchParticipant;
-                DrawMatchRowItemIcons(e.Graphics, e.Bounds, GetMatchRowItemIds(participant),
+                var ids = GetMatchRowItemIds(participant);
+                if (!HasMatchRowItemIcon(ids, _rowItemIcons)) { e.DrawDefault = true; return; }
+                DrawMatchRowItemIcons(e.Graphics, e.Bounds, ids,
                     _rowItemIcons, e.Item.Selected ? SystemColors.Highlight : e.SubItem.BackColor,
                     e.Item.Selected ? SystemColors.HighlightText : e.SubItem.ForeColor, t);
             };
@@ -583,6 +585,15 @@ namespace FACM.League
             var boundId = player.RoleBoundItemId.GetValueOrDefault();
             if (boundId > 0 && !ids.Contains(boundId)) ids.Add(boundId);
             return ids.ToArray();
+        }
+
+        internal static bool HasMatchRowItemIcon(int[] ids, IDictionary<int, Bitmap> icons)
+        {
+            return ids != null && icons != null && ids.Take(2).Any(id =>
+            {
+                Bitmap bitmap;
+                return icons.TryGetValue(id, out bitmap) && bitmap != null;
+            });
         }
 
         internal static void DrawMatchRowItemIcons(Graphics graphics, Rectangle bounds, int[] ids,
