@@ -194,12 +194,14 @@ namespace FACM.League
                 ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
                 ui.Get(UiTextKeys.LeagueJungleBlueSide),
                 ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
-                ui.Get(UiTextKeys.LeagueJungleCampBlue), 1, "50.0%");
+                ui.Get(UiTextKeys.LeagueJungleCampBlue), 1,
+                50d.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
             var redCampText = string.Format(System.Globalization.CultureInfo.CurrentCulture,
                 ui.Get(UiTextKeys.LeagueJungleHistoryCampRow),
                 ui.Get(UiTextKeys.LeagueJungleRedSide),
                 ui.Get(UiTextKeys.LeagueJungleHistoryNormal),
-                ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1, "100.0%");
+                ui.Get(UiTextKeys.LeagueJungleCampRaptors), 1,
+                100d.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture) + "%");
             Require(firstClearText.Contains(blueCoverageText) &&
                 firstClearText.Contains(redCoverageText) &&
                 firstClearText.Contains(blueCampText) && firstClearText.Contains(redCampText),
