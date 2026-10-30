@@ -633,9 +633,9 @@ namespace FACM.League
             var names = catalog == null ? null : catalog.Items;
             var preview = string.Join(" · ", ids.Take(2)
                 .Select(id => FormatNamedIds(new[] { id }, names)));
-            return ids.Count <= 2 ? preview : preview + " " +
+            return ids.Length <= 2 ? preview : preview + " " +
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
-                    .Replace("{0}", (ids.Count - 2).ToString(CultureInfo.InvariantCulture));
+                    .Replace("{0}", (ids.Length - 2).ToString(CultureInfo.InvariantCulture));
         }
 
         internal static string FormatMatchRowTooltip(IEnumerable<KeyValuePair<long, string>> tags,
