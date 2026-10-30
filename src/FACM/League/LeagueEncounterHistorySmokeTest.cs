@@ -288,6 +288,12 @@ namespace FACM.League
                 !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, false, t).Contains("治疗第一"),
                 "Partial enemy healing must not imply a match-wide record or a complete team comparison.");
+            enemyAlly.TotalHeal = -1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内治疗第一（200 / 66.67%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("全场治疗第一"),
+                "Negative opposing healing must not be counted as a verified match-wide leader.");
             enemyAlly.TotalHeal = 50;
             enemy.DamageToChampions = 1000;
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
@@ -344,6 +350,11 @@ namespace FACM.League
                 expandedTags.IndexOf("全场推塔伤害第一", StringComparison.Ordinal) <
                     expandedTags.IndexOf("全场经济第一", StringComparison.Ordinal),
                 "Pinned tower, shield, solo and CS tags must retain metric shares and priority.");
+            ally.TotalDamageShieldedOnTeammates = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("护盾第一"),
+                "Negative teammate shielding must not produce an inflated or unverifiable leader share.");
+            ally.TotalDamageShieldedOnTeammates = 100;
             enemy.TotalDamageToTowers = 1200;
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                 enemy, leaderboard, true, t).Contains("全场推塔伤害第一（1,200 / 80.00%）"),
@@ -412,6 +423,18 @@ namespace FACM.League
                 LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, true, t).Contains("队内控制第一（70）"),
                 "Pinned CC-time leaders must preserve fractional seconds, source priority and Cherry grouping.");
+            enemy.TimeCCingOthers = double.NaN;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场控制第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("队内控制第一（85.5）"),
+                "Non-finite opponent control time must not certify a match-wide leader.");
+            enemy.TimeCCingOthers = 70;
+            ally.TimeCCingOthers = double.PositiveInfinity;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("控制第一"),
+                "Non-finite teammate control time must suppress an unverifiable team leader.");
+            ally.TimeCCingOthers = 50;
             enemy.TimeCCingOthers = 85.5;
             Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
                     enemy, leaderboard, true, t).Contains("全场控制第一（85.5）"),
