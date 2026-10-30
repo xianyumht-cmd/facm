@@ -632,9 +632,9 @@ namespace FACM.League
             var own = metric(player);
             if (!own.HasValue || own.Value <= 0 || group.Count == 0) return;
             var teamValues = group.Select(metric).ToList();
-            if (teamValues.Any(value => !value.HasValue)) return;
+            if (teamValues.Any(value => !value.HasValue || value.Value < 0)) return;
             var allValues = all.Select(metric).ToList();
-            var matchBest = allValues.All(value => value.HasValue) &&
+            var matchBest = allValues.All(value => value.HasValue && value.Value >= 0) &&
                 own.Value == allValues.Max(value => value.Value);
             var teamBest = own.Value == teamValues.Max(value => value.Value);
             if (!matchBest && !teamBest) return;
@@ -644,6 +644,12 @@ namespace FACM.League
             var label = t(matchBest ? matchKey : teamKey) + "（" +
                 own.Value.ToString("N0", CultureInfo.InvariantCulture) + " / " + share + "%）";
             tags.Add(new KeyValuePair<int, string>(matchBest ? matchPriority : teamPriority, label));
+        }
+
+        private static bool ValidLeaderValue(double? value)
+        {
+            return value.HasValue && value.Value >= 0 &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value);
         }
 
         private static void AddMatchValueLeaderTag(List<KeyValuePair<int, string>> tags,
@@ -656,9 +662,9 @@ namespace FACM.League
             if (!own.HasValue || own.Value <= 0 || double.IsNaN(own.Value) ||
                 double.IsInfinity(own.Value) || group.Count == 0) return;
             var teamValues = group.Select(metric).ToList();
-            if (teamValues.Any(value => !value.HasValue)) return;
+            if (teamValues.Any(value => !ValidLeaderValue(value))) return;
             var allValues = all.Select(metric).ToList();
-            var matchBest = allValues.All(value => value.HasValue) &&
+            var matchBest = allValues.All(ValidLeaderValue) &&
                 own.Value == allValues.Max(value => value.Value);
             var teamBest = own.Value == teamValues.Max(value => value.Value);
             if (!matchBest && !teamBest) return;
