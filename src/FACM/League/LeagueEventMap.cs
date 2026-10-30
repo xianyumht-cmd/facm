@@ -56,6 +56,8 @@ namespace FACM.League
         internal int HeatmapCellCount { get { return _heatmapCells.Length; } }
         internal int CampMarkerCount { get { return _campMarkers.Length; } }
         internal bool FirstCampMode { get { return _firstCampMode; } }
+        internal int FirstCampEarlyKillCount { get { return _firstCampMode ?
+            _level3Positions.Length + _level4Positions.Length : 0; } }
 
         internal LeagueEventMap(UiTextCatalog ui, int mapId)
         {
@@ -251,7 +253,8 @@ namespace FACM.League
             ClearCampHover();
         }
 
-        internal void SetFirstCampMap(LeagueJungleHistoryAggregate aggregate)
+        internal void SetFirstCampMap(LeagueJungleHistoryAggregate aggregate,
+            IEnumerable<PointF> level3Positions = null, IEnumerable<PointF> level4Positions = null)
         {
             if (IsDisposed) return;
             ClearCampHover();
@@ -259,7 +262,12 @@ namespace FACM.League
             _pointCloudMode = false;
             _position = null;
             _campMarkers = _mapId == 11 ? BuildCampMarkers(aggregate) : new CampMarker[0];
-            AccessibleDescription = _ui.Get(_campMarkers.Length == 0 ?
+            _level3Positions = _mapId == 11 ?
+                NormalizePoints(level3Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints) : new PointF[0];
+            _level4Positions = _mapId == 11 ?
+                NormalizePoints(level4Positions, 40 * LeagueJungleAnalysis.MaximumGankMapPoints) : new PointF[0];
+            AccessibleDescription = _ui.Get(_campMarkers.Length == 0 &&
+                _level3Positions.Length == 0 && _level4Positions.Length == 0 ?
                 UiTextKeys.LeagueJungleMapCampEmpty : UiTextKeys.LeagueJungleMapCampLegend);
             Invalidate();
         }
@@ -282,6 +290,26 @@ namespace FACM.League
             {
                 graphics.FillEllipse(brush, center.X - radius, center.Y - radius, radius * 2, radius * 2);
                 graphics.DrawEllipse(border, center.X - radius, center.Y - radius, radius * 2, radius * 2);
+            }
+        }
+
+        internal static void DrawFirstCampEarlyKills(Graphics graphics, Rectangle bounds,
+            IEnumerable<PointF> level3Positions, IEnumerable<PointF> level4Positions, float dpi, bool dark)
+        {
+            if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0 || dpi <= 0) return;
+            var radius = Math.Max(5f, dpi / 16f);
+            var width = Math.Max(2f, dpi / 48f);
+            using (var level3Pen = new Pen(dark ? Color.FromArgb(251, 146, 60) :
+                Color.FromArgb(234, 88, 12), width))
+            using (var level4Pen = new Pen(dark ? Color.FromArgb(192, 132, 252) :
+                Color.FromArgb(147, 51, 234), width))
+            {
+                foreach (var p in level3Positions ?? Enumerable.Empty<PointF>())
+                    DrawLaneKillMarker(graphics, new PointF(bounds.Left + p.X * bounds.Width,
+                        bounds.Top + p.Y * bounds.Height), radius, level3Pen);
+                foreach (var p in level4Positions ?? Enumerable.Empty<PointF>())
+                    DrawLaneKillMarker(graphics, new PointF(bounds.Left + p.X * bounds.Width,
+                        bounds.Top + p.Y * bounds.Height), radius, level4Pen);
             }
         }
 
@@ -525,7 +553,8 @@ namespace FACM.League
             var bounds = MapBounds(ClientSize, _lastDpi);
             var side = bounds.Width;
             if (side <= 0) return;
-            if ((_firstCampMode ? _campMarkers.Length == 0 :
+            if ((_firstCampMode ? _campMarkers.Length == 0 &&
+                _level3Positions.Length == 0 && _level4Positions.Length == 0 :
                 !_position.HasValue && _minutePositions.Length == 0 && _gankPositions.Length == 0 &&
                 _level3Positions.Length == 0 && _level4Positions.Length == 0) || _map == null)
             {
@@ -547,6 +576,8 @@ namespace FACM.League
                     DrawCampMarker(e.Graphics, new PointF(bounds.Left + marker.Position.X * bounds.Width,
                         bounds.Top + marker.Position.Y * bounds.Height), campRadius,
                         CampMarkerColor(marker.Camp), marker.InvadeCount > 0);
+                DrawFirstCampEarlyKills(e.Graphics, bounds, _level3Positions, _level4Positions,
+                    e.Graphics.DpiX, !FacmThemeRuntime.Current.IsLight);
                 return;
             }
             if (_pointCloudMode && _heatmapMode)

@@ -189,6 +189,23 @@ namespace FACM.League
                     })),
                     "Camp marker colors and amber invasion border must remain visible.");
             }
+            using (var earlyImage = new Bitmap(100, 50))
+            using (var earlyGraphics = Graphics.FromImage(earlyImage))
+            {
+                earlyGraphics.Clear(Color.White);
+                LeagueEventMap.DrawFirstCampEarlyKills(earlyGraphics, new Rectangle(0, 0, 100, 50),
+                    new[] { new PointF(.25f, .5f) }, new[] { new PointF(.75f, .5f) }, 96f, false);
+                var level3Pixel = earlyImage.GetPixel(25, 25);
+                var level4Pixel = earlyImage.GetPixel(75, 25);
+                Require(level3Pixel.R > 180 && level3Pixel.G < 150 && level3Pixel.B < 100 &&
+                    level4Pixel.B > 150 && level4Pixel.R > level4Pixel.G &&
+                    earlyImage.GetPixel(50, 25).ToArgb() == Color.White.ToArgb(),
+                    "Pinned first-camp map must draw distinct orange level-3 and purple level-4 X overlays.");
+                LeagueEventMap.DrawFirstCampEarlyKills(earlyGraphics, Rectangle.Empty,
+                    new[] { new PointF(.5f, .5f) }, null, 96f, false);
+                Require(earlyImage.GetPixel(50, 25).ToArgb() == Color.White.ToArgb(),
+                    "Empty bounds must not paint early-kill markers.");
+            }
             var weighted = LeagueEventMap.BuildHeatmap(
                 new[] { new PointF(7410, 7440), new PointF(7410, 7440) },
                 new[] { new PointF(7410, 7440) }, 11);
@@ -261,10 +278,25 @@ namespace FACM.League
                             Require(ChangedTintPixels(baseline, bitmap, false) > 3,
                                 "Level-4 early kill positions must have their independent visible ring layer.");
                         }
-                        map.SetFirstCampMap(camps);
+                        map.SetFirstCampMap(camps, new[] { new PointF(7410, 7440.5f) },
+                            new[] { new PointF(11000, 11000) });
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                        Require(map.FirstCampMode && map.CampMarkerCount == 4,
-                            "The optional first-clear view must show only camps with observed starts.");
+                        Require(map.FirstCampMode && map.CampMarkerCount == 4 &&
+                            map.FirstCampEarlyKillCount == 2 &&
+                            map.AccessibleDescription.Contains("橙色X") &&
+                            map.AccessibleDescription.Contains("紫色X"),
+                            "First-clear map must retain observed camp markers and source early-kill X layers.");
+                        map.SetFirstCampMap(new LeagueJungleHistoryAggregate(),
+                            new[] { new PointF(7410, 7440.5f), new PointF(float.NaN, 0) }, null);
+                        map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                        Require(map.FirstCampMode && map.CampMarkerCount == 0 &&
+                            map.FirstCampEarlyKillCount == 1 &&
+                            !map.AccessibleDescription.Contains("暂无已知首营地记录"),
+                            "Early-kill-only first-clear maps must remain visible without fabricated camps.");
+                        map.SetFirstCampMap(null);
+                        Require(map.FirstCampEarlyKillCount == 0 &&
+                            map.AccessibleDescription.Contains("暂无已知首营地记录"),
+                            "Changing first-clear selection must discard stale early-kill overlays.");
                         map.SetPointCloud(new[] { new PointF(float.NaN, 1) },
                             new[] { new PointF(float.PositiveInfinity, 1) });
                         map.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));

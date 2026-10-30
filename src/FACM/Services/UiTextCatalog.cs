@@ -681,7 +681,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleMapHeatmapToggle, "热度分布"),
             Pair(UiTextKeys.LeagueJungleMapCampToggle, "首营地"),
             Pair(UiTextKeys.LeagueJungleMapCampEmpty, "暂无已知首营地记录；可按需读取打野时间线。"),
-            Pair(UiTextKeys.LeagueJungleMapCampLegend, "营地颜色：红BUFF、蓝BUFF、三狼、锋喙鸟；金色边框表示该营地存在入侵开野记录。首营地根据首分钟位置推断。"),
+            Pair(UiTextKeys.LeagueJungleMapCampLegend, "营地颜色：红BUFF、蓝BUFF、三狼、锋喙鸟；金色边框表示入侵开野。橙色X为3分钟前击杀参与，紫色X为3—4分钟击杀参与。首营地根据首分钟位置推断。"),
             Pair(UiTextKeys.LeagueJungleMapCampCoverage, "首营地样本 {0}/{1} 场 · 已标记 {2} 处"),
             Pair(UiTextKeys.LeagueJungleMapCampDetailTitle, "{0} · {1}"),
             Pair(UiTextKeys.LeagueJungleMapCampOwnDetail, "{0}己方开野：该营地 {1} 场 / 同类 {2} 场 / 阵营有效样本 {3} 场"),

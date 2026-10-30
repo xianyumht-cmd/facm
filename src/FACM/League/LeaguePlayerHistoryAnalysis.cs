@@ -522,7 +522,8 @@ namespace FACM.League
                         var projection = LeagueJungleHistoryAggregate.Calculate(mapSamples);
                         if (campToggle.Checked)
                         {
-                            mapView.SetFirstCampMap(projection);
+                            mapView.SetFirstCampMap(projection, projection?.Level3KillPositions,
+                                projection?.Level4KillPositions);
                             mapStatus.Text = string.Format(CultureInfo.CurrentCulture,
                                 ui.Get(UiTextKeys.LeagueJungleMapCampCoverage),
                                 projection?.FirstCampGames ?? 0, projection?.Games ?? 0, mapView.CampMarkerCount);
