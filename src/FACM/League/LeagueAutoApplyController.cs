@@ -474,11 +474,21 @@ namespace FACM.League
             LeagueChampionSpellPreset spells, LeagueChampionRunePreset runes)
         {
             if (snapshot == null || (spells == null && runes == null)) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(
+                snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (string.IsNullOrWhiteSpace(group) ||
+                spells != null && !MatchesPresetGroup(spells.Group, group) ||
+                runes != null && !MatchesPresetGroup(runes.Group, group))
+                return null;
             var plan = new LeagueBuildApplyPlan
             {
                 ChampionId = snapshot.ChampionId,
                 QueueId = snapshot.QueueId,
-                QueueType = snapshot.QueueType
+                QueueType = snapshot.QueueType,
+                PresetGroup = group,
+                Mode = snapshot.Mode,
+                Position = snapshot.Position,
+                Version = snapshot.Version
             };
             if (spells != null)
             {
@@ -492,6 +502,13 @@ namespace FACM.League
                 plan.PresetPerkIds.AddRange(runes.SelectedPerkIds);
             }
             return plan;
+        }
+
+        private static bool MatchesPresetGroup(string saved, string current)
+        {
+            return string.Equals(saved, current, StringComparison.Ordinal) ||
+                   current.StartsWith("ranked-", StringComparison.Ordinal) &&
+                   string.Equals(saved, "ranked-default", StringComparison.Ordinal);
         }
 
         internal void SaveEditedRunePreset(LeagueBuildAdvisorSnapshot snapshot,

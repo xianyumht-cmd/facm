@@ -180,6 +180,17 @@ namespace FACM.League
                 Require(changed.Writes.Count == 0, "Gate 2 wrote a stale champion loadout.");
             }
 
+            var changedPresetGroup = new FakeLeagueApi();
+            using (var service = CreateService(changedPresetGroup, new FakeOpggApi()))
+            {
+                var plan = Prepare(service);
+                plan.PresetGroup = "ranked-top";
+                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "blocked" && result.BlockReason == "preset-group-changed" &&
+                        changedPresetGroup.Writes.Count == 0,
+                    "A changed ranked role must block saved rune and spell writes.");
+            }
+
             var changedQueueType = new FakeLeagueApi();
             using (var service = CreateService(changedQueueType, new FakeOpggApi()))
             {

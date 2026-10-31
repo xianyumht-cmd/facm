@@ -196,10 +196,14 @@ namespace FACM.League
             snapshot.GameId = 100;
             snapshot.QueueType = "RANKED_SOLO_5x5";
             var combined = LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset);
-            Require(combined.QueueType == snapshot.QueueType,
-                "Saved champion loadout must preserve the selected ranked queue type.");
+            Require(combined.QueueType == snapshot.QueueType && combined.PresetGroup == rankedTop,
+                "Saved champion loadout must preserve the selected ranked queue and group.");
             Require(combined.HasSpells && combined.HasRunes && combined.GetSelectedPerkIds().SequenceEqual(runePreset.SelectedPerkIds),
                 "Combined LCU preset lost saved rune selection or summoner spells.");
+            Require(LeagueAutoApplyController.MakePresetPlan(snapshot,
+                    new LeagueChampionSpellPreset { ChampionId = 157, Group = "aram", Spell1Id = 4, Spell2Id = 14 },
+                    null) == null,
+                "A different game-mode preset must never be bound to this draft.");
             Require(LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasRunes &&
                     !LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasSpells,
                 "Rune-only preset should apply without a summoner-spell preset.");
@@ -208,6 +212,11 @@ namespace FACM.League
             Require(coordinator.Observe(snapshot, combined, true, now.AddSeconds(2)).ShouldExecute &&
                     !coordinator.Observe(snapshot, combined, true, now.AddSeconds(4)).ShouldExecute,
                 "Preset must apply once per stable game/champion/group.");
+            snapshot.Position = "jungle";
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(4)).ShouldExecute &&
+                    LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset) != null,
+                "Ranked-default fallback should remain available without reusing the old role plan.");
+            snapshot.Position = "top";
             snapshot.GameId = 101;
             Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(5)).ShouldExecute &&
                     coordinator.Observe(snapshot, combined, true, now.AddSeconds(7)).ShouldExecute,

@@ -167,6 +167,21 @@ namespace FACM.League
                     return result;
                 }
 
+                if (!string.IsNullOrWhiteSpace(plan.PresetGroup))
+                {
+                    var currentGroup = LeagueChampionSpellPresets.GroupFor(
+                        live.QueueId, LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
+                        LeagueBuildAdvisorDataService.ResolveOpggPosition(
+                            local == null ? null : local.Position, "ranked"), live.GameMode, live.QueueType);
+                    if (!string.Equals(plan.PresetGroup, currentGroup, StringComparison.Ordinal))
+                    {
+                        result.Status = "blocked";
+                        result.BlockReason = "preset-group-changed";
+                        LogApplyResult(plan, result);
+                        return result;
+                    }
+                }
+
                 if (plan.HasRunes)
                     await ApplyRunesAsync(plan, result, cancellationToken).ConfigureAwait(false);
                 if (plan.HasSpells)

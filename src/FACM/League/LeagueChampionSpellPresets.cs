@@ -168,7 +168,13 @@ namespace FACM.League
             LeagueBuildApplyPlan plan, bool enabled, DateTime now)
         {
             if (!enabled || plan == null || (!plan.HasSpells && !plan.HasRunes) || snapshot == null || !snapshot.Connected ||
-                snapshot.Activity != LeagueActivityLevel.ChampSelect || snapshot.ChampionId != plan.ChampionId)
+                snapshot.Activity != LeagueActivityLevel.ChampSelect || snapshot.ChampionId != plan.ChampionId ||
+                snapshot.QueueId != plan.QueueId ||
+                !string.Equals(snapshot.QueueType ?? string.Empty, plan.QueueType ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
+                !string.IsNullOrWhiteSpace(plan.PresetGroup) &&
+                !string.Equals(plan.PresetGroup, GroupFor(
+                    snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType),
+                    StringComparison.Ordinal))
             {
                 _pending = null;
                 _attempted = null;
@@ -176,6 +182,11 @@ namespace FACM.League
             }
 
             var fingerprint = snapshot.GameId + ":" + snapshot.QueueId + ":" +
+                              (snapshot.QueueType ?? string.Empty) + ":" +
+                              (snapshot.GameMode ?? string.Empty) + ":" +
+                              (snapshot.Mode ?? string.Empty) + ":" +
+                              (snapshot.Position ?? string.Empty) + ":" +
+                              (plan.PresetGroup ?? string.Empty) + ":" +
                               plan.ChampionId + ":" + plan.Spell1Id + ":" + plan.Spell2Id + ":" +
                               plan.PrimaryStyleId + ":" + plan.SecondaryStyleId + ":" +
                               string.Join(",", plan.GetSelectedPerkIds());

@@ -17,6 +17,7 @@ namespace FACM.League
         public string TraceId { get; set; }
         public int QueueId { get; set; }
         public string QueueType { get; set; }
+        public string PresetGroup { get; set; }
         public string Mode { get; set; }
         public string Position { get; set; }
         public string Version { get; set; }
