@@ -179,6 +179,17 @@ namespace FACM.League
                 Require(result.Status == "blocked" && result.BlockReason == "champion-changed", "Champion drift did not fail closed.");
                 Require(changed.Writes.Count == 0, "Gate 2 wrote a stale champion loadout.");
             }
+
+            var changedQueueType = new FakeLeagueApi();
+            using (var service = CreateService(changedQueueType, new FakeOpggApi()))
+            {
+                var plan = Prepare(service);
+                plan.QueueType = "RANKED_EXPERIMENTAL";
+                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "blocked" && result.BlockReason == "queue-changed" &&
+                    changedQueueType.Writes.Count == 0,
+                    "A ranked queue-type change must block both rune and spell writes.");
+            }
         }
 
         private static void ValidateRuneFalseSuccessIsRejected()

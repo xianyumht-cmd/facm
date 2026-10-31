@@ -87,10 +87,14 @@ namespace FACM.League
                 rows.FirstOrDefault(row => row.ChampionId == championId && row.Group == "ranked-default") : null;
         }
 
-        internal static string GroupFor(int queueId, string mode, string position, string gameMode = null)
+        internal static string GroupFor(int queueId, string mode, string position,
+            string gameMode = null, string queueType = null)
         {
             if (LeagueQueueModePolicy.IsAramMayhem(queueId, gameMode)) return null;
-            if (queueId == 420 || queueId == 440)
+            var rankedQueueType = !string.IsNullOrWhiteSpace(queueType) &&
+                queueType.StartsWith("RANKED_", StringComparison.OrdinalIgnoreCase);
+            if (queueId == 420 || queueId == 440 ||
+                rankedQueueType && string.Equals(gameMode, "CLASSIC", StringComparison.OrdinalIgnoreCase))
             {
                 switch ((position ?? string.Empty).Trim().ToLowerInvariant())
                 {
@@ -110,7 +114,9 @@ namespace FACM.League
             if (string.Equals(gameMode, "ULTBOOK", StringComparison.OrdinalIgnoreCase)) return "ultbook";
             if (string.Equals(gameMode, "URF", StringComparison.OrdinalIgnoreCase)) return "urf";
             if (queueId == 400 || queueId == 430 ||
-                (queueId == 0 && string.Equals(mode, "ranked", StringComparison.OrdinalIgnoreCase)))
+                (queueId == 0 && string.Equals(mode, "ranked", StringComparison.OrdinalIgnoreCase)) ||
+                string.Equals(gameMode, "CLASSIC", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(queueType) && !rankedQueueType)
                 return "normal";
             return null;
         }
@@ -124,6 +130,7 @@ namespace FACM.League
                 Activity = live == null ? LeagueActivityLevel.None : live.Activity,
                 GameId = live == null ? 0 : live.GameId,
                 QueueId = live == null ? 0 : live.QueueId,
+                QueueType = live == null ? null : live.QueueType,
                 ChampionId = LeagueBuildAdvisorDataService.ResolveChampionId(live, local),
                 Mode = live == null ? null : LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
                 GameMode = live == null ? null : live.GameMode,

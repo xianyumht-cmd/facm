@@ -526,7 +526,7 @@ namespace FACM.League
             Require(aram.Count == 2 && aram[0] == 157 && aram[1] == 2,
                 "ARAM profile must not leak Rift lane preferences.");
             Require(LeagueAutoSelectProfiles.ResolveStrategy(decoded, "rift", "top").PickStrategy == "just-show" &&
-                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"unsupported\"}]").Count == 0,
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"unsupported!\"}]").Count == 0,
                 "Profile strategy selection or malformed-input rejection failed.");
             Require(!decoded[1].BenchAutoSwapEnabled && decoded[1].BenchSwapDelayMs == 2900,
                 "Automatic bench must stay opt-in and preserve its delay default on profile round-trip.");

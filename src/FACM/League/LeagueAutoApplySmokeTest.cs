@@ -39,7 +39,13 @@ namespace FACM.League
                     LeagueChampionSpellPresets.GroupFor(1700, null, "none", "NEXUSBLITZ") == "nexusblitz" &&
                     LeagueChampionSpellPresets.GroupFor(1700, null, "none", "ULTBOOK") == "ultbook" &&
                     LeagueChampionSpellPresets.GroupFor(3270, null, "none", "ARAM") == null &&
-                    LeagueChampionSpellPresets.GroupFor(3270, null, "none") == null,
+                    LeagueChampionSpellPresets.GroupFor(3270, null, "none") == null &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "jungle", "CLASSIC",
+                        "RANKED_EXPERIMENTAL") == "ranked-jungle" &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "top", "CLASSIC",
+                        "NORMAL") == "normal" &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "top", "ARAM",
+                        "RANKED_EXPERIMENTAL") == null,
                 "Champion spell preset mode / queue isolation regressed.");
 
             var encoded = LeagueChampionSpellPresets.Serialize(new[]
@@ -101,7 +107,10 @@ namespace FACM.League
             var now = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc);
             var snapshot = CreateSnapshot(157, "Yasuo");
             snapshot.GameId = 100;
+            snapshot.QueueType = "RANKED_SOLO_5x5";
             var combined = LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset);
+            Require(combined.QueueType == snapshot.QueueType,
+                "Saved champion loadout must preserve the selected ranked queue type.");
             Require(combined.HasSpells && combined.HasRunes && combined.GetSelectedPerkIds().SequenceEqual(runePreset.SelectedPerkIds),
                 "Combined LCU preset lost saved rune selection or summoner spells.");
             Require(LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasRunes &&

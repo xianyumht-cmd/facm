@@ -11,6 +11,7 @@ namespace FACM.League
         public LeagueActivityLevel Activity { get; set; }
         public string BudgetName { get; set; }
         public int QueueId { get; set; }
+        public string QueueType { get; set; }
         public long GameId { get; set; }
         public int ChampionId { get; set; }
         public string ChampionName { get; set; }

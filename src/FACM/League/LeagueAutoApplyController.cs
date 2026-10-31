@@ -116,6 +116,7 @@ namespace FACM.League
 
             return snapshot.ChampionId.ToString(CultureInfo.InvariantCulture) + ":" +
                    snapshot.QueueId.ToString(CultureInfo.InvariantCulture) + ":" +
+                   (snapshot.QueueType ?? string.Empty) + ":" +
                    (snapshot.Mode ?? string.Empty).Trim().ToLowerInvariant() + ":" +
                    (snapshot.Position ?? string.Empty).Trim().ToLowerInvariant() + ":" +
                    (snapshot.Version ?? string.Empty).Trim() + recommendation;
@@ -281,6 +282,7 @@ namespace FACM.League
             plan.ChampionId = snapshot.ChampionId;
             plan.ChampionName = snapshot.ChampionName;
             plan.QueueId = snapshot.QueueId;
+            plan.QueueType = snapshot.QueueType;
             plan.Mode = snapshot.Mode;
             plan.Position = snapshot.Position;
             plan.Version = snapshot.Version;
@@ -457,14 +459,14 @@ namespace FACM.League
         internal LeagueChampionSpellPreset FindPreset(LeagueBuildAdvisorSnapshot snapshot)
         {
             if (snapshot == null) return null;
-            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
             return LeagueChampionSpellPresets.Resolve(_settings.LeagueChampionSpellPresets, snapshot.ChampionId, group);
         }
 
         internal LeagueChampionRunePreset FindRunePreset(LeagueBuildAdvisorSnapshot snapshot)
         {
             if (snapshot == null) return null;
-            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
             return LeagueChampionRunePresets.Resolve(_settings.LeagueChampionRunePresets, snapshot.ChampionId, group);
         }
 
@@ -472,7 +474,12 @@ namespace FACM.League
             LeagueChampionSpellPreset spells, LeagueChampionRunePreset runes)
         {
             if (snapshot == null || (spells == null && runes == null)) return null;
-            var plan = new LeagueBuildApplyPlan { ChampionId = snapshot.ChampionId, QueueId = snapshot.QueueId };
+            var plan = new LeagueBuildApplyPlan
+            {
+                ChampionId = snapshot.ChampionId,
+                QueueId = snapshot.QueueId,
+                QueueType = snapshot.QueueType
+            };
             if (spells != null)
             {
                 plan.Spell1Id = spells.Spell1Id;
@@ -489,7 +496,7 @@ namespace FACM.League
 
         internal void SavePreset(LeagueBuildAdvisorSnapshot snapshot, LeagueBuildApplyPlan current)
         {
-            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
             if (string.IsNullOrWhiteSpace(group) || current == null || (!current.HasSpells && !current.HasRunes) ||
                 current.ChampionId != snapshot.ChampionId || current.QueueId != snapshot.QueueId)
                 throw new InvalidOperationException("Champion selection is not available for a loadout preset.");
@@ -518,7 +525,7 @@ namespace FACM.League
         internal void RemovePreset(LeagueBuildAdvisorSnapshot snapshot)
         {
             if (snapshot == null) return;
-            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode);
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
             if (string.IsNullOrWhiteSpace(group)) return;
             var existing = FindPreset(snapshot);
             var existingRunes = FindRunePreset(snapshot);

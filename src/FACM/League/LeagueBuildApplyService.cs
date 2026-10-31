@@ -96,6 +96,7 @@ namespace FACM.League
                     plan.ChampionId = snapshot.ChampionId;
                     plan.ChampionName = snapshot.ChampionName;
                     plan.QueueId = snapshot.QueueId;
+                    plan.QueueType = snapshot.QueueType;
                     plan.Mode = snapshot.Mode;
                     plan.Position = snapshot.Position;
                     plan.Version = snapshot.Version;
@@ -156,7 +157,9 @@ namespace FACM.League
                     LogApplyResult(plan, result);
                     return result;
                 }
-                if (plan.QueueId > 0 && live.QueueId > 0 && live.QueueId != plan.QueueId)
+                if (plan.QueueId > 0 && live.QueueId > 0 && live.QueueId != plan.QueueId ||
+                    !string.IsNullOrWhiteSpace(plan.QueueType) &&
+                    !string.Equals(plan.QueueType, live.QueueType, StringComparison.OrdinalIgnoreCase))
                 {
                     result.Status = "blocked";
                     result.BlockReason = "queue-changed";
@@ -214,6 +217,7 @@ namespace FACM.League
                 {
                     ChampionId = expected.ChampionId,
                     QueueId = live.QueueId,
+                    QueueType = live.QueueType,
                     Spell1Id = first,
                     Spell2Id = second
                 };
@@ -287,6 +291,7 @@ namespace FACM.League
                 {
                     ChampionId = expected.ChampionId,
                     QueueId = expected.QueueId,
+                    QueueType = expected.QueueType,
                     PrimaryStyleId = primary,
                     SecondaryStyleId = secondary
                 };
@@ -303,14 +308,16 @@ namespace FACM.League
             var local = live.Players.FirstOrDefault(row => row.IsLocalPlayer);
             if (LeagueBuildAdvisorDataService.ResolveChampionId(live, local) != expected.ChampionId ||
                 (expected.QueueId > 0 && live.QueueId != expected.QueueId) ||
+                (!string.IsNullOrWhiteSpace(expected.QueueType) &&
+                 !string.Equals(expected.QueueType, live.QueueType, StringComparison.OrdinalIgnoreCase)) ||
                 (expected.GameId > 0 && live.GameId > 0 && live.GameId != expected.GameId))
                 return false;
             var expectedGroup = LeagueChampionSpellPresets.GroupFor(
-                expected.QueueId, expected.Mode, expected.Position, expected.GameMode);
+                expected.QueueId, expected.Mode, expected.Position, expected.GameMode, expected.QueueType);
             var actualGroup = LeagueChampionSpellPresets.GroupFor(
                 live.QueueId, LeagueBuildAdvisorDataService.ResolveOpggMode(live.QueueId, live.GameMode),
                 LeagueBuildAdvisorDataService.ResolveOpggPosition(
-                    local == null ? null : local.Position, "ranked"), live.GameMode);
+                    local == null ? null : local.Position, "ranked"), live.GameMode, live.QueueType);
             return !string.IsNullOrWhiteSpace(expectedGroup) &&
                    string.Equals(expectedGroup, actualGroup, StringComparison.Ordinal);
         }

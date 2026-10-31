@@ -575,6 +575,7 @@ namespace FACM.League
                 Activity = live == null ? LeagueActivityLevel.None : live.Activity,
                 BudgetName = live == null ? _budgets.Current.Name : live.BudgetName,
                 QueueId = live == null ? 0 : live.QueueId,
+                QueueType = live == null ? null : live.QueueType,
                 GameId = live == null ? 0 : live.GameId,
                 GameMode = live == null ? null : live.GameMode,
                 Source = "OP.GG Global",
