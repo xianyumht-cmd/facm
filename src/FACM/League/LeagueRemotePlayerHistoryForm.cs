@@ -688,12 +688,20 @@ namespace FACM.League
                     _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
                     return;
                 }
-                using (var dialog = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset,
-                    _replay != null && LeagueEncounterReplayService.CanOfferHistoryReplay(session,
-                        _currentSession?.Invoke(), owner, detail.Match)
-                        ? (Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>>)
-                            ((match, token) => _replay(session, owner, _puuid, match, token)) : null))
-                    dialog.ShowDialog(this);
+                if (detail.EogOnly != null)
+                {
+                    using (var dialog = new LeagueSgpEogOnlyDialog(_ui, detail))
+                        dialog.ShowDialog(this);
+                }
+                else
+                {
+                    using (var dialog = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset,
+                        _replay != null && LeagueEncounterReplayService.CanOfferHistoryReplay(session,
+                            _currentSession?.Invoke(), owner, detail.Match)
+                            ? (Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>>)
+                                ((match, token) => _replay(session, owner, _puuid, match, token)) : null))
+                        dialog.ShowDialog(this);
+                }
                 if (!IsDisposed) _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailReady);
             }
             catch (OperationCanceledException) { }

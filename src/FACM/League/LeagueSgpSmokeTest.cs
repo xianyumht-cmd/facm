@@ -116,6 +116,7 @@ namespace FACM.League
             ValidateRecovery();
             ValidateCatalogRefresh();
             ValidateEogProjection();
+            ValidateEogOnlyFallback();
             ValidateQueueNames();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
@@ -176,6 +177,24 @@ namespace FACM.League
                         ""puuid"":""local-puuid"",""teamId"":200,""championId"":13,
                         ""statistics"":[]}]}"), 601, "local-puuid") == null,
                 "EOG wrong game, wrong owner, empty roster and duplicate identity must fail closed.");
+        }
+
+        private static void ValidateEogOnlyFallback()
+        {
+            var local = Session("HN1", "TENCENT");
+            var foreign = Session("NA1", "NA1");
+            Require(LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, null, true) &&
+                LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, "TENCENT_HN1", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, "TENCENT_HN10", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, null, false) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(foreign, "TENCENT_HN1", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(null, null, true),
+                "EOG-only detail must be offered only for the current trusted region and non-LCU source.");
+            Require(LeagueSgpEogOnlyDialog.FormatStatistic(-2.5) == "-2.5" &&
+                LeagueSgpEogOnlyDialog.FormatStatistic(0.125) == "0.125" &&
+                LeagueSgpEogOnlyDialog.FormatMetric(null) == "—" &&
+                LeagueSgpEogOnlyDialog.FormatMetric(0) == "0",
+                "EOG-only inspection must preserve signed/fractional values, true zero and missing metrics.");
         }
 
         private static void ValidateSupportedQueues(LeagueSgpMatchHistoryApiClient api,
