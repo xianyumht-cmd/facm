@@ -15,6 +15,7 @@ namespace FACM.League
         public static void Validate()
         {
             ValidateQueueGroupsAndTiming();
+            ValidateRemoteGroupCatalog();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
@@ -81,6 +82,35 @@ namespace FACM.League
                     !LeagueAutoPickBanController.IsAvailable(Bytes("[1,67]"), 22) &&
                     !LeagueAutoPickBanController.IsAvailable(Bytes("{\"ids\":[22]}"), 22),
                 "Champion availability must use the validated LCU list.");
+        }
+
+
+        private static void ValidateRemoteGroupCatalog()
+        {
+            var valid = @"{""updatedAt"":""2026-08-02T00:00:00.000Z"",""groups"":[{""groupId"":""ranked"",""name"":{""zh-CN"":""排位模式"",""en"":""Ranked""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL""]}],""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]},{""groupId"":""normal"",""name"":{""zh-CN"":""普通模式"",""en"":""Normal""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""NORMAL""]}],""positions"":[""default""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]}]}";
+            try
+            {
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null,
+                    "Trusted newer group catalog must replace pinned queue routing without implicit fallback.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
+                    "Equal or stale auto-select group catalog must not replace the active snapshot.");
+                foreach (var bad in new[] {
+                    valid.Replace(@"""ranked""", @"""foreign"""),
+                    valid.Replace(@"""supportedSgpServers"":[""*"""]", @"""supportedSgpServers"":[""TENCENT_HN1""]"),
+                    valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[123]"),
+                    valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
+                })
+                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-03"))),
+                        "Unknown group, region-restricted group, unmodeled action or remote icon must fail closed.");
+            }
+            finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
+            Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
+                LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == null,
+                "Built-in group routing must recover after synthetic remote catalog tests.");
         }
 
         private static void ValidateQueueGroupsAndTiming()

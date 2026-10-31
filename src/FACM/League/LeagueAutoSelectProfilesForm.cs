@@ -195,6 +195,11 @@ namespace FACM.League
             RefreshProfile();
             FormClosed += delegate { _catalogLifetime.Cancel(); _catalogLifetime.Dispose(); };
             _ = LoadCatalogAsync();
+            Shown += async delegate
+            {
+                try { await LeagueAutoSelectGroupCatalog.TryRefreshAsync(_catalogLifetime.Token); }
+                catch (OperationCanceledException) { }
+            };
         }
 
         private string T(string key) { return LeagueEfficiencyText.Get(_text, key); }

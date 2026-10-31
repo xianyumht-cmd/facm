@@ -11,6 +11,9 @@ namespace FACM.League
         internal static string GroupFor(string mode, string queueType, bool custom)
         {
             if (string.IsNullOrEmpty(mode) || string.IsNullOrEmpty(queueType)) return null;
+            string remote;
+            if (LeagueAutoSelectGroupCatalog.TryGroupFor(mode, queueType, custom, out remote))
+                return remote;
             if (custom) return (mode == "CLASSIC" || mode == "PRACTICETOOL") && queueType == "NORMAL" ? "custom" : null;
             switch (mode)
             {
