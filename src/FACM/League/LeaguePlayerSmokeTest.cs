@@ -318,6 +318,14 @@ namespace FACM.League
                             StatisticsAvailable = true, WinResult = "win" }
                     }, now).Available,
                 "Old, future and timestamp-free games must not produce a fabricated active session.");
+            var switched = game(3, "loss");
+            switched.PuuId = "different-player";
+            Require(LeagueHistoryActiveSession.Calculate(new[] { game(2, "win"), switched }, now).Games == 1,
+                "Active-session projection cannot join different target accounts.");
+            var regionChanged = game(3, "loss");
+            regionChanged.SgpServerId = "HN10";
+            Require(LeagueHistoryActiveSession.Calculate(new[] { game(2, "win"), regionChanged }, now).Games == 1,
+                "Active-session projection cannot join different SGP regions.");
             var invalid = game(3, "loss");
             invalid.GameDurationSeconds = 0;
             Require(LeagueHistoryActiveSession.Calculate(new[] { game(2, "win"), invalid }, now).Games == 1,

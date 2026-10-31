@@ -92,8 +92,11 @@ namespace FACM.League
             if (!TryEnd(rows[0], nowMs, out lastEnd) ||
                 lastEnd > nowMs || nowMs - lastEnd >= LatestWindowMs)
                 return result;
+            var first = rows[0];
             foreach (var row in rows)
             {
+                if (!string.Equals(row.PuuId, first.PuuId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(row.SgpServerId, first.SgpServerId, StringComparison.OrdinalIgnoreCase)) break;
                 long ended;
                 if (!TryEnd(row, nowMs, out ended)) break;
                 var gap = lastEnd - row.GameCreationEpochMs;
