@@ -289,6 +289,33 @@ namespace FACM.League
                     teams != null && teams.Columns.Count == 8 && teams.Items.Count == 2,
                     "A validated EOG-only match must construct complete native team/player rows without SUMMARY.");
             }
+
+            var replayDetail = new LeagueEncounterMatchDetailResult {
+                Status = LeagueEncounterMatchDetailStatus.Ready,
+                Match = replayMatch, EogOnly = parsed, IsCurrentSession = () => true };
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                replayDetail, (match, token) => Task.FromResult(
+                    new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Checking })))
+            {
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var footer = layout?.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var replayButton = footer?.Controls.OfType<System.Windows.Forms.Button>()
+                    .FirstOrDefault(button => button.Text == LeagueEfficiencyText.Get(
+                        FACM.Services.UiTextCatalog.Load(), LeagueEfficiencyUiTextKeys.DynamicEncounterReplay));
+                Require(replayButton != null && replayButton.Enabled,
+                    "EOG-only detail must expose the existing guarded replay action for complete metadata.");
+            }
+            replayDetail.Match = new LeaguePlayerMatchSummary { GameId = 601 };
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                replayDetail, (match, token) => Task.FromResult(
+                    new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Checking })))
+            {
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var footer = layout?.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var buttons = footer?.Controls.OfType<System.Windows.Forms.Button>().ToArray();
+                Require(buttons != null && buttons.Any(button => !button.Enabled),
+                    "Incomplete replay metadata must leave the EOG-only replay control disabled.");
+            }
             Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&
                 LeagueSgpEogProjection.Parse(fixture, 601, "wrong-owner") == null &&
                 LeagueSgpEogProjection.Parse(Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",

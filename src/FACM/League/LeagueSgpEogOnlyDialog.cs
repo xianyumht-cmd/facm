@@ -176,7 +176,9 @@ namespace FACM.League
             footer.Controls.Add(replayStatus, 0, 0);
             var replayButton = new Button { Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay),
                 Dock = DockStyle.Top, Height = 30,
-                Enabled = replay != null && LeagueSgpEogProjection.ReplayMetadata(detail.EogOnly) != null };
+                Enabled = replay != null && LeagueSgpEogProjection.ReplayMetadata(detail.EogOnly) != null &&
+                    detail.Match.GameDurationSeconds > 0 && detail.Match.GameCreationEpochMs > 0 &&
+                    !string.IsNullOrWhiteSpace(detail.Match.GameType) };
             replayButton.Click += async (sender, args) =>
             {
                 if (replay == null || _lifetime.IsCancellationRequested || !IsCurrent(detail)) return;
