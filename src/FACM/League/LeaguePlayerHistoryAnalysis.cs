@@ -378,6 +378,14 @@ namespace FACM.League
             if (analysis.Wins + analysis.Losses >= 16 &&
                 (double)analysis.Wins / (analysis.Wins + analysis.Losses) >= 0.85)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate));
+            var soloKills = history.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
+                .Where(m => m != null && m.SoloKills.HasValue && m.SoloKills.Value >= 0 &&
+                    (LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                     LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss))
+                .Select(m => m.SoloKills.Value).ToArray();
+            if (soloKills.Length > 0 && soloKills.Average() > 0)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingSoloKills)
+                    .Replace("{0}", soloKills.Average().ToString("0.0", CultureInfo.InvariantCulture)));
             if (analysis.Preferences != null && analysis.Preferences.FlashOnD > 0 &&
                 analysis.Preferences.FlashOnF > 0)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash));

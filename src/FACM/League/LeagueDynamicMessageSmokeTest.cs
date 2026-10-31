@@ -363,6 +363,12 @@ namespace FACM.League
                 "Pinned loss streak threshold must work without fabricating other player tags.");
             Require(LeagueOngoingPlayerTagProjection.Project(new LeaguePlayerMatchPage()).Count == 0,
                 "Missing history must not create any player-card tags.");
+            losses.Matches[0].SoloKills = 2d;
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Any(tag => tag.Contains("2.0")),
+                "Known solo kills must produce the pinned player-card solo-kill tag.");
+            losses.Matches[0].SoloKills = null;
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Count == 1,
+                "Missing solo-kill evidence must not be treated as a positive average.");
         }
 
         private static void ValidateJungleTimeline()
