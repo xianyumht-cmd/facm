@@ -621,6 +621,7 @@ namespace FACM.Services
         public const string LeaguePlayerMatchDetailsVision = "LeaguePlayerMatchDetailsVision";
         public const string LeaguePlayerMatchDetailsBuildings = "LeaguePlayerMatchDetailsBuildings";
         public const string LeaguePlayerMatchDetailsObjectives = "LeaguePlayerMatchDetailsObjectives";
+        public const string LeaguePlayerMatchDetailsGameState = "LeaguePlayerMatchDetailsGameState";
         public const string LeaguePlayerCompareScore = "LeaguePlayerCompareScore";
         public const string LeaguePlayerCompareKda = "LeaguePlayerCompareKda";
         public const string LeaguePlayerCompareKdaVariation = "LeaguePlayerCompareKdaVariation";

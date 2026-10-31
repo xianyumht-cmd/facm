@@ -868,6 +868,51 @@ namespace FACM.League
             "voidMonsterKill", "scuttleCrabKills", "abilityUses"
         };
 
+        private static readonly string[] DetailedBooleanKeys = {
+            "firstBloodKill", "firstBloodAssist", "highestChampionDamage",
+            "firstTowerKill", "firstTowerAssist", "firstInhibitorKill",
+            "firstInhibitorAssist", "hadOpenNexus", "gameEndedInEarlySurrender",
+            "gameEndedInIGNBSurrender", "gameEndedInSurrender",
+            "causedEarlySurrender", "causedGameEndFromIGNBSurrender",
+            "earlySurrenderAccomplice", "teamEarlySurrendered",
+            "teamIGNBSurrendered", "wasPremadeWithIGNBGameEndCauser",
+            "wasPremadeWithSevereTransgressor", "wasSevereTransgressor",
+            "hadAfkTeammate", "PlayerBehavior_IsHeroInCombat"
+        };
+
+        private static bool? ReadStrictBoolean(Dictionary<string, object> stats, string key)
+        {
+            object value;
+            if (stats == null || !stats.TryGetValue(key, out value) || value == null)
+                return null;
+            if (value is bool) return (bool)value;
+            if (value is int && ((int)value == 0 || (int)value == 1)) return (int)value == 1;
+            if (value is long && ((long)value == 0 || (long)value == 1)) return (long)value == 1;
+            if (value is string)
+            {
+                bool parsed;
+                if (bool.TryParse((string)value, out parsed)) return parsed;
+            }
+            return null;
+        }
+
+        internal static Dictionary<string, bool> ParseDetailedBooleanStats(Dictionary<string, object> stats)
+        {
+            var result = new Dictionary<string, bool>(StringComparer.Ordinal);
+            if (stats == null) return result;
+            var challenges = ReadObject(stats, "challenges");
+            foreach (var key in DetailedBooleanKeys)
+            {
+                var direct = ReadStrictBoolean(stats, key);
+                var nested = ReadStrictBoolean(challenges, key);
+                if (direct.HasValue && nested.HasValue && direct.Value != nested.Value)
+                    continue;
+                var value = direct ?? nested;
+                if (value.HasValue) result[key] = value.Value;
+            }
+            return result;
+        }
+
         internal static Dictionary<string, double> ParseDetailedRawStats(Dictionary<string, object> stats)
         {
             var result = new Dictionary<string, double>(StringComparer.Ordinal);
@@ -964,6 +1009,7 @@ namespace FACM.League
                         ? ReadOptionalFiniteNumber(ReadObject(stats, "challenges"),
                             "maxCsAdvantageOnLaneOpponent") : null,
                     RawStats = ParseDetailedRawStats(stats),
+                    RawBooleanStats = ParseDetailedBooleanStats(stats),
                     KnockEnemyIntoTeamAndKill = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(ReadObject(stats, "challenges"),
                             "knockEnemyIntoTeamAndKill") : null,

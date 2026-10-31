@@ -982,6 +982,41 @@ namespace FACM.League
             raw(UiTextKeys.LeaguePlayerMatchDetailsObjectives, new[] {
                 "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
                 "voidMonsterKill", "scuttleCrabKills" });
+            Action<string, string[]> flags = (group, keys) =>
+            {
+                foreach (var key in keys)
+                {
+                    var values = new string[players.Count];
+                    var any = false;
+                    for (var i = 0; i < players.Count; i++)
+                    {
+                        bool value;
+                        if (players[i].RawBooleanStats == null ||
+                            !players[i].RawBooleanStats.TryGetValue(key, out value))
+                            values[i] = "—";
+                        else
+                        {
+                            any = true;
+                            values[i] = value ? "✓" : "✗";
+                        }
+                    }
+                    if (any) rows.Add(new LeagueMatchDetailStatRow {
+                        GroupKey = group, Name = key, Values = values
+                    });
+                }
+            };
+            flags(combat, new[] { "firstBloodKill", "firstBloodAssist", "highestChampionDamage" });
+            flags(UiTextKeys.LeaguePlayerMatchDetailsBuildings, new[] {
+                "firstTowerKill", "firstTowerAssist", "firstInhibitorKill",
+                "firstInhibitorAssist", "hadOpenNexus" });
+            flags(UiTextKeys.LeaguePlayerMatchDetailsGameState, new[] {
+                "gameEndedInEarlySurrender", "gameEndedInIGNBSurrender",
+                "gameEndedInSurrender", "causedEarlySurrender",
+                "causedGameEndFromIGNBSurrender", "earlySurrenderAccomplice",
+                "teamEarlySurrendered", "teamIGNBSurrendered",
+                "wasPremadeWithIGNBGameEndCauser", "wasPremadeWithSevereTransgressor",
+                "wasSevereTransgressor", "hadAfkTeammate",
+                "PlayerBehavior_IsHeroInCombat" });
             return rows;
         }
 

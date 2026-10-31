@@ -245,6 +245,29 @@ namespace FACM.League
                     expanded.Single(row => row.Name == "baronTakedowns").Values[1] == "—" &&
                     expanded.Select(row => row.GroupKey).Distinct().Count() >= 5,
                 "Source stat groups must display known zero without leaking unlisted fields.");
+            var booleans = LeaguePlayerDataService.ParseDetailedBooleanStats(
+                new Dictionary<string, object> {
+                    { "firstBloodKill", false }, { "unlistedPrivateFlag", true },
+                    { "challenges", new Dictionary<string, object> { { "hadAfkTeammate", true } } }
+                });
+            Require(booleans.Count == 2 && !booleans["firstBloodKill"] &&
+                    booleans["hadAfkTeammate"] && !booleans.ContainsKey("unlistedPrivateFlag"),
+                "Pinned boolean stat allowlist must preserve known false and reject arbitrary keys.");
+            first.RawBooleanStats = booleans;
+            var withFlags = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(withFlags.Single(row => row.Name == "firstBloodKill").Values
+                        .SequenceEqual(new[] { "✗", "—" }) &&
+                    withFlags.Single(row => row.Name == "hadAfkTeammate").Values
+                        .SequenceEqual(new[] { "✓", "—" }),
+                "Known false, true and unavailable boolean stats must remain distinguishable.");
+            var conflict = LeaguePlayerDataService.ParseDetailedBooleanStats(
+                new Dictionary<string, object> {
+                    { "firstBloodKill", true },
+                    { "challenges", new Dictionary<string, object> { { "firstBloodKill", false } } }
+                });
+            Require(!conflict.ContainsKey("firstBloodKill"),
+                "Conflicting root and nested boolean evidence must fail closed.");
             var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 Enumerable.Repeat(first, 24));
             Require(bounded.All(row => row.Values.Length == 20) &&

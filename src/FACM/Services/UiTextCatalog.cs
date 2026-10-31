@@ -627,6 +627,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerMatchDetailsVision, "视野"),
             Pair(UiTextKeys.LeaguePlayerMatchDetailsBuildings, "建筑"),
             Pair(UiTextKeys.LeaguePlayerMatchDetailsObjectives, "野区目标"),
+            Pair(UiTextKeys.LeaguePlayerMatchDetailsGameState, "游戏状态"),
             Pair(UiTextKeys.LeaguePlayerCompareScore, "Akari 综合评分 / 17"),
             Pair(UiTextKeys.LeaguePlayerCompareKda, "累计 KDA 比"),
             Pair(UiTextKeys.LeaguePlayerCompareKdaVariation, "逐场 KDA 波动系数"),
