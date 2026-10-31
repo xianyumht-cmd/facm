@@ -37,6 +37,7 @@ namespace FACM.League
             LeagueJungleAnalysisSmokeTest.Validate();
             LeagueJungleHistorySmokeTest.Validate();
             LeagueEarlyJungleDeathSmokeTest.Validate();
+            LeagueObjectiveHistorySmokeTest.Validate();
             LeaguePlayerProfileDetailsSmokeTest.Validate();
             ValidateSgpHistoryFallback();
             ValidateHistoryDetailsAndSparseCompletion();

@@ -671,6 +671,15 @@ namespace FACM.Services
         public const string LeagueJungleHeralds = "LeagueJungleHeralds";
         public const string LeagueJungleBarons = "LeagueJungleBarons";
         public const string LeaguePlayerCompareEarlyJungleDeaths = "LeaguePlayerCompareEarlyJungleDeaths";
+        public const string LeaguePlayerAnalysisObjectivesTitle = "LeaguePlayerAnalysisObjectivesTitle";
+        public const string LeaguePlayerAnalysisObjectivesLoad = "LeaguePlayerAnalysisObjectivesLoad";
+        public const string LeaguePlayerAnalysisObjectivesScope = "LeaguePlayerAnalysisObjectivesScope";
+        public const string LeaguePlayerAnalysisObjectivesSummary = "LeaguePlayerAnalysisObjectivesSummary";
+        public const string LeaguePlayerAnalysisObjectivesFirstDragon = "LeaguePlayerAnalysisObjectivesFirstDragon";
+        public const string LeaguePlayerAnalysisObjectivesRow = "LeaguePlayerAnalysisObjectivesRow";
+        public const string LeaguePlayerAnalysisObjectivesSoloDragon = "LeaguePlayerAnalysisObjectivesSoloDragon";
+        public const string LeaguePlayerAnalysisObjectivesLoading = "LeaguePlayerAnalysisObjectivesLoading";
+        public const string LeaguePlayerAnalysisObjectivesDone = "LeaguePlayerAnalysisObjectivesDone";
         public const string LeaguePlayerAnalysisEarlyJungleTitle = "LeaguePlayerAnalysisEarlyJungleTitle";
         public const string LeaguePlayerAnalysisEarlyJungleLoad = "LeaguePlayerAnalysisEarlyJungleLoad";
         public const string LeaguePlayerAnalysisEarlyJungleScope = "LeaguePlayerAnalysisEarlyJungleScope";

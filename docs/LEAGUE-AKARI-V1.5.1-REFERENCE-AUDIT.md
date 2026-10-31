@@ -1,3 +1,9 @@
+## 2026-11-01 — Pinned all-role objectives source audit
+
+`src/shared/data-adapter/analysis/player/single/objectives.ts` at pinned Akari commit computes team objectives for all roles, not just junglers. The native Rift objective projection now exposes the existing validated jungle objective event parser to non-junglers, preserving first-dragon team, team kills, solo dragon and first event timestamps. The player-analysis objectives tab reads on demand with bounded batch/session ownership and per-hero coverage. Synthetic tests cover non-jungler projection and unknown timelines; CI and Tencent schema acceptance pending.
+
+---
+
 ## 2026-11-01 — Early enemy-jungler involvement source parity
 
 Pinned upstream `14557723706ccc0e0a9d62c470141d4cb7190fcd` `src/shared/data-adapter/analysis/player/single/early-deaths.ts`, `aggregate/details.ts`, `utils/geometry.ts`, and `constants.ts` use an inclusive 900000 ms window, enemy jungler by position or Smite, and mean over only known samples. Native `LeagueEarlyJungleDeathAnalysis` follows these semantics with stricter full-roster/source checks, on-demand phase/account-fenced existing timeline reads and final batch owner verification, 8-per-batch and 40-sample bounds, and native overall/hero reporting plus an optional 35th comparison metric with known/eligible coverage. Source candidate is not marked CI verified until four Windows gates pass. Live Tencent response variation is untested.

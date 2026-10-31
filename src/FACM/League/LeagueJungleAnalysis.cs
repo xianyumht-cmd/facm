@@ -178,6 +178,18 @@ namespace FACM.League
             return result;
         }
 
+        internal static LeagueJungleAnalysis ObjectivesForAnyRole(
+            LeagueMatchTimeline timeline, LeaguePlayerMatchSummary player)
+        {
+            if (timeline == null || player == null || timeline.GameId != player.GameId ||
+                timeline.Frames.Count == 0 || player.MapId != 11 ||
+                (player.TeamId != 100 && player.TeamId != 200) ||
+                player.ParticipantId < 1 || player.ParticipantId > 10) return null;
+            var result = new LeagueJungleAnalysis();
+            result.ReadObjectives(timeline, player);
+            return result.ObjectivesAvailable ? result : null;
+        }
+
         private void ReadObjectives(LeagueMatchTimeline timeline, LeaguePlayerMatchSummary player)
         {
             if (player.TeamId != 100 && player.TeamId != 200) return;
