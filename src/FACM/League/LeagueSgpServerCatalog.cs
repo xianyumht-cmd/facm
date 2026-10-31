@@ -134,7 +134,7 @@ namespace FACM.League
                 !entry.TryGetValue("common", out common) ||
                 !entry.TryGetValue("isTencent", out tencent) ||
                 !(tencent is bool) || !(bool)tencent ||
-                !entry.TryGetValue("regionPathParam", out region) ||
+                entry.TryGetValue("regionPathParam", out region) &&
                 !string.Equals(region as string, platform, StringComparison.Ordinal))
                 return null;
             var server = new LeagueSgpServer
