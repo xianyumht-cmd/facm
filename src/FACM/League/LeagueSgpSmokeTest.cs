@@ -217,6 +217,15 @@ namespace FACM.League
                 !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                new LeagueEncounterMatchDetailResult {
+                    Status = LeagueEncounterMatchDetailStatus.Ready,
+                    Match = new LeaguePlayerMatchSummary { GameId = 601 },
+                    EogOnly = parsed, IsCurrentSession = () => true }))
+            {
+                Require(dialog.Controls.Count > 0 && dialog.Text.Length > 0,
+                    "A validated EOG-only match must construct a native details window without SUMMARY.");
+            }
             Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&
                 LeagueSgpEogProjection.Parse(fixture, 601, "wrong-owner") == null &&
                 LeagueSgpEogProjection.Parse(Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",

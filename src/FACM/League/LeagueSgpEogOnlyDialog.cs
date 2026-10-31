@@ -43,7 +43,7 @@ namespace FACM.League
                     .Replace("{1}", mode) }, 0, 0);
 
             var split = new SplitContainer { Dock = DockStyle.Fill,
-                Orientation = Orientation.Vertical, SplitterDistance = 720,
+                Orientation = Orientation.Vertical, Width = 1000, SplitterDistance = 720,
                 Panel1MinSize = 350, Panel2MinSize = 170 };
             var players = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, MultiSelect = false, HideSelection = false,
