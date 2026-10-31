@@ -165,6 +165,7 @@ namespace FACM.League
                 var keys = new HashSet<string>(eligible.Select(LeaguePlayerDataService.HistoryDetailKey),
                     StringComparer.OrdinalIgnoreCase);
                 var known = earlySamples.Where(s => s != null && s.Match != null &&
+                    string.Equals(s.Match.PuuId, target, StringComparison.Ordinal) &&
                     keys.Contains(LeaguePlayerDataService.HistoryDetailKey(s.Match)))
                     .GroupBy(s => LeaguePlayerDataService.HistoryDetailKey(s.Match),
                         StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();

@@ -1201,7 +1201,8 @@ namespace FACM.League
                             attempted.UnionWith(result.Attempted);
                             snapshot = result.Matches;
                             stale = result.AccountChanged;
-                            if (stale) { earlySamples.Clear(); earlyAttempted.Clear(); }
+                            if (stale) { earlySamples.Clear(); earlyAttempted.Clear();
+                                jungleSamples.Clear(); jungleAttempted.Clear(); }
                             var previousChampionId = selector.SelectedIndex > 0 &&
                                 selector.SelectedIndex <= a.AllChampions.Count
                                 ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
@@ -1268,13 +1269,17 @@ namespace FACM.League
                                     if (analysis != null)
                                         staged.Add(new LeagueJungleHistorySample { Match = match, Analysis = analysis });
                                 }
+                                deadline.Token.ThrowIfCancellationRequested();
                                 if (!await service.VerifyTimelineOwnerAsync(selfPuuid, session, deadline.Token))
                                 {
                                     stale = true;
                                     jungleSamples.Clear(); jungleAttempted.Clear();
+                                    earlySamples.Clear(); earlyAttempted.Clear();
                                     if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
                                     {
-                                        refreshJungle();
+                                        refreshJungle(); refreshEarly();
+                                        comparison.RefreshData(snapshot, earlySamples);
+                                        overview.RefreshData(snapshot, earlySamples);
                                         status.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
                                     }
                                 }
@@ -1338,10 +1343,12 @@ namespace FACM.League
                                         staged.Add(new LeagueEarlyJungleDeathSample {
                                             Match = match, Deaths = deaths.Value });
                                 }
+                                deadline.Token.ThrowIfCancellationRequested();
                                 if (!await service.VerifyTimelineOwnerAsync(selfPuuid, session, deadline.Token))
                                 {
                                     stale = true;
                                     earlySamples.Clear(); earlyAttempted.Clear();
+                                    jungleSamples.Clear(); jungleAttempted.Clear();
                                     if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
                                         status.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
                                 }
@@ -1355,6 +1362,7 @@ namespace FACM.League
                                 }
                                 if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
                                 {
+                                    if (stale) refreshJungle();
                                     refreshEarly();
                                     comparison.RefreshData(snapshot, earlySamples);
                                     overview.RefreshData(snapshot, earlySamples);

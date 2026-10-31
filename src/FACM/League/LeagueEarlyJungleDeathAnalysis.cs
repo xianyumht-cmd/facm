@@ -36,7 +36,9 @@ namespace FACM.League
                 roster.Count(p => p.TeamId == 100) != 5 ||
                 roster.Count(p => p.TeamId == 200) != 5) return new int[0];
             var self = roster.SingleOrDefault(p => p.ParticipantId == m.ParticipantId);
-            if (self == null || self.TeamId != m.TeamId || Jungler(self)) return new int[0];
+            if (self == null || self.TeamId != m.TeamId || Jungler(self) ||
+                (!string.IsNullOrEmpty(self.PuuId) && !string.Equals(self.PuuId, m.PuuId,
+                    StringComparison.Ordinal))) return new int[0];
             var enemies = roster.Where(p => p.TeamId != m.TeamId).ToArray();
             var positioned = enemies.Where(p => string.Equals(p.Position, "JUNGLE",
                 StringComparison.OrdinalIgnoreCase)).Select(p => p.ParticipantId).ToArray();
@@ -99,6 +101,7 @@ namespace FACM.League
                 StringComparer.OrdinalIgnoreCase);
             var known = (samples ?? Enumerable.Empty<LeagueEarlyJungleDeathSample>())
                 .Where(s => s != null && s.Match != null &&
+                    string.Equals(s.Match.PuuId, target, StringComparison.Ordinal) &&
                     keys.Contains(LeaguePlayerDataService.HistoryDetailKey(s.Match)))
                 .GroupBy(s => LeaguePlayerDataService.HistoryDetailKey(s.Match),
                     StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();

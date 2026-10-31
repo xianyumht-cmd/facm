@@ -58,6 +58,16 @@ namespace FACM.League
                 LeagueEarlyJungleDeathAnalysis.PendingBatch(candidates, "target", attempted, 40).Count == 0,
                 "Batch bounds and attempted keys hold.");
             var sample = new LeagueEarlyJungleDeathSample { Match = match, Deaths = 0 };
+            var foreign = Match(); foreign.PuuId = "other";
+            var forged = new LeagueEarlyJungleDeathSample { Match = foreign, Deaths = 99 };
+            var ignored = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new[] { forged }).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(!ignored.Value.HasValue && ignored.Known == 0,
+                "A different target cannot contaminate the comparison.");
+            Require(LeagueEarlyJungleDeathAnalysis.Report(UiTextCatalog.Load(), new[] { forged },
+                candidates, "target", null, 0).Contains("--"),
+                "A different target cannot contaminate the report.");
             var metric = LeagueHistoryChampionComparison.Calculate(candidates, 0,
                 new[] { sample, sample }).Single(v => v.Key ==
                     UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
