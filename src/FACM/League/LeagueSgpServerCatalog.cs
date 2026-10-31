@@ -83,9 +83,10 @@ namespace FACM.League
                 }
                 foreach (var entry in remote)
                 {
-                    if (existing.Any(server => server.Id == entry.Key) ||
-                        !entry.Key.StartsWith("TENCENT_", StringComparison.Ordinal)) continue;
-                    var added = TryCreateTencentServer(entry.Key, entry.Value);
+                    if (existing.Any(server => server.Id == entry.Key)) continue;
+                    var added = entry.Key.StartsWith("TENCENT_", StringComparison.Ordinal)
+                        ? TryCreateTencentServer(entry.Key, entry.Value)
+                        : TryCreateRiotServer(entry.Key, entry.Value);
                     if (added == null) return false;
                     next.Add(added);
                     changed++;
@@ -122,7 +123,7 @@ namespace FACM.League
         }
 
         // Newly announced Tencent platforms can join only under the exact Tencent SGP
-        // hostname templates. Riot-region additions remain disabled without a trusted route.
+        // hostname templates. Riot additions use pinned gateways and exact region-owned hosts.
         private static LeagueSgpServer TryCreateTencentServer(string id, object value)
         {
             var platform = id.Substring("TENCENT_".Length);
@@ -146,6 +147,43 @@ namespace FACM.League
             };
             if (!SafeNewTencentEndpoint(server.MatchHistory, server) ||
                 !SafeNewTencentEndpoint(server.Common, server)) return null;
+            return server;
+        }
+
+        // Riot additions must use a source-announced region with its exact common
+        // hostname and a match-history gateway already present in the pinned catalog.
+        private static LeagueSgpServer TryCreateRiotServer(string id, object value)
+        {
+            if (id == null || id.Length < 2 || id.Length > 8 ||
+                id[0] < 'A' || id[0] > 'Z' || id[1] < 'A' || id[1] > 'Z' ||
+                id.Any(c => (c < 'A' || c > 'Z') && (c < '0' || c > '9')))
+                return null;
+            var entry = value as Dictionary<string, object>;
+            if (entry == null) return null;
+            object history, common, tencent, region;
+            if (!entry.TryGetValue("matchHistory", out history) ||
+                !entry.TryGetValue("common", out common) ||
+                !entry.TryGetValue("isTencent", out tencent) ||
+                !(tencent is bool) || (bool)tencent ||
+                entry.TryGetValue("regionPathParam", out region) &&
+                !string.Equals(region as string, id, StringComparison.Ordinal))
+                return null;
+            var server = new LeagueSgpServer
+            {
+                Id = id, Name = id, PathRegion = id, IsTencent = false,
+                MatchHistory = history as string, Common = common as string
+            };
+            if (!SafeEndpoint(server.MatchHistory, server) ||
+                !SafeEndpoint(server.Common, server)) return null;
+            var historyHost = new Uri(server.MatchHistory).Host;
+            var commonHost = new Uri(server.Common).Host;
+            if (!string.Equals(commonHost, id.ToLowerInvariant() + "-red.lol.sgp.pvp.net",
+                StringComparison.OrdinalIgnoreCase) ||
+                !LeagueSgpMatchHistoryApiClient.BuiltinServers.Any(builtin =>
+                    !builtin.IsTencent && string.Equals(
+                        new Uri(builtin.MatchHistory).Host, historyHost,
+                        StringComparison.OrdinalIgnoreCase)))
+                return null;
             return server;
         }
 

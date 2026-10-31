@@ -430,6 +430,41 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT")) == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
                     "A newer catalog must revoke an omitted dynamic platform and retain its own known entries.");
+                var newRiot = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""servers"":{""ME1"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",""common"":""https://me1-red.lol.sgp.pvp.net"",""isTencent"":false}},""serverNames"":{""zh-CN"":{""ME1"":""合成国际区""}}}";
+                var newRiotSession = Session("ME1", "ME1");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(newRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Id == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Name == "合成国际区" &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(newRiotSession).Length == 1 &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession, "NA1") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "ME1") == null,
+                    "New Riot regions must use exact provider hosts without widening cross-region access.");
+                var riotHandler = new CaptureHandler();
+                using (var riotApi = new LeagueSgpMatchHistoryApiClient(
+                    () => newRiotSession, new TokenApi(), riotHandler))
+                {
+                    riotApi.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult();
+                    Require(riotHandler.Url == "https://euc1-red.pp.sgp.pvp.net/" +
+                        "match-history-query/v1/products/lol/ME1_601/SUMMARY" &&
+                        riotHandler.Authorization == "Bearer history-token",
+                        "A newly trusted Riot region must use its exact verified game path.");
+                }
+                foreach (var unsafeRiot in new[] {
+                    newRiot.Replace("euc1-red.pp.sgp.pvp.net", "me1-red.pp.sgp.pvp.net"),
+                    newRiot.Replace("me1-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net"),
+                    newRiot.Replace("me1-red.lol.sgp.pvp.net", "me1-red.lol.sgp.pvp.net.evil.example"),
+                    newRiot.Replace(@"""isTencent"":false", @"""isTencent"":true"),
+                    newRiot.Replace(@"""isTencent"":false", @"""isTencent"":false,""regionPathParam"":""ME2"""),
+                    newRiot.Replace("ME1", "ME_1"),
+                    newRiot.Replace("https://euc1-red.pp.sgp.pvp.net", "http://euc1-red.pp.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeRiot.Replace("2026-08-06", "2026-08-07"))),
+                        "Riot enrollment must reject unpinned gateways, aliases, host and scheme changes.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                        valid.Replace("2026-08-01", "2026-08-08"))) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession) == null,
+                    "A newer catalog must revoke an omitted dynamic Riot region.");
                 Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN11") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,
