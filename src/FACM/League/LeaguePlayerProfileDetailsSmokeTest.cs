@@ -262,6 +262,8 @@ namespace FACM.League
                 remoteRankedApi.RankedReads == 1 && remoteRankedApi.Target == "target" &&
                 LeagueMatchTimelineParser.Text(LeaguePlayerDataService.RankedEntry(
                     result.Ranked, "RANKED_SOLO_5x5"), "tier") == "DIAMOND" &&
+                LeagueMatchTimelineParser.Text(LeaguePlayerDataService.RankedEntry(
+                    result.Ranked, "RANKED_SOLO_5x5"), "division") == "II" &&
                 LeagueMatchTimelineParser.Number(LeaguePlayerDataService.RankedEntry(
                     result.Ranked, "RANKED_SOLO_5x5"), "leaguePoints") == 0,
                 "A missing local ranked response must use authenticated same-region SGP queues and preserve zero LP.");
@@ -285,6 +287,15 @@ namespace FACM.League
             Require(result.Status == LeaguePlayerDetailsStatus.Partial && result.Ranked == null,
                 "Negative ranked counters must fail closed.");
 
+            var mapping = LeaguePlayerDataService.NormalizeSgpRankedStats(
+                LeaguePlayerDataService.ParseDetailsObject(Bytes(
+                    "{\"queues\":[{\"queueType\":\"RANKED_SOLO_5x5\",\"rank\":\"IV\",\"highestRank\":\"I\",\"previousSeasonEndRank\":\"II\",\"previousSeasonHighestRank\":\"III\"}]}")));
+            var mappedEntry = LeaguePlayerDataService.RankedEntry(mapping, "RANKED_SOLO_5x5");
+            Require(LeagueMatchTimelineParser.Text(mappedEntry, "division") == "IV" &&
+                LeagueMatchTimelineParser.Text(mappedEntry, "highestDivision") == "I" &&
+                LeagueMatchTimelineParser.Text(mappedEntry, "previousSeasonEndDivision") == "II" &&
+                LeagueMatchTimelineParser.Text(mappedEntry, "previousSeasonHighestDivision") == "III",
+                "SGP-specific rank fields must be projected to the native ranked history columns.");
             remoteRankedApi.RankedPayload = Bytes("{\"queues\":[]}");
             remoteRankedApi.AfterRead = () => api.Changed = true;
             result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,

@@ -59,6 +59,35 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        internal static Dictionary<string, object> NormalizeSgpRankedStats(Dictionary<string, object> ranked)
+        {
+            if (!ValidateSgpRankedStats(ranked)) return null;
+            var normalized = new Dictionary<string, object>(ranked, StringComparer.Ordinal);
+            var rows = (object[])ranked["queues"];
+            var mapped = new object[rows.Length];
+            var names = new[] {
+                new[] { "rank", "division" },
+                new[] { "highestRank", "highestDivision" },
+                new[] { "previousSeasonEndRank", "previousSeasonEndDivision" },
+                new[] { "previousSeasonHighestRank", "previousSeasonHighestDivision" },
+                new[] { "previousSeasonAchievedRank", "previousSeasonAchievedDivision" }
+            };
+            for (var i = 0; i < rows.Length; i++)
+            {
+                var projected = new Dictionary<string, object>((Dictionary<string, object>)rows[i], StringComparer.Ordinal);
+                foreach (var pair in names)
+                {
+                    var division = ReadString(projected, pair[0]);
+                    if (!projected.ContainsKey(pair[1]) &&
+                        (division == "I" || division == "II" || division == "III" || division == "IV"))
+                        projected[pair[1]] = division;
+                }
+                mapped[i] = projected;
+            }
+            normalized["queues"] = mapped;
+            return normalized;
+        }
+
         internal static bool ValidateSgpRankedStats(Dictionary<string, object> ranked)
         {
             if (ranked == null || !ranked.ContainsKey("queues")) return false;
@@ -123,7 +152,7 @@ namespace FACM.League
                             {
                                 var remoteRanked = ParseDetailsObject(await rankedApi.TryGetRankedStatsAsync(
                                     targetPuuid, deadline.Token, serverId).ConfigureAwait(false));
-                                if (ValidateSgpRankedStats(remoteRanked)) result.Ranked = remoteRanked;
+                                result.Ranked = NormalizeSgpRankedStats(remoteRanked);
                             }
                         }
                         result.Cosmetics = ParseDetailsObject(await ReadDetailsBytesAsync(
