@@ -127,6 +127,104 @@ namespace FACM.League
         }
     }
 
+
+    // Source-aligned five-role distribution, derived only from the already loaded match snapshot.
+    internal sealed class LeagueHistoryPositionChart : Control
+    {
+        private static readonly string[] Roles = { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+        private static readonly Color[] Colors = {
+            Color.FromArgb(224, 107, 107), Color.FromArgb(85, 168, 121),
+            Color.FromArgb(215, 168, 77), Color.FromArgb(93, 142, 214),
+            Color.FromArgb(155, 121, 198)
+        };
+        private readonly UiTextCatalog _ui;
+        private List<LeagueHistoryPositionStat> _positions = new List<LeagueHistoryPositionStat>();
+
+        internal LeagueHistoryPositionChart(UiTextCatalog ui)
+        {
+            _ui = ui;
+            Dock = DockStyle.Fill;
+            BackColor = FacmDesignSystem.Surface;
+            ForeColor = FacmDesignSystem.Text;
+            AccessibleName = ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions);
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
+                ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        }
+
+        internal static List<LeagueHistoryPositionStat> Project(IEnumerable<LeagueHistoryPositionStat> positions)
+        {
+            return (positions ?? Enumerable.Empty<LeagueHistoryPositionStat>())
+                .Where(p => p != null && p.Games > 0 && Roles.Contains(p.Position))
+                .GroupBy(p => p.Position, StringComparer.Ordinal)
+                .Select(g => g.OrderByDescending(p => p.Games).First())
+                .OrderByDescending(p => p.Games).ThenBy(p => Array.IndexOf(Roles, p.Position))
+                .ToList();
+        }
+
+        internal void SetPositions(IEnumerable<LeagueHistoryPositionStat> positions)
+        {
+            _positions = Project(positions);
+            var total = _positions.Sum(p => (long)p.Games);
+            AccessibleDescription = string.Join(Environment.NewLine, _positions.Select(p =>
+                LeaguePlayerHistoryAnalysis.PositionName(_ui, p.Position) + ": " +
+                p.Games.ToString(CultureInfo.CurrentCulture) + " · " +
+                (p.Games * 100d / total).ToString("0", CultureInfo.CurrentCulture) + "%"));
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            if (_positions.Count == 0) return;
+            var bounds = ClientRectangle;
+            if (bounds.Width < 130 || bounds.Height < 120) return;
+            var sideBySide = bounds.Width >= 390;
+            var diameter = Math.Min(192, Math.Min(
+                sideBySide ? bounds.Width / 2 - 20 : bounds.Width - 30,
+                sideBySide ? bounds.Height - 30 : bounds.Height - 170));
+            if (diameter < 56) return;
+            var circle = new Rectangle(sideBySide ? 12 : (bounds.Width - diameter) / 2,
+                sideBySide ? (bounds.Height - diameter) / 2 : 12, diameter, diameter);
+            var total = _positions.Sum(p => (long)p.Games);
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var start = -90f;
+            for (var i = 0; i < _positions.Count; i++)
+            {
+                var sweep = i == _positions.Count - 1 ? 270f - start :
+                    (float)(_positions[i].Games * 360d / total);
+                using (var brush = new SolidBrush(Colors[Array.IndexOf(Roles, _positions[i].Position)]))
+                    e.Graphics.FillPie(brush, circle, start, sweep);
+                start += sweep;
+            }
+            var inner = new Rectangle(circle.X + diameter * 29 / 100,
+                circle.Y + diameter * 29 / 100, diameter * 42 / 100, diameter * 42 / 100);
+            using (var background = new SolidBrush(BackColor))
+                e.Graphics.FillEllipse(background, inner);
+            TextRenderer.DrawText(e.Graphics, total.ToString(CultureInfo.CurrentCulture),
+                Font, inner, ForeColor, TextFormatFlags.HorizontalCenter |
+                TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            var left = sideBySide ? circle.Right + 16 : 14;
+            var top = sideBySide ? Math.Max(10, (bounds.Height - _positions.Count * 31) / 2) :
+                circle.Bottom + 12;
+            var available = Math.Max(0, bounds.Right - left - 12);
+            for (var i = 0; i < _positions.Count; i++)
+            {
+                var role = _positions[i];
+                var y = top + i * 31;
+                if (y + 25 > bounds.Bottom) break;
+                using (var brush = new SolidBrush(Colors[Array.IndexOf(Roles, role.Position)]))
+                    e.Graphics.FillRectangle(brush, left, y + 8, 10, 10);
+                var label = LeaguePlayerHistoryAnalysis.PositionName(_ui, role.Position) +
+                    "  " + role.Games.ToString(CultureInfo.CurrentCulture) + " · " +
+                    (role.Games * 100d / total).ToString("0", CultureInfo.CurrentCulture) + "%";
+                TextRenderer.DrawText(e.Graphics, label, Font,
+                    new Rectangle(left + 17, y, Math.Max(0, available - 17), 26),
+                    ForeColor, TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
+                    TextFormatFlags.NoPrefix);
+            }
+        }
+    }
+
     internal sealed class LeaguePlayerHistoryAnalysis
     {
         internal int Loaded, Wins, Losses, Remakes, Aborts, Unknowns, Other;
@@ -340,7 +438,7 @@ namespace FACM.League
                 .ToString("0.0", CultureInfo.CurrentCulture) + (fraction ? "%" : "") : "--";
         }
 
-        private static string PositionName(UiTextCatalog ui, string position)
+        internal static string PositionName(UiTextCatalog ui, string position)
         {
             var key = position == "TOP" ? UiTextKeys.LeaguePlayerAnalysisPositionTop :
                 position == "JUNGLE" ? UiTextKeys.LeaguePlayerAnalysisPositionJungle :
@@ -449,6 +547,14 @@ namespace FACM.League
                 var tabs = new TabControl { Dock = DockStyle.Fill };
                 var reportTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisAction));
                 var comparisonTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerCompareTitle));
+                var positionTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
+                var positionChart = new LeagueHistoryPositionChart(ui);
+                var positionHeading = new Label { Dock = DockStyle.Top, Height = 36,
+                    Padding = new Padding(12, 6, 6, 4),
+                    TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text,
+                    Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll) };
+                positionTab.Controls.Add(positionChart);
+                positionTab.Controls.Add(positionHeading);
                 var jungleTab = new TabPage(ui.Get(UiTextKeys.LeagueJungleHistoryTitle));
                 var comparison = new LeagueHistoryChampionComparisonView(ui);
                 comparisonTab.Controls.Add(comparison);
@@ -617,8 +723,28 @@ namespace FACM.League
                                 " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
                         selector.SelectedIndex = 0;
                     };
+                    Action refreshPositions = () =>
+                    {
+                        var championId = selector.SelectedIndex > 0 &&
+                            selector.SelectedIndex <= a.AllChampions.Count
+                            ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
+                        LeagueHistoryChampionBreakdown breakdown;
+                        var positions = championId > 0 &&
+                            a.ChampionBreakdowns.TryGetValue(championId, out breakdown)
+                            ? breakdown.Positions : a.Positions;
+                        positionChart.SetPositions(positions);
+                        positionHeading.Text = selector.SelectedItem == null
+                            ? ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll)
+                            : selector.SelectedItem.ToString();
+                        if (LeagueHistoryPositionChart.Project(positions).Count > 0)
+                        {
+                            if (!tabs.TabPages.Contains(positionTab)) tabs.TabPages.Add(positionTab);
+                        }
+                        else if (tabs.TabPages.Contains(positionTab)) tabs.TabPages.Remove(positionTab);
+                    };
                     selector.SelectedIndexChanged += (sender, args) =>
                     {
+                        refreshPositions();
                         var updated = new List<string>(lines);
                         if (selector.SelectedIndex > 0 && selector.SelectedIndex <= a.AllChampions.Count)
                         {
@@ -726,10 +852,18 @@ namespace FACM.League
                             attempted.UnionWith(result.Attempted);
                             snapshot = result.Matches;
                             stale = result.AccountChanged;
+                            var previousChampionId = selector.SelectedIndex > 0 &&
+                                selector.SelectedIndex <= a.AllChampions.Count
+                                ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
                             a = Calculate(snapshot);
                             comparison.RefreshData(snapshot);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
+                            if (previousChampionId > 0)
+                            {
+                                var index = a.AllChampions.FindIndex(c => c.ChampionId == previousChampionId);
+                                if (index >= 0) selector.SelectedIndex = index + 1;
+                            }
                             rebuildJungleSelector();
                             status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :
                                 string.Format(CultureInfo.CurrentCulture,

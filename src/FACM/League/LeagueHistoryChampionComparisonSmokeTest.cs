@@ -80,6 +80,33 @@ namespace FACM.League
             Require(LeagueHistoryChampionComparison.Calculate(matches, 999).All(v =>
                 !v.Value.HasValue && v.Known == 0 && v.Total == 0),
                 "Absent champions must display unavailable values, never another hero's metrics.");
+            var positions = LeagueHistoryPositionChart.Project(new[] {
+                new LeagueHistoryPositionStat { Position = "JUNGLE", Games = 2 },
+                new LeagueHistoryPositionStat { Position = "TOP", Games = 2 },
+                new LeagueHistoryPositionStat { Position = "BOTTOM", Games = 1 },
+                new LeagueHistoryPositionStat { Position = "UNKNOWN", Games = 10 },
+                new LeagueHistoryPositionStat { Position = "MIDDLE", Games = 0 },
+                new LeagueHistoryPositionStat { Position = "TOP", Games = 1 }
+            });
+            Require(positions.Count == 3 && positions[0].Position == "TOP" &&
+                positions[1].Position == "JUNGLE" && positions[2].Position == "BOTTOM" &&
+                LeagueHistoryPositionChart.Project(null).Count == 0,
+                "Position distribution must use five recognized roles, exclude unknown/zero and deduplicate.");
+            using (var chart = new LeagueHistoryPositionChart(UiTextCatalog.Load()))
+            using (var wide = new Bitmap(500, 310))
+            using (var narrow = new Bitmap(310, 390))
+            {
+                chart.SetPositions(positions);
+                chart.Size = wide.Size;
+                chart.DrawToBitmap(wide, new Rectangle(Point.Empty, wide.Size));
+                Require(chart.AccessibleDescription.Contains("40%"),
+                    "Position percentages must use only the verified-role game count.");
+                chart.Size = narrow.Size;
+                chart.DrawToBitmap(narrow, new Rectangle(Point.Empty, narrow.Size));
+                chart.SetPositions(null);
+                Require(string.IsNullOrEmpty(chart.AccessibleDescription),
+                    "Empty/changed position data must clear the prior chart's accessible summary.");
+            }
             using (var view = new LeagueHistoryChampionComparisonView(UiTextCatalog.Load()))
             using (var bitmap = new Bitmap(520, 330))
             {
