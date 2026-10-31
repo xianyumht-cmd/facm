@@ -123,8 +123,33 @@ namespace FACM.League
             using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), gateway))
                 Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
                     gateway.Calls == 2 && gateway.Bodies.Count == 2 &&
-                    gateway.Bodies[0] == "[\\"target\\"]" && gateway.Bodies[1] == gateway.Bodies[0],
+                    gateway.Bodies[0] == "[\"target\"]" && gateway.Bodies[1] == gateway.Bodies[0],
                     "A transient gateway error must retry the same JSON POST body.");
+
+            var profileLocal = new TokenApi();
+            profileLocal.ProfileTokens.Enqueue("expired-profile");
+            profileLocal.ProfileTokens.Enqueue("fresh-profile");
+            var profileHandler = new CaptureHandler();
+            profileHandler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, profileLocal, profileHandler))
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    profileHandler.Calls == 2 &&
+                    profileHandler.Authorization == "Bearer fresh-profile" &&
+                    profileHandler.Bodies.Count == 2 &&
+                    profileHandler.Bodies[0] == profileHandler.Bodies[1],
+                    "League-session token refresh must retry an identical summoner POST only once.");
+
+            var stillUnavailable = new CaptureHandler();
+            stillUnavailable.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            stillUnavailable.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), stillUnavailable))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    stillUnavailable.Calls == 2, "Repeated gateway errors must not cause unbounded retries.");
+
+            var connection = new CaptureHandler { ThrowOnce = true };
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), connection))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    connection.Calls == 2, "A single transport failure must recover with a bounded retry.");
 
             var throttled = new CaptureHandler();
             throttled.Statuses.Enqueue((HttpStatusCode)429);
@@ -158,13 +183,15 @@ namespace FACM.League
         {
             internal readonly List<string> Paths = new List<string>();
             internal readonly Queue<string> HistoryTokens = new Queue<string>();
+            internal readonly Queue<string> ProfileTokens = new Queue<string>();
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
                 Paths.Add(path);
                 var historyToken = HistoryTokens.Count > 0 ? HistoryTokens.Dequeue() : "history-token";
+                var profileToken = ProfileTokens.Count > 0 ? ProfileTokens.Dequeue() : "profile-token";
                 return Task.FromResult(Bytes(path == LeagueSgpMatchHistoryApiClient.EntitlementsPath
-                    ? "{\"accessToken\":\"" + historyToken + "\"}" : "\"profile-token\""));
+                    ? "{\"accessToken\":\"" + historyToken + "\"}" : "\"" + profileToken + "\""));
             }
         }
 
@@ -172,6 +199,7 @@ namespace FACM.League
         {
             internal int Calls;
             internal readonly Queue<HttpStatusCode> Statuses = new Queue<HttpStatusCode>();
+            internal bool ThrowOnce;
             internal readonly List<string> Bodies = new List<string>();
             internal string Url, Authorization, Body;
             internal HttpMethod Method;
@@ -184,6 +212,7 @@ namespace FACM.League
                 Method = request.Method;
                 Body = request.Content == null ? null : await request.Content.ReadAsStringAsync().ConfigureAwait(false);
                 Bodies.Add(Body);
+                if (ThrowOnce) { ThrowOnce = false; throw new HttpRequestException("synthetic network failure"); }
                 AfterRead?.Invoke();
                 return new HttpResponseMessage(Statuses.Count == 0 ? HttpStatusCode.OK : Statuses.Dequeue())
                     { Content = new ByteArrayContent(Bytes("{}")) };
