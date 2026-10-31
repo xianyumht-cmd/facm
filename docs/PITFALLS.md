@@ -1,3 +1,7 @@
+## UI Text Contract guards placeholder literals in control initializers (2026-10-31)
+
+Mastery-list candidate `9a3107b` initialized a count label with a literal em dash (`Text = "—"`), which caused UI Text Contract run #41154969990 to fail even though the new catalog key was registered. Use `string.Empty` for not-yet-loaded control text, and set localized content through `UiTextKeys` once data arrives; avoid new inline user-visible literal placeholders. Corrected in `1186f42`; final UI Text Contract #41155054380 and the other three Windows checks passed.
+
 ## Recheck collection member access when switching List to array (2026-10-31)
 
 First inline item-icon source af77534 converted the projected item IDs from `List<int>` to `int[]` but left two `ids.Count` property references. The array resolves `Count` to a LINQ method group; Glass #41098143209 failed CS0019. Corrected b362e11 to `ids.Length`, then added icon/fallback tests and passed all four Windows gates at 424a116 ([Build #41098321629](https://github.com/xianyumht-cmd/facm/actions/runs/41098321629), [Glass #41098321634](https://github.com/xianyumht-cmd/facm/actions/runs/41098321634), [UI Text #41098321650](https://github.com/xianyumht-cmd/facm/actions/runs/41098321650), [Mayhem #41098321698](https://github.com/xianyumht-cmd/facm/actions/runs/41098321698)). Audit all uses after changing a collection's type before relying on CI.
