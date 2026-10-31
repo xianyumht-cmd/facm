@@ -134,6 +134,7 @@ namespace FACM.League
             {
                 var serializer = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
                 var root = serializer.DeserializeObject(Encoding.UTF8.GetString(stylesBytes)) as IDictionary<string, object>;
+                if (Number(Get(root, "schemaVersion")) != 2) return null;
                 var rows = Values(Get(root, "styles")).ToArray();
                 var perks = Values(serializer.DeserializeObject(Encoding.UTF8.GetString(perksBytes))).ToArray();
                 if (rows.Length == 0 || rows.Length > 16 || perks.Length == 0 || perks.Length > 2000)
