@@ -240,6 +240,7 @@ namespace FACM.League
                 !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, "TENCENT_HN10", true) &&
                 !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, null, false) &&
                 !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(foreign, "TENCENT_HN1", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(Session("UNKNOWN", "UNKNOWN"), null, true) &&
                 !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(null, null, true),
                 "EOG-only detail must be offered only for the current trusted region and non-LCU source.");
             Require(LeagueSgpEogOnlyDialog.FormatStatistic(-2.5) == "-2.5" &&

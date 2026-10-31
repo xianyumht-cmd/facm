@@ -160,10 +160,10 @@ namespace FACM.League
             string serverId, bool allowSgpFallback)
         {
             if (!allowSgpFallback || session == null) return false;
-            var current = LeagueSgpMatchHistoryApiClient.CurrentServerId(session);
-            return !string.IsNullOrEmpty(current) &&
+            var current = LeagueSgpMatchHistoryApiClient.ResolveServer(session);
+            return current != null &&
                 (string.IsNullOrEmpty(serverId) ||
-                    string.Equals(serverId, current, StringComparison.Ordinal));
+                    string.Equals(serverId, current.Id, StringComparison.Ordinal));
         }
 
         private bool IsSameSession(LeagueClientSession expected)
