@@ -676,6 +676,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueJungleGrubs, "巢虫"),
             Pair(UiTextKeys.LeagueJungleHeralds, "峡谷先锋"),
             Pair(UiTextKeys.LeagueJungleBarons, "纳什男爵"),
+            Pair(UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths, "前15分钟敌方打野参与阵亡（场均）"),
             Pair(UiTextKeys.LeaguePlayerAnalysisEarlyJungleTitle, "前15分钟敌方打野参与阵亡"),
             Pair(UiTextKeys.LeaguePlayerAnalysisEarlyJungleLoad, "读取8场前期阵亡时间线"),
             Pair(UiTextKeys.LeaguePlayerAnalysisEarlyJungleScope, "仅当前玩家已补全阵容的经典召唤师峡谷非打野场次；手动分批读取。先补全对局详情可增加覆盖率。"),

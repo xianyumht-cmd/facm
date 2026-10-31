@@ -58,6 +58,20 @@ namespace FACM.League
                 LeagueEarlyJungleDeathAnalysis.PendingBatch(candidates, "target", attempted, 40).Count == 0,
                 "Batch bounds and attempted keys hold.");
             var sample = new LeagueEarlyJungleDeathSample { Match = match, Deaths = 0 };
+            var metric = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new[] { sample, sample }).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(metric.Value == 0d && metric.Known == 1 && metric.Total == 2,
+                "Comparison distinguishes zero, duplicates and eligible scope.");
+            var unknown = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new LeagueEarlyJungleDeathSample[0]).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(!unknown.Value.HasValue && unknown.Known == 0 && unknown.Total == 2,
+                "Unloaded timelines are not measured zero.");
+            Require(LeagueHistoryChampionOverview.Project(candidates, 0,
+                new LeagueEarlyJungleDeathSample[0]).SelectMany(s => s.Metrics)
+                .All(v => v.Key != UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths),
+                "Unknown early-jungle metrics are hidden in overview.");
             var ui = UiTextCatalog.Load();
             var report = LeagueEarlyJungleDeathAnalysis.Report(ui, new[] { sample, sample },
                 candidates, "target", attempted, 0);

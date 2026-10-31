@@ -670,6 +670,7 @@ namespace FACM.Services
         public const string LeagueJungleGrubs = "LeagueJungleGrubs";
         public const string LeagueJungleHeralds = "LeagueJungleHeralds";
         public const string LeagueJungleBarons = "LeagueJungleBarons";
+        public const string LeaguePlayerCompareEarlyJungleDeaths = "LeaguePlayerCompareEarlyJungleDeaths";
         public const string LeaguePlayerAnalysisEarlyJungleTitle = "LeaguePlayerAnalysisEarlyJungleTitle";
         public const string LeaguePlayerAnalysisEarlyJungleLoad = "LeaguePlayerAnalysisEarlyJungleLoad";
         public const string LeaguePlayerAnalysisEarlyJungleScope = "LeaguePlayerAnalysisEarlyJungleScope";

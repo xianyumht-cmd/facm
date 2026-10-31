@@ -84,7 +84,8 @@ namespace FACM.League
         }
 
         internal static List<LeagueHistoryComparisonValue> Calculate(
-            IEnumerable<LeaguePlayerMatchSummary> matches, int championId)
+            IEnumerable<LeaguePlayerMatchSummary> matches, int championId,
+            IEnumerable<LeagueEarlyJungleDeathSample> earlySamples = null)
         {
             var rows = LeaguePlayerHistoryAnalysis.LoadedMatches(matches).Where(m =>
                 (championId == 0 || m.ChampionId == championId) &&
@@ -157,6 +158,22 @@ namespace FACM.League
                 Known = active.Available ? active.Games : 0, Total = rows.Count,
                 Value = active.Available ? (double?)active.Wins / active.Games : null
             });
+            if (earlySamples != null)
+            {
+                var target = rows.Select(m => m.PuuId).FirstOrDefault(id => !string.IsNullOrWhiteSpace(id));
+                var eligible = LeagueEarlyJungleDeathAnalysis.Candidates(rows, target);
+                var keys = new HashSet<string>(eligible.Select(LeaguePlayerDataService.HistoryDetailKey),
+                    StringComparer.OrdinalIgnoreCase);
+                var known = earlySamples.Where(s => s != null && s.Match != null &&
+                    keys.Contains(LeaguePlayerDataService.HistoryDetailKey(s.Match)))
+                    .GroupBy(s => LeaguePlayerDataService.HistoryDetailKey(s.Match),
+                        StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
+                result.Add(new LeagueHistoryComparisonValue {
+                    Key = UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths,
+                    Known = known.Count, Total = eligible.Count,
+                    Value = known.Count == 0 ? (double?)null : known.Average(s => s.Deaths)
+                });
+            }
             return result;
         }
 
@@ -193,7 +210,8 @@ namespace FACM.League
             UiTextKeys.LeaguePlayerCompareDamageTeamMax, UiTextKeys.LeaguePlayerCompareDamageGameMax,
             UiTextKeys.LeaguePlayerCompareTakenShare, UiTextKeys.LeaguePlayerCompareTakenTeamMax,
             UiTextKeys.LeaguePlayerCompareTakenGameMax, UiTextKeys.LeaguePlayerCompareDamageGold,
-            UiTextKeys.LeaguePlayerCompareKillDamageEfficiency, UiTextKeys.LeaguePlayerCompareSoloKills
+            UiTextKeys.LeaguePlayerCompareKillDamageEfficiency, UiTextKeys.LeaguePlayerCompareSoloKills,
+            UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths
         };
         private static readonly string[] Economy = {
             UiTextKeys.LeaguePlayerCompareGoldShare, UiTextKeys.LeaguePlayerCompareGoldTeamMax,
@@ -209,9 +227,10 @@ namespace FACM.League
         };
 
         internal static List<LeagueHistoryOverviewSection> Project(
-            IEnumerable<LeaguePlayerMatchSummary> matches, int championId)
+            IEnumerable<LeaguePlayerMatchSummary> matches, int championId,
+            IEnumerable<LeagueEarlyJungleDeathSample> earlySamples = null)
         {
-            var values = LeagueHistoryChampionComparison.Calculate(matches, championId)
+            var values = LeagueHistoryChampionComparison.Calculate(matches, championId, earlySamples)
                 .ToDictionary(v => v.Key, StringComparer.Ordinal);
             var sections = new List<LeagueHistoryOverviewSection> {
                 Section(UiTextKeys.LeaguePlayerOverviewPerformance, Performance, values),
@@ -237,7 +256,8 @@ namespace FACM.League
                       key == UiTextKeys.LeaguePlayerCompareSessionWinRate) && !value.Value.HasValue) ||
                     (key == UiTextKeys.LeaguePlayerCompareSoloKills ||
                      key == UiTextKeys.LeaguePlayerComparePings ||
-                     key == UiTextKeys.LeaguePlayerCompareMissingPings) &&
+                     key == UiTextKeys.LeaguePlayerCompareMissingPings ||
+                     key == UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths) &&
                     !value.Value.HasValue) continue;
                 metrics.Add(value);
             }
@@ -252,6 +272,7 @@ namespace FACM.League
         private readonly Label _summary, _modes;
         private readonly ListView _metrics;
         private List<LeaguePlayerMatchSummary> _matches = new List<LeaguePlayerMatchSummary>();
+        private List<LeagueEarlyJungleDeathSample> _earlySamples;
         private bool _rebuilding;
         internal event Action<int> ChampionChanged;
 
@@ -300,8 +321,10 @@ namespace FACM.League
             };
         }
 
-        internal void RefreshData(IEnumerable<LeaguePlayerMatchSummary> matches)
+        internal void RefreshData(IEnumerable<LeaguePlayerMatchSummary> matches,
+            IEnumerable<LeagueEarlyJungleDeathSample> earlySamples = null)
         {
+            _earlySamples = earlySamples?.ToList();
             var selectedId = SelectedChampionId;
             _matches = LeaguePlayerHistoryAnalysis.LoadedMatches(matches);
             var analysis = LeaguePlayerHistoryAnalysis.Calculate(_matches);
@@ -389,7 +412,7 @@ namespace FACM.League
             {
                 _metrics.Items.Clear();
                 _metrics.Groups.Clear();
-                foreach (var section in LeagueHistoryChampionOverview.Project(_matches, id))
+                foreach (var section in LeagueHistoryChampionOverview.Project(_matches, id, _earlySamples))
                 {
                     var group = new ListViewGroup(_ui.Get(section.TitleKey));
                     _metrics.Groups.Add(group);
@@ -412,6 +435,7 @@ namespace FACM.League
         private readonly ComboBox _left, _right;
         private readonly ListView _values;
         private List<LeaguePlayerMatchSummary> _matches = new List<LeaguePlayerMatchSummary>();
+        private List<LeagueEarlyJungleDeathSample> _earlySamples;
         private bool _rebuilding;
         internal event Action<int> LeftChampionChanged;
         internal int SelectedLeftChampionId { get { return (_left.SelectedItem as Choice)?.Id ?? 0; } }
@@ -465,8 +489,10 @@ namespace FACM.League
             _right.SelectedIndexChanged += (sender, args) => RenderRows();
         }
 
-        internal void RefreshData(IEnumerable<LeaguePlayerMatchSummary> matches)
+        internal void RefreshData(IEnumerable<LeaguePlayerMatchSummary> matches,
+            IEnumerable<LeagueEarlyJungleDeathSample> earlySamples = null)
         {
+            _earlySamples = earlySamples?.ToList();
             var leftId = (_left.SelectedItem as Choice)?.Id ?? 0;
             var rightId = (_right.SelectedItem as Choice)?.Id ?? -1;
             _matches = LeaguePlayerHistoryAnalysis.LoadedMatches(matches);
@@ -492,8 +518,8 @@ namespace FACM.League
         private void RenderRows()
         {
             if (_rebuilding || !(_left.SelectedItem is Choice left) || !(_right.SelectedItem is Choice right)) return;
-            var first = LeagueHistoryChampionComparison.Calculate(_matches, left.Id);
-            var second = LeagueHistoryChampionComparison.Calculate(_matches, right.Id);
+            var first = LeagueHistoryChampionComparison.Calculate(_matches, left.Id, _earlySamples);
+            var second = LeagueHistoryChampionComparison.Calculate(_matches, right.Id, _earlySamples);
             _values.BeginUpdate();
             try
             {

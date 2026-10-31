@@ -858,8 +858,8 @@ namespace FACM.League
                 earlyTab.Controls.Add(earlyReport);
                 tabs.TabPages.Add(earlyTab);
                 dialog.Controls.Add(tabs);
-                comparison.RefreshData(snapshot);
-                overview.RefreshData(snapshot);
+                comparison.RefreshData(snapshot, earlySamples);
+                overview.RefreshData(snapshot, earlySamples);
                 var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
@@ -1206,8 +1206,8 @@ namespace FACM.League
                                 selector.SelectedIndex <= a.AllChampions.Count
                                 ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
                             a = Calculate(snapshot);
-                            comparison.RefreshData(snapshot);
-                            overview.RefreshData(snapshot);
+                            comparison.RefreshData(snapshot, earlySamples);
+                            overview.RefreshData(snapshot, earlySamples);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
                             if (previousChampionId > 0)
@@ -1322,6 +1322,8 @@ namespace FACM.League
                                 if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
                                 {
                                     refreshEarly();
+                                    comparison.RefreshData(snapshot, earlySamples);
+                                    overview.RefreshData(snapshot, earlySamples);
                                     status.Text = string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleDone),
                                         earlySamples.Count, earlyAttempted.Count);
