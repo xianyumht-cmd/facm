@@ -106,7 +106,7 @@ namespace FACM.League
                 foreach (var bad in new[] {
                     valid.Replace(@"""ranked""", @"""foreign"""),
                     valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
-                    valid.Replace(@"""supportedSgpServers"":[""*"""]", @"""supportedSgpServers"":[""TENCENT_HN1""]"),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_HN1\"]"),
                     valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[123]"),
                     valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
                 })
