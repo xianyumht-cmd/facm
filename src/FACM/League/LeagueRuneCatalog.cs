@@ -12,6 +12,18 @@ namespace FACM.League
     {
         internal int Id { get; set; }
         internal string Name { get; set; }
+        internal HashSet<string> GameModes { get; set; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        internal bool SupportsGroup(string group)
+        {
+            if (GameModes.Count == 0) return true;
+            var mode = group != null && group.StartsWith("ranked-", StringComparison.Ordinal)
+                || string.Equals(group, "normal", StringComparison.Ordinal) ? "CLASSIC" :
+                string.Equals(group, "aram", StringComparison.Ordinal) ? "ARAM" :
+                string.Equals(group, "urf", StringComparison.Ordinal) ? "URF" :
+                string.Equals(group, "nexusblitz", StringComparison.Ordinal) ? "NEXUSBLITZ" :
+                string.Equals(group, "ultbook", StringComparison.Ordinal) ? "ULTBOOK" : null;
+            return mode != null && GameModes.Contains(mode);
+        }
         public override string ToString() { return Name + " (" + Id.ToString(CultureInfo.InvariantCulture) + ")"; }
     }
 
@@ -62,7 +74,17 @@ namespace FACM.League
                     if (id > 1000 || string.IsNullOrWhiteSpace(name) ||
                         name.Length > 120 || result.Any(option => option.Id == id))
                         return Array.Empty<LeagueRuneOption>();
-                    result.Add(new LeagueRuneOption { Id = id, Name = name });
+                    var gameModes = Values(Get(data, "gameModes")).Select(value =>
+                        value as string).ToArray();
+                    if (gameModes.Length > 32 || gameModes.Any(mode =>
+                        string.IsNullOrWhiteSpace(mode) || mode.Length > 32 ||
+                        mode.Any(ch => !(ch >= 'A' && ch <= 'Z') && !(ch >= '0' && ch <= '9') && ch != '_')))
+                        return Array.Empty<LeagueRuneOption>();
+                    result.Add(new LeagueRuneOption
+                    {
+                        Id = id, Name = name,
+                        GameModes = new HashSet<string>(gameModes, StringComparer.OrdinalIgnoreCase)
+                    });
                 }
                 return result.Count < 2 ? Array.Empty<LeagueRuneOption>() :
                     result.OrderBy(option => option.Name, StringComparer.CurrentCulture).ToArray();

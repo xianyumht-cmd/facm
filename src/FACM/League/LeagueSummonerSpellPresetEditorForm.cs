@@ -43,8 +43,9 @@ namespace FACM.League
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             AddRow(table, 0, LeagueAdvisorText.Get(ui, LeagueChampionSpellPresetUiTextKeys.SpellSlot1), _first);
             AddRow(table, 1, LeagueAdvisorText.Get(ui, LeagueChampionSpellPresetUiTextKeys.SpellSlot2), _second);
-            _first.Items.AddRange(options.Cast<object>().ToArray());
-            _second.Items.AddRange(options.Cast<object>().ToArray());
+            var available = options.Where(option => option.SupportsGroup(group)).Cast<object>().ToArray();
+            _first.Items.AddRange(available);
+            _second.Items.AddRange(available);
             Select(_first, existing == null ? 0 : existing.Spell1Id);
             Select(_second, existing == null ? 0 : existing.Spell2Id);
             _first.SelectedIndexChanged += delegate { UpdateSave(); };

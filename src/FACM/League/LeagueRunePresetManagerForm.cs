@@ -182,7 +182,8 @@ namespace FACM.League
             _edit.Enabled = _champions.SelectedItem is LeagueRuneOption &&
                             LeagueChampionSpellPresets.ValidGroup(_groups.SelectedItem as string);
             _delete.Enabled = _edit.Enabled && CurrentPreset() != null;
-            _editSpells.Enabled = _edit.Enabled && _spellOptions.Count >= 2;
+            _editSpells.Enabled = _edit.Enabled && _spellOptions.Count(
+                option => option.SupportsGroup(_groups.SelectedItem as string)) >= 2;
             _deleteSpells.Enabled = _edit.Enabled && CurrentSpellPreset() != null;
         }
 
