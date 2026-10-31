@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateQueueGroupsAndTiming();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
+            ValidateSubsetPicksAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -228,6 +229,53 @@ namespace FACM.League
                 controller.Configure(false, 0, true, 0, noBan);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.Calls.Count == 0, "Empty ban bypassed server bannable eligibility.");
+            }
+        }
+
+        private static async Task ValidateSubsetPicksAsync()
+        {
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 67, 22 } } });
+            var selection = "{\\"allowSubsetChampionPicks\\":true," + SessionWithRole("pick", 12, "TOP").Substring(1);
+            var reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:22:True" }) &&
+                    reader.Paths.Count(path => path == LeagueAutoPickBanController.SubsetPath) == 2,
+                    "Subset pick must choose only an eligible offered champion and revalidate before write.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Missing subset eligibility must fail closed.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]", NextSubset = "[67]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Changed subset must cancel a stale pick before write.");
+            }
+            reader = new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Pickable = "[22,67]", Subset = "[]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:67:True" }) &&
+                    !reader.Paths.Contains(LeagueAutoPickBanController.SubsetPath),
+                    "Ordinary drafts must not add subset requests or restrict normal picks.");
             }
         }
 
@@ -841,6 +889,9 @@ namespace FACM.League
             public string NextTradeJson;
             public string Pickable = "[22,67]";
             public string Bannable = "[22,67]";
+            public string Subset = "[22,67]";
+            public string NextSubset;
+            private int _subsetCount;
             public readonly List<string> Paths = new List<string>();
             private int _sessionCount;
             private int _tradeCount;
@@ -871,6 +922,11 @@ namespace FACM.League
                 }
                 if (path == LeagueAutoPickBanController.PickablePath) return Task.FromResult(Bytes(Pickable));
                 if (path == LeagueAutoPickBanController.BannablePath) return Task.FromResult(Bytes(Bannable));
+                if (path == LeagueAutoPickBanController.SubsetPath)
+                {
+                    _subsetCount++;
+                    return Task.FromResult(Bytes(_subsetCount > 1 && NextSubset != null ? NextSubset : Subset));
+                }
                 if (path == LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
                     return Task.FromResult(Bytes(TeamBuilderJson ?? "{}"));
                 if (path == LeagueAutoPickBanController.OngoingChampionTradePath)

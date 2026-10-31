@@ -20,6 +20,7 @@ namespace FACM.League
         public bool Completed { get; set; }
         public int QueueId { get; set; }
         public int LocalCellId { get; set; }
+        public bool AllowSubsetPicks { get; set; }
         public string GameMode { get; set; }
         public string Role { get; set; }
         public string Group { get; set; }
@@ -79,6 +80,7 @@ namespace FACM.League
         internal const string SessionPath = "/lol-champ-select/v1/session";
         internal const string PickablePath = "/lol-champ-select/v1/pickable-champion-ids";
         internal const string BannablePath = "/lol-champ-select/v1/bannable-champion-ids";
+        internal const string SubsetPath = "/lol-lobby-team-builder/champ-select/v1/subset-champion-list";
         internal const string OngoingChampionTradePath = "/lol-champ-select/v1/ongoing-champion-swap";
         internal static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
 
@@ -344,6 +346,12 @@ namespace FACM.League
             var available = await _read.TryGetBytesAsync(availabilityPath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
             var availableIds = ParseAvailableIds(available);
+            if (isPick && action.AllowSubsetPicks)
+            {
+                var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return;
+                availableIds.IntersectWith(ParseAvailableIds(subset));
+            }
             var desired = action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
                 ? action.ChampionId : candidates.FirstOrDefault(id =>
                     CandidateAvailable(availableIds, id, action.Type, mode) &&
@@ -421,6 +429,12 @@ namespace FACM.League
             var available = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return true;
             var availableIds = ParseAvailableIds(available);
+            if (intent.AllowSubsetPicks)
+            {
+                var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode)) return true;
+                availableIds.IntersectWith(ParseAvailableIds(subset));
+            }
             var desired = candidates.FirstOrDefault(id => CandidateAvailable(availableIds, id, "pick", mode) &&
                 (profile.IgnoreTeammateIntent || !intent.TeammateIntentIds.Contains(id)));
             if (desired == 0)
@@ -441,6 +455,7 @@ namespace FACM.League
             var fresh = ParsePickIntentAction(freshBytes);
             if (fresh == null || fresh.Id != intent.Id || fresh.LocalCellId != intent.LocalCellId ||
                 fresh.QueueId != intent.QueueId || fresh.GameMode != intent.GameMode || fresh.ContextKey != intent.ContextKey ||
+                fresh.AllowSubsetPicks != intent.AllowSubsetPicks ||
                 fresh.Role != intent.Role || fresh.ChampionId != 0 ||
                 ParseCurrentAction(freshBytes) != null ||
                 !profile.IgnoreTeammateIntent && fresh.TeammateIntentIds.Contains(desired))
@@ -451,6 +466,11 @@ namespace FACM.League
             }
             var ready = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode) || !IsAvailable(ready, desired, "pick", mode)) return true;
+            if (intent.AllowSubsetPicks && desired > 0)
+            {
+                var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
+                if (!IsCurrent(episode) || !ParseAvailableIds(subset).Contains(desired)) return true;
+            }
             var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect-intent", "write",
                 result == null ? "failed_unavailable" :
@@ -489,6 +509,7 @@ namespace FACM.League
                             Type = "pick",
                             ChampionId = ReadInt(action, "championId"),
                             LocalCellId = cell,
+                            AllowSubsetPicks = ReadBool(root, "allowSubsetChampionPicks"),
                             QueueId = ReadInt(root, "queueId"),
                             GameMode = ReadString(root, "gameMode"),
                             Group = ReadString(root, "autoSelectGroup"),
@@ -775,13 +796,20 @@ namespace FACM.League
             var confirmation = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return false;
             var fresh = ParseCurrentAction(confirmation);
-            return fresh != null && fresh.Id == expected.Id && fresh.Type == expected.Type &&
-                fresh.LocalCellId == expected.LocalCellId &&
-                fresh.QueueId == expected.QueueId && fresh.Role == expected.Role &&
-                fresh.GameMode == expected.GameMode && fresh.ContextKey == expected.ContextKey && !fresh.Completed &&
-                (fresh.ChampionId == 0 || fresh.ChampionId == desired) &&
-                (fresh.Type != "pick" || fresh.ChampionId == desired ||
-                 !fresh.TeammateIntentIds.Contains(desired) || ignoreTeammateIntent);
+            if (fresh == null || fresh.Id != expected.Id || fresh.Type != expected.Type ||
+                fresh.LocalCellId != expected.LocalCellId ||
+                fresh.QueueId != expected.QueueId || fresh.Role != expected.Role ||
+                fresh.GameMode != expected.GameMode || fresh.ContextKey != expected.ContextKey || fresh.Completed ||
+                fresh.AllowSubsetPicks != expected.AllowSubsetPicks ||
+                fresh.ChampionId != 0 && fresh.ChampionId != desired ||
+                fresh.Type == "pick" && fresh.ChampionId != desired &&
+                fresh.TeammateIntentIds.Contains(desired) && !ignoreTeammateIntent) return false;
+            if (fresh.Type == "pick" && fresh.AllowSubsetPicks && desired > 0)
+            {
+                var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
+                return IsCurrent(episode) && ParseAvailableIds(subset).Contains(desired);
+            }
+            return true;
         }
 
         private async Task<byte[]> ReadSelectionSessionAsync(CancellationToken token)
@@ -881,6 +909,7 @@ namespace FACM.League
                             Completed = false,
                             QueueId = ReadInt(root, "queueId"),
                             LocalCellId = myCell,
+                            AllowSubsetPicks = ReadBool(root, "allowSubsetChampionPicks"),
                             GameMode = ReadString(root, "gameMode"),
                             Group = ReadString(root, "autoSelectGroup"),
                             ContextKey = ReadString(root, "autoSelectContext"),
