@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -165,12 +166,25 @@ namespace FACM.League
                 ClearSgpCache();
                 return;
             }
-            var owner = await ReadLocalPuuidAsync(token).ConfigureAwait(false);
-            if (!string.Equals(owner, _sgpOwnerPuuid, StringComparison.Ordinal) ||
-                !MergeSgpRows(snapshot, _sgpRows, owner))
-                ClearSgpCache();
-            else
-                snapshot.SgpEnriched = true;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(2));
+                try
+                {
+                    var owner = await ReadLocalPuuidAsync(deadline.Token).ConfigureAwait(false);
+                    if (!string.Equals(owner, _sgpOwnerPuuid, StringComparison.Ordinal) ||
+                        !MergeSgpRows(snapshot, _sgpRows, owner))
+                        ClearSgpCache();
+                    else
+                        snapshot.SgpEnriched = true;
+                }
+                catch (OperationCanceledException)
+                {
+                    if (token.IsCancellationRequested) throw;
+                    ClearSgpCache();
+                }
+                catch (Exception) { ClearSgpCache(); }
+            }
         }
 
         private async Task<string> ReadLocalPuuidAsync(CancellationToken token)
