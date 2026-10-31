@@ -94,6 +94,7 @@ namespace FACM.League
                 get(UiTextKeys.LeaguePlayerCompareShieldShare).Known == 1 &&
                 get(UiTextKeys.LeaguePlayerCompareShieldShare).Total == 2,
                 "Partial shielding evidence must not be averaged as a complete source sample.");
+            second.ParticipantRoster[1].TeamId = 200;
             second.TotalDamageShieldedOnTeammates = 20;
             second.ParticipantRoster[1].TotalDamageShieldedOnTeammates = 80;
             values = LeagueHistoryChampionComparison.Calculate(matches, 22);
