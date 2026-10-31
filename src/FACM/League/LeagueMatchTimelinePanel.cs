@@ -269,7 +269,10 @@ namespace FACM.League
             return (events ?? Enumerable.Empty<LeagueMatchTimelineEvent>())
                 .Where(entry => entry != null && selected.Contains(entry.Type) &&
                     entry.Involves(participantId) &&
-                    (champions == null || champions.Any(entry.Involves))).Take(10000).ToList();
+                    (champions == null || champions.Contains(entry.KillerId) ||
+                        champions.Contains(entry.VictimId) ||
+                        (entry.Assists != null && entry.Assists.Any(champions.Contains))))
+                .Take(10000).ToList();
         }
 
         private ListViewItem FrameRow(int index)
