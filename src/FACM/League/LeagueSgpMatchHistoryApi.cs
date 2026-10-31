@@ -21,6 +21,11 @@ namespace FACM.League
         Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken cancellationToken, string serverId = null);
     }
 
+    internal interface ILeagueSgpRankedStatsApi
+    {
+        Task<byte[]> TryGetRankedStatsAsync(string targetPuuid, CancellationToken token, string serverId = null);
+    }
+
     internal interface ILeagueSgpPlayerChallengesApi
     {
         Task<byte[]> TryGetChallengesAsync(string targetPuuid, CancellationToken token, string serverId = null);
@@ -37,7 +42,7 @@ namespace FACM.League
         public override string ToString() { return Name; }
     }
 
-    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, IDisposable
+    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, IDisposable
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
@@ -223,6 +228,19 @@ namespace FACM.League
                 "/summoner-ledge/v1/regions/" + server.PathRegion + "/summoners/puuids");
             var body = endpoint == null ? null : new JavaScriptSerializer().Serialize(new[] { targetPuuid });
             return SendAsync(session, endpoint, body, true, cancellationToken);
+        }
+
+        public Task<byte[]> TryGetRankedStatsAsync(string targetPuuid, CancellationToken token,
+            string serverId = null)
+        {
+            var session = _session();
+            var current = ResolveServer(session);
+            var selected = ResolveServer(session, serverId);
+            if (current == null || selected == null || selected.Id != current.Id || !SafePuuid(targetPuuid))
+                return Task.FromResult<byte[]>(null);
+            var endpoint = new Uri(selected.Common + "/leagues-ledge/v2/rankedStats/puuid/" +
+                Uri.EscapeDataString(targetPuuid));
+            return SendAsync(session, endpoint, null, true, token);
         }
 
         public Task<byte[]> TryGetChallengesAsync(string targetPuuid, CancellationToken token, string serverId = null)

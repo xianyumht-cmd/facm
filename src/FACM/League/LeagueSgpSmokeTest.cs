@@ -54,6 +54,15 @@ namespace FACM.League
                     handler.Authorization == "Bearer profile-token" &&
                     local.Paths[local.Paths.Count - 1] == LeagueSgpMatchHistoryApiClient.LeagueSessionTokenPath,
                     "Summoner profiles require the League session token, exact region and bounded JSON POST body.");
+                api.TryGetRankedStatsAsync("target-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn10-k8s-sgp.lol.qq.com:21019/leagues-ledge/v2/rankedStats/puuid/target-puuid" &&
+                    handler.Method == HttpMethod.Get && handler.Authorization == "Bearer profile-token",
+                    "Same-region SGP ranked fallback must use league session token and pinned leagues-ledge path.");
+                var rankedCalls = handler.Calls;
+                var rankedTokenReads = local.Paths.Count;
+                api.TryGetRankedStatsAsync("target-puuid", CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
+                Require(handler.Calls == rankedCalls && local.Paths.Count == rankedTokenReads,
+                    "Source-ranked league stats must never use cross-region Tencent access.");
                 api.TryGetChallengesAsync("target-puuid", CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
                 Require(handler.Url == "https://hn1-k8s-sgp.lol.qq.com:21019/challenges-client/v2/all-player-data/?puuid=target-puuid" &&
                     handler.Method == HttpMethod.Post && handler.Body == "[]" &&
@@ -68,6 +77,7 @@ namespace FACM.League
                     .GetAwaiter().GetResult();
                 api.TryGetChallengesAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
                 api.TryGetChallengesAsync("target", CancellationToken.None, "NA1").GetAwaiter().GetResult();
+                api.TryGetRankedStatsAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
                 Require(handler.Calls == calls && local.Paths.Count == reads,
                     "Invalid target inputs must fail before credentials or HTTP are requested.");
                 handler.AfterRead = () => current = Session("HN1", "TENCENT");

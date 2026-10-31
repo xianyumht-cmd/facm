@@ -59,6 +59,29 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        internal static bool ValidateSgpRankedStats(Dictionary<string, object> ranked)
+        {
+            if (ranked == null || !ranked.ContainsKey("queues")) return false;
+            var rows = ranked["queues"] as object[];
+            if (rows == null || rows.Length > 32) return false;
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in rows)
+            {
+                var row = item as Dictionary<string, object>;
+                var queue = ReadString(row, "queueType");
+                if (string.IsNullOrWhiteSpace(queue) || queue.Length > 48 ||
+                    !(queue.StartsWith("RANKED_", StringComparison.Ordinal) || queue == "CHERRY") ||
+                    !seen.Add(queue)) return false;
+                foreach (var key in new[] { "wins", "losses", "leaguePoints" })
+                {
+                    if (!row.ContainsKey(key)) continue;
+                    var value = LeagueMatchTimelineParser.Number(row, key);
+                    if (!value.HasValue || value.Value < 0) return false;
+                }
+            }
+            return true;
+        }
+
         internal static bool ValidatePlayerChallenges(Dictionary<string, object> data, string target)
         {
             if (data == null || !string.Equals(ReadString(data, "puuid"), target, StringComparison.OrdinalIgnoreCase)) return false;
@@ -93,6 +116,16 @@ namespace FACM.League
                     {
                         result.Ranked = ParseDetailsObject(await ReadDetailsBytesAsync(
                             "/lol-ranked/v1/ranked-stats/" + targetPuuid, deadline.Token).ConfigureAwait(false));
+                        if (result.Ranked == null && source != LeaguePlayerHistorySource.Lcu)
+                        {
+                            var rankedApi = _sgpHistory as ILeagueSgpRankedStatsApi;
+                            if (rankedApi != null)
+                            {
+                                var remoteRanked = ParseDetailsObject(await rankedApi.TryGetRankedStatsAsync(
+                                    targetPuuid, deadline.Token, serverId).ConfigureAwait(false));
+                                if (ValidateSgpRankedStats(remoteRanked)) result.Ranked = remoteRanked;
+                            }
+                        }
                         result.Cosmetics = ParseDetailsObject(await ReadDetailsBytesAsync(
                             "/lol-summoner/v1/summoner-profile?puuid=" + targetPuuid, deadline.Token).ConfigureAwait(false));
                     }
