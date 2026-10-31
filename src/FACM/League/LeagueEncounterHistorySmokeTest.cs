@@ -28,6 +28,7 @@ namespace FACM.League
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
             ValidateEogOnlyDetailAsync().GetAwaiter().GetResult();
             ValidateCardPresentation();
+            ValidateSingleAkariScore();
             var availableIcons = new HashSet<int> { 4, 5, 6 };
             Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
                     new[] { 1, 2, 3, 4, 4, 5, 6 }, availableIcons.Contains, 2)
@@ -149,6 +150,48 @@ namespace FACM.League
         private static void Require(bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private static void ValidateSingleAkariScore()
+        {
+            var first = new LeaguePlayerMatchSummary {
+                ParticipantId = 1, TeamId = 100, PuuId = "first",
+                StatisticsAvailable = true, Kills = 10, Deaths = 1, Assists = 8,
+                CreepScore = 200, DamageDealtToChampions = 300, DamageTaken = 200,
+                GoldEarned = 300, VisionScore = 20, TotalHeal = 200
+            };
+            var second = new LeaguePlayerMatchSummary {
+                ParticipantId = 2, TeamId = 100, PuuId = "second",
+                StatisticsAvailable = true, Kills = 0, Deaths = 2, Assists = 2,
+                CreepScore = 100, DamageDealtToChampions = 100, DamageTaken = 100,
+                GoldEarned = 100, VisionScore = 10, TotalHeal = 10
+            };
+            var match = new LeaguePlayerMatchSummary {
+                GameId = 3001, GameType = "MATCHED_GAME", GameDurationSeconds = 1200,
+                RosterIdentitiesComplete = true, ParticipantRoster = new[] { first, second }
+            };
+            var player = new LeaguePlayerMatchParticipant {
+                ParticipantId = 1, TeamId = 100, PuuId = "first"
+            };
+            var teams = new[] { new LeagueMatchTeamScore { TeamId = 100, Win = true } };
+            var score = LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false);
+            Require(score != null && score.Games == 1 && score.Total > 0 && score.Total <= 17,
+                "Per-match Akari score must use complete source participant and team evidence.");
+            first.VisionScore = null;
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "Missing vision data cannot become a zero-valued per-match score.");
+            first.VisionScore = 20;
+            player.PuuId = "other";
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "A different participant identity must not inherit the selected player's score.");
+            player.PuuId = "first";
+            match.RosterIdentitiesComplete = false;
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "An incomplete roster must not receive a synthetic per-match score.");
+            match.RosterIdentitiesComplete = true;
+            teams[0].Win = null;
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "Unknown team outcome must not become a loss or a per-match score.");
         }
 
         private static void ValidateCardPresentation()

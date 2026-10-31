@@ -212,7 +212,11 @@ namespace FACM.League
                 var orderedTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
                     match.MapId, match.GameDurationSeconds);
                 tagStrip.SetTags(orderedTags.Select(tag => tag.Value));
-                selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
+                var singleScore = SingleAkariScore(match, player, scores, isCherry);
+                selectedDetails.Text = (singleScore == null ? string.Empty :
+                    ui.Get(UiTextKeys.LeaguePlayerAnalysisAkariTitle) + " " +
+                    singleScore.Total.ToString("0.0", CultureInfo.CurrentCulture) + "/17\r\n") +
+                    FormatParticipantRates(player, scores, isCherry,
                     match.GameDurationSeconds, t) + "\r\n" +
                     FormatParticipantDamageDetails(player, t) + "\r\n" +
                     t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
@@ -804,6 +808,44 @@ namespace FACM.League
                 .Where(team => team != null && team.TeamId > 0)
                 .OrderBy(team => cherry ? team.SubteamPlacement ?? int.MaxValue : team.TeamId)
                 .ThenBy(team => team.TeamId).ToList();
+        }
+
+        // The pinned source scores each participant separately. Use the original
+        // nullable roster stats, not the scoreboard's display-zero fallbacks.
+        internal static LeagueHistoryAkariScore SingleAkariScore(
+            LeaguePlayerMatchSummary match, LeaguePlayerMatchParticipant player,
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
+        {
+            if (match == null || player == null || match.GameDurationSeconds <= 0 ||
+                !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase) ||
+                !match.RosterIdentitiesComplete || match.ParticipantRoster == null ||
+                match.ParticipantRoster.Length < 2 || match.ParticipantRoster.Length > 20 ||
+                player.ParticipantId <= 0) return null;
+            var members = match.ParticipantRoster.Where(p => p != null &&
+                p.ParticipantId == player.ParticipantId).Take(2).ToList();
+            if (members.Count != 1) return null;
+            var self = members[0];
+            if (!self.StatisticsAvailable || self.TeamId != player.TeamId ||
+                (cherry && self.PlayerSubteamId != player.PlayerSubteamId) ||
+                (!string.IsNullOrWhiteSpace(self.PuuId) && !string.IsNullOrWhiteSpace(player.PuuId) &&
+                 !string.Equals(self.PuuId, player.PuuId, StringComparison.OrdinalIgnoreCase)))
+                return null;
+            var groupId = LeagueCherryTeams.GroupId(player, cherry);
+            var matching = (teams ?? Enumerable.Empty<LeagueMatchTeamScore>())
+                .Where(team => team != null && team.TeamId == groupId).Take(2).ToList();
+            if (groupId <= 0 || matching.Count != 1 || !matching[0].Win.HasValue)
+                return null;
+            var candidate = new LeaguePlayerMatchSummary {
+                GameId = match.GameId, GameType = match.GameType,
+                GameDurationSeconds = match.GameDurationSeconds,
+                ParticipantId = self.ParticipantId, TeamId = self.TeamId,
+                PlayerSubteamId = self.PlayerSubteamId,
+                ParticipantResolved = true, StatisticsAvailable = true,
+                WinResult = matching[0].Win.Value ? "win" : "loss",
+                Kills = self.Kills, Deaths = self.Deaths, Assists = self.Assists,
+                CreepScore = self.CreepScore, ParticipantRoster = match.ParticipantRoster
+            };
+            return LeagueHistoryAkariScore.Calculate(new[] { candidate });
         }
 
         internal static string FormatParticipantRates(LeaguePlayerMatchParticipant player,
