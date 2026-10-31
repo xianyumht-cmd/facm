@@ -425,6 +425,16 @@ namespace FACM.League
                     roleRows.Single(row => row.Name == "selectedRolePreferences")
                         .Values[0].Contains("AUTOFILL"),
                 "Normalized role fields must appear only for players with valid source evidence.");
+            first.RawStats = new Dictionary<string, double> {
+                { "earliestBaron", 125.7d }, { "gameLength", 3661d },
+                { "longestTimeSpentLiving", 0d }
+            };
+            var gameTimes = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(gameTimes.Single(row => row.Name == "earliestBaron").Values[0] == "02:05" &&
+                    gameTimes.Single(row => row.Name == "gameLength").Values[0] == "01:01:01" &&
+                    gameTimes.Single(row => row.Name == "longestTimeSpentLiving").Values[0] == "00:00",
+                "Pinned game-time renderers must use floor-seconds MM:SS / HH:MM:SS semantics.");
             var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 Enumerable.Repeat(first, 24));
             Require(bounded.All(row => row.Values.Length == 20) &&

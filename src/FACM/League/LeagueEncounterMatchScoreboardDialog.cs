@@ -898,6 +898,11 @@ namespace FACM.League
             var players = (source ?? Enumerable.Empty<LeaguePlayerMatchParticipant>())
                 .Where(player => player != null).Take(20).ToList();
             var rows = new List<LeagueMatchDetailStatRow>();
+            var gameTimeKeys = new HashSet<string>(StringComparer.Ordinal) {
+                "longestTimeSpentLiving", "firstTurretKilledTime",
+                "earliestBaron", "earliestDragonTakedown",
+                "shortestTimeToAceFromFirstTakedown", "gameLength"
+            };
             Action<string, string, Func<LeaguePlayerMatchParticipant, double?>> add = (group, name, read) =>
             {
                 var values = new string[players.Count];
@@ -912,7 +917,20 @@ namespace FACM.League
                         continue;
                     }
                     any = true;
-                    values[i] = Math.Abs(value.Value - Math.Round(value.Value)) < 0.000001d
+                    if (gameTimeKeys.Contains(name) && value.Value >= 0 && value.Value <= 1000000000d)
+                    {
+                        var seconds = (long)Math.Floor(value.Value);
+                        var hours = seconds / 3600;
+                        var minutes = (seconds % 3600) / 60;
+                        var remainder = seconds % 60;
+                        values[i] = hours > 0
+                            ? hours.ToString("D2", CultureInfo.InvariantCulture) + ":" +
+                              minutes.ToString("D2", CultureInfo.InvariantCulture) + ":" +
+                              remainder.ToString("D2", CultureInfo.InvariantCulture)
+                            : minutes.ToString("D2", CultureInfo.InvariantCulture) + ":" +
+                              remainder.ToString("D2", CultureInfo.InvariantCulture);
+                    }
+                    else values[i] = Math.Abs(value.Value - Math.Round(value.Value)) < 0.000001d
                         ? value.Value.ToString("N0", CultureInfo.CurrentCulture)
                         : value.Value.ToString("0.##", CultureInfo.CurrentCulture);
                 }
