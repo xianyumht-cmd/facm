@@ -334,7 +334,23 @@ namespace FACM.League
                 })
                     Require(!LeagueSgpServerCatalog.TryApply(Bytes(bad.Replace("2026-08-01", "2026-08-02"))),
                         "Untrusted, wrong-port, wrong-owner and unknown-only catalogs must fail closed.");
-                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
+                var newlyTrusted = @"{""updatedAt"":""2026-08-03T00:00:00.000Z"",""servers"":{""TENCENT_HN11"":{""matchHistory"":""https://hn11-k8s-sgp.lol.qq.com:21019"",""common"":""https://hn11-k8s-sgp.lol.qq.com:21019"",""isTencent"":true,""regionPathParam"":""HN11""}},""serverNames"":{""zh-CN"":{""TENCENT_HN11"":""合成新区""}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(newlyTrusted)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Id == "TENCENT_HN11" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "TENCENT_HN11")?.PathRegion == "HN11" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Name == "合成新区",
+                    "A source-announced Tencent platform must enroll only under its verified SGP host template.");
+                foreach (var unsafeNew in new[] {
+                    newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "hn11-attacker.lol.qq.com"),
+                    newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "attacker.example"),
+                    newlyTrusted.Replace("21019", "443"),
+                    newlyTrusted.Replace(@"""regionPathParam"":""HN11""", @"""regionPathParam"":""HN10"""),
+                    newlyTrusted.Replace(@"""isTencent"":true", @"""isTencent"":false")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(unsafeNew.Replace("2026-08-03", "2026-08-04"))),
+                        "A new platform must reject wrong provider, hostname, port or region identity.");
+                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN11") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,
                     "Dynamic catalog must not widen cross-region permissions.");
             }

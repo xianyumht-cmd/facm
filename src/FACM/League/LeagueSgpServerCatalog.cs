@@ -79,6 +79,15 @@ namespace FACM.League
                     }
                     next.Add(copy);
                 }
+                foreach (var entry in remote)
+                {
+                    if (existing.Any(server => server.Id == entry.Key) ||
+                        !entry.Key.StartsWith("TENCENT_", StringComparison.Ordinal)) continue;
+                    var added = TryCreateTencentServer(entry.Key, entry.Value);
+                    if (added == null) return false;
+                    next.Add(added);
+                    changed++;
+                }
                 if (changed == 0) return false;
                 object names;
                 if (root.TryGetValue("serverNames", out names))
@@ -108,6 +117,43 @@ namespace FACM.League
             }
             catch (ArgumentException) { return false; }
             catch (InvalidOperationException) { return false; }
+        }
+
+        // Newly announced Tencent platforms can join only under the exact Tencent SGP
+        // hostname templates. Riot-region additions remain disabled without a trusted route.
+        private static LeagueSgpServer TryCreateTencentServer(string id, object value)
+        {
+            var platform = id.Substring("TENCENT_".Length);
+            if (platform.Length < 2 || platform.Length > 12 ||
+                platform.Any(c => c < 'A' || c > 'Z' && (c < '0' || c > '9')))
+                return null;
+            var entry = value as Dictionary<string, object>;
+            if (entry == null) return null;
+            object history, common, tencent, region;
+            if (!entry.TryGetValue("matchHistory", out history) ||
+                !entry.TryGetValue("common", out common) ||
+                !entry.TryGetValue("isTencent", out tencent) ||
+                !(tencent is bool) || !(bool)tencent ||
+                !entry.TryGetValue("regionPathParam", out region) ||
+                !string.Equals(region as string, platform, StringComparison.Ordinal))
+                return null;
+            var server = new LeagueSgpServer
+            {
+                Id = id, Name = id, PathRegion = platform, IsTencent = true,
+                MatchHistory = history as string, Common = common as string
+            };
+            if (!SafeNewTencentEndpoint(server.MatchHistory, server) ||
+                !SafeNewTencentEndpoint(server.Common, server)) return null;
+            return server;
+        }
+
+        private static bool SafeNewTencentEndpoint(string value, LeagueSgpServer server)
+        {
+            if (!SafeEndpoint(value, server)) return false;
+            var host = new Uri(value).Host;
+            var prefix = server.PathRegion.ToLowerInvariant();
+            return string.Equals(host, prefix + "-sgp.lol.qq.com", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(host, prefix + "-k8s-sgp.lol.qq.com", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool SafeEndpoint(string value, LeagueSgpServer server)
