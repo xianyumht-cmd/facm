@@ -68,6 +68,17 @@ namespace FACM.League
                     handler.Method == HttpMethod.Post && handler.Body == "[]" &&
                     handler.Authorization == "Bearer profile-token",
                     "Regional challenges must preserve the trailing slash, empty friends array and League-session token.");
+                api.TryGetGsmByPuuidAsync("local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn10-k8s-sgp.lol.qq.com:21019/gsm/v1/ledge/region/HN10/puuid/local-puuid" &&
+                    handler.Method == HttpMethod.Get && handler.Authorization == "Bearer profile-token",
+                    "Pinned GSM live-team read must use current region and League-session token.");
+                api.TryGetGsmByGameIdAsync(601, CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/gsm/v1/ledge/region/HN10/gameId/601", StringComparison.Ordinal),
+                    "Pinned GSM gameId read must use the current region.");
+                api.TryGetStatsEogAsync(601, "local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/local-puuid", StringComparison.Ordinal) &&
+                    handler.Authorization == "Bearer profile-token",
+                    "Pinned SGP end-of-game read must be current-region and League-session scoped.");
                 var calls = handler.Calls;
                 var reads = local.Paths.Count;
                 api.TryGetSummaryAsync("../unsafe", 0, 10, CancellationToken.None).GetAwaiter().GetResult();
@@ -78,6 +89,10 @@ namespace FACM.League
                 api.TryGetChallengesAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
                 api.TryGetChallengesAsync("target", CancellationToken.None, "NA1").GetAwaiter().GetResult();
                 api.TryGetRankedStatsAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetGsmByPuuidAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetGsmByGameIdAsync(0, CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetStatsEogAsync(-1, "local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetStatsEogAsync(601, "../unsafe", CancellationToken.None).GetAwaiter().GetResult();
                 Require(handler.Calls == calls && local.Paths.Count == reads,
                     "Invalid target inputs must fail before credentials or HTTP are requested.");
                 handler.AfterRead = () => current = Session("HN1", "TENCENT");

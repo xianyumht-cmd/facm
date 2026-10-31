@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -116,6 +116,24 @@ namespace FACM.AppHost.Modules
         {
             var api = _sgpHistory;
             return api == null ? Task.FromResult<byte[]>(null) : api.TryGetSummonerAsync(puuid, token, serverId);
+        }
+
+        Task<byte[]> ILeagueSgpGsmApi.TryGetGsmByPuuidAsync(string puuid, CancellationToken token)
+        {
+            return _sgpHistory == null ? Task.FromResult<byte[]>(null) :
+                _sgpHistory.TryGetGsmByPuuidAsync(puuid, token);
+        }
+
+        Task<byte[]> ILeagueSgpGsmApi.TryGetGsmByGameIdAsync(long gameId, CancellationToken token)
+        {
+            return _sgpHistory == null ? Task.FromResult<byte[]>(null) :
+                _sgpHistory.TryGetGsmByGameIdAsync(gameId, token);
+        }
+
+        Task<byte[]> ILeagueSgpStatsEogApi.TryGetStatsEogAsync(long gameId, string puuid, CancellationToken token)
+        {
+            return _sgpHistory == null ? Task.FromResult<byte[]>(null) :
+                _sgpHistory.TryGetStatsEogAsync(gameId, puuid, token);
         }
 
         public Task<LeagueClientWriteResponse> TrySendJsonAsync(string method, string path, string json, CancellationToken cancellationToken)

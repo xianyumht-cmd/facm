@@ -31,6 +31,17 @@ namespace FACM.League
         Task<byte[]> TryGetChallengesAsync(string targetPuuid, CancellationToken token, string serverId = null);
     }
 
+    internal interface ILeagueSgpGsmApi
+    {
+        Task<byte[]> TryGetGsmByPuuidAsync(string targetPuuid, CancellationToken token);
+        Task<byte[]> TryGetGsmByGameIdAsync(long gameId, CancellationToken token);
+    }
+
+    internal interface ILeagueSgpStatsEogApi
+    {
+        Task<byte[]> TryGetStatsEogAsync(long gameId, string targetPuuid, CancellationToken token);
+    }
+
     internal sealed class LeagueSgpServer
     {
         internal string Id;
@@ -42,7 +53,7 @@ namespace FACM.League
         public override string ToString() { return Name; }
     }
 
-    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, IDisposable
+    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, IDisposable
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
@@ -252,6 +263,35 @@ namespace FACM.League
             var endpoint = server == null || !SafePuuid(targetPuuid) ? null : new Uri(server.Common +
                 "/challenges-client/v2/all-player-data/?puuid=" + Uri.EscapeDataString(targetPuuid));
             return SendAsync(session, endpoint, "[]", true, token);
+        }
+
+        public Task<byte[]> TryGetGsmByPuuidAsync(string targetPuuid, CancellationToken token)
+        {
+            var session = _session();
+            var server = ResolveServer(session);
+            var endpoint = server == null || !SafePuuid(targetPuuid) ? null : new Uri(server.Common +
+                "/gsm/v1/ledge/region/" + server.PathRegion + "/puuid/" + Uri.EscapeDataString(targetPuuid));
+            return SendAsync(session, endpoint, null, true, token);
+        }
+
+        public Task<byte[]> TryGetGsmByGameIdAsync(long gameId, CancellationToken token)
+        {
+            var session = _session();
+            var server = ResolveServer(session);
+            var endpoint = server == null || gameId <= 0 ? null : new Uri(server.Common +
+                "/gsm/v1/ledge/region/" + server.PathRegion + "/gameId/" +
+                gameId.ToString(CultureInfo.InvariantCulture));
+            return SendAsync(session, endpoint, null, true, token);
+        }
+
+        public Task<byte[]> TryGetStatsEogAsync(long gameId, string targetPuuid, CancellationToken token)
+        {
+            var session = _session();
+            var server = ResolveServer(session);
+            var endpoint = server == null || gameId <= 0 || !SafePuuid(targetPuuid) ? null : new Uri(server.Common +
+                "/stats/endOfGame/region/" + server.PathRegion + "/gameId/" +
+                gameId.ToString(CultureInfo.InvariantCulture) + "/puuid/" + Uri.EscapeDataString(targetPuuid));
+            return SendAsync(session, endpoint, null, true, token);
         }
 
         private bool SameSession(LeagueClientSession expected)
