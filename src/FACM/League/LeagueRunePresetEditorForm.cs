@@ -183,7 +183,7 @@ namespace FACM.League
             for (var i = 4; i < 6; i++)
                 Populate(_perks[i], secondaryOptions, Preferred(i, previous[i]));
             for (var i = 6; i < 9; i++)
-                Populate(_perks[i], _catalog.StatChoices(i - 6), Preferred(i, previous[i]));
+                Populate(_perks[i], _catalog.StatChoices(Id(_primary), i - 6), Preferred(i, previous[i]));
             if (secondary != null && _perks[5].Items.Count > 0 &&
                 Id(_perks[4]) == Id(_perks[5]))
             {

@@ -32,6 +32,7 @@ namespace FACM.League
         internal int Id { get; set; }
         internal string Name { get; set; }
         internal List<List<int>> Slots { get; set; }
+        internal List<List<int>> StatSlots { get; set; }
         internal HashSet<int> AllowedSubStyles { get; set; }
         public override string ToString() { return Name; }
     }
@@ -40,12 +41,6 @@ namespace FACM.League
     // The editor never accepts an arbitrary rune ID or invents an unavailable slot.
     internal sealed class LeagueRuneCatalog
     {
-        private static readonly int[][] StatModRows =
-        {
-            new[] { 5008, 5005, 5007 },
-            new[] { 5008, 5002, 5003 },
-            new[] { 5001, 5011, 5013 }
-        };
         private readonly Dictionary<int, string> _names;
         internal List<LeagueRuneStyle> Styles { get; private set; }
 
@@ -161,23 +156,32 @@ namespace FACM.League
                     var style = entry as IDictionary<string, object>;
                     var id = Number(Get(style, "id"));
                     var name = Get(style, "name") as string;
-                    var slots = Values(Get(style, "slots")).Select(slot =>
+                    var typedSlots = Values(Get(style, "slots")).Select(slot =>
                     {
                         var data = slot as IDictionary<string, object>;
-                        return Values(Get(data, "perks")).Select(Number).ToList();
+                        return Tuple.Create(Get(data, "type") as string,
+                            Values(Get(data, "perks")).Select(Number).ToList());
                     }).ToList();
+                    var keyStones = typedSlots.Where(slot => slot.Item1 == "kKeyStone")
+                        .Select(slot => slot.Item2).ToList();
+                    var regular = typedSlots.Where(slot => slot.Item1 == "kMixedRegularSplashable")
+                        .Select(slot => slot.Item2).ToList();
+                    var statMods = typedSlots.Where(slot => slot.Item1 == "kStatMod")
+                        .Select(slot => slot.Item2).ToList();
+                    var slots = keyStones.Concat(regular).ToList();
                     var allowed = Values(Get(style, "allowedSubStyles")).Select(Number).ToArray();
                     if (id <= 0 || id > 100000 || string.IsNullOrWhiteSpace(name) ||
-                        name.Length > 120 || slots.Count < 4 || slots.Count > 8 ||
-                        slots.Any(slot => slot.Count == 0 || slot.Count > 32 ||
-                            slot.Any(perk => perk <= 0 || !names.ContainsKey(perk))) ||
+                        name.Length > 120 || typedSlots.Count != 7 ||
+                        keyStones.Count != 1 || regular.Count != 3 || statMods.Count != 3 ||
+                        typedSlots.Any(slot => slot.Item2.Count == 0 || slot.Item2.Count > 32 ||
+                            slot.Item2.Any(perk => perk <= 0 || !names.ContainsKey(perk))) ||
                         allowed.Length == 0 || allowed.Length > 16 ||
                         allowed.Any(other => other <= 0 || other > 100000) ||
                         styles.Any(previous => previous.Id == id))
                         return null;
                     styles.Add(new LeagueRuneStyle
                     {
-                        Id = id, Name = name, Slots = slots,
+                        Id = id, Name = name, Slots = slots, StatSlots = statMods,
                         AllowedSubStyles = new HashSet<int>(allowed)
                     });
                 }
@@ -200,10 +204,12 @@ namespace FACM.League
                 new LeagueRuneOption { Id = id, Name = _names[id] }).ToList();
         }
 
-        internal List<LeagueRuneOption> StatChoices(int row)
+        internal List<LeagueRuneOption> StatChoices(int primaryStyleId, int row)
         {
-            if (row < 0 || row >= StatModRows.Length) return new List<LeagueRuneOption>();
-            return Choices(StatModRows[row]);
+            var style = Style(primaryStyleId);
+            if (style == null || row < 0 || row >= style.StatSlots.Count)
+                return new List<LeagueRuneOption>();
+            return Choices(style.StatSlots[row]);
         }
 
         internal LeagueRuneStyle Style(int id) { return Styles.FirstOrDefault(style => style.Id == id); }
@@ -229,7 +235,7 @@ namespace FACM.League
             }
             if (firstRow < 0 || secondRow < 0 || firstRow == secondRow) return false;
             for (var row = 0; row < 3; row++)
-                if (!StatChoices(row).Any(item => item.Id == preset.SelectedPerkIds[row + 6]))
+                if (!StatChoices(primary.Id, row).Any(item => item.Id == preset.SelectedPerkIds[row + 6]))
                     return false;
             return true;
         }
