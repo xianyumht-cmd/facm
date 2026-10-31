@@ -1,3 +1,20 @@
+## 2026-10-31 — Trusted new draft groups and queue-type-aware champion presets (Draft #357)
+
+Executable commits: [f693f89](https://github.com/xianyumht-cmd/facm/commit/f693f89371fcc71efab9c1f0a9f16c4bed54edbe), [9f1fc2f](https://github.com/xianyumht-cmd/facm/commit/9f1fc2ff4f0493af2ccbba063314fe358d212290), [72ad07e](https://github.com/xianyumht-cmd/facm/commit/72ad07ed4e0b7936918765863382e94ac52e0f50), and final executable/test [c9acf53](https://github.com/xianyumht-cmd/facm/commit/c9acf53e417de8e0475c462ac41096048970390f). The native advanced editor now lists newly announced, strictly validated remote auto-select group IDs and stores explicit per-group/role pick and ban priorities. Unknown groups cannot use legacy default champions, and removed groups retain inert preferences without executing them. Source-authorized dynamic Arena groups support -3 bravery through the existing bounded ChampSelect writer; account, SGP region, catalog revision, phase and role preflight remain in force. The fixed native modes and their existing settings are preserved.
+
+Champion rune/spell presets now use source-pinned `RANKED_*` queue type as well as known ranked queue IDs. The queue type propagates through advisor snapshots, preset capture, plan creation, native save-button eligibility, auto-apply fingerprint and write-time phase/queue recheck. A changed or missing queue type fails closed before any rune/spell write. No new poller, network owner, package, updater or production change.
+
+| Source parity scope | Status at this executable candidate | Still missing / unverified |
+| --- | --- | --- |
+| Trusted remote new auto-select groups, role profiles and dynamic Arena bravery | Implemented; synthetic Windows gates pending | Unsupported source action IDs, non-modeled queue/game families, live Tencent selection |
+| Champion/position rune and spell presets across new `RANKED_*` queues | Implemented; synthetic Windows gates pending | Full manual rune editing/large preset catalogs, live queue schema and actual rune-page acceptance |
+| SGP regional data, EOG, player/champion analysis, replay | Previously partial | International dynamic enrollment, EOG schema variants, full analysis/replay option parity |
+| Win10/DPI and Tencent gameplay | Not performed | Owner's single consolidated acceptance |
+
+**Final candidate verification:** Four Windows gates on `c9acf53` are pending; do not transfer prior green results to it. Draft PR #357 and stacked #355 remain Draft. No merge, release, updater, deployment or GGman 3.5.78 production change.
+
+---
+
 ## 2026-10-31 — Source special-choice policies, EOG analysis and guarded replay (Draft #357)
 
 Final executable/test commit [bc409e2](https://github.com/xianyumht-cmd/facm/commit/bc409e2d22cc58d5b876f8ea9e72eff6ac790a63) adds source-confirmed native functionality in five related slices. The Akari v1.5.1 remote group catalog now honors Arena bravery `additionalPicks[-3]` and empty-ban `excludedBans[-1]` for already-supported groups; saved profiles, advanced-editor special choices, pick/ban, intent, bench and trade candidates share the same region-aware policy. The catalog revision is included in each bound ChampSelect context so mid-draft remote revocation invalidates preflight. Unsupported remote action IDs, new group IDs and new write routes remain blocked.

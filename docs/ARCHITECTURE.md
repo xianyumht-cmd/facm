@@ -1,3 +1,11 @@
+## Native remote draft-group and champion loadout queue ownership (Draft #357, 2026-10-31)
+
+`LeagueAutoSelectGroupCatalog` validates a public Akari group snapshot before publishing an immutable revision. New IDs are limited to lowercase bounded identifiers, existing modeled game families, source positions, trusted SGP servers and already-supported action IDs. `LeagueAutoSelectProfilesForm` derives additional mode choices from the current catalog and persists profiles by group ID and role; a revoked ID remains inert rather than being silently mapped to the global fallback. The phase-scoped `LeagueAutoPickBanController` remains the only LCU writer; dynamic CHERRY bravery is checked against source CHERRY targets and the existing special-choice and session preflight gates.
+
+`LeagueLiveSnapshot.QueueType` flows into `LeagueBuildAdvisorSnapshot`, `LeagueChampionSpellPresets.GroupFor`, the existing native loadout form, `LeagueBuildApplyPlan` and `LeagueBuildApplyService`. Ranked prefixes are accepted only with CLASSIC game mode (or known queue IDs); capture and application re-read the current queue type and fail closed on drift. `LeagueAutoApplyController` includes the type in its fingerprint and preset plan. No additional HTTP client, polling owner, credential route, package or production update is introduced.
+
+---
+
 ## 2026-10-31 — Draft policy revisions and EOG replay ownership
 
 The trusted `LeagueAutoSelectGroupCatalog` snapshot owns only modeled `-3` Arena pick and `-1` empty-ban restrictions, with server-scoped checks and a monotonic catalog revision appended to `LeagueAutoSelectContext` for re-read preflight fencing. The existing `LeagueAutoPickBanController` is still the sole phase-scoped LCU action owner. A remote config cannot create an unmodeled write type or silently carry an old special option across a refreshed catalog.
