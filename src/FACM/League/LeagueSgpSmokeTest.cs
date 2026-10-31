@@ -193,7 +193,7 @@ namespace FACM.League
         private static void ValidateEogProjection()
         {
             var fixture = Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",""gameMode"":""CLASSIC"",
-                ""queueId"":420,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
+                ""queueId"":420,""gameLength"":1800,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
                 ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
                     ""teamId"":100,""championId"":12,""riotIdGameName"":""Local"",
                     ""level"":30,""wins"":12,""losses"":4,""eloChange"":-12.5,
@@ -210,6 +210,7 @@ namespace FACM.League
                     ""teamId"":200,""championId"":13,""statistics"":[]}]}");
             var parsed = LeagueSgpEogProjection.Parse(fixture, 601, "local-puuid");
             Require(parsed != null && parsed.Players.Count == 2 &&
+                parsed.GameLengthSeconds == 1800 &&
                 parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
                 parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
                 parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
@@ -226,6 +227,34 @@ namespace FACM.League
                 !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
+
+            var p1 = new LeagueSgpEogPlayer {
+                TeamId = 100, Kills = 5, Deaths = 2, Assists = 8,
+                Damage = 15000, Gold = 12000, Minions = 150, NeutralMinions = 20, Vision = 30 };
+            var p2 = new LeagueSgpEogPlayer {
+                TeamId = 100, Kills = 10, Deaths = 3, Assists = 4,
+                Damage = 10000, Gold = 8000, Minions = 90, NeutralMinions = 10, Vision = 12 };
+            var balanced = new LeagueSgpEogResult {
+                GameId = 601, GameLengthSeconds = 1800,
+                Players = new List<LeagueSgpEogPlayer> { p1, p2 } };
+            var metrics = LeagueSgpEogProjection.Analyze(balanced, p1);
+            Require(metrics.Kda == 6.5 && Math.Abs(metrics.KillParticipation.Value - 13d / 15d) < 0.00001 &&
+                Math.Abs(metrics.DamageShare.Value - 0.6) < 0.00001 &&
+                Math.Abs(metrics.GoldShare.Value - 0.6) < 0.00001 &&
+                metrics.DamagePerMinute == 500 && metrics.GoldPerMinute == 400 &&
+                Math.Abs(metrics.CsPerMinute.Value - 170d / 30d) < 0.00001 &&
+                metrics.VisionPerMinute == 1,
+                "EOG source game duration and complete team evidence must support native per-player analysis.");
+            p2.Damage = null;
+            Require(!LeagueSgpEogProjection.Analyze(balanced, p1).DamageShare.HasValue &&
+                LeagueSgpEogProjection.Analyze(balanced, p1).DamagePerMinute == 500,
+                "Missing peer damage must hide team share without discarding a sourced per-minute metric.");
+            balanced.GameLengthSeconds = null;
+            Require(!LeagueSgpEogProjection.Analyze(balanced, p1).CsPerMinute.HasValue &&
+                LeagueSgpEogProjection.Analyze(balanced, p1).Kda == 6.5,
+                "Missing duration must not fabricate per-minute metrics or erase complete KDA.");
+            Require(!LeagueSgpEogProjection.Analyze(balanced, new LeagueSgpEogPlayer { TeamId = 100 }).Kda.HasValue,
+                "Unverified players must not receive derived EOG statistics.");
             using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
                 new LeagueEncounterMatchDetailResult {
                     Status = LeagueEncounterMatchDetailStatus.Ready,

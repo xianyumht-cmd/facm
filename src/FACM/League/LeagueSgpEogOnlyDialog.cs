@@ -114,15 +114,25 @@ namespace FACM.League
                     stats.Items.Clear();
                     var selected = players.SelectedItems.Count == 1
                         ? players.SelectedItems[0].Tag as LeagueSgpEogPlayer : null;
-                    if (selected == null || selected.Statistics == null) return;
+                    if (selected == null) return;
+                    var derived = LeagueSgpEogProjection.Analyze(detail.EogOnly, selected);
+                    AddDerived(stats, "KDA", derived.Kda, false);
+                    AddDerived(stats, "Kill participation", derived.KillParticipation, true);
+                    AddDerived(stats, "Damage share", derived.DamageShare, true);
+                    AddDerived(stats, "Gold share", derived.GoldShare, true);
+                    AddDerived(stats, "Damage/min", derived.DamagePerMinute, false);
+                    AddDerived(stats, "Gold/min", derived.GoldPerMinute, false);
+                    AddDerived(stats, "CS/min", derived.CsPerMinute, false);
+                    AddDerived(stats, "Vision/min", derived.VisionPerMinute, false);
                     if (selected.Metadata != null)
                         foreach (var entry in selected.Metadata.OrderBy(p => p.Key,
                             StringComparer.OrdinalIgnoreCase))
                             stats.Items.Add(new ListViewItem(new[] { entry.Key, entry.Value }));
-                    foreach (var entry in selected.Statistics.OrderBy(p => p.Key,
-                        StringComparer.OrdinalIgnoreCase))
-                        stats.Items.Add(new ListViewItem(new[] {
-                            entry.Key, FormatStatistic(entry.Value) }));
+                    if (selected.Statistics != null)
+                        foreach (var entry in selected.Statistics.OrderBy(p => p.Key,
+                            StringComparer.OrdinalIgnoreCase))
+                            stats.Items.Add(new ListViewItem(new[] {
+                                entry.Key, FormatStatistic(entry.Value) }));
                 }
                 finally { stats.EndUpdate(); }
             };
@@ -135,6 +145,13 @@ namespace FACM.League
             CancelButton = close;
             Shown += (sender, args) => { if (!IsCurrent(detail)) Close(); };
             Activated += (sender, args) => { if (!IsCurrent(detail)) Close(); };
+        }
+
+        private static void AddDerived(ListView stats, string label, double? value, bool percent)
+        {
+            stats.Items.Add(new ListViewItem(new[] { label,
+                value.HasValue ? (percent ? value.Value * 100d : value.Value)
+                    .ToString("0.0", CultureInfo.InvariantCulture) + (percent ? "%" : "") : "—" }));
         }
 
         private static bool IsCurrent(LeagueEncounterMatchDetailResult detail)

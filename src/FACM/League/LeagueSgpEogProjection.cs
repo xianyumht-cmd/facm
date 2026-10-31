@@ -12,6 +12,7 @@ namespace FACM.League
         internal long GameId;
         internal string GameMode;
         internal int QueueId;
+        internal double? GameLengthSeconds;
         internal List<LeagueSgpEogPlayer> Players;
     }
 
@@ -35,6 +36,18 @@ namespace FACM.League
         internal bool? Win;
         internal Dictionary<string, double> Statistics;
         internal Dictionary<string, string> Metadata;
+    }
+
+    internal sealed class LeagueSgpEogDerivedStats
+    {
+        internal double? Kda;
+        internal double? KillParticipation;
+        internal double? DamageShare;
+        internal double? GoldShare;
+        internal double? DamagePerMinute;
+        internal double? GoldPerMinute;
+        internal double? CsPerMinute;
+        internal double? VisionPerMinute;
     }
 
     // Project only documented end-of-game fields. Never retain room passwords, JWTs or credentials.
@@ -107,17 +120,63 @@ namespace FACM.League
                 }
                 if (!seen.Contains(ownerPuuid)) return null;
                 var queue = Number(root, "queueId");
+                var length = StatisticNumber(root, "gameLength");
                 return new LeagueSgpEogResult
                 {
                     GameId = gameId, QueueId = queue.HasValue && queue > 0 && queue <= 100000
                         ? (int)queue.Value : 0,
-                    GameMode = Text(root, "gameMode"), Players = players
+                    GameMode = Text(root, "gameMode"), Players = players,
+                    GameLengthSeconds = length > 0 && length <= 86400 ? length : null
                 };
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
             catch (FormatException) { return null; }
             catch (OverflowException) { return null; }
+        }
+
+        internal static LeagueSgpEogDerivedStats Analyze(LeagueSgpEogResult match,
+            LeagueSgpEogPlayer selected)
+        {
+            var result = new LeagueSgpEogDerivedStats();
+            if (match == null || match.Players == null || selected == null ||
+                !match.Players.Contains(selected)) return result;
+            var team = match.Players.Where(p => p.TeamId == selected.TeamId).ToArray();
+            if (team.Length == 0) return result;
+            if (selected.Kills.HasValue && selected.Deaths.HasValue && selected.Assists.HasValue)
+                result.Kda = (selected.Kills.Value + (double)selected.Assists.Value) /
+                    Math.Max(1, selected.Deaths.Value);
+            if (selected.Kills.HasValue && selected.Assists.HasValue &&
+                team.All(p => p.Kills.HasValue))
+            {
+                var total = team.Sum(p => (long)p.Kills.Value);
+                var involved = (long)selected.Kills.Value + selected.Assists.Value;
+                if (total >= involved)
+                    result.KillParticipation = total == 0 ? 0d : involved / (double)total;
+            }
+            if (selected.Damage.HasValue && team.All(p => p.Damage.HasValue))
+            {
+                var total = team.Sum(p => (long)p.Damage.Value);
+                if (total >= selected.Damage.Value)
+                    result.DamageShare = total == 0 ? 0d : selected.Damage.Value / (double)total;
+            }
+            if (selected.Gold.HasValue && team.All(p => p.Gold.HasValue))
+            {
+                var total = team.Sum(p => (long)p.Gold.Value);
+                if (total >= selected.Gold.Value)
+                    result.GoldShare = total == 0 ? 0d : selected.Gold.Value / (double)total;
+            }
+            if (match.GameLengthSeconds.HasValue &&
+                match.GameLengthSeconds.Value > 0 && match.GameLengthSeconds.Value <= 86400)
+            {
+                var minutes = match.GameLengthSeconds.Value / 60d;
+                if (selected.Damage.HasValue) result.DamagePerMinute = selected.Damage.Value / minutes;
+                if (selected.Gold.HasValue) result.GoldPerMinute = selected.Gold.Value / minutes;
+                if (selected.Vision.HasValue) result.VisionPerMinute = selected.Vision.Value / minutes;
+                if (selected.Minions.HasValue && selected.NeutralMinions.HasValue)
+                    result.CsPerMinute = (selected.Minions.Value + (double)selected.NeutralMinions.Value) / minutes;
+            }
+            return result;
         }
 
         private static Dictionary<string, string> ReadMetadata(Dictionary<string, object> row)
