@@ -174,7 +174,7 @@ namespace FACM.League
                 snapshot.QueueId != plan.QueueId ||
                 !string.Equals(snapshot.QueueType ?? string.Empty, plan.QueueType ?? string.Empty, StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrWhiteSpace(plan.PresetGroup) &&
-                !string.Equals(plan.PresetGroup, GroupFor(
+                !string.Equals(plan.PresetGroup, LeagueChampionSpellPresets.GroupFor(
                     snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType),
                     StringComparison.Ordinal))
             {

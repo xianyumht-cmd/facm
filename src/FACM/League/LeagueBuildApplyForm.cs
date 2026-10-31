@@ -277,7 +277,7 @@ namespace FACM.League
                 using (var manager = new LeagueRunePresetManagerForm(catalog, champions,
                     _autoController, _ui, expected == null ? 0 : expected.ChampionId, group))
                     manager.ShowDialog(this);
-                _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SavedRunes);
+                _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerClosed);
             }
             catch (OperationCanceledException)
             {

@@ -58,12 +58,15 @@ namespace FACM.League
                     var data = entry as IDictionary<string, object>;
                     var id = Number(Get(data, "id"));
                     var name = Get(data, "name") as string;
-                    if (id <= 0 || id > 10000 || string.IsNullOrWhiteSpace(name) ||
+                    // LCU includes a synthetic "None" champion (ID -1) on some patches.
+                    if (id <= 0) continue;
+                    if (id > 10000 || string.IsNullOrWhiteSpace(name) ||
                         name.Length > 120 || result.Any(option => option.Id == id))
                         return Array.Empty<LeagueRuneOption>();
                     result.Add(new LeagueRuneOption { Id = id, Name = name });
                 }
-                return result.OrderBy(option => option.Name, StringComparer.CurrentCulture).ToArray();
+                return result.Count == 0 ? Array.Empty<LeagueRuneOption>() :
+                    result.OrderBy(option => option.Name, StringComparer.CurrentCulture).ToArray();
             }
             catch (ArgumentException) { }
             catch (InvalidOperationException) { }

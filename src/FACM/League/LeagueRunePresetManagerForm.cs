@@ -78,7 +78,7 @@ namespace FACM.League
                 Text = T(LeagueChampionSpellPresetUiTextKeys.EditorCancel),
                 Width = 100, Height = 32, DialogResult = DialogResult.Cancel
             };
-            _edit.Text = T(LeagueChampionSpellPresetUiTextKeys.EditorSave);
+            _edit.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerEdit);
             _edit.Width = 115;
             _edit.Height = 32;
             _edit.Click += delegate { EditSelected(); };

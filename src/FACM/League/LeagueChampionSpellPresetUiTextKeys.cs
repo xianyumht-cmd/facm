@@ -36,6 +36,8 @@ namespace FACM.League
         public const string ManagerGroup = "LeagueChampionSpellPresetManagerGroup";
         public const string ManagerDelete = "LeagueChampionSpellPresetManagerDelete";
         public const string ManagerDeleteConfirm = "LeagueChampionSpellPresetManagerDeleteConfirm";
+        public const string ManagerClosed = "LeagueChampionSpellPresetManagerClosed";
+        public const string ManagerEdit = "LeagueChampionSpellPresetManagerEdit";
 
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -63,6 +65,8 @@ namespace FACM.League
             { ManagerGroup, "模式 / 位置" },
             { ManagerDelete, "删除符文预设" },
             { ManagerDeleteConfirm, "确认删除所选英雄和模式的符文预设？召唤师技能预设不受影响。" },
+            { ManagerClosed, "符文预设管理已关闭。" },
+            { ManagerEdit, "编辑 / 新建符文" },
             { Remove, "删除此预设" },
             { Saved, "已保存本英雄及模式的符文与技能预设。" },
             { SavedRunes, "已保存符文预设；技能读取不可用，旧技能预设未改动。" },
