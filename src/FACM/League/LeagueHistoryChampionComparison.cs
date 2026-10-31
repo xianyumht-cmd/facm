@@ -137,6 +137,20 @@ namespace FACM.League
             add(UiTextKeys.LeaguePlayerCompareTowerShare, m => Relative(m, p => p.DamageToTowers, true, false), true, false);
             add(UiTextKeys.LeaguePlayerCompareTowerTeamMax, m => Relative(m, p => p.DamageToTowers, true, true), true, false);
             add(UiTextKeys.LeaguePlayerCompareTowerGameMax, m => Relative(m, p => p.DamageToTowers, false, true), true, false);
+            var preferences = LeagueHistorySourcePreferences.Calculate(rows);
+            Action<string, int, int> addPreference = (key, count, known) =>
+                result.Add(new LeagueHistoryComparisonValue {
+                    Key = key, Percent = true, Known = known, Total = preferences.TotalGames,
+                    Value = known == 0 ? (double?)null : (double)count / known
+                });
+            addPreference(UiTextKeys.LeaguePlayerCompareFlashD,
+                preferences.FlashOnD, preferences.SpellSamples);
+            addPreference(UiTextKeys.LeaguePlayerCompareFlashF,
+                preferences.FlashOnF, preferences.SpellSamples);
+            addPreference(UiTextKeys.LeaguePlayerCompareBlueSide,
+                preferences.BlueSide, preferences.SideSamples);
+            addPreference(UiTextKeys.LeaguePlayerCompareRedSide,
+                preferences.RedSide, preferences.SideSamples);
             return result;
         }
 
@@ -182,16 +196,24 @@ namespace FACM.League
             UiTextKeys.LeaguePlayerCompareTowerTeamMax, UiTextKeys.LeaguePlayerCompareTowerGameMax
         };
 
+        private static readonly string[] Preferences = {
+            UiTextKeys.LeaguePlayerCompareFlashD, UiTextKeys.LeaguePlayerCompareFlashF,
+            UiTextKeys.LeaguePlayerCompareBlueSide, UiTextKeys.LeaguePlayerCompareRedSide
+        };
+
         internal static List<LeagueHistoryOverviewSection> Project(
             IEnumerable<LeaguePlayerMatchSummary> matches, int championId)
         {
             var values = LeagueHistoryChampionComparison.Calculate(matches, championId)
                 .ToDictionary(v => v.Key, StringComparer.Ordinal);
-            return new List<LeagueHistoryOverviewSection> {
+            var sections = new List<LeagueHistoryOverviewSection> {
                 Section(UiTextKeys.LeaguePlayerOverviewPerformance, Performance, values),
                 Section(UiTextKeys.LeaguePlayerOverviewCombat, Combat, values),
                 Section(UiTextKeys.LeaguePlayerOverviewEconomy, Economy, values)
             };
+            var preferences = Section(UiTextKeys.LeaguePlayerOverviewPreferences, Preferences, values);
+            if (preferences.Metrics.Count > 0) sections.Add(preferences);
+            return sections;
         }
 
         private static LeagueHistoryOverviewSection Section(string title, IEnumerable<string> keys,
@@ -204,7 +226,8 @@ namespace FACM.League
                 if (!values.TryGetValue(key, out value)) continue;
                 // Pinned ChampionAnalysisContent only exposes these optional fields
                 // when their complete source evidence is available.
-                if ((key == UiTextKeys.LeaguePlayerCompareSoloKills ||
+                if ((Preferences.Contains(key) && !value.Value.HasValue) ||
+                    (key == UiTextKeys.LeaguePlayerCompareSoloKills ||
                      key == UiTextKeys.LeaguePlayerComparePings ||
                      key == UiTextKeys.LeaguePlayerCompareMissingPings) &&
                     !value.Value.HasValue) continue;

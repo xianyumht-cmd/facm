@@ -47,6 +47,7 @@ namespace FACM.League
             LeaguePlayerHistoryHydrationSmokeTest.Validate();
             LeagueHistoryChampionComparisonSmokeTest.Validate();
             ValidateLoadedHistoryAnalysis();
+            ValidateSourcePreferences();
             ValidateAkariScoring();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
@@ -258,6 +259,41 @@ namespace FACM.League
                     ParticipantResolved = true, WinResult = "win", StatisticsAvailable = false
                 }) == LeagueHistoryOutcome.Unknown,
                 "Authoritative remake/abort results must survive sparse stats; ordinary win/loss needs evidence.");
+        }
+
+        private static void ValidateSourcePreferences()
+        {
+            var rows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 301, ChampionId = 22, GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                    SpellIds = new[] { 4, 7 }, TeamId = 100 },
+                new LeaguePlayerMatchSummary { GameId = 302, ChampionId = 22, GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss",
+                    SpellIds = new[] { 7, 4 }, TeamId = 200 },
+                new LeaguePlayerMatchSummary { GameId = 303, ChampionId = 22, GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss",
+                    SpellIds = new[] { 4, -1 }, TeamId = 0 },
+                new LeaguePlayerMatchSummary { GameId = 304, ChampionId = 22, GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "remake",
+                    SpellIds = new[] { 4, 7 }, TeamId = 100 }
+            };
+            var analysis = LeaguePlayerHistoryAnalysis.Calculate(rows.Concat(new[] { rows[0] }));
+            var p = analysis.Preferences;
+            Require(p.TotalGames == 3 && p.SpellSamples == 2 && p.FlashOnD == 1 &&
+                    p.FlashOnF == 1 && p.SideSamples == 2 && p.BlueSide == 1 && p.RedSide == 1 &&
+                    analysis.ChampionBreakdowns[22].Preferences.TotalGames == 3,
+                "Pinned source spell/side aggregates must deduplicate, exclude remakes and retain known coverage.");
+            var lines = LeaguePlayerHistoryAnalysis.PreferenceLines(
+                FACM.Services.UiTextCatalog.Load(), p).ToArray();
+            Require(lines.Length == 2 && lines[0].Contains("2/3") && lines[1].Contains("2/3"),
+                "Source preference report must show evidence coverage.");
+            rows[0].SpellIds = null; rows[1].SpellIds = new[] { 4, -1 };
+            rows[0].TeamId = 0; rows[1].TeamId = 0;
+            p = LeaguePlayerHistoryAnalysis.Calculate(rows).Preferences;
+            Require(p.SpellSamples == 0 && p.SideSamples == 0 && p.FlashOnD == 0 &&
+                    LeaguePlayerHistoryAnalysis.PreferenceLines(FACM.Services.UiTextCatalog.Load(), p)
+                        .All(line => line.Contains("--")),
+                "Missing or partial spell/side evidence must not appear as measured zero.");
         }
 
         private static void ValidatePlayerPageLayout()

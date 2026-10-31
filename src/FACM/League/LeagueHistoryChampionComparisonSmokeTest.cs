@@ -23,7 +23,7 @@ namespace FACM.League
             var matches = new[] { first, second, other, first };
             var values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Func<string, LeagueHistoryComparisonValue> get = key => values.Single(v => v.Key == key);
-            Require(values.Count == 29 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
+            Require(values.Count == 33 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
                 get(UiTextKeys.LeaguePlayerCompareKda).Total == 2,
                 "Hero comparisons must deduplicate games and use aggregate KDA, not mean game KDA.");
             Require(get(UiTextKeys.LeaguePlayerCompareKdaVariation).Value == 1d &&
@@ -54,6 +54,21 @@ namespace FACM.League
                     v.Key != UiTextKeys.LeaguePlayerCompareMissingPings &&
                     v.Key != UiTextKeys.LeaguePlayerCompareSoloKills)),
                 "Compact champion overview must group all evidenced metrics and hide source-optional gaps.");
+            first.SpellIds = new[] { 4, 7 }; first.TeamId = 100;
+            second.SpellIds = new[] { 7, 4 }; second.TeamId = 200;
+            values = LeagueHistoryChampionComparison.Calculate(matches, 22);
+            Require(get(UiTextKeys.LeaguePlayerCompareFlashD).Value == .5d &&
+                    get(UiTextKeys.LeaguePlayerCompareFlashF).Value == .5d &&
+                    get(UiTextKeys.LeaguePlayerCompareBlueSide).Value == .5d &&
+                    get(UiTextKeys.LeaguePlayerCompareRedSide).Value == .5d &&
+                    get(UiTextKeys.LeaguePlayerCompareFlashD).Known == 2 &&
+                    get(UiTextKeys.LeaguePlayerCompareBlueSide).Total == 2,
+                "Flash key and team side must use deduplicated source-backed matches.");
+            compact = LeagueHistoryChampionOverview.Project(matches, 22);
+            Require(compact.Count == 4 &&
+                    compact[3].TitleKey == UiTextKeys.LeaguePlayerOverviewPreferences &&
+                    compact[3].Metrics.Count == 4,
+                "Source preference metrics must reach the native champion overview.");
             second.TotalPings = 8; second.EnemyMissingPings = 0;
             values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Require(get(UiTextKeys.LeaguePlayerComparePings).Value == 6d &&
@@ -61,7 +76,7 @@ namespace FACM.League
                 get(UiTextKeys.LeaguePlayerCompareMissingPings).Known == 2,
                 "Two verified ping samples must permit zero missing-pings and average independently.");
             compact = LeagueHistoryChampionOverview.Project(matches, 22);
-            Require(compact.Sum(group => group.Metrics.Count) == 28 &&
+            Require(compact.Sum(group => group.Metrics.Count) == 32 &&
                 compact[0].Metrics.Any(v => v.Key == UiTextKeys.LeaguePlayerCompareMissingPings &&
                     v.Value == 1d),
                 "Verified optional ping evidence must appear after history enrichment.");

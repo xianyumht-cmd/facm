@@ -65,6 +65,37 @@ namespace FACM.League
         internal double WinRate { get { return Games > 0 ? Wins * 100d / Games : 0d; } }
     }
 
+    // Akari v1.5.1 aggregated spells and team-side evidence from confirmed matches.
+    internal sealed class LeagueHistorySourcePreferences
+    {
+        internal int TotalGames, SpellSamples, FlashOnD, FlashOnF;
+        internal int SideSamples, BlueSide, RedSide;
+
+        internal static LeagueHistorySourcePreferences Calculate(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            var result = new LeagueHistorySourcePreferences();
+            foreach (var match in matches ?? Enumerable.Empty<LeaguePlayerMatchSummary>())
+            {
+                if (match == null || (LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Win &&
+                    LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Loss) ||
+                    (!string.IsNullOrWhiteSpace(match.GameType) &&
+                     !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                result.TotalGames++;
+                if (match.SpellIds != null && match.SpellIds.Length == 2 &&
+                    match.SpellIds[0] > 0 && match.SpellIds[1] > 0)
+                {
+                    result.SpellSamples++;
+                    if (match.SpellIds[0] == 4) result.FlashOnD++;
+                    if (match.SpellIds[1] == 4) result.FlashOnF++;
+                }
+                if (match.TeamId == 100) { result.SideSamples++; result.BlueSide++; }
+                else if (match.TeamId == 200) { result.SideSamples++; result.RedSide++; }
+            }
+            return result;
+        }
+    }
+
     internal sealed class LeagueHistoryChampionBreakdown
     {
         internal int NormalGames, NormalWins, CherryGames, CherryWins, UnknownModeGames;
@@ -72,6 +103,7 @@ namespace FACM.League
         internal int CherryTopHalfFinishes, CherryKnownTopHalfGames;
         internal double? CsPerMinute, DamageShare, DamageTakenShare, GoldShare, KillParticipation;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
+        internal LeagueHistorySourcePreferences Preferences;
         internal double? AverageCherryPlacement { get { return CherryKnownPlacements > 0
             ? (double?)CherryPlacementSum / CherryKnownPlacements : null; } }
     }
@@ -279,6 +311,7 @@ namespace FACM.League
         internal double? KillParticipation, DamageTakenShare;
         internal double? RecentFiveWinRate, PreviousFiveWinRate;
         internal LeagueHistoryAkariScore AkariScore;
+        internal LeagueHistorySourcePreferences Preferences;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal List<LeaguePlayerChampionStat> Champions = new List<LeaguePlayerChampionStat>();
         internal List<LeaguePlayerChampionStat> AllChampions = new List<LeaguePlayerChampionStat>();
@@ -334,6 +367,7 @@ namespace FACM.League
                     default: result.Unknowns++; break;
                 }
             }
+            result.Preferences = LeagueHistorySourcePreferences.Calculate(played);
             result.AkariScore = LeagueHistoryAkariScore.Calculate(played);
             result.Kills = Mean(played.Select(m => (double?)m.Kills));
             result.Deaths = Mean(played.Select(m => (double?)m.Deaths));
@@ -358,6 +392,7 @@ namespace FACM.League
             {
                 result.ChampionScores[group.Key] = LeagueHistoryAkariScore.Calculate(group);
                 var breakdown = new LeagueHistoryChampionBreakdown {
+                    Preferences = LeagueHistorySourcePreferences.Calculate(group),
                     Positions = BuildPositions(group),
                     CsPerMinute = Mean(group.Where(m => m.GameDurationSeconds > 0)
                         .Select(m => (double?)m.CreepScore * 60d / m.GameDurationSeconds)),
@@ -524,6 +559,22 @@ namespace FACM.League
                     ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
         }
 
+        internal static IEnumerable<string> PreferenceLines(UiTextCatalog ui,
+            LeagueHistorySourcePreferences preferences)
+        {
+            var p = preferences ?? new LeagueHistorySourcePreferences();
+            yield return string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisFlashPreference),
+                p.SpellSamples == 0 ? "--" : p.FlashOnD.ToString(CultureInfo.CurrentCulture),
+                p.SpellSamples == 0 ? "--" : p.FlashOnF.ToString(CultureInfo.CurrentCulture),
+                p.SpellSamples, p.TotalGames);
+            yield return string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisSidePreference),
+                p.SideSamples == 0 ? "--" : p.BlueSide.ToString(CultureInfo.CurrentCulture),
+                p.SideSamples == 0 ? "--" : p.RedSide.ToString(CultureInfo.CurrentCulture),
+                p.SideSamples, p.TotalGames);
+        }
+
         private static List<string> ReportLines(UiTextCatalog ui, LeaguePlayerHistoryAnalysis a)
         {
             var lines = new List<string> {
@@ -550,6 +601,7 @@ namespace FACM.League
                         UiTextKeys.LeaguePlayerLoss) + " × " + a.Streak),
                 "", ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions)
             };
+            lines.AddRange(PreferenceLines(ui, a.Preferences));
             foreach (var c in a.Champions)
                 lines.Add(string.Format(CultureInfo.CurrentCulture,
                     ui.Get(UiTextKeys.LeaguePlayerAnalysisChampionRow),
@@ -983,6 +1035,7 @@ namespace FACM.League
                                             breakdown.CherryTopHalfFinishes + "/" + breakdown.CherryKnownTopHalfGames,
                                         Number(breakdown.AverageCherryPlacement)));
                                 }
+                                updated.AddRange(PreferenceLines(ui, breakdown.Preferences));
                                 if (breakdown.UnknownModeGames > 0)
                                     updated.Add(string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode),
