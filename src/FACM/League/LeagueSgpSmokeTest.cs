@@ -19,6 +19,20 @@ namespace FACM.League
             {
                 Require(LeagueSgpMatchHistoryApiClient.AvailableServers(current).Length == 10,
                     "Tencent discovery must include the exact pinned server catalog.");
+                var aliases = new Dictionary<string, string> {
+                    { "NA", "NA1" }, { "BR", "BR1" }, { "TR", "TR1" },
+                    { "LAN", "LA1" }, { "LAS", "LA2" }, { "OCE", "OC1" },
+                    { "EUW1", "EUW" }, { "JP1", "JP" } };
+                foreach (var alias in aliases)
+                {
+                    var regionalSession = Session("unused-platform", alias.Key);
+                    Require(LeagueSgpMatchHistoryApiClient.CurrentServerId(regionalSession) == alias.Value &&
+                        LeagueSgpMatchHistoryApiClient.ResolveServer(regionalSession)?.Id == alias.Value,
+                        "Pinned SGP region alias mapping failed for " + alias.Key);
+                }
+                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("unused-platform", "UNKNOWN")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("unused-platform", "NA"), "EUW") == null,
+                    "Unknown and unrelated region selectors must remain unavailable.");
                 var euw = LeagueSgpMatchHistoryApiClient.ResolveServer(Session("EUW1", "EUW"));
                 Require(euw != null && euw.PathRegion == "EUW1" &&
                     euw.MatchHistory == "https://euc1-red.pp.sgp.pvp.net" &&

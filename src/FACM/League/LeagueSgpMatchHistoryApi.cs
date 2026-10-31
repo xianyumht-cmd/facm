@@ -125,7 +125,18 @@ namespace FACM.League
             if (region == "TENCENT" || (region.Length == 0 &&
                 Servers.Any(server => server.IsTencent && server.PathRegion == platform)))
                 return "TENCENT_" + platform;
-            return region.Length > 0 ? region : platform;
+            switch (region)
+            {
+                case "NA": return "NA1";
+                case "BR": return "BR1";
+                case "TR": return "TR1";
+                case "LAN": return "LA1";
+                case "LAS": return "LA2";
+                case "OCE": return "OC1";
+                case "EUW1": return "EUW";
+                case "JP1": return "JP";
+                default: return region.Length > 0 ? region : platform;
+            }
         }
 
         internal static LeagueSgpServer[] AvailableServers(LeagueClientSession session)
