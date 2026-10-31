@@ -1,3 +1,17 @@
+## Source-pinned SGP supported-queues + native tag lifecycle (2026-10-31)
+
+Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` defines `sgp/supported-queues` with `updatedAt` and `queues: number[]` in `src/main/shards/akari-api/{cached-resources,builtin}.ts` and `src/shared/shards/akari-api/schemas.ts`. `useSgpTagOptions.ts` defines `ranked`, `normal`, and `q_{queueId}`; `match-history-query.ts` forwards `tag` to SGP SUMMARY. Native final executable [b92f973](https://github.com/xianyumht-cmd/facm/commit/b92f973dfe1f1b4bd05e3e1909d481afb3daaf9c) includes a bounded public catalog, an exact URL allowlist, atomic validated queue snapshot, SGP-only server-side tagged history/collection, regional UI tag selector and a queue-ID choice in the advanced IsQueue editor. It preserves account/region/session checks and blocks unsupported or injected tags before fetching Entitlements. No background polling or new HTTP client was introduced.
+
+| Scope | Status | Remaining |
+|---|---|---|
+| Supported queue remote config and built-in 17 IDs | Native candidate | Tencent live configuration validation |
+| All/Ranked/Normal/queue tags and server-side page/collect | Native candidate | Live SGP tag behavior, localized queue names |
+| Advanced IsQueue editor source-backed choice | Native candidate | Full Akari game-data name/icon presentation |
+| Current lobby queue insertion | Missing | Bounded reuse of trusted LCU lobby state |
+| EOG team stats and new SGP region enrollment | Partial | Native EOG UI, trusted new server destinations |
+
+**Four Windows gates passed for b92f973:** [Build #41192842449](https://github.com/xianyumht-cmd/facm/actions/runs/41192842449), [Glass #41192842654](https://github.com/xianyumht-cmd/facm/actions/runs/41192842654), [UI Text #41192842307](https://github.com/xianyumht-cmd/facm/actions/runs/41192842307), [Mayhem #41192842512](https://github.com/xianyumht-cmd/facm/actions/runs/41192842512). No Tencent CN, Windows 10 DPI, release or production acceptance is claimed.
+
 ## Pinned SGP GSM and auto-select group source parity (2026-10-31)
 
 Pinned LeagueAkari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` defines GSM `GET /gsm/v1/ledge/region/{region}/puuid/{puuid}`, `GET /gsm/v1/ledge/region/{region}/gameId/{gameId}` and `GET /stats/endOfGame/region/{region}/gameId/{gameId}/puuid/{puuid}` in `src/shared/http-api-axios-helper/sgp/gsm.ts` and `stats.ts`. Native [a4115a4](https://github.com/xianyumht-cmd/facm/commit/a4115a46b63ddcdd398effb54f7a41c90dc50c95) exposes all three as bounded, same-region, read-only routes. The Live view consumes only GSM-by-PUUID on explicit refresh, validating playerCredentials owner/game, team membership, current LCU summoner, session/region and gameflow before merging spells/positions; no JWT or encryption key reaches the UI. GameId GSM and EOG are transport-only, not claimed as finished UI features.
