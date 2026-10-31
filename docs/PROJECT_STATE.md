@@ -1,3 +1,22 @@
+## 2026-11-01 — Source-pinned match details and special timeline events (Draft #357)
+
+**Executable/test:** [c0db85a](https://github.com/xianyumht-cmd/facm/commit/c0db85a1d78f8e67db5f4154579ae82f195698ce) (six fast-forward code commits from bb7dac9). Native match details now expose **172 explicitly allowlisted finite numeric fields** and **19 strict boolean fields** from pinned Akari v1.5.1 MatchCardDetails groups, in addition to 26 pre-existing directly parsed metrics and seven evidence-aware per-player derived comparisons (KDA, damage/gold per minute, damage/gold efficiency, kill participation, team damage and team damage-taken share). Pings, survival/skillshots, teamfight, structures, objectives, economy and game-time source fields are grouped in the existing 20-player native matrix. Missing and known zero remain separate. Only three source-defined lane/vision advantage fields permit signed values; negative counts, nonfinite/oversized numbers, arbitrary keys and source-hidden behavior flags are rejected. A challenge key present both at the legacy root and in v5 challenges must agree or is omitted.
+
+The on-demand timeline now labels pinned special kills (first blood, 2–5 multi-kills, ace) and turret-plate events with bounded known-lane display, using existing account/session-fenced timeline reads. No new network client, request, polling owner, LCU writer, cloud field, package or production update. Synthetic tests cover strict parsing, source field groups, full/incomplete teams, root/nested disagreement, signed values, unknowns, event types and invalid counts.
+
+**Four Windows CI gates passed on executable c0db85a:** [Windows Build](undefined), [Glass WebView2](undefined), [UI Text Contract](undefined), [Mayhem Source Probe](undefined). These are synthetic/Windows CI results, not live Tencent/Riot or Windows 10/DPI acceptance.
+
+| Source scope | Status | Remaining |
+| --- | --- | --- |
+| Match details: 172 numeric + 19 boolean allowlisted keys, direct and derived comparisons | Implemented in native source/test candidate; four CI green | Source-specific localization, game-time rendering and real LCU/SGP payload variations |
+| Timeline special kills and turret plates | Implemented in native source/test candidate; four CI green | Real SGP event variations and remaining event options |
+| Replay and full source option inventory | Partial | Additional source-by-source replay and player/game-state options |
+| 256-row real cloud sync, Tencent/Riot SGP, Win10/DPI | Not live verified | Single final owner acceptance |
+
+Next prioritize remaining source-defined event/replay options and safe game-state presentation, then consolidate the final Tencent CN/Windows 10/DPI/cloud acceptance. Draft #357/#355 remain unmerged; production 3.5.78, updater, releases and paid resources remain untouched.
+
+---
+
 ## 2026-11-01 — Native source-backed per-match scoring and detailed stat matrix (Draft #357)
 
 Executable/test candidate [290a7bf](https://github.com/xianyumht-cmd/facm/commit/290a7bf3376ca8c1aab794ec3f9469c7fcf47df1) adds two related source-scope features to the existing native match scoreboard: (1) a per-selected-player Akari 17-point single-game score only when the match's verified participant roster, exact selected participant, team outcome, duration and all nine scoring inputs are available and the participant/team win-loss outcomes do not conflict; and (2) a grouped, horizontally scrollable player-by-player details table for 26 directly parsed metrics, 59 additional explicitly allowlisted numeric gameplay fields and 19 source-visible boolean fields from existing stats/challenges, grouped into combat, damage, economy, utility, vision, buildings and objectives. Source-known zero stays zero, absent/invalid stats stay unavailable, and columns cap at 20 participants. The parser admits only pinned-source numeric field names, finite nonnegative values within a fixed bound; signed lane-CS advantage is separately preserved. Unknown keys, free text and credential fields are not copied. No extra network request, LCU writer, credential owner, poller, runtime dependency or cloud field.
