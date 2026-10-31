@@ -26,6 +26,7 @@ namespace FACM.League
                     "lcu:/lol-game-data/assets/%2e%2e/secret"),
                 "Encountered-match icon loading must be restricted to safe local game-data paths.");
             ValidateMatchDetailAsync().GetAwaiter().GetResult();
+            ValidateEogOnlyDetailAsync().GetAwaiter().GetResult();
             ValidateCardPresentation();
             var availableIcons = new HashSet<int> { 4, 5, 6 };
             Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
@@ -1608,6 +1609,82 @@ namespace FACM.League
                     "replacement", "https", "fixture", "HN1", "HN1");
                 Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient,
                     "Changed client sessions must invalidate in-flight detail requests.");
+            }
+        }
+
+        private static async Task ValidateEogOnlyDetailAsync()
+        {
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999,
+                "eog-fixture", "https", "fixture", "HN1", "TENCENT");
+            var active = session;
+            var local = new MatchDetailClient();
+            var sgp = new EogFallbackApi();
+            var players = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(),
+                null, sgp, () => active);
+            var reader = new LeagueEncounterMatchDetailService(players, () => active);
+            var selected = new LeaguePlayerMatchSummary { GameId = 123,
+                DataSource = LeaguePlayerHistorySource.Sgp,
+                PreferredSource = LeaguePlayerHistorySource.Sgp,
+                SgpServerId = "TENCENT_HN1" };
+            var result = await reader.ReadHistoryAsync(session, "self", "enemy",
+                selected, CancellationToken.None);
+            Require(result.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                result.EogOnly != null && result.EogOnly.GameId == 123 &&
+                result.EogOnly.Players.Count == 2 && result.Participants == null &&
+                result.IsCurrentSession() && sgp.EogReads == 1,
+                "When SUMMARY is unavailable, a verified same-region EOG must produce a separate read-only detail.");
+            selected.SgpServerId = "TENCENT_HN10";
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable &&
+                sgp.EogReads == 1,
+                "Cross-region history must not attempt current-region EOG.");
+            selected.SgpServerId = "TENCENT_HN1";
+            selected.DataSource = LeaguePlayerHistorySource.Lcu;
+            selected.PreferredSource = LeaguePlayerHistorySource.Lcu;
+            local.ReturnMissingParticipant = true;
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable &&
+                sgp.EogReads == 1,
+                "An explicitly LCU-only detail must not fall back to SGP EOG.");
+            local.ReturnMissingParticipant = false;
+            selected.DataSource = LeaguePlayerHistorySource.Sgp;
+            selected.PreferredSource = LeaguePlayerHistorySource.Sgp;
+            sgp.AfterRead = () => local.SelfPuuid = "other";
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                "An account switch during EOG must discard the remote result.");
+            local.SelfPuuid = "self";
+            sgp.AfterRead = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                "replacement", "https", "fixture", "HN1", "TENCENT");
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                "An LCU session replacement during EOG must not publish stale details.");
+        }
+
+        private sealed class EogFallbackApi : ILeagueSgpMatchHistoryApi, ILeagueSgpStatsEogApi
+        {
+            internal int EogReads;
+            internal Action AfterRead;
+            public Task<byte[]> TryGetSummaryAsync(string puuid, int start, int count,
+                CancellationToken token, string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetStatsEogAsync(long gameId, string targetPuuid, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                EogReads++;
+                AfterRead?.Invoke();
+                return Task.FromResult(Encoding.UTF8.GetBytes(
+                    @"{""gameId"":123,""puuid"":""enemy"",""gameMode"":""CLASSIC"",""queueId"":420,
+                    ""teamPlayerParticipantStats"":[{""gameId"":123,""puuid"":""enemy"",
+                        ""teamId"":100,""championId"":22,""statistics"":[
+                        {""statTypeName"":""CHAMPIONS_KILLED"",""value"":3}]}],
+                    ""otherTeamPlayerParticipantStats"":[{""gameId"":123,""puuid"":""self"",
+                        ""teamId"":200,""championId"":12,""statistics"":[]}]}"));
             }
         }
 
