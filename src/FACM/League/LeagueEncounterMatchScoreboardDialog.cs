@@ -470,6 +470,10 @@ namespace FACM.League
                         var selected = eogRows.SelectedItems.Count == 1
                             ? eogRows.SelectedItems[0].Tag as LeagueSgpEogPlayer : null;
                         if (selected == null || selected.Statistics == null) return;
+                        if (selected.Metadata != null)
+                            foreach (var meta in selected.Metadata.OrderBy(x => x.Key,
+                                StringComparer.OrdinalIgnoreCase))
+                                eogStats.Items.Add(new ListViewItem(new[] { meta.Key, meta.Value }));
                         foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
                             StringComparer.OrdinalIgnoreCase))
                             eogStats.Items.Add(new ListViewItem(new[] { stat.Key,

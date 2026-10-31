@@ -195,6 +195,8 @@ namespace FACM.League
                 ""queueId"":420,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
                 ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
                     ""teamId"":100,""championId"":12,""riotIdGameName"":""Local"",
+                    ""level"":30,""wins"":12,""losses"":4,""eloChange"":-12.5,
+                    ""leaver"":false,""botPlayer"":false,
                     ""riotIdTagLine"":""CN1"",""spell1Id"":4,""spell2Id"":14,
                     ""detectedTeamPosition"":""MIDDLE"",""statistics"":[
                         {""statTypeName"":""CHAMPIONS_KILLED"",""value"":5},
@@ -214,6 +216,12 @@ namespace FACM.League
                 parsed.Players[0].Statistics["CHAMPIONS_KILLED"] == 5 &&
                 parsed.Players[0].Statistics["DAMAGE_RATIO"] == 0.75 &&
                 parsed.Players[0].Statistics["RANK_CHANGE"] == -12 &&
+                parsed.Players[0].Metadata["LEVEL"] == "30" &&
+                parsed.Players[0].Metadata["ELO_CHANGE"] == "-12.5" &&
+                parsed.Players[0].Metadata["LEAVER"] == "false" &&
+                parsed.Players[0].Metadata["BOT_PLAYER"] == "false" &&
+                parsed.Players[0].Metadata.Count == 6 &&
+                parsed.Players[1].Metadata.Count == 0 &&
                 !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");

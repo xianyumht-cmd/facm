@@ -34,6 +34,7 @@ namespace FACM.League
         internal int? Vision;
         internal bool? Win;
         internal Dictionary<string, double> Statistics;
+        internal Dictionary<string, string> Metadata;
     }
 
     // Project only documented end-of-game fields. Never retain room passwords, JWTs or credentials.
@@ -100,7 +101,8 @@ namespace FACM.League
                         NeutralMinions = Stat(values, "NEUTRAL_MINIONS_KILLED"),
                         Vision = Stat(values, "VISION_SCORE"),
                         Win = Stat(values, "WIN").HasValue ? Stat(values, "WIN") == 1 : (bool?)null,
-                        Statistics = values
+                        Statistics = values,
+                        Metadata = ReadMetadata(row)
                     });
                 }
                 if (!seen.Contains(ownerPuuid)) return null;
@@ -116,6 +118,29 @@ namespace FACM.League
             catch (InvalidOperationException) { return null; }
             catch (FormatException) { return null; }
             catch (OverflowException) { return null; }
+        }
+
+        private static Dictionary<string, string> ReadMetadata(Dictionary<string, object> row)
+        {
+            var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in new[] { "level", "wins", "losses" })
+            {
+                var number = Number(row, entry);
+                var limit = entry == "level" ? 1000 : 1000000;
+                if (number.HasValue && number.Value <= limit)
+                    result.Add(entry.ToUpperInvariant(), number.Value.ToString(CultureInfo.InvariantCulture));
+            }
+            var change = StatisticNumber(row, "eloChange");
+            if (change.HasValue && Math.Abs(change.Value) <= 100000)
+                result.Add("ELO_CHANGE", change.Value.ToString("G", CultureInfo.InvariantCulture));
+            foreach (var entry in new[] { "leaver", "botPlayer" })
+            {
+                object value;
+                if (row.TryGetValue(entry, out value) && value is bool)
+                    result.Add(entry == "leaver" ? "LEAVER" : "BOT_PLAYER",
+                        (bool)value ? "true" : "false");
+            }
+            return result;
         }
 
         private static int? Stat(Dictionary<string, double> stats, string key)
