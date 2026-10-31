@@ -1,3 +1,7 @@
+## Champion analysis overview and shared selection (Draft #357, 2026-10-31)
+
+`LeagueHistoryChampionOverview` projects the 29 existing `LeagueHistoryChampionComparison` metrics into source-shaped performance, combat and economy groups. `LeagueHistoryChampionOverviewView` owns a bounded WinForms ListView with available/total evidence, hero selector and standard/Arena/streak summary. `LeaguePlayerHistoryAnalysis.ShowAsync` coordinates report, overview, comparison-left and jungle champion selectors; history hydration updates the same account-fenced snapshot without another request, cache or polling owner. `LeagueHistoryChampionComparisonSmokeTest` covers projection and UI refresh; executable `0537253` passed all four Windows workflows. Source mastery and full visual fidelity remain separate gaps.
+
 ## Native champion role distribution (Draft #357, 2026-10-31)
 
 `LeaguePlayerHistoryAnalysis.ShowAsync` now owns a lazily visible, source-aligned `LeagueHistoryPositionChart` tab. The control consumes only the existing deduplicated/normalized per-champion or overall `LeagueHistoryPositionStat` list and draws a bounded five-role doughnut with localized count/percentage legend and accessible summary. Report champion selection and account-fenced hydration refresh the chart, preserving the selected champion when still available. No additional request owner, polling or resource dependency; source/test commit `f40c897` passed four Windows workflows. Native Win10/DPI acceptance is pending.
