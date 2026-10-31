@@ -1,3 +1,11 @@
+## 2026-11-01 — Pinned Riot SGP provider and full-capacity source audit
+
+At pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`, `src/main/shards/akari-api/builtin.ts` enumerates Riot match-history gateways under `*-red.pp.sgp.pvp.net` and per-region common hosts under `*-red.lol.sgp.pvp.net`; `src/shared/shards/akari-api/schemas.ts` models `matchHistory`, `common`, `isTencent` and optional `regionPathParam`. Native [c55d970](https://github.com/xianyumht-cmd/facm/commit/c55d97069e5c43a9a2542539776fae418f1ad2ae) enrolls new Riot IDs only when common host exactly matches the announced ID, match-history host is one of the pinned builtin gateways, and HTTPS/443/root path/identity are validated. New aliases not represented by that exact shape remain unavailable rather than expanding credential destinations.
+
+Native [7b494e8](https://github.com/xianyumht-cmd/facm/commit/7b494e80010b4b31226cf3a0902728c055f52595) resolves an LCU alphabetical region alias to a newly trusted platform only when its numeric suffix and catalog entry match; same-region and Tencent-only cross-region rules remain unchanged. Synthetic fixtures exercise enrollment, authenticated route, wrong host/gateway/port/scheme/region, unrelated region, and catalog revocation. [fe92dd3](https://github.com/xianyumht-cmd/facm/commit/fe92dd392470db97d463ac3948041b05cbd88709) extends champion rune/spell synthetic persistence coverage to 256 entries each and rejects the 257th. No real Riot/Tencent game or cloud service acceptance is implied; four Windows CI gates must be checked against the exact executable commit.
+
+---
+
 ## 2026-11-01 — Optional shielding source parity
 
 Pinned `src/shared/data-adapter/analysis/player/single/summary.ts` includes `totalDamageShieldedOnTeammatesRatioToTeamMax`, `RatioToMax` and `PercentageOfTeam`, nullable when source does not supply shielding. Native optional match summary, history hydration preservation, three comparison metrics and compact overview now implement those source ratios with full-roster evidence and unknown/zero separation. Synthetic partial/full tests added; four Windows CI and Tencent response compatibility pending.

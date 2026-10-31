@@ -1,3 +1,11 @@
+## 2026-11-01 — Bounded new Riot SGP provider trust (Draft #357)
+
+`LeagueSgpServerCatalog` now accepts source-announced new Riot platform IDs only with an exact `<id>-red.lol.sgp.pvp.net` common endpoint and a match-history host already present in the pinned Riot builtin gateway set. Both require HTTPS/443, root-only path and no user info/query/fragment; optional path region must equal the new ID. New Tencent platforms retain their separate exact Tencent host/21019 policy. Every catalog rebuilds from pinned builtins so removing a dynamic server revokes it. `LeagueSgpMatchHistoryApiClient.CurrentServerId` may resolve a short alphabetical LCU region to a catalog-trusted Riot platform with only a numeric suffix; other aliases and cross-region requests remain fail-closed. The existing session-fenced SGP client owns all authenticated requests, while public configuration uses the original two-hour on-demand transport.
+
+This adds no new network owner, polling, dependency, game writer, updater or production change. Executable candidate [fe92dd3](https://github.com/xianyumht-cmd/facm/commit/fe92dd392470db97d463ac3948041b05cbd88709) includes synthetic route and revocation tests; real provider compatibility and four exact-SHA CI gates are separate evidence.
+
+---
+
 ## 2026-11-01 — Native champion preset editor ownership (Draft #357)
 
 LeagueRuneCatalog is a pure bounded parser for local LCU perkstyles schema v2, perk names, champion summary and summoner-spell metadata. It validates typed rune rows, allowed substyles, secondary-row separation and source game-mode spell availability. LeagueRunePresetEditorForm, LeagueSummonerSpellPresetEditorForm and LeagueRunePresetManagerForm provide explicit per-champion/mode preference editing outside ChampSelect, without taking ownership of LCU game writes, credentials, HTTP clients or polling loops.
@@ -24,7 +32,7 @@ The trusted `LeagueAutoSelectGroupCatalog` snapshot owns only modeled `-3` Arena
 
 ## Native SGP enrollment and draft configuration ownership (Draft #357, 2026-10-31)
 
-`LeagueSgpServerCatalog` uses the existing public-data transport for source-pinned configuration, reconstructs every accepted snapshot from immutable builtin servers, and admits new Tencent IDs only when their uppercase alphanumeric platform, optional regionPathParam, provider-owned exact DNS template, HTTPS scheme, port 21019 and root path agree. Later accepted catalogs revoke omitted dynamic regions. Riot new regions are deliberately not admitted by this path. Only `LeagueSgpMatchHistoryApiClient` continues to own authenticated SGP reads; no credentials are passed to public-data configuration fetches.
+`LeagueSgpServerCatalog` uses the existing public-data transport for source-pinned configuration, reconstructs every accepted snapshot from immutable builtin servers, and admits new Tencent IDs only when their uppercase alphanumeric platform, optional regionPathParam, provider-owned exact DNS template, HTTPS scheme, port 21019 and root path agree. Later accepted catalogs revoke omitted dynamic regions. New Riot regions are admitted only through the later exact-host and pinned-gateway trust policy above. Only `LeagueSgpMatchHistoryApiClient` continues to own authenticated SGP reads; no credentials are passed to public-data configuration fetches.
 
 `LeagueAutoSelectGroupCatalog` refreshes the SGP directory first on the existing explicit advanced-editor path and accepts server-specific group scopes only for trusted known catalog entries. `LeagueEfficiencyModule` passes the existing LeagueClientModule session owner into the phase-scoped `LeagueAutoPickBanController`. Its two existing LCU reads fence process identity, region and platform, while `LeagueAutoSelectContext` binds server, source-supported role and group into the action context. Preflight re-reads the bound context before any action write. This adds no polling loop, client pool or independent authentication owner.
 

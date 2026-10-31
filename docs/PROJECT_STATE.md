@@ -1,3 +1,19 @@
+## 2026-11-01 — Trusted Riot SGP enrollment, region alias and full preset-capacity regression (Draft #357)
+
+Executable/test candidate [fe92dd3](https://github.com/xianyumht-cmd/facm/commit/fe92dd392470db97d463ac3948041b05cbd88709) adds source-announced Riot-region enrollment only when the common endpoint is the exact `<id>-red.lol.sgp.pvp.net` host, match-history uses a pinned Riot gateway, HTTPS/443/root path and source region identity are valid. The current LCU may report a short alphabetical region alias (e.g. ME) for an exact trusted platform (ME1); only a matching numeric suffix resolves that alias. Other regions and cross-region requests remain blocked; later catalogs revoke omitted dynamic servers. Existing SGP token/session owner, two-hour on-demand public refresh and read-only transport are unchanged.
+
+Full 256-row rune and spell catalogs now have deterministic local/cloud snapshot roundtrip and 257th-entry rejection tests, in addition to malformed-compression and expansion-limit checks. This is **synthetic settings validation**, not proof of live CloudBase capacity. Earlier executable f8ed5fd failed Windows Build and Glass due to stale native champion ListView smoke counts; [f6116ba](https://github.com/xianyumht-cmd/facm/commit/f6116ba2f0a181c0bc543a7710facc946b444063) corrected them and passed all four Windows gates. The final executable fe92dd3 requires its own exact-SHA CI results; consult the PR before treating it as verified.
+
+| Scope | Status | Remaining |
+| --- | --- | --- |
+| Trusted new Riot SGP region with exact provider host and pinned gateway | Implemented in source candidate | Actual new-region endpoint and Riot account acceptance |
+| Short LCU region alias for a newly trusted platform | Implemented in source candidate | Live LCU alias variations |
+| 256-row rune/spell settings and cloud snapshot | Deterministic synthetic test candidate | Real cloud field-size, account switch and sync |
+| Other Akari options and replay variations | Partial | Option-by-option source review and bounded native integration |
+| Tencent CN / Windows 10 / DPI | Not tested | Owner's final consolidated acceptance |
+
+---
+
 ## 2026-11-01 — Optional teammate shielding comparison (Draft #357)
 
 Pinned Akari `single/summary.ts` exposes teammate-shielded damage ratios against team sum, team maximum and game maximum. Native match history now retains optional `totalDamageShieldedOnTeammates` through parse, clone and detail hydration, and adds three source-evidenced champion comparison/overview metrics. Whole-sample ratios stay unavailable if any selected game lacks a verified roster or shielding statistic; known zero remains zero. Synthetic tests cover partial and complete evidence. Base comparison has 37 metrics, plus the on-demand early enemy-jungler metric when timeline analysis is opened. CI pending; Tencent LCU/SGP schema and Win10/DPI untested.

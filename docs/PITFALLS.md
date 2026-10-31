@@ -1,3 +1,9 @@
+## 2026-11-01 — Avoid stale native ListView count assertions after optional analysis metrics
+
+Executable `f8ed5fd` passed UI Text and Mayhem but failed Windows Build and Glass at `Native champion overview must expose grouped metrics`: source-backed shielding added three optional visible metrics while the UI smoke still expected 32 rows, and the comparison smoke retained an older 34-row count. The repair in [f6116ba](https://github.com/xianyumht-cmd/facm/commit/f6116ba2f0a181c0bc543a7710facc946b444063) compares rendered rows against the current pure projection, preserving a real UI/projection contract instead of updating a brittle hard-coded number. All four Windows gates passed on that repair SHA. For future optional metrics, verify complete evidence and native row/group projections together before treating compilation as sufficient.
+
+---
+
 ## 2026-11-01 — Native analysis metric additions must update all smoke contracts
 
 Adding source-backed champion comparison metrics changes more than the projection list: the compact overview may expose previously hidden groups when fixture team IDs are already known, and native ListView row/group counts must be revised too. In this run the first two executable candidates compiled but failed the `league-player` performance smoke because tests still expected 29 comparison rows and three overview groups. When extending analysis metrics, inspect all fixture evidence and assertions for aggregate count, overview group count, rendered ListView row count, optional-data coverage and empty-state behavior before triggering Windows CI. The final executable 8c95a2f passed all four gates after these corrections.
