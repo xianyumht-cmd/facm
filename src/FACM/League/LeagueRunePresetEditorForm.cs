@@ -4,12 +4,14 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Theming;
+using FACM.Services;
 
 namespace FACM.League
 {
     internal sealed class LeagueRunePresetEditorForm : Form
     {
         private readonly LeagueRuneCatalog _catalog;
+        private readonly UiTextCatalog _ui;
         private readonly int _championId;
         private readonly string _group;
         private readonly LeagueChampionRunePreset _original;
@@ -22,13 +24,14 @@ namespace FACM.League
         internal LeagueChampionRunePreset Preset { get; private set; }
 
         internal LeagueRunePresetEditorForm(LeagueRuneCatalog catalog, int championId,
-            string championName, string group, LeagueChampionRunePreset original)
+            string championName, string group, LeagueChampionRunePreset original, UiTextCatalog ui)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+            _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _championId = championId;
             _group = group;
             _original = original;
-            Text = "编辑英雄符文 · " + (string.IsNullOrWhiteSpace(championName) ? championId.ToString() : championName);
+            Text = T(LeagueChampionSpellPresetUiTextKeys.EditorTitle) + (string.IsNullOrWhiteSpace(championName) ? championId.ToString() : championName);
             StartPosition = FormStartPosition.CenterParent;
             ClientSize = new Size(660, 590);
             MinimumSize = new Size(580, 480);
@@ -45,8 +48,17 @@ namespace FACM.League
             table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             var labels = new[]
             {
-                "主系", "副系", "基石符文", "主系第一行", "主系第二行", "主系第三行",
-                "副系符文一", "副系符文二", "属性碎片一", "属性碎片二", "属性碎片三"
+                T(LeagueChampionSpellPresetUiTextKeys.PrimaryStyle),
+                T(LeagueChampionSpellPresetUiTextKeys.SecondaryStyle),
+                T(LeagueChampionSpellPresetUiTextKeys.Keystone),
+                T(LeagueChampionSpellPresetUiTextKeys.PrimaryRow1),
+                T(LeagueChampionSpellPresetUiTextKeys.PrimaryRow2),
+                T(LeagueChampionSpellPresetUiTextKeys.PrimaryRow3),
+                T(LeagueChampionSpellPresetUiTextKeys.SecondaryRow1),
+                T(LeagueChampionSpellPresetUiTextKeys.SecondaryRow2),
+                T(LeagueChampionSpellPresetUiTextKeys.StatRow1),
+                T(LeagueChampionSpellPresetUiTextKeys.StatRow2),
+                T(LeagueChampionSpellPresetUiTextKeys.StatRow3)
             };
             AddRow(table, 0, labels[0], _primary);
             AddRow(table, 1, labels[1], _secondary);
@@ -58,7 +70,7 @@ namespace FACM.League
             }
             var note = new Label
             {
-                Text = "从当前游戏客户端读取可用符文。副系必须选不同的两行；保存只修改本地预设，不立即写入游戏。",
+                Text = T(LeagueChampionSpellPresetUiTextKeys.EditorHint),
                 AutoSize = true, ForeColor = FacmDesignSystem.TextMuted, Margin = new Padding(4, 10, 0, 8)
             };
             table.Controls.Add(note, 0, 11);
@@ -72,7 +84,7 @@ namespace FACM.League
                 Dock = DockStyle.Bottom, FlowDirection = FlowDirection.RightToLeft,
                 Height = 55, Padding = new Padding(10), BackColor = FacmDesignSystem.Surface
             };
-            _save.Text = "保存符文";
+            _save.Text = T(LeagueChampionSpellPresetUiTextKeys.EditorSave);
             _save.Width = 110;
             _save.Height = 32;
             _save.Click += delegate
@@ -83,7 +95,7 @@ namespace FACM.League
                 DialogResult = DialogResult.OK;
                 Close();
             };
-            var cancel = new Button { Text = "取消", Width = 90, Height = 32, DialogResult = DialogResult.Cancel };
+            var cancel = new Button { Text = T(LeagueChampionSpellPresetUiTextKeys.EditorCancel), Width = 90, Height = 32, DialogResult = DialogResult.Cancel };
             actions.Controls.Add(_save);
             actions.Controls.Add(cancel);
             Controls.Add(table);
@@ -208,6 +220,11 @@ namespace FACM.League
         private void UpdateSave()
         {
             if (!_updating) _save.Enabled = _catalog.Valid(BuildPreset());
+        }
+
+        private string T(string key)
+        {
+            return LeagueAdvisorText.Get(_ui, key);
         }
     }
 }

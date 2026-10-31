@@ -274,7 +274,7 @@ namespace FACM.League
                     expected.QueueId, expected.Mode, expected.Position, expected.GameMode, expected.QueueType);
                 var existing = _autoController.FindRunePreset(expected);
                 using (var editor = new LeagueRunePresetEditorForm(
-                    catalog, expected.ChampionId, expected.ChampionName, group, existing))
+                    catalog, expected.ChampionId, expected.ChampionName, group, existing, _ui))
                 {
                     if (editor.ShowDialog(this) != DialogResult.OK) return;
                     if (!await _applyService.ValidatePresetContextAsync(expected, _lifetime.Token))
