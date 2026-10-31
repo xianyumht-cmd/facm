@@ -444,6 +444,8 @@ namespace FACM.League
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 75);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 180);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 95);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 85);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells), 95);
                 eogRows.Columns.Add("K/D/A", 95);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 105);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 90);
@@ -477,8 +479,15 @@ namespace FACM.League
                         }
                         foreach (var group in data.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key))
                         {
+                            var complete = group.All(p => p.Kills.HasValue && p.Deaths.HasValue &&
+                                p.Assists.HasValue);
+                            var totals = complete ? " · K/D/A " +
+                                group.Sum(p => (long)p.Kills.Value).ToString() + "/" +
+                                group.Sum(p => (long)p.Deaths.Value).ToString() + "/" +
+                                group.Sum(p => (long)p.Assists.Value).ToString() : string.Empty;
                             var team = new ListViewGroup(
-                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam) + " " + group.Key);
+                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam) +
+                                " " + group.Key + totals);
                             eogRows.Groups.Add(team);
                             foreach (var player in group)
                             {
@@ -495,7 +504,10 @@ namespace FACM.League
                                     "/" + number(player.Assists);
                                 var item = new ListViewItem(new[] { player.TeamId.ToString(),
                                     string.IsNullOrWhiteSpace(player.Name) ? "—" : player.Name,
-                                    championName, kda, number(player.Damage), number(player.Gold),
+                                    championName, string.IsNullOrWhiteSpace(player.Position) ? "—" : player.Position,
+                                    player.Spell1Id > 0 && player.Spell2Id > 0
+                                        ? player.Spell1Id.ToString() + " / " + player.Spell2Id.ToString() : "—",
+                                    kda, number(player.Damage), number(player.Gold),
                                     number(cs), number(player.Vision),
                                     player.Win.HasValue ? (player.Win.Value
                                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)

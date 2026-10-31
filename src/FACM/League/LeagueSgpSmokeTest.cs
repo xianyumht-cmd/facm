@@ -137,7 +137,8 @@ namespace FACM.League
                 ""queueId"":420,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
                 ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
                     ""teamId"":100,""championId"":12,""riotIdGameName"":""Local"",
-                    ""riotIdTagLine"":""CN1"",""statistics"":[
+                    ""riotIdTagLine"":""CN1"",""spell1Id"":4,""spell2Id"":14,
+                    ""detectedTeamPosition"":""MIDDLE"",""statistics"":[
                         {""statTypeName"":""CHAMPIONS_KILLED"",""value"":5},
                         {""statTypeName"":""NUM_DEATHS"",""value"":2},
                         {""statTypeName"":""ASSISTS"",""value"":8},
@@ -147,7 +148,9 @@ namespace FACM.League
             var parsed = LeagueSgpEogProjection.Parse(fixture, 601, "local-puuid");
             Require(parsed != null && parsed.Players.Count == 2 &&
                 parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
-                parsed.Players[0].Win == true && !parsed.Players[0].Damage.HasValue &&
+                parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
+                parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
+                !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
             Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&

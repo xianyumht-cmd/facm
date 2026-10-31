@@ -140,7 +140,8 @@ namespace FACM.League
             object value;
             if (!row.TryGetValue(key, out value)) return null;
             var text = value as string;
-            if (string.IsNullOrWhiteSpace(text) || text.Length > 80 ||
+            if (string.IsNullOrWhiteSpace(text) ||
+                text.Length > (key == "puuid" ? 128 : 80) ||
                 text.Any(char.IsControl)) return null;
             return text.Trim();
         }
