@@ -80,7 +80,7 @@ namespace FACM.League
 
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                deadline.CancelAfter(TimeSpan.FromSeconds(allowSgpFallback ? 16 : 8));
+                deadline.CancelAfter(TimeSpan.FromSeconds(8));
                 try
                 {
                     var own = await _players.LoadProfileAsync(true, deadline.Token).ConfigureAwait(false);
@@ -98,21 +98,25 @@ namespace FACM.League
                     {
                         if (CanUseEogOnlyFallback(initial, serverId, allowSgpFallback))
                         {
-                            var eog = await _players.LoadSgpEogAsync(record.SelfPuuid,
-                                record.Puuid, record.GameId, initial, deadline.Token).ConfigureAwait(false);
-                            if (!IsSameSession(initial)) return Result(LeagueEncounterMatchDetailStatus.NoClient);
-                            if (eog != null && eog.GameId == record.GameId && eog.Players != null &&
-                                eog.Players.Count > 0)
-                                return new LeagueEncounterMatchDetailResult
-                                {
-                                    Status = LeagueEncounterMatchDetailStatus.Ready,
-                                    Match = new LeaguePlayerMatchSummary { GameId = record.GameId,
-                                        GameMode = eog.GameMode, QueueId = eog.QueueId,
-                                        DataSource = LeaguePlayerHistorySource.Sgp,
-                                        SgpServerId = LeagueSgpMatchHistoryApiClient.CurrentServerId(initial) },
-                                    EogOnly = eog,
-                                    IsCurrentSession = () => IsSameSession(initial)
-                                };
+                            using (var fallbackDeadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+                            {
+                                fallbackDeadline.CancelAfter(TimeSpan.FromSeconds(8));
+                                var eog = await _players.LoadSgpEogAsync(record.SelfPuuid,
+                                    record.Puuid, record.GameId, initial, fallbackDeadline.Token).ConfigureAwait(false);
+                                if (!IsSameSession(initial)) return Result(LeagueEncounterMatchDetailStatus.NoClient);
+                                if (eog != null && eog.GameId == record.GameId && eog.Players != null &&
+                                    eog.Players.Count > 0)
+                                    return new LeagueEncounterMatchDetailResult
+                                    {
+                                        Status = LeagueEncounterMatchDetailStatus.Ready,
+                                        Match = new LeaguePlayerMatchSummary { GameId = record.GameId,
+                                            GameMode = eog.GameMode, QueueId = eog.QueueId,
+                                            DataSource = LeaguePlayerHistorySource.Sgp,
+                                            SgpServerId = LeagueSgpMatchHistoryApiClient.CurrentServerId(initial) },
+                                        EogOnly = eog,
+                                        IsCurrentSession = () => IsSameSession(initial)
+                                    };
+                            }
                         }
                         return Result(LeagueEncounterMatchDetailStatus.Unavailable);
                     }
