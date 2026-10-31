@@ -89,6 +89,8 @@ namespace FACM.League
             {
                 if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
                 _lastAttempt = DateTime.UtcNow;
+                // Resolve trusted new SGP platforms before validating server-scoped groups.
+                await LeagueSgpServerCatalog.TryRefreshAsync(token).ConfigureAwait(false);
                 var bytes = await LeaguePublicDataTransport.TryGetBytesAsync(
                     CatalogUrl, TimeSpan.FromSeconds(4), token).ConfigureAwait(false);
                 return TryApply(bytes);
