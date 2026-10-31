@@ -701,6 +701,8 @@ namespace FACM.League
             var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var jungleAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var jungleSamples = new List<LeagueJungleHistorySample>();
+            var earlyAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var earlySamples = new List<LeagueEarlyJungleDeathSample>();
             Task pending = Task.CompletedTask;
             using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(parentToken))
             using (var dialog = new Form {
@@ -848,6 +850,13 @@ namespace FACM.League
                 tabs.TabPages.Add(comparisonTab);
                 tabs.TabPages.Add(masteryTab);
                 tabs.TabPages.Add(jungleTab);
+                var earlyTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleTitle));
+                var earlyReport = new TextBox { Dock = DockStyle.Fill, Multiline = true,
+                    ReadOnly = true, ScrollBars = ScrollBars.Vertical, BorderStyle = BorderStyle.None,
+                    BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                    Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleScope) };
+                earlyTab.Controls.Add(earlyReport);
+                tabs.TabPages.Add(earlyTab);
                 dialog.Controls.Add(tabs);
                 comparison.RefreshData(snapshot);
                 overview.RefreshData(snapshot);
@@ -1011,6 +1020,16 @@ namespace FACM.League
                                 " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
                         selector.SelectedIndex = 0;
                     };
+                    Action refreshEarly = () =>
+                    {
+                        var championId = selector.SelectedIndex > 0 &&
+                            selector.SelectedIndex <= a.AllChampions.Count
+                            ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
+                        earlyReport.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleScope) +
+                            Environment.NewLine + Environment.NewLine +
+                            LeagueEarlyJungleDeathAnalysis.Report(ui, earlySamples, snapshot,
+                                targetPuuid, earlyAttempted, championId);
+                    };
                     Action<int> selectHero = championId =>
                     {
                         var index = championId <= 0 ? -1 :
@@ -1126,6 +1145,7 @@ namespace FACM.League
                                         role.Kills, role.Deaths, role.Assists));
                             }
                         }
+                        refreshEarly();
                         report.Text = string.Join(Environment.NewLine, updated);
                         report.SelectionStart = 0;
                         report.ScrollToCaret();
@@ -1147,6 +1167,8 @@ namespace FACM.League
                         Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrate) };
                     var loadJungle = new Button { AutoSize = true,
                         Text = ui.Get(UiTextKeys.LeagueJungleHistoryLoad) };
+                    var loadEarly = new Button { AutoSize = true,
+                        Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleLoad) };
                     var stop = new Button { AutoSize = true, Enabled = false,
                         Text = ui.Get(UiTextKeys.LeaguePlayerCollectStop) };
                     var status = new Label { AutoSize = true, MaximumSize = new Size(460, 0),
@@ -1161,10 +1183,13 @@ namespace FACM.League
                         loadJungle.Enabled = !stale && service != null && session != null && operation == null &&
                             LeagueJungleHistoryAnalysis.PendingBatch(snapshot, targetPuuid,
                                 jungleAttempted, jungleSamples.Count).Count > 0;
+                        loadEarly.Enabled = !stale && service != null && session != null && operation == null &&
+                            LeagueEarlyJungleDeathAnalysis.PendingBatch(snapshot, targetPuuid,
+                                earlyAttempted, earlySamples.Count).Count > 0;
                     };
                     Func<Task> hydrateAsync = async () =>
                     {
-                        hydrate.Enabled = false; loadJungle.Enabled = false;
+                        hydrate.Enabled = false; loadJungle.Enabled = false; loadEarly.Enabled = false;
                         stop.Enabled = true;
                         operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                         status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrating);
@@ -1176,6 +1201,7 @@ namespace FACM.League
                             attempted.UnionWith(result.Attempted);
                             snapshot = result.Matches;
                             stale = result.AccountChanged;
+                            if (stale) { earlySamples.Clear(); earlyAttempted.Clear(); }
                             var previousChampionId = selector.SelectedIndex > 0 &&
                                 selector.SelectedIndex <= a.AllChampions.Count
                                 ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
@@ -1190,6 +1216,7 @@ namespace FACM.League
                                 if (index >= 0) selector.SelectedIndex = index + 1;
                             }
                             rebuildJungleSelector();
+                            refreshEarly();
                             status.Text = stale ? ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged) :
                                 string.Format(CultureInfo.CurrentCulture,
                                     ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrated),
@@ -1216,7 +1243,7 @@ namespace FACM.League
                     };
                     Func<Task> jungleAsync = async () =>
                     {
-                        hydrate.Enabled = false; loadJungle.Enabled = false;
+                        hydrate.Enabled = false; loadJungle.Enabled = false; loadEarly.Enabled = false;
                         stop.Enabled = true;
                         operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
                         status.Text = ui.Get(UiTextKeys.LeagueJungleHistoryLoading);
@@ -1266,6 +1293,61 @@ namespace FACM.League
                             }
                         }
                     };
+                    Func<Task> earlyAsync = async () =>
+                    {
+                        hydrate.Enabled = false; loadJungle.Enabled = false; loadEarly.Enabled = false;
+                        stop.Enabled = true;
+                        operation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+                        status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleLoading);
+                        using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(operation.Token))
+                        {
+                            deadline.CancelAfter(TimeSpan.FromSeconds(48));
+                            try
+                            {
+                                foreach (var match in LeagueEarlyJungleDeathAnalysis.PendingBatch(
+                                    snapshot, targetPuuid, earlyAttempted, earlySamples.Count))
+                                {
+                                    if (earlySamples.Count >= LeagueEarlyJungleDeathAnalysis.MaximumSamples) break;
+                                    deadline.Token.ThrowIfCancellationRequested();
+                                    var timeline = await service.LoadMatchTimelineAsync(selfPuuid, match,
+                                        deadline.Token, session);
+                                    if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
+                                    deadline.Token.ThrowIfCancellationRequested();
+                                    earlyAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                                    var deaths = LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match);
+                                    if (deaths.HasValue)
+                                        earlySamples.Add(new LeagueEarlyJungleDeathSample {
+                                            Match = match, Deaths = deaths.Value });
+                                }
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                {
+                                    refreshEarly();
+                                    status.Text = string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleDone),
+                                        earlySamples.Count, earlyAttempted.Count);
+                                }
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    status.Text = deadline.IsCancellationRequested && !operation.IsCancellationRequested ?
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateTimeout) :
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateStopped);
+                            }
+                            catch (Exception)
+                            {
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    status.Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHydrateFailed);
+                            }
+                            finally
+                            {
+                                operation.Dispose();
+                                operation = null;
+                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                { stop.Enabled = false; refreshAction(); }
+                            }
+                        }
+                    };
                     hydrate.Click += (sender, args) => { if (operation == null) pending = hydrateAsync(); };
                     loadJungle.Click += (sender, args) =>
                     {
@@ -1273,14 +1355,22 @@ namespace FACM.League
                         tabs.SelectedTab = jungleTab;
                         pending = jungleAsync();
                     };
+                    loadEarly.Click += (sender, args) =>
+                    {
+                        if (operation != null) return;
+                        tabs.SelectedTab = earlyTab;
+                        pending = earlyAsync();
+                    };
                     stop.Click += (sender, args) => operation?.Cancel();
                     dialog.FormClosed += (sender, args) => lifetime.Cancel();
                     actions.Controls.Add(hydrate);
                     actions.Controls.Add(loadJungle);
+                    actions.Controls.Add(loadEarly);
                     actions.Controls.Add(stop);
                     actions.Controls.Add(status);
                     dialog.Controls.Add(actions);
                     actions.BringToFront();
+                    refreshEarly();
                     refreshAction();
                 }
                 dialog.ShowDialog(owner);

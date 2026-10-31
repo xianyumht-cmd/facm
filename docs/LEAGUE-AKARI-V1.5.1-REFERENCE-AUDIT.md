@@ -1,3 +1,9 @@
+## 2026-11-01 — Early enemy-jungler involvement source parity
+
+Pinned upstream `14557723706ccc0e0a9d62c470141d4cb7190fcd` `src/shared/data-adapter/analysis/player/single/early-deaths.ts`, `aggregate/details.ts`, `utils/geometry.ts`, and `constants.ts` use an inclusive 900000 ms window, enemy jungler by position or Smite, and mean over only known samples. Native `LeagueEarlyJungleDeathAnalysis` follows these semantics with stricter full-roster/source checks, on-demand phase/account-fenced existing timeline reads, 8-per-batch and 40-sample bounds, and native overall/hero reporting. Source candidate is not marked CI verified until four Windows gates pass. Live Tencent response variation is untested.
+
+---
+
 ## 2026-11-01 — Player aggregated spells, team side and active session source audit
 
 Pinned upstream Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`: `src/shared/data-adapter/analysis/player/aggregate/{spells,team-side,win-loss}.ts` and `constants.ts`. The source counts Flash ID 4 independently on spell slots D/F, blue TEAM-100 and red TEAM-200, and active-session wins/losses with a latest-game end within 4 hours and adjacent game-start gap at most 8 hours. Native executable [8c95a2f](https://github.com/xianyumht-cmd/facm/commit/8c95a2fa39fba8afd9d54671661b092bfaf7719a) adds these projections with explicit source coverage, deduplicated win/loss sample filtering, timestamp bounds and PUUID/SGP-server separation. Both overall and champion-scoped reports expose counts, and the champion overview/comparison exposes evidenced ratios (34 total comparison metrics). No extra API calls, polling or network owner.

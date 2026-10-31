@@ -1,3 +1,16 @@
+## 2026-11-01 — Native non-jungler early enemy-jungler death analysis (Draft #357)
+
+Pinned Akari v1.5.1 single/early-deaths and aggregate/details: new on-demand native analysis tab counts a non-jungler's deaths in the first 15 minutes where an identified enemy jungler killed or assisted. Full ten-player roster, Classic Rift, target PUUID, original SGP/LCU provenance and current session are required. Enemy jungler is resolved by position, falling back to Smite. A missing timeline is unknown, not zero. Manual 8-match batches cap at 40 successful samples and 48 seconds per operation, using the existing account-fenced timeline owner. Overall and selected-hero reports expose mean, total and attempted/eligible coverage. Synthetic tests exercise cutoff, assist, Smite fallback, unknowns, malformed roster, duplicate keys and source separation.
+
+| Source area | Status | Remaining |
+| --- | --- | --- |
+| Non-jungler early enemy-jungler death analysis | Implemented in source candidate; Windows CI pending | Live Tencent timeline formats and final acceptance |
+| Remaining player/champion analysis and replay | Partial | Additional option-by-option source audit, replay variants |
+| International SGP enrollment and cloud 256-row | Partial/unverified | Trusted new-region provider, real cloud capacity |
+| Tencent CN / Windows 10 DPI | Not tested | Single consolidated owner acceptance |
+
+---
+
 ## 2026-11-01 — Source-pinned player preference and active-session analysis (Draft #357)
 
 **Final executable/test SHA:** [8c95a2f](https://github.com/xianyumht-cmd/facm/commit/8c95a2fa39fba8afd9d54671661b092bfaf7719a). Three connected native source modules are now wired through player report, per-champion report, overview and comparison:
