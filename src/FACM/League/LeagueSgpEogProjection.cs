@@ -152,7 +152,7 @@ namespace FACM.League
         internal static IReadOnlyList<LeagueSgpEogTeamSummary> SummarizeTeams(LeagueSgpEogResult match)
         {
             if (match == null || match.Players == null || match.Players.Count == 0 ||
-                match.Players.Any(p => p == null)) return Array.Empty<LeagueSgpEogTeamSummary>();
+                match.Players.Any(p => p == null)) return System.Array.Empty<LeagueSgpEogTeamSummary>();
             return match.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key)
                 .Select(group =>
                 {
