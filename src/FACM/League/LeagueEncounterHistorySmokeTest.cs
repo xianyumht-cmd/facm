@@ -1,0 +1,2009 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.Performance;
+using FACM.Theming;
+
+namespace FACM.League
+{
+    internal static class LeagueEncounterHistorySmokeTest
+    {
+        internal static void Validate()
+        {
+            Require(FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/v1/items/3006.png") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "https://example.invalid/icon.png") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/../../client-config") &&
+                !FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    "lcu:/lol-game-data/assets/%2e%2e/secret"),
+                "Encountered-match icon loading must be restricted to safe local game-data paths.");
+            ValidateMatchDetailAsync().GetAwaiter().GetResult();
+            ValidateEogOnlyDetailAsync().GetAwaiter().GetResult();
+            ValidateCardPresentation();
+            var availableIcons = new HashSet<int> { 4, 5, 6 };
+            Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { 1, 2, 3, 4, 4, 5, 6 }, availableIcons.Contains, 2)
+                    .SequenceEqual(new[] { 4, 5 }) &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { -1, 0, 4, 6 }, availableIcons.Contains, 2)
+                    .SequenceEqual(new[] { 4, 6 }) &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    null, availableIcons.Contains, 2).Count == 0 &&
+                LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
+                    new[] { 4 }, availableIcons.Contains, 0).Count == 0,
+                "Invalid catalog IDs must not consume the bounded row icon request budget.");
+
+            ValidateReplayAsync().GetAwaiter().GetResult();
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
+            var game = new LeagueLiveSnapshot();
+            new LeagueLiveDataService(new StubClient(), new PerformanceBudgetProvider()).ApplyCurrentGame(game,
+                Encoding.UTF8.GetBytes("{\"phase\":\"InProgress\",\"gameData\":{\"gameId\":12345," +
+                    "\"queue\":{\"id\":450,\"type\":\"ARAM\"},\"teamOne\":[{\"puuid\":\"self\"},{\"puuid\":\"ally\"}]," +
+                    "\"teamTwo\":[{\"puuid\":\"enemy\"}]}}"));
+            var capture = LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" });
+            Require(capture != null && capture.GameId == 12345 && capture.Participants.Length == 3 &&
+                capture.QueueType == "ARAM", "Encountered-game queue type must match the authenticated gameflow session.");
+            game.QueueType = null;
+            Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" }).QueueType == "queue-450",
+                "Older gameflow payloads without queue.type should preserve the bounded fallback.");
+            game.QueueType = "ARAM";
+            Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "stranger" }) == null,
+                "Encounter projection must not record a game without the signed-in player.");
+            game.Phase = "EndOfGame";
+            Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" }) == null,
+                "A stale end-game roster must not be mistaken for an in-progress match capture.");
+            game.Phase = "InProgress";
+            game.Players.Add(new LeagueLivePlayerRow { PuuId = "enemy" });
+            Require(LeagueEncounterCapture.Project(session, game, new LeaguePlayerProfile { PuuId = "self" }) == null,
+                "Duplicated roster identities must not be recorded.");
+            game.Players.RemoveAt(game.Players.Count - 1);
+
+            var directory = Path.Combine(Path.GetTempPath(), "ggman-encounters-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new LeagueEncounterHistoryStore(directory);
+                Require(store.ReadPlayer("self", "enemy", "HN1", "HN1").Count == 0,
+                    "Fresh encounter storage should be empty.");
+                Require(store.SaveGame(capture.GameId, capture.SelfPuuid, capture.Region,
+                    capture.PlatformId, capture.QueueType, capture.Participants) == 2,
+                    "The first game must record each other player exactly once.");
+                Require(store.SaveGame(capture.GameId, capture.SelfPuuid, capture.Region,
+                    capture.PlatformId, capture.QueueType, capture.Participants) == 0,
+                    "Replayed EndOfGame events must not duplicate a game.");
+                var reloaded = new LeagueEncounterHistoryStore(directory);
+                Require(reloaded.ReadPlayer("self", "enemy", "HN1", "HN1").Single().GameId == 12345 &&
+                    reloaded.ReadPlayer("self", "enemy", "HN2", "HN1").Count == 0 &&
+                    reloaded.ReadPlayer("different-self", "enemy", "HN1", "HN1").Count == 0 &&
+                    reloaded.ReadPlayer("self", "enemy", "HN1", "HN2").Count == 0,
+                    "Historical encounters must persist and remain scoped to the owning player and platform.");
+                Require(reloaded.DeleteGame(12345, "self", "enemy", "HN1", "HN1") &&
+                    reloaded.ReadPlayer("self", "enemy", "HN1", "HN1").Count == 0 &&
+                    reloaded.ReadPlayer("self", "ally", "HN1", "HN1").Count == 1,
+                    "Deleting one player's encounter must not remove another player's record.");
+                Require(reloaded.SaveGame(12346, "self", "HN1", "HN1", "CLASSIC", new[] { "self", "enemy" }) == 1 &&
+                    reloaded.SaveGame(12347, "self", "HN1", "HN1", "ARAM", new[] { "self", "enemy" }) == 1 &&
+                    reloaded.SaveGame(12348, "self", "HN1", "HN1", "ARAM", new[] { "self", "enemy" }) == 1,
+                    "Encounter query fixture could not write all games.");
+                var page1 = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 2);
+                var page2 = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 2, 2);
+                Require(page1.Total == 3 && page1.Records.Select(p => p.GameId).SequenceEqual(new long[] { 12348, 12347 }) &&
+                    page2.Total == 3 && page2.Records.Single().GameId == 12346,
+                    "Encountered-game paging or newest-first ordering differs from the source query.");
+                var filtered = reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "ARAM", false);
+                Require(filtered.Total == 2 && filtered.Records.Select(p => p.GameId).SequenceEqual(new long[] { 12347, 12348 }) &&
+                    reloaded.QueryPlayer("self", "enemy", "HN1", "HN1", 1, 20, "AR").Total == 0 &&
+                    reloaded.QueryPlayer("other", "enemy", "HN1", "HN1").Total == 0,
+                    "Encountered-game filters must be exact and remain scoped to the signed-in account.");
+                Require(!reloaded.DeleteGame(12348, "other", "enemy", "HN1", "HN1") &&
+                    !reloaded.DeleteGame(12348, "self", "enemy", "HN2", "HN1") &&
+                    !reloaded.DeleteGame(12348, "self", "enemy", "HN1", "HN2") &&
+                    reloaded.QueryPlayer("self", "enemy", "HN1", "HN1").Total == 3,
+                    "History deletion from an offline saved-player view must remain exact-account and exact-region scoped.");
+                var tagUpdated = DateTime.UtcNow;
+                var overview = LeagueSavedPlayerOverview.Build(new[]
+                {
+                    new LeaguePlayerTagRecord { SelfPuuid = "self", Puuid = "enemy", Region = "hn1",
+                        PlatformId = "hn1", Tag = "known", UpdatedUtc = tagUpdated },
+                    new LeaguePlayerTagRecord { SelfPuuid = "other", Puuid = "enemy", Region = "HN1",
+                        PlatformId = "HN1", Tag = "different owner", UpdatedUtc = DateTime.UtcNow },
+                    new LeaguePlayerTagRecord { SelfPuuid = "self", Puuid = "enemy", Region = "HN2",
+                        PlatformId = "HN2", Tag = "different region", UpdatedUtc = DateTime.UtcNow },
+                    new LeaguePlayerTagRecord { SelfPuuid = "self", Puuid = "tag-only", Region = "HN1",
+                        PlatformId = "HN1", Tag = "no encounters", UpdatedUtc = DateTime.UtcNow }
+                }, reloaded.ReadAll());
+                Require(overview.Count == 5 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
+                    .EncounterCount == 3 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
+                    .Tag == "known" && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN1")
+                    .TagUpdatedUtc == tagUpdated && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "self" && p.Region == "HN2")
+                    .EncounterCount == 0 && overview.Single(p => p.Puuid == "enemy" && p.SelfPuuid == "other")
+                    .EncounterCount == 0 && overview.Single(p => p.Puuid == "ally").EncounterCount == 1 &&
+                    overview.Single(p => p.Puuid == "tag-only").LastMetUtc == null,
+                    "Saved-player index must include untagged encounters and isolated tag-only records.");
+                var copied = reloaded.ReadAll().First();
+                copied.Puuid = "modified";
+                Require(reloaded.ReadAll().All(p => p.Puuid != "modified"),
+                    "Saved-player overview must not expose mutable local-store state.");
+                bool rejected = false;
+                try { reloaded.SaveGame(99, "self", "HN1", "HN1", "queue-450", new[] { "ally", "enemy" }); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "An unrelated roster cannot be credited to the signed-in player.");
+                var path = Path.Combine(directory, "league-encounters.json");
+                File.WriteAllText(path, "{invalid encounter file", Encoding.UTF8);
+                rejected = false;
+                try { reloaded.SaveGame(888, "self", "HN1", "HN1", "queue-450", new[] { "self", "enemy" }); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected && File.ReadAllText(path, Encoding.UTF8).Contains("invalid encounter file"),
+                    "Invalid encounter storage must fail closed without overwriting the damaged file.");
+            }
+            finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        }
+
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private static void ValidateCardPresentation()
+        {
+            var runner = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                PlayerSubteamId = 2, SubteamPlacement = 2, IsTarget = true };
+            var winner = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                PlayerSubteamId = 1, SubteamPlacement = 1 };
+            var teammate = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 100,
+                PlayerSubteamId = 2, SubteamPlacement = 2 };
+            var unassigned = new LeaguePlayerMatchParticipant { ParticipantId = 4, TeamId = 100 };
+            var otherSide = new LeaguePlayerMatchParticipant { ParticipantId = 5, TeamId = 200 };
+            var groups = new[] {
+                new LeagueMatchTeamScore { TeamId = 2, IsCherry = true, SubteamPlacement = 2 },
+                new LeagueMatchTeamScore { TeamId = 1, IsCherry = true, SubteamPlacement = 1 }
+            };
+            var participants = new[] { runner, unassigned, teammate, winner };
+            Require(LeagueEncounterMatchScoreboardDialog.OrderedScoreboardTeams(groups, true)
+                    .Select(team => team.TeamId).SequenceEqual(new[] { 1, 2 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(participants, groups, true)
+                    .Select(player => player.ParticipantId).SequenceEqual(new[] { 2, 1, 3, 4 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(
+                    new[] { runner, winner, otherSide }, null, true)
+                    .Select(player => player.ParticipantId).SequenceEqual(new[] { 1, 2, 5 }),
+                "Cherry cards and rows must order verified placements together, retain teammate identity " +
+                "and leave missing subteam identity unassigned without dropping any player.");
+            var ambiguousGroups = new[] {
+                new LeagueMatchTeamScore { TeamId = 2, IsCherry = true, SubteamPlacement = null },
+                new LeagueMatchTeamScore { TeamId = 1, IsCherry = true, SubteamPlacement = 1 }
+            };
+            Require(LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(participants,
+                    ambiguousGroups, true).Select(player => player.ParticipantId)
+                        .SequenceEqual(new[] { 2, 1, 3, 4 }) &&
+                LeagueEncounterMatchScoreboardDialog.OrderScoreboardParticipants(
+                    new[] { otherSide, winner, runner }, new[] {
+                        new LeagueMatchTeamScore { TeamId = 200 },
+                        new LeagueMatchTeamScore { TeamId = 100 }
+                    }, false).Select(player => player.ParticipantId).SequenceEqual(new[] { 2, 1, 5 }),
+                "Unknown Cherry placements must sort last, while ordinary teams retain red/blue membership.");
+            Func<string, string> t = key => LeagueEfficiencyText.Get(null, key);
+            var ratesPlayer = new LeaguePlayerMatchParticipant {
+                TeamId = 100, PlayerSubteamId = 2, Kills = 4, Deaths = 0, Assists = 6,
+                CreepScore = 120, CreepScoreAvailable = true,
+                DamageToChampions = 5000, DamageAvailable = true,
+                GoldEarned = 10000, GoldAvailable = true
+            };
+            var ratesTeams = new[] {
+                new LeagueMatchTeamScore { TeamId = 100, Kills = 20, DamageToChampions = 40000 },
+                new LeagueMatchTeamScore { TeamId = 2, Kills = 10, DamageToChampions = 20000 }
+            };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, true, 1200, t) ==
+                        "KDA 10.00 · 参团率 100% · 伤害占比 25%\r\n补刀/分 6.0 · 金币/分 500.0" &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, false, 1200, t).Contains("参团率 50% · 伤害占比 13%"),
+                "MatchCard rates must use Akari's deaths=0 fallback and Cherry subteam, not red/blue team totals.");
+            var sparsePlayer = new LeaguePlayerMatchParticipant { TeamId = 100, Kills = 1, Assists = 1 };
+            var sparseRates = LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                sparsePlayer, null, false, 0, t);
+            Require(sparseRates.Contains("KDA 2.00 · 参团率 — · 伤害占比 —") &&
+                sparseRates.Contains("补刀/分 — · 金币/分 —") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(
+                    ratesPlayer, ratesTeams, true, 0, t).Contains("补刀/分 — · 金币/分 —"),
+                "Unavailable roster, stats and duration must not appear as measured zeroes.");
+            var zeroPlayer = new LeaguePlayerMatchParticipant { TeamId = 100, CreepScoreAvailable = true,
+                GoldAvailable = true, DamageAvailable = true };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(zeroPlayer,
+                    new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
+                    false, 600, t).Contains("参团率 0% · 伤害占比 0%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRates(zeroPlayer,
+                    new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 0, DamageToChampions = 0 } },
+                    false, 600, t).Contains("补刀/分 0.0 · 金币/分 0.0"),
+                "Explicitly verified zero values must remain distinguishable from unknown fields.");
+            Require(LeagueEncounterMatchScoreboardDialog.MatchCardColumns(600) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardColumns(800) == 2 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardColumns(1200) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(600) >= 260 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(800) >= 260 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardWidth(1200) >= 260,
+                "MatchCard cards must reflow from one to three columns without negative or clipped widths.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("MIDDLE") == "MID" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition(" jungle ") == "JG" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("UTILITY") == "SUP" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition("UNKNOWN") == null &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardPosition(null) == null,
+                "Only verified SGP lane positions may be shown on participant cards.");
+            Require(LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 3, Keys.Right) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(2, 10, 3, Keys.Right) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Left) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Up) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(4, 10, 3, Keys.Down) == 7 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(8, 10, 3, Keys.Down) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 1, Keys.Right) == -1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 10, 1, Keys.Down) == 1 &&
+                LeagueEncounterMatchScoreboardDialog.MatchCardNavigationTarget(0, 0, 3, Keys.Down) == -1,
+                "Keyboard card navigation must respect actual responsive columns and incomplete last rows.");
+            using (var surface = new Bitmap(48, 48))
+            using (var portrait = new Bitmap(2, 2))
+            using (var canvas = Graphics.FromImage(surface))
+            using (var portraitCanvas = Graphics.FromImage(portrait))
+            {
+                portraitCanvas.Clear(Color.CornflowerBlue);
+                var icons = new Dictionary<int, Bitmap> { { 42, portrait } };
+                Require(LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 42, icons, Color.White, Color.Black) &&
+                    surface.GetPixel(12, 12).ToArgb() == Color.CornflowerBlue.ToArgb() &&
+                    !LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 43, icons, Color.White, Color.Black) &&
+                    !LeagueEncounterMatchScoreboardDialog.DrawMatchCardChampionPortrait(
+                        canvas, new Rectangle(4, 4, 40, 40), 0, null, Color.White, Color.Black),
+                    "MatchCard portraits must draw cached champion images and retain ID/unknown fallback.");
+            }
+            var cardMetrics = LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(
+                new LeaguePlayerMatchParticipant { DamageAvailable = true, DamageToChampions = 5000,
+                    TotalHeal = 0, GoldAvailable = true, GoldEarned = 10000 }, t);
+            Require(cardMetrics == "英雄伤害 5,000 · 治疗 0 · 金币 10,000" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(
+                    new LeaguePlayerMatchParticipant(), t) == "英雄伤害 — · 治疗 — · 金币 —" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchCardMetrics(null, t) ==
+                    "英雄伤害 — · 治疗 — · 金币 —",
+                "Cards must expose damage/healing/economy without inventing missing values or hiding zero.");
+            var streaks = new LeaguePlayerMatchParticipant { DoubleKills = 6, TripleKills = 3,
+                QuadraKills = 2, PentaKills = 1 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 四杀 · 三杀 · 双杀 ×3\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(
+                    new LeaguePlayerMatchParticipant { DoubleKills = 2, TripleKills = 0,
+                        QuadraKills = 0, PentaKills = 0 }, t) == "连杀表现：双杀 ×2\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(
+                    new LeaguePlayerMatchParticipant(), t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(null, t) == string.Empty,
+                "Source-cumulative multikills must be de-duplicated and absent tags omitted.");
+            streaks.PentaKills = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：三杀 · 双杀 ×3\r\n",
+                "A missing higher streak count must not be interpreted as a known zero.");
+            streaks.PentaKills = 1;
+            streaks.DoubleKills = 1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 四杀 · 三杀\r\n",
+                "Contradictory cumulative counts must not fabricate a negative or extra lower streak tag.");
+            streaks.DoubleKills = 200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMultikillTags(streaks, t) ==
+                    "连杀表现：五杀 · 双杀 ×197 · 四杀 · 三杀\r\n",
+                "Large source streak counts must retain Akari's dynamic tag priority rather than fixed order.");
+            var leader = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 1000, TotalDamageTaken = 500,
+                TotalHeal = 200, GoldAvailable = true, GoldEarned = 1200 };
+            var ally = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 500, TotalDamageTaken = 700,
+                TotalHeal = 100, GoldAvailable = true, GoldEarned = 1000 };
+            var enemy = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 900, TotalDamageTaken = 600,
+                TotalHeal = 150, GoldAvailable = true, GoldEarned = 1100 };
+            var enemyAlly = new LeaguePlayerMatchParticipant { ParticipantId = 4, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 400, TotalDamageTaken = 300,
+                TotalHeal = 50, GoldAvailable = true, GoldEarned = 700 };
+            var leaderboard = new[] { leader, ally, enemy, enemyAlly };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t) ==
+                    "对局表现：全场输出第一（1,000 / 66.67%） · 全场伤害经济效率第一（83.33%） · " +
+                    "全场治疗第一（200 / 66.67%） · " +
+                    "全场经济第一（1,200 / 54.55%）\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    ally, leaderboard, false, t) ==
+                    "对局表现：全场承伤第一（700 / 58.33%）\r\n" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内输出第一（900 / 69.23%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内治疗第一（150 / 75.00%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内经济第一（1,100 / 61.11%）"),
+                "MatchCard leader tags must use pinned match/team precedence, metric-specific totals and priority.");
+            var rowTags = LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                leader, leaderboard, false, t);
+            Require(rowTags.StartsWith("全场输出第一（1,000 / 66.67%）\r\n") &&
+                rowTags.Contains("全场治疗第一（200 / 66.67%）") &&
+                rowTags.Contains("全场经济第一（1,200 / 54.55%）") &&
+                !rowTags.Contains("对局表现：") && !rowTags.EndsWith("\r\n") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                    ally, leaderboard, false, t).Contains("全场承伤第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagTooltip(
+                    new LeaguePlayerMatchParticipant(), leaderboard, false, t) == string.Empty,
+                "Each MatchCard roster row must expose its own ordered full tags without a duplicate heading.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                        leader, leaderboard, false, t), t) == "全场输出第一 +3" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                        ally, leaderboard, false, t), t) == "全场承伤第一" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new[] { new KeyValuePair<long, string>(2000, "五杀"),
+                        new KeyValuePair<long, string>(1800, "全场输出第一（1,000 / 66.67%）") }, t) == "五杀 +1" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new KeyValuePair<long, string>[0], t) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(null, t) == "—",
+                "MatchCard rows must show a compact first tag and remaining count without hiding hover details.");
+            var rowCatalog = new LeagueBuildAdvisorCatalog();
+            rowCatalog.Items[3006] = "Boots";
+            rowCatalog.Spells[4] = "Flash";
+            rowCatalog.Spells[7] = "Heal";
+            rowCatalog.Perks[8005] = "Press the Attack";
+            rowCatalog.PerkStyles[8000] = "Precision";
+            rowCatalog.PerkStyles[8300] = "Inspiration";
+            rowCatalog.Augments[1234] = "Augment";
+            var buildPlayer = new LeaguePlayerMatchParticipant {
+                ItemIds = new[] { 3006, 0, 9999, 0, 0, 0, 3340 },
+                RoleBoundItemId = 3006, SpellIds = new[] { 4, 0 },
+                PerkIds = new[] { 8005, 0, 0, 0, 9998, 0 },
+                PrimaryPerkStyleId = 8000, SecondaryPerkStyleId = 8300,
+                AugmentIds = new[] { 1234 }
+            };
+            var regularBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "CLASSIC", t);
+            var arenaBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "cherry", t);
+            var kiwiBuild = LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                buildPlayer, rowCatalog, "KIWI", t);
+            Require(regularBuild.Contains("Boots / #9999 / #3340") &&
+                regularBuild.Contains("Flash") && regularBuild.Contains("Press the Attack") &&
+                regularBuild.Contains("Precision") && regularBuild.Contains("Inspiration") &&
+                regularBuild.Contains("#9998") && !regularBuild.Contains("Augment") &&
+                !regularBuild.Contains("专属装备") &&
+                arenaBuild.Contains("Augment") && !arenaBuild.Contains("Press the Attack") &&
+                kiwiBuild.Contains("Augment") && !kiwiBuild.Contains("Press the Attack"),
+                "Each MatchCard row must expose existing item/spell and mode-specific rune or augment evidence.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    buildPlayer, rowCatalog, t) == "Boots · #9999 +1" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    new LeaguePlayerMatchParticipant { RoleBoundItemId = 4000 }, null, t) == "#4000" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -1 } }, rowCatalog, t) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(null, rowCatalog, t) == "—",
+                "Each MatchCard row must expose a bounded inline equipment summary without duplicating bound items.");
+            buildPlayer.RoleBoundItemId = 4000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowItemPreview(
+                    buildPlayer, rowCatalog, t) == "Boots · #9999 +2",
+                "A distinct role-bound item must remain discoverable in the inline equipment count.");
+            buildPlayer.RoleBoundItemId = 3006;
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(buildPlayer)
+                    .SequenceEqual(new[] { 3006, 0, 9999, 0, 0, 0, 3340 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 3006, 0 },
+                        RoleBoundItemId = 4000 }).SequenceEqual(
+                            new[] { 3006, 0, 0, 0, 0, 0, 0, 4000 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -1 },
+                        RoleBoundItemId = 0 }).SequenceEqual(new int[7]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(null).Length == 0,
+                "Seven item slots must preserve empty positions, the trinket slot and a distinct bound item.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 4, 7, 12 } })
+                    .SequenceEqual(new[] { 4, 7 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 0, -5 } })
+                    .SequenceEqual(new int[2]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(
+                    new LeaguePlayerMatchParticipant { SpellIds = new[] { 4 } })
+                    .SequenceEqual(new[] { 4, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowSpellSlots(null).Length == 0,
+                "Per-player summoner spell icons must preserve both positions and reject invalid IDs.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CLASSIC")
+                    .SequenceEqual(new[] { 8005, 8300 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "cherry")
+                    .SequenceEqual(new[] { 1234 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "KIWI")
+                    .SequenceEqual(new[] { 1234 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(
+                    new LeaguePlayerMatchParticipant { PerkIds = new[] { -1 },
+                        SecondaryPerkStyleId = 0 }, "CLASSIC").SequenceEqual(new int[2]) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(null, "CLASSIC").Length == 0 &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(buildPlayer,
+                    rowCatalog, "CLASSIC", t) == "Press the Attack / Inspiration" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(buildPlayer,
+                    rowCatalog, "KIWI", t) == "Augment" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowRunePreview(null,
+                    rowCatalog, "CLASSIC", t) == "—",
+                "MatchCard must project source primary-perk/secondary-style or Cherry/Kiwi augments per participant.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(
+                    new LeaguePlayerMatchParticipant { AugmentIds = new[] { 1, 0, -2, 3, 4, 5, 6, 7 } },
+                    "CHERRY").SequenceEqual(new[] { 1, 0, 0, 3, 4, 5 }),
+                "MatchCard augment slots must remain positional and bounded to six.");
+            Require(LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer)
+                    .SequenceEqual(new[] { 3006, 9999, 3340 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(
+                    new LeaguePlayerMatchParticipant { ItemIds = new[] { 0, -5 },
+                        RoleBoundItemId = 4000 }).SequenceEqual(new[] { 4000 }) &&
+                LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(null).Length == 0,
+                "Inline MatchCard icons must project positive items and nonduplicated bound items only.");
+            using (var icon = new Bitmap(4, 4))
+            using (var canvas = new Bitmap(110, 28))
+            using (var graphics = Graphics.FromImage(canvas))
+            {
+                using (var brush = new SolidBrush(Color.Red))
+                using (var iconGraphics = Graphics.FromImage(icon))
+                    iconGraphics.FillRectangle(brush, 0, 0, 4, 4);
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 110, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowItemIds(buildPlayer),
+                    new Dictionary<int, Bitmap> { { 3006, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 &&
+                    canvas.GetPixel(12, 14).G < 80 &&
+                    canvas.GetPixel(12, 14).B < 80 &&
+                    canvas.GetPixel(21, 6).ToArgb() != Color.White.ToArgb(),
+                    "Inline MatchCard must paint a cached first-item image and preserve an unknown-ID slot.");
+                Require(LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 3006, 9999 }, new Dictionary<int, Bitmap> { { 3006, icon } }) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 3006, 9999 }, new Dictionary<int, Bitmap>()) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new int[0], new Dictionary<int, Bitmap> { { 3006, icon } }),
+                    "Rows without cached images must keep the existing readable item-name preview.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 110, 28), new int[0], null,
+                    Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
+                    "Missing equipment must not retain an icon from the previous participant.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28), new[] { 4, 7 },
+                    new Dictionary<int, Bitmap> { { 4, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 &&
+                    canvas.GetPixel(12, 14).G < 80 &&
+                    canvas.GetPixel(30, 6).ToArgb() != Color.White.ToArgb() &&
+                    LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 4, 7 }, new Dictionary<int, Bitmap> { { 4, icon } }) &&
+                    !LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                        new[] { 4, 7 }, new Dictionary<int, Bitmap>()),
+                    "Spell rows must paint cached icons and show an unknown second spell slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CLASSIC"),
+                    new Dictionary<int, Bitmap> { { 8005, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200 && canvas.GetPixel(30, 6).ToArgb() != Color.White.ToArgb(),
+                    "Classic MatchCard must render the primary rune and reserve the secondary-style slot.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28),
+                    LeagueEncounterMatchScoreboardDialog.GetMatchRowRuneSlots(buildPlayer, "CHERRY"),
+                    new Dictionary<int, Bitmap> { { 1234, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).R > 200,
+                    "Cherry MatchCard must render its augment without leaking classic runes.");
+                graphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(graphics,
+                    new Rectangle(0, 0, 70, 28), new int[2],
+                    new Dictionary<int, Bitmap> { { 4, icon } }, Color.White, Color.Black, t);
+                Require(canvas.GetPixel(12, 14).ToArgb() != Color.Red.ToArgb(),
+                    "Missing spells must not inherit a previous player's cached icon.");
+                using (var trinket = new Bitmap(4, 4))
+                using (var bound = new Bitmap(4, 4))
+                using (var sevenCanvas = new Bitmap(160, 24))
+                using (var sevenGraphics = Graphics.FromImage(sevenCanvas))
+                {
+                    using (var trinketGraphics = Graphics.FromImage(trinket))
+                        trinketGraphics.Clear(Color.Blue);
+                    using (var boundGraphics = Graphics.FromImage(bound))
+                        boundGraphics.Clear(Color.Lime);
+                    sevenGraphics.Clear(Color.White);
+                    var sevenSlots = LeagueEncounterMatchScoreboardDialog.GetMatchRowItemSlots(
+                        new LeaguePlayerMatchParticipant {
+                            ItemIds = new[] { 3006, 0, 9999, 0, 0, 0, 3340 },
+                            RoleBoundItemId = 4000 });
+                    var sevenIcons = new Dictionary<int, Bitmap> {
+                        { 3006, icon }, { 3340, trinket }, { 4000, bound } };
+                    LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(
+                        sevenGraphics, new Rectangle(0, 0, 160, 24), sevenSlots,
+                        sevenIcons, Color.White, Color.Black, t);
+                    Require(sevenCanvas.GetPixel(119, 12).B > 200 &&
+                        sevenCanvas.GetPixel(137, 12).G > 200 &&
+                        sevenCanvas.GetPixel(29, 12).ToArgb() == Color.White.ToArgb() &&
+                        LeagueEncounterMatchScoreboardDialog.HasMatchRowItemIcon(
+                            sevenSlots, new Dictionary<int, Bitmap> { { 3340, trinket } }),
+                        "The seventh trinket and distinct eighth bound item must render in their own slots.");
+                }
+            }
+            Require(LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(160, 24, 8) == 8 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(70, 28, 8) == 3 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(38, 28, 8) == 2 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(18, 28, 8) == 0 &&
+                LeagueEncounterMatchScoreboardDialog.MatchRowVisibleSlotCount(70, 28, 2) == 2,
+                "MatchCard icon columns must reserve a bounded overflow slot when resized narrow.");
+            using (var narrowIcon = new Bitmap(4, 4))
+            using (var narrowCanvas = new Bitmap(90, 28))
+            using (var narrowGraphics = Graphics.FromImage(narrowCanvas))
+            {
+                using (var red = Graphics.FromImage(narrowIcon))
+                    red.Clear(Color.Red);
+                narrowGraphics.Clear(Color.White);
+                LeagueEncounterMatchScoreboardDialog.DrawMatchRowItemIcons(narrowGraphics,
+                    new Rectangle(0, 0, 70, 28), new[] { 3006, 9999, 3340, 4000 },
+                    new Dictionary<int, Bitmap> { { 3006, narrowIcon } },
+                    Color.White, Color.Black, t);
+                Require(narrowCanvas.GetPixel(12, 14).R > 200 &&
+                    narrowCanvas.GetPixel(12, 14).G < 80 &&
+                    Enumerable.Range(39, 16).Any(x => Enumerable.Range(5, 18).Any(y =>
+                        narrowCanvas.GetPixel(x, y).ToArgb() != Color.White.ToArgb())) &&
+                    narrowCanvas.GetPixel(58, 14).ToArgb() == Color.White.ToArgb() &&
+                    narrowCanvas.GetPixel(75, 14).ToArgb() == Color.White.ToArgb(),
+                    "Narrow MatchCard columns must show an overflow marker without painting clipped item slots.");
+            }
+            Require(LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("cherry") &&
+                LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("KIWI") &&
+                !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode("CLASSIC") &&
+                !LeagueEncounterMatchScoreboardDialog.IsAugmentMatchMode(null),
+                "The selected MatchCard icon strip must use the source's Cherry/Kiwi mode boundary.");
+            var arenaDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "CHERRY");
+            var kiwiDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "kiwi");
+            var classicDetails = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                buildPlayer, rowCatalog, t, "CLASSIC");
+            Require(arenaDetails.Contains("Augment") && kiwiDetails.Contains("Augment") &&
+                !arenaDetails.Contains("Press the Attack") &&
+                !arenaDetails.Contains("主系符文") &&
+                classicDetails.Contains("Press the Attack") && !classicDetails.Contains("Augment") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                    new LeaguePlayerMatchParticipant(), rowCatalog, t, "CHERRY").Contains("—"),
+                "Selected-player rune details must show only mode-relevant build evidence, including unknown augments.");
+
+            buildPlayer.RoleBoundItemId = 4000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowBuildTooltip(
+                    buildPlayer, rowCatalog, "ARAM", t).Contains("#4000") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    new[] { new KeyValuePair<long, string>(1, "Damage leader") },
+                    buildPlayer, rowCatalog, "ARAM", t).StartsWith("Damage leader\r\n\r\n") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    null, new LeaguePlayerMatchParticipant(), null, "CLASSIC", t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTooltip(
+                    new[] { new KeyValuePair<long, string>(1, "Damage leader") },
+                    null, null, "CLASSIC", t) == "Damage leader",
+                "Row hover must retain complete tags, show a distinct role-bound item once and avoid invented builds.");
+            var overflowTags = Enumerable.Range(0, 105)
+                .Select(index => new KeyValuePair<long, string>(2000 - index,
+                    "Damage leader (1,000 / 66.67%)")).ToArray();
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    overflowTags, t) == "Damage leader +99" &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchRowTagPreview(
+                    new[] { overflowTags[0] }, t) == "Damage leader",
+                "Inline MatchCard previews must share chip-label parsing and the pinned +99 overflow cap.");
+            var styledRow = new ListViewItem("100");
+            for (var index = 0; index < 9; index++) styledRow.SubItems.Add("value");
+            var coloredTags = new[] {
+                new KeyValuePair<long, string>(1800, "全场输出第一（1,000 / 66.67%）") };
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, coloredTags, t, false);
+            var expectedTagColor = LeagueMatchTagStrip.TagColor("全场输出第一", t,
+                !FacmThemeRuntime.Current.IsLight);
+            Require(!styledRow.UseItemStyleForSubItems &&
+                styledRow.SubItems[8].BackColor == expectedTagColor &&
+                styledRow.SubItems[8].ForeColor ==
+                    FacmDesignSystem.ReadableTextOn(expectedTagColor, Color.White) &&
+                styledRow.SubItems[7].BackColor == FacmDesignSystem.CanvasRaised,
+                "Only the first MatchCard tag cell should use the pinned tag color with readable text.");
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, null, t, true);
+            Require(styledRow.SubItems[8].BackColor == FacmDesignSystem.Canvas &&
+                styledRow.SubItems[8].ForeColor == FacmDesignSystem.Text &&
+                styledRow.SubItems[0].BackColor == FacmDesignSystem.Canvas,
+                "Empty tags and the target row must retain their native surface colors.");
+            var healingTags = new[] {
+                new KeyValuePair<long, string>(1650, "全场治疗第一（200 / 66.67%）") };
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, healingTags, t, false, true);
+            var lightHealing = styledRow.SubItems[8].BackColor;
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, healingTags, t, false, false);
+            var darkHealing = styledRow.SubItems[8].BackColor;
+            Require(lightHealing == LeagueMatchTagStrip.TagColor("全场治疗第一", t, false) &&
+                darkHealing == LeagueMatchTagStrip.TagColor("全场治疗第一", t, true) &&
+                lightHealing != darkHealing &&
+                styledRow.SubItems[8].ForeColor ==
+                    FacmDesignSystem.ReadableTextOn(darkHealing, Color.White) &&
+                styledRow.SubItems[7].BackColor == FacmDesignSystem.CanvasRaised,
+                "MatchCard row tag colors must be restylable for both palettes without changing other cells.");
+            LeagueEncounterMatchScoreboardDialog.StyleMatchRowTag(styledRow, null, t, false, false);
+            Require(styledRow.SubItems[8].BackColor == FacmDesignSystem.CanvasRaised &&
+                styledRow.SubItems[8].ForeColor == FacmDesignSystem.Text,
+                "Restyling a cleared MatchCard tag must remove its previous category color.");
+            var efficiencyTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t);
+            Require(efficiencyTags.Contains("全场伤害经济效率第一（83.33%）") &&
+                efficiencyTags.IndexOf("全场输出第一", StringComparison.Ordinal) <
+                    efficiencyTags.IndexOf("全场伤害经济效率第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("队内伤害经济效率第一（81.82%）"),
+                "Damage/gold efficiency must follow pinned match/team priorities and percentage scaling.");
+            enemyAlly.GoldAvailable = false;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内伤害经济效率第一（83.33%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, false, t).Contains("伤害经济效率第一"),
+                "Missing gold must suppress a match-wide efficiency claim and unavailable self metrics.");
+            enemyAlly.GoldAvailable = true;
+            enemy.DamageToChampions = 1000;
+            enemy.GoldEarned = 1200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("全场伤害经济效率第一（83.33%）"),
+                "Tied damage/gold ratios must retain all-match leaders.");
+            enemy.DamageToChampions = 900;
+            enemy.GoldEarned = 1100;
+            enemyAlly.TotalHeal = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内治疗第一（200 / 66.67%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("治疗第一"),
+                "Partial enemy healing must not imply a match-wide record or a complete team comparison.");
+            enemyAlly.TotalHeal = -1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("队内治疗第一（200 / 66.67%）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t).Contains("全场治疗第一"),
+                "Negative opposing healing must not be counted as a verified match-wide leader.");
+            enemyAlly.TotalHeal = 50;
+            enemy.DamageToChampions = 1000;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, false, t).Contains("全场输出第一（1,000 / 71.43%）"),
+                "Source-equal positive match maxima must retain tied leaders.");
+            enemy.DamageToChampions = 900;
+            var unknownGroup = new LeaguePlayerMatchParticipant { ParticipantId = 5,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { unknownGroup }), false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    null, leaderboard, false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, null, false, t) == string.Empty,
+                "Unknown team membership or missing selection must not fabricate leader claims.");
+            var duplicateId = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { duplicateId }), false, t) == string.Empty &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { leader }), false, t) == string.Empty,
+                "Duplicate participant IDs or repeated snapshots must not inflate MatchCard shares or certify leaders.");
+            var missingId = new LeaguePlayerMatchParticipant { ParticipantId = 0, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 2000 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard.Concat(new[] { missingId }), false, t) == string.Empty,
+                "Unidentified roster entries must not qualify as complete match-wide leader evidence.");
+            leader.PlayerSubteamId = 2;
+            ally.PlayerSubteamId = 2;
+            enemy.PlayerSubteamId = 1;
+            enemyAlly.PlayerSubteamId = 1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场输出第一（1,000 / 66.67%）"),
+                "Cherry leader shares must use verified subteams, not the ordinary team ID.");
+            leader.DamageAvailable = false;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("输出第一"),
+                "Unavailable own damage cannot qualify for a leader tag.");
+
+            leader.DamageAvailable = true;
+            leader.TotalDamageToTowers = 1200;
+            ally.TotalDamageToTowers = 600;
+            enemy.TotalDamageToTowers = 900;
+            enemyAlly.TotalDamageToTowers = 300;
+            leader.TotalDamageShieldedOnTeammates = 300;
+            ally.TotalDamageShieldedOnTeammates = 100;
+            enemy.TotalDamageShieldedOnTeammates = 500;
+            enemyAlly.TotalDamageShieldedOnTeammates = 100;
+            leader.SoloKills = 2;
+            leader.CreepScore = 210;
+            leader.CreepScoreAvailable = true;
+            ally.CreepScore = 140;
+            ally.CreepScoreAvailable = true;
+            enemy.CreepScore = 180;
+            enemy.CreepScoreAvailable = true;
+            enemyAlly.CreepScore = 90;
+            enemyAlly.CreepScoreAvailable = true;
+            var expandedTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(expandedTags.Contains("单杀 ×2") &&
+                expandedTags.Contains("全场推塔伤害第一（1,200 / 66.67%）") &&
+                expandedTags.Contains("队内护盾第一（300 / 75.00%）") &&
+                expandedTags.Contains("全场补刀第一（210）") &&
+                expandedTags.IndexOf("单杀 ×2", StringComparison.Ordinal) <
+                    expandedTags.IndexOf("全场治疗第一", StringComparison.Ordinal) &&
+                expandedTags.IndexOf("全场推塔伤害第一", StringComparison.Ordinal) <
+                    expandedTags.IndexOf("全场经济第一", StringComparison.Ordinal),
+                "Pinned tower, shield, solo and CS tags must retain metric shares and priority.");
+            ally.TotalDamageShieldedOnTeammates = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("护盾第一"),
+                "Negative teammate shielding must not produce an inflated or unverifiable leader share.");
+            ally.TotalDamageShieldedOnTeammates = 100;
+            enemy.TotalDamageToTowers = 1200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                enemy, leaderboard, true, t).Contains("全场推塔伤害第一（1,200 / 80.00%）"),
+                "Tied tower damage must retain all-match leaders with Cherry subgroup shares.");
+            enemy.TotalDamageToTowers = 900;
+            enemyAlly.TotalDamageShieldedOnTeammates = null;
+            enemy.CreepScoreAvailable = false;
+            leader.SoloKills = 1;
+            expandedTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!expandedTags.Contains("全场护盾第一") &&
+                expandedTags.Contains("队内护盾第一（300 / 75.00%）") &&
+                !expandedTags.Contains("全场补刀第一") && !expandedTags.Contains("单杀"),
+                "Sparse cross-team evidence must not imply match leaders or one-solo tags.");
+            leader.TotalDamageToTowers = null;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t).Contains("推塔伤害第一"),
+                "Missing tower damage must not be promoted to a verified zero or leader.");
+
+            leader.Kills = 7;
+            leader.Assists = 3;
+            ally.Kills = 3;
+            ally.Assists = 2;
+            enemy.Kills = 6;
+            enemy.Assists = 0;
+            enemyAlly.Kills = 2;
+            enemyAlly.Assists = 4;
+            var killTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(killTags.Contains("全场击杀第一（7）") &&
+                killTags.Contains("全场参团率第一（100.00%）") &&
+                killTags.IndexOf("全场击杀第一", StringComparison.Ordinal) <
+                    killTags.IndexOf("全场参团率第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("队内击杀第一（6）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, true, t).Contains("队内参团率第一（75.00%）"),
+                "Pinned kill/KP match and Cherry-team leader tags must use exact counts, rates and priority.");
+            enemy.Kills = 7;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                enemy, leaderboard, true, t).Contains("全场击杀第一（7）"),
+                "Tied positive kills must retain both match leaders.");
+            enemy.Kills = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemyAlly, leaderboard, true, t).Contains("参团率第一") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("击杀第一"),
+                "Invalid teammate kill evidence must suppress unverifiable team KP and kill claims.");
+            enemy.Kills = 6;
+            leader.Kills = 0;
+            leader.Assists = 0;
+            ally.Kills = 0;
+            ally.Assists = 0;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("参团率第一"),
+                "Zero team kills must not fabricate a positive participation leader.");
+            leader.TimeCCingOthers = 85.5;
+            ally.TimeCCingOthers = 50;
+            enemy.TimeCCingOthers = 70;
+            enemyAlly.TimeCCingOthers = 30;
+            var ccTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(ccTags.Contains("全场控制第一（85.5）") &&
+                ccTags.IndexOf("全场输出第一", StringComparison.Ordinal) <
+                    ccTags.IndexOf("全场控制第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("队内控制第一（70）"),
+                "Pinned CC-time leaders must preserve fractional seconds, source priority and Cherry grouping.");
+            enemy.TimeCCingOthers = double.NaN;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场控制第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("队内控制第一（85.5）"),
+                "Non-finite opponent control time must not certify a match-wide leader.");
+            enemy.TimeCCingOthers = 70;
+            ally.TimeCCingOthers = double.PositiveInfinity;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("控制第一"),
+                "Non-finite teammate control time must suppress an unverifiable team leader.");
+            ally.TimeCCingOthers = 50;
+            enemy.TimeCCingOthers = 85.5;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("全场控制第一（85.5）"),
+                "Tied measured control time must retain all-match leaders.");
+            enemy.TimeCCingOthers = null;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("全场控制第一") &&
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).Contains("队内控制第一（85.5）") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("控制第一"),
+                "Sparse cross-team CC evidence must not fabricate match-wide or missing-self leaders.");
+            enemy.TimeCCingOthers = -1;
+            Require(!LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    enemy, leaderboard, true, t).Contains("控制第一"),
+                "Invalid negative control time must not qualify for a leader tag.");
+            leader.MaxCsAdvantageOnLaneOpponent = 40.5;
+            leader.KnockEnemyIntoTeamAndKill = 6;
+            var challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(challengeTags.Contains("补刀压制 ×41") &&
+                challengeTags.Contains("击飞配合击杀 ×6") &&
+                challengeTags.IndexOf("补刀压制 ×41", StringComparison.Ordinal) <
+                    challengeTags.IndexOf("全场经济第一", StringComparison.Ordinal) &&
+                challengeTags.IndexOf("全场经济第一", StringComparison.Ordinal) <
+                    challengeTags.IndexOf("击飞配合击杀 ×6", StringComparison.Ordinal),
+                "SGP CS advantage and knock-up tags must preserve source thresholds, rounding and priorities.");
+            leader.MaxCsAdvantageOnLaneOpponent = 200;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).IndexOf("补刀压制 ×200", StringComparison.Ordinal) <
+                LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, true, t).IndexOf("全场输出第一", StringComparison.Ordinal),
+                "High CS advantage must use the pinned dynamic priority.");
+            leader.MaxCsAdvantageOnLaneOpponent = 39.9;
+            leader.KnockEnemyIntoTeamAndKill = 5;
+            challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!challengeTags.Contains("补刀压制") && !challengeTags.Contains("击飞配合击杀"),
+                "Below-threshold SGP challenge counts must not create tags.");
+            leader.MaxCsAdvantageOnLaneOpponent = double.NaN;
+            leader.KnockEnemyIntoTeamAndKill = -1;
+            challengeTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, true, t);
+            Require(!challengeTags.Contains("补刀压制") && !challengeTags.Contains("击飞配合击杀"),
+                "Invalid SGP challenge metrics must not create tags.");
+            leader.KillsNearEnemyTurret = 6;
+            leader.KillsUnderOwnTurret = 5;
+            var towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(towerTags.Contains("越塔 ×6") && towerTags.Contains("塔之子 ×5") &&
+                towerTags.IndexOf("越塔 ×6", StringComparison.Ordinal) <
+                    towerTags.IndexOf("塔之子 ×5", StringComparison.Ordinal),
+                "Rift tower-area kill tags must honor source duration ratios and priorities.");
+            leader.KillsNearEnemyTurret = 5;
+            leader.KillsUnderOwnTurret = 4;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(!towerTags.Contains("越塔") && !towerTags.Contains("塔之子"),
+                "Rift tower-area thresholds must not round up near-miss counts.");
+            leader.KillsNearEnemyTurret = 10;
+            leader.KillsUnderOwnTurret = 10;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 12, 900);
+            Require(towerTags.Contains("越塔 ×10") && towerTags.Contains("塔之子 ×10") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t, 21, 900).Contains("越塔") &&
+                !LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                    leader, leaderboard, false, t, 12, 0).Contains("塔之子"),
+                "ARAM uses 1.5-minute thresholds; unsupported maps or missing duration emit no tags.");
+            leader.KillsNearEnemyTurret = 1;
+            leader.KillsUnderOwnTurret = 1;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 60);
+            Require(towerTags.Contains("越塔 · 塔之子") &&
+                !towerTags.Contains("越塔 ×") && !towerTags.Contains("塔之子 ×"),
+                "A single tower-area kill must keep the pinned uncounted label.");
+            leader.KillsNearEnemyTurret = null;
+            leader.KillsUnderOwnTurret = -1;
+            towerTags = LeagueEncounterMatchScoreboardDialog.FormatMatchPerformanceTags(
+                leader, leaderboard, false, t, 11, 1800);
+            Require(!towerTags.Contains("越塔") && !towerTags.Contains("塔之子"),
+                "Missing or invalid SGP tower-area evidence must not create tags.");
+            leader.KillsNearEnemyTurret = null;
+            leader.KillsUnderOwnTurret = null;
+            leader.MaxCsAdvantageOnLaneOpponent = null;
+            leader.KnockEnemyIntoTeamAndKill = null;
+            leader.PentaKills = 1;
+            leader.QuadraKills = 1;
+            leader.TripleKills = 1;
+            leader.DoubleKills = 171;
+            leader.KillsNearEnemyTurret = 1;
+            leader.MaxCsAdvantageOnLaneOpponent = 91;
+            var combinedTags = LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                leader, leaderboard, false, t, 11, 60);
+            var doubleIndex = combinedTags.IndexOf("双杀 ×170", StringComparison.Ordinal);
+            var damageIndex = combinedTags.IndexOf("全场输出第一", StringComparison.Ordinal);
+            var efficiencyIndex = combinedTags.IndexOf("全场伤害经济效率第一", StringComparison.Ordinal);
+            var towerIndex = combinedTags.IndexOf("越塔", StringComparison.Ordinal);
+            var csAdvantageIndex = combinedTags.IndexOf("补刀压制", StringComparison.Ordinal);
+            Require(combinedTags.StartsWith("对局表现：五杀 · 双杀 ×170", StringComparison.Ordinal) &&
+                doubleIndex > 0 && damageIndex > doubleIndex &&
+                efficiencyIndex > damageIndex && towerIndex > efficiencyIndex &&
+                csAdvantageIndex > towerIndex && !combinedTags.Contains("连杀表现：") &&
+                combinedTags.EndsWith("\r\n", StringComparison.Ordinal) &&
+                combinedTags.IndexOf("\r\n", StringComparison.Ordinal) ==
+                    combinedTags.Length - 2,
+                "MatchCard must globally sort multikills and performance by pinned priority, " +
+                "retain source order on ties and render one accessible tag group.");
+            leader.DoubleKills = 181;
+            combinedTags = LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                leader, leaderboard, false, t, 11, 60);
+            Require(combinedTags.IndexOf("双杀 ×180", StringComparison.Ordinal) <
+                    combinedTags.IndexOf("全场输出第一", StringComparison.Ordinal) &&
+                LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                    leader, new[] { leader, new LeaguePlayerMatchParticipant() }, false, t)
+                    .Contains("双杀 ×180") &&
+                LeagueEncounterMatchScoreboardDialog.FormatCombinedMatchTags(
+                    null, leaderboard, false, t) == string.Empty,
+                "Dynamic multikill priorities must cross leader thresholds; incomplete roster " +
+                "evidence must not erase valid streak tags or invent performance leaders.");
+            leader.PentaKills = null;
+            leader.QuadraKills = null;
+            leader.TripleKills = null;
+            leader.DoubleKills = null;
+            leader.KillsNearEnemyTurret = null;
+            leader.MaxCsAdvantageOnLaneOpponent = null;
+            var visualTags = LeagueEncounterMatchScoreboardDialog.BuildCombinedMatchTagEntries(
+                leader, leaderboard, false, t);
+            Require(visualTags.Select(tag => tag.Value).SequenceEqual(
+                    visualTags.OrderByDescending(tag => tag.Key).Select(tag => tag.Value)) &&
+                LeagueMatchTagStrip.ChipLabel("全场输出第一（1,000 / 66.67%）") == "全场输出第一" &&
+                LeagueMatchTagStrip.ChipLabel("五杀") == "五杀" &&
+                LeagueMatchTagStrip.ChipLabel("Damage leader (1,000 / 66.67%)") == "Damage leader" &&
+                LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }) == 3 &&
+                LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }) == 2 &&
+                LeagueMatchTagStrip.VisibleCount(140, new[] { 50, 50, 50 }) == 1 &&
+                LeagueMatchTagStrip.VisibleCount(155, new[] { 50, 50, 50 }, 62) == 1 &&
+                LeagueMatchTagStrip.VisibleCount(170, new[] { 50, 50, 50 }, 62) == 3 &&
+                LeagueMatchTagStrip.VisibleCount(0, new[] { 50, 50, 50 }) == 0 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(29, 44) == 29 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(155, 62) == 62 &&
+                LeagueMatchTagStrip.OverflowButtonWidth(-1, 44) == 0 &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(300, 300, 44, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(300, 320) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(300, 365, 44, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(300, 285) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(470, 300, 30, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(120, 80)) == new Point(380, 320) &&
+                LeagueMatchTagStrip.PopupLocation(
+                    new Rectangle(470, 365, 30, 20), new Rectangle(100, 100, 400, 300),
+                    new Size(600, 500)) == new Point(100, 100) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch), t) ==
+                    Color.FromArgb(153, 27, 27) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta), t) ==
+                    Color.FromArgb(190, 18, 60) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t) ==
+                    Color.FromArgb(5, 150, 105) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam), t, true) ==
+                    Color.FromArgb(4, 120, 87) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder), t, true) ==
+                    Color.FromArgb(87, 83, 78) &&
+                LeagueMatchTagStrip.TagColor(
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch), t, true) ==
+                    Color.FromArgb(63, 98, 18),
+                "Native ManyTags colors, details and reserved +N overflow must retain source order.");
+            using (var tagStrip = new LeagueMatchTagStrip(t) { Size = new Size(900, 30) })
+            {
+                var tagDetails = new[] { "五杀", "全场输出第一（1,000 / 66.67%）", "队内治疗第一（250）" };
+                tagStrip.SetTags(tagDetails);
+                var focusableChips = tagStrip.Controls.OfType<Button>().ToArray();
+                Require(focusableChips.Length == tagDetails.Length &&
+                    focusableChips.Select(chip => chip.AccessibleDescription).SequenceEqual(tagDetails) &&
+                    focusableChips.Select(chip => chip.TabIndex).SequenceEqual(new[] { 0, 1, 2 }) &&
+                    focusableChips.All(chip => chip.TabStop && chip.Width > 0 &&
+                        chip.Height == 20 && chip.Top == 5 && chip.Region != null &&
+                        !chip.Region.IsVisible(0, 0) &&
+                        chip.Region.IsVisible(chip.Width / 2, chip.Height / 2) &&
+                        chip.ForeColor == Color.White &&
+                        chip.FlatAppearance.MouseOverBackColor == chip.BackColor &&
+                        chip.FlatAppearance.MouseDownBackColor == chip.BackColor &&
+                        chip.BackColor == LeagueMatchTagStrip.TagColor(
+                            chip.Text, t, !FacmThemeRuntime.Current.IsLight)) &&
+                    !tagStrip.Controls.OfType<Label>().Any() &&
+                    focusableChips.All(chip => chip.AutoEllipsis),
+                    "Visible MatchCard chips must expose their full metric detail in keyboard tab order.");
+                tagStrip.Width = 100;
+                var compactChips = tagStrip.Controls.OfType<Button>().ToArray();
+                Require(compactChips.Length == 1 && compactChips[0].TabStop &&
+                    compactChips[0].AccessibleDescription.Contains(tagDetails[0]) &&
+                    compactChips[0].Right <= tagStrip.ClientSize.Width &&
+                    compactChips[0].Width > 0 && compactChips[0].Height == 20 &&
+                    compactChips[0].Region != null &&
+                    !compactChips[0].Region.IsVisible(0, 0) &&
+                    compactChips[0].Region.IsVisible(compactChips[0].Width / 2, 10),
+                    "Narrow MatchCard strips must keep a keyboard-accessible overflow control.");
+                var popupPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                    compactChips[0].ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
+                var hiddenItems = popupPanel.Controls.OfType<Button>().ToArray();
+                Require(hiddenItems != null && hiddenItems.Length == tagDetails.Length &&
+                    hiddenItems.Select(item => item.AccessibleDescription).SequenceEqual(tagDetails) &&
+                    hiddenItems.All(item => item.AutoEllipsis &&
+                        item.AccessibleName == LeagueMatchTagStrip.ChipLabel(item.AccessibleDescription) &&
+                        item.ForeColor == Color.White && item.TabStop) &&
+                    popupPanel.AutoScroll && popupPanel.WrapContents &&
+                    popupPanel.FlowDirection == FlowDirection.LeftToRight &&
+                    hiddenItems[0].TabIndex == 0 &&
+                    LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.Keyboard) &&
+                    !LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.AppClicked) &&
+                    !LeagueMatchTagStrip.RestoreFocusAfterOverflowClose(
+                        ToolStripDropDownCloseReason.ItemClicked) &&
+                    LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 200) ==
+                        new Size(200, 56) &&
+                    LeagueMatchTagStrip.OverflowPanelSize(new[] { 80, 80, 80 }, 200, 32) ==
+                        new Size(200, 32),
+                    "Hidden MatchCard tags must retain selectable full metric details, not just shortened labels.");
+                var longMetric = "Long translated metric " + new string('X', 200) + " (1,000 / 66.67%)";
+                var compactMenuText = LeagueMatchTagStrip.BoundedMenuLabel(
+                    LeagueMatchTagStrip.ChipLabel(longMetric), tagStrip.Font, 280);
+                var ellipsisWidth = TextRenderer.MeasureText("…", tagStrip.Font,
+                    new Size(int.MaxValue, 25),
+                    TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+                Require(ellipsisWidth > 0 &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font, 0) == string.Empty &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font,
+                        ellipsisWidth - 1) == string.Empty &&
+                    LeagueMatchTagStrip.BoundedMenuLabel(longMetric, tagStrip.Font,
+                        ellipsisWidth) == "…",
+                    "Tiny popup widths must not emit an ellipsis wider than the available text area.");
+                Require(compactMenuText.EndsWith("…", StringComparison.Ordinal) &&
+                    TextRenderer.MeasureText(compactMenuText, tagStrip.Font,
+                        new Size(int.MaxValue, 25),
+                        TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width <= 280 &&
+                    LeagueMatchTagStrip.BoundedMenuLabel("五杀", tagStrip.Font, 280) == "五杀" &&
+                    LeagueMatchTagStrip.BoundedMenuLabel("🙂🙂🙂" + new string('X', 200),
+                        tagStrip.Font, 280).EndsWith("…", StringComparison.Ordinal),
+                    "Overflow menu captions must be bounded without splitting localized text elements.");
+                tagStrip.SetTags(new[] { longMetric, "五杀", "队内治疗第一（250）" });
+                var boundedPanel = (FlowLayoutPanel)((ToolStripControlHost)tagStrip.Controls
+                    .OfType<Button>().Single().ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
+                var boundedItem = boundedPanel.Controls.OfType<Button>().First();
+                Require(boundedItem.Text == compactMenuText &&
+                    boundedItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric) &&
+                    boundedItem.AccessibleDescription == longMetric &&
+                    boundedItem.AutoEllipsis && boundedItem.TabStop,
+                    "Clipped overflow captions must preserve the original accessible label and full metric detail.");
+                var originalFont = tagStrip.Font;
+                using (var largerFont = new Font(originalFont.FontFamily,
+                    originalFont.Size + 4f, originalFont.Style, originalFont.Unit))
+                {
+                    tagStrip.Font = largerFont;
+                    var scaledMenu = tagStrip.Controls.OfType<Button>().Single().ContextMenuStrip;
+                    var scaledPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                        scaledMenu.Items.Cast<ToolStripItem>().Single()).Control;
+                    var scaledItem = scaledPanel.Controls.OfType<Button>().First();
+                    var scaledCaptionWidth = TextRenderer.MeasureText(scaledItem.Text, scaledMenu.Font,
+                        new Size(int.MaxValue, 25),
+                        TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width;
+                    Require(scaledMenu.Font.Equals(largerFont) &&
+                        scaledPanel.Font.Equals(largerFont) && scaledItem.Font.Equals(largerFont) &&
+                        scaledCaptionWidth <= 280 &&
+                        scaledItem.AccessibleDescription == longMetric &&
+                        scaledItem.AccessibleName == LeagueMatchTagStrip.ChipLabel(longMetric),
+                        "Overflow captions must be measured and rendered using the same updated font.");
+                    tagStrip.Font = originalFont;
+                }
+                tagStrip.Width = 100;
+                var manyTags = Enumerable.Range(1, 40)
+                    .Select(index => "指标" + index + "（详细统计）").ToArray();
+                tagStrip.SetTags(manyTags);
+                var manyOverflow = tagStrip.Controls.OfType<Button>().Single();
+                var manyPanel = (FlowLayoutPanel)((ToolStripControlHost)
+                    manyOverflow.ContextMenuStrip.Items.Cast<ToolStripItem>().Single()).Control;
+                var manyItems = manyPanel.Controls.OfType<Button>().ToArray();
+                Require(manyItems.Length == manyTags.Length &&
+                    manyPanel.AutoScroll && manyPanel.Height <= 240 &&
+                    manyPanel.Width <= 480 &&
+                    manyItems.Select(item => item.TabIndex).SequenceEqual(Enumerable.Range(0, 40)) &&
+                    manyItems.Select(item => item.AccessibleDescription).SequenceEqual(manyTags) &&
+                    manyOverflow.AccessibleDescription == string.Join(" · ", manyTags) &&
+                    manyOverflow.Text == t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                        .Replace("{0}", manyTags.Length.ToString()),
+                    "Overflow must retain all source tags beyond 32, in order and with complete details.");
+                tagStrip.Width = 900;
+                tagStrip.SetTags(new[] { longMetric });
+                var truncatedChip = tagStrip.Controls.OfType<Button>().Single();
+                Require(truncatedChip.Width == 320 && truncatedChip.AutoEllipsis &&
+                    truncatedChip.Text == LeagueMatchTagStrip.ChipLabel(longMetric) &&
+                    truncatedChip.AccessibleDescription == longMetric,
+                    "Long localized MatchCard labels must elide visually without losing full accessible metric details.");
+            }
+            var damagePlayer = new LeaguePlayerMatchParticipant { DamageAvailable = true,
+                DamageToChampions = 800, PhysicalDamageToChampions = 500,
+                MagicDamageToChampions = 200, TrueDamageToChampions = 100,
+                TotalDamageTaken = 700, PhysicalDamageTaken = 400,
+                MagicDamageTaken = 200, TrueDamageTaken = 100 };
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t) ==
+                    "英雄输出 800（物理 500 / 魔法 200 / 真实 100）\r\n" +
+                    "承受伤害 700（物理 400 / 魔法 200 / 真实 100）" &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(null, t).Contains(
+                    "承受伤害 —（物理 — / 魔法 — / 真实 —）"),
+                "MatchCard damage details must retain distinct dealt/taken and physical/magic/true counters.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("英雄输出 800 · 全场峰值占比 80.00%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("魔法 200（25%）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 1400, t)
+                    .Contains("承受伤害 700 · 全场峰值占比 50.00%") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 1400, t)
+                    .Contains("物理 400（57%）"),
+                "MatchCard damage popovers must use source separate outgoing/taken maxima and type shares.");
+            Require(LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, 500, 200, 100)
+                    .SequenceEqual(new[] { 50, 20, 10 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, 900, 300, 100)
+                    .SequenceEqual(new[] { 90, 10, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 1000, null, 200, 0)
+                    .SequenceEqual(new[] { 0, 20, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, null, 500, 200, 100)
+                    .SequenceEqual(new[] { 0, 0, 0 }) &&
+                LeagueEncounterMatchScoreboardDialog.DamageBarWidths(100, 0, 0, 0, 0)
+                    .SequenceEqual(new[] { 0, 0, 0 }),
+                "Damage bars must clip contradictory totals and keep missing baselines or parts unmeasured.");
+            using (var damageBitmap = new Bitmap(220, 42))
+            using (var damageGraphics = Graphics.FromImage(damageBitmap))
+            {
+                LeagueEncounterMatchScoreboardDialog.PaintDamageBar(damageGraphics,
+                    new Rectangle(0, 0, 220, 42), damagePlayer, false, 1000, t);
+                Require(damageBitmap.GetPixel(9, 32).ToArgb() == Color.FromArgb(224, 120, 86).ToArgb() &&
+                    damageBitmap.GetPixel(115, 32).ToArgb() == Color.FromArgb(91, 159, 215).ToArgb() &&
+                    damageBitmap.GetPixel(158, 32).ToArgb() == Color.FromArgb(168, 168, 168).ToArgb(),
+                    "The native MatchCard painter must render the source physical/magic/true colors in descending widths.");
+            }
+            damagePlayer.DamageAvailable = false;
+            damagePlayer.MagicDamageTaken = 0;
+            damagePlayer.TrueDamageTaken = null;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("英雄输出 —（物理 500 / 魔法 200 / 真实 100）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("承受伤害 700（物理 400 / 魔法 0 / 真实 —）"),
+                "Partial damage records must expose available components without fabricating unknown totals.");
+            Require(LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("英雄输出 — · 全场峰值占比 —") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, false, 1000, t)
+                    .Contains("物理 500（—）") &&
+                LeagueEncounterMatchScoreboardDialog.FormatDamageTooltip(damagePlayer, true, 0, t)
+                    .Contains("魔法 0（0%）"),
+                "Absent totals must not become shares, while explicit source zero remains measurable.");
+            var radarSelf = new LeaguePlayerMatchParticipant { ParticipantId = 1, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 100, TotalDamageTaken = 120,
+                GoldAvailable = true, GoldEarned = 1000, CreepScoreAvailable = true, CreepScore = 50,
+                Kills = 4, Deaths = 2, Assists = 6, TotalHeal = 80 };
+            var radarAlly = new LeaguePlayerMatchParticipant { ParticipantId = 2, TeamId = 100,
+                DamageAvailable = true, DamageToChampions = 300, TotalDamageTaken = 180,
+                GoldAvailable = true, GoldEarned = 3000, CreepScoreAvailable = true, CreepScore = 30,
+                Kills = 5, Deaths = 1, Assists = 5, TotalHeal = 0 };
+            var radarEnemy = new LeaguePlayerMatchParticipant { ParticipantId = 3, TeamId = 200,
+                DamageAvailable = true, DamageToChampions = 400, TotalDamageTaken = 400,
+                GoldAvailable = true, GoldEarned = 4000, CreepScoreAvailable = true, CreepScore = 100,
+                Kills = 1, Deaths = 3, Assists = 1, TotalHeal = 160 };
+            var radarPlayers = new[] { radarSelf, radarAlly, radarEnemy };
+            var radarTeams = new[] { new LeagueMatchTeamScore { TeamId = 100, Kills = 20 },
+                new LeagueMatchTeamScore { TeamId = 200, Kills = 10 } };
+            var radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, false, radarSelf);
+            Require(radar != null && radar.PlayerRatio[0] == 0.25 && radar.TeamAverageRatio[0] == 0.5 &&
+                radar.PlayerRatio[4] == 0.5 && radar.TeamAverageRatio[4] == 0.75 &&
+                radar.PlayerRatio[5] == 1 && radar.TeamAverageRatio[5] == 1 &&
+                radar.PlayerRatio[6] == 0.5 && radar.TeamAverageRatio[6] == 0.25 &&
+                LeagueMatchRadarPanel.FormatDetails(radar, t).Contains("输出：100（25.0%） / 200（50.0%）") &&
+                LeagueMatchRadarPanel.FormatDetails(null, t).Contains("选择一名玩家"),
+                "Akari's seven-axis radar must normalize player and complete team averages to each game maximum.");
+            using (var radarBitmap = new Bitmap(420, 300))
+            using (var radarGraphics = Graphics.FromImage(radarBitmap))
+                LeagueMatchRadarPanel.PaintRadar(radarGraphics, new Rectangle(0, 0, 420, 300), radar, t);
+            var radarBounds = new Rectangle(0, 0, 420, 300);
+            Require(LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(210, 133), t) ==
+                    "输出 · 玩家：25.0%" &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(210, 106), t) ==
+                    "输出 · 同队平均：50.0%" &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, radar, new Point(5, 5), t) == null &&
+                LeagueMatchRadarPanel.HitTest(new Rectangle(0, 0, 120, 80), radar,
+                    new Point(60, 40), t) == null &&
+                LeagueMatchRadarPanel.HitTest(radarBounds, null, new Point(210, 133), t) == null,
+                "Radar hover must report the pinned one-decimal normalized series, not empty chart space.");
+            radarAlly.TotalHeal = null;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, false, radarSelf);
+            Require(radar.PlayerRatio[6] == 0.5 && !radar.TeamAverageRatio[6].HasValue &&
+                LeagueMatchRadarPanel.FormatDetails(radar, t).Contains("治疗：80（50.0%） / —（—）"),
+                "Incomplete team healing must not be plotted as a known zero or misleading team mean.");
+            var healPoint = new Point(210 + (int)Math.Round(Math.Sin(6 * 2 * Math.PI / 7) * 53),
+                159 - (int)Math.Round(Math.Cos(6 * 2 * Math.PI / 7) * 53));
+            Require(LeagueMatchRadarPanel.HitTest(radarBounds, radar, healPoint, t) ==
+                    "治疗 · 玩家：50.0%",
+                "Absent teammate healing must never generate a hover tooltip for the team series.");
+            radarSelf.PlayerSubteamId = 2;
+            radarAlly.PlayerSubteamId = 1;
+            radarEnemy.PlayerSubteamId = 3;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, new[] {
+                new LeagueMatchTeamScore { TeamId = 1, Kills = 10 },
+                new LeagueMatchTeamScore { TeamId = 2, Kills = 10 },
+                new LeagueMatchTeamScore { TeamId = 3, Kills = 10 }
+            }, true, radarSelf);
+            Require(radar.TeamAverageRatio[0] == 0.25 && radar.PlayerRatio[5] == 1 &&
+                radar.TeamAverageRatio[6] == 0.5,
+                "Cherry radar must compare only verified subteam members, never an ordinary shared teamId.");
+            radarSelf.PlayerSubteamId = null;
+            radar = LeagueMatchRadarPanel.Project(radarPlayers, radarTeams, true, radarSelf);
+            Require(!radar.TeamAverageRatio[0].HasValue && !radar.PlayerRatio[5].HasValue &&
+                radar.PlayerRatio[0] == 0.25,
+                "An unknown Cherry subteam must not inherit ordinary-team averages or kill participation.");
+            damagePlayer.TotalDamageTaken = null;
+            damagePlayer.MagicDamageTaken = -1;
+            Require(LeagueEncounterMatchScoreboardDialog.FormatParticipantDamageDetails(damagePlayer, t)
+                    .Contains("承受伤害 —（物理 400 / 魔法 — / 真实 —）"),
+                "Missing totals and malformed negative damage components must stay unknown.");
+            var catalog = new LeagueBuildAdvisorCatalog();
+            LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
+                "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), catalog);
+            LeagueBuildAdvisorDataService.ParseLocalAugments(Encoding.UTF8.GetBytes("[" +
+                "{\"id\":1234,\"nameTRA\":\"Prismatic Fixture\",\"rarity\":\"kPrismatic\"," +
+                "\"augmentSmallIconPath\":\"/lol-game-data/assets/v1/augment/1234.png\"}," +
+                "{\"id\":5678,\"nameTRA\":\"Unsafe Fixture\",\"rarity\":\"kGold\"," +
+                "\"augmentSmallIconPath\":\"/lol-game-data/assets/../client-config\"}]"), catalog);
+            var clone = LeagueBuildAdvisorDataService.CloneLocalCatalog(catalog);
+            Require(clone.PerkStyles[8000] == "Precision" && clone.Augments[1234] == "Prismatic Fixture" &&
+                clone.AugmentIcons[1234] == "lcu:/lol-game-data/assets/v1/augment/1234.png" &&
+                !clone.AugmentIcons.ContainsKey(5678) && clone.AugmentRarities[5678] == "kGold" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(new[] { 1234, 5678, 9999, 0 }, clone) ==
+                    "棱彩 · Prismatic Fixture / 黄金 · Unsafe Fixture / #9999" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(new[] { 0 }, clone) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatAugments(null, clone) == "—" &&
+                LeagueEncounterMatchScoreboardDialog.FormatPerkGroupHeading("主系符文", 8000, clone.PerkStyles) ==
+                    "主系符文 · Precision" &&
+                LeagueEncounterMatchScoreboardDialog.FormatPerkGroupHeading("副系符文", 9999, clone.PerkStyles) ==
+                    "副系符文 · #9999",
+                "Match card must render named/ranked augments and distinct rune trees without unsafe icon paths.");
+            var runes = LeagueBuildAdvisorDataService.ParseLocalCatalog(null, null, null,
+                Encoding.UTF8.GetBytes("[{\"id\":8005,\"name\":\"Press the Attack\"," +
+                    "\"endOfGameStatDescs\":[\"<b>Damage</b> &amp; hits: @eogvar1@\"," +
+                    "\"Difference: @eogvar2@, count: @eogvar3@\"]}," +
+                    "{\"id\":9111,\"name\":\"Triumph\",\"endOfGameStatDescs\":[\"Recovered @eogvar1@\"]}]"));
+            LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
+                "{\"styles\":[{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"), runes);
+            var withValues = new LeaguePlayerMatchParticipant {
+                PlayerName = "Fixture Player", PrimaryPerkStyleId = 8000, SecondaryPerkStyleId = 8300,
+                PerkIds = new[] { 8005, 9111, 0, 0, 0, 0 },
+                PerkEndOfGameValues = new[] {
+                    new double?[] { 777, -2.5, 0 }, new double?[] { null, null, null },
+                    new double?[3], new double?[3], new double?[3], new double?[3]
+                },
+                StatPerkIds = new int?[] { 5008, null, 0 }
+            };
+            var descriptions = LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                withValues, runes, key => LeagueEfficiencyText.Get(null, key));
+            var runeCopy = LeagueBuildAdvisorDataService.CloneLocalCatalog(runes);
+            runeCopy.PerkEndOfGameDescriptions[8005][0] = "mutated";
+            Require(runes.PerkEndOfGameDescriptions[8005][0].Contains("<b>") &&
+                descriptions.Contains("Damage & hits: 777") &&
+                descriptions.Contains("Difference: -2.5, count: 0") &&
+                descriptions.Contains("Recovered —") && descriptions.Contains("属性碎片：#5008 / — / —") &&
+                !descriptions.Contains("<b>") && !descriptions.Contains("@eogvar") &&
+                descriptions.Contains("主系符文 · Precision") &&
+                LeagueEncounterMatchScoreboardDialog.FormatParticipantRuneDetails(
+                    null, runes, key => LeagueEfficiencyText.Get(null, key)).Contains("选择一名玩家"),
+                "Rune card must preserve signed/zero variables, unknown placeholders and detached perk descriptions.");
+            var regional = LeaguePlayerDataService.NormalizeSgpGame(new Dictionary<string, object> {
+                { "json", new Dictionary<string, object> {
+                    { "gameId", 44L }, { "participants", new object[] {
+                        new Dictionary<string, object> {
+                            { "participantId", 1 }, { "puuid", "fixture" },
+                            { "doubleKills", 3 }, { "tripleKills", 1 },
+                            { "quadraKills", 0 }, { "pentaKills", 0 },
+                            { "magicalDamageTaken", 321 }, { "magicDamageTaken", 999 },
+                            { "challenges", new Dictionary<string, object> {
+                                { "maxCsAdvantageOnLaneOpponent", 40.5 },
+                                { "knockEnemyIntoTeamAndKill", 6 },
+                                { "killsNearEnemyTurret", 6 },
+                                { "killsUnderOwnTurret", 5 } } },
+                            { "perks", new Dictionary<string, object> {
+                                { "statPerks", new Dictionary<string, object> {
+                                    { "offense", 5008 }, { "flex", 5002 } } },
+                                { "styles", new object[] { new Dictionary<string, object> {
+                                    { "description", "primaryStyle" }, { "style", 8000 },
+                                    { "selections", new object[] { new Dictionary<string, object> {
+                                    { "perk", 8005 }, { "var1", 777 }, { "var2", -2.5 }, { "var3", 0 }
+                                    } } }
+                                } } }
+                            } }
+                        }
+                    } }
+                } }
+            });
+            var participant = ((List<Dictionary<string, object>>)regional["participants"])[0];
+            var stats = (Dictionary<string, object>)participant["stats"];
+            Require(stats["perk0Var1"].ToString() == "777" &&
+                stats["perk0Var2"].ToString() == "-2.5" && stats["perk0Var3"].ToString() == "0" &&
+                stats["magicDamageTaken"].ToString() == "321" &&
+                stats["doubleKills"].ToString() == "3" &&
+                stats["tripleKills"].ToString() == "1" &&
+                ((Dictionary<string, object>)stats["challenges"])["maxCsAdvantageOnLaneOpponent"]
+                    .ToString() == "40.5" &&
+                ((Dictionary<string, object>)stats["challenges"])["knockEnemyIntoTeamAndKill"]
+                    .ToString() == "6" &&
+                ((Dictionary<string, object>)stats["challenges"])["killsNearEnemyTurret"]
+                    .ToString() == "6" &&
+                ((Dictionary<string, object>)stats["challenges"])["killsUnderOwnTurret"]
+                    .ToString() == "5" &&
+                stats["perkStatOffense"].ToString() == "5008" &&
+                stats["perkStatFlex"].ToString() == "5002" && !stats.ContainsKey("perkStatDefense"),
+                "SGP normalization must retain raw rune selection variables and nullable stat shards.");
+        }
+
+        private static async Task ValidateMatchDetailAsync()
+        {
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
+            LeagueClientSession active = session;
+            var api = new MatchDetailClient();
+            var reader = new LeagueEncounterMatchDetailService(api, new PerformanceBudgetProvider(), () => active);
+            var record = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self", Puuid = "enemy",
+                Region = "HN1", PlatformId = "HN1", QueueType = "ARAM" };
+            using (var token = new CancellationTokenSource())
+            {
+                active = null;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient &&
+                    api.Reads == 0, "Offline history details must not read LCU without a client.");
+                active = session;
+                record.Region = "HN2";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount &&
+                    api.Reads == 0, "A different region must be rejected before any LCU request.");
+                record.Region = "HN1";
+                api.SelfPuuid = "other";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount &&
+                    api.Reads == 1, "A different signed-in account must not fetch historical details.");
+                api.SelfPuuid = "self";
+                var result = await reader.ReadAsync(record, token.Token);
+                Require(result.Status == LeagueEncounterMatchDetailStatus.Ready && result.Match != null &&
+                    result.Match.GameId == 123 && result.Match.ParticipantResolved && result.Match.Win &&
+                    result.Match.Kills == 5 && result.Match.Deaths == 2 && result.Match.Assists == 9 &&
+                    result.Match.CreepScore == 103 && result.Participants != null &&
+                    result.Participants.Count == 3 && result.Participants.Single(p => p.IsTarget).PlayerName == "Target#HN1" &&
+                    result.Participants.Single(p => p.IsTarget).CreepScoreAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").CreepScoreAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").DamageAvailable &&
+                    !result.Participants.Single(p => p.PuuId == "ally").GoldAvailable &&
+                    result.Participants.Single(p => p.IsTarget).DamageToChampions == 18000 &&
+                    result.Participants.Single(p => p.IsTarget).PhysicalDamageToChampions == 9000 &&
+                    result.Participants.Single(p => p.IsTarget).MagicDamageToChampions == 7000 &&
+                    result.Participants.Single(p => p.IsTarget).TrueDamageToChampions == 2000 &&
+                    result.Participants.Single(p => p.IsTarget).TotalDamageTaken == 5000 &&
+                    result.Participants.Single(p => p.IsTarget).PhysicalDamageTaken == 3000 &&
+                    result.Participants.Single(p => p.IsTarget).MagicDamageTaken == 1500 &&
+                    result.Participants.Single(p => p.IsTarget).TrueDamageTaken == 500 &&
+                    result.Participants.Single(p => p.IsTarget).TotalHeal == 2400 &&
+                    result.Participants.Single(p => p.IsTarget).DoubleKills == 6 &&
+                    result.Participants.Single(p => p.IsTarget).TripleKills == 3 &&
+                    result.Participants.Single(p => p.IsTarget).QuadraKills == 2 &&
+                    result.Participants.Single(p => p.IsTarget).PentaKills == 1 &&
+                    !result.Participants.Single(p => p.PuuId == "ally").DoubleKills.HasValue &&
+                    !result.Participants.Single(p => p.PuuId == "ally").TotalHeal.HasValue &&
+                    result.Participants.Single(p => p.IsTarget).ChampionName == "Ashe" &&
+                    result.Participants.All(p => p.Position == null) &&
+                    result.Match.ChampionName == "Ashe" &&
+                    result.Participants.Single(p => p.IsTarget).ItemIds.SequenceEqual(new[] { 3006, 3031, 0, 0, 0, 0, 0 }) &&
+                    result.Participants.Single(p => p.IsTarget).RoleBoundItemId == 3158 &&
+                    result.Match.RoleBoundItemId == 3158 &&
+                    result.Participants.Single(p => p.IsTarget).SpellIds.SequenceEqual(new[] { 4, 7 }) &&
+                    result.Participants.Single(p => p.IsTarget).PerkIds.SequenceEqual(new[] { 8005, 9111, 9104, 8014, 8345, 8347 }) &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][0] == 777 &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][1] == -2.5 &&
+                    result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[0][2] == 0 &&
+                    !result.Participants.Single(p => p.IsTarget).PerkEndOfGameValues[1][0].HasValue &&
+                    result.Participants.Single(p => p.IsTarget).StatPerkIds == null &&
+                    result.Participants.Single(p => p.IsTarget).PrimaryPerkStyleId == 8000 &&
+                    result.Participants.Single(p => p.IsTarget).SecondaryPerkStyleId == 8300 &&
+                    result.Participants.Single(p => p.IsTarget).AugmentIds[0] == 1234 &&
+                    result.Participants.Single(p => p.PuuId == "ally").TeamId == 100 &&
+                    result.Participants.Single(p => p.PuuId == "self").TeamId == 200 &&
+                    result.BuildCatalog != null && result.BuildCatalog.Items[3006] == "Berserker Greaves" &&
+                    result.BuildCatalog.Spells[4] == "Flash" &&
+                    result.BuildCatalog.Perks[8005] == "Press the Attack" &&
+                    result.BuildCatalog.ItemIcons[3006].StartsWith("lcu:", StringComparison.Ordinal) &&
+                    result.BuildCatalog.Augments[1234] == "Fixture Augment" &&
+                    result.BuildCatalog.AugmentRarities[1234] == "kPrismatic" &&
+                    result.BuildCatalog.AugmentIcons[1234].StartsWith("lcu:", StringComparison.Ordinal) &&
+                    result.BuildCatalog.PerkStyles[8000] == "Precision" &&
+                    api.Reads == 10 && api.ChampionReads == 1 && api.BuildCatalogReads == 5,
+                    "Explicit LCU detail must resolve the recorded target participant, not the signed-in player.");
+                Require(LeagueEncounterMatchScoreboardDialog.FormatBoundItem(3158,
+                            new Dictionary<int, string> { { 3158, "Special Item" } }) == "Special Item" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(3158, null) == "#3158" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(0, null) == "—" &&
+                        LeagueEncounterMatchScoreboardDialog.FormatBoundItem(null, null) == "—",
+                    "Role-bound items must have a named/ID fallback and distinguish missing or empty equipment.");
+                Require(result.IsCurrentSession != null && result.IsCurrentSession(),
+                    "Selected-event actions must retain the detail request's originating session.");
+                active = new LeagueClientSession("LeagueClientUx", 56, 3000, "other", "https", "fixture", "HN1", "HN1");
+                Require(!result.IsCurrentSession(), "A replacement client must invalidate deferred event assets and actions.");
+                active = session;
+                var cachedDetail = await reader.ReadAsync(record, token.Token);
+                Require(cachedDetail.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    cachedDetail.BuildCatalog != null && api.Reads == 13 && api.BuildCatalogReads == 5 &&
+                    api.ChampionReads == 1,
+                    "Repeated explicit matches must reuse the cached client game-data catalog, not refetch every icon catalog.");
+                Require(result.Teams != null && result.Teams.Count == 2 &&
+                    result.Teams[0].TeamId == 100 && result.Teams[0].PlayerCount == 2 &&
+                    result.Teams[0].Win == true && result.Teams[0].Kills == 8 &&
+                    result.Teams[0].Deaths == 6 && result.Teams[0].Assists == 15 &&
+                    result.Teams[0].DamageToChampions == null && result.Teams[0].GoldEarned == null &&
+                    result.Teams[0].BaronKills == 1 && result.Teams[0].DragonKills == 2 &&
+                    result.Teams[0].TowerKills == 6 && result.Teams[0].HordeKills == 3 &&
+                    result.Teams[0].RiftHeraldKills == 0 && result.Teams[0].InhibitorKills == 2 &&
+                    result.Teams[1].TeamId == 200 && result.Teams[1].PlayerCount == 1 &&
+                    result.Teams[1].Win == false && result.Teams[1].BaronKills == 0 &&
+                    result.Teams[1].HordeKills == null,
+                    "Team summaries must aggregate verified participants while preserving objective zero versus absent.");
+                Require(result.Teams[0].FirstBaron == true && result.Teams[0].FirstDragon == true &&
+                    result.Teams[0].FirstTower == true && result.Teams[0].FirstInhibitor == false &&
+                    result.Teams[0].Bans != null && result.Teams[0].Bans.Count == 2 &&
+                    result.Teams[0].Bans[0].ChampionId == 22 && result.Teams[0].Bans[0].PickTurn == 1 &&
+                    result.Teams[0].Bans[1].ChampionId == 99 && result.Teams[0].Bans[1].PickTurn == 3 &&
+                    result.ChampionNames != null && result.ChampionNames[22] == "Ashe" &&
+                    result.Teams[1].FirstDragon == false && result.Teams[1].Bans != null &&
+                    result.Teams[1].Bans.Count == 0,
+                    "Team bans and first-objective flags must use the same verified game and cached hero names.");
+                Func<string, string> t = key => LeagueEfficiencyText.Get(null, key);
+                var teamDetails = LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                    result.Teams[0], result.ChampionNames, t);
+                Require(teamDetails.Contains("Ashe (#22)") && teamDetails.Contains("顺位 1") &&
+                    teamDetails.Contains("首大龙 是") && teamDetails.Contains("首水晶 否") &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        result.Teams[0], null, t).Contains("#22") &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        result.Teams[1], null, t).Contains("禁用英雄：无"),
+                    "Team detail formatting must show localized bans and first-objective ownership.");
+                api.ReturnZeroTeamMetrics = true;
+                var completeMetrics = await reader.ReadAsync(record, token.Token);
+                Require(completeMetrics.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    completeMetrics.Teams[0].DamageToChampions == 18000 &&
+                    completeMetrics.Teams[0].GoldEarned == 12000,
+                    "A reported zero for a member must allow a complete measured team total.");
+                api.ReturnZeroTeamMetrics = false;
+                api.ReturnInvalidTeamMetrics = true;
+                var invalidMetrics = await reader.ReadAsync(record, token.Token);
+                Require(invalidMetrics.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    invalidMetrics.Teams[0].DamageToChampions == null &&
+                    invalidMetrics.Teams[0].GoldEarned == null,
+                    "Null or invalid member metrics must not masquerade as measured zeroes.");
+                api.ReturnInvalidTeamMetrics = false;
+                api.ReturnMissingTeams = true;
+                var missingTeams = await reader.ReadAsync(record, token.Token);
+                Require(missingTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    missingTeams.Teams.Count == 2 && missingTeams.Teams[0].Kills == 8 &&
+                    missingTeams.Teams[0].BaronKills == null && missingTeams.Teams[1].DragonKills == null &&
+                    missingTeams.Teams[0].Bans == null && missingTeams.Teams[0].FirstBaron == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        missingTeams.Teams[0], null, t).Contains("禁用英雄：未知"),
+                    "Missing team metadata must not discard real participant scores or invent objective zeroes.");
+                api.ReturnMissingTeams = false;
+                api.ReturnDuplicateTeams = true;
+                var duplicateTeams = await reader.ReadAsync(record, token.Token);
+                Require(duplicateTeams.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    duplicateTeams.Teams[0].Kills == 8 && duplicateTeams.Teams[0].BaronKills == null &&
+                    duplicateTeams.Teams[0].FirstBaron == null && duplicateTeams.Teams[0].Bans == null &&
+                    duplicateTeams.Teams[1].DragonKills == 1,
+                    "Ambiguous team metadata must not attach objectives to the wrong team.");
+                api.ReturnDuplicateTeams = false;
+                api.ReturnMalformedFirst = true;
+                var malformedFirst = await reader.ReadAsync(record, token.Token);
+                Require(malformedFirst.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    malformedFirst.Teams[0].FirstBaron == null && malformedFirst.Teams[0].FirstDragon == true,
+                    "An invalid first-objective flag must not be converted to a false claim.");
+                api.ReturnMalformedFirst = false;
+                api.ReturnMalformedBans = true;
+                var malformedBans = await reader.ReadAsync(record, token.Token);
+                Require(malformedBans.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    malformedBans.Teams[1].Bans == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(
+                        malformedBans.Teams[1], null, t).Contains("禁用英雄：未知"),
+                    "Malformed ban lists must stay unknown rather than falsely reporting no bans.");
+                api.ReturnMalformedBans = false;
+                api.ReturnConflictingWin = true;
+                var conflictingWin = await reader.ReadAsync(record, token.Token);
+                Require(conflictingWin.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    conflictingWin.Teams[0].Win == null && conflictingWin.Teams[0].Kills == 8,
+                    "Conflicting participant results must show unknown team outcome, not a false win.");
+                api.ReturnConflictingWin = false;
+                api.ReturnCherry = true;
+                var cherry = await reader.ReadAsync(record, token.Token);
+                Require(cherry.Status == LeagueEncounterMatchDetailStatus.Ready && cherry.Teams.Count == 2 &&
+                    cherry.Match.GameMode == "CHERRY" && cherry.Teams[0].IsCherry &&
+                    cherry.Teams[0].TeamId == 1 && cherry.Teams[0].SubteamPlacement == 1 &&
+                    cherry.Teams[0].PlayerCount == 1 && cherry.Teams[0].Kills == 3 &&
+                    cherry.Teams[1].TeamId == 2 && cherry.Teams[1].SubteamPlacement == 2 &&
+                    cherry.Teams[1].PlayerCount == 2 && cherry.Teams[1].Kills == 7 &&
+                    cherry.Teams.All(team => team.BaronKills == null && team.Bans == null) &&
+                    cherry.Participants.Single(player => player.IsTarget).PlayerSubteamId == 2 &&
+                    cherry.Match.PlayerSubteamId == 2 && cherry.Match.SubteamPlacement == 2,
+                    "Cherry participants must group by the source subteam ID, not conventional red/blue team IDs.");
+                Require(LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(cherry.Teams[0], null, t)
+                        .Contains("斗魂队伍 1 · 第1名") &&
+                    !LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(cherry.Teams[0], null, t)
+                        .Contains("大龙") &&
+                    LeagueCherryTeams.GroupId(cherry.Participants.Single(player => player.IsTarget), true) == 2 &&
+                    LeagueCherryTeams.GroupId(cherry.Participants.Single(player => player.IsTarget), false) == 100,
+                    "Cherry scoreboard and timeline team comparisons must use the same verified group keys.");
+                api.ReturnCherryConflict = true;
+                var ambiguousCherry = await reader.ReadAsync(record, token.Token);
+                Require(ambiguousCherry.Teams.Count == 2 && ambiguousCherry.Teams[1].SubteamPlacement == null &&
+                    LeagueEncounterMatchScoreboardDialog.FormatTeamDetails(ambiguousCherry.Teams[1], null, t)
+                        .Contains("未知"),
+                    "Conflicting subgroup placements must not display one participant's rank as the team's rank.");
+                api.ReturnCherryConflict = false;
+                api.ReturnCherryUnknown = true;
+                var unknownCherry = await reader.ReadAsync(record, token.Token);
+                Require(unknownCherry.Teams.Count == 1 && unknownCherry.Teams[0].TeamId == 1 &&
+                    unknownCherry.Participants.Single(player => player.IsTarget).PlayerSubteamId == null &&
+                    LeagueCherryTeams.GroupId(unknownCherry.Participants.Single(player => player.IsTarget), true) == 0 &&
+                    LeagueEncounterMatchScoreboardDialog.FormatCherryPlacement(null, t) == "未知",
+                    "Missing/invalid subteam identity must not be converted to red/blue ownership or first place.");
+                api.ReturnCherryUnknown = false;
+                api.ReturnCherry = false;
+                var sgpCherry = LeaguePlayerDataService.NormalizeSgpGame(new Dictionary<string, object>
+                {
+                    { "json", new Dictionary<string, object> {
+                        { "gameId", 123L }, { "gameMode", "CHERRY" },
+                        { "participants", new object[] {
+                            new Dictionary<string, object> { { "participantId", 1 }, { "puuid", "s1" },
+                                { "playerSubteamId", 3 }, { "subteamPlacement", 1 } },
+                            new Dictionary<string, object> { { "participantId", 2 }, { "puuid", "s2" },
+                                { "playerSubteamId", 4 }, { "subteamPlacement", 2 } }
+                        } }
+                    } }
+                });
+                Require(sgpCherry != null &&
+                    ((Dictionary<string, object>)((List<Dictionary<string, object>>)sgpCherry["participants"])[0]["stats"])
+                        ["playerSubteamId"].ToString() == "3" &&
+                    ((Dictionary<string, object>)((List<Dictionary<string, object>>)sgpCherry["participants"])[1]["stats"])
+                        ["subteamPlacement"].ToString() == "2",
+                    "Normalized regional SGP rows must preserve Cherry subgroup and placement fields.");
+                var busyBudget = new PerformanceBudgetProvider();
+                busyBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+                var busyApi = new MatchDetailClient();
+                var busyReader = new LeagueEncounterMatchDetailService(busyApi, busyBudget, () => session);
+                var busyResult = await busyReader.ReadAsync(record, token.Token);
+                Require(busyResult.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    busyResult.Participants.Single(p => p.IsTarget).ChampionId == 22 &&
+                    busyApi.ChampionReads == 0 && busyApi.BuildCatalogReads == 0,
+                    "In-game budgets must not request extra game-data metadata for historical breakdowns.");
+                var upgradeApi = new MatchDetailClient { ReturnNoAugments = true };
+                var upgradeReader = new LeagueEncounterMatchDetailService(upgradeApi,
+                    new PerformanceBudgetProvider(), () => session);
+                var noAugments = await upgradeReader.ReadAsync(record, token.Token);
+                Require(noAugments.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    upgradeApi.BuildCatalogReads == 4 && noAugments.BuildCatalog.Augments.Count == 0,
+                    "Ordinary matches must not load Cherry augmentation metadata when no player has augments.");
+                upgradeApi.ReturnNoAugments = false;
+                var withAugments = await upgradeReader.ReadAsync(record, token.Token);
+                Require(withAugments.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                    upgradeApi.BuildCatalogReads == 5 && withAugments.BuildCatalog.Augments[1234] == "Fixture Augment" &&
+                    noAugments.BuildCatalog.Augments.Count == 0,
+                    "An augmented match must upgrade the cached catalog with one optional LCU request without mutating old cards.");
+                await upgradeReader.ReadAsync(record, token.Token);
+                Require(upgradeApi.BuildCatalogReads == 5,
+                    "Repeated augmented matches must reuse enriched game-data metadata.");
+                var switchedApi = new MatchDetailClient { AfterChampionRead = () => { active = new LeagueClientSession(
+                    "LeagueClientUx", 55, 3001, "replacement", "https", "fixture", "HN1", "HN1"); } };
+                var switchedReader = new LeagueEncounterMatchDetailService(switchedApi,
+                    new PerformanceBudgetProvider(), () => active);
+                Require((await switchedReader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                    "A client replacement while loading optional hero names must discard the full scoreboard.");
+                active = session;
+                api.ReturnMalformedRoster = true;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                    "Duplicate participant IDs must not produce a partial or misleading scoreboard.");
+                api.ReturnMalformedRoster = false;
+                api.AfterMatchRead = () => api.SelfPuuid = "other";
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.WrongAccount,
+                    "A same-session account switch after the game read must discard the old owner's match detail.");
+                api.AfterMatchRead = null;
+                api.SelfPuuid = "self";
+                api.ReturnMissingParticipant = true;
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                    "Incomplete match participants must not be displayed as zero statistics.");
+                api.ReturnMissingParticipant = false;
+                api.AfterProfileRead = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                    "replacement", "https", "fixture", "HN1", "HN1");
+                Require((await reader.ReadAsync(record, token.Token)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                    "Changed client sessions must invalidate in-flight detail requests.");
+            }
+        }
+
+        private static async Task ValidateEogOnlyDetailAsync()
+        {
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999,
+                "eog-fixture", "https", "fixture", "HN1", "TENCENT");
+            var active = session;
+            var local = new MatchDetailClient();
+            var sgp = new EogFallbackApi();
+            var players = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(),
+                null, sgp, () => active);
+            var reader = new LeagueEncounterMatchDetailService(players, () => active);
+            var selected = new LeaguePlayerMatchSummary { GameId = 123,
+                DataSource = LeaguePlayerHistorySource.Sgp,
+                PreferredSource = LeaguePlayerHistorySource.Sgp,
+                SgpServerId = "TENCENT_HN1" };
+            var result = await reader.ReadHistoryAsync(session, "self", "enemy",
+                selected, CancellationToken.None);
+            Require(result.Status == LeagueEncounterMatchDetailStatus.Ready &&
+                result.EogOnly != null && result.EogOnly.GameId == 123 &&
+                result.EogOnly.Players.Count == 2 && result.Participants == null &&
+                result.IsCurrentSession() && sgp.EogReads == 1,
+                "When SUMMARY is unavailable, a verified same-region EOG must produce a separate read-only detail.");
+            selected.SgpServerId = "TENCENT_HN10";
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable &&
+                sgp.EogReads == 1,
+                "Cross-region history must not attempt current-region EOG.");
+            selected.SgpServerId = "TENCENT_HN1";
+            selected.DataSource = LeaguePlayerHistorySource.Lcu;
+            selected.PreferredSource = LeaguePlayerHistorySource.Lcu;
+            local.ReturnMissingParticipant = true;
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable &&
+                sgp.EogReads == 1,
+                "An explicitly LCU-only detail must not fall back to SGP EOG.");
+            local.ReturnMissingParticipant = false;
+            selected.DataSource = LeaguePlayerHistorySource.Sgp;
+            selected.PreferredSource = LeaguePlayerHistorySource.Sgp;
+            sgp.AfterRead = () => local.SelfPuuid = "other";
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.Unavailable,
+                "An account switch during EOG must discard the remote result.");
+            local.SelfPuuid = "self";
+            sgp.AfterRead = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                "replacement", "https", "fixture", "HN1", "TENCENT");
+            Require((await reader.ReadHistoryAsync(session, "self", "enemy",
+                    selected, CancellationToken.None)).Status == LeagueEncounterMatchDetailStatus.NoClient,
+                "An LCU session replacement during EOG must not publish stale details.");
+        }
+
+        private sealed class EogFallbackApi : ILeagueSgpMatchHistoryApi, ILeagueSgpStatsEogApi
+        {
+            internal int EogReads;
+            internal Action AfterRead;
+            public Task<byte[]> TryGetSummaryAsync(string puuid, int start, int count,
+                CancellationToken token, string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetStatsEogAsync(long gameId, string targetPuuid, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                EogReads++;
+                AfterRead?.Invoke();
+                return Task.FromResult(Encoding.UTF8.GetBytes(
+                    @"{""gameId"":123,""puuid"":""enemy"",""gameMode"":""CLASSIC"",""queueId"":420,
+                    ""teamPlayerParticipantStats"":[{""gameId"":123,""puuid"":""enemy"",
+                        ""teamId"":100,""championId"":22,""statistics"":[
+                        {""statTypeName"":""CHAMPIONS_KILLED"",""value"":3}]}],
+                    ""otherTeamPlayerParticipantStats"":[{""gameId"":123,""puuid"":""self"",
+                        ""teamId"":200,""championId"":12,""statistics"":[]}]}"));
+            }
+        }
+
+        private sealed class MatchDetailClient : ILeagueClientApi
+        {
+            internal int Reads;
+            internal int ChampionReads;
+            internal int BuildCatalogReads;
+            internal string SelfPuuid = "self";
+            internal bool ReturnMissingParticipant;
+            internal bool ReturnMalformedRoster;
+            internal bool ReturnMissingTeams;
+            internal bool ReturnDuplicateTeams;
+            internal bool ReturnConflictingWin;
+            internal bool ReturnZeroTeamMetrics;
+            internal bool ReturnInvalidTeamMetrics;
+            internal bool ReturnMalformedFirst;
+            internal bool ReturnMalformedBans;
+            internal bool ReturnCherry;
+            internal bool ReturnCherryUnknown;
+            internal bool ReturnCherryConflict;
+            internal bool ReturnNoAugments;
+            internal Action AfterProfileRead;
+            internal Action AfterMatchRead;
+            internal Action AfterChampionRead;
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Reads++;
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                {
+                    AfterProfileRead?.Invoke();
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + SelfPuuid + "\"}"));
+                }
+                if (path == LeaguePlayerDataService.ChampionSummaryPath)
+                {
+                    ChampionReads++;
+                    AfterChampionRead?.Invoke();
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":22,\"name\":\"Ashe\"}," +
+                        "{\"id\":99,\"name\":\"Lux\"},{\"id\":12,\"name\":\"Alistar\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.ItemsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":3006,\"name\":\"Berserker Greaves\"," +
+                        "\"iconPath\":\"/lol-game-data/assets/v1/items/3006.png\"}," +
+                        "{\"id\":3031,\"name\":\"Infinity Edge\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.SummonerSpellsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":4,\"name\":\"Flash\"}," +
+                        "{\"id\":7,\"name\":\"Heal\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.PerksPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":8005," +
+                        "\"name\":\"Press the Attack\",\"endOfGameStatDescs\":[\"Damage @eogvar1@\"]}," +
+                        "{\"id\":9111,\"name\":\"Triumph\"}]"));
+                }
+                if (path == LeagueBuildAdvisorDataService.PerkStylesPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"schemaVersion\":2,\"styles\":[" +
+                        "{\"id\":8000,\"name\":\"Precision\"},{\"id\":8300,\"name\":\"Inspiration\"}]}"));
+                }
+                if (path == LeagueBuildAdvisorDataService.CherryAugmentsPath)
+                {
+                    BuildCatalogReads++;
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[{\"id\":1234," +
+                        "\"nameTRA\":\"Fixture Augment\",\"rarity\":\"kPrismatic\"," +
+                        "\"augmentSmallIconPath\":\"/lol-game-data/assets/v1/augment/1234.png\"}]"));
+                }
+                if (path == "/lol-match-history/v1/games/123")
+                {
+                    AfterMatchRead?.Invoke();
+                    var target = ReturnMissingParticipant ? "different-player" : "enemy";
+                    var otherParticipantId = ReturnMalformedRoster ? 1 : 2;
+                    var teams = ReturnMissingTeams ? "" : ",\"teams\":[{\"teamId\":100," +
+                        "\"baronKills\":1,\"dragonKills\":2,\"towerKills\":6," +
+                        "\"hordeKills\":3,\"riftHeraldKills\":0,\"inhibitorKills\":2," +
+                        "\"firstBaron\":true,\"firstDargon\":true,\"firstTower\":true," +
+                        "\"firstInhibitor\":false,\"bans\":[{\"championId\":22,\"pickTurn\":1}," +
+                        "{\"championId\":99,\"pickTurn\":3},{\"championId\":-1,\"pickTurn\":5}]}," +
+                        "{\"teamId\":200,\"baronKills\":0,\"dragonKills\":1,\"towerKills\":2," +
+                        "\"firstBaron\":false,\"firstDragon\":false,\"bans\":[]}]";
+                    if (ReturnDuplicateTeams)
+                        teams = teams.Replace("{\"teamId\":200", "{\"teamId\":100,\"baronKills\":9},{\"teamId\":200");
+                    if (ReturnMalformedFirst)
+                        teams = teams.Replace("\"firstBaron\":true", "\"firstBaron\":\"invalid\"");
+                    if (ReturnMalformedBans)
+                        teams = teams.Replace("\"bans\":[]", "\"bans\":\"invalid\"");
+                    var allyMetrics = ReturnZeroTeamMetrics
+                        ? ",\"totalDamageDealtToChampions\":0,\"goldEarned\":0"
+                        : ReturnInvalidTeamMetrics ? ",\"totalDamageDealtToChampions\":null,\"goldEarned\":\"invalid\"" : "";
+                    var cherryMode = ReturnCherry ? "CHERRY" : "ARAM";
+                    var cherryFirst = ReturnCherry && !ReturnCherryUnknown
+                        ? "\"playerSubteamId\":2,\"subteamPlacement\":2," : "";
+                    var cherrySecond = ReturnCherry ? "\"playerSubteamId\":1,\"subteamPlacement\":1," : "";
+                    var cherryThird = ReturnCherry && !ReturnCherryUnknown
+                        ? "\"playerSubteamId\":2,\"subteamPlacement\":" +
+                            (ReturnCherryConflict ? "3" : "2") + "," : "";
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":123,\"gameMode\":\"" + cherryMode + "\"," +
+                        "\"gameDuration\":1200,\"participantIdentities\":[{\"participantId\":1," +
+                        "\"player\":{\"puuid\":\"" + target + "\",\"gameName\":\"Target\",\"tagLine\":\"HN1\"}}," +
+                        "{\"participantId\":2,\"player\":{\"puuid\":\"ally\"}}," +
+                        "{\"participantId\":3,\"player\":{\"puuid\":\"self\"}}],\"participants\":[{" +
+                        "\"participantId\":1,\"teamId\":100,\"championId\":22," +
+                        "\"spell1Id\":4,\"spell2Id\":7,\"stats\":{" +
+                        cherryFirst + "\"win\":true,\"kills\":5,\"deaths\":2,\"assists\":9," +
+                        "\"doubleKills\":6,\"tripleKills\":3,\"quadraKills\":2,\"pentaKills\":1," +
+                        "\"totalMinionsKilled\":100,\"neutralMinionsKilled\":3," +
+                        "\"totalDamageDealtToChampions\":18000,\"goldEarned\":12000,\"visionScore\":11," +
+                        "\"physicalDamageDealtToChampions\":9000,\"magicDamageDealtToChampions\":7000," +
+                        "\"trueDamageDealtToChampions\":2000,\"totalDamageTaken\":5000," +
+                        "\"physicalDamageTaken\":3000,\"magicDamageTaken\":1500,\"trueDamageTaken\":500," +
+                        "\"totalHeal\":2400," +
+                        "\"item0\":3006,\"item1\":3031,\"roleBoundItem\":3158," +
+                        "\"perk0\":8005,\"perk0Var1\":777,\"perk0Var2\":-2.5,\"perk0Var3\":0,\"perk1\":9111," +
+                        "\"perk2\":9104,\"perk3\":8014,\"perk4\":8345,\"perk5\":8347," +
+                        "\"perkPrimaryStyle\":8000,\"perkSubStyle\":8300,\"playerAugment1\":" +
+                            (ReturnNoAugments ? "0" : "1234") + "}}," +
+                        "{\"participantId\":" + otherParticipantId + ",\"teamId\":100,\"championId\":99," +
+                        "\"stats\":{" + cherrySecond + "\"win\":" + (ReturnConflictingWin ? "false" : "true") +
+                        ",\"kills\":3,\"deaths\":4,\"assists\":6" + allyMetrics + "}}," +
+                        "{\"participantId\":3,\"teamId\":200,\"championId\":12," +
+                        "\"stats\":{" + cherryThird + "\"win\":false,\"kills\":2,\"deaths\":6,\"assists\":3}}]" +
+                        teams + "}"));
+                }
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private static async Task ValidateReplayAsync()
+        {
+            Require(LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v2/metadata/123/create") &&
+                LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/download") &&
+                LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/watch") &&
+                !LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/../watch") &&
+                !LeagueReplayWriteApiClient.IsAllowedPathForSmokeTest(
+                    "/lol-replays/v1/rofls/123/delete"),
+                "Replay writer must only accept positive game IDs and exact replay POST routes.");
+            var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
+            var active = session;
+            var record = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self", Puuid = "enemy",
+                PlatformId = "HN1", Region = "HN1" };
+            var match = new LeaguePlayerMatchSummary { GameId = 123, QueueId = 450,
+                GameType = "MATCHED_GAME", GameCreationEpochMs = 1720000000000,
+                GameDurationSeconds = 1234 };
+            var read = new ReplayReadClient();
+            var write = new ReplayWriteClient();
+            var service = new LeagueEncounterReplayService(read, write, () => active);
+
+            var result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.DownloadRequested &&
+                write.Created == 1 && write.Downloads == 1 && write.Watches == 0 &&
+                write.CreatedMatch == match && write.CreatedVersion == "15.21.1" &&
+                read.ProfileReads == 2,
+                "Downloading a replay must check the owner twice, create metadata and POST once.");
+            read.State = "watch";
+            result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.WatchRequested && write.Watches == 1 &&
+                write.Downloads == 1, "A watch-ready replay should only send the watch action.");
+            read.State = "downloading";
+            read.Progress = 0.42;
+            result = await service.ExecuteAsync(record, match, CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.Downloading && result.Progress == 42 &&
+                write.Watches == 1 && write.Downloads == 1,
+                "Download progress must be informative without resending replay commands.");
+            read.State = "checking";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Checking, "Checking must not trigger a replay POST.");
+            read.State = "incompatible";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Incompatible, "Incompatible replays must not be played.");
+            read.State = "download";
+            read.Enabled = false;
+            var writesBefore = write.Downloads;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Replay configuration opt-outs must be honored.");
+            read.Enabled = true;
+            read.SelfPuuid = "another-player";
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.WrongAccount && write.Downloads == writesBefore,
+                "A changed signed-in owner must not act on saved-player history.");
+            read.SelfPuuid = "self";
+            read.MetadataGameId = 999;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Mismatched replay metadata must not trigger an action.");
+            read.MetadataGameId = 123;
+            read.AfterMetadata = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
+                "other", "https", "fixture", "HN1", "HN1");
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.NoClient && write.Downloads == writesBefore,
+                "Switching LCU sessions while reading metadata must stop the replay action.");
+            active = session;
+            read.AfterMetadata = null;
+            var wrongRegion = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self",
+                Puuid = "enemy", PlatformId = "HN2", Region = "HN2" };
+            Require((await service.ExecuteAsync(wrongRegion, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.WrongAccount && write.Downloads == writesBefore,
+                "A foreign platform or region must never receive replay commands.");
+            match.GameCreationEpochMs = 0;
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
+                "Incomplete creation timestamps must prevent invalid metadata POSTs.");
+            var historyMatch = new LeaguePlayerMatchSummary { GameId = 123, QueueId = 450,
+                GameType = "MATCHED_GAME", GameCreationEpochMs = 1720000000000, GameDurationSeconds = 1234 };
+            read.AfterConfiguration = () => historyMatch.GameId = 999;
+            result = await service.ExecuteForHistoryAsync(session, "self", "enemy", historyMatch,
+                CancellationToken.None);
+            Require(result.Status == LeagueEncounterReplayStatus.DownloadRequested &&
+                write.Downloads == writesBefore + 1 && write.CreatedMatch.GameId == 123 &&
+                historyMatch.GameId == 999,
+                "History actions must freeze the selected match before any asynchronous LCU read.");
+            read.AfterConfiguration = null;
+            writesBefore = write.Downloads;
+            var movedSession = new LeagueClientSession("LeagueClientUx", 55, 2999, "test",
+                "https", "fixture", "HN2", "HN2");
+            Require(LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, "self", historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(movedSession, active, "self", historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, null, historyMatch) &&
+                !LeagueEncounterReplayService.CanOfferHistoryReplay(session, active, "self", null),
+                "History replay controls must require a verified account, selected match and unchanged page session.");
+            Require((await service.ExecuteForHistoryAsync(movedSession, "self", "enemy", match,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.NoClient &&
+                (await service.ExecuteForHistoryAsync(null, "self", "enemy", match,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.NoClient &&
+                write.Downloads == writesBefore,
+                "A remote or cached history page must retain its original authenticated region and session.");
+            Require((await service.ExecuteForHistoryAsync(session, "self", "enemy", null,
+                    CancellationToken.None)).Status == LeagueEncounterReplayStatus.Unavailable &&
+                write.Downloads == writesBefore,
+                "Unselected history rows must not trigger replay writes.");
+            Require(LeagueEncounterMatchScoreboardDialog.ReplayStatusText(
+                new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Downloading, Progress = 42 },
+                key => key == LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading ? "{0}%" : key) == "42%",
+                "Replay state must be reflected in the native scoreboard label.");
+        }
+
+        private sealed class ReplayReadClient : ILeagueClientApi
+        {
+            internal string SelfPuuid = "self";
+            internal string State = "download";
+            internal bool Enabled = true;
+            internal double Progress;
+            internal long MetadataGameId = 123;
+            internal Action AfterMetadata;
+            internal Action AfterConfiguration;
+            internal int ProfileReads;
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                string json = null;
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                {
+                    ProfileReads++;
+                    json = "{\"puuid\":\"" + SelfPuuid + "\"}";
+                }
+                else if (path == LeagueEncounterReplayService.ConfigurationPath)
+                {
+                    AfterConfiguration?.Invoke();
+                    json = "{\"gameVersion\":\"15.21.1\",\"isReplaysEnabled\":" +
+                        (Enabled ? "true" : "false") + ",\"isReplaysForMatchHistoryEnabled\":true}";
+                }
+                else if (path == "/lol-replays/v1/metadata/123")
+                {
+                    AfterMetadata?.Invoke();
+                    json = "{\"gameId\":" + MetadataGameId + ",\"state\":\"" + State +
+                        "\",\"downloadProgress\":" + Progress.ToString(
+                            System.Globalization.CultureInfo.InvariantCulture) + "}";
+                }
+                return Task.FromResult(json == null ? null : Encoding.UTF8.GetBytes(json));
+            }
+        }
+
+        private sealed class ReplayWriteClient : ILeagueReplayWriteApi
+        {
+            internal int Created;
+            internal int Downloads;
+            internal int Watches;
+            internal LeaguePlayerMatchSummary CreatedMatch;
+            internal string CreatedVersion;
+
+            public Task<LeagueClientWriteResponse> TryCreateMetadataAsync(LeagueClientSession session,
+                LeaguePlayerMatchSummary match, string gameVersion, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Created++;
+                CreatedMatch = match;
+                CreatedVersion = gameVersion;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 200 });
+            }
+
+            public Task<LeagueClientWriteResponse> TryReplayAsync(LeagueClientSession session,
+                long gameId, bool watch, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (watch) Watches++;
+                else Downloads++;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 200 });
+            }
+        }
+
+        private sealed class StubClient : ILeagueClientApi
+        {
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+    }
+}

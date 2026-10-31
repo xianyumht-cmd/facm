@@ -6,6 +6,14 @@ The owner observed a completely **white 380×285 preview window** with no render
 
 Inspect the browser-generated home and Mayhem PNG screenshots from the `GGman-Compact-Visual-Checks` build artifact before asking the owner to review again. Windows headless rendering checks only the HTML and basic background visibility, not the native WebView2 host, DPI behavior, keyboard journeys or the user's monitor. If the Edge fallback also fails to render, stop and collect sanitized error output/screenshots; do not claim a fix from a build result.
 
+## Compact ranked-source probe and stacked candidate gate (2026-10-25)
+
+For Akari follow-up work based on #355, open an **independent Draft PR targeting** `feat/ggman-glass-webview2-pilot-20261021` (not `main`). The Windows Build, UI Text Contract, Mayhem source and Glass candidate workflows accept this temporary stacked PR base. Observe all four jobs on the final commit. Do not merge either PR or modify production update metadata.
+
+In the Glass candidate job, inspect `Probe live public ranking sources (informational)` and the `Compact-Public-Source-Probe` artifact, specifically `ordinary-aram valid=...` and `rift-top valid=...`, `all_rows`, `trace_event` and their source patch. A workflow success **does not** override `valid=False`. Source timeout, empty parsing, wrong lane and stale/mismatched patches must remain distinguishable from live-client failure. Latest pre-fix reference: Glass job #40174485817 showed ARAM valid and Rift invalid despite HTTP 200 / 864 ranked rows. No account tokens or LCU payloads should appear in this probe.
+
+For a genuine Win10 operator check, run the *unsigned opt-in compact live pilot only after closing official GGman*, then select an identified local-player Rift role and standard ARAM in actual LOL. Export the normal sanitized diagnostic ZIP and record client patch, queue/role, rendered rank count, unproxied request latency, memory/CPU baseline and shutdown cleanup. Never enter credentials into a test script or treat HTML fixture tests as real-game acceptance.
+
 ## Compact standalone visual acceptance (2026-10-24; Draft PR #355)
 
 Use the newest green `GGman-Glass-WebView2-Unsigned` artifact from [Glass candidate CI](https://github.com/xianyumht-cmd/facm/actions/workflows/glass-workbench-preview.yml); extract **all** files to a new folder on Windows 10 x64. Double-click `Start-Compact-Preview.cmd`. This is intentionally a separate test window, **not** an update to the floating ball or the released program. Closing it is a complete rollback. No game/login/cloud interface is initialized and no real ranking data are queried. Do not substitute the compact script into the official installation.

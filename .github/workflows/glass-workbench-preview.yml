@@ -2,7 +2,7 @@ name: GGman Glass WebView2 Candidate
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/ggman-glass-webview2-pilot-20261021]
     paths:
       - 'src/FACM/Presentation/Glass/**'
       - 'src/FACM/FACM.csproj'
@@ -160,7 +160,15 @@ jobs:
           $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
           $result = Start-Process -FilePath $exe -ArgumentList '--compact-public-source-probe' -Wait -PassThru -NoNewWindow
           if (Test-Path 'artifacts/Compact-Public-Source-Probe/public-source-probe.txt') {
-            Get-Content 'artifacts/Compact-Public-Source-Probe/public-source-probe.txt'
+            $probe = Get-Content 'artifacts/Compact-Public-Source-Probe/public-source-probe.txt'
+            $probe | Write-Host
+            foreach ($mode in @('ordinary-aram', 'rift-top')) {
+              $line = $probe | Where-Object { $_ -match "^$mode valid=" } | Select-Object -First 1
+              if (-not $line -or $line -notmatch ' valid=True ') {
+                Write-Host "::warning title=Compact public ranking unavailable::$mode did not yield a complete live ranking; inspect public-source-probe artifact."
+              }
+              Add-Content $env:GITHUB_STEP_SUMMARY ('- ' + ($line ?? "$mode no-result"))
+            }
           }
           if ($result.ExitCode -ne 0) { throw "Informational public-source probe exit=$($result.ExitCode)" }
 

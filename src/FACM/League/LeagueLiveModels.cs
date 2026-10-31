@@ -27,9 +27,11 @@ namespace FACM.League
         public string BudgetName { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
 
+        public bool SgpEnriched { get; set; }
         public long GameId { get; set; }
         public int QueueId { get; set; }
         public string QueueName { get; set; }
+        public string QueueType { get; set; }
         public int MapId { get; set; }
         public string MapName { get; set; }
         public string GameMode { get; set; }
@@ -50,6 +52,8 @@ namespace FACM.League
 
     internal sealed class LeagueBenchQuickPickState
     {
+        public string AutoSelectGroup { get; set; }
+        public string AutoSelectContext { get; set; }
         public LeagueBenchQuickPickState()
         {
             ChampionIds = new List<int>();

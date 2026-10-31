@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
@@ -14,9 +18,37 @@ namespace FACM.League
         private readonly TextBox _exitGame;
         private readonly TextBox _closeLobby;
         private readonly CheckBox _autoHonor;
+        private readonly ComboBox _honorStrategy;
         private readonly CheckBox _autoReturn;
         private readonly CheckBox _autoSearch;
+        private readonly CheckBox _waitForInvitees;
+        private readonly CheckBox _roomNotices;
         private readonly CheckBox _autoAccept;
+        private readonly CheckBox _autoReconnect;
+        private readonly CheckBox _respawnOverlay;
+        private readonly CheckBox _autoAramTeamSide;
+        private readonly CheckBox _aramTeamSideVisibleToTeam;
+        private readonly TextBox _loginSignature;
+        private readonly CheckBox _autoLoginSignature;
+        private readonly CheckBox _autoLoginRanked;
+        private readonly ComboBox _loginRankQueue;
+        private readonly ComboBox _loginRankTier;
+        private readonly ComboBox _loginRankDivision;
+        private readonly CheckBox _offlineLock;
+        private readonly CheckBox _autoReply, _replyAway;
+        private readonly TextBox _replyText;
+        private readonly CheckBox _autoHandleInvitations;
+        private readonly CheckBox _skipInvitationsWhenAway;
+        private readonly CheckBox _autoSkipLeader;
+        private readonly ComboBox _invitationGameType;
+        private readonly ComboBox _invitationAction;
+        private readonly Dictionary<string, string> _invitationPolicies;
+        private readonly CheckBox _autoPick;
+        private readonly CheckBox _autoBan;
+        private readonly CheckBox _autoSelectPause;
+        private readonly ComboBox _pickChampion;
+        private readonly ComboBox _banChampion;
+        private readonly CancellationTokenSource _catalogRequest = new CancellationTokenSource();
         private readonly NumericUpDown _minPartySize;
         private readonly NumericUpDown _matchmakingDelaySeconds;
         private readonly NumericUpDown _acceptDelaySeconds;
@@ -25,7 +57,9 @@ namespace FACM.League
         private readonly Label _help;
         private readonly Label _status;
         private readonly Label _honorStatus;
+        private readonly Label _invitationStatus;
         private bool _loading = true;
+        private bool _loginSignatureDirty;
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
         {
@@ -46,7 +80,7 @@ namespace FACM.League
                 Dock = DockStyle.Fill,
                 Padding = new Padding(24),
                 ColumnCount = 1,
-                RowCount = 18,
+                RowCount = 34,
                 BackColor = FacmDesignSystem.Canvas,
                 AutoScroll = true
             };
@@ -67,7 +101,29 @@ namespace FACM.League
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            for (var row = 0; row < 5; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            for (var row = 0; row < 4; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+            for (var row = 0; row < 3; row++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Insert(root.RowStyles.Count - 1, new RowStyle(SizeType.Absolute, 82));
+            root.RowCount = root.RowStyles.Count;
 
             root.Controls.Add(new Label
             {
@@ -127,15 +183,76 @@ namespace FACM.League
             };
             root.Controls.Add(CreatePostGameHeader(), 0, 6);
             _autoHonor = AddAutomationRow(root, 7, T(LeagueEfficiencyUiTextKeys.AutoHonor), T(LeagueEfficiencyUiTextKeys.AutoHonorHint), _module.AutoHonorEnabled);
+            var honorRow = (TableLayoutPanel)_autoHonor.Parent;
+            honorRow.ColumnCount = 2;
+            honorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            honorRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 208));
+            foreach (Control child in honorRow.Controls)
+                if (honorRow.GetRow(child) == 1) honorRow.SetColumnSpan(child, 2);
+            _honorStrategy = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.HonorStrategyTitle),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                FlatStyle = FlatStyle.Flat,
+                Margin = new Padding(4, 3, 4, 3)
+            };
+            _honorStrategy.Items.AddRange(new object[]
+            {
+                T(LeagueEfficiencyUiTextKeys.HonorPreferParty),
+                T(LeagueEfficiencyUiTextKeys.HonorOnlyParty),
+                T(LeagueEfficiencyUiTextKeys.HonorAnyAlly),
+                T(LeagueEfficiencyUiTextKeys.HonorOptOut),
+                T(LeagueEfficiencyUiTextKeys.HonorIncludingOpponent)
+            });
+            _honorStrategy.SelectedIndex = Math.Max(0, Array.IndexOf(LeagueHonorStrategy.Choices, _module.AutoHonorStrategy));
+            honorRow.Controls.Add(_honorStrategy, 1, 0);
             _autoReturn = AddAutomationRow(root, 8, T(LeagueEfficiencyUiTextKeys.AutoReturn), T(LeagueEfficiencyUiTextKeys.AutoReturnHint), _module.AutoReturnLobbyEnabled);
             _autoHonor.CheckedChanged += PostGameSettingChanged;
+            _honorStrategy.SelectedIndexChanged += PostGameSettingChanged;
             _autoReturn.CheckedChanged += PostGameSettingChanged;
 
             root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.NextGameSection)), 0, 9);
             _autoSearch = AddAutomationRow(root, 10, T(LeagueEfficiencyUiTextKeys.AutoMatchmaking), T(LeagueEfficiencyUiTextKeys.AutoMatchmakingHint), _module.AutoMatchmakingEnabled);
+            var searchRow = (TableLayoutPanel)_autoSearch.Parent;
+            searchRow.ColumnCount = 2;
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+            foreach (Control child in searchRow.Controls)
+                if (searchRow.GetRow(child) == 1) searchRow.SetColumnSpan(child, 2);
+            _waitForInvitees = new FacmToggleSwitch
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.WaitForInvitees),
+                Checked = _module.AutoMatchmakingWaitForInvitees,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.WaitForInvitees)
+            };
+            WireHelp(_waitForInvitees, T(LeagueEfficiencyUiTextKeys.WaitForInviteesHint));
+            searchRow.Controls.Add(_waitForInvitees, 1, 0);
             _autoAccept = AddAutomationRow(root, 11, T(LeagueEfficiencyUiTextKeys.AutoAccept), T(LeagueEfficiencyUiTextKeys.AutoAcceptHint), _module.AutoAcceptEnabled);
+            var acceptRow = (TableLayoutPanel)_autoAccept.Parent;
+            acceptRow.ColumnCount = 2;
+            acceptRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+            acceptRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+            foreach (Control child in acceptRow.Controls)
+                if (acceptRow.GetRow(child) == 1) acceptRow.SetColumnSpan(child, 2);
+            _roomNotices = new FacmToggleSwitch
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNotices),
+                Checked = _module.AutoMatchmakingRoomNotices,
+                Dock = DockStyle.Fill,
+                Font = new Font(Font.FontFamily, 10F, FontStyle.Bold),
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNotices)
+            };
+            WireHelp(_roomNotices, T(LeagueEfficiencyUiTextKeys.MatchmakingRoomNoticesHint));
+            acceptRow.Controls.Add(_roomNotices, 1, 0);
             _autoSearch.CheckedChanged += MatchmakingSettingChanged;
+            _waitForInvitees.CheckedChanged += MatchmakingSettingChanged;
             _autoAccept.CheckedChanged += MatchmakingSettingChanged;
+            _roomNotices.CheckedChanged += MatchmakingSettingChanged;
             _minPartySize = AddNumberRow(root, 12, T(LeagueEfficiencyUiTextKeys.MinPartySize), T(LeagueEfficiencyUiTextKeys.MinPartySizeHint), 1m, 5m, 1m, _module.AutoMatchmakingMinPartySize, string.Empty);
             _matchmakingDelaySeconds = AddNumberRow(root, 13, T(LeagueEfficiencyUiTextKeys.MatchmakingDelay), T(LeagueEfficiencyUiTextKeys.MatchmakingDelayHint), 0m, 60m, 1m, _module.AutoMatchmakingStartDelayMs / 1000m, string.Empty);
             _acceptDelaySeconds = AddNumberRow(root, 14, T(LeagueEfficiencyUiTextKeys.AcceptDelay), T(LeagueEfficiencyUiTextKeys.AcceptDelayHint), 0m, 15m, 0.5m, _module.AutoAcceptDelayMs / 1000m, string.Empty);
@@ -166,12 +283,179 @@ namespace FACM.League
             _acceptDelaySeconds.ValueChanged += MatchmakingSettingChanged;
             _stopPolicy.SelectedIndexChanged += MatchmakingSettingChanged;
             _stopAfterSeconds.ValueChanged += MatchmakingSettingChanged;
+            _autoReconnect = AddAutomationRow(root, 17, T(LeagueEfficiencyUiTextKeys.AutoReconnect),
+                T(LeagueEfficiencyUiTextKeys.AutoReconnectHint), _module.AutoReconnectEnabled);
+            _autoReconnect.CheckedChanged += ReconnectSettingChanged;
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.AutoSelectSection)), 0, 18);
+            _autoPick = AddAutomationRow(root, 19, T(LeagueEfficiencyUiTextKeys.AutoPick),
+                T(LeagueEfficiencyUiTextKeys.AutoPickHint), _module.AutoPickEnabled);
+            _pickChampion = AddChoiceRow(root, 20, T(LeagueEfficiencyUiTextKeys.AutoPickChampion),
+                T(LeagueEfficiencyUiTextKeys.AutoPickChampionHint), null, 0);
+            _autoBan = AddAutomationRow(root, 21, T(LeagueEfficiencyUiTextKeys.AutoBan),
+                T(LeagueEfficiencyUiTextKeys.AutoBanHint), _module.AutoBanEnabled);
+            _banChampion = AddChoiceRow(root, 22, T(LeagueEfficiencyUiTextKeys.AutoBanChampion),
+                T(LeagueEfficiencyUiTextKeys.AutoBanChampionHint), null, 0);
+            SetChampionChoices(_pickChampion, _module.AutoPickChampionId, null);
+            SetChampionChoices(_banChampion, _module.AutoBanChampionId, null);
+            _autoPick.CheckedChanged += AutoSelectSettingChanged;
+            _autoBan.CheckedChanged += AutoSelectSettingChanged;
+            _pickChampion.SelectedIndexChanged += AutoSelectSettingChanged;
+            _banChampion.SelectedIndexChanged += AutoSelectSettingChanged;
+
+            var advanced = CreateButton(T(LeagueEfficiencyUiTextKeys.AdvancedOpen), 240, FacmButtonTone.Secondary);
+            advanced.Margin = new Padding(0, 8, 0, 8);
+            advanced.Click += delegate
+            {
+                using (var dialog = new LeagueAutoSelectProfilesForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            root.Controls.Add(advanced, 0, 23);
+            _autoSelectPause = AddAutomationRow(root, 24, T(LeagueEfficiencyUiTextKeys.AutoSelectPause),
+                T(LeagueEfficiencyUiTextKeys.AutoSelectPauseHint), _module.AutoSelectTemporarilyDisabled);
+            _autoSelectPause.CheckedChanged += delegate
+            {
+                if (!_loading) _module.UpdateAutoSelectTemporaryPause(_autoSelectPause.Checked);
+            };
+
+            _invitationPolicies = LeagueInvitationPolicies.Parse(_module.InvitationStrategiesJson);
+            var invitationHeader = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 2,
+                RowCount = 1,
+                BackColor = FacmDesignSystem.Canvas,
+                Margin = Padding.Empty
+            };
+            invitationHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            invitationHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            invitationHeader.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.LobbyInvitationSection)), 0, 0);
+            _invitationStatus = new Label
+            {
+                Text = string.Empty,
+                Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.TextMuted,
+                BackColor = Color.Transparent,
+                TextAlign = ContentAlignment.MiddleRight,
+                AutoEllipsis = true
+            };
+            invitationHeader.Controls.Add(_invitationStatus, 1, 0);
+            root.Controls.Add(invitationHeader, 0, 25);
+            _autoHandleInvitations = AddAutomationRow(root, 26,
+                T(LeagueEfficiencyUiTextKeys.HandleInvitations),
+                T(LeagueEfficiencyUiTextKeys.HandleInvitationsHint), _module.AutoHandleInvitationsEnabled);
+            _invitationGameType = AddChoiceRow(root, 27,
+                T(LeagueEfficiencyUiTextKeys.InvitationGameType),
+                T(LeagueEfficiencyUiTextKeys.InvitationGameTypeHint), LeagueInvitationPolicies.GameTypes, 0);
+            _invitationAction = AddChoiceRow(root, 28,
+                T(LeagueEfficiencyUiTextKeys.InvitationAction),
+                T(LeagueEfficiencyUiTextKeys.InvitationActionHint), new[]
+                {
+                    T(LeagueEfficiencyUiTextKeys.InvitationIgnore),
+                    T(LeagueEfficiencyUiTextKeys.InvitationAccept),
+                    T(LeagueEfficiencyUiTextKeys.InvitationDecline)
+                }, 0);
+            _skipInvitationsWhenAway = AddAutomationRow(root, 29,
+                T(LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAway),
+                T(LeagueEfficiencyUiTextKeys.SkipInvitationsWhenAwayHint), _module.SkipInvitationsWhenAway);
+            _autoSkipLeader = AddAutomationRow(root, 30,
+                T(LeagueEfficiencyUiTextKeys.AutoSkipLeader),
+                T(LeagueEfficiencyUiTextKeys.AutoSkipLeaderHint), _module.AutoSkipLeaderEnabled);
+            _autoHandleInvitations.CheckedChanged += InvitationSettingChanged;
+            _skipInvitationsWhenAway.CheckedChanged += InvitationSettingChanged;
+            _autoSkipLeader.CheckedChanged += InvitationSettingChanged;
+            _invitationGameType.SelectedIndexChanged += delegate { RefreshInvitationAction(); };
+            _invitationAction.SelectedIndexChanged += InvitationSettingChanged;
+            RefreshInvitationAction();
+
+            var scheduleFriends = CreateButton(T(LeagueEfficiencyUiTextKeys.FriendInviteOpen), 240, FacmButtonTone.Secondary);
+            scheduleFriends.Margin = new Padding(0, 8, 0, 8);
+            scheduleFriends.Click += delegate
+            {
+                using (var dialog = new LeagueFriendInvitationForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            root.Controls.Add(scheduleFriends, 0, 31);
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.AramTeamSideSection)), 0, 32);
+            _autoAramTeamSide = AddAutomationRow(root, 33, T(LeagueEfficiencyUiTextKeys.AramTeamSide),
+                T(LeagueEfficiencyUiTextKeys.AramTeamSideHint), _module.AutoAramTeamSideEnabled);
+            _aramTeamSideVisibleToTeam = AddAutomationRow(root, 34, T(LeagueEfficiencyUiTextKeys.AramTeamSideVisible),
+                T(LeagueEfficiencyUiTextKeys.AramTeamSideVisibleHint), _module.AutoAramTeamSideVisibleToTeam);
+            _autoAramTeamSide.CheckedChanged += AramSideSettingChanged;
+            _aramTeamSideVisibleToTeam.CheckedChanged += AramSideSettingChanged;
+            UpdateAramTeamSideControlStates();
+
+            root.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.LoginSignatureSection)), 0, 35);
+            _loginSignature = AddLoginSignatureRow(root, 36);
+            _autoLoginSignature = AddAutomationRow(root, 37,
+                T(LeagueEfficiencyUiTextKeys.LoginSignatureAuto),
+                T(LeagueEfficiencyUiTextKeys.LoginSignatureAutoHint), _module.AutoLoginStatusMessageEnabled);
+            _autoLoginSignature.CheckedChanged += LoginSignatureSettingChanged;
+            _autoLoginRanked = AddAutomationRow(root, 38,
+                T(LeagueEfficiencyUiTextKeys.LoginRankAuto),
+                T(LeagueEfficiencyUiTextKeys.LoginRankAutoHint), _module.AutoLoginRankedStatusEnabled);
+            _loginRankQueue = AddChoiceRow(root, 39, T(LeagueEfficiencyUiTextKeys.LoginRankQueue),
+                T(LeagueEfficiencyUiTextKeys.LoginRankQueueHint), LeaguePresenceService.RankedQueues.ToArray(),
+                RankIndex(LeaguePresenceService.RankedQueues, _module.AutoLoginRankedQueue));
+            _loginRankTier = AddChoiceRow(root, 40, T(LeagueEfficiencyUiTextKeys.LoginRankTier),
+                T(LeagueEfficiencyUiTextKeys.LoginRankTierHint), LeaguePresenceService.RankedTiers.ToArray(),
+                RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier));
+            _loginRankDivision = AddChoiceRow(root, 41, T(LeagueEfficiencyUiTextKeys.LoginRankDivision),
+                T(LeagueEfficiencyUiTextKeys.LoginRankDivisionHint), LeaguePresenceService.RankedDivisions.ToArray(),
+                RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision));
+            _autoLoginRanked.CheckedChanged += LoginRankSettingChanged;
+            _loginRankQueue.SelectedIndexChanged += LoginRankSettingChanged;
+            _loginRankTier.SelectedIndexChanged += LoginRankSettingChanged;
+            _loginRankDivision.SelectedIndexChanged += LoginRankSettingChanged;
+            UpdateRankSettingControlStates();
+            _offlineLock = AddAutomationRow(root, 42, T(LeagueEfficiencyUiTextKeys.OfflineLock),
+                T(LeagueEfficiencyUiTextKeys.OfflineLockHint), _module.LockOfflineStatusEnabled);
+            _offlineLock.CheckedChanged += delegate
+            {
+                if (_loading) return;
+                _module.UpdateLockOfflineStatus(_offlineLock.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.OfflineLockSaved);
+            };
+
+            _autoReply = AddAutomationRow(root, 43, T(LeagueEfficiencyUiTextKeys.AutoReply),
+                T(LeagueEfficiencyUiTextKeys.AutoReplyHint), _module.AutoReplyEnabled);
+            _replyAway = AddAutomationRow(root, 44, T(LeagueEfficiencyUiTextKeys.ReplyAway),
+                T(LeagueEfficiencyUiTextKeys.ReplyAwayHint), _module.AutoReplyAwayOnly);
+            _replyText = AddTextSettingRow(root, 45, T(LeagueEfficiencyUiTextKeys.ReplyText),
+                T(LeagueEfficiencyUiTextKeys.AutoReplyHint), _module.AutoReplyText);
+            _replyText.MaxLength = 500;
+            _autoReply.CheckedChanged += ReplySettingChanged;
+            _replyAway.CheckedChanged += ReplySettingChanged;
+            _replyText.Leave += ReplySettingChanged;
+
+            _respawnOverlay = AddAutomationRow(root, 46, T(LeagueEfficiencyUiTextKeys.RespawnOverlay),
+                T(LeagueEfficiencyUiTextKeys.RespawnOverlayHint), _module.RespawnOverlayEnabled);
+            _respawnOverlay.CheckedChanged += delegate
+            {
+                if (_loading) return;
+                _module.UpdateRespawnOverlayEnabled(_respawnOverlay.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.RespawnOverlaySaved);
+            };
+
+            root.RowStyles.Insert(47, new RowStyle(SizeType.Absolute, 66));
+            root.RowCount = root.RowStyles.Count;
+            var quickMessages = CreateButton(T(LeagueEfficiencyUiTextKeys.QuickMessageOpen), 240, FacmButtonTone.Secondary);
+            quickMessages.Margin = new Padding(0, 8, 0, 8);
+            quickMessages.Click += delegate
+            {
+                using (var dialog = new LeagueQuickMessageForm(_module, _ui)) dialog.ShowDialog(this);
+            };
+            WireHelp(quickMessages, T(LeagueEfficiencyUiTextKeys.QuickMessageHint));
+            root.Controls.Add(quickMessages, 0, 47);
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
+            AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;
             Controls.Add(root);
             _loading = false;
             UpdateMatchmakingControlStates();
+            _ = LoadChampionCatalogAsync();
         }
 
         private Control CreatePostGameHeader()
@@ -482,7 +766,8 @@ namespace FACM.League
         private void PostGameSettingChanged(object sender, EventArgs e)
         {
             if (_loading) return;
-            _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked);
+            _module.UpdatePostGameSettings(_autoHonor.Checked, _autoReturn.Checked,
+                LeagueHonorStrategy.Choices[Math.Max(0, _honorStrategy.SelectedIndex)]);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.PostGameSaved);
         }
@@ -498,14 +783,444 @@ namespace FACM.League
                 Decimal.ToInt32(_matchmakingDelaySeconds.Value * 1000m),
                 Decimal.ToInt32(_acceptDelaySeconds.Value * 1000m),
                 SelectedStopPolicy(),
-                Decimal.ToInt32(_stopAfterSeconds.Value * 1000m));
+                Decimal.ToInt32(_stopAfterSeconds.Value * 1000m),
+                _waitForInvitees.Checked,
+                _roomNotices.Checked);
             _status.ForeColor = FacmDesignSystem.Success;
             _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void ReconnectSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            _module.UpdateReconnectSetting(_autoReconnect.Checked);
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void AramSideSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            UpdateAramTeamSideControlStates();
+            _module.UpdateAramTeamSideSettings(_autoAramTeamSide.Checked, _aramTeamSideVisibleToTeam.Checked);
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.NextGameSaved);
+        }
+
+        private void UpdateAramTeamSideControlStates()
+        {
+            if (_aramTeamSideVisibleToTeam != null)
+                _aramTeamSideVisibleToTeam.Enabled = _autoAramTeamSide != null && _autoAramTeamSide.Checked;
+        }
+
+        private TextBox AddTextSettingRow(TableLayoutPanel parent, int row, string title, string hint, string value)
+        {
+            var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Margin = new Padding(0, 4, 0, 4), BackColor = FacmDesignSystem.Surface, Padding = new Padding(12, 7, 12, 7) };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            panel.Controls.Add(CreateSettingDescription(title, hint), 0, 0);
+            var input = new TextBox { Text = value, Dock = DockStyle.Fill, Margin = new Padding(4, 14, 4, 4),
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle, AccessibleName = title };
+            panel.Controls.Add(input, 1, 0);
+            WireHelp(panel, hint);
+            WireHelp(input, hint);
+            parent.Controls.Add(panel, 0, row);
+            return input;
+        }
+
+        private TextBox AddLoginSignatureRow(TableLayoutPanel parent, int row)
+        {
+            var panel = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0, 4, 0, 4),
+                BackColor = FacmDesignSystem.Surface,
+                Padding = new Padding(12, 7, 12, 7)
+            };
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+            var title = T(LeagueEfficiencyUiTextKeys.LoginSignatureText);
+            var hint = T(LeagueEfficiencyUiTextKeys.LoginSignatureTextHint);
+            panel.Controls.Add(CreateSettingDescription(title, hint), 0, 0);
+            var input = new TextBox
+            {
+                Text = _module.AutoLoginStatusMessage,
+                MaxLength = LeaguePresenceService.MaximumStatusMessageLength,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(4, 14, 4, 4),
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text,
+                BorderStyle = BorderStyle.FixedSingle,
+                AccessibleName = title
+            };
+            input.TextChanged += delegate { if (!_loading) _loginSignatureDirty = true; };
+            panel.Controls.Add(input, 1, 0);
+            var save = CreateButton(T(LeagueEfficiencyUiTextKeys.LoginSignatureSave), 104, FacmButtonTone.Secondary);
+            save.Margin = new Padding(4, 12, 0, 4);
+            save.Click += delegate { SaveLoginSignatureSetting(); };
+            panel.Controls.Add(save, 2, 0);
+            WireHelp(panel, hint);
+            WireHelp(input, hint);
+            WireHelp(save, hint);
+            parent.Controls.Add(panel, 0, row);
+            return input;
+        }
+
+        private void LoginSignatureSettingChanged(object sender, EventArgs e)
+        {
+            if (!_loading) SaveLoginSignatureSetting();
+        }
+
+        private void SaveLoginSignatureSetting()
+        {
+            if (_loading) return;
+            _module.UpdateLoginStatusMessage(_autoLoginSignature.Checked, _loginSignature.Text);
+            _loginSignatureDirty = false;
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.LoginSignatureSaved);
+        }
+
+        private static int RankIndex(System.Collections.Generic.IReadOnlyList<string> choices, string value)
+        {
+            for (var index = 0; index < choices.Count; index++)
+                if (string.Equals(choices[index], value, StringComparison.OrdinalIgnoreCase)) return index;
+            return 0;
+        }
+
+        private void UpdateRankSettingControlStates()
+        {
+            var enabled = _autoLoginRanked.Checked;
+            _loginRankQueue.Enabled = enabled;
+            _loginRankTier.Enabled = enabled;
+            var tier = _loginRankTier.SelectedItem as string;
+            _loginRankDivision.Enabled = enabled && tier != "MASTER" &&
+                tier != "GRANDMASTER" && tier != "CHALLENGER";
+        }
+
+        private void LoginRankSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            UpdateRankSettingControlStates();
+            _module.UpdateLoginRankedStatus(_autoLoginRanked.Checked,
+                _loginRankQueue.SelectedItem as string, _loginRankTier.SelectedItem as string,
+                _loginRankDivision.SelectedItem as string);
+            _status.ForeColor = FacmDesignSystem.Success;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.LoginRankSaved);
+        }
+
+        private void RefreshInvitationAction()
+        {
+            var gameType = _invitationGameType == null ? null : _invitationGameType.SelectedItem as string;
+            var action = LeagueInvitationPolicies.Resolve(_invitationPolicies, gameType);
+            var previouslyLoading = _loading;
+            _loading = true;
+            try
+            {
+                _invitationAction.SelectedIndex = action == LeagueInvitationPolicies.Accept ? 1 :
+                    action == LeagueInvitationPolicies.Decline ? 2 : 0;
+            }
+            finally { _loading = previouslyLoading; }
+            UpdateInvitationControlStates();
+        }
+
+        private void HandleSettingsSaved(AppSettings settings)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            try
+            {
+                // Cloud-first restores can happen while this page is open. Rebind from the
+                // actual settings object on the UI thread instead of retaining stale strategies.
+                BeginInvoke(new Action(delegate
+                {
+                    RefreshMatchmakingSettingsFromModule();
+                    RefreshInvitationSettingsFromModule();
+                    RefreshAramTeamSideSettingsFromModule();
+                    RefreshLoginSignatureSettingsFromModule();
+                    RefreshLoginRankSettingsFromModule();
+                    RefreshOfflineLockSettingsFromModule();
+                    RefreshReplySettingsFromModule();
+                    RefreshRespawnOverlayFromModule();
+                }));
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }
+
+        private void RefreshMatchmakingSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoSearch.Checked = _module.AutoMatchmakingEnabled;
+                _waitForInvitees.Checked = _module.AutoMatchmakingWaitForInvitees;
+                _roomNotices.Checked = _module.AutoMatchmakingRoomNotices;
+                _autoAccept.Checked = _module.AutoAcceptEnabled;
+                _minPartySize.Value = Math.Max(_minPartySize.Minimum, Math.Min(_minPartySize.Maximum, _module.AutoMatchmakingMinPartySize));
+                _matchmakingDelaySeconds.Value = Math.Max(_matchmakingDelaySeconds.Minimum,
+                    Math.Min(_matchmakingDelaySeconds.Maximum, _module.AutoMatchmakingStartDelayMs / 1000m));
+                _acceptDelaySeconds.Value = Math.Max(_acceptDelaySeconds.Minimum,
+                    Math.Min(_acceptDelaySeconds.Maximum, _module.AutoAcceptDelayMs / 1000m));
+                _stopPolicy.SelectedIndex = StopPolicyIndex(_module.AutoMatchmakingStopPolicy);
+                _stopAfterSeconds.Value = Math.Max(_stopAfterSeconds.Minimum,
+                    Math.Min(_stopAfterSeconds.Maximum, _module.AutoMatchmakingStopAfterMs / 1000m));
+            }
+            finally { _loading = false; }
+            UpdateMatchmakingControlStates();
+        }
+
+        private void RefreshInvitationSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            var saved = LeagueInvitationPolicies.Parse(_module.InvitationStrategiesJson);
+            if (_autoHandleInvitations.Checked == _module.AutoHandleInvitationsEnabled &&
+                _skipInvitationsWhenAway.Checked == _module.SkipInvitationsWhenAway &&
+                _autoSkipLeader.Checked == _module.AutoSkipLeaderEnabled &&
+                LeagueInvitationPolicies.Serialize(_invitationPolicies) == LeagueInvitationPolicies.Serialize(saved)) return;
+            _loading = true;
+            try
+            {
+                _invitationPolicies.Clear();
+                foreach (var item in saved) _invitationPolicies[item.Key] = item.Value;
+                _autoHandleInvitations.Checked = _module.AutoHandleInvitationsEnabled;
+                _skipInvitationsWhenAway.Checked = _module.SkipInvitationsWhenAway;
+                _autoSkipLeader.Checked = _module.AutoSkipLeaderEnabled;
+                RefreshInvitationAction();
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshAramTeamSideSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            if (_autoAramTeamSide.Checked == _module.AutoAramTeamSideEnabled &&
+                _aramTeamSideVisibleToTeam.Checked == _module.AutoAramTeamSideVisibleToTeam) return;
+            _loading = true;
+            try
+            {
+                _autoAramTeamSide.Checked = _module.AutoAramTeamSideEnabled;
+                _aramTeamSideVisibleToTeam.Checked = _module.AutoAramTeamSideVisibleToTeam;
+                UpdateAramTeamSideControlStates();
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshLoginSignatureSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading || _loginSignatureDirty) return;
+            _loading = true;
+            try
+            {
+                _loginSignature.Text = _module.AutoLoginStatusMessage;
+                _autoLoginSignature.Checked = _module.AutoLoginStatusMessageEnabled;
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshLoginRankSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoLoginRanked.Checked = _module.AutoLoginRankedStatusEnabled;
+                _loginRankQueue.SelectedIndex = RankIndex(LeaguePresenceService.RankedQueues, _module.AutoLoginRankedQueue);
+                _loginRankTier.SelectedIndex = RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier);
+                _loginRankDivision.SelectedIndex = RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision);
+                UpdateRankSettingControlStates();
+            }
+            finally { _loading = false; }
+        }
+
+        private void ReplySettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            _module.UpdateAutoReply(_autoReply.Checked, _replyAway.Checked, _replyText.Text);
+        }
+
+        private void RefreshReplySettingsFromModule()
+        {
+            if (_loading || _replyText.Focused) return;
+            _loading = true;
+            try
+            {
+                _autoReply.Checked = _module.AutoReplyEnabled;
+                _replyAway.Checked = _module.AutoReplyAwayOnly;
+                _replyText.Text = _module.AutoReplyText;
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshRespawnOverlayFromModule()
+        {
+            if (IsDisposed || Disposing || _loading ||
+                _respawnOverlay.Checked == _module.RespawnOverlayEnabled) return;
+            _loading = true;
+            try { _respawnOverlay.Checked = _module.RespawnOverlayEnabled; }
+            finally { _loading = false; }
+        }
+
+        private void RefreshOfflineLockSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading || _offlineLock.Checked == _module.LockOfflineStatusEnabled) return;
+            _loading = true;
+            try { _offlineLock.Checked = _module.LockOfflineStatusEnabled; }
+            finally { _loading = false; }
+        }
+
+        private void UpdateInvitationControlStates()
+        {
+            var enabled = _autoHandleInvitations != null && _autoHandleInvitations.Checked;
+            if (_invitationGameType != null) _invitationGameType.Enabled = enabled;
+            if (_invitationAction != null) _invitationAction.Enabled = enabled;
+            if (_skipInvitationsWhenAway != null) _skipInvitationsWhenAway.Enabled = enabled;
+        }
+
+        private void InvitationSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            if (ReferenceEquals(sender, _invitationAction))
+            {
+                var gameType = _invitationGameType.SelectedItem as string;
+                if (string.IsNullOrEmpty(gameType)) return;
+                _invitationPolicies[gameType] = _invitationAction.SelectedIndex == 1 ? LeagueInvitationPolicies.Accept :
+                    _invitationAction.SelectedIndex == 2 ? LeagueInvitationPolicies.Decline : LeagueInvitationPolicies.Ignore;
+            }
+            UpdateInvitationControlStates();
+            try
+            {
+                _module.UpdateInvitationSettings(_autoHandleInvitations.Checked, _skipInvitationsWhenAway.Checked,
+                    LeagueInvitationPolicies.Serialize(_invitationPolicies), _autoSkipLeader.Checked);
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.LobbyInvitationSaved);
+                _invitationStatus.ForeColor = FacmDesignSystem.Success;
+                _invitationStatus.Text = T(LeagueEfficiencyUiTextKeys.LobbyInvitationSaved);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = string.Format(T(LeagueEfficiencyUiTextKeys.SaveFailed), exception.GetType().Name);
+                _invitationStatus.ForeColor = FacmDesignSystem.Warning;
+                _invitationStatus.Text = _status.Text;
+            }
+        }
+
+        private sealed class ChampionChoice
+        {
+            public int Id;
+            public string Name;
+            public override string ToString() { return Name ?? string.Empty; }
+        }
+
+        private void SetChampionChoices(
+            ComboBox combo, int selectedId, IReadOnlyList<LeagueProfileChampionOption> champions)
+        {
+            combo.BeginUpdate();
+            try
+            {
+                combo.Items.Clear();
+                combo.Items.Add(new ChampionChoice { Id = 0, Name = T(LeagueEfficiencyUiTextKeys.ChampionNotSet) });
+                var selectedIndex = 0;
+                if (champions != null)
+                {
+                    foreach (var champion in champions)
+                    {
+                        if (champion == null || champion.Id <= 0 || string.IsNullOrWhiteSpace(champion.Name)) continue;
+                        combo.Items.Add(new ChampionChoice { Id = champion.Id, Name = champion.Name });
+                        if (champion.Id == selectedId) selectedIndex = combo.Items.Count - 1;
+                    }
+                }
+                if (selectedId > 0 && selectedIndex == 0)
+                {
+                    combo.Items.Add(new ChampionChoice { Id = selectedId, Name = "#" + selectedId });
+                    selectedIndex = combo.Items.Count - 1;
+                }
+                combo.SelectedIndex = selectedIndex;
+            }
+            finally { combo.EndUpdate(); }
+        }
+
+        private async Task LoadChampionCatalogAsync()
+        {
+            try
+            {
+                var champions = await _module.LoadChampionsAsync(_catalogRequest.Token);
+                if (_catalogRequest.IsCancellationRequested || IsDisposed || Disposing) return;
+                if (champions == null || champions.Count == 0)
+                {
+                    _help.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
+                    return;
+                }
+                _loading = true;
+                try
+                {
+                    SetChampionChoices(_pickChampion, SelectedChampionId(_pickChampion), champions);
+                    SetChampionChoices(_banChampion, SelectedChampionId(_banChampion), champions);
+                }
+                finally { _loading = false; }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                if (!IsDisposed && !Disposing)
+                {
+                    _help.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
+                    AppLog.Info("Champion catalog loading skipped: " + exception.GetType().Name);
+                }
+            }
+        }
+
+        private static int SelectedChampionId(ComboBox combo)
+        {
+            var choice = combo == null ? null : combo.SelectedItem as ChampionChoice;
+            return choice == null ? 0 : choice.Id;
+        }
+
+        private void AutoSelectSettingChanged(object sender, EventArgs e)
+        {
+            if (_loading) return;
+            var pickId = SelectedChampionId(_pickChampion);
+            var banId = SelectedChampionId(_banChampion);
+            var profiles = LeagueAutoSelectProfiles.Parse(_module.AutoSelectProfilesJson);
+            var missingPick = _autoPick.Checked && pickId <= 0 &&
+                !profiles.Any(profile => profile.Picks.Count > 0);
+            var missingBan = _autoBan.Checked && banId <= 0 &&
+                !profiles.Any(profile => profile.Bans.Count > 0);
+            var missingChampion = missingPick || missingBan;
+            if (missingChampion)
+            {
+                _loading = true;
+                try
+                {
+                    if (missingPick) _autoPick.Checked = false;
+                    if (missingBan) _autoBan.Checked = false;
+                }
+                finally { _loading = false; }
+            }
+            try
+            {
+                _module.UpdateAutoSelectSettings(_autoPick.Checked, pickId, _autoBan.Checked, banId);
+                _status.ForeColor = missingChampion ? FacmDesignSystem.Warning : FacmDesignSystem.Success;
+                _status.Text = missingChampion ? T(LeagueEfficiencyUiTextKeys.ChampionNotSet) :
+                    T(LeagueEfficiencyUiTextKeys.AutoSelectSaved);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.SaveFailed).Replace("{0}", exception.GetType().Name);
+            }
         }
 
         private void UpdateMatchmakingControlStates()
         {
             var autoSearch = _autoSearch != null && _autoSearch.Checked;
+            if (_waitForInvitees != null) _waitForInvitees.Enabled = autoSearch;
+            if (_roomNotices != null) _roomNotices.Enabled = autoSearch;
             if (_minPartySize != null) _minPartySize.Enabled = autoSearch;
             if (_matchmakingDelaySeconds != null) _matchmakingDelaySeconds.Enabled = autoSearch;
             if (_stopPolicy != null) _stopPolicy.Enabled = autoSearch;
@@ -573,7 +1288,10 @@ namespace FACM.League
 
         private void HandleFormClosed(object sender, FormClosedEventArgs e)
         {
+            _catalogRequest.Cancel();
+            _catalogRequest.Dispose();
             _module.HonorStatusChanged -= HandleHonorStatusChanged;
+            AppSettings.Saved -= HandleSettingsSaved;
         }
 
         private string T(string key) { return LeagueEfficiencyText.Get(_ui, key); }

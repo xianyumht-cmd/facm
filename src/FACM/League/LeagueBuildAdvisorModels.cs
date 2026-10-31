@@ -11,9 +11,12 @@ namespace FACM.League
         public LeagueActivityLevel Activity { get; set; }
         public string BudgetName { get; set; }
         public int QueueId { get; set; }
+        public string QueueType { get; set; }
+        public long GameId { get; set; }
         public int ChampionId { get; set; }
         public string ChampionName { get; set; }
         public string Mode { get; set; }
+        public string GameMode { get; set; }
         public string Position { get; set; }
         public string Source { get; set; }
         public string Version { get; set; }
@@ -81,9 +84,15 @@ namespace FACM.League
             Items = new Dictionary<int, string>();
             Spells = new Dictionary<int, string>();
             Perks = new Dictionary<int, string>();
+            PerkEndOfGameDescriptions = new Dictionary<int, string[]>();
+            PerkStyles = new Dictionary<int, string>();
+            Augments = new Dictionary<int, string>();
+            AugmentRarities = new Dictionary<int, string>();
             ItemIcons = new Dictionary<int, string>();
             SpellIcons = new Dictionary<int, string>();
             PerkIcons = new Dictionary<int, string>();
+            PerkStyleIcons = new Dictionary<int, string>();
+            AugmentIcons = new Dictionary<int, string>();
             ChampionIcons = new Dictionary<int, string>();
         }
 
@@ -91,9 +100,15 @@ namespace FACM.League
         public Dictionary<int, string> Items { get; private set; }
         public Dictionary<int, string> Spells { get; private set; }
         public Dictionary<int, string> Perks { get; private set; }
+        public Dictionary<int, string[]> PerkEndOfGameDescriptions { get; private set; }
+        public Dictionary<int, string> PerkStyles { get; private set; }
+        public Dictionary<int, string> Augments { get; private set; }
+        public Dictionary<int, string> AugmentRarities { get; private set; }
         public Dictionary<int, string> ItemIcons { get; private set; }
         public Dictionary<int, string> SpellIcons { get; private set; }
         public Dictionary<int, string> PerkIcons { get; private set; }
+        public Dictionary<int, string> PerkStyleIcons { get; private set; }
+        public Dictionary<int, string> AugmentIcons { get; private set; }
         public Dictionary<int, string> ChampionIcons { get; private set; }
     }
 }

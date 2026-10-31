@@ -15,6 +15,8 @@ namespace FACM.League
         public static void Validate()
         {
             ValidatePreparationIsReadOnly();
+            ValidateChampionSpellCaptureUsesCurrentLcuSelection();
+            ValidateChampionRuneCapturePreservesSelectedPerks();
             ValidateHappyPathAndFlashSlot();
             ValidateDelayedSpellSettlementDoesNotRetry();
             ValidateRuneCapacityFailsClosed();
@@ -22,6 +24,68 @@ namespace FACM.League
             ValidateRuneFalseSuccessIsRejected();
             ValidateSpellFalseSuccessIsRejected();
             ValidateCancellation();
+        }
+
+        private static void ValidateChampionSpellCaptureUsesCurrentLcuSelection()
+        {
+            var lcu = new FakeLeagueApi { Spell1Id = 4, Spell2Id = 14 };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                var expected = new LeagueBuildAdvisorSnapshot
+                {
+                    Connected = true,
+                    Activity = LeagueActivityLevel.ChampSelect,
+                    QueueId = 420,
+                    ChampionId = 157,
+                    Mode = "ranked",
+                    Position = "mid"
+                };
+                var saved = service.CaptureCurrentSpellsAsync(expected, CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                Require(saved != null && saved.HasSpells && saved.Spell1Id == 4 && saved.Spell2Id == 14 &&
+                        lcu.Writes.Count == 0,
+                    "Capture must read the user's current LCU spell slots without sending a write or OP.GG request.");
+                expected.ChampionId = 145;
+                Require(service.CaptureCurrentSpellsAsync(expected, CancellationToken.None)
+                            .GetAwaiter().GetResult() == null && lcu.Writes.Count == 0,
+                    "Capture must reject a stale hero selection without writing.");
+            }
+        }
+
+        private static void ValidateChampionRuneCapturePreservesSelectedPerks()
+        {
+            var lcu = new FakeLeagueApi
+            {
+                CurrentRunePageOverride = "{\"id\":12,\"primaryStyleId\":8000,\"subStyleId\":8100,\"selectedPerkIds\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]}"
+            };
+            var expected = new LeagueBuildAdvisorSnapshot
+            {
+                Connected = true, Activity = LeagueActivityLevel.ChampSelect,
+                ChampionId = 157, QueueId = 420, Mode = "ranked", Position = "mid"
+            };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                var captured = service.CaptureCurrentLoadoutAsync(expected, CancellationToken.None).GetAwaiter().GetResult();
+                Require(captured != null && captured.HasRunes && captured.HasSpells &&
+                        captured.GetSelectedPerkIds().SequenceEqual(new[] { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }) &&
+                        lcu.Writes.Count == 0,
+                    "Champion loadout capture must preserve all 9 selected perks and perform no LCU write.");
+                lcu.CurrentRunePageOverride = null;
+                var applied = service.ApplyAsync(captured, CancellationToken.None).GetAwaiter().GetResult();
+                Require(applied.RunesApplied && lcu.Writes.Any(call => call.Method == "PUT" &&
+                        call.Path == LeagueBuildApplyService.PerkPagesPath + "/" + FakeLeagueApi.CreatedPageId &&
+                        call.Json.Contains("\"selectedPerkIds\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]")),
+                    "Captured rune selection must be applied without reordering perk IDs.");
+            }
+            lcu = new FakeLeagueApi { CurrentRunePageOverride = "{\"id\":12,\"primaryStyleId\":8000,\"subStyleId\":8100,\"selectedPerkIds\":[8005]}" };
+            using (var service = CreateService(lcu, new FakeOpggApi()))
+            {
+                Require(service.CaptureCurrentRunesAsync(expected, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                        lcu.Writes.Count == 0, "Incomplete rune page must fail closed during capture.");
+                lcu.ChampionId = 145;
+                Require(service.CaptureCurrentRunesAsync(expected, CancellationToken.None).GetAwaiter().GetResult() == null,
+                    "Rune capture must reject a changed champion.");
+            }
         }
 
         private static void ValidatePreparationIsReadOnly()
@@ -114,6 +178,17 @@ namespace FACM.League
                 var result = service.ApplyAsync(Prepare(service), CancellationToken.None).GetAwaiter().GetResult();
                 Require(result.Status == "blocked" && result.BlockReason == "champion-changed", "Champion drift did not fail closed.");
                 Require(changed.Writes.Count == 0, "Gate 2 wrote a stale champion loadout.");
+            }
+
+            var changedQueueType = new FakeLeagueApi();
+            using (var service = CreateService(changedQueueType, new FakeOpggApi()))
+            {
+                var plan = Prepare(service);
+                plan.QueueType = "RANKED_EXPERIMENTAL";
+                var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                Require(result.Status == "blocked" && result.BlockReason == "queue-changed" &&
+                    changedQueueType.Writes.Count == 0,
+                    "A ranked queue-type change must block both rune and spell writes.");
             }
         }
 
@@ -246,6 +321,7 @@ namespace FACM.League
             public int Spell1Id { get; set; } = 4;
             public int Spell2Id { get; set; } = 14;
             public int CurrentRunePageId { get; set; } = 12;
+            public string CurrentRunePageOverride { get; set; }
             public bool CanAddCustomPage { get; set; } = true;
             public bool IgnoreCurrentPageSelection { get; set; }
             public bool AcceptSpellPatchWithoutApplying { get; set; }
@@ -276,7 +352,7 @@ namespace FACM.League
                 }
                 if (path == LeagueBuildApplyService.PerkPagesPath) return Bytes(_runePageJson == null ? "[]" : "[" + _runePageJson + "]");
                 if (path == LeagueBuildApplyService.PerkCurrentPagePath)
-                    return Bytes(CurrentRunePageId == CreatedPageId && _runePageJson != null ? _runePageJson : "{\"id\":" + CurrentRunePageId + "}");
+                    return Bytes(CurrentRunePageOverride ?? (CurrentRunePageId == CreatedPageId && _runePageJson != null ? _runePageJson : "{\"id\":" + CurrentRunePageId + "}"));
                 return Task.FromResult<byte[]>(null);
             }
 

@@ -64,6 +64,7 @@ namespace FACM
                 "Queueing Gameflow cadence contract regressed.");
 
             ValidateGameflowSubscriberIsolation();
+            await ValidateRankedQueueCaptureAsync().ConfigureAwait(false);
             ValidateDesktopEntryGameflowPolicy();
             ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
@@ -71,6 +72,9 @@ namespace FACM
             LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
             LeagueMatchmakingStopSmokeTest.Validate();
+            LeagueGameflowReconnectSmokeTest.Validate();
+            LeagueRespawnTimerSmokeTest.Validate();
+            LeagueAutoPickBanSmokeTest.Validate();
 
             var budgets = new PerformanceBudgetProvider();
             var api = new FakeLeagueClientApi();
@@ -111,6 +115,49 @@ namespace FACM
             Require(Contains(module.Dependencies, LeagueClientModule.ModuleId), "Dashboard must depend on LeagueClient.");
             Require(Contains(module.Dependencies, PerformanceModule.ModuleId), "Dashboard must depend on Performance.");
             Require(LeagueDashboardUiBridge.HasTrayAccessForSmokeTest(), "Dashboard tray bridge lost the MainForm tray contract.");
+        }
+
+        private static async Task ValidateRankedQueueCaptureAsync()
+        {
+            Func<string, byte[]> bytes = value => Encoding.UTF8.GetBytes(value);
+            Require(LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{\"id\":420,\"type\":\"RANKED_SOLO_5x5\"}}}")) == true &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{\"id\":440,\"type\":\"RANKED_FLEX_SR\"}}}")) == true &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{\"type\":\"RANKED_FLEX_SR\"}}}")) == true &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{\"id\":450,\"type\":\"ARAM\"}}}")) == false &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{\"id\":450,\"type\":\"RANKED_SOLO_5x5\"}}}")) == false &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes(
+                    "{\"gameData\":{\"queue\":{}}}")) == null &&
+                    LeagueDashboardPhaseService.ParseRankedQueue(bytes("{")) == null,
+                "Ranked queue parsing must accept 420/440, refuse conflicting/nonranked evidence and preserve unknown.");
+
+            var api = new FakeLeagueClientApi
+            {
+                PhaseName = "ChampSelect",
+                QueueSessionBytes = bytes("{\"gameData\":{\"queue\":{\"id\":440,\"type\":\"RANKED_FLEX_SR\"}}}")
+            };
+            var service = new LeagueDashboardPhaseService(api, new PerformanceBudgetProvider(), true);
+            var first = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(first.IsRankedQueue == true && api.QueueSessionReads == 1,
+                "The first select snapshot must capture queue evidence once.");
+            api.PhaseName = "InProgress";
+            var game = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            api.PhaseName = "EndOfGame";
+            var ended = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(game.IsRankedQueue == true && ended.IsRankedQueue == true && api.QueueSessionReads == 1,
+                "Phase transitions must reuse the queue without additional session reads.");
+            api.PhaseName = "Lobby";
+            Require(!(await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false)).IsRankedQueue.HasValue,
+                "Lobby entry must clear the previous game's queue.");
+            api.QueueSessionBytes = bytes("{\"gameData\":{\"queue\":{\"id\":450}}}");
+            api.PhaseName = "ChampSelect";
+            var next = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(next.IsRankedQueue == false && api.QueueSessionReads == 2,
+                "A new game must not reuse the last ranked game's queue.");
         }
 
         private static void ValidateGameflowSubscriberIsolation()
@@ -269,6 +316,9 @@ namespace FACM
             private int _concurrent;
             private int _maxConcurrent;
             public int MaxConcurrent { get { return _maxConcurrent; } }
+            public string PhaseName = "ChampSelect";
+            public byte[] QueueSessionBytes;
+            public int QueueSessionReads;
 
             public void ResetConcurrency()
             {
@@ -287,11 +337,14 @@ namespace FACM
                 try
                 {
                     await Task.Delay(20, cancellationToken).ConfigureAwait(false);
-                    if (path == LeagueDashboardPhaseService.PhasePath) return Utf8("\"ChampSelect\"");
+                    if (path == LeagueDashboardPhaseService.PhasePath) return Utf8("\"" + PhaseName + "\"");
                     if (path == LeagueDashboardDetailsService.SummonerPath)
                         return Utf8("{\"gameName\":\"FACM测试\",\"tagLine\":\"CN1\",\"summonerLevel\":88,\"profileIconId\":123}");
                     if (path == LeagueDashboardDetailsService.SessionPath)
-                        return Utf8("{\"map\":{\"platformId\":\"HN1\",\"platformName\":\"测试区服\"}}");
+                    {
+                        QueueSessionReads++;
+                        return QueueSessionBytes ?? Utf8("{\"map\":{\"platformId\":\"HN1\",\"platformName\":\"测试区服\"}}");
+                    }
                     if (path == LeagueDashboardDetailsService.ChatMePath)
                         return Utf8("{\"platformId\":\"HN1\"}");
                     return null;

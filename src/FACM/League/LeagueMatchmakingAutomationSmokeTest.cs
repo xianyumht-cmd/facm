@@ -16,6 +16,11 @@ namespace FACM.League
             ValidateTransportFence();
             ValidateImmediatePhaseReaction();
             ValidateAkariStyleAutomationPolicies();
+            ValidatePendingInvitationWait();
+            ValidateSourceQueueGuards();
+            ValidateZeroDelayRoomNotice();
+            ValidateRoomCountdownNotices();
+            ValidateRoomCountdownCancellation();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
@@ -29,6 +34,7 @@ namespace FACM.League
             ValidateFailedReadyCheckRetries();
             ValidateExplicitReadyResponseBlocks();
             ValidateNonTargetPhase();
+            LeagueLobbyInvitationSmokeTest.Validate();
         }
 
         private static void ValidateSettings()
@@ -36,17 +42,28 @@ namespace FACM.League
             var settings = new AppSettings();
             Require(!settings.LeagueAutoMatchmakingEnabled && !settings.LeagueAutoAcceptEnabled,
                 "Legacy settings must default Gate 7 OFF.");
+            Require(settings.LeagueAutoMatchmakingWaitForInvitees,
+                "Absent invitation-wait setting must retain Akari's default wait policy.");
+            Require(!settings.LeagueAutoMatchmakingRoomNotices,
+                "Room countdown notices must default off.");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingEnabled=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptEnabled=True");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingWaitForInvitees=False");
+            AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingRoomNotices=True");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingMinPartySize=4");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoMatchmakingStartDelayMs=2500");
             AppSettings.ApplyLineForSmokeTest(settings, "LeagueAutoAcceptDelayMs=750");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Gate 7 settings did not parse.");
+            Require(!settings.LeagueAutoMatchmakingWaitForInvitees,
+                "Invitation-wait preference did not parse.");
+            Require(settings.LeagueAutoMatchmakingRoomNotices, "Room-notice preference did not parse.");
             Require(settings.LeagueAutoMatchmakingMinPartySize == 4 && settings.LeagueAutoMatchmakingStartDelayMs == 2500 && settings.LeagueAutoAcceptDelayMs == 750,
                 "Akari-style matchmaking policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLinesForSmokeTest());
             Require(serialized.Contains("LeagueAutoMatchmakingEnabled=True"), "Auto-matchmaking setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingWaitForInvitees=False"), "Invitation-wait setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoMatchmakingRoomNotices=True"), "Room-notice setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingMinPartySize=4"), "Minimum-party setting did not serialize.");
             Require(serialized.Contains("LeagueAutoMatchmakingStartDelayMs=2500"), "Matchmaking delay setting did not serialize.");
@@ -156,6 +173,186 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
                 "Tencent Lobby without partyId/queueId/allowedStartActivity must still start matchmaking when canStartActivity+leader are true.");
+        }
+
+        private static void ValidatePendingInvitationWait()
+        {
+            var read = new FakeReadApi();
+            var write = new FakeWriteApi();
+            var baseline = LobbyJson(420, true, true, true,
+                new[] { "self" }, false);
+            var pending = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Pending\"}],\"restrictions\":");
+            var settled = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Accepted\"}],\"restrictions\":");
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0,
+                    "Pending lobby invitations must defer automatic matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.LobbyPath, settled);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Settled invitations must allow the existing Lobby to queue once.");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1,
+                    "Invitation settlement caused a duplicate matchmaking write.");
+            }
+
+            AssertLobbyBlocked(pending.Replace("Pending", "pEnDiNg"),
+                "Pending invitation state matching must be case-insensitive");
+            var noWaitRead = new FakeReadApi();
+            noWaitRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var noWaitWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(noWaitRead, noWaitWrite, new FakeClock()))
+            {
+                controller.Configure(false, false, 1, 0, 0, false);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(noWaitWrite.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
+                    "Disabling invitation waiting must allow an otherwise eligible lobby to queue.");
+            }
+            var switchRead = new FakeReadApi();
+            switchRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var switchWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(switchRead, switchWrite, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 0, 0, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Thread.Sleep(40);
+                Require(switchWrite.Calls.Count == 0, "Default invitation waiting must block automatic queue entry.");
+                controller.Configure(true, false, 1, 0, 0, false);
+                Require(switchWrite.WaitForCall(TimeSpan.FromSeconds(1)),
+                    "Changing invitation-wait policy must restart the existing Lobby observer.");
+                Require(switchWrite.Calls.Count == 1,
+                    "Invitation policy change caused duplicate matchmaking writes.");
+            }
+            var noWaitMinRead = new FakeReadApi();
+            noWaitMinRead.Set(LeagueMatchmakingAutomationController.LobbyPath, pending);
+            var noWaitMinWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(noWaitMinRead, noWaitMinWrite, new FakeClock()))
+            {
+                controller.Configure(false, false, 2, 0, 0, false);
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(noWaitMinWrite.Calls.Count == 0,
+                    "Disabling invitation waiting must not bypass the configured minimum party size.");
+            }
+            var irrelevant = baseline.Replace("\"restrictions\":",
+                "\"invitations\":[{\"state\":\"Declined\"}],\"restrictions\":");
+            var secondRead = new FakeReadApi();
+            secondRead.Set(LeagueMatchmakingAutomationController.LobbyPath, irrelevant);
+            var secondWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(secondRead, secondWrite, new FakeClock()))
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(secondWrite.Calls.Count == 1,
+                "An already declined invitation must not block automatic matchmaking.");
+        }
+
+        private static void ValidateSourceQueueGuards()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueMatchmakingAutomationController.GameflowSessionPath,
+                "{\"gameData\":{\"isCustomGame\":true}}");
+            read.Set(LeagueMatchmakingAutomationController.SearchStatePath, "{\"errors\":[]}");
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+            {
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0, "Custom gameflow session must not enter matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.GameflowSessionPath,
+                    "{\"gameData\":{\"isCustomGame\":false}}");
+                read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                    "{\"errors\":[{\"penaltyTimeRemaining\":7}]}");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0, "Active queue penalty must defer matchmaking.");
+
+                read.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                    "{\"errors\":[{\"penaltyTimeRemaining\":0}]}");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1, "Cleared penalty must allow an otherwise eligible Lobby to queue.");
+            }
+        }
+
+        private static void ValidateZeroDelayRoomNotice()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 0, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(write.WaitForCall(TimeSpan.FromSeconds(1)), "Immediate queue entry was blocked by room announcement.");
+                Require(notices.Messages.Count == 1 && notices.Messages.Single().Contains("即将自动排队"),
+                    "Zero-delay room notice must announce once before the queue write.");
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                Require(notices.Messages.Count == 1, "Same Lobby must not repeat immediate room announcement.");
+            }
+        }
+
+        private static void ValidateRoomCountdownNotices()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 2500, 0, true, false);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(write.WaitForCall(TimeSpan.FromSeconds(1)), "Disabled room notices changed queue startup.");
+                Require(notices.Messages.Count == 0, "Room notices must remain completely silent by default.");
+            }
+
+            var enabledWrite = new FakeWriteApi();
+            var enabledNotices = new FakeRoomNoticeApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, enabledWrite, enabledNotices, new FakeClock()))
+            {
+                controller.Configure(true, false, 1, 2500, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(enabledWrite.WaitForCall(TimeSpan.FromSeconds(1)), "Countdown must not prevent queue startup.");
+                Require(enabledNotices.Messages.Count == 3 &&
+                    enabledNotices.Messages.First().Contains("3 秒") &&
+                    enabledNotices.Messages.Last().Contains("1 秒"),
+                    "The optional room countdown must follow the configured seconds without extra timers.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Matchmaking" });
+                Require(enabledNotices.Messages.Count == 3, "Leaving Lobby must not emit a false cancellation after queue startup.");
+            }
+        }
+
+        private static void ValidateRoomCountdownCancellation()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var write = new FakeWriteApi();
+            var notices = new FakeRoomNoticeApi();
+            var clock = new FakeClock { BlockFirstDelay = true };
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, notices, clock))
+            {
+                controller.Configure(true, false, 1, 4000, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count == 1, 1000),
+                    "Room countdown did not emit its initial message.");
+                controller.Configure(false, false, 1, 4000, 0, true, true);
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count == 2, 1000),
+                    "Cancelling an announced countdown must send one room notification.");
+                Require(notices.Messages.Last().Contains("已取消") && write.Calls.Count == 0,
+                    "Cancellation must suppress the matchmaking POST and avoid duplicate chat writes.");
+            }
         }
 
         private static void ValidateEligibleLobbyExactlyOnce()
@@ -275,8 +472,8 @@ namespace FACM.League
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeagueMatchmakingWriteApiClient.SearchPath) == 1,
                     "Ambiguous matchmaking write was not attempted exactly once.");
-                Require(read.RequestCount == 2,
-                    "Ambiguous matchmaking write did not perform exactly one authoritative queue-state reconciliation read.");
+                Require(read.Paths.Count(path => path == LeagueMatchmakingAutomationController.SearchStatePath) == 2,
+                    "Ambiguous matchmaking write must read penalty state once and reconcile queue state once.");
 
                 write.ReturnNull = false;
                 controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -445,11 +642,14 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public readonly System.Collections.Concurrent.ConcurrentQueue<string> Paths =
+                new System.Collections.Concurrent.ConcurrentQueue<string>();
             public void Set(string path, string json) { _responses[path] = Encoding.UTF8.GetBytes(json); }
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref RequestCount);
+                Paths.Enqueue(path);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);
@@ -521,14 +721,30 @@ namespace FACM.League
         private sealed class FakeClock : ILeagueMatchmakingClock
         {
             public int DelayCalls;
+            public bool BlockFirstDelay;
             public readonly System.Collections.Concurrent.ConcurrentQueue<TimeSpan> Delays = new System.Collections.Concurrent.ConcurrentQueue<TimeSpan>();
 
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref DelayCalls);
+                var number = Interlocked.Increment(ref DelayCalls);
                 Delays.Enqueue(delay);
+                if (BlockFirstDelay && number == 1) return Task.Delay(Timeout.Infinite, cancellationToken);
                 return Task.Delay(1, cancellationToken);
+            }
+        }
+
+        private sealed class FakeRoomNoticeApi : ILeagueLobbyNoticeWriteApi
+        {
+            public readonly System.Collections.Concurrent.ConcurrentQueue<string> Messages =
+                new System.Collections.Concurrent.ConcurrentQueue<string>();
+
+            public Task<LeagueClientWriteResponse> TrySendNoticeAsync(string conversationId, string message, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (conversationId != "room-1") throw new InvalidOperationException("Room notice used the wrong conversation.");
+                Messages.Enqueue(message);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = new byte[0] });
             }
         }
     }

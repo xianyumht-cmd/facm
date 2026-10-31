@@ -1,0 +1,508 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.AppHost.Modules;
+using FACM.Services;
+using FACM.Theming;
+
+namespace FACM.League
+{
+    internal sealed class LeagueAutoSelectProfilesForm : Form
+    {
+        private readonly LeagueEfficiencyModule _module;
+        private readonly UiTextCatalog _text;
+        private readonly List<LeagueAutoSelectProfile> _profiles;
+        private readonly List<string> _remoteModeIds = new List<string>();
+        private readonly Dictionary<int, string> _championNames = new Dictionary<int, string>();
+        private readonly CancellationTokenSource _catalogLifetime = new CancellationTokenSource();
+        private readonly ComboBox _mode;
+        private readonly ComboBox _role;
+        private readonly ComboBox _action;
+        private readonly ComboBox _catalog;
+        private readonly ComboBox _strategy;
+        private readonly ListBox _priority;
+        private readonly NumericUpDown _delay;
+        private readonly CheckBox _groupEnabled;
+        private readonly CheckBox _benchSwap;
+        private readonly CheckBox _showIntent;
+        private readonly CheckBox _ignoreIntent;
+        private readonly CheckBox _benchUpgrade;
+        private readonly CheckBox _autoTrade;
+        private readonly NumericUpDown _benchDelay;
+        private readonly Label _status;
+        private bool _binding;
+
+        public LeagueAutoSelectProfilesForm(LeagueEfficiencyModule module, UiTextCatalog text)
+        {
+            _module = module ?? throw new ArgumentNullException(nameof(module));
+            _text = text ?? throw new ArgumentNullException(nameof(text));
+            _profiles = LeagueAutoSelectProfiles.Parse(module.AutoSelectProfilesJson).ToList();
+            Text = T(LeagueEfficiencyUiTextKeys.AdvancedTitle);
+            ClientSize = new Size(700, 625);
+            MinimumSize = new Size(680, 590);
+            StartPosition = FormStartPosition.CenterParent;
+            BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+
+            var root = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, Padding = new Padding(22), AutoScroll = true,
+                ColumnCount = 2, RowCount = 10, BackColor = FacmDesignSystem.Canvas
+            };
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            foreach (var height in new[] { 54, 46, 46, 46, 266, 48, 48, 70, 86, 55 })
+                root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
+
+            var header = new Label
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.AdvancedHint),
+                Dock = DockStyle.Fill, ForeColor = FacmDesignSystem.TextMuted,
+                TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true
+            };
+            root.Controls.Add(header, 0, 0);
+            root.SetColumnSpan(header, 2);
+
+            _mode = AddChoice(root, 1, LeagueEfficiencyUiTextKeys.AdvancedMode,
+                new[] { T(LeagueEfficiencyUiTextKeys.ProfileModeDefault),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeRift), T(LeagueEfficiencyUiTextKeys.ProfileModeAram),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeMayhem),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeRanked), T(LeagueEfficiencyUiTextKeys.ProfileModeNormal),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeCherry), T(LeagueEfficiencyUiTextKeys.ProfileModeUrf),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeOneForAll), T(LeagueEfficiencyUiTextKeys.ProfileModeUltbook),
+                    T(LeagueEfficiencyUiTextKeys.ProfileModeBot), T(LeagueEfficiencyUiTextKeys.ProfileModeCustom) });
+            _role = AddChoice(root, 2, LeagueEfficiencyUiTextKeys.AdvancedRole,
+                new[] { T(LeagueEfficiencyUiTextKeys.ProfileRoleDefault),
+                    T(LeagueEfficiencyUiTextKeys.ProfileRoleTop), T(LeagueEfficiencyUiTextKeys.ProfileRoleJungle),
+                    T(LeagueEfficiencyUiTextKeys.ProfileRoleMiddle), T(LeagueEfficiencyUiTextKeys.ProfileRoleBottom),
+                    T(LeagueEfficiencyUiTextKeys.ProfileRoleSupport) });
+            _action = AddChoice(root, 3, LeagueEfficiencyUiTextKeys.AdvancedAction,
+                new[] { T(LeagueEfficiencyUiTextKeys.AutoPick), T(LeagueEfficiencyUiTextKeys.AutoBan) });
+
+            root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedPriority), 0, 4);
+            var listRegion = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            listRegion.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            listRegion.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 140));
+            _priority = new ListBox
+            {
+                Dock = DockStyle.Fill, IntegralHeight = false, BorderStyle = BorderStyle.FixedSingle,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text
+            };
+            listRegion.Controls.Add(_priority, 0, 0);
+            var buttons = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6 };
+            for (var i = 0; i < 6; i++) buttons.RowStyles.Add(new RowStyle(SizeType.Percent, 100F / 6F));
+            _catalog = new ComboBox
+            {
+                Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+                DisplayMember = "Name",
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                FlatStyle = FlatStyle.Flat
+            };
+            buttons.Controls.Add(_catalog, 0, 0);
+            AddButton(buttons, 1, LeagueEfficiencyUiTextKeys.AdvancedAdd, delegate { AddChampion(); });
+            AddButton(buttons, 2, LeagueEfficiencyUiTextKeys.AdvancedRemove, delegate { RemoveChampion(); });
+            AddButton(buttons, 3, LeagueEfficiencyUiTextKeys.AdvancedUp, delegate { MoveChampion(-1); });
+            AddButton(buttons, 4, LeagueEfficiencyUiTextKeys.AdvancedDown, delegate { MoveChampion(1); });
+            listRegion.Controls.Add(buttons, 1, 0);
+            root.Controls.Add(listRegion, 1, 4);
+
+            _strategy = AddChoice(root, 5, LeagueEfficiencyUiTextKeys.AdvancedStrategy,
+                new[] { T(LeagueEfficiencyUiTextKeys.StrategyImmediate),
+                    T(LeagueEfficiencyUiTextKeys.StrategyShowLock), T(LeagueEfficiencyUiTextKeys.StrategyShowOnly) });
+            _delay = new NumericUpDown
+            {
+                Minimum = 0, Maximum = 15, DecimalPlaces = 1, Increment = 0.5m,
+                Dock = DockStyle.Left, Width = 110, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text
+            };
+            root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedDelay), 0, 6);
+            var delayRow = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+            _groupEnabled = new CheckBox { Text = T(LeagueEfficiencyUiTextKeys.AdvancedGroupEnabled),
+                AutoSize = true, ForeColor = FacmDesignSystem.Text, Margin = new Padding(18, 6, 0, 0) };
+            delayRow.Controls.Add(_delay);
+            delayRow.Controls.Add(_groupEnabled);
+            root.Controls.Add(delayRow, 1, 6);
+
+            root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedIntentControls), 0, 7);
+            var intentRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
+            _showIntent = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedShowIntent),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            _ignoreIntent = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedIgnoreIntent),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            intentRow.Controls.Add(_showIntent);
+            intentRow.Controls.Add(_ignoreIntent);
+            root.Controls.Add(intentRow, 1, 7);
+
+            root.Controls.Add(Caption(LeagueEfficiencyUiTextKeys.AdvancedBenchControls), 0, 8);
+            var benchRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
+                FlowDirection = FlowDirection.LeftToRight, WrapContents = true };
+            _benchSwap = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchSwap),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            _benchUpgrade = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            _autoTrade = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedTrade),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            var benchDelayLabel = new Label { Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchDelay),
+                AutoSize = true, ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 8, 8, 5) };
+            _benchDelay = new NumericUpDown { Minimum = 0, Maximum = 15, DecimalPlaces = 1,
+                Increment = 0.5m, Width = 72, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 5, 6, 5) };
+            benchRow.Controls.Add(_benchSwap);
+            benchRow.Controls.Add(_benchUpgrade);
+            benchRow.Controls.Add(_autoTrade);
+            benchRow.Controls.Add(benchDelayLabel);
+            benchRow.Controls.Add(_benchDelay);
+            root.Controls.Add(benchRow, 1, 8);
+
+            _status = new Label { Dock = DockStyle.Fill, ForeColor = FacmDesignSystem.TextMuted,
+                TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
+            var save = new FacmActionButton { Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave),
+                Tone = FacmButtonTone.Primary, Width = 112, Height = 34 };
+            var cancel = new FacmActionButton { Text = T(LeagueEfficiencyUiTextKeys.AdvancedCancel),
+                Tone = FacmButtonTone.Secondary, Width = 100, Height = 34 };
+            save.Click += delegate { SaveProfiles(); };
+            cancel.Click += delegate { Close(); };
+            footer.Controls.Add(_status, 0, 0);
+            footer.Controls.Add(cancel, 1, 0);
+            footer.Controls.Add(save, 2, 0);
+            root.Controls.Add(footer, 0, 9);
+            root.SetColumnSpan(footer, 2);
+            Controls.Add(root);
+
+            _mode.SelectedIndexChanged += ContextChanged;
+            _role.SelectedIndexChanged += ContextChanged;
+            _action.SelectedIndexChanged += ContextChanged;
+            _strategy.SelectedIndexChanged += StrategyChanged;
+            _delay.ValueChanged += StrategyChanged;
+            _groupEnabled.CheckedChanged += StrategyChanged;
+            _showIntent.CheckedChanged += IntentChanged;
+            _ignoreIntent.CheckedChanged += IntentChanged;
+            _benchSwap.CheckedChanged += BenchChanged;
+            _benchUpgrade.CheckedChanged += BenchChanged;
+            _autoTrade.CheckedChanged += BenchChanged;
+            _benchDelay.ValueChanged += BenchChanged;
+            _mode.SelectedIndex = 0;
+            _role.SelectedIndex = 0;
+            _action.SelectedIndex = 0;
+            RefreshRemoteModes();
+            RefreshProfile();
+            FormClosed += delegate { _catalogLifetime.Cancel(); _catalogLifetime.Dispose(); };
+            _ = LoadCatalogAsync();
+            Shown += async delegate
+            {
+                try
+                {
+                    await LeagueAutoSelectGroupCatalog.TryRefreshAsync(_catalogLifetime.Token);
+                    if (IsDisposed || Disposing || _catalogLifetime.IsCancellationRequested) return;
+                    RefreshRemoteModes();
+                    RefreshSpecialChoices();
+                    RefreshProfile();
+                }
+                catch (OperationCanceledException) { }
+            };
+        }
+
+        private string T(string key) { return LeagueEfficiencyText.Get(_text, key); }
+
+        private Label Caption(string key)
+        {
+            return new Label { Text = T(key), Dock = DockStyle.Fill,
+                ForeColor = FacmDesignSystem.Text, TextAlign = ContentAlignment.MiddleLeft };
+        }
+
+        private ComboBox AddChoice(TableLayoutPanel root, int row, string key, string[] names)
+        {
+            root.Controls.Add(Caption(key), 0, row);
+            var combo = new ComboBox { Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                FlatStyle = FlatStyle.Flat };
+            combo.Items.AddRange(names);
+            root.Controls.Add(combo, 1, row);
+            return combo;
+        }
+
+        private void AddButton(TableLayoutPanel root, int row, string key, EventHandler click)
+        {
+            var button = new FacmActionButton { Text = T(key), Dock = DockStyle.Fill,
+                Tone = FacmButtonTone.Secondary, Margin = new Padding(3) };
+            button.Click += click;
+            root.Controls.Add(button, 0, row);
+        }
+
+        private string CurrentMode()
+        {
+            var index = Math.Max(0, _mode.SelectedIndex);
+            return index < LeagueAutoSelectProfiles.Modes.Length ?
+                LeagueAutoSelectProfiles.Modes[index] :
+                _remoteModeIds[index - LeagueAutoSelectProfiles.Modes.Length];
+        }
+
+        private void RefreshRemoteModes()
+        {
+            var selected = _mode.SelectedIndex < 0 ? "default" : CurrentMode();
+            var groups = LeagueAutoSelectGroupCatalog.RemoteGroups;
+            _binding = true;
+            try
+            {
+                while (_mode.Items.Count > LeagueAutoSelectProfiles.Modes.Length)
+                    _mode.Items.RemoveAt(_mode.Items.Count - 1);
+                _remoteModeIds.Clear();
+                foreach (var group in groups)
+                {
+                    _remoteModeIds.Add(group.Item1);
+                    _mode.Items.Add(group.Item2 + " (" + group.Item1 + ")");
+                }
+                var index = Array.IndexOf(LeagueAutoSelectProfiles.Modes, selected);
+                if (index < 0)
+                {
+                    var remoteIndex = _remoteModeIds.IndexOf(selected);
+                    index = remoteIndex < 0 ? 0 : remoteIndex + LeagueAutoSelectProfiles.Modes.Length;
+                }
+                _mode.SelectedIndex = index >= 0 && index < _mode.Items.Count ? index : 0;
+            }
+            finally { _binding = false; }
+            _role.Enabled = IsRoleMode();
+            if (!_role.Enabled && _role.SelectedIndex != 0) _role.SelectedIndex = 0;
+        }
+
+        private LeagueAutoSelectProfile CurrentProfile(bool create)
+        {
+            var mode = CurrentMode();
+            var role = LeagueAutoSelectProfiles.Roles[Math.Max(0, _role.SelectedIndex)];
+            var found = _profiles.FirstOrDefault(p => p.Mode == mode && p.Role == role);
+            if (found == null && create)
+            {
+                found = new LeagueAutoSelectProfile { Mode = mode, Role = role };
+                _profiles.Add(found);
+            }
+            return found;
+        }
+
+        private List<int> CurrentList(bool create)
+        {
+            var profile = CurrentProfile(create);
+            return profile == null ? null : _action.SelectedIndex == 1 ? profile.Bans : profile.Picks;
+        }
+
+        private bool IsRoleMode()
+        {
+            var mode = CurrentMode();
+            return mode == "rift" || mode == "ranked" || mode == "custom" ||
+                LeagueAutoSelectGroupCatalog.SupportsRoles(mode);
+        }
+
+        private bool IsBenchMode()
+        {
+            var mode = CurrentMode();
+            return mode == "default" || mode == "aram" || mode == "mayhem" ||
+                LeagueAutoSelectGroupCatalog.SupportsBench(mode);
+        }
+
+        private void ContextChanged(object sender, EventArgs e)
+        {
+            if (_binding) return;
+            _role.Enabled = IsRoleMode();
+            if (!_role.Enabled && _role.SelectedIndex != 0)
+            {
+                _role.SelectedIndex = 0;
+                return;
+            }
+            RefreshSpecialChoices();
+            RefreshProfile();
+        }
+
+        private void RefreshSpecialChoices()
+        {
+            for (var i = _catalog.Items.Count - 1; i >= 0; i--)
+            {
+                var option = _catalog.Items[i] as LeagueProfileChampionOption;
+                if (option != null && (option.Id == -1 || option.Id == -3)) _catalog.Items.RemoveAt(i);
+            }
+            var mode = CurrentMode();
+            var server = _module.AutoSelectServerId;
+            if (_action.SelectedIndex == 1 &&
+                LeagueAutoSelectGroupCatalog.SpecialAllowed(mode, server, false, -1))
+            {
+                var name = T(LeagueEfficiencyUiTextKeys.AdvancedNoBan);
+                _championNames[-1] = name;
+                _catalog.Items.Insert(0, new LeagueProfileChampionOption { Id = -1, Name = name });
+            }
+            else if (_action.SelectedIndex == 0 &&
+                LeagueAutoSelectGroupCatalog.SpecialAllowed(mode, server, true, -3))
+            {
+                var name = T(LeagueEfficiencyUiTextKeys.AdvancedCherryBravery);
+                _championNames[-3] = name;
+                _catalog.Items.Insert(0, new LeagueProfileChampionOption { Id = -3, Name = name });
+            }
+            if (_catalog.Items.Count > 0) _catalog.SelectedIndex = 0;
+        }
+
+        private void RefreshProfile()
+        {
+            if (_mode.SelectedIndex < 0 || _role.SelectedIndex < 0 || _action.SelectedIndex < 0) return;
+            _binding = true;
+            try
+            {
+                _priority.Items.Clear();
+                var list = CurrentList(false);
+                if (list != null) foreach (var id in list) _priority.Items.Add(ChampionName(id));
+                var profile = CurrentProfile(false) ?? new LeagueAutoSelectProfile();
+                var strategy = _action.SelectedIndex == 1 ? profile.BanStrategy : profile.PickStrategy;
+                _strategy.SelectedIndex = Math.Max(0, Array.IndexOf(LeagueAutoSelectProfiles.Strategies, strategy));
+                _groupEnabled.Checked = _action.SelectedIndex == 1 ? profile.BanEnabled : profile.PickEnabled;
+                _delay.Value = (_action.SelectedIndex == 1 ? profile.BanDelayMs : profile.PickDelayMs) / 1000m;
+                _showIntent.Checked = profile.ShowPickIntent;
+                _ignoreIntent.Checked = profile.IgnoreTeammateIntent;
+                _showIntent.Enabled = _action.SelectedIndex == 0;
+                _ignoreIntent.Enabled = _action.SelectedIndex == 0 && profile.ShowPickIntent;
+                var benchSettingsVisible = _action.SelectedIndex == 0 && IsBenchMode();
+                _benchSwap.Enabled = benchSettingsVisible;
+                _benchUpgrade.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _autoTrade.Enabled = benchSettingsVisible;
+                _benchDelay.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _benchSwap.Checked = profile.BenchAutoSwapEnabled;
+                _benchUpgrade.Checked = profile.BenchPreferHigherPriority;
+                _autoTrade.Checked = profile.BenchHandleTradeEnabled;
+                _benchDelay.Value = profile.BenchSwapDelayMs / 1000m;
+            }
+            finally { _binding = false; }
+        }
+
+        private string ChampionName(int id)
+        {
+            string name;
+            return _championNames.TryGetValue(id, out name) ? name + " (#" + id + ")" : "#" + id;
+        }
+
+        private void AddChampion()
+        {
+            var option = _catalog.SelectedItem as LeagueProfileChampionOption;
+            if (option == null || option.Id <= 0 &&
+                !LeagueAutoSelectGroupCatalog.SpecialAllowed(
+                    CurrentMode(),
+                    _module.AutoSelectServerId, _action.SelectedIndex == 0, option.Id)) return;
+            var list = CurrentList(true);
+            if (list.Count >= 20 || list.Contains(option.Id)) return;
+            list.Add(option.Id);
+            RefreshProfile();
+            _priority.SelectedIndex = list.Count - 1;
+        }
+
+        private void RemoveChampion()
+        {
+            var list = CurrentList(false);
+            if (list == null || _priority.SelectedIndex < 0) return;
+            list.RemoveAt(_priority.SelectedIndex);
+            RefreshProfile();
+        }
+
+        private void MoveChampion(int offset)
+        {
+            var list = CurrentList(false);
+            if (list == null) return;
+            var index = _priority.SelectedIndex;
+            var target = index + offset;
+            if (index < 0 || target < 0 || target >= list.Count) return;
+            var id = list[index];
+            list[index] = list[target];
+            list[target] = id;
+            RefreshProfile();
+            _priority.SelectedIndex = target;
+        }
+
+        private void StrategyChanged(object sender, EventArgs e)
+        {
+            if (_binding || _strategy.SelectedIndex < 0) return;
+            var profile = CurrentProfile(true);
+            if (_action.SelectedIndex == 1)
+            {
+                profile.BanEnabled = _groupEnabled.Checked;
+                profile.BanStrategy = LeagueAutoSelectProfiles.Strategies[_strategy.SelectedIndex];
+                profile.BanDelayMs = (int)(_delay.Value * 1000);
+            }
+            else
+            {
+                profile.PickEnabled = _groupEnabled.Checked;
+                profile.PickStrategy = LeagueAutoSelectProfiles.Strategies[_strategy.SelectedIndex];
+                profile.PickDelayMs = (int)(_delay.Value * 1000);
+            }
+        }
+
+        private void BenchChanged(object sender, EventArgs e)
+        {
+            if (_binding || _action.SelectedIndex != 0 || !IsBenchMode()) return;
+            var profile = CurrentProfile(true);
+            profile.BenchAutoSwapEnabled = _benchSwap.Checked;
+            profile.BenchPreferHigherPriority = _benchUpgrade.Checked;
+            profile.BenchHandleTradeEnabled = _autoTrade.Checked;
+            profile.BenchSwapDelayMs = (int)(_benchDelay.Value * 1000);
+            _benchUpgrade.Enabled = _benchSwap.Checked;
+            _benchDelay.Enabled = _benchSwap.Checked;
+        }
+
+        private void IntentChanged(object sender, EventArgs e)
+        {
+            if (_binding || _action.SelectedIndex != 0) return;
+            var profile = CurrentProfile(true);
+            profile.ShowPickIntent = _showIntent.Checked;
+            profile.IgnoreTeammateIntent = _ignoreIntent.Checked;
+            _ignoreIntent.Enabled = _showIntent.Checked;
+        }
+
+        private async Task LoadCatalogAsync()
+        {
+            try
+            {
+                var champions = await _module.LoadChampionsAsync(_catalogLifetime.Token);
+                if (_catalogLifetime.IsCancellationRequested || IsDisposed || Disposing) return;
+                _binding = true;
+                try
+                {
+                    foreach (var champion in champions ?? Array.Empty<LeagueProfileChampionOption>())
+                    {
+                        if (champion == null || champion.Id <= 0 || string.IsNullOrWhiteSpace(champion.Name)) continue;
+                        _championNames[champion.Id] = champion.Name;
+                        _catalog.Items.Add(champion);
+                    }
+                    RefreshSpecialChoices();
+                }
+                finally { _binding = false; }
+                RefreshProfile();
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                if (!IsDisposed && !Disposing)
+                {
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
+                    AppLog.Info("Auto-select catalog unavailable: " + exception.GetType().Name);
+                }
+            }
+        }
+
+        private void SaveProfiles()
+        {
+            try
+            {
+                _module.UpdateAutoSelectProfiles(LeagueAutoSelectProfiles.Serialize(_profiles));
+                DialogResult = DialogResult.OK;
+                Close();
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.SaveFailed).Replace("{0}", exception.GetType().Name);
+            }
+        }
+    }
+}

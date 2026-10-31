@@ -76,6 +76,12 @@
                       WithCulture="false" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\LeagueMaps\*"
+                      LogicalName="FACM.Resources.LeagueMaps.%(Filename)%(Extension)"
+                      Type="Non-Resx" WithCulture="false" />
+  </ItemGroup>
+
   <Target Name="VerifyToolBundleBeforeCompile"
           BeforeTargets="PrepareResourceNames"
           DependsOnTargets="ResolveProjectReferences">

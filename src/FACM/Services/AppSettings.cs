@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using FACM.Pets;
+using FACM.League;
 using FACM.Theming;
 
 namespace FACM.Services
@@ -33,12 +34,45 @@ namespace FACM.Services
         public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
         public bool AnimalPetEnabled { get; set; } = false;
         public bool LeagueAutoApplyRecommended { get; set; } = false;
+        public bool LeagueChampionSpellPresetsEnabled { get; set; } = false;
+        public string LeagueChampionSpellPresets { get; set; } = string.Empty;
+        public string LeagueChampionRunePresets { get; set; } = string.Empty;
         public string LeagueExitGameHotkey { get; set; } = string.Empty;
         public string LeagueCloseLobbyHotkey { get; set; } = string.Empty;
         public bool LeagueAutoHonorTeammateEnabled { get; set; } = false;
+        public string LeagueAutoHonorStrategy { get; set; } = LeagueHonorStrategy.PreferLobbyMember;
         public bool LeagueAutoReturnLobbyEnabled { get; set; } = false;
         public bool LeagueAutoMatchmakingEnabled { get; set; } = false;
+        public bool LeagueAutoMatchmakingWaitForInvitees { get; set; } = true;
+        public bool LeagueAutoMatchmakingRoomNotices { get; set; } = false;
         public bool LeagueAutoAcceptEnabled { get; set; } = false;
+        public bool LeagueAutoHandleInvitationsEnabled { get; set; } = false;
+        public bool LeagueSkipInvitationsWhenAway { get; set; } = false;
+        public string LeagueInvitationStrategies { get; set; } = "{}";
+        public bool LeagueAutoSkipLeaderEnabled { get; set; } = false;
+        public bool LeagueAutoReconnectEnabled { get; set; } = false;
+        public bool LeagueAutoAramTeamSideEnabled { get; set; } = false;
+        public bool LeagueAutoAramTeamSideVisibleToTeam { get; set; } = false;
+        public bool LeagueAutoLoginStatusMessageEnabled { get; set; } = false;
+        public string LeagueAutoLoginStatusMessage { get; set; } = string.Empty;
+        public bool LeagueAutoLoginRankedStatusEnabled { get; set; } = false;
+        public string LeagueAutoLoginRankedQueue { get; set; } = "RANKED_SOLO_5x5";
+        public string LeagueAutoLoginRankedTier { get; set; } = "CHALLENGER";
+        public string LeagueAutoLoginRankedDivision { get; set; } = string.Empty;
+        public bool LeagueAutoReplyEnabled { get; set; } = false;
+        public bool LeagueAutoReplyAwayOnly { get; set; } = false;
+        public string LeagueAutoReplyText { get; set; } = "";
+        public bool LeagueLockOfflineStatusEnabled { get; set; } = false;
+        public bool LeagueRespawnOverlayEnabled { get; set; } = false;
+        public string LeagueDynamicMessageOptions { get; set; } = string.Empty;
+        public string LeagueQuickMessagePresets { get; set; } = string.Empty;
+        public string LeagueQuickMessageHotkeys { get; set; } = string.Empty;
+        public int LeagueQuickMessageIntervalMs { get; set; } = 500;
+        public bool LeagueAutoPickEnabled { get; set; } = false;
+        public bool LeagueAutoBanEnabled { get; set; } = false;
+        public int LeagueAutoPickChampionId { get; set; } = 0;
+        public int LeagueAutoBanChampionId { get; set; } = 0;
+        public string LeagueAutoSelectProfiles { get; set; } = string.Empty;
         public int LeagueAutoMatchmakingMinPartySize { get; set; } = 1;
         public int LeagueAutoMatchmakingStartDelayMs { get; set; } = 0;
         public int LeagueAutoAcceptDelayMs { get; set; } = 0;
@@ -139,12 +173,45 @@ namespace FACM.Services
                 "PetStyleId=" + AnimalPetCatalog.Get(PetStyleId).Id,
                 "AnimalPetEnabled=" + AnimalPetEnabled,
                 "LeagueAutoApplyRecommended=" + LeagueAutoApplyRecommended,
+                "LeagueChampionSpellPresetsEnabled=" + LeagueChampionSpellPresetsEnabled,
+                "LeagueChampionSpellPresets=" + Sanitize(LeagueChampionSpellPresets),
+                "LeagueChampionRunePresets=" + Sanitize(LeagueChampionRunePresets),
                 "LeagueExitGameHotkey=" + Sanitize(LeagueExitGameHotkey),
                 "LeagueCloseLobbyHotkey=" + Sanitize(LeagueCloseLobbyHotkey),
                 "LeagueAutoHonorTeammateEnabled=" + LeagueAutoHonorTeammateEnabled,
+                "LeagueAutoHonorStrategy=" + LeagueHonorStrategy.Normalize(LeagueAutoHonorStrategy),
                 "LeagueAutoReturnLobbyEnabled=" + LeagueAutoReturnLobbyEnabled,
                 "LeagueAutoMatchmakingEnabled=" + LeagueAutoMatchmakingEnabled,
+                "LeagueAutoMatchmakingWaitForInvitees=" + LeagueAutoMatchmakingWaitForInvitees,
+                "LeagueAutoMatchmakingRoomNotices=" + LeagueAutoMatchmakingRoomNotices,
                 "LeagueAutoAcceptEnabled=" + LeagueAutoAcceptEnabled,
+                "LeagueAutoHandleInvitationsEnabled=" + LeagueAutoHandleInvitationsEnabled,
+                "LeagueSkipInvitationsWhenAway=" + LeagueSkipInvitationsWhenAway,
+                "LeagueInvitationStrategies=" + LeagueInvitationPolicies.NormalizeJson(LeagueInvitationStrategies),
+                "LeagueAutoSkipLeaderEnabled=" + LeagueAutoSkipLeaderEnabled,
+                "LeagueAutoReconnectEnabled=" + LeagueAutoReconnectEnabled,
+                "LeagueAutoAramTeamSideEnabled=" + LeagueAutoAramTeamSideEnabled,
+                "LeagueAutoAramTeamSideVisibleToTeam=" + LeagueAutoAramTeamSideVisibleToTeam,
+                "LeagueAutoLoginStatusMessageEnabled=" + LeagueAutoLoginStatusMessageEnabled,
+                "LeagueAutoLoginStatusMessage=" + Sanitize(LeagueLoginStatusRestoreController.NormalizeSavedMessage(LeagueAutoLoginStatusMessage)),
+                "LeagueAutoLoginRankedStatusEnabled=" + LeagueAutoLoginRankedStatusEnabled,
+                "LeagueAutoLoginRankedQueue=" + Sanitize(LeagueAutoLoginRankedQueue),
+                "LeagueAutoLoginRankedTier=" + Sanitize(LeagueAutoLoginRankedTier),
+                "LeagueAutoLoginRankedDivision=" + Sanitize(LeagueAutoLoginRankedDivision),
+                "LeagueAutoReplyEnabled=" + LeagueAutoReplyEnabled,
+                "LeagueAutoReplyAwayOnly=" + LeagueAutoReplyAwayOnly,
+                "LeagueAutoReplyText=" + Sanitize(LeagueAutoReplyController.NormalizeText(LeagueAutoReplyText)),
+                "LeagueLockOfflineStatusEnabled=" + LeagueLockOfflineStatusEnabled,
+                "LeagueRespawnOverlayEnabled=" + LeagueRespawnOverlayEnabled,
+                "LeagueDynamicMessageOptions=" + FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions)),
+                "LeagueQuickMessagePresets=" + FACM.League.LeagueQuickMessagePresets.NormalizeJson(LeagueQuickMessagePresets),
+                "LeagueQuickMessageHotkeys=" + FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(LeagueQuickMessageHotkeys),
+                "LeagueQuickMessageIntervalMs=" + Math.Max(0, Math.Min(5000, LeagueQuickMessageIntervalMs)).ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoPickEnabled=" + LeagueAutoPickEnabled,
+                "LeagueAutoBanEnabled=" + LeagueAutoBanEnabled,
+                "LeagueAutoPickChampionId=" + LeagueAutoPickChampionId.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoBanChampionId=" + LeagueAutoBanChampionId.ToString(CultureInfo.InvariantCulture),
+                "LeagueAutoSelectProfiles=" + (LeagueAutoSelectProfiles ?? string.Empty),
                 "LeagueAutoMatchmakingMinPartySize=" + LeagueAutoMatchmakingMinPartySize.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoMatchmakingStartDelayMs=" + LeagueAutoMatchmakingStartDelayMs.ToString(CultureInfo.InvariantCulture),
                 "LeagueAutoAcceptDelayMs=" + LeagueAutoAcceptDelayMs.ToString(CultureInfo.InvariantCulture),
@@ -367,12 +434,45 @@ namespace FACM.Services
             else if (key.Equals("PetStyleId", StringComparison.OrdinalIgnoreCase)) result.PetStyleId = AnimalPetCatalog.Get(value).Id;
             else if (key.Equals("AnimalPetEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AnimalPetEnabled = flag;
             else if (key.Equals("LeagueAutoApplyRecommended", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoApplyRecommended = flag;
+            else if (key.Equals("LeagueChampionSpellPresetsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueChampionSpellPresetsEnabled = flag;
+            else if (key.Equals("LeagueChampionSpellPresets", StringComparison.OrdinalIgnoreCase) && value.Length <= 4096) result.LeagueChampionSpellPresets = value;
+            else if (key.Equals("LeagueChampionRunePresets", StringComparison.OrdinalIgnoreCase) && value.Length <= 7500) result.LeagueChampionRunePresets = value;
             else if (key.Equals("LeagueExitGameHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueExitGameHotkey = value;
             else if (key.Equals("LeagueCloseLobbyHotkey", StringComparison.OrdinalIgnoreCase)) result.LeagueCloseLobbyHotkey = value;
             else if (key.Equals("LeagueAutoHonorTeammateEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHonorTeammateEnabled = flag;
+            else if (key.Equals("LeagueAutoHonorStrategy", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(value);
             else if (key.Equals("LeagueAutoReturnLobbyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReturnLobbyEnabled = flag;
             else if (key.Equals("LeagueAutoMatchmakingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingEnabled = flag;
+            else if (key.Equals("LeagueAutoMatchmakingWaitForInvitees", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingWaitForInvitees = flag;
+            else if (key.Equals("LeagueAutoMatchmakingRoomNotices", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoMatchmakingRoomNotices = flag;
             else if (key.Equals("LeagueAutoAcceptEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAcceptEnabled = flag;
+            else if (key.Equals("LeagueAutoHandleInvitationsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoHandleInvitationsEnabled = flag;
+            else if (key.Equals("LeagueSkipInvitationsWhenAway", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueSkipInvitationsWhenAway = flag;
+            else if (key.Equals("LeagueInvitationStrategies", StringComparison.OrdinalIgnoreCase) && value.Length <= 800) result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(value);
+            else if (key.Equals("LeagueAutoSkipLeaderEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoSkipLeaderEnabled = flag;
+            else if (key.Equals("LeagueAutoReconnectEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReconnectEnabled = flag;
+            else if (key.Equals("LeagueAutoAramTeamSideEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideEnabled = flag;
+            else if (key.Equals("LeagueAutoAramTeamSideVisibleToTeam", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoAramTeamSideVisibleToTeam = flag;
+            else if (key.Equals("LeagueAutoLoginStatusMessageEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoLoginStatusMessageEnabled = flag;
+            else if (key.Equals("LeagueAutoLoginStatusMessage", StringComparison.OrdinalIgnoreCase) && value.Length <= LeaguePresenceService.MaximumStatusMessageLength) result.LeagueAutoLoginStatusMessage = LeagueLoginStatusRestoreController.NormalizeSavedMessage(value);
+            else if (key.Equals("LeagueAutoLoginRankedStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoLoginRankedStatusEnabled = flag;
+            else if (key.Equals("LeagueAutoLoginRankedQueue", StringComparison.OrdinalIgnoreCase) && value.Length <= 32) result.LeagueAutoLoginRankedQueue = value;
+            else if (key.Equals("LeagueAutoLoginRankedTier", StringComparison.OrdinalIgnoreCase) && value.Length <= 20) result.LeagueAutoLoginRankedTier = value;
+            else if (key.Equals("LeagueAutoLoginRankedDivision", StringComparison.OrdinalIgnoreCase) && value.Length <= 4) result.LeagueAutoLoginRankedDivision = value;
+            else if (key.Equals("LeagueAutoReplyEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReplyEnabled = flag;
+            else if (key.Equals("LeagueAutoReplyAwayOnly", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoReplyAwayOnly = flag;
+            else if (key.Equals("LeagueAutoReplyText", StringComparison.OrdinalIgnoreCase)) result.LeagueAutoReplyText = LeagueAutoReplyController.NormalizeText(value);
+            else if (key.Equals("LeagueLockOfflineStatusEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueLockOfflineStatusEnabled = flag;
+            else if (key.Equals("LeagueRespawnOverlayEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRespawnOverlayEnabled = flag;
+            else if (key.Equals("LeagueDynamicMessageOptions", StringComparison.OrdinalIgnoreCase)) result.LeagueDynamicMessageOptions = FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(value));
+            else if (key.Equals("LeagueQuickMessagePresets", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(value);
+            else if (key.Equals("LeagueQuickMessageHotkeys", StringComparison.OrdinalIgnoreCase)) result.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(value);
+            else if (key.Equals("LeagueQuickMessageIntervalMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out number)) result.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, number));
+            else if (key.Equals("LeagueAutoPickEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoPickEnabled = flag;
+            else if (key.Equals("LeagueAutoBanEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueAutoBanEnabled = flag;
+            else if (key.Equals("LeagueAutoPickChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, number));
+            else if (key.Equals("LeagueAutoBanChampionId", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, number));
+            else if (key.Equals("LeagueAutoSelectProfiles", StringComparison.OrdinalIgnoreCase) && value.Length <= FACM.League.LeagueAutoSelectProfiles.MaxSerializedLength) result.LeagueAutoSelectProfiles = value;
             else if (key.Equals("LeagueAutoMatchmakingMinPartySize", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingMinPartySize = number;
             else if (key.Equals("LeagueAutoMatchmakingStartDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoMatchmakingStartDelayMs = number;
             else if (key.Equals("LeagueAutoAcceptDelayMs", StringComparison.OrdinalIgnoreCase) && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)) result.LeagueAutoAcceptDelayMs = number;
@@ -395,6 +495,29 @@ namespace FACM.Services
             result.PetStyleId = AnimalPetCatalog.Get(result.PetStyleId).Id;
             result.LeagueExitGameHotkey = Sanitize(result.LeagueExitGameHotkey).Trim();
             result.LeagueCloseLobbyHotkey = Sanitize(result.LeagueCloseLobbyHotkey).Trim();
+            result.LeagueAutoHonorStrategy = LeagueHonorStrategy.Normalize(result.LeagueAutoHonorStrategy);
+            result.LeagueInvitationStrategies = LeagueInvitationPolicies.NormalizeJson(result.LeagueInvitationStrategies);
+            string rankedQueue;
+            string rankedTier;
+            string rankedDivision;
+            if (!LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                result.LeagueAutoLoginRankedQueue, result.LeagueAutoLoginRankedTier,
+                result.LeagueAutoLoginRankedDivision, out rankedQueue, out rankedTier, out rankedDivision))
+            {
+                result.LeagueAutoLoginRankedStatusEnabled = false;
+                rankedQueue = "RANKED_SOLO_5x5";
+                rankedTier = "CHALLENGER";
+                rankedDivision = string.Empty;
+            }
+            result.LeagueAutoLoginRankedQueue = rankedQueue;
+            result.LeagueAutoLoginRankedTier = rankedTier;
+            result.LeagueAutoLoginRankedDivision = rankedDivision;
+            if ((result.LeagueChampionSpellPresets ?? string.Empty).Length > 4096)
+                result.LeagueChampionSpellPresets = string.Empty;
+            if ((result.LeagueChampionRunePresets ?? string.Empty).Length > 7500)
+                result.LeagueChampionRunePresets = string.Empty;
+            // Both automatic writers must not race to replace the same spell slots.
+            if (result.LeagueChampionSpellPresetsEnabled) result.LeagueAutoApplyRecommended = false;
             result.LeagueAutoMatchmakingMinPartySize = Math.Max(1, Math.Min(5, result.LeagueAutoMatchmakingMinPartySize));
             result.LeagueAutoMatchmakingStartDelayMs = Math.Max(0, Math.Min(60000, result.LeagueAutoMatchmakingStartDelayMs));
             result.LeagueAutoAcceptDelayMs = Math.Max(0, Math.Min(15000, result.LeagueAutoAcceptDelayMs));

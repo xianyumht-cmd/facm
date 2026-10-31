@@ -1,4 +1,119 @@
+## 2026-10-30 — Preserve source jungle preference thresholds with evidence-aware unknown state
+
+Use the existing bounded jungle aggregate for the pinned `preference.ts` two-lane and single-lane classification, without another timeline request or view owner. Source thresholds and precedence are mandatory when position weights exist; absent/malformed weights are unknown rather than a fabricated balanced preference. Present the result in the existing native multi-game report, and keep the map legend aligned with actual lane-colored dot/X semantics. Executable [4e94053](https://github.com/xianyumht-cmd/facm/commit/4e9405309c98324992c9a14f9a321738b3306fa2) passed all four Windows workflows; final Tencent CN/Win10 DPI acceptance remains open.
+
+## 2026-10-29 — MatchCard semantic tag colors follow pinned source light/dark variants
+
+The native `LeagueMatchTagStrip` retains Akari 1.5.1 tag-category colors in both theme modes, rather than letting GGman's generic button theme override them. Preserve the original white chip foreground, category background on hover, and explicit keyboard focus border; apply new theme colors after `FacmThemeRuntime` refreshes open forms. Keep this work within the existing native strip, without a new rendering framework, timer or request. Executable `6100aff` passed four Windows workflows; live Tencent/Win10 DPI and pixel geometry remain separate acceptance gates.
+
+## 2026-10-29 — MatchCard turret challenges require verified map and duration
+
+Preserve pinned Akari 1.5.1 `computeTowerKillTags` using SGP-only optional `killsNearEnemyTurret` / `killsUnderOwnTurret`, actual map ID and positive game duration. Map 11 uses 5/6-minute ratios; map 12 uses 1.5/1.5. Unknown map, missing duration or absent challenge counts must not generate a label, even if a zero-duration fallback would make the threshold trivially true. Reuse the existing selected-match data and native text surface; defer colored ManyTags/overflow and live Tencent/Win10 DPI acceptance. Executable `7a56cf5` passed all four Windows workflows.
+
+## 2026-10-29 — Reuse verified group kill totals for MatchCard participation tags
+
+Follow pinned Akari 1.5.1 `computeKillsTags` (1200/1150) and `computeKpTags` (1100/1050) using the existing bounded match detail rather than introducing a second participant fetch. Kill participation is `(kills + assists) / teamKills` for the verified ordinary team or Cherry subteam; missing/invalid groups and impossible zero-denominator claims are omitted rather than presented as a record. The source uses match-over-team precedence and retains ties. Keep native accessible text until full ManyTags chip/overflow presentation and consolidated Tencent/Win10 DPI acceptance. Executable `bf5f3ce` passed all four Windows workflows.
+
 # GGman / FACM Decisions
+
+## 2026-10-29 — Extend MatchCard tags without inventing LCU-only evidence
+
+Pinned Akari 1.5.1 `match-card/utils/tags.tsx` defines tower-damage match/team priorities 900/850, shielding 1500/1450, solo-kill threshold >=2 at 1700, and match-only CS leader at 600. Preserve the source data-adapter distinction: LCU has tower damage and CS but does not provide `soloKills` or `totalDamageShieldedOnTeammates`; SGP may provide the latter from nested challenges and participant statistics. Reuse the existing bounded participant snapshot and team-share calculation, with null for missing values and no new request or resident service. Keep accessible native text tags as an incremental candidate; do not claim colored ManyTags or complete parity before visual and Tencent/Win10 acceptance. Final executable `d5825a4` passed four Windows workflows.
+
+
+## 2026-10-29 — Require measured roster coverage for MatchCard leader tags
+
+Follow pinned Akari 1.5.1 match-over-team precedence and priority for outgoing damage, healing, damage taken and gold tags. Because regional LCU/SGP detail can omit optional metrics, never call a player the match leader while another participant's metric is unknown. Only show a team leader when the relevant group is identified (including Cherry subteam) and every group member has a measured metric. Reuse the existing detail text pane for accessible value/team-share output, with colored chips and remaining tags left in Draft parity scope. No extra source request or runtime is justified.
+
+## 2026-10-28 — Treat MatchCard multikill counters as nested evidence
+
+Follow pinned Akari v1.5.1 `computeMultikillTags`: double/triple/quadra/penta game statistics are cumulative, so each lower streak's exclusive count subtracts the next higher cumulative count. Preserve each field as nullable at the existing LCU/SGP detail boundary; only show a derived tag when both required counters are known and monotonic. Keep the source dynamic priorities and use the existing player-detail text surface for this first tag family, leaving its full chip/overflow presentation and other tag types as parity work. No new data fetch or background owner is justified.
+
+## 2026-10-28 — Keep radar hover in the native on-demand canvas
+
+The pinned Akari 1.5.1 Chart.js radar uses one-decimal percentage tooltips for both the player and matching team-average datasets. GGman continues to use its existing GDI match-detail canvas, with shared paint/hit geometry and one owned WinForms tooltip; it does not add a chart package, overlay window or timer. Missing series points are not hover targets, and selection changes clear old tips. Final source/CI and Tencent/Win10 DPI acceptance remain separate gates for Draft #357.
+
+## 2026-10-28 — Compare seven MatchCard radar axes from one verified detail snapshot
+
+Follow pinned Akari `RadarChart.vue` for the seven selected-player versus group-average dimensions, using the full match's measured maxima rather than an independent relative scale per team. Put a GDI canvas and accessible text values inside the existing match-detail tab strip instead of adding a graphics runtime or opening a modal. Include the source's `totalHeal` field in the detail-only projection, retain Cherry subteam identity, and require all known teammate values before displaying a team average for each dimension. Missing data should result in absent chart vertices, not zero-valued performance. Bound all work to the existing at-most-twenty match participants and keep Draft #357 pending consolidated Tencent/Win10 DPI acceptance.
+
+## 2026-10-28 — Keep MatchCard damage bars in the existing native selection surface
+
+Follow pinned Akari `TeamTable.vue` / `DamageBarWithPopover.vue` / `DamageBar.vue` for separate outgoing and incoming damage bars, same palette, and relative match maxima, while preserving GGman's lightweight native WinForms layout rather than adding a second graphics host. Use the existing selected-player detail pane and a two-column painted strip plus its owned hover tooltips; no additional fetch, timer or persistent model is required. Retain source-nullability: absent totals/baselines do not generate percentages, and invalid or contradictory component sums are clipped to the drawing area without silently rewriting measured numbers. Preserve draft status pending full MatchCard functional work and consolidated Tencent/Win10 DPI verification.
+
+## 2026-10-28 — Keep MatchCard damage types nullable and normalize SGP magic-taken spelling once
+
+Preserve the exact physical/magic/true outgoing-to-champions and incoming-damage fields on each selected-match participant, without inferring missing component counts from a reported total or issuing follow-up requests. Akari's SGP source spells the incoming magic counter `magicalDamageTaken`, unlike LCU's `magicDamageTaken`; canonicalize it in the existing SGP normalization boundary so both MatchCard detail and loaded Player summaries use one trustworthy key. Retain explicit known zeros and reject negative/invalid input. Use the existing scrollable native selected-member detail pane, leaving the source's richer bar/tooltip/radar widget visuals and live Tencent/Win10 proof for subsequent parity work.
+
+## 2026-10-28 — Project five MatchCard rates from already-verified detail records
+
+Reuse the selected game's authenticated participant/team snapshot for source-pinned KDA, kill participation, damage share and CS/gold per-minute figures. Validate Cherry subgroup ownership, nonnegative source fields and positive duration before displaying rates. Preserve explicit zero versus missing source components, including the two CS fields, rather than treating incomplete matches as fully measured. Keep the user-facing ratios in the same selected-member detail pane and reuse existing localization, request/cancel ownership and memory budgets. The wider Akari MatchCard widget/rendering parity and Tencent/Win10 acceptance remain open.
+
+## 2026-10-28 — Use one verified team order for native MatchCard cards and participant rows
+
+Follow the pinned Akari MatchCard summary's team-oriented presentation using GGman's existing parsed team scores and participant summaries, without a second visual host. Sort Cherry only by source-confirmed placement, keep unranked teams last, and never use conventional red/blue team ID as Cherry subgroup identity. Retain unassigned participants in a separate unknown group and maintain one shared backing-row order for native list selection and rune details. No extra timeline read, resident worker, local database or production update is justified by this presentation slice. Full source UI and Tencent/DPI acceptance remain unfinished.
+
+## 2026-10-28 — Keep optional Akari champion metrics source/roster complete
+
+Extend native ChampionAnalysis metrics only over existing identity- and region-fenced Player matches. Individual-game KDA variation follows the pinned population formula; kill/damage efficiency requires an eligible original match's known team roster (Cherry subteams, not ordinary team ID) and retains the source's `1` fallback only when a confirmed team total is zero. SGP pings use all fourteen explicitly named counters and are nullable when any counter is absent or malformed; LCU never invents pings from other statistics. All-non-null averages retain unknown instead of conflating missing samples with no pings. Existing on-demand SGP/LCU hydration and bounded comparison owner remain unchanged; live Tencent behavior needs later consolidated acceptance.
+
+## 2026-10-27 — Replay both own and remote Player pages through a frozen LCU selection
+
+The prior replay service was attached only to locally saved encountered games. Extend the same typed write owner to current-account and Riot-ID remote match-history lists, but never manufacture a persistent encounter record or enable an action directly from a stale cached page. Snapshot the session that successfully loaded the page, match metadata and current self PUUID; verify signed-in identity just before each write. A selected-row button is more discoverable than a hidden context-menu-only command and does not require changing the owner-approved launcher or adding browser UI. Account changes, page changes and dialog close must cancel or hide stale UI results. Keep all work inside Draft #357 until consolidated live acceptance.
+
+## 2026-10-27 — Keep Akari quantified predicates within a verified current-game roster
+
+Implement `player`/`anyone`/`everyone`/`all`/`allies`/`enemies` as bounded single-child nodes in the existing native advanced filter, not a second history scanner. Read participants only from the authenticated current-player LCU history response; reject ambiguous or duplicate participant IDs, and preserve missing PUUID/team evidence under negation. Use the same existing source-backed predicate evaluator with an explicit selected-person and participant-set context so numeric, item, spell, rune, augment and result checks do not accidentally read self data for an opponent. Build per-person relative numeric denominators in one bulk pass and deep-copy roster snapshots across page-cache boundaries. Accept a local `self` alias for the verified signed-in participant while exact other PUUIDs remain required. Do not introduce separate LCU requests, cloud schema, resident monitors or production changes.
+
+## 2026-10-27 — Resolve relative advanced-filter measures when parsing an owned history page
+
+Akari v1.5.1's four team/game number modes need sibling participant metrics, while GGman's current Player summary previously retained only own numeric values. Compute bounded per-metric team/game sum and maximum from the **same existing match-history response**, attach only compact derived denominators to each signed-in player summary and clone them with page-cache snapshots. Keep incomplete source/identity evidence unknown rather than inventing negative evidence; preserve source behavior of omitting unavailable peer values, and return 0% for a verified zero denominator. Store no full opponent statistics, new persistence, polling or per-row detail hydration in this slice. Relative predicates for other participant scopes and SGP sourcing stay explicitly open until the separate quantifier model is implemented.
+
+## 2026-10-27 — Batch self-player numeric source predicates without network expansion
+
+Implement Akari 1.5.1's position, numeric and percentage predicates together in the existing bounded native match-history filter rather than introducing a second filtering UI, an aggregate cache or network hydration per record. Read only already-returned LCU self-participant stats, preserve absent fields as nullable evidence and copy them across account-cache snapshots. Parse invariant inclusive decimal ranges and show ratio selectors as user-facing percentages, including potentially over-100 damage/gold efficiency. Avoid treating unknown under NOT as a negative match. Source-defined relative team/game comparator modes and participant quantifiers require richer verified roster data and stay explicitly unfinished. CI smoke is a regression guard, not a claim of Tencent in-game acceptance or authorization to release.
+
+## 2026-10-27 — Preserve missing slot evidence in Akari participant predicates
+
+Project Akari 1.5.1's LCU participant item/spell/rune/augment slot fields into the existing current-player match summary instead of initiating game-detail reads per history row. Keep ordered slot arrays small and account-cache copies defensive. An absent or malformed field is unknown (`-1`), not a confirmed empty slot (`0`); this matters especially for `NOT(hasItem/hasAugment)` after a partial Tencent response. Support source-like optional zero-based `ID@slot` conditions within bounded valid indexes. Preserve Akari's special role-bound item membership even when another slot is requested. Quantified predicates for other players/teams require separately verified participant projections; they are not inferred from self-player fields.
+
+## 2026-10-27 — Compile advanced Player filters once, keep unknown data unknown
+
+Mirror Akari 1.5.1's AND/OR/NOT expression-tree concept in an explicit small native editor, with defensive compile-time validation and bounded recursion. Reuse the existing Player-page account-scoped history and statistics; do not attach the filter to a new network owner, background prefetch or persistent settings. Combine advanced conditions with already selected simple predicates so editing does not silently discard users' existing selections. In a partial Tencent LCU match, unknown participant/result/duration data must remain unknown under NOT instead of being treated as proof of absence. Keep incomplete Akari predicate families visible in the parity backlog and do not infer real-client functionality or production readiness from synthetic tests.
+
+## 2026-10-27 — Keep ordinary remote Player pages transient and bounded
+
+Expose Akari 1.5.1's seven regular match-history page sizes and direct-page navigation natively, but retain only the one page currently visible in the remote Player dialog. Each user action reads at most 200 records on the existing LCU transport with the current-account and target-profile verification. Never reuse the self-account Player cache for an opponent's profile, add a resident indexer, or silently show an old page under a new page number after a failed request. The source's collection-mode sizes up to 1,000 are a separate explicit implementation target requiring progress/cancellation/resource budgeting, not equivalent to increasing a single regular-page response limit.
+
+## 2026-10-27 — Keep remote Player history out of current-account caches
+
+Implement Akari's same-region remote summoner drill-down through one explicitly opened native read-only window and the existing authenticated LCU reader, without creating a second Player module, cache or polling owner. Enforce signed-in account identity before/after the bounded target request and reject target PUUID/detail mismatches. The current Player page's profile/history caches always belong to the locally signed-in account, so a remote query must parse into a temporary result only; the dialog owns cancellation and discards stale results. Remote SGP and larger history browsing will extend this explicit path later without changing current-account cache ownership. This is a Draft PR capability, not authorization to release before Tencent/Win10 acceptance.
+
+## 2026-10-26 — Respawn display uses an opt-in native game-only overlay
+
+Implement Akari 1.5.1's self respawn countdown with a compact click-through WinForms overlay, not a WebView or injected game component. To protect low-end machines and prevent surprising on-screen content, default the switch off, reuse one Gameflow owner, start the local 1 Hz read only during active connected gameplay, show only while the League game is foreground, and release the reader on phase exit. Save the preference with existing local/cloud/portable settings; do not store game/player data. Source-level CI is not a substitute for real Tencent client and Windows display acceptance. Keep the Draft PR unmerged and production updater unchanged.
+
+## 2026-10-26 — Scope scheduled friend invites to one active lobby, without personal cloud data
+
+Mirror the pinned Akari v1.5.1 behavior with a native on-demand searchable friend selector and single-use queue bound to current `partyId` plus self summoner ID. Keep only at most five friend PUUIDs in process and clear on lobby exit/change; do not add settings, identity retention or cloud tables. Use the existing Gameflow owner, run conditional three-second checks only with outstanding selections, re-read online status and permission before a single POST, and suppress retries after an attempted send. Extend the existing matchmaking LCU transport through a separate typed outgoing-invite method instead of granting JSON-capable writes to every caller. A League lobby may persist through Matchmaking/ReadyCheck; source parity must follow actual lobby ownership rather than assuming only `Lobby` is valid. This does not authorize a production update before consolidated human acceptance.
+
+## 2026-10-25 — Store Akari auto-select profiles as bounded native preferences
+
+Keep the existing one-hero automatic pick/ban settings as compatible fallback while adding mode/role-specific ordered lists, immediate/show-only/show-then-lock strategies and bounded delays. Serialize only validated small settings arrays into the existing `AppSettings` file; editing uses an on-demand native secondary form, with no new background service, database or Electron renderer. Mode classification reuses `LeagueQueueModePolicy`, and Rift position reuse is restricted to the local player's assigned role. When settings change, cancel the previous episode and use fresh phase/action preflight. This is a partial step toward all pinned Akari v1.5.1 behavior; do not infer live Tencent correctness from test fixtures. In accordance with owner preference, continue internal feature slices and CI without requiring repeated interim gameplay acceptance.
+
+## 2026-10-25 — Keep Akari ChampSelect writes opt-in and isolated by phase
+
+The owner requires every user-visible League Akari v1.5.1 function to reach parity; the first automatic pick/ban slice is **not** the complete feature. Use GGman's existing native `LeagueEfficiencyModule` and shared authenticated LCU session, a single ChampSelect-scoped cancelable 2-second job (active only when enabled), a typed and allowlisted `pick`/`ban` action writer, last-moment local-turn/champion preflight and one attempt per active action. Defaults remain disabled. This minimizes accidental champion overrides and idle network cost while keeping per-role/queue candidate lists, intent/show and delayed lock, bench prioritization and exchanges as explicit required follow-up work. Do not change frozen compact panels, merge the Draft PR or publish before owner-approved Windows/Tencent tests.
+
+## 2026-10-25 — Akari 1.5.1 functional parity is mandatory; implementation remains native
+
+The owner clarified that **every user-facing functionality in the exact Akari v1.5.1 source** belongs to GGman's target scope. A feature cannot be dropped because Electron's approach is resource-heavy, because a Tencent/SGP endpoint requires further investigation, or because that module is not yet reliable in a test environment. Stage implementation and keep individually blocked cases open with specific evidence and a viable equivalent-native mechanism. Compare feature settings, lifecycle, errors and ownership, not just names in the README. Functional parity does not require reproducing Electron's renderer, IPC mechanism or windowing framework. Do not redesign the approved compact floating UI. Each native module shares existing Gameflow/LCU owners, has bounded work and trace diagnostics, and requires Windows 10/Tencent physical acceptance before production. See `docs/LEAGUE-AKARI-V1.5.1-REFERENCE-AUDIT.md` for the mandatory parity backlog.
+
+The first follow-up parity slice is opt-in auto reconnect: reuse `LeagueEfficiencyModule` and the shared `LeagueClientWriteApiClient`, arm one 10-second delay only in connected `Reconnect`, confirm the live phase just before POST, never automatically retry within the same reconnect phase, and cancel on phase exit, disconnect, setting disable or disposal. Keep the signed updater and main release untouched pending live acceptance.
+
+## 2026-10-25 — Wait for pending invitations within existing auto matchmaking
+
+Adopt the pinned Akari 1.5.1 default safety principle: an optional automatically started queue should wait while outgoing Lobby invitations remain `Pending`. Implement the predicate in GGman's existing eligibility check, with no new polling and without a new preference or automatic invitation action. This prevents the leader from queueing before an invited teammate can join. If Tencent LCU omits invitations entirely, preserve existing eligibility behavior. Scope live verification to user-controlled Lobby tests before production release.
 
 ## 2026-10-21 — Preserve accepted HTML while evaluating WebView2 as an opt-in renderer
 
@@ -411,3 +526,9 @@ Keep a deliberate behavioral distinction between the floating ball (click to tog
 ## 2026-10-10 — Register real GGman user identity before ESC cloud storage
 
 For account-enabled ESC sync, user consent and portable ownership are required before remote data upload. Implement independent email OTP account login using CloudBase's official email send/verify/sign-in/sign-up API and treat the returned registered `sub` as the only acceptable cloud sync owner. Do not repurpose the existing anonymous `x-device-id` identity or silently transfer old anonymous data. Keep login optional and first-stage credentials in memory only: this avoids introducing unreviewed local refresh-token persistence on shared PCs. A later opt-in remember-device design requires Windows DPAPI per-user encryption and verified backend revocation. The identity feature was merged in PR #314, followed by registered-only ESC cloud schema/UI in PR #315 and signed v3.5.61. This does not establish real two-account gateway isolation or Riot settings persistence, which remain follow-up acceptance (Issue #313). Because the underlying CloudBase OTP endpoint is public, a client-only resend clock is not a business-wide email-volume ceiling. Retain provider-owned per-address/IP limits and optionally introduce an audited, privileged server gateway only if CloudBase cannot satisfy required per-project rate budgets.
+## 2026-10-27 — Distinguish generic defeat from a verified non-surrender defeat
+
+Maintain GGman's preexisting generic `IsLoss` rule when adding Akari's `isLoss(false/true)` behavior: newly named `IsNormalLoss` and `IsSurrenderLoss` inspect source-projected nullable surrender evidence, while `IsLoss` still means any classified defeat. Do not guess `false` for an absent surrender field; otherwise `NOT` and ordinary-defeat filters would incorrectly include incomplete LCU history. Classify aborted/remade games before ordinary wins/defeats using source precedence. Keep the read-only filters on the current Player cache and consolidate Tencent/Win10 validation after all migration work.
+## 2026-10-27 — Keep match replay behind one explicit native scoreboard action
+
+Implement pinned Akari 1.5.1 replay configuration, create metadata, read metadata and conditional download/watch via one typed authenticated writer. Never continuously scan remote history or autonomously POST downloads; the existing on-demand match detail and native WinForms scoreboard own the action. Revalidate selected game and locally signed-in owner plus LCU session before a mutation; display unsupported/transitional states without repeated POSTs. Do not publish until the consolidated real Windows/Tencent acceptance.

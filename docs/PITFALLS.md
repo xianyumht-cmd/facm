@@ -1,4 +1,104 @@
+## C# JSON fixture quoting and remote-group preflight identity (2026-10-31)
+
+The first auto-select group fixture on executable `51b342c` failed Mayhem Source Probe compilation (CS1026/CS1003) because a verbatim C# string around `["*"]` had a misplaced closing quote. `a4115a4` uses an ordinary escaped JSON substring and passed all four Windows gates. Validate emitted C# literals, not the JavaScript transport representation. Remote group configuration can change while an action is pending; the resolved group must be included in the pre-write context identity, not just queue/mode/custom fields. Never log GSM `playerCredentials` bodies because the source shape includes credential material.
+
+## Do not double-escape JSON inside C# smoke fixtures (2026-10-31)
+
+The first dynamic SGP catalog test candidate `05cac9e` emitted a C# string containing `\\\\"` where the compiler expected a single escaped quote. Glass #41184806712 failed with CS1002/CS1056 at the synthetic fixture, before behavior was tested. Use a C# verbatim literal (`@"{""key"":...}"`) or serializer-generated JSON, inspect the committed source, and verify Windows compilation rather than interpreting an escaped tool payload as valid C#. Corrected in `1ea7c34`; the final SGP candidate requires its own four Windows CI gates.
+
+## UI Text Contract guards placeholder literals in control initializers (2026-10-31)
+
+Mastery-list candidate `9a3107b` initialized a count label with a literal em dash (`Text = "—"`), which caused UI Text Contract run #41154969990 to fail even though the new catalog key was registered. Use `string.Empty` for not-yet-loaded control text, and set localized content through `UiTextKeys` once data arrives; avoid new inline user-visible literal placeholders. Corrected in `1186f42`; final UI Text Contract #41155054380 and the other three Windows checks passed.
+
+## Recheck collection member access when switching List to array (2026-10-31)
+
+First inline item-icon source af77534 converted the projected item IDs from `List<int>` to `int[]` but left two `ids.Count` property references. The array resolves `Count` to a LINQ method group; Glass #41098143209 failed CS0019. Corrected b362e11 to `ids.Length`, then added icon/fallback tests and passed all four Windows gates at 424a116 ([Build #41098321629](https://github.com/xianyumht-cmd/facm/actions/runs/41098321629), [Glass #41098321634](https://github.com/xianyumht-cmd/facm/actions/runs/41098321634), [UI Text #41098321650](https://github.com/xianyumht-cmd/facm/actions/runs/41098321650), [Mayhem #41098321698](https://github.com/xianyumht-cmd/facm/actions/runs/41098321698)). Audit all uses after changing a collection's type before relying on CI.
+
+## Compare serialized profile meaning, not incidental JSON key order (2026-10-30)
+
+The MatchCard hover candidate [7c086c2](https://github.com/xianyumht-cmd/facm/commit/7c086c24fb6fbd21808aea72b568926c67ec984a) passed Windows Build/UI Text/Mayhem, but [Glass #41071148087](https://github.com/xianyumht-cmd/facm/actions/runs/41071148087) failed on both attempts at the unrelated `LeagueAutoPickBanSmokeTest.ValidateProfiles` assertion that compared raw `JavaScriptSerializer` JSON strings. Raw object-property ordering is not the intended priority contract. [aba27df](https://github.com/xianyumht-cmd/facm/commit/aba27dfd616be9afb1ef74c2b084a0a4d55e8e31) replaces byte-for-byte comparison with checks for mode/role ordering, ordered pick/ban IDs, strategy/delay, and successful second parse. [Glass #41072182368](https://github.com/xianyumht-cmd/facm/actions/runs/41072182368) and the other three Windows gates passed on [38eae7e](https://github.com/xianyumht-cmd/facm/commit/38eae7eb7e5aa95220addc97463c76fa33e2cb09). This verifies the revised semantic contract, **not** the exact root cause of the earlier string mismatch. Preserve meaningful order assertions; do not suppress test failures or claim that the underlying serializer has been repaired.
+
+## Distinguish intermittent unrelated CI smoke from source compilation failures (2026-10-30)
+
+The first Windows Build attempt for executable [5c86f9b](https://github.com/xianyumht-cmd/facm/commit/5c86f9b2f1b8e1d27821ea9722aa61c06c4eb1f7) compiled the Release successfully but failed `LeagueAutoPickBanSmokeTest.ValidateProfiles` at its profile serialize/parse round-trip assertion, before the map hover smoke. The failure did not implicate the changed map/UI text files. Re-running only that failed Windows job, without changing code, passed all required smoke including Player/Dashboard/performance. Treat this as an observed intermittent test outcome with unknown cause, not proof of a fixed underlying serialization defect; inspect the exact job log and keep both attempts in the audit rather than asserting a clean first pass. Run [Windows Build #41014109064](https://github.com/xianyumht-cmd/facm/actions/runs/41014109064), [Glass #41014109161](https://github.com/xianyumht-cmd/facm/actions/runs/41014109161), [UI Text #41014109100](https://github.com/xianyumht-cmd/facm/actions/runs/41014109100), [Mayhem #41014108965](https://github.com/xianyumht-cmd/facm/actions/runs/41014108965).
+
+## Avoid C# local-name shadowing across paint branches (2026-10-30)
+
+A new first-camp `OnPaint` branch declared `radius` before an existing single-event `radius` local later in the method. Even though the first branch returns, C# reports CS0136 because the local scopes conflict. The first executable [5531fea](https://github.com/xianyumht-cmd/facm/commit/5531fea42c452ab4397497b2f532fe4cef7d50a4) failed Windows Build and Glass; rename branch-specific locals (e.g. `campRadius`) rather than assuming a return makes names independent. Corrected [41ee0f5](https://github.com/xianyumht-cmd/facm/commit/41ee0f505c0bcc1484b0320d32dfb1280c44b904) passed [Windows Build #41008058455](https://github.com/xianyumht-cmd/facm/actions/runs/41008058455), [Glass #41008058460](https://github.com/xianyumht-cmd/facm/actions/runs/41008058460), [UI Text #41008058522](https://github.com/xianyumht-cmd/facm/actions/runs/41008058522), [Mayhem #41008058525](https://github.com/xianyumht-cmd/facm/actions/runs/41008058525).
+
+## Do not classify unavailable jungle position data as a balanced preference (2026-10-30)
+
+Pinned Akari `preference.ts` receives normalized shares and falls back to balanced, but GGman's on-demand regional timelines can have zero verified position weights. Displaying `balanced` in that case would assert a playstyle without evidence. Resolve preference only from positive, nonnegative aggregate zone weights and use an explicit unavailable label otherwise; keep the source's two-lane-first 70%/28% and single-lane 40%/8% precedence when evidence exists. The older map legend also described blue/orange dots after the renderer had switched to lane-colored circles and X markers; update accessible legend and coverage wording whenever marker semantics change. Synthetic checks and four CI workflows passed for [4e94053](https://github.com/xianyumht-cmd/facm/commit/4e9405309c98324992c9a14f9a321738b3306fa2).
+
+## Preserve lane labels before normalized-map round trips (2026-10-30)
+
+Reclassifying a map point after float normalization can lose the original strict-versus-broad lane decision at a geometric boundary. Store the pinned `MapZone`/`GankLane` decision beside each bounded source point, keep labels aligned through aggregation and sampling, and use geometry only when older samples have no label. Synthetic smoke must deliberately supply labels that differ from coordinate inference. [executable 5b7357b](https://github.com/xianyumht-cmd/facm/commit/5b7357be06fce2f634603460e1d93c8914e07c85) passed all four Windows workflows.
+
+## Avoid shadowed cursor names inside C# lambdas (2026-10-30)
+
+The first lane-metadata candidate 054fc3e failed Glass build with CS0841/CS0136: a heatmap lambda used `index` for both its source-array cursor and the grid-cell key. C# local-variable scope forbids that shadowing. Keep distinct `sourceIndex` and `index` names and use Windows CI as the compilation gate; corrected [executable 5b7357b](https://github.com/xianyumht-cmd/facm/commit/5b7357be06fce2f634603460e1d93c8914e07c85) passed all four workflows.
+
+## Do not conflate gank lanes with minute-position activity zones (2026-10-30)
+
+Pinned Akari `classifyGankLane` is stricter than `classifyMapZone` but may classify a mid gank in a location that the broad zone calls top/bot (e.g. x=5000, y=8700). Reusing `MapZone` for native gank X colors, quota buckets or weighted heatmap ownership silently changes source semantics. Keep broad zones for minute positions, strict lanes for confirmed ganks and a deliberate fallback for missing strict labels; test the divergent boundary. Executable [962223a](https://github.com/xianyumht-cmd/facm/commit/962223a92a8f301313fdf68dd1c870597939f68b) passed all four Windows workflows.
+
+## WinForms ToolStripItemCollection requires an explicit LINQ cast (2026-10-29)
+
+`ToolStripItemCollection` is not `IEnumerable<ToolStripItem>`. Calling `Items.Single()` directly in smoke produced CS0411 in Windows Build #40901670965. Use `Items.Cast<ToolStripItem>().Single()` (or indexed access) when inspecting hosted popup controls. Executable `07c924b` corrected the test and passed all four Windows workflows.
+
+## Do not silently truncate computed MatchCard tags (2026-10-29)
+
+Pinned Akari `ManyTags.vue` presents the entire sorted `usePlayerTags()` stream, hiding only visually overflowing entries. A fixed `Take(32)` in native `LeagueMatchTagStrip.SetTags` discarded valid tags before overflow and accessibility processing. Keep the complete nonblank computed stream and test a case above 32 entries; retain the source's 99-count visual cap only on the `+N` caption, not on the underlying items. Executable `d15b573` passed all four Windows workflows. Long-menu orientation and physical DPI remain separate parity checks.
+
+## Measure native popup text with its actual rendering font (2026-10-29)
+
+A WinForms `ContextMenuStrip` can use a different default font from its owner control. Measuring overflow captions against the owner font while rendering menu items with the default menu font invalidates width caps, especially after font changes. Set the popup's font explicitly from the owner during rebuild and assert the displayed caption width with the popup font in synthetic smoke. Executable `4285252` passed all four Windows workflows; actual Win10 DPI rendering remains for consolidated acceptance.
+
+## Theme refresh can erase semantic MatchCard button contrast (2026-10-29)
+
+`FacmThemeRuntime.ApplyControl` reapplies generic `Button` foreground and hover colors when a theme changes. A semantic tag implemented as a flat WinForms button can therefore lose its white text or show a light hover background with unreadable white text, even if its initial source color is correct. `LeagueMatchTagStrip` now reapplies source light/dark chip and hidden-menu colors after `ThemeChanged`, retains the category color on hover, and restores keyboard-focus borders; its event subscription is released on disposal. Include representative source palette and live-control hover-color assertions in synthetic smoke, and reserve physical DPI/focus-appearance checks for the consolidated Windows test. The initial `39a461b` candidate also failed CS0103 due to a missing `FACM.Theming` import in the new smoke test; final `6100aff` fixed that and passed all four Windows workflows.
+
 # FACM Pitfalls
+
+## Do not display cumulative kill-streak counters as independent event counts (2026-10-28)
+
+Pinned Akari `computeMultikillTags` subtracts nested streak levels before displaying double/triple/quadra/penta labels. A penta can be included in the raw quadra, triple and double totals, so rendering each raw count independently double-counts achievements. Derive exclusive counts by subtracting the immediately higher cumulative count; reject negative differences and do not substitute zero for a missing higher count. Pinned priority is dynamic for frequent double/triple kills, not a permanently fixed label order. Keep distinct incomplete and contradictory fixtures in the native encounter smoke.
+
+## Optional Gameflow metadata must not expand every phase reader's request budget
+
+`LeagueDashboardPhaseService` is shared by the authoritative dashboard monitor and independent League Live readers. Adding a `/lol-gameflow/v1/session` lookup unconditionally broke the original League Live request budget and its performance smoke, even though compilation succeeded. Restrict optional queue capture to the authoritative monitor via an opt-in constructor flag, and leave phase-only consumers unchanged. Keep the 420/440 classification nullable, bounded to one ChampSelect and one game-entry opportunity, and reject conflicting or missing evidence. Verify both the new ranked parser and existing League Live request-count contract before acceptance. The initial `InvalidJSONPrimitiveException` parser catch also failed the net48 build because that type is unavailable; use target-framework-supported exceptions only. Corrected checkpoint `17aafbe3` passed all four CI workflows.
+
+## Regional fallback cannot revive a cancelled local deadline
+
+A request-scoped `CancellationTokenSource` cannot be revived by another `CancelAfter` once its local attempt has already cancelled. A fallback using that same token fails immediately. Give the local and regional attempts separate bounded sources linked to the invoking caller; catch only internal deadline cancellation for fallback, and propagate caller cancellation. Deterministic fixtures should distinguish those two cases. Cache origin must also be captured before the original request and retained by detached pages, not inferred from whichever client happens to be active when later enrichment finishes.
+
+## Compare normalized cloud profile semantics, not serialized JSON bytes (2026-10-27)
+
+Draft PR #357 CI `40492525912` and `40492525945` compiled the native client but stopped at an existing `LeagueAutoPickBanSmokeTest` cloud-restore assertion requiring byte-for-byte JSON equality. `CloudSettingsSnapshot.ApplyTo` intentionally parses and serializes `LeagueAutoSelectProfiles` to normalize it; the exact string is not the persistence contract. Compare the decoded profile count, every mode/role's pick/ban lists, enable flags, strategies and delays, plus legacy opt-in preferences. This continues to fail on meaningful user-setting loss while allowing harmless representation changes. Do not lower production normalization bounds or hide missing data by ignoring decoded fields. A fresh CI pass remains required after this assertion correction.
+
+## Win32 INPUT must include the complete native union
+
+The original native quick-message implementation declared only KEYBDINPUT inside INPUT's managed union. On x64 this yields a 32-byte INPUT, but Win32's union also contains the larger MOUSEINPUT member, making INPUT 40 bytes (28 on x86). Passing the shorter cbSize to SendInput can fail even though compilation and fake-input behavior tests pass. Keep the full union layout and architecture-specific size/offset regression. The authoritative layout is [Microsoft's INPUT definition](https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-input). This correction validates ABI shape only; it does not establish real Tencent foreground/input delivery.
+
+## Synthetic LCU readbacks must persist every field under verification (2026-10-26)
+
+The new presence mutation contention fixture correctly serialized two whole-document writes, but its fake `/lol-chat/v1/me` implementation recorded the changed ranked tier while always reconstructing the old division `II`. The rank writer deliberately verifies both tier and division after each successful PUT, so Windows host smoke marked the result `overridden` and failed both regular and Glass builds at source commit `d9fe9a93`. The correction stores the `rankedLeagueDivision` field from PUT and returns that stored value on subsequent GETs. Keep fake LCU snapshots fully faithful to the fields a tested writer modifies; a test harness can falsely report a data race when its own readback drops a valid update. Never weaken production read-after-write checks to silence a synthetic failure.
+
+## Akari outgoing lobby invitation uses an object array, not raw summoner IDs (2026-10-26)
+
+Pinned `lobby.postInvitation(summonerIds)` in v1.5.1 maps each summoner ID to `{toSummonerId:id}` before POSTing to `/lol-lobby/v2/lobby/invitations`. The controller's apparent call `postInvitation([id])` does **not** mean the on-wire body is `[id]`. Trace the typed HTTP wrapper before implementing an LCU writer and keep this route separate from existing bodyless incoming-invitation accept/decline calls. An invite queue also must not automatically clear merely because the Gameflow phase becomes `Matchmaking` or `ReadyCheck` while a lobby is still active. Use a lobby identity fence and final re-read; never rely solely on cached friend availability.
+
+## Production code must not depend on optional Glass preview files (2026-10-25)
+
+The first mode/role auto-select CI on `6ab1410d` failed `CS0234` because the new native League controller referenced `FACM.Presentation.Glass.CompactRiftRoleService`. The regular net48 GGman build deliberately removes `Presentation\Glass\**\*.cs` from compilation unless `UseGlassWorkbenchPreview=true`; only the optional Glass workflow passed on that first source. Extract or maintain common domain logic under always-compiled `FACM.League` ownership. In this case, parse the local player's `myTeam`/`assignedPosition` directly in the native League preference service, with no visual dependency or extra Gameflow monitor. Both ordinary and optional Glass Windows CI passed on corrected source `54e9ade`; a single preview-success path would not establish the normal lightweight executable.
+
+## Avoid capturing WinForms context in synchronously invoked async smoke suites (2026-10-25)
+
+The first native ChampSelect pick/ban candidate compiled and passed `--league-dashboard-test` alone, but the Windows performance-contract suite hung when it invoked the same validator again. Both build workflows timed out in the project's 120-second self-test `Exec` after `[performance-smoke] START league-dashboard`; no C# compiler error occurred. The new smoke validator synchronously called `GetAwaiter().GetResult()` on an async test that awaited cancellation of a fake clock task. With a WinForms synchronization context installed by the performance suite, the test continuation attempted to resume on the blocked context, causing a deadlock. Use `ConfigureAwait(false)` in all asynchronous test continuations consumed synchronously; do not mask a hang by increasing the CI timeout. The follow-up commit `4f525deb` passed both Windows Build and Glass Candidate, including `[performance-smoke] OK league-dashboard` on its second invocation.
+
+## Never reinterpret a performance constraint as permission to omit Akari features (2026-10-25)
+
+The initial v1.5.1 research matrix labeled SGP as "not practical to copy" and respawn timer as "missing / defer." The owner meant **complete Akari v1.5.1 functional parity** in GGman's lightweight native architecture, not a curated subset of features. A technical blocker must identify the exact endpoint/authentication/permission or hardware test needed and remain open until solved. Distinguish **functional requirements** (all mandatory) from **implementation mechanics** (Electron, Chromium, proprietary tokens and unrestricted polling are not mandatory and often forbidden). Every row needs evidence of its GGman owner, remaining gaps and an acceptance procedure; never label an unavailable provider as a permanent product exclusion.
 
 ## WebView2 loader architecture must match the host process, not just exist (2026-10-21)
 
@@ -147,7 +247,9 @@ Improve perceived latency by reacting immediately when a phase is observed and b
 
 ## Do not turn configurable delay into an unbounded sleep
 
-Akari-style auto-match/auto-accept delays belong inside the existing phase-bounded matchmaking controller. A Lobby start delay must be cancelled as soon as Lobby ownership/settings change; an accept delay must be cancelled as soon as ReadyCheck/settings change. Never implement these options with a detached background timer or a second Gameflow observer.
+Akari-style auto-match/auto-accept delays belong inside the existing phase-bounded matchmaking controller. A Lobby start delay must be cancelled as soon as Lobby ownership/settings change; an accept delay must be cancelled as soon as ReadyCheck/settings change. Never implement these options with a detached background timer or a second Gameflow observer. When the same Lobby snapshot includes outbound invitations still in `Pending`, defer search without claiming the once-per-Lobby fingerprint; the existing bounded observer must be free to start after invitations settle.
+
+For the mixed-lane Rift tier source, successful HTTP and table-row checks are insufficient. The first real compact CI probe returned **Rift invalid** while a separate HTTP check got 864 rows; a 2.16 MB download took 3.95 s but the app deadline was 3.2 s. Budget cancellation-aware transport for the actual response size, distinguish timeout from a user-initiated cancellation, and record parsed mode-qualified results in the same CI probe. Never infer source health from a green build or an informational step alone.
 
 The default remains zero delay. User values are clamped in shared `AppSettings` (minimum party 1-5, matchmaking wait 0-60 seconds, accept wait 0-15 seconds), and changing them reuses the same episode fences so a settings toggle cannot duplicate an ambiguous write.
 

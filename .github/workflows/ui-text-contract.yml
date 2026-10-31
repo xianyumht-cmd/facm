@@ -2,7 +2,7 @@ name: FACM UI Text Contract
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/ggman-glass-webview2-pilot-20261021]
   push:
     branches: [main]
   workflow_dispatch:

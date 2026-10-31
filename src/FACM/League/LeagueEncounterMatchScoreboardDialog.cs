@@ -1,0 +1,1892 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.Services;
+using FACM.Theming;
+
+namespace FACM.League
+{
+    internal sealed class LeagueEncounterMatchScoreboardDialog : Form
+    {
+        private static readonly SemaphoreSlim IconRequestGate = new SemaphoreSlim(3, 3);
+        private static readonly Regex RuneVariables = new Regex(@"@eogvar([123])@",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        private static readonly Regex RuneTags = new Regex(@"<[^>]{0,100}>",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly List<Bitmap> _ownedIcons = new List<Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowItemIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowChampionIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowSpellIcons = new Dictionary<int, Bitmap>();
+        private readonly Dictionary<int, Bitmap> _rowRuneIcons = new Dictionary<int, Bitmap>();
+        private readonly ToolTip _tooltips = new ToolTip();
+        private readonly ToolTip _teamTooltips = new ToolTip();
+        private CancellationTokenSource _selectionCancellation;
+        private int _selectionVersion;
+        private readonly Dictionary<ListViewItem, List<KeyValuePair<long, string>>> _rowTags =
+            new Dictionary<ListViewItem, List<KeyValuePair<long, string>>>();
+        private ListView _scoreboardRows;
+        private FlowLayoutPanel _matchCardHost;
+        private readonly List<MatchCardView> _matchCards = new List<MatchCardView>();
+        private Func<string, string> _scoreboardText;
+
+        internal LeagueEncounterMatchScoreboardDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
+        {
+            if (detail == null || detail.Status != LeagueEncounterMatchDetailStatus.Ready ||
+                detail.Match == null || detail.Participants == null)
+                throw new ArgumentException("Match details are not available.", nameof(detail));
+
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle);
+            Width = IsAugmentMatchMode(detail.Match.GameMode) ? 1320 : 1240;
+            Height = 685; MinimumSize = new Size(680, 510);
+            AutoScaleMode = AutoScaleMode.Font;
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
+                ColumnCount = 1, RowCount = 6 };
+            var isCherry = LeagueCherryTeams.IsCherry(detail.Match.GameMode);
+            var isAugmentMode = IsAugmentMatchMode(detail.Match.GameMode);
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, isCherry ? 164 : 106));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 160));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 43));
+
+            var match = detail.Match;
+            var duration = TimeSpan.FromSeconds(Math.Max(0, match.GameDurationSeconds));
+            var summary = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSummary)
+                    .Replace("{0}", match.GameId.ToString())
+                    .Replace("{1}", string.IsNullOrWhiteSpace(match.GameMode) ? match.QueueId.ToString() : match.GameMode)
+                    .Replace("{2}", ((int)duration.TotalMinutes).ToString() + ":" + duration.Seconds.ToString("D2")),
+                AutoEllipsis = true };
+            layout.Controls.Add(summary, 0, 0);
+
+            var teams = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
+                AutoScroll = true, BackColor = FacmDesignSystem.Canvas };
+            teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            teams.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            var scores = detail.Teams;
+            var orderedScores = OrderedScoreboardTeams(scores, isCherry);
+            layout.Controls.Add(teams, 0, 1);
+
+            var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                FullRowSelect = true, HideSelection = false, MultiSelect = false, GridLines = true,
+                ShowItemToolTips = true, OwnerDraw = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTitle) };
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), isCherry ? 95 : 70);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 135);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 100);
+            rows.Columns.Add("K/D/A", 75);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 60);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 90);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 80);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 55);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagStrip), 120);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems), 155);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells), 78);
+            rows.Columns.Add(t(isAugmentMode ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments :
+                LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab), isAugmentMode ? 120 : 66);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 65);
+            rows.ShowGroups = true;
+            rows.DrawColumnHeader += (sender, e) => e.DrawDefault = true;
+            rows.DrawItem += (sender, e) => { if (rows.View != View.Details) e.DrawDefault = true; };
+            rows.DrawSubItem += (sender, e) =>
+            {
+                if (e.ColumnIndex != 9 && e.ColumnIndex != 10 && e.ColumnIndex != 11)
+                { e.DrawDefault = true; return; }
+                var participant = e.Item.Tag as LeaguePlayerMatchParticipant;
+                var ids = e.ColumnIndex == 9 ? GetMatchRowItemSlots(participant) :
+                    e.ColumnIndex == 10 ? GetMatchRowSpellSlots(participant) :
+                        GetMatchRowRuneSlots(participant, detail.Match.GameMode);
+                var icons = e.ColumnIndex == 9 ? _rowItemIcons :
+                    e.ColumnIndex == 10 ? _rowSpellIcons : _rowRuneIcons;
+                if (!HasMatchRowItemIcon(ids, icons)) { e.DrawDefault = true; return; }
+                DrawMatchRowItemIcons(e.Graphics, e.Bounds, ids,
+                    icons, e.Item.Selected ? SystemColors.Highlight : e.SubItem.BackColor,
+                    e.Item.Selected ? SystemColors.HighlightText : e.SubItem.ForeColor, t);
+            };
+            _scoreboardRows = rows;
+            _scoreboardText = t;
+            var participantGroups = new Dictionary<int, ListViewGroup>();
+            if (scores != null)
+            {
+                foreach (var team in orderedScores)
+                {
+                    var groupName = isCherry
+                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                            .Replace("{0}", team.TeamId.ToString()) + " · " + FormatCherryPlacement(team.SubteamPlacement, t)
+                        : team.TeamId == 100 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue) :
+                            team.TeamId == 200 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed) :
+                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther)
+                                    .Replace("{0}", team.TeamId.ToString());
+                    var group = new ListViewGroup(groupName);
+                    rows.Groups.Add(group);
+                    participantGroups[team.TeamId] = group;
+                }
+            }
+            ListViewGroup unknownGroup = null;
+
+            var selectedDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint) };
+            var damageStrip = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            damageStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            damageStrip.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            damageStrip.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var outgoingBar = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 3, 0),
+                BackColor = FacmDesignSystem.CanvasRaised };
+            var incomingBar = new Panel { Dock = DockStyle.Fill, Margin = new Padding(3, 0, 0, 0),
+                BackColor = FacmDesignSystem.CanvasRaised };
+            outgoingBar.AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar);
+            incomingBar.AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar);
+            damageStrip.Controls.Add(outgoingBar, 0, 0);
+            damageStrip.Controls.Add(incomingBar, 1, 0);
+            var selectionLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 1, RowCount = 3, Margin = Padding.Empty };
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            selectionLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var tagStrip = new LeagueMatchTagStrip(t);
+            selectionLayout.Controls.Add(damageStrip, 0, 0);
+            selectionLayout.Controls.Add(tagStrip, 0, 1);
+            selectionLayout.Controls.Add(selectedDetails, 0, 2);
+            var maxOutgoing = detail.Participants.Where(p => p != null && p.DamageAvailable &&
+                p.DamageToChampions >= 0).Select(p => (int?)p.DamageToChampions).DefaultIfEmpty().Max();
+            var maxIncoming = detail.Participants.Where(p => p != null && p.TotalDamageTaken.HasValue &&
+                p.TotalDamageTaken.Value >= 0).Select(p => p.TotalDamageTaken).DefaultIfEmpty().Max();
+            LeaguePlayerMatchParticipant damageSelection = null;
+            outgoingBar.Paint += (sender, e) => PaintDamageBar(e.Graphics, outgoingBar.ClientRectangle,
+                damageSelection, false, maxOutgoing, t);
+            incomingBar.Paint += (sender, e) => PaintDamageBar(e.Graphics, incomingBar.ClientRectangle,
+                damageSelection, true, maxIncoming, t);
+            var runeDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint),
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab) };
+            var runePlayers = new ListBox { Dock = DockStyle.Fill,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                IntegralHeight = false, AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
+            var iconStrip = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+                AutoScroll = true, BackColor = FacmDesignSystem.CanvasRaised };
+            var catalog = detail.BuildCatalog;
+            var radar = new LeagueMatchRadarPanel(detail.Participants, detail.Teams, isCherry, t);
+            Action<LeaguePlayerMatchParticipant> showSelection = player =>
+            {
+                damageSelection = player;
+                outgoingBar.Invalidate();
+                incomingBar.Invalidate();
+                radar.UpdateSelection(player);
+                _tooltips.SetToolTip(outgoingBar, FormatDamageTooltip(player, false, maxOutgoing, t));
+                _tooltips.SetToolTip(incomingBar, FormatDamageTooltip(player, true, maxIncoming, t));
+                ShowPlayerIcons(player, catalog, iconStrip, loadAsset, t, match.GameMode);
+                if (player == null)
+                {
+                    tagStrip.SetTags(null);
+                    selectedDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
+                    runeDetails.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
+                    return;
+                }
+                runeDetails.Text = FormatParticipantRuneDetails(player, catalog, t, match.GameMode);
+                var champion = string.IsNullOrWhiteSpace(player.ChampionName)
+                    ? player.ChampionId.ToString() : player.ChampionName + " (#" + player.ChampionId + ")";
+                var style = FormatNamedIds(new[] { player.PrimaryPerkStyleId, player.SecondaryPerkStyleId },
+                    catalog == null ? null : catalog.PerkStyles);
+                var orderedTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
+                    match.MapId, match.GameDurationSeconds);
+                tagStrip.SetTags(orderedTags.Select(tag => tag.Value));
+                selectedDetails.Text = FormatParticipantRates(player, scores, isCherry,
+                    match.GameDurationSeconds, t) + "\r\n" +
+                    FormatParticipantDamageDetails(player, t) + "\r\n" +
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelection)
+                    .Replace("{0}", string.IsNullOrWhiteSpace(player.PlayerName)
+                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName)
+                    .Replace("{1}", champion)
+                    .Replace("{2}", FormatNamedIds(player.SpellIds, catalog == null ? null : catalog.Spells))
+                    .Replace("{3}", FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items))
+                    .Replace("{4}", FormatNamedIds(player.PerkIds, catalog == null ? null : catalog.Perks))
+                    .Replace("{5}", style)
+                    .Replace("{6}", FormatAugments(player.AugmentIds, catalog, t))
+                    .Replace("{7}", FormatBoundItem(player.RoleBoundItemId,
+                        catalog == null ? null : catalog.Items));
+            };
+            if (orderedScores.Count > 0)
+            {
+                teams.RowCount = (orderedScores.Count + 1) / 2;
+                for (var i = 0; i < teams.RowCount; i++)
+                    teams.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+                for (var i = 0; i < orderedScores.Count; i++)
+                {
+                    var team = orderedScores[i];
+                    var text = FormatTeamScore(team, t);
+                    var fullText = FormatTeamDetails(team, detail.ChampionNames, t);
+                    var card = new Button { Dock = DockStyle.Fill, Text = text + "\r\n" +
+                        t(team.IsCherry ? LeagueEfficiencyUiTextKeys.DynamicEncounterCherryInspect :
+                            LeagueEfficiencyUiTextKeys.DynamicEncounterTeamInspect),
+                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                        FlatStyle = FlatStyle.Flat, TextAlign = ContentAlignment.MiddleLeft,
+                        Padding = new Padding(9, 5, 9, 3), AutoEllipsis = true,
+                        AccessibleName = text, AccessibleDescription = fullText,
+                        Cursor = Cursors.Hand, Margin = new Padding(3) };
+                    card.FlatAppearance.BorderSize = 0;
+                    card.Click += (sender, e) =>
+                    {
+                        if (rows.SelectedItems.Count > 0) rows.SelectedItems[0].Selected = false;
+                        else showSelection(null);
+                        selectedDetails.Text = fullText;
+                    };
+                    teams.Controls.Add(card, i % 2, i / 2);
+                    _teamTooltips.SetToolTip(card, fullText);
+                }
+            }
+            var cardSelectionInProgress = false;
+            rows.SelectedIndexChanged += (sender, e) =>
+            {
+                if (cardSelectionInProgress) return;
+                var selected = rows.SelectedIndices.Count == 1 ? rows.SelectedIndices[0] : -1;
+                if (runePlayers.SelectedIndex != selected) runePlayers.SelectedIndex = selected;
+                showSelection(selected >= 0 ? rows.Items[selected].Tag as LeaguePlayerMatchParticipant : null);
+                foreach (var card in _matchCards)
+                {
+                    card.IsSelected = card.RowIndex == selected;
+                    card.Invalidate();
+                }
+            };
+            runePlayers.SelectedIndexChanged += (sender, e) =>
+            {
+                var selected = runePlayers.SelectedIndex;
+                if (selected >= 0 && selected < rows.Items.Count && !rows.Items[selected].Selected)
+                    rows.Items[selected].Selected = true;
+            };
+
+            ListViewItem targetItem = null;
+            foreach (var player in OrderScoreboardParticipants(detail.Participants, orderedScores, isCherry))
+            {
+                var name = string.IsNullOrWhiteSpace(player.PlayerName)
+                    ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown)
+                    : player.PlayerName;
+                if (player.IsTarget) name = "★ " + name;
+                var teamId = LeagueCherryTeams.GroupId(player, isCherry);
+                var item = new ListViewItem(isCherry
+                    ? (teamId > 0 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                        .Replace("{0}", teamId.ToString()) : "—") : player.TeamId.ToString());
+                item.SubItems.Add(name);
+                item.SubItems.Add(string.IsNullOrWhiteSpace(player.ChampionName)
+                    ? player.ChampionId.ToString() : player.ChampionName);
+                item.SubItems.Add(player.Kills + "/" + player.Deaths + "/" + player.Assists);
+                item.SubItems.Add(player.CreepScoreAvailable ? player.CreepScore.ToString() : "—");
+                item.SubItems.Add(player.DamageAvailable ? player.DamageToChampions.ToString("N0") : "—");
+                item.SubItems.Add(player.GoldAvailable ? player.GoldEarned.ToString("N0") : "—");
+                item.SubItems.Add(player.VisionScore.ToString());
+                var rowTags = BuildCombinedMatchTagEntries(player, detail.Participants, isCherry, t,
+                    match.MapId, match.GameDurationSeconds);
+                item.SubItems.Add(FormatMatchRowTagPreview(rowTags, t));
+                item.SubItems.Add(FormatMatchRowItemPreview(player, catalog, t));
+                item.SubItems.Add(FormatNamedIds(GetMatchRowSpellSlots(player),
+                    catalog == null ? null : catalog.Spells));
+                item.SubItems.Add(FormatMatchRowRunePreview(player, catalog, match.GameMode, t));
+                item.SubItems.Add(isCherry ? FormatCherryPlacement(player.SubteamPlacement, t) :
+                    player.Win ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
+                item.Tag = player;
+                item.ToolTipText = FormatMatchRowTooltip(rowTags, player, catalog, match.GameMode, t);
+                ListViewGroup participantGroup;
+                if (teamId > 0 && participantGroups.TryGetValue(teamId, out participantGroup))
+                    item.Group = participantGroup;
+                else
+                {
+                    if (unknownGroup == null)
+                    {
+                        unknownGroup = new ListViewGroup(t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown));
+                        rows.Groups.Add(unknownGroup);
+                    }
+                    item.Group = unknownGroup;
+                }
+                if (player.IsTarget)
+                {
+                    item.BackColor = FacmDesignSystem.Canvas;
+                    targetItem = item;
+                }
+                StyleMatchRowTag(item, rowTags, t, player.IsTarget);
+                _rowTags[item] = rowTags;
+                rows.Items.Add(item);
+                runePlayers.Items.Add(name + " · " + (string.IsNullOrWhiteSpace(player.ChampionName)
+                    ? player.ChampionId.ToString() : player.ChampionName));
+            }
+            var matchTabs = new TabControl { Dock = DockStyle.Fill };
+            var cardsTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCards));
+            var cards = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
+                WrapContents = true, FlowDirection = FlowDirection.LeftToRight,
+                Padding = new Padding(6), BackColor = FacmDesignSystem.Canvas };
+            _matchCardHost = cards;
+            var cardActivators = new List<Action>();
+            for (var index = 0; index < rows.Items.Count; index++)
+            {
+                var row = rows.Items[index];
+                var player = row.Tag as LeaguePlayerMatchParticipant;
+                if (player == null) continue;
+                var position = FormatMatchCardPosition(player.Position);
+                var card = new MatchCardView(index, player,
+                    row.SubItems[1].Text,
+                    row.SubItems[2].Text + (position == null ? "" : " · " + position) +
+                        " · " + row.SubItems[12].Text,
+                    FormatParticipantRates(player, scores, isCherry, match.GameDurationSeconds, t),
+                    FormatMatchCardMetrics(player, t),
+                    row.SubItems[8].Text, match.GameMode, t,
+                    _rowItemIcons, _rowSpellIcons, _rowRuneIcons, _rowChampionIcons);
+                card.AccessibleDescription = row.ToolTipText + "\r\n" +
+                    FormatParticipantDamageDetails(player, t);
+                _tooltips.SetToolTip(card, card.AccessibleDescription);
+                var rowIndex = index;
+                Action activate = () =>
+                {
+                    cardSelectionInProgress = true;
+                    try
+                    {
+                        rows.Items[rowIndex].Selected = true;
+                        if (runePlayers.SelectedIndex != rowIndex)
+                            runePlayers.SelectedIndex = rowIndex;
+                    }
+                    finally { cardSelectionInProgress = false; }
+                    showSelection(player);
+                    foreach (var other in _matchCards)
+                    {
+                        other.IsSelected = other.RowIndex == rowIndex;
+                        other.Invalidate();
+                    }
+                    card.Focus();
+                };
+                cardActivators.Add(activate);
+                card.Click += (sender, e) => activate();
+                card.KeyDown += (sender, e) =>
+                {
+                    if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+                    {
+                        activate();
+                        e.Handled = true;
+                        e.SuppressKeyPress = true;
+                        return;
+                    }
+                    var next = MatchCardNavigationTarget(rowIndex, cardActivators.Count,
+                        MatchCardColumns(cards.ClientSize.Width), e.KeyCode);
+                    if (next < 0) return;
+                    cardActivators[next]();
+                    e.Handled = true;
+                    e.SuppressKeyPress = true;
+                };
+                cards.Controls.Add(card);
+                _matchCards.Add(card);
+            }
+            Action fitCards = () =>
+            {
+                var width = MatchCardWidth(cards.ClientSize.Width);
+                foreach (var card in _matchCards)
+                    if (card.Width != width) card.Width = width;
+            };
+            cards.SizeChanged += (sender, e) => fitCards();
+            fitCards();
+            cardsTab.Controls.Add(cards);
+            matchTabs.TabPages.Add(cardsTab);
+            var participantsTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineParticipants));
+            participantsTab.Controls.Add(rows);
+            matchTabs.TabPages.Add(participantsTab);
+            var runesTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab));
+            var runeLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            runeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+            runeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runeLayout.Controls.Add(runePlayers, 0, 0);
+            runeLayout.Controls.Add(runeDetails, 1, 0);
+            runesTab.Controls.Add(runeLayout);
+            matchTabs.TabPages.Add(runesTab);
+            var radarTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarTitle));
+            radarTab.Controls.Add(radar);
+            matchTabs.TabPages.Add(radarTab);
+            var timelineTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineTitle));
+            var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token, loadAsset);
+            timelineTab.Controls.Add(timeline);
+            matchTabs.TabPages.Add(timelineTab);
+            TabPage eogTab = null;
+            Func<Task> loadEog = null;
+            if (detail.LoadEog != null)
+            {
+                eogTab = new TabPage("SGP EOG");
+                var eogLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+                eogLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+                eogLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var eogHeader = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+                var eogStatus = new Label { Width = 380, Height = 30,
+                    Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading),
+                    TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+                var eogRetry = new Button { Text = ui.Get(UiTextKeys.LeaguePlayerRemoteRetry),
+                    Width = 100, Height = 28 };
+                eogHeader.Controls.Add(eogStatus);
+                eogHeader.Controls.Add(eogRetry);
+                eogLayout.Controls.Add(eogHeader, 0, 0);
+                var eogRows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, GridLines = true, ShowGroups = true };
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 75);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 180);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 95);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 85);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells), 95);
+                eogRows.Columns.Add("K/D/A", 95);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 105);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 90);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 70);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 70);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 80);
+                var eogSplit = new SplitContainer { Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical, Width = 1100, SplitterDistance = 770,
+                    Panel1MinSize = 380, Panel2MinSize = 180 };
+                eogSplit.Panel1.Controls.Add(eogRows);
+                var eogStats = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, GridLines = true };
+                eogStats.Columns.Add("SGP Stat", 205);
+                eogStats.Columns.Add("Value", 100);
+                eogSplit.Panel2.Controls.Add(eogStats);
+                LeagueSgpEogResult currentEog = null;
+                eogRows.SelectedIndexChanged += (sender, e) =>
+                {
+                    eogStats.BeginUpdate();
+                    try
+                    {
+                        eogStats.Items.Clear();
+                        var selected = eogRows.SelectedItems.Count == 1
+                            ? eogRows.SelectedItems[0].Tag as LeagueSgpEogPlayer : null;
+                        if (selected == null || currentEog == null) return;
+                        var derived = LeagueSgpEogProjection.Analyze(currentEog, selected);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "KDA", derived.Kda, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Kill participation",
+                            derived.KillParticipation, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage share",
+                            derived.DamageShare, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold share",
+                            derived.GoldShare, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage/min",
+                            derived.DamagePerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold/min",
+                            derived.GoldPerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "CS/min",
+                            derived.CsPerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Vision/min",
+                            derived.VisionPerMinute, false);
+                        if (selected.Metadata != null)
+                            foreach (var meta in selected.Metadata.OrderBy(x => x.Key,
+                                StringComparer.OrdinalIgnoreCase))
+                                eogStats.Items.Add(new ListViewItem(new[] { meta.Key, meta.Value }));
+                        if (selected.Statistics != null)
+                            foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
+                                StringComparer.OrdinalIgnoreCase))
+                                eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
+                                    stat.Value.ToString("G", CultureInfo.CurrentCulture) }));
+                    }
+                    finally { eogStats.EndUpdate(); }
+                };
+                eogLayout.Controls.Add(eogSplit, 0, 1);
+                eogTab.Controls.Add(eogLayout);
+                matchTabs.TabPages.Add(eogTab);
+                var loaded = false;
+                var busy = false;
+                loadEog = async () =>
+                {
+                    if (busy || _lifetime.IsCancellationRequested || IsDisposed ||
+                        (detail.IsCurrentSession != null && !detail.IsCurrentSession())) return;
+                    busy = true;
+                    eogRetry.Enabled = false;
+                    currentEog = null;
+                    eogStats.Items.Clear();
+                    eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading);
+                    try
+                    {
+                        var data = await detail.LoadEog(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested ||
+                            (detail.IsCurrentSession != null && !detail.IsCurrentSession())) return;
+                        eogRows.Items.Clear();
+                        eogRows.Groups.Clear();
+                        loaded = data != null && data.Players != null && data.Players.Count > 0;
+                        if (!loaded)
+                        {
+                            eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+                            return;
+                        }
+                        currentEog = data;
+                        foreach (var group in data.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key))
+                        {
+                            var complete = group.All(p => p.Kills.HasValue && p.Deaths.HasValue &&
+                                p.Assists.HasValue);
+                            var totals = complete ? " · K/D/A " +
+                                group.Sum(p => (long)p.Kills.Value).ToString() + "/" +
+                                group.Sum(p => (long)p.Deaths.Value).ToString() + "/" +
+                                group.Sum(p => (long)p.Assists.Value).ToString() : string.Empty;
+                            var team = new ListViewGroup(
+                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam) +
+                                " " + group.Key + totals);
+                            eogRows.Groups.Add(team);
+                            foreach (var player in group)
+                            {
+                                string champion;
+                                var championName = detail.ChampionNames != null &&
+                                    detail.ChampionNames.TryGetValue(player.ChampionId, out champion)
+                                    ? champion : player.ChampionId.ToString(CultureInfo.InvariantCulture);
+                                Func<int?, string> number = value => value.HasValue
+                                    ? value.Value.ToString("N0", CultureInfo.CurrentCulture) : "—";
+                                var cs = player.Minions.HasValue && player.NeutralMinions.HasValue
+                                    ? (int?)Math.Min(int.MaxValue,
+                                        (long)player.Minions.Value + player.NeutralMinions.Value) : null;
+                                var kda = number(player.Kills) + "/" + number(player.Deaths) +
+                                    "/" + number(player.Assists);
+                                var item = new ListViewItem(new[] { player.TeamId.ToString(),
+                                    string.IsNullOrWhiteSpace(player.Name) ? "—" : player.Name,
+                                    championName, string.IsNullOrWhiteSpace(player.Position) ? "—" : player.Position,
+                                    player.Spell1Id > 0 && player.Spell2Id > 0
+                                        ? player.Spell1Id.ToString() + " / " + player.Spell2Id.ToString() : "—",
+                                    kda, number(player.Damage), number(player.Gold),
+                                    number(cs), number(player.Vision),
+                                    player.Win.HasValue ? (player.Win.Value
+                                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)
+                                        : t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost)) : "—" });
+                                item.Group = team;
+                                item.Tag = player;
+                                if (string.Equals(player.Puuid, match.PuuId,
+                                    StringComparison.OrdinalIgnoreCase))
+                                    item.BackColor = FacmDesignSystem.Canvas;
+                                eogRows.Items.Add(item);
+                            }
+                        }
+                        eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailReady);
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception)
+                    {
+                        if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                            eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+                    }
+                    finally
+                    {
+                        busy = false;
+                        if (!IsDisposed) eogRetry.Enabled = true;
+                    }
+                };
+                eogRetry.Click += async (sender, e) => await loadEog();
+                eogTab.Tag = new Func<bool>(() => loaded);
+            }
+            matchTabs.SelectedIndexChanged += async (sender, e) =>
+            {
+                if (matchTabs.SelectedTab == timelineTab) await timeline.EnsureLoadedAsync();
+                if (eogTab != null && matchTabs.SelectedTab == eogTab && loadEog != null &&
+                    !((Func<bool>)eogTab.Tag)()) await loadEog();
+            };
+            layout.Controls.Add(matchTabs, 0, 2);
+            layout.Controls.Add(iconStrip, 0, 3);
+            layout.Controls.Add(selectionLayout, 0, 4);
+            if (targetItem != null)
+            {
+                targetItem.Selected = true;
+                showSelection(targetItem.Tag as LeaguePlayerMatchParticipant);
+                foreach (var card in _matchCards)
+                {
+                    card.IsSelected = card.RowIndex == targetItem.Index;
+                    card.Invalidate();
+                }
+            }
+
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 132));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96));
+            var replayStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleLeft,
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay) };
+            footer.Controls.Add(replayStatus, 0, 0);
+            var replayButton = new Button { Dock = DockStyle.Top, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay), Enabled = replay != null };
+            replayButton.Click += async (sender, e) =>
+            {
+                if (replay == null || _lifetime.IsCancellationRequested) return;
+                replayButton.Enabled = false;
+                replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+                try
+                {
+                    var result = await replay(match, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    replayStatus.Text = ReplayStatusText(result, t);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                        replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+                }
+                finally
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested) replayButton.Enabled = true;
+                }
+            };
+            footer.Controls.Add(replayButton, 1, 0);
+            var close = new Button { Width = 90, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
+            close.Click += (sender, e) => Close();
+            footer.Controls.Add(close, 2, 0);
+            layout.Controls.Add(footer, 0, 5);
+            Controls.Add(layout);
+            CancelButton = close;
+            Shown += (sender, e) =>
+            {
+                if (catalog == null || loadAsset == null) return;
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .Select(p => p.ChampionId), id => HasIconReference(catalog.ChampionIcons, id), 32))
+                    _ = LoadRowIconAsync(id, catalog.ChampionIcons[id], loadAsset, _rowChampionIcons, _lifetime.Token);
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(GetMatchRowItemSlots), id => HasIconReference(catalog.ItemIcons, id), 48))
+                    _ = LoadRowIconAsync(id, catalog.ItemIcons[id], loadAsset, _rowItemIcons, _lifetime.Token);
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(GetMatchRowSpellSlots), id => HasIconReference(catalog.SpellIcons, id), 24))
+                    _ = LoadRowIconAsync(id, catalog.SpellIcons[id], loadAsset, _rowSpellIcons, _lifetime.Token);
+                var runeCatalog = isAugmentMode ? catalog.AugmentIcons : catalog.PerkIcons;
+                foreach (var id in SelectMatchRowIconIds(detail.Participants.Where(p => p != null)
+                    .SelectMany(p => GetMatchRowRuneSlots(p, match.GameMode)),
+                    id => HasIconReference(runeCatalog, id) ||
+                        (!isAugmentMode && HasIconReference(catalog.PerkStyleIcons, id)), 48))
+                {
+                    string reference;
+                    if (!runeCatalog.TryGetValue(id, out reference) ||
+                        string.IsNullOrWhiteSpace(reference))
+                        reference = catalog.PerkStyleIcons[id];
+                    _ = LoadRowIconAsync(id, reference, loadAsset, _rowRuneIcons, _lifetime.Token);
+                }
+            };
+            FacmThemeRuntime.ThemeChanged += OnThemeChanged;
+            FormClosed += (sender, e) =>
+            {
+                _lifetime.Cancel();
+                _selectionCancellation?.Cancel();
+                _selectionCancellation?.Dispose();
+                foreach (var bitmap in _ownedIcons) bitmap.Dispose();
+                _ownedIcons.Clear();
+                foreach (var bitmap in _rowItemIcons.Values) bitmap.Dispose();
+                _rowItemIcons.Clear();
+                foreach (var bitmap in _rowChampionIcons.Values) bitmap.Dispose();
+                _rowChampionIcons.Clear();
+                foreach (var bitmap in _rowSpellIcons.Values) bitmap.Dispose();
+                _rowSpellIcons.Clear();
+                foreach (var bitmap in _rowRuneIcons.Values) bitmap.Dispose();
+                _rowRuneIcons.Clear();
+                _tooltips.Dispose();
+                _teamTooltips.Dispose();
+                _lifetime.Dispose();
+            };
+        }
+
+        internal static int MatchCardColumns(int clientWidth)
+        {
+            return clientWidth >= 1080 ? 3 : clientWidth >= 690 ? 2 : 1;
+        }
+
+        internal static int MatchCardWidth(int clientWidth)
+        {
+            var available = Math.Max(260, clientWidth - 24 - SystemInformation.VerticalScrollBarWidth);
+            return Math.Max(260, available / MatchCardColumns(clientWidth) - 10);
+        }
+
+        internal static string FormatMatchCardPosition(string position)
+        {
+            switch ((position ?? "").Trim().ToUpperInvariant())
+            {
+                case "TOP": return "TOP";
+                case "JUNGLE": return "JG";
+                case "MIDDLE": return "MID";
+                case "BOTTOM": return "BOT";
+                case "UTILITY": return "SUP";
+                default: return null;
+            }
+        }
+
+        internal static int MatchCardNavigationTarget(int index, int count, int columns, Keys key)
+        {
+            if (count <= 0 || index < 0 || index >= count || columns <= 0) return -1;
+            var column = index % columns;
+            if (key == Keys.Left && column > 0) return index - 1;
+            if (key == Keys.Right && column < columns - 1 && index + 1 < count) return index + 1;
+            if (key == Keys.Up && index >= columns) return index - columns;
+            if (key == Keys.Down && index + columns < count) return index + columns;
+            return -1;
+        }
+
+        internal static bool DrawMatchCardChampionPortrait(Graphics graphics, Rectangle bounds,
+            int championId, IDictionary<int, Bitmap> icons, Color background, Color foreground)
+        {
+            using (var fill = new SolidBrush(background))
+                graphics.FillRectangle(fill, bounds);
+            Bitmap icon;
+            if (championId > 0 && icons != null && icons.TryGetValue(championId, out icon) && icon != null)
+            {
+                graphics.DrawImage(icon, bounds);
+                return true;
+            }
+            TextRenderer.DrawText(graphics, championId > 0 ? "#" + championId : "—",
+                SystemFonts.DefaultFont, bounds, foreground, TextFormatFlags.HorizontalCenter |
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            return false;
+        }
+
+        internal static string FormatMatchCardMetrics(LeaguePlayerMatchParticipant player,
+            Func<string, string> t)
+        {
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage) + " " +
+                count(player != null && player.DamageAvailable ? (int?)player.DamageToChampions : null) +
+                " · " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterRadarHeal) + " " +
+                count(player == null ? null : player.TotalHeal) +
+                " · " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold) + " " +
+                count(player != null && player.GoldAvailable ? (int?)player.GoldEarned : null);
+        }
+
+        internal static List<int> SelectMatchRowIconIds(IEnumerable<int> ids, Func<int, bool> hasReference, int limit)
+        {
+            if (ids == null || hasReference == null || limit <= 0) return new List<int>();
+            return ids.Where(id => id > 0).Distinct().Where(hasReference).Take(limit).ToList();
+        }
+
+        private static bool HasIconReference(IDictionary<int, string> icons, int id)
+        {
+            string reference;
+            return icons != null && icons.TryGetValue(id, out reference) &&
+                !string.IsNullOrWhiteSpace(reference);
+        }
+
+        private void OnThemeChanged(object sender, EventArgs e)
+        {
+            if (IsDisposed || _scoreboardRows == null || _scoreboardRows.IsDisposed) return;
+            _scoreboardRows.BackColor = FacmDesignSystem.CanvasRaised;
+            _scoreboardRows.ForeColor = FacmDesignSystem.Text;
+            foreach (ListViewItem item in _scoreboardRows.Items)
+            {
+                List<KeyValuePair<long, string>> tags;
+                _rowTags.TryGetValue(item, out tags);
+                var player = item.Tag as LeaguePlayerMatchParticipant;
+                StyleMatchRowTag(item, tags, _scoreboardText, player != null && player.IsTarget);
+            }
+            _scoreboardRows.Invalidate();
+            if (_matchCardHost != null && !_matchCardHost.IsDisposed)
+                _matchCardHost.BackColor = FacmDesignSystem.Canvas;
+            foreach (var card in _matchCards)
+                if (!card.IsDisposed) card.Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) FacmThemeRuntime.ThemeChanged -= OnThemeChanged;
+            base.Dispose(disposing);
+        }
+
+        internal static List<LeagueMatchTeamScore> OrderedScoreboardTeams(
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
+        {
+            return (teams ?? Enumerable.Empty<LeagueMatchTeamScore>())
+                .Where(team => team != null && team.TeamId > 0)
+                .OrderBy(team => cherry ? team.SubteamPlacement ?? int.MaxValue : team.TeamId)
+                .ThenBy(team => team.TeamId).ToList();
+        }
+
+        internal static string FormatParticipantRates(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry, int gameDurationSeconds,
+            Func<string, string> t)
+        {
+            var groupId = player == null ? 0 : LeagueCherryTeams.GroupId(player, cherry);
+            var matching = groupId > 0 && teams != null
+                ? teams.Where(team => team != null && team.TeamId == groupId).Take(2).ToList()
+                : new List<LeagueMatchTeamScore>();
+            var team = matching.Count == 1 ? matching[0] : null;
+            var scoreValid = player != null && player.Kills >= 0 && player.Assists >= 0 && player.Deaths >= 0;
+            var kda = scoreValid ? (double?)(player.Kills + (double)player.Assists) /
+                Math.Max(1, player.Deaths) : null;
+            var participation = scoreValid && team != null && team.Kills >= 0
+                ? (double?)(player.Kills + (double)player.Assists) / Math.Max(1L, team.Kills) * 100 : null;
+            var damageShare = player != null && player.DamageAvailable && player.DamageToChampions >= 0 &&
+                team != null && team.DamageToChampions.HasValue && team.DamageToChampions.Value >= 0
+                    ? (double?)player.DamageToChampions / Math.Max(1L, team.DamageToChampions.Value) * 100 : null;
+            var minutes = gameDurationSeconds > 0 ? gameDurationSeconds / 60d : 0;
+            var csPerMinute = player != null && player.CreepScoreAvailable && player.CreepScore >= 0 && minutes > 0
+                ? (double?)player.CreepScore / minutes : null;
+            var goldPerMinute = player != null && player.GoldAvailable && player.GoldEarned >= 0 && minutes > 0
+                ? (double?)player.GoldEarned / minutes : null;
+            Func<double?, string, string> number = (value, format) => value.HasValue &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
+                    ? value.Value.ToString(format, CultureInfo.InvariantCulture) : "—";
+            Func<double?, string> percent = value => value.HasValue &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value)
+                    ? Math.Round(value.Value, 0, MidpointRounding.AwayFromZero)
+                        .ToString("0", CultureInfo.InvariantCulture) + "%" : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardRates)
+                .Replace("{0}", number(kda, "0.00"))
+                .Replace("{1}", percent(participation))
+                .Replace("{2}", percent(damageShare))
+                .Replace("{3}", number(csPerMinute, "0.0"))
+                .Replace("{4}", number(goldPerMinute, "0.0"));
+        }
+
+        internal static string FormatParticipantDamageDetails(LeaguePlayerMatchParticipant player,
+            Func<string, string> t)
+        {
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            var dealt = player != null && player.DamageAvailable && player.DamageToChampions >= 0
+                ? (int?)player.DamageToChampions : null;
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageSplit)
+                .Replace("{0}", count(dealt))
+                .Replace("{1}", count(player == null ? null : player.PhysicalDamageToChampions))
+                .Replace("{2}", count(player == null ? null : player.MagicDamageToChampions))
+                .Replace("{3}", count(player == null ? null : player.TrueDamageToChampions)) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenSplit)
+                    .Replace("{0}", count(player == null ? null : player.TotalDamageTaken))
+                    .Replace("{1}", count(player == null ? null : player.PhysicalDamageTaken))
+                    .Replace("{2}", count(player == null ? null : player.MagicDamageTaken))
+                    .Replace("{3}", count(player == null ? null : player.TrueDamageTaken));
+        }
+
+        internal static string FormatMultikillTags(LeaguePlayerMatchParticipant player, Func<string, string> t)
+        {
+            var tags = BuildMultikillTagEntries(player, t);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        private static List<KeyValuePair<long, string>> BuildMultikillTagEntries(
+            LeaguePlayerMatchParticipant player, Func<string, string> t)
+        {
+            var tags = new List<KeyValuePair<long, string>>();
+            if (player == null) return tags;
+            var penta = player.PentaKills;
+            var quadra = player.QuadraKills.HasValue && penta.HasValue &&
+                player.QuadraKills.Value >= penta.Value
+                    ? (int?)(player.QuadraKills.Value - penta.Value) : null;
+            var triple = player.TripleKills.HasValue && player.QuadraKills.HasValue &&
+                player.TripleKills.Value >= player.QuadraKills.Value
+                    ? (int?)(player.TripleKills.Value - player.QuadraKills.Value) : null;
+            var doubleKills = player.DoubleKills.HasValue && player.TripleKills.HasValue &&
+                player.DoubleKills.Value >= player.TripleKills.Value
+                    ? (int?)(player.DoubleKills.Value - player.TripleKills.Value) : null;
+            var counts = new[] { penta, quadra, triple, doubleKills };
+            var keys = new[] { LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillPenta,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillQuadra,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTriple,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillDouble };
+            for (var index = 0; index < counts.Length; index++)
+            {
+                if (!counts[index].HasValue || counts[index].Value <= 0) continue;
+                var label = t(keys[index]);
+                if (counts[index].Value > 1)
+                    label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMultikillTimes)
+                        .Replace("{0}", label)
+                        .Replace("{1}", counts[index].Value.ToString(CultureInfo.InvariantCulture));
+                var priority = index == 0 ? 20000L : index == 1 ? 1300L :
+                    index == 2 ? 300L + counts[index].Value * 15L : 100L + counts[index].Value * 10L;
+                tags.Add(new KeyValuePair<long, string>(priority, label));
+            }
+            return tags;
+        }
+
+        internal static string FormatMatchPerformanceTags(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
+        {
+            var tags = BuildMatchPerformanceTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.OrderByDescending(tag => tag.Key)
+                        .Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static string FormatCombinedMatchTags(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
+        {
+            var tags = BuildCombinedMatchTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds);
+            return tags.Count == 0 ? string.Empty :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTitle)
+                    .Replace("{0}", string.Join(" · ", tags.Select(tag => tag.Value))) + "\r\n";
+        }
+
+        internal static string FormatMatchRowTagTooltip(LeaguePlayerMatchParticipant player,
+            IEnumerable<LeaguePlayerMatchParticipant> participants, bool cherry, Func<string, string> t,
+            int mapId = 0, int gameDurationSeconds = 0)
+        {
+            return string.Join("\r\n", BuildCombinedMatchTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds).Select(tag => tag.Value));
+        }
+
+        internal static string FormatMatchRowTagPreview(IEnumerable<KeyValuePair<long, string>> tags,
+            Func<string, string> t)
+        {
+            if (tags == null) return "—";
+            var entries = tags.Where(tag => !string.IsNullOrWhiteSpace(tag.Value)).ToList();
+            if (entries.Count == 0) return "—";
+            var first = LeagueMatchTagStrip.ChipLabel(entries[0].Value);
+            return entries.Count == 1 ? first : first + " " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                    .Replace("{0}", Math.Min(entries.Count - 1, 99).ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static int[] GetMatchRowItemIds(LeaguePlayerMatchParticipant player)
+        {
+            if (player == null) return new int[0];
+            var ids = (player.ItemIds ?? new int[0]).Where(id => id > 0).Take(7).ToList();
+            var boundId = player.RoleBoundItemId.GetValueOrDefault();
+            if (boundId > 0 && !ids.Contains(boundId)) ids.Add(boundId);
+            return ids.ToArray();
+        }
+
+        internal static int[] GetMatchRowItemSlots(LeaguePlayerMatchParticipant player)
+        {
+            if (player == null) return new int[0];
+            var slots = new int[7];
+            if (player.ItemIds != null)
+                for (var index = 0; index < Math.Min(slots.Length, player.ItemIds.Length); index++)
+                    slots[index] = Math.Max(0, player.ItemIds[index]);
+            var boundId = player.RoleBoundItemId.GetValueOrDefault();
+            if (boundId > 0 && Array.IndexOf(slots, boundId) < 0)
+                return slots.Concat(new[] { boundId }).ToArray();
+            return slots;
+        }
+
+        internal static int[] GetMatchRowSpellSlots(LeaguePlayerMatchParticipant player)
+        {
+            if (player == null) return new int[0];
+            var slots = new int[2];
+            if (player.SpellIds != null)
+                for (var index = 0; index < Math.Min(slots.Length, player.SpellIds.Length); index++)
+                    slots[index] = Math.Max(0, player.SpellIds[index]);
+            return slots;
+        }
+
+        internal static int[] GetMatchRowRuneSlots(LeaguePlayerMatchParticipant player, string gameMode)
+        {
+            if (player == null) return new int[0];
+            if (IsAugmentMatchMode(gameMode))
+                return (player.AugmentIds ?? new int[0]).Take(6).Select(id => Math.Max(0, id)).ToArray();
+            return new[] {
+                player.PerkIds != null && player.PerkIds.Length > 0 ? Math.Max(0, player.PerkIds[0]) : 0,
+                Math.Max(0, player.SecondaryPerkStyleId)
+            };
+        }
+
+        internal static string FormatMatchRowRunePreview(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, string gameMode, Func<string, string> t)
+        {
+            if (player == null) return "—";
+            if (IsAugmentMatchMode(gameMode)) return FormatAugments(player.AugmentIds, catalog, t);
+            var slots = GetMatchRowRuneSlots(player, gameMode);
+            var primary = FormatNamedIds(new[] { slots[0] }, catalog == null ? null : catalog.Perks);
+            var secondary = FormatNamedIds(new[] { slots[1] }, catalog == null ? null : catalog.PerkStyles);
+            return primary == "—" ? secondary : secondary == "—" ? primary : primary + " / " + secondary;
+        }
+
+        internal static bool HasMatchRowItemIcon(int[] ids, IDictionary<int, Bitmap> icons)
+        {
+            return ids != null && icons != null && ids.Any(id =>
+            {
+                Bitmap bitmap;
+                return id > 0 && icons.TryGetValue(id, out bitmap) && bitmap != null;
+            });
+        }
+
+        internal static void DrawMatchRowItemIcons(Graphics graphics, Rectangle bounds, int[] ids,
+            IDictionary<int, Bitmap> icons, Color background, Color foreground, Func<string, string> t)
+        {
+            if (graphics == null || bounds.Width <= 0 || bounds.Height <= 0) return;
+            using (var fill = new SolidBrush(background))
+                graphics.FillRectangle(fill, bounds);
+            if (ids == null || ids.Length == 0)
+            {
+                TextRenderer.DrawText(graphics, "—", SystemFonts.DefaultFont, bounds, foreground,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter);
+                return;
+            }
+            var size = Math.Min(16, Math.Max(10, bounds.Height - 4));
+            var visibleSlots = MatchRowVisibleSlotCount(bounds.Width, bounds.Height, ids.Length);
+            var drawnSlots = ids.Length > visibleSlots ? Math.Max(0, visibleSlots - 1) : visibleSlots;
+            for (var index = 0; index < drawnSlots; index++)
+            {
+                var slot = new Rectangle(bounds.Left + 3 + index * (size + 2),
+                    bounds.Top + (bounds.Height - size) / 2, size, size);
+                var id = ids[index];
+                if (id > 0)
+                {
+                    Bitmap bitmap;
+                    if (icons != null && icons.TryGetValue(id, out bitmap) && bitmap != null)
+                        graphics.DrawImage(bitmap, slot);
+                    else
+                        TextRenderer.DrawText(graphics, "#", SystemFonts.DefaultFont, slot, foreground,
+                            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                }
+                using (var border = new Pen(id > 0 ? foreground : Color.FromArgb(80, foreground)))
+                    graphics.DrawRectangle(border, slot.Left, slot.Top, slot.Width - 1, slot.Height - 1);
+            }
+            if (ids.Length > drawnSlots)
+            {
+                var remaining = "+" + (ids.Length - drawnSlots).ToString(CultureInfo.InvariantCulture);
+                var overflow = visibleSlots > 0
+                    ? new Rectangle(bounds.Left + 3 + drawnSlots * (size + 2),
+                        bounds.Top + (bounds.Height - size) / 2, size, size)
+                    : bounds;
+                TextRenderer.DrawText(graphics, remaining, SystemFonts.DefaultFont, overflow, foreground,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                    TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis);
+            }
+        }
+
+        internal static int MatchRowVisibleSlotCount(int width, int height, int count)
+        {
+            if (width <= 0 || height <= 0 || count <= 0) return 0;
+            var size = Math.Min(16, Math.Max(10, height - 4));
+            return Math.Min(Math.Min(8, count), Math.Max(0, (width - 1) / (size + 2)));
+        }
+
+        internal static string FormatMatchRowItemPreview(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        {
+            var ids = GetMatchRowItemIds(player);
+            if (ids.Length == 0) return "—";
+            var names = catalog == null ? null : catalog.Items;
+            var preview = string.Join(" · ", ids.Take(2)
+                .Select(id => FormatNamedIds(new[] { id }, names)));
+            return ids.Length <= 2 ? preview : preview + " " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTagOverflow)
+                    .Replace("{0}", (ids.Length - 2).ToString(CultureInfo.InvariantCulture));
+        }
+
+        internal static string FormatMatchRowTooltip(IEnumerable<KeyValuePair<long, string>> tags,
+            LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,
+            string gameMode, Func<string, string> t)
+        {
+            var tagText = string.Join("\r\n", (tags ?? Enumerable.Empty<KeyValuePair<long, string>>())
+                .Where(tag => !string.IsNullOrWhiteSpace(tag.Value)).Select(tag => tag.Value));
+            var buildText = FormatMatchRowBuildTooltip(player, catalog, gameMode, t);
+            return tagText.Length == 0 ? buildText : buildText.Length == 0
+                ? tagText : tagText + "\r\n\r\n" + buildText;
+        }
+
+        internal static string FormatMatchRowBuildTooltip(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, string gameMode, Func<string, string> t)
+        {
+            if (player == null) return string.Empty;
+            var lines = new List<string>();
+            var items = FormatNamedIds(player.ItemIds, catalog == null ? null : catalog.Items);
+            if (items != "—")
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems) + "：" + items);
+            if (player.RoleBoundItemId.GetValueOrDefault() > 0 &&
+                (player.ItemIds == null || Array.IndexOf(player.ItemIds, player.RoleBoundItemId.Value) < 0))
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem) + "：" +
+                    FormatBoundItem(player.RoleBoundItemId, catalog == null ? null : catalog.Items));
+            var spells = FormatNamedIds(player.SpellIds, catalog == null ? null : catalog.Spells);
+            if (spells != "—")
+                lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells) + "：" + spells);
+            var augmentMode = IsAugmentMatchMode(gameMode);
+            if (augmentMode)
+            {
+                var augments = FormatAugments(player.AugmentIds, catalog, t);
+                if (augments != "—")
+                    lines.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments) +
+                        "：" + augments);
+            }
+            else
+            {
+                for (var group = 0; group < 2; group++)
+                {
+                    var styleId = group == 0 ? player.PrimaryPerkStyleId : player.SecondaryPerkStyleId;
+                    var perks = PerkSlots(player.PerkIds, group == 0 ? 0 : 4, group == 0 ? 4 : 2);
+                    if (styleId <= 0 && (perks == null || !perks.Any(id => id > 0))) continue;
+                    var heading = t(group == 0 ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary :
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary);
+                    lines.Add(FormatPerkGroupHeading(heading, styleId,
+                        catalog == null ? null : catalog.PerkStyles) + "：" +
+                        FormatNamedIds(perks, catalog == null ? null : catalog.Perks));
+                }
+            }
+            return string.Join("\r\n", lines);
+        }
+
+        internal static void StyleMatchRowTag(ListViewItem item,
+            IList<KeyValuePair<long, string>> tags, Func<string, string> t, bool isTarget,
+            bool? isLightTheme = null)
+        {
+            if (item == null || item.SubItems.Count <= 8) return;
+            item.UseItemStyleForSubItems = false;
+            var background = isTarget ? FacmDesignSystem.Canvas : FacmDesignSystem.CanvasRaised;
+            foreach (ListViewItem.ListViewSubItem cell in item.SubItems)
+            {
+                cell.BackColor = background;
+                cell.ForeColor = FacmDesignSystem.Text;
+            }
+            var first = tags == null ? null : tags.Select(tag => tag.Value)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+            if (first == null) return;
+            var chipBackground = LeagueMatchTagStrip.TagColor(LeagueMatchTagStrip.ChipLabel(first),
+                t, !(isLightTheme ?? FacmThemeRuntime.Current.IsLight));
+            item.SubItems[8].BackColor = chipBackground;
+            item.SubItems[8].ForeColor = FacmDesignSystem.ReadableTextOn(chipBackground, Color.White);
+        }
+
+        internal static List<KeyValuePair<long, string>> BuildCombinedMatchTagEntries(
+            LeaguePlayerMatchParticipant player, IEnumerable<LeaguePlayerMatchParticipant> participants,
+            bool cherry, Func<string, string> t, int mapId = 0, int gameDurationSeconds = 0)
+        {
+            var tags = BuildMultikillTagEntries(player, t);
+            tags.AddRange(BuildMatchPerformanceTagEntries(player, participants, cherry, t,
+                mapId, gameDurationSeconds).Select(tag =>
+                    new KeyValuePair<long, string>(tag.Key, tag.Value)));
+            return tags.OrderByDescending(tag => tag.Key).ToList();
+        }
+
+        private static List<KeyValuePair<int, string>> BuildMatchPerformanceTagEntries(
+            LeaguePlayerMatchParticipant player, IEnumerable<LeaguePlayerMatchParticipant> participants,
+            bool cherry, Func<string, string> t, int mapId, int gameDurationSeconds)
+        {
+            var tags = new List<KeyValuePair<int, string>>();
+            if (player == null || participants == null) return tags;
+            var all = participants.Where(p => p != null).Take(21).ToList();
+            if (all.Count == 0 || all.Count > 20 || !all.Contains(player) ||
+                all.Any(p => p.ParticipantId <= 0 || LeagueCherryTeams.GroupId(p, cherry) <= 0) ||
+                all.Select(p => p.ParticipantId).Distinct().Count() != all.Count) return tags;
+            var groupId = LeagueCherryTeams.GroupId(player, cherry);
+            var group = all.Where(p => LeagueCherryTeams.GroupId(p, cherry) == groupId).ToList();
+            if ((mapId == 11 || mapId == 12) && gameDurationSeconds > 0)
+            {
+                var durationMinutes = gameDurationSeconds / 60d;
+                var nearThreshold = mapId == 11 ? 5d : 1.5d;
+                var ownThreshold = mapId == 11 ? 6d : 1.5d;
+                if (player.KillsNearEnemyTurret.HasValue &&
+                    player.KillsNearEnemyTurret.Value > 0 &&
+                    player.KillsNearEnemyTurret.Value >= durationMinutes / nearThreshold)
+                {
+                    var count = player.KillsNearEnemyTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerDive);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1660, label));
+                }
+                if (player.KillsUnderOwnTurret.HasValue &&
+                    player.KillsUnderOwnTurret.Value > 0 &&
+                    player.KillsUnderOwnTurret.Value >= durationMinutes / ownThreshold)
+                {
+                    var count = player.KillsUnderOwnTurret.Value;
+                    var label = t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerUnder);
+                    if (count > 1) label += " ×" + count.ToString("N0", CultureInfo.InvariantCulture);
+                    tags.Add(new KeyValuePair<int, string>(1640, label));
+                }
+            }
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.DamageAvailable && p.DamageToChampions >= 0 ? (int?)p.DamageToChampions : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderDamageTeam, 1800, 1750, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalHeal.HasValue && p.TotalHeal.Value >= 0 ? p.TotalHeal : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderHealTeam, 1600, 1550, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageShieldedOnTeammates,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderShieldTeam, 1500, 1450, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageTaken.HasValue && p.TotalDamageTaken.Value >= 0
+                    ? p.TotalDamageTaken : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTakenTeam, 1400, 1350, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.TotalDamageToTowers,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderTowerTeam, 900, 850, t);
+            AddMatchLeaderTag(tags, player, all, group,
+                p => p.GoldAvailable && p.GoldEarned >= 0 ? (int?)p.GoldEarned : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderGoldTeam, 700, 650, t);
+            AddMatchValueLeaderTag(tags, player, all, group,
+                p => p.DamageAvailable && p.GoldAvailable &&
+                    p.DamageToChampions >= 0 && p.GoldEarned >= 0
+                        ? (double?)p.DamageToChampions / Math.Max(1, p.GoldEarned) : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderEfficiencyTeam,
+                1800, 930, true, t);
+            if (player.SoloKills.HasValue && player.SoloKills.Value >= 2)
+                tags.Add(new KeyValuePair<int, string>(1700,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderSolo)
+                        .Replace("{0}", player.SoloKills.Value.ToString("N0", CultureInfo.InvariantCulture))));
+            if (player.CreepScoreAvailable && player.CreepScore > 0 &&
+                all.All(p => p.CreepScoreAvailable && p.CreepScore >= 0) &&
+                player.CreepScore == all.Max(p => p.CreepScore))
+                tags.Add(new KeyValuePair<int, string>(600,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCs)
+                        .Replace("{0}", player.CreepScore.ToString("N0", CultureInfo.InvariantCulture))));
+            if (player.MaxCsAdvantageOnLaneOpponent.HasValue &&
+                player.MaxCsAdvantageOnLaneOpponent.Value >= 40 &&
+                !double.IsNaN(player.MaxCsAdvantageOnLaneOpponent.Value) &&
+                !double.IsInfinity(player.MaxCsAdvantageOnLaneOpponent.Value))
+            {
+                var advantage = player.MaxCsAdvantageOnLaneOpponent.Value;
+                var priority = (int)Math.Min(int.MaxValue,
+                    Math.Round(750 + advantage * 10, MidpointRounding.AwayFromZero));
+                tags.Add(new KeyValuePair<int, string>(priority,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCsAdvantage)
+                        .Replace("{0}", Math.Round(advantage, MidpointRounding.AwayFromZero)
+                            .ToString("N0", CultureInfo.InvariantCulture))));
+            }
+            if (player.KnockEnemyIntoTeamAndKill.HasValue &&
+                player.KnockEnemyIntoTeamAndKill.Value >= 6)
+                tags.Add(new KeyValuePair<int, string>(660,
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKnockUp)
+                        .Replace("{0}", player.KnockEnemyIntoTeamAndKill.Value
+                            .ToString("N0", CultureInfo.InvariantCulture))));
+            AddMatchValueLeaderTag(tags, player, all, group,
+                p => p.Kills >= 0 ? (double?)p.Kills : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKillsTeam, 1200, 1150, false, t);
+            Func<LeaguePlayerMatchParticipant, double?> participation = p =>
+            {
+                var teammates = all.Where(member => LeagueCherryTeams.GroupId(member, cherry) ==
+                    LeagueCherryTeams.GroupId(p, cherry)).ToList();
+                if (p.Kills < 0 || p.Assists < 0 || teammates.Any(member => member.Kills < 0))
+                    return null;
+                var teamKills = teammates.Sum(member => (long)member.Kills);
+                return teamKills > 0 ? (double?)(p.Kills + (double)p.Assists) / teamKills : null;
+            };
+            AddMatchValueLeaderTag(tags, player, all, group, participation,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderKpTeam, 1100, 1050, true, t);
+            AddMatchValueLeaderTag(tags, player, all, group,
+                p => p.TimeCCingOthers.HasValue && p.TimeCCingOthers.Value >= 0
+                    ? p.TimeCCingOthers : null,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcMatch,
+                LeagueEfficiencyUiTextKeys.DynamicEncounterLeaderCcTeam, 1750, 1700, false, t, "#,##0.##");
+            return tags;
+        }
+
+        private static void AddMatchLeaderTag(List<KeyValuePair<int, string>> tags,
+            LeaguePlayerMatchParticipant player, List<LeaguePlayerMatchParticipant> all,
+            List<LeaguePlayerMatchParticipant> group, Func<LeaguePlayerMatchParticipant, int?> metric,
+            string matchKey, string teamKey, int matchPriority, int teamPriority, Func<string, string> t)
+        {
+            var own = metric(player);
+            if (!own.HasValue || own.Value <= 0 || group.Count == 0) return;
+            var teamValues = group.Select(metric).ToList();
+            if (teamValues.Any(value => !value.HasValue || value.Value < 0)) return;
+            var allValues = all.Select(metric).ToList();
+            var matchBest = allValues.All(value => value.HasValue && value.Value >= 0) &&
+                own.Value == allValues.Max(value => value.Value);
+            var teamBest = own.Value == teamValues.Max(value => value.Value);
+            if (!matchBest && !teamBest) return;
+            var teamTotal = teamValues.Sum(value => (long)value.Value);
+            var share = ((double)own.Value / Math.Max(1L, teamTotal) * 100)
+                .ToString("0.00", CultureInfo.InvariantCulture);
+            var label = t(matchBest ? matchKey : teamKey) + "（" +
+                own.Value.ToString("N0", CultureInfo.InvariantCulture) + " / " + share + "%）";
+            tags.Add(new KeyValuePair<int, string>(matchBest ? matchPriority : teamPriority, label));
+        }
+
+        private static bool ValidLeaderValue(double? value)
+        {
+            return value.HasValue && value.Value >= 0 &&
+                !double.IsNaN(value.Value) && !double.IsInfinity(value.Value);
+        }
+
+        private static void AddMatchValueLeaderTag(List<KeyValuePair<int, string>> tags,
+            LeaguePlayerMatchParticipant player, List<LeaguePlayerMatchParticipant> all,
+            List<LeaguePlayerMatchParticipant> group, Func<LeaguePlayerMatchParticipant, double?> metric,
+            string matchKey, string teamKey, int matchPriority, int teamPriority,
+            bool percentage, Func<string, string> t, string valueFormat = "N0")
+        {
+            var own = metric(player);
+            if (!own.HasValue || own.Value <= 0 || double.IsNaN(own.Value) ||
+                double.IsInfinity(own.Value) || group.Count == 0) return;
+            var teamValues = group.Select(metric).ToList();
+            if (teamValues.Any(value => !ValidLeaderValue(value))) return;
+            var allValues = all.Select(metric).ToList();
+            var matchBest = allValues.All(ValidLeaderValue) &&
+                own.Value == allValues.Max(value => value.Value);
+            var teamBest = own.Value == teamValues.Max(value => value.Value);
+            if (!matchBest && !teamBest) return;
+            var valueText = percentage
+                ? (own.Value * 100).ToString("0.00", CultureInfo.InvariantCulture) + "%"
+                : own.Value.ToString(valueFormat, CultureInfo.InvariantCulture);
+            tags.Add(new KeyValuePair<int, string>(matchBest ? matchPriority : teamPriority,
+                t(matchBest ? matchKey : teamKey) + "（" + valueText + "）"));
+        }
+
+        internal static int[] DamageBarWidths(int width, int? baseline, int? physical, int? magic, int? trueDamage)
+        {
+            var widths = new int[3];
+            if (width <= 0 || !baseline.HasValue || baseline.Value <= 0) return widths;
+            var parts = new[] { physical, magic, trueDamage };
+            foreach (var index in Enumerable.Range(0, 3).OrderByDescending(i => parts[i] ?? -1).ThenBy(i => i))
+            {
+                if (!parts[index].HasValue || parts[index].Value <= 0) continue;
+                var remaining = width - widths.Sum();
+                if (remaining <= 0) break;
+                var scaled = (int)Math.Min(width, Math.Round((double)parts[index].Value /
+                    baseline.Value * width, MidpointRounding.AwayFromZero));
+                widths[index] = Math.Min(remaining, scaled);
+            }
+            return widths;
+        }
+
+        internal static string FormatDamageTooltip(LeaguePlayerMatchParticipant player, bool taken,
+            int? baseline, Func<string, string> t)
+        {
+            if (player == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardSelectionHint);
+            int? total = taken ? player.TotalDamageTaken : player.DamageAvailable && player.DamageToChampions >= 0
+                ? (int?)player.DamageToChampions : null;
+            int? physical = taken ? player.PhysicalDamageTaken : player.PhysicalDamageToChampions;
+            int? magic = taken ? player.MagicDamageTaken : player.MagicDamageToChampions;
+            int? trueDamage = taken ? player.TrueDamageTaken : player.TrueDamageToChampions;
+            Func<int?, string> count = value => value.HasValue && value.Value >= 0
+                ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
+            Func<int?, int?, string, string> percent = (numerator, denominator, format) =>
+                numerator.HasValue && numerator.Value >= 0 && denominator.HasValue && denominator.Value >= 0
+                    ? (numerator.Value / (double)Math.Max(1, denominator.Value) * 100)
+                        .ToString(format, CultureInfo.InvariantCulture) + "%" : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamageTooltip)
+                .Replace("{0}", t(taken ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar :
+                    LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar))
+                .Replace("{1}", count(total))
+                .Replace("{2}", percent(total, baseline, "0.00"))
+                .Replace("{3}", count(physical)).Replace("{4}", percent(physical, total, "0"))
+                .Replace("{5}", count(magic)).Replace("{6}", percent(magic, total, "0"))
+                .Replace("{7}", count(trueDamage)).Replace("{8}", percent(trueDamage, total, "0"));
+        }
+
+        internal static void PaintDamageBar(Graphics graphics, Rectangle bounds, LeaguePlayerMatchParticipant player,
+            bool taken, int? baseline, Func<string, string> t)
+        {
+            if (bounds.Width <= 16 || bounds.Height <= 13) return;
+            int? total = player == null ? null : taken ? player.TotalDamageTaken :
+                player.DamageAvailable && player.DamageToChampions >= 0 ? (int?)player.DamageToChampions : null;
+            var label = t(taken ? LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTakenBar :
+                LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDealtBar) + " " +
+                (total.HasValue && total.Value >= 0 ? total.Value.ToString("N0", CultureInfo.InvariantCulture) : "—");
+            TextRenderer.DrawText(graphics, label, SystemFonts.MessageBoxFont,
+                new Rectangle(8, 0, bounds.Width - 16, bounds.Height - 14), FacmDesignSystem.Text,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+            var bar = new Rectangle(8, bounds.Height - 12, bounds.Width - 16, 7);
+            using (var background = new SolidBrush(FacmDesignSystem.CanvasRaised.GetBrightness() < 0.5f
+                ? Color.FromArgb(58, 58, 58) : Color.FromArgb(229, 229, 229)))
+                graphics.FillRectangle(background, bar);
+            if (player == null) return;
+            var widths = taken ? DamageBarWidths(bar.Width, baseline, player.PhysicalDamageTaken,
+                player.MagicDamageTaken, player.TrueDamageTaken) :
+                DamageBarWidths(bar.Width, baseline, player.PhysicalDamageToChampions,
+                    player.MagicDamageToChampions, player.TrueDamageToChampions);
+            var colors = new[] { Color.FromArgb(224, 120, 86), Color.FromArgb(91, 159, 215),
+                Color.FromArgb(168, 168, 168) };
+            var x = bar.X;
+            foreach (var index in Enumerable.Range(0, 3).OrderByDescending(i => widths[i]).ThenBy(i => i))
+            {
+                if (widths[index] <= 0) continue;
+                using (var brush = new SolidBrush(colors[index]))
+                    graphics.FillRectangle(brush, x, bar.Y, widths[index], bar.Height);
+                x += widths[index];
+            }
+        }
+
+        internal static List<LeaguePlayerMatchParticipant> OrderScoreboardParticipants(
+            IEnumerable<LeaguePlayerMatchParticipant> participants,
+            IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
+        {
+            var ordered = new List<LeaguePlayerMatchParticipant>();
+            var source = (participants ?? Enumerable.Empty<LeaguePlayerMatchParticipant>())
+                .Where(player => player != null).ToList();
+            var usedGroups = new HashSet<int>();
+            foreach (var team in OrderedScoreboardTeams(teams, cherry))
+            {
+                if (!usedGroups.Add(team.TeamId)) continue;
+                foreach (var player in source)
+                    if (LeagueCherryTeams.GroupId(player, cherry) == team.TeamId)
+                        ordered.Add(player);
+            }
+            // Unverified subteam IDs must never inherit red/blue or an unrelated Cherry group.
+            foreach (var player in source)
+                if (!usedGroups.Contains(LeagueCherryTeams.GroupId(player, cherry))) ordered.Add(player);
+            return ordered;
+        }
+
+        internal static string ReplayStatusText(LeagueEncounterReplayResult result, Func<string, string> t)
+        {
+            if (result == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            switch (result.Status)
+            {
+                case LeagueEncounterReplayStatus.DownloadRequested:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloadRequested);
+                case LeagueEncounterReplayStatus.WatchRequested:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayWatchRequested);
+                case LeagueEncounterReplayStatus.Checking:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+                case LeagueEncounterReplayStatus.Downloading:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading)
+                        .Replace("{0}", result.Progress.ToString());
+                case LeagueEncounterReplayStatus.Incompatible:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayIncompatible);
+                case LeagueEncounterReplayStatus.NoClient:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchNoClient);
+                case LeagueEncounterReplayStatus.WrongAccount:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWrongAccount);
+                default:
+                    return t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+            }
+        }
+
+        private static string FormatTeamScore(LeagueMatchTeamScore team, Func<string, string> t)
+        {
+            if (team.IsCherry)
+            {
+                return t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherrySummary)
+                    .Replace("{0}", t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryTeam)
+                        .Replace("{0}", team.TeamId.ToString()))
+                    .Replace("{1}", FormatCherryPlacement(team.SubteamPlacement, t))
+                    .Replace("{2}", team.PlayerCount.ToString())
+                    .Replace("{3}", team.Kills.ToString()).Replace("{4}", team.Deaths.ToString())
+                    .Replace("{5}", team.Assists.ToString())
+                    .Replace("{6}", team.DamageToChampions.HasValue ? team.DamageToChampions.Value.ToString("N0") : "—")
+                    .Replace("{7}", team.GoldEarned.HasValue ? team.GoldEarned.Value.ToString("N0") : "—");
+            }
+            var teamName = team.TeamId == 100 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBlue) :
+                team.TeamId == 200 ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamRed) :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamOther).Replace("{0}", team.TeamId.ToString());
+            var result = !team.Win.HasValue ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknownResult) :
+                team.Win.Value ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) :
+                    t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost);
+            Func<int?, string> count = value => value.HasValue ? value.Value.ToString() : "—";
+            return t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamSummary)
+                .Replace("{0}", teamName).Replace("{1}", result)
+                .Replace("{2}", team.PlayerCount.ToString())
+                .Replace("{3}", team.Kills.ToString()).Replace("{4}", team.Deaths.ToString())
+                .Replace("{5}", team.Assists.ToString())
+                .Replace("{6}", team.DamageToChampions.HasValue ? team.DamageToChampions.Value.ToString("N0") : "—")
+                .Replace("{7}", team.GoldEarned.HasValue ? team.GoldEarned.Value.ToString("N0") : "—")
+                .Replace("{8}", count(team.BaronKills)).Replace("{9}", count(team.DragonKills))
+                .Replace("{10}", count(team.TowerKills)).Replace("{11}", count(team.RiftHeraldKills))
+                .Replace("{12}", count(team.InhibitorKills)).Replace("{13}", count(team.HordeKills));
+        }
+
+        internal static string FormatTeamDetails(LeagueMatchTeamScore team,
+            IDictionary<int, string> championNames, Func<string, string> t)
+        {
+            if (team.IsCherry) return FormatTeamScore(team, t);
+            string bans;
+            if (team.Bans == null) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown);
+            else if (team.Bans.Count == 0) bans = t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNone);
+            else
+            {
+                var names = new List<string>();
+                foreach (var ban in team.Bans)
+                {
+                    string name;
+                    var display = championNames != null && championNames.TryGetValue(ban.ChampionId, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name + " (#" + ban.ChampionId + ")" : "#" + ban.ChampionId;
+                    if (ban.PickTurn.HasValue)
+                        display += t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBanTurn)
+                            .Replace("{0}", ban.PickTurn.Value.ToString());
+                    names.Add(display);
+                }
+                bans = string.Join(" / ", names);
+            }
+            Func<bool?, string> flag = value => !value.HasValue
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown)
+                : value.Value ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamYes)
+                    : t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamNo);
+            return FormatTeamScore(team, t) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamBans).Replace("{0}", bans) + "\r\n" +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamFirsts)
+                    .Replace("{0}", flag(team.FirstBaron)).Replace("{1}", flag(team.FirstDragon))
+                    .Replace("{2}", flag(team.FirstTower)).Replace("{3}", flag(team.FirstInhibitor));
+        }
+
+        internal static string FormatCherryPlacement(int? placement, Func<string, string> t)
+        {
+            return placement.HasValue && placement.Value > 0
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterCherryPlacement)
+                    .Replace("{0}", placement.Value.ToString()) :
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterTeamUnknown);
+        }
+
+        private void ShowPlayerIcons(LeaguePlayerMatchParticipant player, LeagueBuildAdvisorCatalog catalog,
+            FlowLayoutPanel strip, Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<string, string> t, string gameMode)
+        {
+            _selectionVersion++;
+            _selectionCancellation?.Cancel();
+            _selectionCancellation?.Dispose();
+            _selectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _tooltips.RemoveAll();
+            while (strip.Controls.Count > 0)
+            {
+                var control = strip.Controls[0];
+                strip.Controls.RemoveAt(0);
+                control.Dispose();
+            }
+            foreach (var bitmap in _ownedIcons) bitmap.Dispose();
+            _ownedIcons.Clear();
+            if (player == null || catalog == null || loadAsset == null) return;
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsItems),
+                player.ItemIds, catalog.Items, catalog.ItemIcons, loadAsset);
+            if (player.RoleBoundItemId.GetValueOrDefault() > 0 &&
+                (player.ItemIds == null || Array.IndexOf(player.ItemIds, player.RoleBoundItemId.Value) < 0))
+                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsBoundItem),
+                    new[] { player.RoleBoundItemId.Value }, catalog.Items, catalog.ItemIcons, loadAsset);
+            AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSpells),
+                player.SpellIds, catalog.Spells, catalog.SpellIcons, loadAsset);
+            if (IsAugmentMatchMode(gameMode))
+            {
+                AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments),
+                    player.AugmentIds, BuildAugmentLabels(catalog, t), catalog.AugmentIcons, loadAsset);
+            }
+            else
+            {
+                AddIconGroup(strip, FormatPerkGroupHeading(
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
+                        player.PrimaryPerkStyleId, catalog.PerkStyles),
+                    PerkSlots(player.PerkIds, 0, 4), catalog.Perks, catalog.PerkIcons, loadAsset);
+                AddIconGroup(strip, FormatPerkGroupHeading(
+                        t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
+                        player.SecondaryPerkStyleId, catalog.PerkStyles),
+                    PerkSlots(player.PerkIds, 4, 2), catalog.Perks, catalog.PerkIcons, loadAsset);
+                if (player.StatPerkIds != null)
+                    AddIconGroup(strip, t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards),
+                        Array.ConvertAll(player.StatPerkIds, value => value.GetValueOrDefault()),
+                        catalog.Perks, catalog.PerkIcons, loadAsset);
+            }
+        }
+
+        internal static bool IsAugmentMatchMode(string gameMode)
+        {
+            return string.Equals(gameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(gameMode, "KIWI", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static int[] PerkSlots(int[] perks, int offset, int count)
+        {
+            if (perks == null || perks.Length <= offset) return null;
+            var group = new int[Math.Min(count, perks.Length - offset)];
+            Array.Copy(perks, offset, group, 0, group.Length);
+            return group;
+        }
+
+        internal static string FormatPerkGroupHeading(string heading, int styleId, IDictionary<int, string> styles)
+        {
+            if (styleId <= 0) return heading;
+            string name;
+            return heading + " · " + (styles != null && styles.TryGetValue(styleId, out name) &&
+                !string.IsNullOrWhiteSpace(name) ? name : "#" + styleId);
+        }
+
+        internal static string FormatAugments(int[] ids, LeagueBuildAdvisorCatalog catalog,
+            Func<string, string> t = null)
+        {
+            if (ids == null) return "—";
+            var labels = new List<string>();
+            foreach (var id in ids)
+            {
+                if (id > 0) labels.Add(FormatAugmentLabel(id, catalog, t));
+            }
+            return labels.Count == 0 ? "—" : string.Join(" / ", labels);
+        }
+
+        private static IDictionary<int, string> BuildAugmentLabels(LeagueBuildAdvisorCatalog catalog,
+            Func<string, string> t)
+        {
+            var labels = new Dictionary<int, string>();
+            if (catalog == null) return labels;
+            foreach (var id in catalog.Augments.Keys)
+                labels[id] = FormatAugmentLabel(id, catalog, t);
+            return labels;
+        }
+
+        private static string FormatAugmentLabel(int id, LeagueBuildAdvisorCatalog catalog, Func<string, string> t)
+        {
+            string name;
+            if (catalog == null || !catalog.Augments.TryGetValue(id, out name) ||
+                string.IsNullOrWhiteSpace(name)) return "#" + id;
+            string rarity;
+            if (catalog.AugmentRarities.TryGetValue(id, out rarity))
+            {
+                var localize = t ?? (key => LeagueEfficiencyText.Get(null, key));
+                switch (rarity)
+                {
+                    case "kPrismatic": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentPrismatic) + " · " + name;
+                    case "kGold": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentGold) + " · " + name;
+                    case "kSilver": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentSilver) + " · " + name;
+                    case "kBronze": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentBronze) + " · " + name;
+                    case "kEventChoice": return localize(LeagueEfficiencyUiTextKeys.DynamicEncounterAugmentEvent) + " · " + name;
+                }
+            }
+            return name;
+        }
+
+        internal static string FormatParticipantRuneDetails(LeaguePlayerMatchParticipant player,
+            LeagueBuildAdvisorCatalog catalog, Func<string, string> t, string gameMode = null)
+        {
+            if (player == null) return t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneSelectionHint);
+            if (IsAugmentMatchMode(gameMode))
+                return (string.IsNullOrWhiteSpace(player.PlayerName)
+                    ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName) +
+                    "\r\n" + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsAugments) +
+                    "：" + FormatAugments(player.AugmentIds, catalog, t);
+            var output = new StringBuilder(750);
+            output.AppendLine(string.IsNullOrWhiteSpace(player.PlayerName)
+                ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardUnknown) : player.PlayerName);
+            if (player.StatPerkIds != null)
+            {
+                var stats = new List<string>();
+                foreach (var id in player.StatPerkIds)
+                {
+                    string name;
+                    stats.Add(!id.HasValue || id.Value <= 0 ? "—" : catalog != null &&
+                        catalog.Perks.TryGetValue(id.Value, out name) && !string.IsNullOrWhiteSpace(name)
+                        ? name : "#" + id.Value);
+                }
+                output.AppendLine(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneStatShards) + "：" +
+                    string.Join(" / ", stats));
+            }
+            var labels = new[] {
+                FormatPerkGroupHeading(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsPrimary),
+                    player.PrimaryPerkStyleId, catalog == null ? null : catalog.PerkStyles),
+                FormatPerkGroupHeading(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardIconsSecondary),
+                    player.SecondaryPerkStyleId, catalog == null ? null : catalog.PerkStyles)
+            };
+            for (var group = 0; group < 2; group++)
+            {
+                output.AppendLine().AppendLine(labels[group]);
+                var start = group == 0 ? 0 : 4;
+                var count = group == 0 ? 4 : 2;
+                var found = false;
+                for (var slot = start; slot < start + count; slot++)
+                {
+                    var id = player.PerkIds != null && slot < player.PerkIds.Length ? player.PerkIds[slot] : 0;
+                    if (id <= 0) continue;
+                    found = true;
+                    string name;
+                    output.Append("• ").AppendLine(catalog != null && catalog.Perks.TryGetValue(id, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name : "#" + id);
+                    string[] descriptions;
+                    if (catalog == null || !catalog.PerkEndOfGameDescriptions.TryGetValue(id, out descriptions)) continue;
+                    var values = player.PerkEndOfGameValues != null && slot < player.PerkEndOfGameValues.Length
+                        ? player.PerkEndOfGameValues[slot] : null;
+                    foreach (var description in descriptions)
+                    {
+                        if (string.IsNullOrWhiteSpace(description)) continue;
+                        var valueText = RuneVariables.Replace(description, match =>
+                        {
+                            var index = match.Groups[1].Value[0] - '1';
+                            return values != null && index < values.Length && values[index].HasValue
+                                ? values[index].Value.ToString("G", CultureInfo.InvariantCulture) : "—";
+                        });
+                        valueText = WebUtility.HtmlDecode(RuneTags.Replace(valueText, "")).Trim();
+                        if (valueText.Length > 0) output.Append("    ").AppendLine(valueText);
+                    }
+                }
+                if (!found) output.AppendLine("—");
+            }
+            return output.ToString();
+        }
+
+        private void AddIconGroup(FlowLayoutPanel strip, string label, int[] ids,
+            IDictionary<int, string> names, IDictionary<int, string> icons,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
+        {
+            if (ids == null || Array.TrueForAll(ids, id => id <= 0)) return;
+            strip.Controls.Add(new Label { Text = label, AutoSize = true, Margin = new Padding(8, 12, 3, 0) });
+            foreach (var id in ids)
+            {
+                if (id <= 0) continue;
+                string name;
+                if (names == null || !names.TryGetValue(id, out name) || string.IsNullOrWhiteSpace(name))
+                    name = "#" + id;
+                var token = new Panel { Size = new Size(29, 29), Margin = new Padding(2, 6, 1, 1),
+                    BackColor = FacmDesignSystem.Canvas };
+                var picture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+                var fallback = new Label { Dock = DockStyle.Fill, Text = id.ToString(),
+                    AutoEllipsis = true, TextAlign = ContentAlignment.MiddleCenter };
+                token.Controls.Add(picture); token.Controls.Add(fallback);
+                fallback.BringToFront();
+                _tooltips.SetToolTip(token, name); _tooltips.SetToolTip(picture, name);
+                _tooltips.SetToolTip(fallback, name);
+                strip.Controls.Add(token);
+                string reference;
+                if (icons != null && icons.TryGetValue(id, out reference) &&
+                    !string.IsNullOrWhiteSpace(reference))
+                    _ = LoadIconAsync(picture, fallback, reference, loadAsset,
+                        _selectionVersion, _selectionCancellation.Token);
+            }
+        }
+
+        private async Task LoadRowIconAsync(int id, string reference,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            IDictionary<int, Bitmap> icons, CancellationToken token)
+        {
+            Bitmap bitmap = null;
+            try
+            {
+                await IconRequestGate.WaitAsync(token);
+                try { bitmap = await loadAsset(reference, token); }
+                finally { IconRequestGate.Release(); }
+                if (bitmap == null || token.IsCancellationRequested || IsDisposed) return;
+                icons[id] = bitmap;
+                bitmap = null;
+                if (_scoreboardRows != null && !_scoreboardRows.IsDisposed)
+                    _scoreboardRows.Invalidate();
+                foreach (var card in _matchCards)
+                    if (!card.IsDisposed) card.Invalidate();
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { bitmap?.Dispose(); }
+        }
+
+        private async Task LoadIconAsync(PictureBox picture, Label fallback, string reference,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset, int generation, CancellationToken token)
+        {
+            Bitmap bitmap = null;
+            try
+            {
+                await IconRequestGate.WaitAsync(token);
+                try { bitmap = await loadAsset(reference, token); }
+                finally { IconRequestGate.Release(); }
+                if (bitmap == null) return;
+                if (token.IsCancellationRequested || IsDisposed || picture.IsDisposed ||
+                    generation != _selectionVersion) return;
+                picture.Image = bitmap;
+                _ownedIcons.Add(bitmap);
+                bitmap = null;
+                if (!fallback.IsDisposed) fallback.Visible = false;
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { bitmap?.Dispose(); }
+        }
+
+        private static string FormatNamedIds(int[] values, IDictionary<int, string> names)
+        {
+            if (values == null) return "—";
+            var labels = new List<string>();
+            foreach (var id in values)
+            {
+                if (id <= 0) continue;
+                string name;
+                labels.Add(names != null && names.TryGetValue(id, out name) && !string.IsNullOrWhiteSpace(name)
+                    ? name : "#" + id);
+            }
+            return labels.Count == 0 ? "—" : string.Join(" / ", labels);
+        }
+
+        internal static string FormatBoundItem(int? value, IDictionary<int, string> names)
+        {
+            return value.HasValue && value.Value > 0 ?
+                FormatNamedIds(new[] { value.Value }, names) : "—";
+        }
+
+        private sealed class MatchCardView : Control
+        {
+            private readonly LeaguePlayerMatchParticipant _player;
+            private readonly string _header, _subtitle, _rates, _metrics, _tags, _mode;
+            private readonly Func<string, string> _t;
+            private readonly IDictionary<int, Bitmap> _items, _spells, _runes, _champions;
+
+            internal int RowIndex { get; private set; }
+            internal bool IsSelected { get; set; }
+
+            internal MatchCardView(int rowIndex, LeaguePlayerMatchParticipant player,
+                string header, string subtitle, string rates, string metrics, string tags, string mode,
+                Func<string, string> t, IDictionary<int, Bitmap> items,
+                IDictionary<int, Bitmap> spells, IDictionary<int, Bitmap> runes,
+                IDictionary<int, Bitmap> champions)
+            {
+                RowIndex = rowIndex; _player = player; _header = header; _subtitle = subtitle;
+                _rates = rates; _metrics = metrics; _tags = tags; _mode = mode; _t = t;
+                _items = items; _spells = spells; _runes = runes; _champions = champions;
+                Height = 170; Width = 380; Margin = new Padding(4);
+                TabStop = true; Cursor = Cursors.Hand;
+                SetStyle(ControlStyles.Selectable, true);
+                AccessibleRole = AccessibleRole.ListItem;
+                AccessibleName = header + " · " + subtitle;
+                SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint |
+                    ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            }
+
+            protected override bool IsInputKey(Keys keyData)
+            {
+                var key = keyData & Keys.KeyCode;
+                return key == Keys.Left || key == Keys.Right || key == Keys.Up || key == Keys.Down ||
+                    base.IsInputKey(keyData);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                var background = IsSelected ? SystemColors.Highlight : FacmDesignSystem.CanvasRaised;
+                var foreground = IsSelected ? SystemColors.HighlightText : FacmDesignSystem.Text;
+                using (var fill = new SolidBrush(background))
+                    e.Graphics.FillRectangle(fill, ClientRectangle);
+                using (var border = new Pen(IsSelected ? SystemColors.Highlight :
+                    _player.Win ? FacmDesignSystem.Accent : FacmDesignSystem.Error))
+                    e.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
+                var innerWidth = Math.Max(0, Width - 16);
+                var single = TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis |
+                    TextFormatFlags.NoPrefix | TextFormatFlags.VerticalCenter;
+                DrawMatchCardChampionPortrait(e.Graphics, new Rectangle(8, 6, 40, 40),
+                    _player.ChampionId, _champions, FacmDesignSystem.Surface, foreground);
+                TextRenderer.DrawText(e.Graphics, _header, Font,
+                    new Rectangle(56, 5, Math.Max(0, innerWidth - 48), 23), foreground, single);
+                TextRenderer.DrawText(e.Graphics, _subtitle, Font,
+                    new Rectangle(56, 27, Math.Max(0, innerWidth - 48), 19), foreground, single);
+                TextRenderer.DrawText(e.Graphics, _rates, Font,
+                    new Rectangle(8, 50, innerWidth, 38), foreground,
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                TextRenderer.DrawText(e.Graphics, _metrics, Font,
+                    new Rectangle(8, 90, innerWidth, 20), foreground, single);
+                var itemWidth = Math.Min(156, Math.Max(70, (innerWidth - 12) / 2));
+                var spellWidth = Math.Min(58, Math.Max(38, (innerWidth - itemWidth) / 3));
+                var runeWidth = Math.Max(0, innerWidth - itemWidth - spellWidth - 8);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(8, 115, itemWidth, 22),
+                    GetMatchRowItemSlots(_player), _items, background, foreground, _t);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(12 + itemWidth, 115, spellWidth, 22),
+                    GetMatchRowSpellSlots(_player), _spells, background, foreground, _t);
+                DrawMatchRowItemIcons(e.Graphics, new Rectangle(16 + itemWidth + spellWidth, 115,
+                        runeWidth, 22), GetMatchRowRuneSlots(_player, _mode),
+                    _runes, background, foreground, _t);
+                TextRenderer.DrawText(e.Graphics, _tags, Font,
+                    new Rectangle(8, 142, innerWidth, 20), foreground, single);
+                if (Focused)
+                    ControlPaint.DrawFocusRectangle(e.Graphics,
+                        new Rectangle(2, 2, Math.Max(1, Width - 5), Math.Max(1, Height - 5)),
+                        foreground, background);
+            }
+        }
+
+        private static string FormatIds(int[] values, string empty)
+        {
+            if (values == null) return empty;
+            var list = Array.FindAll(values, value => value > 0);
+            return list.Length == 0 ? empty : string.Join(" / ", list);
+        }
+    }
+}

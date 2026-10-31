@@ -11,6 +11,7 @@ namespace FACM.League
         {
             ValidatePolicyCodec();
             ValidateSearchStateProjection();
+            ValidateFixedDurationThreshold();
             ValidateReadyCheckFence();
             ValidateWriteFence();
             AppSettings.ValidateMatchmakingStopPreferencesForSmokeTest();
@@ -31,16 +32,38 @@ namespace FACM.League
         private static void ValidateSearchStateProjection()
         {
             var below = LeagueMatchmakingStopController.ParseSearchState(Bytes(
-                "{\"isCurrentlyInQueue\":true,\"timeInQueue\":41.5,\"estimatedQueueTime\":50}"));
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":41.5,\"estimatedQueueTime\":50}"));
             Require(below != null && below.IsCurrentlyInQueue && below.HasUsableEstimate,
                 "Matchmaking stop parser lost queue estimate context.");
             Require(!LeagueMatchmakingStopController.ShouldStopForEstimate(below),
                 "Estimated stop fired before the client estimate was reached.");
 
             var reached = LeagueMatchmakingStopController.ParseSearchState(Bytes(
-                "{\"isCurrentlyInQueue\":true,\"timeInQueue\":50,\"searchState\":{\"estimatedQueueTimeInSeconds\":50}}"));
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":50,\"estimatedQueueTimeInSeconds\":50}"));
             Require(reached != null && LeagueMatchmakingStopController.ShouldStopForEstimate(reached),
                 "Estimated stop did not fire when the client estimate was reached.");
+
+            var penalized = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":75,\"estimatedQueueTime\":60,\"lowPriorityData\":{\"penaltyTime\":20}}"));
+            Require(penalized != null && penalized.PenaltyTimeSeconds == 20 &&
+                    !LeagueMatchmakingStopController.ShouldStopForEstimate(penalized),
+                "Estimated stop counted low-priority penalty waiting time as real queue time.");
+            penalized.TimeInQueueSeconds = 80;
+            Require(LeagueMatchmakingStopController.ShouldStopForEstimate(penalized),
+                "Estimated stop did not use the queue duration after penalty time elapsed.");
+
+            var transitioning = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Found\",\"timeInQueue\":999,\"estimatedQueueTime\":60}"));
+            Require(transitioning != null && !LeagueMatchmakingStopController.ShouldStopForEstimate(transitioning),
+                "Estimated stop could delete a matchmaking search after Searching ended.");
+            var withoutState = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"timeInQueue\":999,\"estimatedQueueTime\":60}"));
+            Require(withoutState != null && !LeagueMatchmakingStopController.ShouldStopForEstimate(withoutState),
+                "Unknown search state did not fail closed.");
+            var malformedPenalty = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":999,\"estimatedQueueTime\":60,\"lowPriorityData\":{\"penaltyTime\":\"bad\"}}"));
+            Require(malformedPenalty != null && !LeagueMatchmakingStopController.ShouldStopForEstimate(malformedPenalty),
+                "Invalid low-priority penalty data did not fail closed.");
 
             var missing = LeagueMatchmakingStopController.ParseSearchState(Bytes(
                 "{\"isCurrentlyInQueue\":true,\"timeInQueue\":999}"));
@@ -64,6 +87,35 @@ namespace FACM.League
                 "Matchmaking stop controller could remain armed in ReadyCheck.");
             Require(!LeagueMatchmakingStopController.IsMatchmakingForSmokeTest("Lobby", LeagueActivityLevel.Client),
                 "Matchmaking stop controller remained armed in Lobby.");
+        }
+
+        private static void ValidateFixedDurationThreshold()
+        {
+            var normal = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":100}"));
+            Require(normal != null && LeagueMatchmakingStopController.FixedStopRemaining(normal, 120000) == TimeSpan.FromSeconds(20),
+                "Fixed stop did not account for existing actual queue time.");
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(normal, 120000),
+                "Fixed stop fired before its queue-duration threshold.");
+
+            var penalized = LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":170,\"lowPriorityData\":{\"penaltyTime\":60}}"));
+            Require(penalized != null && LeagueMatchmakingStopController.FixedStopRemaining(penalized, 120000) == TimeSpan.FromSeconds(10),
+                "Fixed stop counted the low-priority penalty as searchable queue time.");
+            penalized.TimeInQueueSeconds = 180;
+            Require(LeagueMatchmakingStopController.ShouldStopForFixed(penalized, 120000),
+                "Fixed stop missed the exact post-penalty duration threshold.");
+
+            penalized.SearchState = "Found";
+            Require(!LeagueMatchmakingStopController.FixedStopRemaining(penalized, 120000).HasValue,
+                "Fixed stop remained eligible after search-state transition.");
+            penalized.SearchState = "Searching";
+            penalized.PenaltyTimeSeconds = -1;
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(penalized, 120000),
+                "Fixed stop accepted invalid low-priority penalty time.");
+            normal.TimeInQueueSeconds = null;
+            Require(!LeagueMatchmakingStopController.ShouldStopForFixed(normal, 120000),
+                "Fixed stop guessed a queue duration when time data was unavailable.");
         }
 
         private static void ValidateWriteFence()

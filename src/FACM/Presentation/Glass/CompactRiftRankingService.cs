@@ -72,8 +72,10 @@ namespace FACM.Presentation.Glass
                 var elapsed = Stopwatch.StartNew();
                 try
                 {
+                    // The mixed-lane page is about 2 MiB. The previous 3.2s
+                    // deadline expired before a measured 3.95s public download.
                     var response = await LeaguePublicDataTransport.GetAsync(
-                        UrlFor(role), TimeSpan.FromSeconds(3.2),
+                        UrlFor(role), TimeSpan.FromSeconds(8),
                         cancellationToken, false).ConfigureAwait(false);
                     var ranking = Parse(response.ReadUtf8(), role);
                     if (!MayhemRankingSourceService.IsComplete(ranking))
@@ -93,7 +95,8 @@ namespace FACM.Presentation.Glass
                 }
                 catch (OperationCanceledException)
                 {
-                    CompactTraceLog.Record(traceId, "rift", "query", "cancelled",
+                    CompactTraceLog.Record(traceId, "rift", "query",
+                        cancellationToken.IsCancellationRequested ? "cancelled" : "failed_timeout",
                         elapsed.ElapsedMilliseconds);
                     if (cancellationToken.IsCancellationRequested) throw;
                     return null;

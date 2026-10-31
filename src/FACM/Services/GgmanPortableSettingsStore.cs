@@ -45,9 +45,17 @@ namespace FACM.Services
                 throw new InvalidDataException("云端 GGman 设置格式不受支持。");
             var s = value.Settings;
             if (s.LeagueExitGameHotkey == null || s.LeagueExitGameHotkey.Length > 100 ||
+                (s.LeagueChampionSpellPresets != null && s.LeagueChampionSpellPresets.Length > 4096) ||
+                (s.LeagueChampionRunePresets != null && s.LeagueChampionRunePresets.Length > 7500) ||
+                (s.LeagueAutoLoginStatusMessage != null &&
+                 (s.LeagueAutoLoginStatusMessage.Length > FACM.League.LeaguePresenceService.MaximumStatusMessageLength ||
+                  s.LeagueAutoLoginStatusMessage != FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage))) ||
+                !ValidLoginRank(s) ||
                 s.LeagueCloseLobbyHotkey == null || s.LeagueCloseLobbyHotkey.Length > 100 ||
                 s.LeagueAutoMatchmakingStopPolicy == null ||
                 s.LeagueAutoMatchmakingStopPolicy.Length > 20 ||
+                !string.Equals(s.LeagueInvitationStrategies ?? "{}",
+                    FACM.League.LeagueInvitationPolicies.NormalizeJson(s.LeagueInvitationStrategies), StringComparison.Ordinal) ||
                 s.LeagueAutoMatchmakingMinPartySize < 1 ||
                 s.LeagueAutoMatchmakingMinPartySize > 5 ||
                 s.LeagueAutoMatchmakingStartDelayMs < 0 ||
@@ -59,6 +67,20 @@ namespace FACM.Services
                  s.LeagueAutoMatchmakingStopPolicy != "fixed" &&
                  s.LeagueAutoMatchmakingStopPolicy != "estimated"))
                 throw new InvalidDataException("软件偏好包含不合法的自动化参数。");
+        }
+
+        private static bool ValidLoginRank(CloudSettingsSnapshot settings)
+        {
+            if (settings == null) return false;
+            string queue;
+            string tier;
+            string division;
+            return FACM.League.LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                settings.LeagueAutoLoginRankedQueue, settings.LeagueAutoLoginRankedTier,
+                settings.LeagueAutoLoginRankedDivision, out queue, out tier, out division) ||
+                (!settings.LeagueAutoLoginRankedStatusEnabled &&
+                 string.IsNullOrEmpty(settings.LeagueAutoLoginRankedQueue) &&
+                 string.IsNullOrEmpty(settings.LeagueAutoLoginRankedTier));
         }
 
         internal static string Restore(GgmanPortableSettingsProfile data, AppSettings settings)
@@ -80,12 +102,52 @@ namespace FACM.Services
             settings.PetStyleId = FACM.Pets.AnimalPetCatalog.Get(s.PetStyleId).Id;
             settings.AnimalPetEnabled = s.AnimalPetEnabled;
             settings.LeagueAutoApplyRecommended = s.LeagueAutoApplyRecommended;
+            settings.LeagueChampionSpellPresetsEnabled = s.LeagueChampionSpellPresetsEnabled;
+            settings.LeagueChampionSpellPresets = s.LeagueChampionSpellPresets ?? string.Empty;
+            settings.LeagueChampionRunePresets = s.LeagueChampionRunePresets ?? string.Empty;
+            if (settings.LeagueChampionSpellPresetsEnabled) settings.LeagueAutoApplyRecommended = false;
             settings.LeagueExitGameHotkey = s.LeagueExitGameHotkey;
             settings.LeagueCloseLobbyHotkey = s.LeagueCloseLobbyHotkey;
             settings.LeagueAutoHonorTeammateEnabled = s.LeagueAutoHonorTeammateEnabled;
+            settings.LeagueAutoHonorStrategy = FACM.League.LeagueHonorStrategy.Normalize(s.LeagueAutoHonorStrategy);
             settings.LeagueAutoReturnLobbyEnabled = s.LeagueAutoReturnLobbyEnabled;
             settings.LeagueAutoMatchmakingEnabled = s.LeagueAutoMatchmakingEnabled;
+            settings.LeagueAutoMatchmakingWaitForInvitees = s.LeagueAutoMatchmakingWaitForInvitees ?? true;
+            settings.LeagueAutoMatchmakingRoomNotices = s.LeagueAutoMatchmakingRoomNotices;
             settings.LeagueAutoAcceptEnabled = s.LeagueAutoAcceptEnabled;
+            settings.LeagueAutoHandleInvitationsEnabled = s.LeagueAutoHandleInvitationsEnabled;
+            settings.LeagueSkipInvitationsWhenAway = s.LeagueSkipInvitationsWhenAway;
+            settings.LeagueInvitationStrategies = FACM.League.LeagueInvitationPolicies.NormalizeJson(s.LeagueInvitationStrategies);
+            settings.LeagueAutoSkipLeaderEnabled = s.LeagueAutoSkipLeaderEnabled;
+            settings.LeagueAutoAramTeamSideEnabled = s.LeagueAutoAramTeamSideEnabled;
+            settings.LeagueAutoAramTeamSideVisibleToTeam = s.LeagueAutoAramTeamSideVisibleToTeam;
+            settings.LeagueAutoLoginStatusMessageEnabled = s.LeagueAutoLoginStatusMessageEnabled;
+            settings.LeagueAutoLoginStatusMessage = FACM.League.LeagueLoginStatusRestoreController.NormalizeSavedMessage(s.LeagueAutoLoginStatusMessage);
+            string rankedQueue;
+            string rankedTier;
+            string rankedDivision;
+            var validRank = FACM.League.LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(
+                s.LeagueAutoLoginRankedQueue, s.LeagueAutoLoginRankedTier, s.LeagueAutoLoginRankedDivision,
+                out rankedQueue, out rankedTier, out rankedDivision);
+            settings.LeagueAutoLoginRankedStatusEnabled = s.LeagueAutoLoginRankedStatusEnabled && validRank;
+            settings.LeagueAutoLoginRankedQueue = validRank ? rankedQueue : "RANKED_SOLO_5x5";
+            settings.LeagueAutoLoginRankedTier = validRank ? rankedTier : "CHALLENGER";
+            settings.LeagueAutoLoginRankedDivision = validRank ? rankedDivision : string.Empty;
+            settings.LeagueAutoPickEnabled = s.LeagueAutoPickEnabled;
+            settings.LeagueAutoBanEnabled = s.LeagueAutoBanEnabled;
+            settings.LeagueAutoPickChampionId = Math.Max(0, Math.Min(10000, s.LeagueAutoPickChampionId));
+            settings.LeagueAutoBanChampionId = Math.Max(0, Math.Min(10000, s.LeagueAutoBanChampionId));
+            settings.LeagueAutoSelectProfiles = FACM.League.LeagueAutoSelectProfiles.Serialize(
+                FACM.League.LeagueAutoSelectProfiles.Parse(s.LeagueAutoSelectProfiles));
+            settings.LeagueAutoReplyEnabled = s.LeagueAutoReplyEnabled;
+            settings.LeagueRespawnOverlayEnabled = s.LeagueRespawnOverlayEnabled;
+            settings.LeagueDynamicMessageOptions = FACM.League.LeagueDynamicMessageOptions.Save(FACM.League.LeagueDynamicMessageOptions.Parse(s.LeagueDynamicMessageOptions));
+            settings.LeagueQuickMessagePresets = FACM.League.LeagueQuickMessagePresets.NormalizeJson(s.LeagueQuickMessagePresets);
+            settings.LeagueQuickMessageHotkeys = FACM.League.LeagueQuickMessageHotkeys.NormalizeJson(s.LeagueQuickMessageHotkeys);
+            settings.LeagueQuickMessageIntervalMs = Math.Max(0, Math.Min(5000, s.LeagueQuickMessageIntervalMs ?? 500));
+            settings.LeagueAutoReplyAwayOnly = s.LeagueAutoReplyAwayOnly;
+            settings.LeagueAutoReplyText = FACM.League.LeagueAutoReplyController.NormalizeText(s.LeagueAutoReplyText);
+            settings.LeagueLockOfflineStatusEnabled = s.LeagueLockOfflineStatusEnabled;
             settings.LeagueAutoMatchmakingMinPartySize = s.LeagueAutoMatchmakingMinPartySize;
             settings.LeagueAutoMatchmakingStartDelayMs = s.LeagueAutoMatchmakingStartDelayMs;
             settings.LeagueAutoAcceptDelayMs = s.LeagueAutoAcceptDelayMs;

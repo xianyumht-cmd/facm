@@ -1,0 +1,851 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.Services;
+using FACM.Theming;
+
+namespace FACM.League
+{
+
+    // This bridge only forwards the existing Gameflow owner; it owns no network or timer.
+    internal sealed class LeaguePlayerPostgameRefreshDetector
+    {
+        private bool _sawGame;
+        private bool _inPostgame;
+
+        internal bool Observe(LeagueDashboardPhaseState state)
+        {
+            if (state == null || !state.Connected)
+            {
+                Reset();
+                return false;
+            }
+            var phase = state.Phase ?? string.Empty;
+            if (phase == "GameStart" || phase == "InProgress" || phase == "Reconnect")
+                _sawGame = true;
+            if (phase == "EndOfGame" || phase == "PreEndOfGame")
+            {
+                if (_inPostgame || !_sawGame) return false;
+                _inPostgame = true;
+                var shouldRefresh = _sawGame && state.IsRankedQueue == true;
+                _sawGame = false;
+                return shouldRefresh;
+            }
+            _inPostgame = false;
+            if (phase == "Lobby" || phase == "None" || phase == "ChampSelect")
+                _sawGame = false;
+            return false;
+        }
+
+        internal void Reset()
+        {
+            _sawGame = false;
+            _inPostgame = false;
+        }
+    }
+
+    internal static class LeaguePlayerPostgameRefreshBridge
+    {
+        private static readonly object Sync = new object();
+        private static readonly LeaguePlayerPostgameRefreshDetector Detector =
+            new LeaguePlayerPostgameRefreshDetector();
+
+        internal static event Action PostgameEntered;
+
+        internal static void Observe(LeagueDashboardPhaseState state)
+        {
+            Action subscribers = null;
+            lock (Sync)
+                if (Detector.Observe(state)) subscribers = PostgameEntered;
+            if (subscribers == null) return;
+            foreach (var callback in subscribers.GetInvocationList())
+            {
+                try { ((Action)callback)(); }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Player postgame refresh subscriber skipped: " +
+                        exception.GetType().Name);
+                }
+            }
+        }
+
+        internal static void Reset()
+        {
+            lock (Sync) Detector.Reset();
+        }
+    }
+
+    internal sealed class LeaguePlayerProfileDialog : Form
+    {
+        private readonly LeaguePlayerDataService _service;
+        private readonly UiTextCatalog _ui;
+        private readonly string _self, _target, _server;
+        private readonly LeagueClientSession _session;
+        private readonly Func<LeagueClientSession> _currentSession;
+        private readonly LeaguePlayerHistorySource _source;
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly TabControl _tabs;
+        private readonly ListView _ranked, _rankedQueues, _masteries, _challenges;
+        private readonly TextBox _search, _masteryDetails;
+        private readonly CheckBox _allMasteries;
+        private readonly Label _profile, _status;
+        private readonly PictureBox _profileIcon;
+        private readonly Label _profileIconFallback;
+        private readonly PictureBox[] _rankMedals = new PictureBox[2];
+        private readonly Label[,] _rankCardText = new Label[2, 3];
+        private readonly string[] _rankCardTiers = new string[2];
+        private int _profileIconId, _profileIconGeneration;
+        private readonly Button _refresh;
+        private readonly Dictionary<int, string> _names;
+        private List<Dictionary<string, object>> _masteryRows;
+        private Dictionary<string, object> _challengeData;
+        private long? _masteryScore;
+        private readonly Label _masteryCount;
+        private readonly Func<string, CancellationToken, Task<Bitmap>> _loadAsset;
+        private readonly ImageList _masteryPortraits = new ImageList { ImageSize = new Size(28, 28), ColorDepth = ColorDepth.Depth32Bit };
+        private readonly HashSet<int> _requestedMasteryPortraits = new HashSet<int>();
+        private static readonly SemaphoreSlim MasteryPortraitGate = new SemaphoreSlim(3, 3);
+        private const int MasteryPortraitBudget = 64;
+        private int _masterySortColumn = 2;
+        private bool _masterySortDescending = true;
+        private bool _busy;
+        private bool _pendingPostgameRefresh;
+
+        internal LeaguePlayerProfileDialog(LeaguePlayerDataService service, UiTextCatalog ui, string self,
+            string target, string name, LeagueClientSession session, Func<LeagueClientSession> currentSession,
+            string server = null, LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
+        {
+            _service = service; _ui = ui; _self = self; _target = target; _session = session;
+            _currentSession = currentSession; _server = server; _source = source;
+            _loadAsset = loadAsset;
+            _names = service.TryGetCachedChampionNames() ?? new Dictionary<int, string>();
+            Text = ui.Get(UiTextKeys.LeagueProfileDetailsTitle) + " · " + name;
+            ClientSize = new Size(700, 490); MinimumSize = new Size(560, 380);
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, Padding = new Padding(10) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            _profile = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = name,
+                TextAlign = ContentAlignment.MiddleLeft };
+            var profileHeader = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            profileHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 54));
+            profileHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var portraitFrame = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 2, 6, 2),
+                BackColor = FacmDesignSystem.SurfaceRaised };
+            _profileIcon = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+            _profileIconFallback = new Label { Dock = DockStyle.Fill, Text = string.Empty,
+                TextAlign = ContentAlignment.MiddleCenter, ForeColor = FacmDesignSystem.Text };
+            portraitFrame.Controls.Add(_profileIcon);
+            portraitFrame.Controls.Add(_profileIconFallback);
+            _profileIconFallback.BringToFront();
+            profileHeader.Controls.Add(portraitFrame, 0, 0);
+            profileHeader.Controls.Add(_profile, 1, 0);
+            _tabs = new TabControl { Dock = DockStyle.Fill };
+            _ranked = List();
+            _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileField), 180);
+            _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileSolo), 205);
+            _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileFlex), 205);
+            _rankedQueues = List();
+            foreach (var column in new[] {
+                new[] { UiTextKeys.LeagueProfileQueue, "140" },
+                new[] { UiTextKeys.LeagueProfileTier, "105" },
+                new[] { UiTextKeys.LeagueProfileLp, "60" },
+                new[] { UiTextKeys.LeagueProfileWins, "60" },
+                new[] { UiTextKeys.LeagueProfileLosses, "60" },
+                new[] { UiTextKeys.LeagueProfilePrevious, "135" },
+                new[] { UiTextKeys.LeagueProfilePreviousHighest, "135" },
+                new[] { UiTextKeys.LeagueProfileHighest, "135" } })
+                _rankedQueues.Columns.Add(ui.Get(column[0]), int.Parse(column[1], CultureInfo.InvariantCulture));
+            _rankedQueues.OwnerDraw = true;
+            _rankedQueues.DrawColumnHeader += (sender, args) => args.DrawDefault = true;
+            _rankedQueues.DrawItem += (sender, args) =>
+            { if (_rankedQueues.View != View.Details) args.DrawDefault = true; };
+            _rankedQueues.DrawSubItem += DrawRankedQueueCell;
+            var rankCards = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            rankCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            rankCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            rankCards.Controls.Add(CreateRankCard(0, ui.Get(UiTextKeys.LeagueProfileSolo)), 0, 0);
+            rankCards.Controls.Add(CreateRankCard(1, ui.Get(UiTextKeys.LeagueProfileFlex)), 1, 0);
+            var rankedLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+            rankedLayout.Controls.Add(rankCards, 0, 0);
+            rankedLayout.Controls.Add(_ranked, 0, 1);
+            rankedLayout.Controls.Add(_rankedQueues, 0, 2);
+            AddTab(UiTextKeys.LeagueProfileRanked, rankedLayout);
+            var masteryLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+            masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            masteryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
+            _search = new TextBox { Dock = DockStyle.Fill, AccessibleName = ui.Get(UiTextKeys.LeagueProfileMasterySearch) };
+            _search.TextChanged += (sender, args) => RenderMasteries();
+            _masteries = List();
+            _masteries.SmallImageList = _masteryPortraits;
+            _masteries.ShowItemToolTips = true;
+            _masteries.MouseWheel += (sender, args) =>
+            {
+                if (!IsDisposed && IsHandleCreated)
+                    BeginInvoke((Action)QueueMasteryPortraits);
+            };
+            _masteries.KeyUp += (sender, args) => QueueMasteryPortraits();
+            var masteryColumns = new[] { UiTextKeys.LeaguePlayerChampion, UiTextKeys.LeagueProfileMasteryLevel,
+                UiTextKeys.LeagueProfileMasteryPoints, UiTextKeys.LeagueProfileMasteryLast };
+            foreach (var key in masteryColumns)
+                _masteries.Columns.Add(ui.Get(key), 145);
+            _masteries.Columns[_masterySortColumn].Text += " ▼";
+            _masteries.ColumnClick += (sender, args) =>
+            {
+                if (args.Column == _masterySortColumn) _masterySortDescending = !_masterySortDescending;
+                else { _masterySortColumn = args.Column; _masterySortDescending = args.Column != 0; }
+                for (var i = 0; i < masteryColumns.Length; i++)
+                    _masteries.Columns[i].Text = ui.Get(masteryColumns[i]) +
+                        (i == _masterySortColumn ? (_masterySortDescending ? " ▼" : " ▲") : "");
+                RenderMasteries();
+            };
+            _masteries.SelectedIndexChanged += (sender, args) => ShowMastery();
+            _masteryDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
+                ScrollBars = ScrollBars.Vertical, BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+            var masteryTools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+            masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+            masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            _masteryCount = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true, Text = string.Empty };
+            _allMasteries = new CheckBox { Dock = DockStyle.Fill, Text = ui.Get(UiTextKeys.LeagueProfileMasteryAll) };
+            _allMasteries.CheckedChanged += async (sender, args) => await LoadSelectedAsync(true);
+            masteryTools.Controls.Add(_search, 0, 0); masteryTools.Controls.Add(_masteryCount, 1, 0);
+            masteryTools.Controls.Add(_allMasteries, 2, 0);
+            masteryLayout.Controls.Add(masteryTools, 0, 0); masteryLayout.Controls.Add(_masteries, 0, 1);
+            masteryLayout.Controls.Add(_masteryDetails, 0, 2);
+            AddTab(UiTextKeys.LeagueProfileMastery, masteryLayout);
+            _challenges = List();
+            _challenges.Columns.Add(ui.Get(UiTextKeys.LeagueProfileField), 260);
+            _challenges.Columns.Add(ui.Get(UiTextKeys.LeagueProfileChallengeValue), 180);
+            AddTab(UiTextKeys.LeagueProfileChallenges, _challenges);
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+            _status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
+            _refresh = new Button { Text = ui.Get(UiTextKeys.LeaguePlayerRemoteRetry), Dock = DockStyle.Fill };
+            _refresh.Click += async (sender, args) => await LoadSelectedAsync(true);
+            _tabs.SelectedIndexChanged += async (sender, args) =>
+            {
+                if (_tabs.SelectedIndex == 0 && _pendingPostgameRefresh)
+                    await RefreshAfterGameAsync();
+                else
+                    await LoadSelectedAsync(false);
+            };
+            footer.Controls.Add(_status, 0, 0); footer.Controls.Add(_refresh, 1, 0);
+            layout.Controls.Add(profileHeader, 0, 0); layout.Controls.Add(_tabs, 0, 1); layout.Controls.Add(footer, 0, 2);
+            Controls.Add(layout);
+            Shown += async (sender, args) =>
+            {
+                LeaguePlayerPostgameRefreshBridge.PostgameEntered += OnPostgameEntered;
+                if (_source != LeaguePlayerHistorySource.Lcu && _session != null && IsCurrent())
+                {
+                    try { await LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token); }
+                    catch (OperationCanceledException) { return; }
+                }
+                if (!IsDisposed && !_lifetime.IsCancellationRequested && IsCurrent())
+                    await LoadSelectedAsync(true);
+            };
+        }
+
+        private void OnPostgameEntered()
+        {
+            if (IsDisposed || !IsHandleCreated || _lifetime.IsCancellationRequested) return;
+            try
+            {
+                BeginInvoke((Action)(async () =>
+                {
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                        !string.Equals(_self, _target, StringComparison.Ordinal) ||
+                        _source == LeaguePlayerHistorySource.Sgp || !string.IsNullOrEmpty(_server))
+                        return;
+                    _pendingPostgameRefresh = true;
+                    if (_tabs.SelectedIndex == 0) await RefreshAfterGameAsync();
+                }));
+            }
+            catch (ObjectDisposedException) { }
+            catch (InvalidOperationException) { }
+        }
+
+        private async Task RefreshAfterGameAsync()
+        {
+            if (!_pendingPostgameRefresh || _busy || IsDisposed || _lifetime.IsCancellationRequested ||
+                !IsCurrent() || _tabs.SelectedIndex != 0) return;
+            _pendingPostgameRefresh = false;
+            var before = RankedSnapshot();
+            await LoadSelectedAsync(true);
+            if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _tabs.SelectedIndex != 0 || !ShouldRetryPostgameRanked(before, RankedSnapshot(), _ranked.Items.Count > 0))
+                return;
+            try { await Task.Delay(TimeSpan.FromSeconds(3), _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _tabs.SelectedIndex != 0 || _busy || _pendingPostgameRefresh) return;
+            await LoadSelectedAsync(true);
+        }
+
+        internal static bool ShouldRetryPostgameRanked(string before, string after, bool hasRows)
+        {
+            return hasRows && string.Equals(before, after, StringComparison.Ordinal);
+        }
+
+        private string RankedSnapshot()
+        {
+            return string.Join("|", _ranked.Items.Cast<ListViewItem>().Select(item =>
+                string.Join(":", item.SubItems.Cast<ListViewItem.ListViewSubItem>()
+                    .Select(subItem => subItem.Text))));
+        }
+
+        private async Task LoadSelectedAsync(bool force)
+        {
+            if (_busy || IsDisposed || _lifetime.IsCancellationRequested) return;
+            if (!IsCurrent()) { Clear(); _status.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged); return; }
+            var mastery = _tabs.SelectedIndex == 1;
+            var challenges = _tabs.SelectedIndex == 2;
+            if (!force && (challenges ? _challengeData != null : mastery ? _masteryRows != null : _ranked.Items.Count > 0)) return;
+            _busy = true; _refresh.Enabled = false; _tabs.Enabled = false;
+            _allMasteries.Enabled = false;
+            _status.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
+            try
+            {
+                LeaguePlayerDetailsStatus status;
+                if (challenges)
+                {
+                    _challengeData = null; _challenges.Items.Clear();
+                    var result = await _service.LoadPlayerChallengesAsync(_self, _target, _session, _server, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    status = IsCurrent() ? result.Status : LeaguePlayerDetailsStatus.AccountChanged;
+                    if (status == LeaguePlayerDetailsStatus.Ready) { _challengeData = result.Data; RenderChallenges(); }
+                }
+                else if (mastery)
+                {
+                    _masteryRows = null;
+                    if (!_allMasteries.Checked) _masteryScore = null;
+                    RenderMasteries();
+                    var result = await _service.LoadPlayerMasteriesAsync(_self, _target, _session, _server, _lifetime.Token, !_allMasteries.Checked);
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    if (result.Status == LeaguePlayerDetailsStatus.Ready && _names.Count == 0 && IsCurrent())
+                    {
+                        var names = await _service.LoadChampionOptionsAsync(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                        if (names != null) foreach (var pair in names) _names[pair.Key] = pair.Value;
+                    }
+                    status = result.Status;
+                    if (!IsCurrent()) status = LeaguePlayerDetailsStatus.AccountChanged;
+                    if (status != LeaguePlayerDetailsStatus.AccountChanged)
+                    {
+                        _masteryRows = result.Masteries;
+                        if (!_allMasteries.Checked) _masteryScore = result.Score;
+                    }
+                    RenderMasteries();
+                }
+                else
+                {
+                    _ranked.Items.Clear(); _rankedQueues.Items.Clear();
+                    var result = await _service.LoadPlayerDetailsAsync(_self, _target, _session, _server, _source, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                    status = result.Status;
+                    if (!IsCurrent()) status = LeaguePlayerDetailsStatus.AccountChanged;
+                    if (status != LeaguePlayerDetailsStatus.AccountChanged) RenderProfile(result);
+                }
+                if (status == LeaguePlayerDetailsStatus.AccountChanged) Clear();
+                _status.Text = StatusText(status);
+                if (mastery && status == LeaguePlayerDetailsStatus.Ready && _masteryScore.HasValue)
+                    _status.Text += " · " + _ui.Get(UiTextKeys.LeagueProfileMasteryScore)
+                        .Replace("{0}", _masteryScore.Value.ToString(CultureInfo.CurrentCulture));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception) { if (!IsDisposed) _status.Text = StatusText(LeaguePlayerDetailsStatus.Unavailable); }
+            finally
+            {
+                _busy = false;
+                if (!IsDisposed)
+                {
+                    _refresh.Enabled = true;
+                    _tabs.Enabled = true;
+                    _allMasteries.Enabled = true;
+                    if (_pendingPostgameRefresh && _tabs.SelectedIndex == 0 &&
+                        !_lifetime.IsCancellationRequested && IsCurrent())
+                        await RefreshAfterGameAsync();
+                }
+            }
+        }
+
+        private void RenderProfile(LeaguePlayerProfileDetails details)
+        {
+            _profile.Text = details.Profile == null ? "—" : details.Profile.AccountName + " · " +
+                _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + (details.Profile.SummonerLevel > 0 ? details.Profile.SummonerLevel.ToString() : "—") +
+                "\r\n" + _ui.Get(UiTextKeys.LeagueProfileBackground).Replace("{0}", Number(details.Cosmetics, "backgroundSkinId"));
+            UpdateProfileIcon(details.Profile == null ? 0 : details.Profile.ProfileIconId);
+            if (details.Status == LeaguePlayerDetailsStatus.UnsupportedRegion) return;
+            var solo = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_SOLO_5x5");
+            var flex = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_FLEX_SR");
+            UpdateRankCard(0, solo);
+            UpdateRankCard(1, flex);
+            AddRank(UiTextKeys.LeagueProfileTier, Tier(solo, "tier", "division"), Tier(flex, "tier", "division"));
+            foreach (var pair in new[] {
+                new[] { "leaguePoints", UiTextKeys.LeagueProfileLp }, new[] { "wins", UiTextKeys.LeagueProfileWins },
+                new[] { "losses", UiTextKeys.LeagueProfileLosses }, new[] { "ratedRating", UiTextKeys.LeagueProfileRating },
+                new[] { "provisionalGamesRemaining", UiTextKeys.LeagueProfileProvisional },
+                new[] { "currentSeasonWinsForRewards", UiTextKeys.LeagueProfileRewardWins } })
+                AddRank(pair[1], Number(solo, pair[0]), Number(flex, pair[0]));
+            AddRank(UiTextKeys.LeagueProfileHighest, Tier(solo, "highestTier", "highestDivision"), Tier(flex, "highestTier", "highestDivision"));
+            AddRank(UiTextKeys.LeagueProfilePrevious, Tier(solo, "previousSeasonEndTier", "previousSeasonEndDivision"),
+                Tier(flex, "previousSeasonEndTier", "previousSeasonEndDivision"));
+            AddRank(UiTextKeys.LeagueProfilePreviousHighest,
+                Tier(solo, "previousSeasonHighestTier", "previousSeasonHighestDivision"),
+                Tier(flex, "previousSeasonHighestTier", "previousSeasonHighestDivision"));
+            AddRank(UiTextKeys.LeagueProfileWinrate, Winrate(solo), Winrate(flex));
+            _rankedQueues.BeginUpdate();
+            try
+            {
+                foreach (var entry in LeaguePlayerDataService.RankedQueueEntries(details.Ranked))
+                {
+                    var row = entry.Value;
+                    var name = entry.Key == "RANKED_SOLO_5x5" ? _ui.Get(UiTextKeys.LeagueProfileSolo) :
+                        entry.Key == "RANKED_FLEX_SR" ? _ui.Get(UiTextKeys.LeagueProfileFlex) : entry.Key;
+                    var item = new ListViewItem(name) { Tag = row };
+                    item.SubItems.Add(Tier(row, "tier", "division"));
+                    item.SubItems.Add(RankedNumber(row, "leaguePoints"));
+                    item.SubItems.Add(RankedNumber(row, "wins"));
+                    item.SubItems.Add(RankedNumber(row, "losses"));
+                    item.SubItems.Add(Tier(row, "previousSeasonEndTier", "previousSeasonEndDivision"));
+                    item.SubItems.Add(Tier(row, "previousSeasonHighestTier", "previousSeasonHighestDivision"));
+                    item.SubItems.Add(Tier(row, "highestTier", "highestDivision"));
+                    _rankedQueues.Items.Add(item);
+                }
+            }
+            finally { _rankedQueues.EndUpdate(); }
+        }
+
+        private Control CreateRankCard(int index, string title)
+        {
+            var card = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
+                Padding = new Padding(5), Margin = new Padding(3),
+                BackColor = FacmDesignSystem.SurfaceRaised };
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (var row = 0; row < 3; row++)
+                card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / 3));
+            var medal = new PictureBox { Dock = DockStyle.Fill, AccessibleName = title };
+            medal.Paint += (sender, args) => DrawRankMedal(args.Graphics,
+                new Rectangle(3, 5, Math.Max(0, medal.Width - 6), Math.Max(0, medal.Height - 10)),
+                _rankCardTiers[index]);
+            _rankMedals[index] = medal;
+            card.Controls.Add(medal, 0, 0);
+            card.SetRowSpan(medal, 3);
+            for (var row = 0; row < 3; row++)
+            {
+                var label = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                    AutoEllipsis = true, ForeColor = FacmDesignSystem.Text };
+                _rankCardText[index, row] = label;
+                card.Controls.Add(label, 1, row);
+            }
+            _rankCardText[index, 0].Text = title;
+            return card;
+        }
+
+        private void UpdateRankCard(int index, Dictionary<string, object> entry)
+        {
+            var title = _ui.Get(index == 0 ? UiTextKeys.LeagueProfileSolo : UiTextKeys.LeagueProfileFlex);
+            _rankCardTiers[index] = LeagueMatchTimelineParser.Text(entry, "tier");
+            _rankCardText[index, 0].Text = title + " · " + Tier(entry, "tier", "division");
+            _rankCardText[index, 1].Text = RankCardRecord(_ui, entry);
+            _rankCardText[index, 2].Text = _ui.Get(UiTextKeys.LeagueProfileHighest) + ": " +
+                Tier(entry, "highestTier", "highestDivision") + " · " +
+                _ui.Get(UiTextKeys.LeagueProfilePrevious) + ": " +
+                Tier(entry, "previousSeasonEndTier", "previousSeasonEndDivision");
+            _rankMedals[index].AccessibleDescription = _rankCardText[index, 0].Text + " · " +
+                _rankCardText[index, 1].Text + " · " + _rankCardText[index, 2].Text;
+            _rankMedals[index].Invalidate();
+        }
+
+        internal static string RankCardRecord(UiTextCatalog ui, Dictionary<string, object> entry)
+        {
+            return ui.Get(UiTextKeys.LeagueProfileLp) + ": " + RankedNumber(entry, "leaguePoints") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileWins) + ": " + RankedNumber(entry, "wins") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileLosses) + ": " + RankedNumber(entry, "losses") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileWinrate) + ": " +
+                (RankTierIndex(LeagueMatchTimelineParser.Text(entry, "tier")) < 0 ? "—" : Winrate(entry));
+        }
+
+        private static readonly string[] RankTiers = {
+            "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD",
+            "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"
+        };
+
+        internal static int RankTierIndex(string tier)
+        {
+            return Array.IndexOf(RankTiers, (tier ?? string.Empty).ToUpperInvariant());
+        }
+
+        internal static void DrawRankMedal(Graphics graphics, Rectangle bounds, string tier)
+        {
+            if (graphics == null || bounds.Width < 10 || bounds.Height < 10) return;
+            var colors = new[] {
+                Color.FromArgb(104, 113, 123), Color.FromArgb(162, 107, 70),
+                Color.FromArgb(166, 184, 196), Color.FromArgb(210, 166, 60),
+                Color.FromArgb(86, 174, 169), Color.FromArgb(38, 166, 113),
+                Color.FromArgb(87, 145, 221), Color.FromArgb(158, 98, 211),
+                Color.FromArgb(207, 75, 96), Color.FromArgb(223, 173, 61)
+            };
+            var index = RankTierIndex(tier);
+            var color = index < 0 ? Color.FromArgb(123, 132, 141) : colors[index];
+            var x = bounds.Left; var y = bounds.Top;
+            var w = bounds.Width; var h = bounds.Height;
+            var points = new[] { new Point(x + w / 2, y),
+                new Point(x + w - 2, y + h / 5),
+                new Point(x + w - w / 6, y + h * 3 / 4),
+                new Point(x + w / 2, y + h - 1),
+                new Point(x + w / 6, y + h * 3 / 4),
+                new Point(x + 1, y + h / 5) };
+            using (var fill = new SolidBrush(color))
+            using (var outline = new Pen(Color.FromArgb(190, 240, 240, 240), 1.3f))
+            using (var center = new Pen(Color.FromArgb(220, 255, 255, 255), 1.7f))
+            {
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                graphics.FillPolygon(fill, points);
+                graphics.DrawPolygon(outline, points);
+                graphics.DrawLine(center, x + w / 2, y + h / 5, x + w / 2, y + h * 3 / 4);
+                graphics.DrawLine(center, x + w / 3, y + h / 2, x + w * 2 / 3, y + h / 2);
+            }
+        }
+
+        private void DrawRankedQueueCell(object sender, DrawListViewSubItemEventArgs args)
+        {
+            var key = args.ColumnIndex == 1 ? "tier" :
+                args.ColumnIndex == 5 ? "previousSeasonEndTier" :
+                args.ColumnIndex == 6 ? "previousSeasonHighestTier" :
+                args.ColumnIndex == 7 ? "highestTier" : null;
+            var tier = key == null ? null : LeagueMatchTimelineParser.Text(
+                args.Item.Tag as Dictionary<string, object>, key);
+            if (RankTierIndex(tier) < 0)
+            {
+                args.DrawDefault = true;
+                return;
+            }
+            args.DrawBackground();
+            var iconSize = Math.Min(20, Math.Max(0, args.Bounds.Height - 2));
+            DrawRankMedal(args.Graphics, new Rectangle(args.Bounds.Left + 2,
+                args.Bounds.Top + (args.Bounds.Height - iconSize) / 2, iconSize, iconSize), tier);
+            var textBounds = new Rectangle(args.Bounds.Left + iconSize + 5, args.Bounds.Top,
+                Math.Max(0, args.Bounds.Width - iconSize - 7), args.Bounds.Height);
+            TextRenderer.DrawText(args.Graphics, args.SubItem.Text, _rankedQueues.Font,
+                textBounds, args.Item.Selected ? SystemColors.HighlightText : _rankedQueues.ForeColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
+                TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
+        }
+
+        private void RenderChallenges()
+        {
+            object raw;
+            var total = _challengeData.TryGetValue("totalPoints", out raw) ? raw as Dictionary<string, object> : null;
+            ChallengeRow(UiTextKeys.LeagueProfileChallengePoints, MetricText(total, "current"));
+            ChallengeRow(UiTextKeys.LeagueProfileChallengeLevel, LeagueMatchTimelineParser.Text(total, "level") ?? "—");
+            var rows = (object[])_challengeData["playerChallenges"];
+            var ids = new[] { 505001, 510001, 510011, 504003, 504002, 504004, 402106 };
+            var labels = new[] { UiTextKeys.LeagueProfileOwnedChampions, UiTextKeys.LeagueProfileOwnedSkins,
+                UiTextKeys.LeagueProfileOwnedChromas, UiTextKeys.LeagueProfileOwnedWards,
+                UiTextKeys.LeagueProfileOwnedIcons, UiTextKeys.LeagueProfileOwnedEmotes, UiTextKeys.LeagueProfilePentas };
+            for (var i = 0; i < ids.Length; i++)
+            {
+                var row = rows.Cast<Dictionary<string, object>>().FirstOrDefault(r => LeagueMatchTimelineParser.Number(r, "id") == ids[i]);
+                ChallengeRow(labels[i], MetricText(row, "currentValue"));
+            }
+        }
+        private void ChallengeRow(string key, string value)
+        { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(value); _challenges.Items.Add(row); }
+        internal static string MetricText(Dictionary<string, object> data, string key)
+        {
+            object value; double number;
+            return data != null && data.TryGetValue(key, out value) && value != null && !(value is bool) &&
+                double.TryParse(Convert.ToString(value, CultureInfo.InvariantCulture), NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out number) && number >= 0 && !double.IsNaN(number) && !double.IsInfinity(number)
+                ? number.ToString("0.##", CultureInfo.CurrentCulture) : "—";
+        }
+
+        internal static List<Dictionary<string, object>> FilterAndSortMasteries(
+            IEnumerable<Dictionary<string, object>> rows, IDictionary<int, string> names,
+            string query, int column, bool descending)
+        {
+            var pattern = (query ?? string.Empty).Trim();
+            var valid = (rows ?? Enumerable.Empty<Dictionary<string, object>>())
+                .Where(row => row != null)
+                .Select(row => new { Row = row, Id = LeagueMatchTimelineParser.Number(row, "championId") })
+                .Where(entry => entry.Id.HasValue && entry.Id.Value > 0 && entry.Id.Value <= int.MaxValue)
+                .Select(entry => new KeyValuePair<int, Dictionary<string, object>>((int)entry.Id.Value, entry.Row))
+                .Where(entry =>
+                {
+                    string name;
+                    if (names == null || !names.TryGetValue(entry.Key, out name) || string.IsNullOrWhiteSpace(name))
+                        name = "#" + entry.Key.ToString(CultureInfo.InvariantCulture);
+                    return pattern.Length == 0 ||
+                        name.IndexOf(pattern, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                        entry.Key.ToString(CultureInfo.InvariantCulture).IndexOf(pattern, StringComparison.Ordinal) >= 0;
+                }).ToList();
+            IOrderedEnumerable<KeyValuePair<int, Dictionary<string, object>>> sorted;
+            if (column == 0)
+            {
+                Func<KeyValuePair<int, Dictionary<string, object>>, string> nameOf = entry =>
+                {
+                    string name;
+                    return names != null && names.TryGetValue(entry.Key, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name : "#" + entry.Key.ToString(CultureInfo.InvariantCulture);
+                };
+                sorted = descending
+                    ? valid.OrderByDescending(nameOf, StringComparer.CurrentCultureIgnoreCase)
+                    : valid.OrderBy(nameOf, StringComparer.CurrentCultureIgnoreCase);
+            }
+            else
+            {
+                var key = column == 1 ? "championLevel" : column == 3 ? "lastPlayTime" : "championPoints";
+                Func<KeyValuePair<int, Dictionary<string, object>>, long> numberOf =
+                    entry => LeagueMatchTimelineParser.Number(entry.Value, key) ?? -1;
+                var presentFirst = valid.OrderBy(entry => numberOf(entry) < 0);
+                sorted = descending ? presentFirst.ThenByDescending(numberOf) : presentFirst.ThenBy(numberOf);
+            }
+            return sorted.ThenByDescending(entry =>
+                    LeagueMatchTimelineParser.Number(entry.Value, "championPoints") ?? -1)
+                .ThenBy(entry => entry.Key).Select(entry => entry.Value).ToList();
+        }
+
+        private void RenderMasteries()
+        {
+            var selectedId = _masteries.SelectedItems.Count == 1
+                ? LeagueMatchTimelineParser.Number(_masteries.SelectedItems[0].Tag as Dictionary<string, object>, "championId")
+                : null;
+            var filtered = FilterAndSortMasteries(_masteryRows, _names, _search.Text,
+                _masterySortColumn, _masterySortDescending);
+            _masteries.BeginUpdate();
+            try
+            {
+                _masteries.Items.Clear();
+                foreach (var row in filtered)
+                {
+                    var id = (int)LeagueMatchTimelineParser.Number(row, "championId").Value;
+                    string name;
+                    if (!_names.TryGetValue(id, out name)) name = "#" + id;
+                    var item = new ListViewItem(name) { Tag = row,
+                        ImageKey = MasteryPortraitKey(id), ToolTipText = MasteryDetailText(_ui, row) };
+                    item.SubItems.Add(Number(row, "championLevel"));
+                    item.SubItems.Add(Number(row, "championPoints"));
+                    item.SubItems.Add(LastPlay(row));
+                    _masteries.Items.Add(item);
+                    if (selectedId == id) item.Selected = true;
+                }
+            }
+            finally { _masteries.EndUpdate(); }
+            _masteryCount.Text = _masteryRows == null ? string.Empty :
+                _ui.Get(UiTextKeys.LeagueProfileMasteryCount)
+                    .Replace("{0}", filtered.Count.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{1}", _masteryRows.Count.ToString(CultureInfo.CurrentCulture));
+            ShowMastery();
+            QueueMasteryPortraits();
+        }
+
+        private void ShowMastery()
+        {
+            if (_masteries.SelectedItems.Count != 1) { _masteryDetails.Text = string.Empty; return; }
+            var row = _masteries.SelectedItems[0].Tag as Dictionary<string, object>;
+            _masteryDetails.Text = MasteryDetailText(_ui, row);
+        }
+
+        internal static string MasteryDetailText(UiTextCatalog ui, Dictionary<string, object> row)
+        {
+            return ui.Get(UiTextKeys.LeagueProfileMasteryProgress)
+                .Replace("{0}", Number(row, "championPointsSinceLastLevel"))
+                .Replace("{1}", Number(row, "championPointsUntilNextLevel")) +
+                "\r\n" + ui.Get(UiTextKeys.LeagueProfileMasteryMarks)
+                    .Replace("{0}", Number(row, "tokensEarned"))
+                    .Replace("{1}", Number(row, "markRequiredForNextLevel")) +
+                "\r\n" + ui.Get(UiTextKeys.LeagueProfileMasterySeason)
+                    .Replace("{0}", Number(row, "championSeasonMilestone"))
+                    .Replace("{1}", LeagueMatchTimelineParser.Text(row, "highestGrade") ?? "—");
+        }
+
+        internal static string ProfileIconReference(int profileIconId)
+        {
+            return profileIconId > 0 && profileIconId <= 1000000
+                ? "lcu:/lol-game-data/assets/v1/profile-icons/" +
+                    profileIconId.ToString(CultureInfo.InvariantCulture) + ".jpg" : null;
+        }
+
+        private void UpdateProfileIcon(int iconId)
+        {
+            if (_profileIconId == iconId) return;
+            _profileIconId = iconId;
+            var generation = ++_profileIconGeneration;
+            var old = _profileIcon.Image;
+            _profileIcon.Image = null;
+            old?.Dispose();
+            _profileIconFallback.Text = iconId > 0 ? iconId.ToString(CultureInfo.CurrentCulture) : "—";
+            _profileIconFallback.Visible = true;
+            _profileIconFallback.BringToFront();
+            var reference = ProfileIconReference(iconId);
+            if (reference != null && _loadAsset != null && IsCurrent() && !_lifetime.IsCancellationRequested)
+                _ = LoadProfileIconAsync(reference, generation);
+        }
+
+        private async Task LoadProfileIconAsync(string reference, int generation)
+        {
+            Bitmap image = null;
+            try
+            {
+                await MasteryPortraitGate.WaitAsync(_lifetime.Token);
+                try { image = await _loadAsset(reference, _lifetime.Token); }
+                finally { MasteryPortraitGate.Release(); }
+                if (image == null || IsDisposed || _lifetime.IsCancellationRequested ||
+                    !IsCurrent() || generation != _profileIconGeneration) return;
+                _profileIcon.Image = image;
+                image = null;
+                _profileIconFallback.Visible = false;
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { image?.Dispose(); }
+        }
+
+        internal static string MasteryPortraitReference(int championId)
+        {
+            return championId > 0 && championId <= 100000
+                ? "lcu:/lol-game-data/assets/v1/champion-icons/" +
+                    championId.ToString(CultureInfo.InvariantCulture) + ".png" : null;
+        }
+
+        private static string MasteryPortraitKey(int championId)
+        {
+            return championId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        internal static List<int> SelectMasteryPortraitIds(IEnumerable<int> visibleIds,
+            ISet<int> requested, int remainingBudget)
+        {
+            if (visibleIds == null || requested == null || remainingBudget <= 0)
+                return new List<int>();
+            return visibleIds.Where(id => MasteryPortraitReference(id) != null && !requested.Contains(id))
+                .Distinct().Take(remainingBudget).ToList();
+        }
+
+        private void QueueMasteryPortraits()
+        {
+            if (_loadAsset == null || _masteryRows == null || _tabs.SelectedIndex != 1 ||
+                IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _requestedMasteryPortraits.Count >= MasteryPortraitBudget) return;
+            var first = 0;
+            if (_masteries.IsHandleCreated && _masteries.Items.Count > 0)
+            {
+                try { first = _masteries.TopItem == null ? 0 : _masteries.TopItem.Index; }
+                catch (InvalidOperationException) { first = 0; }
+            }
+            var visible = _masteries.Items.Cast<ListViewItem>().Skip(first).Take(24)
+                .Select(item => LeagueMatchTimelineParser.Number(
+                    item.Tag as Dictionary<string, object>, "championId"))
+                .Where(id => id.HasValue && id.Value <= int.MaxValue)
+                .Select(id => (int)id.Value);
+            foreach (var id in SelectMasteryPortraitIds(visible, _requestedMasteryPortraits,
+                MasteryPortraitBudget - _requestedMasteryPortraits.Count))
+            {
+                _requestedMasteryPortraits.Add(id);
+                _ = LoadMasteryPortraitAsync(id, MasteryPortraitReference(id));
+            }
+        }
+
+        private async Task LoadMasteryPortraitAsync(int id, string reference)
+        {
+            Bitmap image = null;
+            try
+            {
+                await MasteryPortraitGate.WaitAsync(_lifetime.Token);
+                try { image = await _loadAsset(reference, _lifetime.Token); }
+                finally { MasteryPortraitGate.Release(); }
+                if (image == null || IsDisposed || _lifetime.IsCancellationRequested ||
+                    !IsCurrent() || _masteries.IsDisposed) return;
+                var key = MasteryPortraitKey(id);
+                if (!_masteryPortraits.Images.ContainsKey(key))
+                    _masteryPortraits.Images.Add(key, image);
+                _masteries.Invalidate();
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { image?.Dispose(); }
+        }
+
+        private static string Number(Dictionary<string, object> data, string key)
+        { return LeagueMatchTimelineParser.Number(data, key)?.ToString("N0", CultureInfo.CurrentCulture) ?? "—"; }
+        internal static string RankedNumber(Dictionary<string, object> row, string key)
+        {
+            var tier = LeagueMatchTimelineParser.Text(row, "tier");
+            return string.IsNullOrEmpty(tier) || tier == "NA" || tier == "NONE" ? "—" : Number(row, key);
+        }
+        internal static string LastPlay(Dictionary<string, object> row)
+        {
+            var time = LeagueMatchTimelineParser.Number(row, "lastPlayTime");
+            if (!(time > 0)) return "—";
+            try { return DateTimeOffset.FromUnixTimeMilliseconds(time.Value).ToLocalTime().ToString("yyyy-MM-dd"); }
+            catch (ArgumentOutOfRangeException) { return "—"; }
+        }
+        private string Tier(Dictionary<string, object> row, string tierKey, string divisionKey)
+        {
+            if (row == null) return "—";
+            var tier = LeagueMatchTimelineParser.Text(row, tierKey);
+            if (string.IsNullOrEmpty(tier)) return "—";
+            if (tier == "NA" || tier == "NONE") return _ui.Get(UiTextKeys.LeagueProfileUnranked);
+            var translated = _ui.Get(UiTextKeys.LeagueProfileTiers).Split('|');
+            var index = Array.IndexOf(new[] { "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER" }, tier);
+            return (index >= 0 && index < translated.Length ? translated[index] : tier) +
+                (index >= 7 ? "" : " " + (LeagueMatchTimelineParser.Text(row, divisionKey) ?? "—"));
+        }
+        internal static string Winrate(Dictionary<string, object> row)
+        {
+            var wins = LeagueMatchTimelineParser.Number(row, "wins"); var losses = LeagueMatchTimelineParser.Number(row, "losses");
+            if (!wins.HasValue || !losses.HasValue) return "—";
+            return ((double)wins.Value + losses.Value > 0 ? wins.Value * 100d / ((double)wins.Value + losses.Value) : 0)
+                .ToString("0.##", CultureInfo.CurrentCulture) + "%";
+        }
+        private string StatusText(LeaguePlayerDetailsStatus status)
+        {
+            return _ui.Get(status == LeaguePlayerDetailsStatus.AccountChanged ? UiTextKeys.LeaguePlayerRemoteAccountChanged :
+                status == LeaguePlayerDetailsStatus.UnsupportedRegion ? UiTextKeys.LeagueProfileUnsupported :
+                status == LeaguePlayerDetailsStatus.Ready ? UiTextKeys.LeagueProfileReady :
+                status == LeaguePlayerDetailsStatus.Partial ? UiTextKeys.LeagueProfilePartial : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
+        }
+        private bool IsCurrent() { return _currentSession == null || LeagueEncounterReplayService.SessionMatches(_session, _currentSession()); }
+        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; UpdateProfileIcon(0); _ranked.Items.Clear(); _rankedQueues.Items.Clear(); UpdateRankCard(0, null); UpdateRankCard(1, null); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
+        private void AddRank(string key, string solo, string flex)
+        { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(solo); row.SubItems.Add(flex); _ranked.Items.Add(row); }
+        private void AddTab(string key, Control control)
+        { var page = new TabPage(_ui.Get(key)); page.Controls.Add(control); _tabs.TabPages.Add(page); }
+        private static ListView List()
+        { return new ListView { Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true, HideSelection = false,
+            MultiSelect = false, BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text }; }
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && !IsDisposed)
+            {
+                LeaguePlayerPostgameRefreshBridge.PostgameEntered -= OnPostgameEntered;
+                _lifetime.Cancel();
+                _profileIcon.Image?.Dispose();
+                _profileIcon.Image = null;
+                _masteryPortraits.Dispose();
+                _lifetime.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+    }
+}

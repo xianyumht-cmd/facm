@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using FACM.Services;
 
 namespace FACM.League
 {
@@ -13,6 +14,13 @@ namespace FACM.League
         {
             ValidateTransportFence();
             ValidateBallotCompatibility();
+            ValidateHonorStrategySelection();
+            ValidateMultiVotePartyPriority();
+            ValidateMultiVoteIncludesOpponents();
+            ValidateMultiVoteStopsOnUnverifiedWrite();
+            ValidateMultiVoteStopsOnChangedBallot();
+            ValidateMultiVoteLegacySingleCompletion();
+            ValidateMultiVoteCancellation();
             ValidateV2VerifiedByTeamChoices();
             ValidateV2VerifiedByNumericTeamChoices();
             ValidateResponseLostButAppliedDoesNotRetry();
@@ -22,6 +30,8 @@ namespace FACM.League
             ValidateHonorDisableCancelsInFlightButPreservesReturn();
             ValidateExactlyOnceCycle();
             ValidateReturnOnly();
+            ValidateMissionCelebration();
+            ValidateMissionChangedBeforeWrite();
             ValidatePhaseContract();
         }
 
@@ -35,6 +45,10 @@ namespace FACM.League
                 "Gate 6 transport blocked ballot submit.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.PlayAgainPath),
                 "Gate 6 transport blocked play-again.");
+            Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                "Gate 6 transport blocked the pinned pre-end-of-game completion.");
+            Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-pre-end-of-game/v1/complete/other"),
+                "Gate 6 transport must not accept arbitrary sequence-event completion.");
             Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-matchmaking/v1/ready-check/accept"),
                 "Gate 6 transport must hard-block ready-check accept.");
             Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("PATCH", "/lol-champ-select/v1/session/actions/1"),
@@ -69,6 +83,183 @@ namespace FACM.League
             }
             Require(LeaguePostGameAutomationController.BallotPath == "/lol-honor-v2/v1/ballot",
                 "Honor V2 ballot path must not rely on a trailing-slash redirect.");
+        }
+
+        private static void ValidateHonorStrategySelection()
+        {
+            Require(LeagueHonorStrategy.Normalize("unknown") == LeagueHonorStrategy.PreferLobbyMember &&
+                    LeagueHonorStrategy.Choices.Length == 5,
+                "Honor strategy must reject unknown persisted policy values.");
+            var settings = AppSettings.ParseLines(new[] { "LeagueAutoHonorStrategy=only-lobby-member" });
+            Require(settings.LeagueAutoHonorStrategy == LeagueHonorStrategy.OnlyLobbyMember &&
+                    settings.BuildLines().Any(line => line == "LeagueAutoHonorStrategy=only-lobby-member"),
+                "Honor strategy setting was not restored.");
+            var restored = AppSettings.ParseLines(Array.Empty<string>());
+            CloudSettingsSnapshot.Capture(settings).ApplyTo(restored);
+            Require(restored.LeagueAutoHonorStrategy == LeagueHonorStrategy.OnlyLobbyMember,
+                "Cloud settings must retain the chosen honor strategy.");
+
+            AssertHonorSelection(LeagueHonorStrategy.PreferLobbyMember, "ally-b", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.OnlyLobbyMember, "ally-b", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.AllMember, "ally-a", true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.AllIncludingOpponent, "enemy", true, 99);
+            AssertHonorSelection(LeagueHonorStrategy.OptOut, null, true, 0);
+            AssertHonorSelection(LeagueHonorStrategy.OnlyLobbyMember, null, false, 0);
+        }
+
+        private static void AssertHonorSelection(string strategy, string expectedPuuid, bool partyReadable, int selectedIndex)
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath,
+                "{\"gameId\":123,\"numVotes\":1,\"eligibleAllies\":[{" +
+                "\"puuid\":\"self\",\"summonerId\":100},{\"puuid\":\"ally-a\",\"summonerId\":101}," +
+                "{\"puuid\":\"ally-b\",\"summonerId\":102}]," +
+                "\"eligibleOpponents\":[{\"puuid\":\"enemy\",\"summonerId\":777}]} ");
+            if (partyReadable)
+                read.Set(LeaguePostGameAutomationController.EndOfGamePartyPath,
+                    "{\"eogPlayers\":[\"ally-b\"],\"leftPlayers\":[],\"readyPlayers\":[]}");
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(),
+                count => Math.Min(count - 1, selectedIndex)))
+            {
+                controller.Configure(true, false, strategy);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            var votes = write.Calls.Where(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path).ToList();
+            Require(expectedPuuid == null ? votes.Count == 0 :
+                    votes.Count == 1 && votes[0].Json.Contains("\"puuid\":\"" + expectedPuuid + "\""),
+                "Honor strategy selected the wrong target or wrote when opt-out/party-only is unavailable: " + strategy);
+        }
+
+        private static void ValidateMultiVotePartyPriority()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(2));
+            read.Set(LeaguePostGameAutomationController.EndOfGamePartyPath,
+                "{\"eogPlayers\":[\"ally-b\"],\"leftPlayers\":[],\"readyPlayers\":[]}");
+            var write = new FakePostGameWriteApi();
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.TeamChoicesPath,
+                count == 1 ? "[102]" : "[102,101]");
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, false, LeagueHonorStrategy.PreferLobbyMember);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            var votes = write.Calls.Where(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path).ToList();
+            Require(votes.Count == 2 && votes[0].Json.Contains("\"puuid\":\"ally-b\"") &&
+                    votes[1].Json.Contains("\"puuid\":\"ally-a\""),
+                "Party-preferred multi-vote must exhaust eligible party allies before other allies without repetition.");
+            Require(result != null && result.State == "success" && result.Detail == "votes-confirmed=2/2",
+                "Party-preferred multi-vote did not confirm the full ballot.");
+        }
+
+        private static void ValidateMultiVoteIncludesOpponents()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(5));
+            var write = new FakePostGameWriteApi();
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.TeamChoicesPath,
+                count == 1 ? "[101]" : count == 2 ? "[101,102]" : "[101,102,777]");
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, false, LeagueHonorStrategy.AllIncludingOpponent);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            var votes = write.Calls.Where(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path).ToList();
+            Require(votes.Count == 3 && votes.Select(call => call.Json).Distinct().Count() == 3 &&
+                    votes.Any(call => call.Json.Contains("\"puuid\":\"enemy\"")),
+                "Multi-vote must not repeat players or exceed the eligible roster; opponent needs explicit opt-in.");
+            Require(result != null && result.State == "success" && result.Detail == "votes-confirmed=3/3",
+                "Multi-vote did not report the bounded confirmed recipient count.");
+        }
+
+        private static void ValidateMultiVoteStopsOnUnverifiedWrite()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(3));
+            var write = new FakePostGameWriteApi();
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, false, LeagueHonorStrategy.AllIncludingOpponent);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1 &&
+                    write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.HonorPath),
+                "An HTTP-successful but unverified multi-vote must stop instead of voting blindly or retrying by legacy.");
+            Require(result != null && result.State == "unknown" && result.Detail.Contains("votes-confirmed=0/3"),
+                "An unverified multi-vote must be reported as unknown, not a confirmed success.");
+        }
+
+        private static void ValidateMultiVoteStopsOnChangedBallot()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(3));
+            var write = new FakePostGameWriteApi();
+            write.OnV2Call = count =>
+            {
+                read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
+                read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(0));
+            };
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, false, LeagueHonorStrategy.AllIncludingOpponent);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1 &&
+                    result != null && result.State == "unknown" && result.Detail.Contains("ballot-changed"),
+                "When the ballot is exhausted after a confirmed vote, the remaining targets must not be written.");
+        }
+
+        private static void ValidateMultiVoteLegacySingleCompletion()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(3));
+            var write = new FakePostGameWriteApi();
+            write.V2Statuses.Enqueue(404);
+            write.OnBallotSubmit = () => read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101,102,777]");
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                controller.Configure(true, false, LeagueHonorStrategy.AllIncludingOpponent);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1 &&
+                    write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorPath) == 3 &&
+                    write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorBallotSubmitPath) == 1,
+                "Legacy multi-vote must send each honor once and finish the ballot exactly once.");
+            Require(result != null && result.State == "success" && result.Route == "legacy" &&
+                    result.Detail.Contains("votes-confirmed=3/3"),
+                "Legacy multi-vote completion was not verified against individual recipients.");
+        }
+
+        private static void ValidateMultiVoteCancellation()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.BallotPath, MultiBallotJson(3));
+            var write = new FakePostGameWriteApi();
+            LeagueHonorAttemptStatus result = null;
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.HonorAttemptCompleted += status => result = status;
+                write.OnV2Call = count =>
+                {
+                    read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
+                    controller.Configure(false, false);
+                };
+                controller.Configure(true, false, LeagueHonorStrategy.AllIncludingOpponent);
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+            }
+            Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1 && result == null,
+                "Disabling automatic honor during multi-vote must prevent following writes and false completion.");
         }
 
         private static void ValidateV2VerifiedByTeamChoices()
@@ -280,6 +471,53 @@ namespace FACM.League
                 "PreEndOfGame return-only delay changed unexpectedly.");
         }
 
+        private static void ValidateMissionCelebration()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\"name\":\"missions-celebration\"}");
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, false);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(read.RequestCount == 0 && write.Calls.Count == 0,
+                    "Disabled auto return must incur zero sequence reads and writes.");
+
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(read.RequestCount == 2, "Mission completion must confirm the current event before writing.");
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
+                    "Mission celebration must be completed once alongside automatic return.");
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
+                    "Repeated post-game observations must not repeat mission completion.");
+            }
+        }
+
+        private static void ValidateMissionChangedBeforeWrite()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\"name\":\"missions-celebration\"}");
+            read.OnRead = (path, count) =>
+                path == LeaguePostGameAutomationController.CurrentSequenceEventPath && count == 2
+                    ? Bytes("{\"name\":\"other\"}") : null;
+            var write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                    "A changed sequence event must not be completed using stale state.");
+                controller.Configure(false, false);
+                controller.ObserveForSmokeTestAsync(State("Lobby")).GetAwaiter().GetResult();
+                Require(write.Calls.All(call => call.Path != LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
+                    "Disabling return or leaving post-game must not schedule mission completion.");
+            }
+        }
+
         private static void ValidatePhaseContract()
         {
             Require(LeaguePostGameAutomationController.IsPostGamePhase("WaitingForStats"), "WaitingForStats must be post-game.");
@@ -323,6 +561,15 @@ namespace FACM.League
                 "}";
         }
 
+        private static string MultiBallotJson(int votes)
+        {
+            return "{\"gameId\":123,\"votePool\":{\"votes\":" + votes + "}," +
+                   "\"eligibleAllies\":[{\"puuid\":\"self\",\"summonerId\":100}," +
+                   "{\"puuid\":\"ally-a\",\"summonerId\":101}," +
+                   "{\"puuid\":\"ally-b\",\"summonerId\":102}]," +
+                   "\"eligibleOpponents\":[{\"puuid\":\"enemy\",\"summonerId\":777}]}";
+        }
+
         private static byte[] Bytes(string json)
         {
             return Encoding.UTF8.GetBytes(json ?? string.Empty);
@@ -337,6 +584,7 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public Func<string, int, byte[]> OnRead;
 
             public void Set(string path, string json) { _responses[path] = Bytes(json); }
             public void Set(string path, byte[] bytes) { _responses[path] = bytes; }
@@ -345,6 +593,8 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 RequestCount++;
+                var overrideResult = OnRead == null ? null : OnRead(path, RequestCount);
+                if (overrideResult != null) return Task.FromResult(overrideResult);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);

@@ -90,6 +90,31 @@ namespace FACM.League
             Require(session.PlatformId == "HN1", "LeagueClient command-line parser lost platform id.");
             Require(session.Region == "HN1", "LeagueClient command-line parser lost region.");
             Require(session.Source == "command-line", "LeagueClient command-line parser lost discovery source.");
+
+            const string withRiot = "LeagueClientUx.exe --app-port=55123 --remoting-auth-token=abc123 " +
+                "--riotclient-app-port=63001 --riotclient-auth-token=riot-local-token";
+            LeagueClientSession riot;
+            Require(LeagueClientSessionParser.TryParseRiotClientCommandLine(withRiot, out riot) &&
+                    riot.Port == 63001 && riot.Protocol == "https" && riot.BaseUri.Host == "127.0.0.1" &&
+                    Encoding.UTF8.GetString(Convert.FromBase64String(
+                        LeagueClientSessionParser.CreateBasicAuthorizationParameter(riot))) == "riot:riot-local-token",
+                "Akari Riot Client UX parameters must resolve only to authenticated loopback.");
+            Require(LeagueRiotClientSessionDiscovery.TryParseMatchingCommandLine(withRiot,
+                    new LeagueClientSession("LeagueClientUx", 0, 55123, "abc123", "https", "smoke"), out riot),
+                "Riot Client discovery must match the active LCU credentials before accepting Riot credentials.");
+            Require(!LeagueRiotClientSessionDiscovery.TryParseMatchingCommandLine(withRiot,
+                    new LeagueClientSession("LeagueClientUx", 0, 55123, "other-session", "https", "smoke"), out riot),
+                "A different LCU session must not reuse another Riot Client's token.");
+            Require(LeagueClientSessionParser.TryParseRiotClientCommandLine(
+                    "--riotclient-app-port=63001 --riotclient-auth-token=base64+/=", out riot),
+                "Riot UX command-line authentication must not assume URL-safe token characters.");
+            Require(!LeagueClientSessionParser.TryParseRiotClientCommandLine(
+                    "--riotclient-app-port=70000 --riotclient-auth-token=abc", out riot) &&
+                    !LeagueClientSessionParser.TryParseRiotClientCommandLine(
+                    "--riotclient-app-port=63001 --riotclient-auth-token=\\bad", out riot) &&
+                    !LeagueClientSessionParser.TryParseRiotClientCommandLine(
+                    "--app-port=63001 --remoting-auth-token=lcu-only", out riot),
+                "Malformed or LCU-only parameters must not fabricate Riot authentication.");
         }
 
         private static void ValidateSessionRefreshBoundary()

@@ -1,5 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
+using FACM.Mayhem;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -14,6 +18,8 @@ namespace FACM.AppHost.Modules
         private readonly LeagueClientModule _leagueClient;
         private readonly PerformanceModule _performance;
         private LeaguePlayerDataService _service;
+        private LeagueEncounterReplayService _replay;
+        private LeagueEncounterMatchDetailService _details;
 
         public LeaguePlayerModule(LeagueClientModule leagueClient, PerformanceModule performance)
         {
@@ -36,18 +42,78 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
-            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets);
+            _service = new LeaguePlayerDataService(_leagueClient, _performance.Budgets,
+                _leagueClient, _leagueClient, () => _leagueClient.CurrentSession);
+            _details = new LeagueEncounterMatchDetailService(_service, () => _leagueClient.CurrentSession);
+            _replay = new LeagueEncounterReplayService(_leagueClient,
+                (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
         }
 
         public Form CreatePlayerForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
-            return new LeaguePlayerForm(_service, ui);
+            return new LeaguePlayerForm(_service, ui, () => _leagueClient.CurrentSession,
+                (expected, self, target, match, token) => ExecuteHistoryReplayAsync(
+                    expected, self, target, match, token),
+                (expected, self, target, match, token) => _details.ReadHistoryAsync(expected, self, target, match, token),
+                LoadMatchAssetAsync);
+        }
+
+        private Task<Bitmap> LoadMatchAssetAsync(string reference, CancellationToken token)
+        {
+            return LeagueEfficiencyModule.IsSafeEncounterAssetReference(reference)
+                ? MayhemImageCache.GetAsync(reference, _leagueClient, token) : Task.FromResult<Bitmap>(null);
+        }
+
+        private async Task<LeagueEncounterReplayResult> ExecuteHistoryReplayAsync(
+            LeagueClientSession expected, string selfPuuid, string targetPuuid,
+            LeaguePlayerMatchSummary selected, CancellationToken token)
+        {
+            if (_service == null || _replay == null || selected == null || selected.GameId <= 0)
+                return new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Unavailable };
+            if (!LeagueEncounterReplayService.SessionMatches(expected, _leagueClient.CurrentSession))
+                return new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.NoClient };
+            var match = selected;
+            if (RequiresReplayDetail(selected))
+            {
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    deadline.CancelAfter(TimeSpan.FromSeconds(6));
+                    try
+                    {
+                        match = await _service.LoadMatchDetailAsync(
+                            new LeaguePlayerProfile { PuuId = targetPuuid }, selected.GameId,
+                            deadline.Token, selected.SgpServerId,
+                            selected.DataSource == LeaguePlayerHistorySource.Sgp,
+                            selected.PreferredSource != LeaguePlayerHistorySource.Lcu).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (token.IsCancellationRequested) throw;
+                        match = null;
+                    }
+                    catch (Exception) { match = null; }
+                }
+                if (!LeagueEncounterReplayService.SessionMatches(expected, _leagueClient.CurrentSession))
+                    return new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.NoClient };
+                if (match == null || match.GameId != selected.GameId)
+                    return new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Unavailable };
+            }
+            return await _replay.ExecuteForHistoryAsync(expected, selfPuuid, targetPuuid, match, token)
+                .ConfigureAwait(false);
+        }
+
+        internal static bool RequiresReplayDetail(LeaguePlayerMatchSummary match)
+        {
+            return match == null || match.GameCreationEpochMs <= 0 || match.GameDurationSeconds <= 0 ||
+                match.QueueId <= 0 || string.IsNullOrWhiteSpace(match.GameType);
         }
 
         public void Dispose()
         {
             _service = null;
+            _replay = null;
+            _details = null;
         }
     }
 }

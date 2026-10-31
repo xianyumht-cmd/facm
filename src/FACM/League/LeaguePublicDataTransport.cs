@@ -137,6 +137,19 @@ namespace FACM.League
             Require(!IsApproved(new Uri("http://op.gg/")), "HTTP must be rejected.");
             Require(!IsApproved(new Uri("https://127.0.0.1:2999/liveclientdata/allgamedata")), "Local client traffic must be rejected.");
             Require(!IsApproved(new Uri("https://localhost:2999/")), "localhost must be rejected.");
+            Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/league-servers")), "Akari SGP catalog must use an approved HTTPS host.");
+            Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/supported-queues")),
+                "Supported queue catalog must use the exact approved HTTPS resource.");
+            Require(!IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/unknown")),
+                "Unrecognized SGP public resources must remain blocked.");
+            Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/auto-select/groups")),
+                "Akari auto-select group catalog must use the exact approved HTTPS resource.");
+            Require(!IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/auto-select/other")),
+                "Unknown auto-select public resources must remain blocked.");
+            Require(!IsApproved(new Uri("https://child.akari-api.yuru-yuri.com/")), "Only the exact Akari API host is permitted.");
+            Require(!IsApproved(new Uri("https://akari-api.yuru-yuri.com:444/config/v1/sgp/league-servers")) &&
+                !IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/app/feature-gates")),
+                "Akari catalog transport must reject unrelated ports and paths.");
             Require(!IsApproved(new Uri("https://example.com/")), "Unknown public hosts must be rejected.");
         }
 
@@ -178,6 +191,12 @@ namespace FACM.League
             if (uri == null || uri.Scheme != Uri.UriSchemeHttps || uri.IsLoopback) return false;
             var host = (uri.Host ?? string.Empty).TrimEnd('.').ToLowerInvariant();
             if (host.Length == 0 || IPAddress.TryParse(host, out _)) return false;
+            if (host == "akari-api.yuru-yuri.com")
+                return uri.Port == 443 &&
+                    (uri.AbsolutePath == "/config/v1/sgp/league-servers" ||
+                     uri.AbsolutePath == "/config/v1/sgp/supported-queues" ||
+                     uri.AbsolutePath == "/config/v1/auto-select/groups") &&
+                    uri.Query.Length == 0 && uri.Fragment.Length == 0;
             return AllowedHostSuffixes.Any(suffix =>
                 string.Equals(host, suffix, StringComparison.OrdinalIgnoreCase) ||
                 host.EndsWith("." + suffix, StringComparison.OrdinalIgnoreCase));

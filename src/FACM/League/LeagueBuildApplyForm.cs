@@ -18,6 +18,9 @@ namespace FACM.League
         private readonly UiTextCatalog _ui;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly CheckBox _autoToggle;
+        private readonly CheckBox _presetToggle;
+        private readonly Button _savePresetButton;
+        private readonly Button _removePresetButton;
         private readonly Label _autoStatusValue;
         private readonly Label _contextValue;
         private readonly TextBox _spellValue;
@@ -94,6 +97,24 @@ namespace FACM.League
             var runeCaption = CreateCaption(T(LeagueBuildApplyUiTextKeys.Runes), 296);
             _runeValue = CreateValueBox(326, 58);
 
+            _presetToggle = new CheckBox
+            {
+                Text = T(LeagueChampionSpellPresetUiTextKeys.Toggle),
+                Location = new Point(30, 390),
+                Size = new Size(460, 30),
+                ForeColor = FacmDesignSystem.Text,
+                BackColor = Color.Transparent,
+                Checked = _autoController.PresetsEnabled,
+                Cursor = Cursors.Hand
+            };
+            _presetToggle.CheckedChanged += HandlePresetToggleChanged;
+            _savePresetButton = CreateButton(T(LeagueChampionSpellPresetUiTextKeys.Save), FacmButtonTone.Secondary, 110);
+            _savePresetButton.Location = new Point(506, 388);
+            _savePresetButton.Click += async delegate { await SaveCurrentPresetAsync(); };
+            _removePresetButton = CreateButton(T(LeagueChampionSpellPresetUiTextKeys.Remove), FacmButtonTone.Secondary, 110);
+            _removePresetButton.Location = new Point(622, 388);
+            _removePresetButton.Click += delegate { RemoveCurrentPreset(); };
+
             _statusValue = new Label
             {
                 Location = new Point(30, 430),
@@ -123,6 +144,9 @@ namespace FACM.League
             Controls.Add(_spellValue);
             Controls.Add(runeCaption);
             Controls.Add(_runeValue);
+            Controls.Add(_presetToggle);
+            Controls.Add(_savePresetButton);
+            Controls.Add(_removePresetButton);
             Controls.Add(_statusValue);
             Controls.Add(_refreshButton);
             Controls.Add(_applyButton);
@@ -194,6 +218,7 @@ namespace FACM.League
             try
             {
                 _autoController.SetEnabled(_autoToggle.Checked);
+                _presetToggle.Checked = _autoController.PresetsEnabled;
                 UpdateAutoStatus(_autoController.LastStatus);
             }
             catch (Exception exception)
@@ -204,6 +229,70 @@ namespace FACM.League
                 finally { _syncingAutoToggle = false; }
                 UpdateAutoStatus("failed");
             }
+        }
+
+        private void HandlePresetToggleChanged(object sender, EventArgs e)
+        {
+            if (_syncingAutoToggle || IsDisposed) return;
+            try
+            {
+                _autoController.SetPresetsEnabled(_presetToggle.Checked);
+                _syncingAutoToggle = true;
+                _autoToggle.Checked = _autoController.Enabled;
+                UpdateAutoStatus(_autoController.LastStatus);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League spell preset toggle failed", exception);
+                _presetToggle.Checked = _autoController.PresetsEnabled;
+                _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
+            }
+            finally { _syncingAutoToggle = false; }
+        }
+
+        private async Task SaveCurrentPresetAsync()
+        {
+            if (_busy || !CanSavePreset(_snapshot) || IsDisposed) return;
+            _busy = true;
+            SetButtons(false);
+            try
+            {
+                var current = await _applyService.CaptureCurrentLoadoutAsync(_snapshot, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (current == null)
+                {
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
+                    return;
+                }
+                _autoController.SavePreset(_snapshot, current);
+                _statusValue.Text = T(current.HasSpells
+                    ? (current.HasRunes ? LeagueChampionSpellPresetUiTextKeys.Saved : LeagueChampionSpellPresetUiTextKeys.SavedSpells)
+                    : LeagueChampionSpellPresetUiTextKeys.SavedRunes);
+            }
+            catch (OperationCanceledException)
+            {
+                if (!_lifetime.IsCancellationRequested)
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League spell preset capture failed", exception);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
+            }
+            finally
+            {
+                _busy = false;
+                if (!IsDisposed && !_lifetime.IsCancellationRequested) SetButtons(CanApply(_snapshot));
+            }
+        }
+
+        private void RemoveCurrentPreset()
+        {
+            if (_busy || !CanSavePreset(_snapshot)) return;
+            _autoController.RemovePreset(_snapshot);
+            _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.Removed);
+            SetButtons(CanApply(_snapshot));
         }
 
         private void HandleAutoStatusChanged(object sender, LeagueAutoApplyStatusChangedEventArgs e)
@@ -218,7 +307,11 @@ namespace FACM.League
             }
 
             _syncingAutoToggle = true;
-            try { _autoToggle.Checked = _autoController.Enabled; }
+            try
+            {
+                _autoToggle.Checked = _autoController.Enabled;
+                _presetToggle.Checked = _autoController.PresetsEnabled;
+            }
             finally { _syncingAutoToggle = false; }
             UpdateAutoStatus(e == null ? _autoController.LastStatus : e.Status);
         }
@@ -349,6 +442,9 @@ namespace FACM.League
                 ? T(LeagueBuildApplyUiTextKeys.Ready)
                 : T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = !_busy && CanApply(snapshot);
+            _savePresetButton.Enabled = !_busy && CanSavePreset(snapshot);
+            _removePresetButton.Enabled = !_busy &&
+                (_autoController.FindPreset(snapshot) != null || _autoController.FindRunePreset(snapshot) != null);
         }
 
         private void ApplyResult(LeagueBuildApplyResult result)
@@ -409,12 +505,25 @@ namespace FACM.League
             _runeValue.Text = string.Empty;
             _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = false;
+            _savePresetButton.Enabled = false;
+            _removePresetButton.Enabled = false;
         }
 
         private void SetButtons(bool canApply)
         {
             _refreshButton.Enabled = !_busy;
             _applyButton.Enabled = !_busy && canApply;
+            _savePresetButton.Enabled = !_busy && CanSavePreset(_snapshot);
+            _removePresetButton.Enabled = !_busy &&
+                (_autoController.FindPreset(_snapshot) != null || _autoController.FindRunePreset(_snapshot) != null);
+        }
+
+        private static bool CanSavePreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            return snapshot != null && snapshot.Connected &&
+                   snapshot.Activity == LeagueActivityLevel.ChampSelect && snapshot.ChampionId > 0 &&
+                   !string.IsNullOrWhiteSpace(LeagueChampionSpellPresets.GroupFor(
+                       snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType));
         }
 
         private static bool CanApply(LeagueBuildAdvisorSnapshot snapshot)

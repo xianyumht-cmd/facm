@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -127,6 +128,19 @@ namespace FACM.League
                 session = null;
                 return false;
             }
+        }
+
+        internal static bool TryParseRiotClientCommandLine(string commandLine, out LeagueClientSession session)
+        {
+            session = null;
+            var portText = ReadArgument(commandLine, "--riotclient-app-port");
+            var token = ReadArgument(commandLine, "--riotclient-auth-token");
+            int port;
+            if (!int.TryParse(portText, out port) || port <= 0 || port > 65535 ||
+                string.IsNullOrEmpty(token) || token.Length > 512 ||
+                token.Any(c => c < '!' || c > '~' || c == '"' || c == '\\')) return false;
+            session = new LeagueClientSession("RiotClient", 0, port, token, "https", "riot-ux-command-line");
+            return true;
         }
 
         public static string CreateBasicAuthorizationParameter(LeagueClientSession session)
@@ -317,8 +331,16 @@ namespace FACM.League
 
         private readonly object _sync = new object();
         private readonly List<Entry> _retired = new List<Entry>();
+        private readonly TimeSpan _timeout;
+        private readonly bool _disableProxy;
         private Entry _current;
         private bool _disposed;
+
+        internal LeagueSessionHttpClientPool(TimeSpan? timeout = null, bool disableProxy = false)
+        {
+            _timeout = timeout ?? TimeSpan.FromSeconds(2);
+            _disableProxy = disableProxy;
+        }
 
         public Lease Acquire(LeagueClientSession session)
         {
@@ -360,14 +382,14 @@ namespace FACM.League
             }
         }
 
-        private static HttpClient CreateClient(LeagueClientSession session)
+        private HttpClient CreateClient(LeagueClientSession session)
         {
-            var handler = new HttpClientHandler();
+            var handler = new HttpClientHandler { UseProxy = !_disableProxy };
             handler.ServerCertificateCustomValidationCallback = delegate { return true; };
             var client = new HttpClient(handler)
             {
                 BaseAddress = session.BaseUri,
-                Timeout = TimeSpan.FromSeconds(2)
+                Timeout = _timeout
             };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
                 "Basic",
@@ -435,7 +457,12 @@ namespace FACM.League
         Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueClientApiClient : ILeagueClientApi, IDisposable
+    internal interface ILeagueMasteryReadApi
+    {
+        Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected, string targetPuuid, CancellationToken token);
+    }
+
+    internal sealed class LeagueClientApiClient : ILeagueClientApi, ILeagueMasteryReadApi, IDisposable
     {
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -446,13 +473,28 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+        public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+        {
+            return SendReadAsync(path, null, null, cancellationToken);
+        }
+
+        public Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected, string targetPuuid, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (expected == null || !LeagueSgpMatchHistoryApiClient.SafePuuid(targetPuuid)) return Task.FromResult<byte[]>(null);
+            return SendReadAsync("/lol-champion-mastery/v1/" + targetPuuid + "/champion-mastery/top?count=8",
+                "{\"skipCache\":true}", expected, token);
+        }
+
+        private async Task<byte[]> SendReadAsync(string path, string body, LeagueClientSession expected,
+            CancellationToken cancellationToken)
         {
             if (string.IsNullOrWhiteSpace(path)) return null;
             cancellationToken.ThrowIfCancellationRequested();
 
             var session = _sessions.GetSession();
             if (session == null) return null;
+            if (expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try
@@ -468,15 +510,20 @@ namespace FACM.League
             {
                 try
                 {
-                    using (var response = await lease.Client.GetAsync(
-                        NormalizePath(path), HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
+                    using (var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, NormalizePath(path)))
                     {
-                        if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
-                            _sessions.Invalidate(session);
-                        if (!response.IsSuccessStatusCode) return null;
-                        return await CancelableHttpContentReader.ReadBytesAsync(
-                            response.Content, cancellationToken,
-                            CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                        if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                        using (var response = await lease.Client.SendAsync(request,
+                            HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false))
+                        {
+                            if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
+                                _sessions.Invalidate(session);
+                            if (!response.IsSuccessStatusCode) return null;
+                            var bytes = await CancelableHttpContentReader.ReadBytesAsync(
+                                response.Content, cancellationToken,
+                                CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                            return expected == null || LeagueEncounterReplayService.SessionMatches(expected, _sessions.GetSession()) ? bytes : null;
+                        }
                     }
                 }
                 catch (OperationCanceledException)
