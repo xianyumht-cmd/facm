@@ -16,7 +16,8 @@ namespace FACM.League
         Incompatible,
         Unavailable,
         NoClient,
-        WrongAccount
+        WrongAccount,
+        Ready
     }
 
     internal sealed class LeagueEncounterReplayResult
@@ -25,10 +26,19 @@ namespace FACM.League
         internal int Progress;
     }
 
+    internal sealed class LeagueReplayDirectoryResult
+    {
+        internal LeagueEncounterReplayStatus Status;
+        internal string Path;
+        internal bool? ReplaysEnabled;
+        internal bool? MatchHistoryEnabled;
+    }
+
     // One explicit scoreboard action. Do not poll LCU replay events from a background service.
     internal sealed class LeagueEncounterReplayService
     {
         internal const string ConfigurationPath = "/lol-replays/v1/configuration";
+        internal const string ReplayDirectoryPath = "/lol-replays/v1/rofls/path";
         private readonly ILeagueClientApi _read;
         private readonly ILeagueReplayWriteApi _write;
         private readonly Func<LeagueClientSession> _session;
@@ -40,6 +50,105 @@ namespace FACM.League
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _session = session ?? throw new ArgumentNullException(nameof(session));
+        }
+
+
+        // Read only the local folder reported by the current authenticated LCU.
+        internal async Task<LeagueReplayDirectoryResult> ReadDirectoryAsync(
+            LeagueClientSession expected, string selfPuuid, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            var initial = _session();
+            if (!SessionMatches(expected, initial))
+                return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.NoClient };
+            if (!LeagueDynamicMessageService.SafePuuid(selfPuuid))
+                return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable };
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(6));
+                try
+                {
+                    var before = Parse(await _read.TryGetBytesAsync(
+                        LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                    if (!IsCurrent(initial))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.NoClient };
+                    if (before == null || string.IsNullOrEmpty(String(before, "puuid")))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable };
+                    if (!Same(String(before, "puuid"), selfPuuid))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.WrongAccount };
+                    var configuration = Parse(await _read.TryGetBytesAsync(
+                        ConfigurationPath, deadline.Token).ConfigureAwait(false));
+                    if (!IsCurrent(initial))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.NoClient };
+                    var bytes = await _read.TryGetBytesAsync(
+                        ReplayDirectoryPath, deadline.Token).ConfigureAwait(false);
+                    if (!IsCurrent(initial))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.NoClient };
+                    var after = Parse(await _read.TryGetBytesAsync(
+                        LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                    if (!IsCurrent(initial))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.NoClient };
+                    if (after == null || string.IsNullOrEmpty(String(after, "puuid")))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable };
+                    if (!Same(String(after, "puuid"), selfPuuid))
+                        return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.WrongAccount };
+                    var path = ParseReplayDirectoryPath(bytes);
+                    return new LeagueReplayDirectoryResult
+                    {
+                        Status = path == null ? LeagueEncounterReplayStatus.Unavailable : LeagueEncounterReplayStatus.Ready,
+                        Path = path,
+                        ReplaysEnabled = OptionalBoolean(configuration, "isReplaysEnabled"),
+                        MatchHistoryEnabled = OptionalBoolean(configuration, "isReplaysForMatchHistoryEnabled")
+                    };
+                }
+                catch (OperationCanceledException)
+                {
+                    if (token.IsCancellationRequested) throw;
+                    return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable };
+                }
+                catch (Exception)
+                {
+                    return new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable };
+                }
+            }
+        }
+
+        internal static string ParseReplayDirectoryPath(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 4096) return null;
+            var raw = Encoding.UTF8.GetString(bytes).Trim();
+            string path = null;
+            try { path = new JavaScriptSerializer().DeserializeObject(raw) as string; }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            if (path == null && raw.Length >= 3 && char.IsLetter(raw[0]) && raw[1] == ':')
+                path = raw;
+            if (string.IsNullOrWhiteSpace(path)) return null;
+            path = path.Trim();
+            if (path.Length < 3 || path.Length > 512 || !char.IsLetter(path[0]) ||
+                path[1] != ':' || (path[2] != '\\' && path[2] != '/') ||
+                path.IndexOfAny(new[] { '<', '>', '|', '?', '*', '"', '\0' }) >= 0)
+                return null;
+            for (var i = 0; i < path.Length; i++)
+                if (char.IsControl(path[i]) || (i > 1 && path[i] == ':')) return null;
+            var parts = path.Substring(3).Replace('/', '\\').Split('\\');
+            for (var i = 0; i < parts.Length; i++)
+            {
+                var part = parts[i];
+                if (part == "." || part == ".." ||
+                    (part.Length == 0 && i != parts.Length - 1) ||
+                    (part.Length > 0 && (part.EndsWith(" ", StringComparison.Ordinal) ||
+                                         part.EndsWith(".", StringComparison.Ordinal))))
+                    return null;
+            }
+            return path;
+        }
+
+        private static bool? OptionalBoolean(Dictionary<string, object> source, string key)
+        {
+            object value;
+            return source != null && source.TryGetValue(key, out value) && value is bool
+                ? (bool?)((bool)value) : null;
         }
 
         // Player history is transient, not necessarily part of the saved encounter index.

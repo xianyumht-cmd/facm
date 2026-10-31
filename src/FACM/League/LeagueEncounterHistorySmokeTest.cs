@@ -2218,6 +2218,43 @@ namespace FACM.League
                     CancellationToken.None)).Status == LeagueEncounterReplayStatus.Unavailable &&
                 write.Downloads == writesBefore,
                 "Unselected history rows must not trigger replay writes.");
+
+            var pathBytes = Encoding.UTF8.GetBytes(
+                new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(
+                    @"C:\Riot Games\League of Legends\Replays"));
+            Require(LeagueEncounterReplayService.ParseReplayDirectoryPath(pathBytes) ==
+                    @"C:\Riot Games\League of Legends\Replays" &&
+                LeagueEncounterReplayService.ParseReplayDirectoryPath(
+                    Encoding.UTF8.GetBytes(@"D:\Games\Replays")) == @"D:\Games\Replays" &&
+                LeagueEncounterReplayService.ParseReplayDirectoryPath(
+                    Encoding.UTF8.GetBytes("\"\\\\\\\\server\\\\share\"")) == null &&
+                LeagueEncounterReplayService.ParseReplayDirectoryPath(
+                    Encoding.UTF8.GetBytes("\"C:\\\\Games\\\\..\\\\Secrets\"")) == null &&
+                LeagueEncounterReplayService.ParseReplayDirectoryPath(
+                    Encoding.UTF8.GetBytes("\"C:\\\\Games\\\\file|bad\"")) == null &&
+                LeagueEncounterReplayService.ParseReplayDirectoryPath(new byte[4097]) == null,
+                "Replay folder paths must be bounded, local, absolute and traversal-free.");
+            read.ReplayPathJson = Encoding.UTF8.GetString(pathBytes);
+            var directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
+            Require(directory.Status == LeagueEncounterReplayStatus.Ready &&
+                directory.Path == @"C:\Riot Games\League of Legends\Replays" &&
+                directory.ReplaysEnabled == true && directory.MatchHistoryEnabled == true &&
+                read.ReplayPathReads == 1 && write.Downloads == writesBefore,
+                "Replay-folder inspection must be read-only and expose source-known switches.");
+            read.SelfPuuid = "another-player";
+            directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
+            Require(directory.Status == LeagueEncounterReplayStatus.WrongAccount &&
+                read.ReplayPathReads == 1 && write.Downloads == writesBefore,
+                "A changed account must be rejected before reading its replay folder.");
+            read.SelfPuuid = "self";
+            read.AfterReplayPath = () => active = new LeagueClientSession(
+                "LeagueClientUx", 55, 3001, "changed", "https", "fixture", "HN1", "HN1");
+            directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
+            Require(directory.Status == LeagueEncounterReplayStatus.NoClient &&
+                write.Downloads == writesBefore,
+                "A changed LCU session during replay-folder read must discard the path.");
+            active = session;
+            read.AfterReplayPath = null;
             Require(LeagueEncounterMatchScoreboardDialog.ReplayStatusText(
                 new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Downloading, Progress = 42 },
                 key => key == LeagueEfficiencyUiTextKeys.DynamicEncounterReplayDownloading ? "{0}%" : key) == "42%",
@@ -2233,6 +2270,9 @@ namespace FACM.League
             internal long MetadataGameId = 123;
             internal Action AfterMetadata;
             internal Action AfterConfiguration;
+            internal Action AfterReplayPath;
+            internal string ReplayPathJson;
+            internal int ReplayPathReads;
             internal int ProfileReads;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
@@ -2249,6 +2289,12 @@ namespace FACM.League
                     AfterConfiguration?.Invoke();
                     json = "{\"gameVersion\":\"15.21.1\",\"isReplaysEnabled\":" +
                         (Enabled ? "true" : "false") + ",\"isReplaysForMatchHistoryEnabled\":true}";
+                }
+                else if (path == LeagueEncounterReplayService.ReplayDirectoryPath)
+                {
+                    ReplayPathReads++;
+                    AfterReplayPath?.Invoke();
+                    json = ReplayPathJson;
                 }
                 else if (path == "/lol-replays/v1/metadata/123")
                 {
