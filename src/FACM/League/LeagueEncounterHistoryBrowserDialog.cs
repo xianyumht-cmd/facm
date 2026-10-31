@@ -171,12 +171,19 @@ namespace FACM.League
                 var detail = await _loadDetail(record, _lifetime.Token);
                 if (IsDisposed || !ReferenceEquals(record, SelectedRecord()) || !_isCurrent()) return;
                 _detailStatus.Text = FormatDetail(detail);
-                if (detail != null && detail.Status == LeagueEncounterMatchDetailStatus.Ready &&
-                    detail.Participants != null && detail.Participants.Count > 0)
+                if (detail != null && detail.Status == LeagueEncounterMatchDetailStatus.Ready)
                 {
-                    using (var scoreboard = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset,
-                        (match, token) => _replay(record, match, token)))
-                        scoreboard.ShowDialog(this);
+                    if (detail.EogOnly != null)
+                    {
+                        using (var eog = new LeagueSgpEogOnlyDialog(_ui, detail))
+                            eog.ShowDialog(this);
+                    }
+                    else if (detail.Participants != null && detail.Participants.Count > 0)
+                    {
+                        using (var scoreboard = new LeagueEncounterMatchScoreboardDialog(_ui, detail, _loadAsset,
+                            (match, token) => _replay(record, match, token)))
+                            scoreboard.ShowDialog(this);
+                    }
                 }
             }
             catch (OperationCanceledException) { }
