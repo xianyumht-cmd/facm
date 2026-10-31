@@ -33,6 +33,7 @@ namespace FACM.League
         internal int? NeutralMinions;
         internal int? Vision;
         internal bool? Win;
+        internal Dictionary<string, int> Statistics;
     }
 
     // Project only documented end-of-game fields. Never retain room passwords, JWTs or credentials.
@@ -99,7 +100,8 @@ namespace FACM.League
                         Minions = Stat(values, "MINIONS_KILLED"),
                         NeutralMinions = Stat(values, "NEUTRAL_MINIONS_KILLED"),
                         Vision = Stat(values, "VISION_SCORE"),
-                        Win = Stat(values, "WIN").HasValue ? Stat(values, "WIN") == 1 : (bool?)null
+                        Win = Stat(values, "WIN").HasValue ? Stat(values, "WIN") == 1 : (bool?)null,
+                        Statistics = values
                     });
                 }
                 if (!seen.Contains(ownerPuuid)) return null;

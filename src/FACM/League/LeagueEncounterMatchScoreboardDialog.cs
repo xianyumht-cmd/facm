@@ -452,7 +452,32 @@ namespace FACM.League
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 70);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 70);
                 eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 80);
-                eogLayout.Controls.Add(eogRows, 0, 1);
+                var eogSplit = new SplitContainer { Dock = DockStyle.Fill,
+                    Orientation = Orientation.Vertical, Width = 1100, SplitterDistance = 770,
+                    Panel1MinSize = 380, Panel2MinSize = 180 };
+                eogSplit.Panel1.Controls.Add(eogRows);
+                var eogStats = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, GridLines = true };
+                eogStats.Columns.Add("SGP Stat", 205);
+                eogStats.Columns.Add("Value", 100);
+                eogSplit.Panel2.Controls.Add(eogStats);
+                eogRows.SelectedIndexChanged += (sender, e) =>
+                {
+                    eogStats.BeginUpdate();
+                    try
+                    {
+                        eogStats.Items.Clear();
+                        var selected = eogRows.SelectedItems.Count == 1
+                            ? eogRows.SelectedItems[0].Tag as LeagueSgpEogPlayer : null;
+                        if (selected == null || selected.Statistics == null) return;
+                        foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
+                            StringComparer.OrdinalIgnoreCase))
+                            eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
+                                stat.Value.ToString("N0", CultureInfo.CurrentCulture) }));
+                    }
+                    finally { eogStats.EndUpdate(); }
+                };
+                eogLayout.Controls.Add(eogSplit, 0, 1);
                 eogTab.Controls.Add(eogLayout);
                 matchTabs.TabPages.Add(eogTab);
                 var loaded = false;
@@ -513,6 +538,7 @@ namespace FACM.League
                                         ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)
                                         : t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost)) : "—" });
                                 item.Group = team;
+                                item.Tag = player;
                                 if (string.Equals(player.Puuid, match.PuuId,
                                     StringComparison.OrdinalIgnoreCase))
                                     item.BackColor = FacmDesignSystem.Canvas;

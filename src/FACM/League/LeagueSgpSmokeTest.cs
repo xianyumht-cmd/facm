@@ -150,6 +150,8 @@ namespace FACM.League
                 parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
                 parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
                 parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
+                parsed.Players[0].Statistics.Count == 4 &&
+                parsed.Players[0].Statistics["CHAMPIONS_KILLED"] == 5 &&
                 !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
