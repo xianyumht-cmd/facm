@@ -34,6 +34,13 @@ namespace FACM.League
                 LeagueMatchTimelinePanel.FilterEventsForSmokeTest(null, 0,
                     new[] { "CHAMPION_KILL" }).Count == 0,
                 "Timeline multi-event filtering must preserve checked types and participant ownership.");
+            Require(LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 0,
+                    new[] { "ITEM_PURCHASED", "ITEM_UNDO", "CHAMPION_KILL" }, new[] { 2 }).Count == 1 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 0,
+                    new[] { "ITEM_PURCHASED", "ITEM_UNDO", "CHAMPION_KILL" }, new[] { 1 }).Count == 3 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 1,
+                    new[] { "ITEM_PURCHASED", "ITEM_UNDO", "CHAMPION_KILL" }, new[] { 4 }).Count == 0,
+                "Multi-champion event filtering must use only validated participating IDs.");
             Require(LeagueMatchTimelineParser.Parse(Bytes("{\"json\":" + Timeline + "}"), 701, true) != null &&
                 LeagueMatchTimelineParser.Parse(Bytes("{\"json\":" + Timeline + "}"), 702, true) == null &&
                 LeagueMatchTimelineParser.Parse(Bytes(Timeline.Replace("\"participantId\":1,\"level\":1", "\"participantId\":2,\"level\":1")), 701, false) == null &&

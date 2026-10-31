@@ -19,8 +19,9 @@ namespace FACM.League
         private readonly List<LeaguePlayerMatchParticipant> _participants;
         private readonly LeagueBuildAdvisorCatalog _catalog;
         private readonly ComboBox _player;
-        private readonly Button _eventFilter;
+        private readonly Button _eventFilter, _championFilter;
         private readonly ContextMenuStrip _eventMenu = new ContextMenuStrip();
+        private readonly ContextMenuStrip _championMenu = new ContextMenuStrip();
         private readonly Label _status;
         private readonly Button _retry, _damage;
         private readonly Func<bool> _isCurrentSession;
@@ -74,6 +75,34 @@ namespace FACM.League
                 Text = T(UiTextKeys.LeagueTimelineEventType),
                 AccessibleName = T(UiTextKeys.LeagueTimelineEventType) };
             _eventFilter.Click += (sender, args) => _eventMenu.Show(_eventFilter, 0, _eventFilter.Height);
+            _championFilter = new Button { Width = 116, Height = 26,
+                Text = T(UiTextKeys.LeaguePlayerFilterChampion),
+                AccessibleName = T(UiTextKeys.LeaguePlayerFilterChampion) };
+            _championFilter.Click += (sender, args) =>
+                _championMenu.Show(_championFilter, 0, _championFilter.Height);
+            var allChampions = new ToolStripMenuItem(T(UiTextKeys.LeaguePlayerFilterAll));
+            allChampions.Click += (sender, args) =>
+            {
+                _updating = true;
+                foreach (var item in _championMenu.Items.OfType<ToolStripMenuItem>())
+                    if (item.Tag is int) item.Checked = false;
+                _updating = false;
+                RefreshRows();
+            };
+            _championMenu.Items.Add(allChampions);
+            foreach (var champion in _participants.Where(p => p != null && p.ChampionId > 0)
+                .GroupBy(p => p.ChampionId).OrderBy(group => group.Key))
+            {
+                var participant = champion.First();
+                var label = string.IsNullOrWhiteSpace(participant.ChampionName)
+                    ? "#" + champion.Key : participant.ChampionName;
+                var item = new ToolStripMenuItem(label)
+                {
+                    Tag = champion.Key, CheckOnClick = true
+                };
+                item.CheckedChanged += (sender, args) => { if (!_updating) RefreshRows(); };
+                _championMenu.Items.Add(item);
+            }
             _retry = new Button { Text = T(UiTextKeys.LeaguePlayerRemoteRetry), Width = 70, Height = 26 };
             _retry.Click += async (sender, args) => { _timeline = null; await EnsureLoadedAsync(); };
             _damage = new Button { Text = T(UiTextKeys.LeagueDeathDamageTitle), AutoSize = true, Height = 26, Enabled = false };
@@ -85,7 +114,8 @@ namespace FACM.League
                 using (var dialog = new LeagueDeathDamageDialog(_ui, projection, _participants, _catalog,
                     loadAsset, _isCurrentSession, _lifetime.Token)) dialog.ShowDialog(this);
             };
-            tools.Controls.Add(_player); tools.Controls.Add(_eventFilter); tools.Controls.Add(_retry);
+            tools.Controls.Add(_player); tools.Controls.Add(_eventFilter);
+            tools.Controls.Add(_championFilter); tools.Controls.Add(_retry);
             tools.Controls.Add(_damage);
             _status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
             _events = EventList();
@@ -186,12 +216,17 @@ namespace FACM.League
             var selectedTypes = _eventMenu.Items.OfType<ToolStripMenuItem>()
                 .Where(item => item.Checked && item.Tag is string)
                 .Select(item => (string)item.Tag).ToArray();
+            var selectedChampions = new HashSet<int>(_championMenu.Items.OfType<ToolStripMenuItem>()
+                .Where(item => item.Checked && item.Tag is int).Select(item => (int)item.Tag));
+            var championParticipants = _participants.Where(p => p != null &&
+                selectedChampions.Contains(p.ChampionId)).Select(p => p.ParticipantId).ToArray();
             _events.SelectedIndices.Clear();
             _builds.SelectedIndices.Clear();
             _events.VirtualListSize = 0;
             _builds.VirtualListSize = 0;
             _shownEvents = FilterEventsForSmokeTest(
-                _timeline == null ? null : _timeline.Events, id, selectedTypes);
+                _timeline == null ? null : _timeline.Events, id, selectedTypes,
+                selectedChampions.Count == 0 ? null : championParticipants);
             _shownBuilds = _buildProjection.Steps.Where(step => step.Event.Involves(id))
                 .Select(step => step.Event).ToList();
             _events.VirtualListSize = _shownEvents.Count;
@@ -225,12 +260,16 @@ namespace FACM.League
         }
 
         internal static List<LeagueMatchTimelineEvent> FilterEventsForSmokeTest(
-            IEnumerable<LeagueMatchTimelineEvent> events, int participantId, IEnumerable<string> types)
+            IEnumerable<LeagueMatchTimelineEvent> events, int participantId, IEnumerable<string> types,
+            IEnumerable<int> championParticipantIds = null)
         {
             var selected = new HashSet<string>(types ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            var champions = championParticipantIds == null ? null :
+                new HashSet<int>(championParticipantIds.Where(id => id > 0 && id <= 20));
             return (events ?? Enumerable.Empty<LeagueMatchTimelineEvent>())
                 .Where(entry => entry != null && selected.Contains(entry.Type) &&
-                    entry.Involves(participantId)).Take(10000).ToList();
+                    entry.Involves(participantId) &&
+                    (champions == null || champions.Any(entry.Involves))).Take(10000).ToList();
         }
 
         private ListViewItem FrameRow(int index)
@@ -405,7 +444,7 @@ namespace FACM.League
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing && !IsDisposed) { _lifetime.Cancel(); _lifetime.Dispose(); _eventMenu.Dispose(); }
+            if (disposing && !IsDisposed) { _lifetime.Cancel(); _lifetime.Dispose(); _eventMenu.Dispose(); _championMenu.Dispose(); }
             base.Dispose(disposing);
         }
     }
