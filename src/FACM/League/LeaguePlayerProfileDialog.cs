@@ -252,7 +252,13 @@ namespace FACM.League
             Shown += async (sender, args) =>
             {
                 LeaguePlayerPostgameRefreshBridge.PostgameEntered += OnPostgameEntered;
-                await LoadSelectedAsync(true);
+                if (_source != LeaguePlayerHistorySource.Lcu && _session != null && IsCurrent())
+                {
+                    try { await LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token); }
+                    catch (OperationCanceledException) { return; }
+                }
+                if (!IsDisposed && !_lifetime.IsCancellationRequested && IsCurrent())
+                    await LoadSelectedAsync(true);
             };
         }
 

@@ -40,8 +40,7 @@ namespace FACM.League
             "opgg.gg",
             "communitydragon.org",
             "arammayhem.com",
-            "hexdata.com.cn",
-            "akari-api.yuru-yuri.com"
+            "hexdata.com.cn"
         };
         private static readonly HttpClient Client = CreateClient();
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> Flights =
@@ -139,6 +138,7 @@ namespace FACM.League
             Require(!IsApproved(new Uri("https://127.0.0.1:2999/liveclientdata/allgamedata")), "Local client traffic must be rejected.");
             Require(!IsApproved(new Uri("https://localhost:2999/")), "localhost must be rejected.");
             Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/league-servers")), "Akari SGP catalog must use an approved HTTPS host.");
+            Require(!IsApproved(new Uri("https://child.akari-api.yuru-yuri.com/")), "Only the exact Akari API host is permitted.");
             Require(!IsApproved(new Uri("https://example.com/")), "Unknown public hosts must be rejected.");
         }
 
@@ -180,6 +180,7 @@ namespace FACM.League
             if (uri == null || uri.Scheme != Uri.UriSchemeHttps || uri.IsLoopback) return false;
             var host = (uri.Host ?? string.Empty).TrimEnd('.').ToLowerInvariant();
             if (host.Length == 0 || IPAddress.TryParse(host, out _)) return false;
+            if (host == "akari-api.yuru-yuri.com") return true;
             return AllowedHostSuffixes.Any(suffix =>
                 string.Equals(host, suffix, StringComparison.OrdinalIgnoreCase) ||
                 host.EndsWith("." + suffix, StringComparison.OrdinalIgnoreCase));
