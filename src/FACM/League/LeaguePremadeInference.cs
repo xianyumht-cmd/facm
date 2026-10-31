@@ -144,11 +144,11 @@ namespace FACM.League
                     else seen.Add(match.GameId, match);
                 }
                 var classified = seen.Values.Where(m =>
-                    string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(m.WinResult, "loss", StringComparison.OrdinalIgnoreCase)).ToArray();
+                    LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                    LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss).ToArray();
                 if (classified.Length == 0) return null;
                 result.Games += classified.Length;
-                result.Wins += classified.Count(m => string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase));
+                result.Wins += classified.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win);
                 foreach (var match in classified)
                 {
                     if (!match.StatisticsAvailable || match.Kills < 0 || match.Deaths < 0 || match.Assists < 0)
@@ -198,9 +198,9 @@ namespace FACM.League
                     else seen.Add(match.GameId, match);
                 }
                 var classified = seen.Values.Where(m =>
-                    string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(m.WinResult, "loss", StringComparison.OrdinalIgnoreCase)).ToArray();
-                var wins = classified.Count(m => string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase));
+                    LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                    LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss).ToArray();
+                var wins = classified.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win);
                 games.Add(classified.Length);
                 winRates.Add(classified.Length == 0 ? double.NaN : (double)wins / classified.Length);
                 // A streak is only meaningful when the full observed sequence is timestamped and classified.
@@ -211,7 +211,7 @@ namespace FACM.League
                 if (complete)
                     foreach (var match in classified.OrderByDescending(m => m.GameCreationEpochMs))
                     {
-                        if (!string.Equals(match.WinResult, "win", StringComparison.OrdinalIgnoreCase)) break;
+                        if (LeaguePlayerHistoryAnalysis.Outcome(match) != LeagueHistoryOutcome.Win) break;
                         streak++;
                     }
                 streaks.Add(streak);

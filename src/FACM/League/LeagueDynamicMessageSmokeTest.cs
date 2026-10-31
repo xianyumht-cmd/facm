@@ -264,11 +264,13 @@ namespace FACM.League
                     Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() });
             for (var i = 0; i < 13; i++)
                 strong.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 100 + i,
-                    GameCreationEpochMs = 100000 + i * 1000, WinResult = "win" });
+                    GameCreationEpochMs = 100000 + i * 1000, WinResult = "win",
+                    ParticipantResolved = true, StatisticsAvailable = true });
             for (var index = 1; index < 3; index++)
                 for (var i = 0; i < 5; i++)
                     strong.Players[index].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 200 + index * 10 + i,
-                        GameCreationEpochMs = 200000 + i * 1000, WinResult = "win" });
+                        GameCreationEpochMs = 200000 + i * 1000, WinResult = "win",
+                        ParticipantResolved = true, StatisticsAvailable = true });
             Require(LeaguePremadeTeamTagProjection.Classify(strong.Players) ==
                 LeaguePremadeTeamTagProjection.WinRateTeam,
                 "Pinned three-player high-win-rate/streak team classification was not projected.");
@@ -282,7 +284,7 @@ namespace FACM.League
                     Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() };
                 for (var i = 0; i < 4; i++)
                     player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 300 + i,
-                        WinResult = "loss" });
+                        WinResult = "loss", ParticipantResolved = true, StatisticsAvailable = true });
                 low.Players.Add(player);
             }
             Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
@@ -292,7 +294,8 @@ namespace FACM.League
             Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
                 LeaguePremadeTeamTagProjection.LossRateTeam,
                 "One unknown game must not be counted as a loss or erase other classified outcomes.");
-            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win" });
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true });
             Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
                 "Conflicting duplicate game outcomes must not create a team label.");
             low.Players[1].History.Matches.RemoveAt(low.Players[1].History.Matches.Count - 1);
@@ -303,8 +306,12 @@ namespace FACM.League
                 "Opposing current teams must not receive a shared member-history aggregate.");
             low.Players[1].Friendly = false;
             var aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
-            Require(aggregate != null && aggregate.Games == 7 && aggregate.Wins == 0 && !aggregate.Kda.HasValue,
-                "Premade member sample must count known outcomes without treating missing stats as zero.");
+            Require(aggregate != null && aggregate.Games == 7 && aggregate.Wins == 0 &&
+                aggregate.Kda.HasValue && aggregate.Kda.Value == 0d,
+                "Premade member sample must count verified outcomes and preserve known zero KDA.");
+            low.Players[0].History.Matches[0].Kills = -1;
+            Require(!LeaguePremadeTeamAggregate.Project(low.Players).Kda.HasValue,
+                "Invalid participant statistics must suppress KDA rather than becoming zero.");
             foreach (var member in low.Players)
                 foreach (var match in member.History.Matches)
                 {
@@ -314,7 +321,8 @@ namespace FACM.League
             aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
             Require(aggregate != null && aggregate.Kda.HasValue && Math.Abs(aggregate.Kda.Value - 5d) < 0.0001,
                 "Premade member KDA must use only complete classified source samples.");
-            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win" });
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true });
             Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
                 "Conflicting duplicate historical outcomes must suppress the entire team summary.");
         }
