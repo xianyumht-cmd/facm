@@ -324,6 +324,14 @@ namespace FACM.League
                 .Select(g => g.Key), StringComparer.Ordinal) : new HashSet<string>(StringComparer.Ordinal);
             var checkedGroups = preserveSelection ? SelectedGroups() : new HashSet<string>(StringComparer.Ordinal);
             _groups.Items.Clear();
+            var premadeLabels = LeaguePremadePlayerTagProjection.Project(snapshot, _options.PremadeMatchThreshold);
+            foreach (var choice in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>()))
+            {
+                string label;
+                choice.PremadeGroup = premadeLabels.TryGetValue(choice.Player.Player.PuuId, out label) ? label : null;
+            }
+            _players.Refresh();
+            _jungle.Refresh();
             var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
                 LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
                 .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
@@ -601,6 +609,7 @@ namespace FACM.League
         {
             internal readonly LeagueDynamicMessagePlayer Player;
             internal string Tag;
+            internal string PremadeGroup;
             private IReadOnlyList<string> _sourceTags;
             internal PlayerChoice(LeagueDynamicMessagePlayer player)
             {
@@ -616,6 +625,7 @@ namespace FACM.League
                 return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
                     " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer)) +
                     (string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +
+                    (string.IsNullOrEmpty(PremadeGroup) ? string.Empty : " · " + PremadeGroup) +
                     (_sourceTags == null || _sourceTags.Count == 0 ? string.Empty : " · " + string.Join(" · ", _sourceTags));
             }
         }

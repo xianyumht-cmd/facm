@@ -110,6 +110,27 @@ namespace FACM.League
         }
     }
 
+    internal static class LeaguePremadePlayerTagProjection
+    {
+        internal static IDictionary<string, string> Project(LeagueDynamicMessageSnapshot snapshot, int threshold)
+        {
+            var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (snapshot == null) return labels;
+            var byId = snapshot.Players.Where(p => p != null && p.Player != null &&
+                LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+            var groups = LeaguePremadeInference.Infer(snapshot, threshold)
+                .OrderByDescending(g => byId[g[0]].Friendly)
+                .ThenBy(g => LeaguePremadeMessageFormatter.GroupKey(g), StringComparer.Ordinal).ToArray();
+            for (var index = 0; index < groups.Length && index < 26; index++)
+                foreach (var id in groups[index])
+                    labels[id] = LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingPremadeTeam)
+                        .Replace("{0}", ((char)('A' + index)).ToString());
+            return labels;
+        }
+    }
+
     internal sealed class LeaguePremadeTeamAggregate
     {
         internal int Wins;

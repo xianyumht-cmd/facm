@@ -182,6 +182,11 @@ namespace FACM.League
             self.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1,
                 SameTeamPuuids = new[] { "self", "ally" } });
             var groups = LeaguePremadeInference.Infer(snapshot);
+            var playerTags = LeaguePremadePlayerTagProjection.Project(snapshot, 5);
+            Require(playerTags.Count == 2 && playerTags["self"] == playerTags["ally"] &&
+                !playerTags.ContainsKey("enemy") && playerTags["self"].Contains("A") &&
+                LeaguePremadePlayerTagProjection.Project(snapshot, 6).Count == 0,
+                "Ongoing player cards must show stable source-backed premade IDs only at the chosen threshold.");
             Require(groups.Count == 1 && groups[0].SequenceEqual(new[] { "ally", "self" }),
                 "Premade inference must count distinct same-team games and never mix current opposing sides.");
             self.Player.GameName = "Self"; ally.Player.GameName = "Ally";
@@ -226,6 +231,8 @@ namespace FACM.League
             Require(LeaguePremadeInference.Infer(snapshot, 6).Count == 0,
                 "Duplicate source histories counted one historical game more than once.");
             ally.Friendly = false;
+            Require(LeaguePremadePlayerTagProjection.Project(snapshot, 5).Count == 0,
+                "Premade player-card tags must disappear when current team ownership changes.");
             Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
                 "An opposing current-side player was incorrectly inferred as a premade member.");
             ally.Friendly = true;

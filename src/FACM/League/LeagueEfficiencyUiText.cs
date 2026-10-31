@@ -379,6 +379,7 @@ namespace FACM.League
         public const string OngoingHighWinRate = "LeagueEfficiencyOngoingHighWinRate";
         public const string OngoingMixedFlash = "LeagueEfficiencyOngoingMixedFlash";
         public const string OngoingSoloKills = "LeagueEfficiencyOngoingSoloKills";
+        public const string OngoingPremadeTeam = "LeagueEfficiencyOngoingPremadeTeam";
         public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
         public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
         public const string JungleTab = "LeagueEfficiencyJungleTab";
@@ -801,6 +802,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingHighWinRate, "高胜率" },
             { LeagueEfficiencyUiTextKeys.OngoingMixedFlash, "闪现键位混用" },
             { LeagueEfficiencyUiTextKeys.OngoingSoloKills, "场均单杀 {0}" },
+            { LeagueEfficiencyUiTextKeys.OngoingPremadeTeam, "组队 {0}" },
             { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少 {0} 局），不能判定无人组队。" },
             { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.JungleTab, "打野分析" },
