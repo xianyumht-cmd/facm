@@ -79,6 +79,7 @@ namespace FACM.League
                 Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/local-puuid", StringComparison.Ordinal) &&
                     handler.Authorization == "Bearer profile-token",
                     "Pinned SGP end-of-game read must be current-region and League-session scoped.");
+                ValidateSupportedQueues(api, handler, local);
                 var calls = handler.Calls;
                 var reads = local.Paths.Count;
                 api.TryGetSummaryAsync("../unsafe", 0, 10, CancellationToken.None).GetAwaiter().GetResult();
@@ -113,6 +114,44 @@ namespace FACM.League
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
                 "League session credentials must be a bounded printable JSON string.");
+        }
+
+        private static void ValidateSupportedQueues(LeagueSgpMatchHistoryApiClient api,
+            CaptureHandler handler, TokenApi local)
+        {
+            try
+            {
+                Require(LeagueSgpSupportedQueues.Snapshot().Length == 17 &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_420") &&
+                    LeagueSgpSupportedQueues.IsValidTag("ranked") &&
+                    LeagueSgpSupportedQueues.IsValidTag("normal"),
+                    "Pinned supported queue defaults and general tags must be available.");
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_420")
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/SUMMARY?startIndex=0&count=10&tag=q_420", StringComparison.Ordinal) &&
+                    handler.Authorization == "Bearer history-token",
+                    "SGP queue selection must use server-side tags with the existing entitlement owner.");
+                var calls = handler.Calls;
+                var reads = local.Paths.Count;
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_999")
+                    .GetAwaiter().GetResult();
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "ranked&count=999")
+                    .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads,
+                    "Unlisted and injected queue tags must fail before token reads.");
+                var valid = Bytes("{\"updatedAt\":\"2026-08-01T00:00:00.000Z\",\"queues\":[420,450,9999]}");
+                Require(LeagueSgpSupportedQueues.TryApply(valid) &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_9999") &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_440") &&
+                    LeagueSgpSupportedQueues.Snapshot().Length == 3,
+                    "New supported queues must atomically replace the old snapshot.");
+                Require(!LeagueSgpSupportedQueues.TryApply(valid) &&
+                    !LeagueSgpSupportedQueues.TryApply(Bytes("{\"updatedAt\":\"2026-08-02T00:00:00.000Z\",\"queues\":[420,420]}")) &&
+                    !LeagueSgpSupportedQueues.TryApply(Bytes("{\"updatedAt\":\"2026-08-02T00:00:00.000Z\",\"queues\":[-1]}")) &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_9999"),
+                    "Stale, duplicate and invalid catalogs must preserve the active list.");
+            }
+            finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
         }
 
         private static void ValidateCatalogRefresh()

@@ -105,8 +105,12 @@ namespace FACM.League
         internal async Task<LeagueRemotePlayerHistoryResult> LoadRemotePlayerHistoryAsync(
             LeaguePlayerProfile expected, string targetPuuid, CancellationToken cancellationToken,
             int startIndex = 0, int count = InitialMatchCount,
-            LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic, string serverId = null)
+            LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic, string serverId = null,
+            string queueTag = null)
         {
+            if (queueTag != null && (source == LeaguePlayerHistorySource.Lcu ||
+                !LeagueSgpSupportedQueues.IsValidTag(queueTag)))
+                return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
             if (expected == null || !IsSafePuuid(expected.PuuId) || !IsSafePuuid(targetPuuid) ||
                 startIndex < 0 || count < 1 || count > MaximumRemoteMatchPageCount ||
                 startIndex > int.MaxValue - count || !Enum.IsDefined(typeof(LeaguePlayerHistorySource), source) ||
@@ -132,7 +136,7 @@ namespace FACM.League
                             .ConfigureAwait(false);
                         if (profile == null)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
-                        var page = await ReadHistoryPageAsync(profile, startIndex, count, source, serverId, timeout.Token)
+                        var page = await ReadHistoryPageAsync(profile, startIndex, count, source, serverId, timeout.Token, queueTag)
                             .ConfigureAwait(false);
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
@@ -370,10 +374,17 @@ namespace FACM.League
             LeagueMatchCollectionSettings settings,
             LeagueSimpleMatchHistoryFilter simpleFilter, LeagueAdvancedMatchHistoryFilter advancedFilter,
             IProgress<LeagueMatchCollectionProgress> progress, CancellationToken cancellationToken,
-            LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic, string serverId = null)
+            LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic, string serverId = null,
+            string queueTag = null)
         {
             var session = _session?.Invoke();
             var result = new LeagueMatchCollectionResult();
+            if (queueTag != null && (source == LeaguePlayerHistorySource.Lcu ||
+                !LeagueSgpSupportedQueues.IsValidTag(queueTag)))
+            {
+                result.Status = LeagueMatchCollectionStatus.Unavailable;
+                return result;
+            }
             if (expectedSelf == null || !IsSafePuuid(expectedSelf.PuuId) ||
                 target == null || !IsSafePuuid(target.PuuId) || settings == null || !settings.IsValid)
             {
@@ -415,7 +426,7 @@ namespace FACM.League
 
                             var startIndex = iteration * settings.CountPerIteration;
                             var page = await ReadHistoryPageAsync(target, startIndex, settings.CountPerIteration,
-                                source, serverId, timeout.Token).ConfigureAwait(false);
+                                source, serverId, timeout.Token, queueTag).ConfigureAwait(false);
                             if (page == null)
                             {
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
@@ -1079,12 +1090,13 @@ namespace FACM.League
         }
 
         private async Task<LeaguePlayerMatchPage> ReadHistoryPageAsync(LeaguePlayerProfile target,
-            int startIndex, int count, LeaguePlayerHistorySource source, string serverId, CancellationToken token)
+            int startIndex, int count, LeaguePlayerHistorySource source, string serverId, CancellationToken token,
+            string queueTag = null)
         {
             var session = _session?.Invoke();
             if (!SessionStillCurrent(session)) return null;
             if (!Enum.IsDefined(typeof(LeaguePlayerHistorySource), source)) return null;
-            if (source != LeaguePlayerHistorySource.Sgp && string.IsNullOrEmpty(serverId))
+            if (queueTag == null && source != LeaguePlayerHistorySource.Sgp && string.IsNullOrEmpty(serverId))
             {
                 var path = "/lol-match-history/v1/products/lol/" + Uri.EscapeDataString(target.PuuId) +
                     "/matches?begIndex=" + startIndex + "&endIndex=" + (startIndex + count - 1);
@@ -1099,7 +1111,7 @@ namespace FACM.League
                 if (source == LeaguePlayerHistorySource.Lcu) return null;
             }
             if (source == LeaguePlayerHistorySource.Lcu) return null;
-            var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId).ConfigureAwait(false);
+            var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId, queueTag).ConfigureAwait(false);
             if (regional != null) regional.ClientSession = session;
             regional = await HydrateSparsePageAsync(target, regional, token, source).ConfigureAwait(false);
             return SessionStillCurrent(session) ? regional : null;
@@ -1171,10 +1183,19 @@ namespace FACM.League
         }
 
         private async Task<LeaguePlayerMatchPage> TryLoadSgpPageAsync(
-            LeaguePlayerProfile target, int startIndex, int count, CancellationToken token, string serverId = null)
+            LeaguePlayerProfile target, int startIndex, int count, CancellationToken token, string serverId = null,
+            string queueTag = null)
         {
             if (_sgpHistory == null || target == null || !IsSafePuuid(target.PuuId)) return null;
-            var bytes = await _sgpHistory.TryGetSummaryAsync(target.PuuId, startIndex, count, token, serverId)
+            byte[] bytes;
+            if (queueTag != null)
+            {
+                var tagged = _sgpHistory as ILeagueSgpTaggedHistoryApi;
+                if (tagged == null || !LeagueSgpSupportedQueues.IsValidTag(queueTag)) return null;
+                bytes = await tagged.TryGetTaggedSummaryAsync(target.PuuId, startIndex, count,
+                    token, serverId, queueTag).ConfigureAwait(false);
+            }
+            else bytes = await _sgpHistory.TryGetSummaryAsync(target.PuuId, startIndex, count, token, serverId)
                 .ConfigureAwait(false);
             return ParseSgpMatchPage(bytes, target, startIndex, count, serverId);
         }

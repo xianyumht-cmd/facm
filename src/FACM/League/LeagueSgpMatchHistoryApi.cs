@@ -21,6 +21,12 @@ namespace FACM.League
         Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken cancellationToken, string serverId = null);
     }
 
+    internal interface ILeagueSgpTaggedHistoryApi
+    {
+        Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex, int count,
+            CancellationToken token, string serverId, string tag);
+    }
+
     internal interface ILeagueSgpRankedStatsApi
     {
         Task<byte[]> TryGetRankedStatsAsync(string targetPuuid, CancellationToken token, string serverId = null);
@@ -53,7 +59,7 @@ namespace FACM.League
         public override string ToString() { return Name; }
     }
 
-    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, IDisposable
+    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, IDisposable
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
@@ -193,13 +199,14 @@ namespace FACM.League
             return endpoint != null;
         }
 
-        internal static Uri SummaryEndpoint(LeagueSgpServer server, string targetPuuid, int startIndex, int count)
+        internal static Uri SummaryEndpoint(LeagueSgpServer server, string targetPuuid, int startIndex, int count, string tag = null)
         {
             if (server == null || !SafePuuid(targetPuuid) || startIndex < 0 || count < 1 || count > 200 ||
-                startIndex > int.MaxValue - count) return null;
+                startIndex > int.MaxValue - count || !LeagueSgpSupportedQueues.IsValidTag(tag)) return null;
             return new Uri(server.MatchHistory + "/match-history-query/v1/products/lol/player/" +
                 Uri.EscapeDataString(targetPuuid) + "/SUMMARY?startIndex=" +
-                startIndex.ToString(CultureInfo.InvariantCulture) + "&count=" + count.ToString(CultureInfo.InvariantCulture));
+                startIndex.ToString(CultureInfo.InvariantCulture) + "&count=" + count.ToString(CultureInfo.InvariantCulture) +
+                (tag == null ? string.Empty : "&tag=" + Uri.EscapeDataString(tag)));
         }
 
         public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
@@ -208,6 +215,14 @@ namespace FACM.League
             var session = _session();
             return SendAsync(session, SummaryEndpoint(ResolveServer(session, serverId),
                 targetPuuid, startIndex, count), null, false, cancellationToken);
+        }
+
+        public Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex, int count,
+            CancellationToken token, string serverId, string tag)
+        {
+            var session = _session();
+            return SendAsync(session, SummaryEndpoint(ResolveServer(session, serverId),
+                targetPuuid, startIndex, count, tag), null, false, token);
         }
 
         public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken cancellationToken,

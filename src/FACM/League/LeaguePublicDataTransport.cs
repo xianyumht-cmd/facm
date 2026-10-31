@@ -138,6 +138,10 @@ namespace FACM.League
             Require(!IsApproved(new Uri("https://127.0.0.1:2999/liveclientdata/allgamedata")), "Local client traffic must be rejected.");
             Require(!IsApproved(new Uri("https://localhost:2999/")), "localhost must be rejected.");
             Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/league-servers")), "Akari SGP catalog must use an approved HTTPS host.");
+            Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/supported-queues")),
+                "Supported queue catalog must use the exact approved HTTPS resource.");
+            Require(!IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/unknown")),
+                "Unrecognized SGP public resources must remain blocked.");
             Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/auto-select/groups")),
                 "Akari auto-select group catalog must use the exact approved HTTPS resource.");
             Require(!IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/auto-select/other")),
@@ -190,6 +194,7 @@ namespace FACM.League
             if (host == "akari-api.yuru-yuri.com")
                 return uri.Port == 443 &&
                     (uri.AbsolutePath == "/config/v1/sgp/league-servers" ||
+                     uri.AbsolutePath == "/config/v1/sgp/supported-queues" ||
                      uri.AbsolutePath == "/config/v1/auto-select/groups") &&
                     uri.Query.Length == 0 && uri.Fragment.Length == 0;
             return AllowedHostSuffixes.Any(suffix =>
