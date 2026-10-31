@@ -215,6 +215,30 @@ namespace FACM.League
                 .ThenBy(row => LeagueMatchTimelineParser.Number(row, "championId")).ToList();
         }
 
+
+        internal static List<KeyValuePair<string, Dictionary<string, object>>> RankedQueueEntries(
+            Dictionary<string, object> ranked)
+        {
+            var map = ReadObject(ranked, "queueMap");
+            var queueTypes = (map == null ? Enumerable.Empty<string>() : map.Keys.AsEnumerable())
+                .Concat(ReadObjects(ranked, "queues").Select(row => ReadString(row, "queueType")));
+            var priority = new[] { "RANKED_SOLO_5x5", "RANKED_FLEX_SR", "RANKED_TFT",
+                "RANKED_TFT_TURBO", "RANKED_TFT_DOUBLE_UP" };
+            return queueTypes.Where(queue => !string.IsNullOrEmpty(queue) &&
+                    queue.StartsWith("RANKED_", StringComparison.Ordinal) && queue.Length <= 48)
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(queue =>
+                {
+                    var index = Array.IndexOf(priority, queue);
+                    return index < 0 ? priority.Length : index;
+                })
+                .ThenBy(queue => queue, StringComparer.Ordinal)
+                .Select(queue => new KeyValuePair<string, Dictionary<string, object>>(
+                    queue, RankedEntry(ranked, queue)))
+                .Where(entry => entry.Value != null)
+                .Take(16).ToList();
+        }
+
         internal static Dictionary<string, object> RankedEntry(Dictionary<string, object> ranked, string queue)
         {
             var map = ReadObject(ranked, "queueMap");

@@ -81,6 +81,39 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Number(flex, "losses") == null &&
                 LeaguePlayerProfileDialog.Winrate(flex) == "—",
                 "Ranked queueMap precedence and queues fallback must retain zero and incomplete values.");
+            var rankedMap = new Dictionary<string, object>
+            {
+                { "RANKED_SOLO_5x5", new Dictionary<string, object> {
+                    { "tier", "GOLD" }, { "division", "II" }, { "leaguePoints", 0 },
+                    { "previousSeasonHighestTier", "PLATINUM" }, { "previousSeasonHighestDivision", "IV" } } },
+                { "RANKED_TFT", new Dictionary<string, object> {
+                    { "tier", "SILVER" }, { "leaguePoints", 10 } } },
+                { "RANKED_INVALID", new Dictionary<string, object> { { "queueType", "RANKED_SOLO_5x5" } } }
+            };
+            var rankedHistory = new Dictionary<string, object>
+            {
+                { "queueMap", rankedMap },
+                { "queues", new object[] {
+                    new Dictionary<string, object> { { "queueType", "RANKED_SOLO_5x5" }, { "leaguePoints", 99 } },
+                    new Dictionary<string, object> { { "queueType", "RANKED_FLEX_SR" }, { "tier", "NA" }, { "wins", 0 } },
+                    new Dictionary<string, object> { { "queueType", "RANKED_TFT_TURBO" }, { "tier", "SILVER" },
+                        { "wins", 0 }, { "losses", 0 }, { "leaguePoints", 0 } } } }
+            };
+            var queueRows = LeaguePlayerDataService.RankedQueueEntries(rankedHistory);
+            Require(queueRows.Select(entry => entry.Key).SequenceEqual(new[] {
+                    "RANKED_SOLO_5x5", "RANKED_FLEX_SR", "RANKED_TFT", "RANKED_TFT_TURBO" }) &&
+                LeagueMatchTimelineParser.Number(queueRows[0].Value, "leaguePoints") == 0 &&
+                LeagueMatchTimelineParser.Text(queueRows[0].Value, "previousSeasonHighestTier") == "PLATINUM" &&
+                LeaguePlayerProfileDialog.RankedNumber(queueRows[0].Value, "leaguePoints") == "0" &&
+                LeaguePlayerProfileDialog.RankedNumber(queueRows[1].Value, "wins") == "—" &&
+                LeaguePlayerProfileDialog.RankedNumber(queueRows[3].Value, "wins") == "0",
+                "All ranked queues must preserve queueMap precedence, prior peak, missing/unranked and zero values.");
+            var duplicateQueues = new Dictionary<string, object> { { "queues", new object[] {
+                new Dictionary<string, object> { { "queueType", "RANKED_TFT" } },
+                new Dictionary<string, object> { { "queueType", "RANKED_TFT" } } } } };
+            Require(LeaguePlayerDataService.RankedQueueEntries(duplicateQueues).Count == 0 &&
+                LeaguePlayerDataService.RankedQueueEntries(null).Count == 0,
+                "Duplicate or missing queue evidence must not be accepted as a ranked entry.");
             var mastery = await service.LoadPlayerMasteriesAsync("self", "target", session, null, CancellationToken.None);
             Require(mastery.Status == LeaguePlayerDetailsStatus.Ready && mastery.Masteries.Count == 2 &&
                 LeagueMatchTimelineParser.Number(mastery.Masteries[0], "championId") == 2 &&

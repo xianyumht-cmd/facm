@@ -90,7 +90,7 @@ namespace FACM.League
         private readonly LeaguePlayerHistorySource _source;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly TabControl _tabs;
-        private readonly ListView _ranked, _masteries, _challenges;
+        private readonly ListView _ranked, _rankedQueues, _masteries, _challenges;
         private readonly TextBox _search, _masteryDetails;
         private readonly CheckBox _allMasteries;
         private readonly Label _profile, _status;
@@ -124,7 +124,23 @@ namespace FACM.League
             _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileField), 180);
             _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileSolo), 205);
             _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileFlex), 205);
-            AddTab(UiTextKeys.LeagueProfileRanked, _ranked);
+            _rankedQueues = List();
+            foreach (var column in new[] {
+                new[] { UiTextKeys.LeagueProfileQueue, "140" },
+                new[] { UiTextKeys.LeagueProfileTier, "105" },
+                new[] { UiTextKeys.LeagueProfileLp, "60" },
+                new[] { UiTextKeys.LeagueProfileWins, "60" },
+                new[] { UiTextKeys.LeagueProfileLosses, "60" },
+                new[] { UiTextKeys.LeagueProfilePrevious, "135" },
+                new[] { UiTextKeys.LeagueProfilePreviousHighest, "135" },
+                new[] { UiTextKeys.LeagueProfileHighest, "135" } })
+                _rankedQueues.Columns.Add(ui.Get(column[0]), int.Parse(column[1], CultureInfo.InvariantCulture));
+            var rankedLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 57));
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 43));
+            rankedLayout.Controls.Add(_ranked, 0, 0);
+            rankedLayout.Controls.Add(_rankedQueues, 0, 1);
+            AddTab(UiTextKeys.LeagueProfileRanked, rankedLayout);
             var masteryLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
             masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             masteryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -260,7 +276,7 @@ namespace FACM.League
                 }
                 else
                 {
-                    _ranked.Items.Clear();
+                    _ranked.Items.Clear(); _rankedQueues.Items.Clear();
                     var result = await _service.LoadPlayerDetailsAsync(_self, _target, _session, _server, _source, _lifetime.Token);
                     if (IsDisposed || _lifetime.IsCancellationRequested) return;
                     status = result.Status;
@@ -306,7 +322,30 @@ namespace FACM.League
             AddRank(UiTextKeys.LeagueProfileHighest, Tier(solo, "highestTier", "highestDivision"), Tier(flex, "highestTier", "highestDivision"));
             AddRank(UiTextKeys.LeagueProfilePrevious, Tier(solo, "previousSeasonEndTier", "previousSeasonEndDivision"),
                 Tier(flex, "previousSeasonEndTier", "previousSeasonEndDivision"));
+            AddRank(UiTextKeys.LeagueProfilePreviousHighest,
+                Tier(solo, "previousSeasonHighestTier", "previousSeasonHighestDivision"),
+                Tier(flex, "previousSeasonHighestTier", "previousSeasonHighestDivision"));
             AddRank(UiTextKeys.LeagueProfileWinrate, Winrate(solo), Winrate(flex));
+            _rankedQueues.BeginUpdate();
+            try
+            {
+                foreach (var entry in LeaguePlayerDataService.RankedQueueEntries(details.Ranked))
+                {
+                    var row = entry.Value;
+                    var name = entry.Key == "RANKED_SOLO_5x5" ? _ui.Get(UiTextKeys.LeagueProfileSolo) :
+                        entry.Key == "RANKED_FLEX_SR" ? _ui.Get(UiTextKeys.LeagueProfileFlex) : entry.Key;
+                    var item = new ListViewItem(name);
+                    item.SubItems.Add(Tier(row, "tier", "division"));
+                    item.SubItems.Add(RankedNumber(row, "leaguePoints"));
+                    item.SubItems.Add(RankedNumber(row, "wins"));
+                    item.SubItems.Add(RankedNumber(row, "losses"));
+                    item.SubItems.Add(Tier(row, "previousSeasonEndTier", "previousSeasonEndDivision"));
+                    item.SubItems.Add(Tier(row, "previousSeasonHighestTier", "previousSeasonHighestDivision"));
+                    item.SubItems.Add(Tier(row, "highestTier", "highestDivision"));
+                    _rankedQueues.Items.Add(item);
+                }
+            }
+            finally { _rankedQueues.EndUpdate(); }
         }
 
         private void RenderChallenges()
@@ -369,6 +408,11 @@ namespace FACM.League
 
         private static string Number(Dictionary<string, object> data, string key)
         { return LeagueMatchTimelineParser.Number(data, key)?.ToString("N0", CultureInfo.CurrentCulture) ?? "—"; }
+        internal static string RankedNumber(Dictionary<string, object> row, string key)
+        {
+            var tier = LeagueMatchTimelineParser.Text(row, "tier");
+            return string.IsNullOrEmpty(tier) || tier == "NA" || tier == "NONE" ? "—" : Number(row, key);
+        }
         internal static string LastPlay(Dictionary<string, object> row)
         {
             var time = LeagueMatchTimelineParser.Number(row, "lastPlayTime");
@@ -402,7 +446,7 @@ namespace FACM.League
                 status == LeaguePlayerDetailsStatus.Partial ? UiTextKeys.LeagueProfilePartial : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
         }
         private bool IsCurrent() { return _currentSession == null || LeagueEncounterReplayService.SessionMatches(_session, _currentSession()); }
-        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; _ranked.Items.Clear(); _masteryRows = null; RenderMasteries(); }
+        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; RenderMasteries(); }
         private void AddRank(string key, string solo, string flex)
         { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(solo); row.SubItems.Add(flex); _ranked.Items.Add(row); }
         private void AddTab(string key, Control control)

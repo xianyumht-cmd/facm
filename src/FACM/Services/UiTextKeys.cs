@@ -487,6 +487,7 @@ namespace FACM.Services
         public const string LeagueProfileSolo = "LeagueProfileSolo";
         public const string LeagueProfileFlex = "LeagueProfileFlex";
         public const string LeagueProfileRanked = "LeagueProfileRanked";
+        public const string LeagueProfileQueue = "LeagueProfileQueue";
         public const string LeagueProfileMastery = "LeagueProfileMastery";
         public const string LeagueProfileMasterySearch = "LeagueProfileMasterySearch";
         public const string LeagueProfileMasteryLevel = "LeagueProfileMasteryLevel";
@@ -502,6 +503,7 @@ namespace FACM.Services
         public const string LeagueProfileRewardWins = "LeagueProfileRewardWins";
         public const string LeagueProfileHighest = "LeagueProfileHighest";
         public const string LeagueProfilePrevious = "LeagueProfilePrevious";
+        public const string LeagueProfilePreviousHighest = "LeagueProfilePreviousHighest";
         public const string LeagueProfileWinrate = "LeagueProfileWinrate";
         public const string LeagueProfileMasteryProgress = "LeagueProfileMasteryProgress";
         public const string LeagueProfileMasteryMarks = "LeagueProfileMasteryMarks";
