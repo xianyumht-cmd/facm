@@ -122,7 +122,8 @@ namespace FACM.League
                         var target = targetValue as Dictionary<string, object>;
                         var mode = Text(target, "gameMode");
                         var queues = Strings(Value(target, "queueTypes"), 16);
-                        if (!SafeCode(mode) || queues == null || queues.Length == 0 ||
+                        if (!SafeCode(mode) || !AllowedMode(id, mode) ||
+                            queues == null || queues.Length == 0 ||
                             queues.Any(q => q != "*" && !SafeCode(q))) return false;
                         group.Targets.Add(Tuple.Create(mode, queues));
                     }
@@ -137,6 +138,24 @@ namespace FACM.League
                 return true;
             }
             catch (Exception) { return false; }
+        }
+
+        // Dynamic queue types are supported within the pinned game-mode families.
+        // A remote catalog cannot silently reinterpret ranked profiles as ARAM or Arena.
+        private static bool AllowedMode(string group, string mode)
+        {
+            switch (group)
+            {
+                case "ranked": case "normal": return mode == "CLASSIC";
+                case "aram": return mode == "ARAM" || mode == "KIWI";
+                case "cherry": return mode == "CHERRY";
+                case "urf": return mode == "URF";
+                case "oneforall": return mode == "ONEFORALL";
+                case "ultbook": return mode == "ULTBOOK";
+                case "bot": return mode == "SWIFTPLAY";
+                case "custom": return mode == "CLASSIC" || mode == "PRACTICETOOL";
+                default: return false;
+            }
         }
 
         private static bool ValidActions(object value, int special)
