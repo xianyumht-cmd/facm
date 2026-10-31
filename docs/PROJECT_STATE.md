@@ -1,3 +1,19 @@
+## 2026-11-01 — Native source-backed per-match scoring and detailed stat matrix (Draft #357)
+
+Executable/test candidate [2e83907](https://github.com/xianyumht-cmd/facm/commit/2e83907db3bc3b7eadabf61f7a14868cb4a8156b) adds two related source-scope features to the existing native match scoreboard: (1) a per-selected-player Akari 17-point single-game score only when the match's verified participant roster, exact selected participant, team outcome, duration and all nine scoring inputs are available; and (2) a grouped, horizontally scrollable player-by-player details table for 26 already parsed combat, damage, economy and utility statistics. Source-known zero stays zero, absent/invalid stats stay unavailable, and columns cap at 20 participants. No extra network request, LCU writer, credential owner, poller, runtime dependency or cloud field.
+
+The scoring projection reuses the tested native nine-component aggregate scorer for one verified match, rather than inventing another formula. Synthetic tests cover missing vision, unresolved/wrong player, incomplete roster, unknown outcome, missing vs zero, fractional stats and bounded columns. **Final executable four Windows gates remain separate evidence; verify the exact SHA.** This is not a claim of full Akari raw stat field coverage or live Tencent/Windows acceptance.
+
+| Scope | Status | Remaining |
+| --- | --- | --- |
+| Selected-player single-match Akari score | Implemented, strict source-evidence gate | Real LCU/SGP roster and outcome variations |
+| Native match-card details matrix (26 parsed fields) | Implemented, bounded source/test candidate | Additional source-defined raw fields and localization |
+| Overall/Arena win-loss, placements, streaks | Implemented in prior source candidate | Live Arena data variations |
+| Replay and other source-wide options | Partial | Option-by-option parity and bounded integrations |
+| 256-row real cloud sync / Tencent CN / Windows 10 DPI | Unverified | Final single acceptance |
+
+---
+
 ## 2026-11-01 — Source-pinned all-mode / Arena outcome analysis (Draft #357)
 
 Executable/test candidate [0e9039d](https://github.com/xianyumht-cmd/facm/commit/0e9039def4b3933cc4bfcd4a6479f34adc6cba27) extends the native player and champion history analysis with the pinned Akari v1.5.1 `aggregate/win-loss.ts` all/normal/CHERRY split. Overall history and individual champions now show separate normal/Arena games and wins, verified Arena first-place/upper-half/mean placement and per-mode winning/losing streaks. The champion overview reuses the same mode projection rather than recalculating from raw rows. Champion comparison adds three optional Arena metrics with independent known/total denominators; unknown placements are not scored as zero.
