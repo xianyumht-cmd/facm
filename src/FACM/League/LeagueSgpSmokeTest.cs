@@ -82,10 +82,65 @@ namespace FACM.League
                     Require(cancelled, "External cancellation must remain observable by the caller.");
                 }
             }
+            ValidateRecovery();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
                 "League session credentials must be a bounded printable JSON string.");
+        }
+
+        private static void ValidateRecovery()
+        {
+            Require(LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.BadGateway) &&
+                LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.ServiceUnavailable) &&
+                LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.GatewayTimeout) &&
+                !LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus((HttpStatusCode)429),
+                "Gateway retries must not include rate-limited responses.");
+            var owner = Session("HN10", "TENCENT");
+            var local = new TokenApi();
+            var handler = new CaptureHandler();
+            local.HistoryTokens.Enqueue("expired-token");
+            local.HistoryTokens.Enqueue("fresh-token");
+            handler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            handler.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, local, handler))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    handler.Calls == 2 && local.Paths.Count == 2 &&
+                    handler.Authorization == "Bearer fresh-token",
+                    "An expired entitlement token must be freshly read before one retry.");
+
+            var unchanged = new CaptureHandler();
+            unchanged.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            unchanged.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), unchanged))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    unchanged.Calls == 1,
+                    "A rejected unchanged token must not trigger another HTTP request.");
+
+            var gateway = new CaptureHandler();
+            gateway.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            gateway.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), gateway))
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    gateway.Calls == 2 && gateway.Bodies.Count == 2 &&
+                    gateway.Bodies[0] == "[\\"target\\"]" && gateway.Bodies[1] == gateway.Bodies[0],
+                    "A transient gateway error must retry the same JSON POST body.");
+
+            var throttled = new CaptureHandler();
+            throttled.Statuses.Enqueue((HttpStatusCode)429);
+            throttled.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), throttled))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    throttled.Calls == 1,
+                    "Rate-limited SGP responses must never be retried.");
+
+            var replaced = new CaptureHandler();
+            replaced.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            replaced.AfterRead = () => owner = Session("HN1", "TENCENT");
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), replaced))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    replaced.Calls == 1,
+                    "Changing the LCU region must prevent credential retry.");
         }
 
         private static LeagueClientSession Session(string platform, string region)
@@ -102,18 +157,22 @@ namespace FACM.League
         private sealed class TokenApi : ILeagueClientApi
         {
             internal readonly List<string> Paths = new List<string>();
+            internal readonly Queue<string> HistoryTokens = new Queue<string>();
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
                 Paths.Add(path);
+                var historyToken = HistoryTokens.Count > 0 ? HistoryTokens.Dequeue() : "history-token";
                 return Task.FromResult(Bytes(path == LeagueSgpMatchHistoryApiClient.EntitlementsPath
-                    ? "{\"accessToken\":\"history-token\"}" : "\"profile-token\""));
+                    ? "{\"accessToken\":\"" + historyToken + "\"}" : "\"profile-token\""));
             }
         }
 
         private sealed class CaptureHandler : HttpMessageHandler
         {
             internal int Calls;
+            internal readonly Queue<HttpStatusCode> Statuses = new Queue<HttpStatusCode>();
+            internal readonly List<string> Bodies = new List<string>();
             internal string Url, Authorization, Body;
             internal HttpMethod Method;
             internal Action AfterRead;
@@ -124,8 +183,10 @@ namespace FACM.League
                 Authorization = request.Headers.Authorization.ToString();
                 Method = request.Method;
                 Body = request.Content == null ? null : await request.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Bodies.Add(Body);
                 AfterRead?.Invoke();
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(Bytes("{}")) };
+                return new HttpResponseMessage(Statuses.Count == 0 ? HttpStatusCode.OK : Statuses.Dequeue())
+                    { Content = new ByteArrayContent(Bytes("{}")) };
             }
         }
     }

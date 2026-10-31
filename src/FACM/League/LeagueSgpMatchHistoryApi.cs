@@ -251,23 +251,49 @@ namespace FACM.League
                 deadline.CancelAfter(TimeSpan.FromSeconds(8));
                 try
                 {
-                    var credentials = await _local.TryGetBytesAsync(
-                        leagueToken ? LeagueSessionTokenPath : EntitlementsPath, deadline.Token).ConfigureAwait(false);
-                    var token = leagueToken ? ReadLeagueSessionToken(credentials) : ReadEntitlementsToken(credentials);
-                    if (token == null || !SameSession(session)) return null;
-                    using (var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, endpoint))
+                    string rejectedToken = null;
+                    for (var attempt = 0; attempt < 2; attempt++)
                     {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                        if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
-                        using (var response = await _http.SendAsync(request,
-                            HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                        if (!SameSession(session)) return null;
+                        var credentials = await _local.TryGetBytesAsync(
+                            leagueToken ? LeagueSessionTokenPath : EntitlementsPath, deadline.Token).ConfigureAwait(false);
+                        var token = leagueToken ? ReadLeagueSessionToken(credentials) : ReadEntitlementsToken(credentials);
+                        if (token == null || !SameSession(session) ||
+                            (rejectedToken != null && string.Equals(token, rejectedToken, StringComparison.Ordinal)))
+                            return null;
+                        using (var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, endpoint))
                         {
-                            if (!response.IsSuccessStatusCode) return null;
-                            var bytes = await CancelableHttpContentReader.ReadBytesAsync(
-                                response.Content, deadline.Token, 16 * 1024 * 1024).ConfigureAwait(false);
-                            return SameSession(session) ? bytes : null;
+                            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                            if (body != null) request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                            try
+                            {
+                                using (var response = await _http.SendAsync(request,
+                                    HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                                {
+                                    if (!SameSession(session)) return null;
+                                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && attempt == 0)
+                                    {
+                                        rejectedToken = token;
+                                        continue;
+                                    }
+                                    if (IsTransientGatewayStatus(response.StatusCode) && attempt == 0)
+                                    {
+                                        await Task.Delay(200, deadline.Token).ConfigureAwait(false);
+                                        continue;
+                                    }
+                                    if (!response.IsSuccessStatusCode) return null;
+                                    var bytes = await CancelableHttpContentReader.ReadBytesAsync(
+                                        response.Content, deadline.Token, 16 * 1024 * 1024).ConfigureAwait(false);
+                                    return SameSession(session) ? bytes : null;
+                                }
+                            }
+                            catch (HttpRequestException) when (attempt == 0 && SameSession(session))
+                            {
+                                await Task.Delay(200, deadline.Token).ConfigureAwait(false);
+                            }
                         }
                     }
+                    return null;
                 }
                 catch (OperationCanceledException)
                 {
@@ -278,6 +304,13 @@ namespace FACM.League
                 catch (System.IO.IOException) { return null; }
                 catch (ObjectDisposedException) { return null; }
             }
+        }
+
+        internal static bool IsTransientGatewayStatus(System.Net.HttpStatusCode status)
+        {
+            return status == System.Net.HttpStatusCode.BadGateway ||
+                status == System.Net.HttpStatusCode.ServiceUnavailable ||
+                status == System.Net.HttpStatusCode.GatewayTimeout;
         }
 
         internal static string ReadLeagueSessionToken(byte[] data)
