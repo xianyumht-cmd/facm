@@ -287,6 +287,23 @@ namespace FACM.League
                     !objectives.ContainsKey("teamElderDragonKills") &&
                     !objectives.ContainsKey("hiddenMatchToken"),
                 "Pinned objective, structure and economy details must enforce numeric bounds.");
+            var legacy = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> { { "skillshotsDodged", 4 },
+                    { "challenges", new Dictionary<string, object> {
+                        { "skillshotsDodged", 4 }, { "flawlessAces", 1 } } } });
+            Require(legacy["skillshotsDodged"] == 4 && legacy["flawlessAces"] == 1,
+                "Identical root and nested challenge values must remain available.");
+            var conflicting = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> { { "skillshotsDodged", 4 },
+                    { "challenges", new Dictionary<string, object> {
+                        { "skillshotsDodged", 5 }, { "flawlessAces", 1 } } } });
+            Require(!conflicting.ContainsKey("skillshotsDodged") &&
+                    conflicting["flawlessAces"] == 1,
+                "Conflicting root/nested challenge values must fail closed without hiding independent stats.");
+            var legacyOnly = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> { { "skillshotsDodged", 0 } });
+            Require(legacyOnly.Count == 1 && legacyOnly["skillshotsDodged"] == 0,
+                "Legacy root-only challenge values must preserve source-known zero.");
             first.RawStats = objectives;
             var objectiveRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 new[] { first, second });

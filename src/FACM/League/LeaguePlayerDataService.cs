@@ -984,7 +984,19 @@ namespace FACM.League
             read(stats, DetailedStatKeys);
             read(stats, DetailedPingKeys);
             read(stats, DetailedMiscKeys);
-            read(ReadObject(stats, "challenges"), DetailedChallengeKeys);
+            var challenges = ReadObject(stats, "challenges");
+            foreach (var key in DetailedChallengeKeys)
+            {
+                var direct = ReadOptionalFiniteNumber(stats, key);
+                var nested = ReadOptionalFiniteNumber(challenges, key);
+                // Both legacy root and v5 challenges may carry this source-defined key.
+                // Disagreement is ambiguous and must not silently pick one.
+                if (direct.HasValue && nested.HasValue && direct.Value != nested.Value)
+                    continue;
+                var value = nested ?? direct;
+                if (value.HasValue && value.Value >= 0 && value.Value <= 1000000000d)
+                    result[key] = value.Value;
+            }
             return result;
         }
 
