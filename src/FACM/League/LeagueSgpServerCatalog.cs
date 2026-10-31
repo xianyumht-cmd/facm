@@ -127,7 +127,7 @@ namespace FACM.League
         {
             var platform = id.Substring("TENCENT_".Length);
             if (platform.Length < 2 || platform.Length > 12 ||
-                platform.Any(c => c < 'A' || c > 'Z' && (c < '0' || c > '9')))
+                platform.Any(c => (c < 'A' || c > 'Z') && (c < '0' || c > '9')))
                 return null;
             var entry = value as Dictionary<string, object>;
             if (entry == null) return null;
