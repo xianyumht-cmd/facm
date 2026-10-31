@@ -27,11 +27,11 @@ namespace FACM.League
 
         private static void ValidateExpandedChampionPresetCatalogs()
         {
-            var spellRows = Enumerable.Range(1, 128).Select(id => new LeagueChampionSpellPreset
+            var spellRows = Enumerable.Range(1, 256).Select(id => new LeagueChampionSpellPreset
             {
                 ChampionId = id, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
             }).ToArray();
-            var runeRows = Enumerable.Range(1, 128).Select(id => new LeagueChampionRunePreset
+            var runeRows = Enumerable.Range(1, 256).Select(id => new LeagueChampionRunePreset
             {
                 ChampionId = id, Group = "ranked-default", PrimaryStyleId = 8000,
                 SecondaryStyleId = 8100,
@@ -42,9 +42,9 @@ namespace FACM.League
             Require(spells.StartsWith("z1:", StringComparison.Ordinal) &&
                 runes.StartsWith("z1:", StringComparison.Ordinal) &&
                 spells.Length <= 4096 && runes.Length <= 7500 &&
-                LeagueChampionSpellPresets.Parse(spells).Count == 128 &&
-                LeagueChampionRunePresets.Parse(runes).Count == 128,
-                "Expanded compressed champion catalogs did not roundtrip.");
+                LeagueChampionSpellPresets.Parse(spells).Count == 256 &&
+                LeagueChampionRunePresets.Parse(runes).Count == 256,
+                "Full-capacity compressed champion catalogs did not roundtrip.");
             var restored = AppSettings.ParseLines(new[]
             {
                 "LeagueChampionSpellPresets=" + spells,
@@ -55,8 +55,32 @@ namespace FACM.League
             cloud.ApplyTo(fromCloud);
             Require(fromCloud.LeagueChampionSpellPresets == spells &&
                 fromCloud.LeagueChampionRunePresets == runes &&
-                LeagueChampionRunePresets.Resolve(fromCloud.LeagueChampionRunePresets, 128, "ranked-top") != null,
+                LeagueChampionRunePresets.Resolve(fromCloud.LeagueChampionRunePresets, 256, "ranked-top") != null,
                 "Compressed champion presets lost local/cloud or ranked fallback compatibility.");
+            var runeLimit = false;
+            var spellLimit = false;
+            try
+            {
+                LeagueChampionRunePresets.Upsert(runes, new LeagueChampionRunePreset
+                {
+                    ChampionId = 257, Group = "ranked-default", PrimaryStyleId = 8000,
+                    SecondaryStyleId = 8100,
+                    SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+                });
+            }
+            catch (ArgumentException) { runeLimit = true; }
+            try
+            {
+                LeagueChampionSpellPresets.Upsert(spells, new LeagueChampionSpellPreset
+                {
+                    ChampionId = 257, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
+                });
+            }
+            catch (ArgumentException) { spellLimit = true; }
+            Require(runeLimit && spellLimit &&
+                LeagueChampionRunePresets.Parse(runes).Count == 256 &&
+                LeagueChampionSpellPresets.Parse(spells).Count == 256,
+                "Full champion catalogs must reject the 257th entry without damaging saved data.");
             Require(LeagueChampionSpellPresets.Parse("z1:%%%").Count == 0 &&
                 LeagueChampionRunePresets.Parse("z1:%%%").Count == 0 &&
                 LeaguePresetCodec.Decode("z1:%%%", 7500) == null,
