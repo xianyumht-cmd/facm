@@ -182,11 +182,11 @@ namespace FACM.League
             var cherry = LeagueAutoSelectProfiles.Serialize(new[] {
                 new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 } } });
             Require(LeagueAutoSelectProfiles.Parse(cherry)[0].Picks.Single() == -3 &&
-                    LeagueAutoSelectProfiles.Parse("[{\\"Mode\\":\\"aram\\",\\"Picks\\":[-3]}]").Count == 0 &&
-                    LeagueAutoSelectProfiles.Parse("[{\\"Mode\\":\\"ranked\\",\\"Bans\\":[-3]}]").Count == 0,
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"aram\",\"Picks\":[-3]}]").Count == 0 &&
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"ranked\",\"Bans\":[-3]}]").Count == 0,
                 "Arena bravery must not be accepted outside its pick-only group.");
             var selection = SessionWithRole("pick", 12, "TOP");
-            var arenaFlow = "{\\"phase\\":\\"ChampSelect\\",\\"gameData\\":{\\"queue\\":{\\"id\\":1700,\\"gameMode\\":\\"CHERRY\\",\\"type\\":\\"NORMAL\\"}}}";
+            var arenaFlow = "{\"phase\":\"ChampSelect\",\"gameData\":{\"queue\":{\"id\":1700,\"gameMode\":\"CHERRY\",\"type\":\"NORMAL\"}}}";
             var reader = new FakeRead { SessionJson = selection, GameflowJson = arenaFlow, Pickable = "[22]" };
             var writer = new FakeWrite();
             using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
@@ -236,7 +236,7 @@ namespace FACM.League
         {
             var profiles = LeagueAutoSelectProfiles.Serialize(new[] {
                 new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 67, 22 } } });
-            var selection = "{\\"allowSubsetChampionPicks\\":true," + SessionWithRole("pick", 12, "TOP").Substring(1);
+            var selection = "{\"allowSubsetChampionPicks\":true," + SessionWithRole("pick", 12, "TOP").Substring(1);
             var reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
                 Pickable = "[22,67]", Subset = "[22]" };
             var writer = new FakeWrite();
