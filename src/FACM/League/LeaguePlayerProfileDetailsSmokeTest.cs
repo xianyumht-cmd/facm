@@ -114,6 +114,31 @@ namespace FACM.League
             Require(LeaguePlayerDataService.RankedQueueEntries(duplicateQueues).Count == 0 &&
                 LeaguePlayerDataService.RankedQueueEntries(null).Count == 0,
                 "Duplicate or missing queue evidence must not be accepted as a ranked entry.");
+            var masteryFixtures = new[]
+            {
+                new Dictionary<string, object> { { "championId", 2 }, { "championPoints", 100L },
+                    { "championLevel", 7 }, { "lastPlayTime", 2000L } },
+                new Dictionary<string, object> { { "championId", 1 }, { "championPoints", 100L },
+                    { "championLevel", 5 }, { "lastPlayTime", 3000L } },
+                new Dictionary<string, object> { { "championId", 3 }, { "championPoints", 0L },
+                    { "championLevel", 1 } },
+                new Dictionary<string, object> { { "championId", 0 }, { "championPoints", 999L } }
+            };
+            var masteryNames = new Dictionary<int, string> { { 1, "Ahri" }, { 2, "Annie" }, { 3, "Garen" } };
+            Func<IEnumerable<Dictionary<string, object>>, int[]> ids = rows => rows
+                .Select(row => (int)LeagueMatchTimelineParser.Number(row, "championId").Value).ToArray();
+            Require(ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
+                    masteryNames, "", 2, true)).SequenceEqual(new[] { 1, 2, 3 }) &&
+                ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
+                    masteryNames, "", 1, true)).SequenceEqual(new[] { 2, 1, 3 }) &&
+                ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
+                    masteryNames, "", 3, false)).SequenceEqual(new[] { 3, 2, 1 }) &&
+                ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
+                    masteryNames, "aH", 0, false)).SequenceEqual(new[] { 1 }) &&
+                ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
+                    masteryNames, "2", 2, true)).SequenceEqual(new[] { 2 }) &&
+                LeaguePlayerProfileDialog.FilterAndSortMasteries(null, masteryNames, "", 2, true).Count == 0,
+                "Mastery list must support stable column sorting, name/ID filtering and missing-time ordering.");
             var mastery = await service.LoadPlayerMasteriesAsync("self", "target", session, null, CancellationToken.None);
             Require(mastery.Status == LeaguePlayerDetailsStatus.Ready && mastery.Masteries.Count == 2 &&
                 LeagueMatchTimelineParser.Number(mastery.Masteries[0], "championId") == 2 &&

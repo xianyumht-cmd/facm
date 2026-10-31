@@ -99,6 +99,9 @@ namespace FACM.League
         private List<Dictionary<string, object>> _masteryRows;
         private Dictionary<string, object> _challengeData;
         private long? _masteryScore;
+        private readonly Label _masteryCount;
+        private int _masterySortColumn = 2;
+        private bool _masterySortDescending = true;
         private bool _busy;
         private bool _pendingPostgameRefresh;
 
@@ -148,18 +151,33 @@ namespace FACM.League
             _search = new TextBox { Dock = DockStyle.Fill, AccessibleName = ui.Get(UiTextKeys.LeagueProfileMasterySearch) };
             _search.TextChanged += (sender, args) => RenderMasteries();
             _masteries = List();
-            foreach (var key in new[] { UiTextKeys.LeaguePlayerChampion, UiTextKeys.LeagueProfileMasteryLevel,
-                UiTextKeys.LeagueProfileMasteryPoints, UiTextKeys.LeagueProfileMasteryLast })
+            var masteryColumns = new[] { UiTextKeys.LeaguePlayerChampion, UiTextKeys.LeagueProfileMasteryLevel,
+                UiTextKeys.LeagueProfileMasteryPoints, UiTextKeys.LeagueProfileMasteryLast };
+            foreach (var key in masteryColumns)
                 _masteries.Columns.Add(ui.Get(key), 145);
+            _masteries.Columns[_masterySortColumn].Text += " ▼";
+            _masteries.ColumnClick += (sender, args) =>
+            {
+                if (args.Column == _masterySortColumn) _masterySortDescending = !_masterySortDescending;
+                else { _masterySortColumn = args.Column; _masterySortDescending = args.Column != 0; }
+                for (var i = 0; i < masteryColumns.Length; i++)
+                    _masteries.Columns[i].Text = ui.Get(masteryColumns[i]) +
+                        (i == _masterySortColumn ? (_masterySortDescending ? " ▼" : " ▲") : "");
+                RenderMasteries();
+            };
             _masteries.SelectedIndexChanged += (sender, args) => ShowMastery();
             _masteryDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true, Multiline = true,
                 ScrollBars = ScrollBars.Vertical, BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
-            var masteryTools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            var masteryTools = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
             masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            _masteryCount = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
+                AutoEllipsis = true, Text = "—" };
             _allMasteries = new CheckBox { Dock = DockStyle.Fill, Text = ui.Get(UiTextKeys.LeagueProfileMasteryAll) };
             _allMasteries.CheckedChanged += async (sender, args) => await LoadSelectedAsync(true);
-            masteryTools.Controls.Add(_search, 0, 0); masteryTools.Controls.Add(_allMasteries, 1, 0);
+            masteryTools.Controls.Add(_search, 0, 0); masteryTools.Controls.Add(_masteryCount, 1, 0);
+            masteryTools.Controls.Add(_allMasteries, 2, 0);
             masteryLayout.Controls.Add(masteryTools, 0, 0); masteryLayout.Controls.Add(_masteries, 0, 1);
             masteryLayout.Controls.Add(_masteryDetails, 0, 2);
             AddTab(UiTextKeys.LeagueProfileMastery, masteryLayout);
@@ -376,22 +394,80 @@ namespace FACM.League
                 ? number.ToString("0.##", CultureInfo.CurrentCulture) : "—";
         }
 
+        internal static List<Dictionary<string, object>> FilterAndSortMasteries(
+            IEnumerable<Dictionary<string, object>> rows, IDictionary<int, string> names,
+            string query, int column, bool descending)
+        {
+            var pattern = (query ?? string.Empty).Trim();
+            var valid = (rows ?? Enumerable.Empty<Dictionary<string, object>>())
+                .Where(row => row != null)
+                .Select(row => new { Row = row, Id = LeagueMatchTimelineParser.Number(row, "championId") })
+                .Where(entry => entry.Id.HasValue && entry.Id.Value > 0 && entry.Id.Value <= int.MaxValue)
+                .Select(entry => new KeyValuePair<int, Dictionary<string, object>>((int)entry.Id.Value, entry.Row))
+                .Where(entry =>
+                {
+                    string name;
+                    if (names == null || !names.TryGetValue(entry.Key, out name) || string.IsNullOrWhiteSpace(name))
+                        name = "#" + entry.Key.ToString(CultureInfo.InvariantCulture);
+                    return pattern.Length == 0 ||
+                        name.IndexOf(pattern, StringComparison.CurrentCultureIgnoreCase) >= 0 ||
+                        entry.Key.ToString(CultureInfo.InvariantCulture).IndexOf(pattern, StringComparison.Ordinal) >= 0;
+                }).ToList();
+            IOrderedEnumerable<KeyValuePair<int, Dictionary<string, object>>> sorted;
+            if (column == 0)
+            {
+                Func<KeyValuePair<int, Dictionary<string, object>>, string> nameOf = entry =>
+                {
+                    string name;
+                    return names != null && names.TryGetValue(entry.Key, out name) &&
+                        !string.IsNullOrWhiteSpace(name) ? name : "#" + entry.Key.ToString(CultureInfo.InvariantCulture);
+                };
+                sorted = descending
+                    ? valid.OrderByDescending(nameOf, StringComparer.CurrentCultureIgnoreCase)
+                    : valid.OrderBy(nameOf, StringComparer.CurrentCultureIgnoreCase);
+            }
+            else
+            {
+                var key = column == 1 ? "championLevel" : column == 3 ? "lastPlayTime" : "championPoints";
+                Func<KeyValuePair<int, Dictionary<string, object>>, long> numberOf =
+                    entry => LeagueMatchTimelineParser.Number(entry.Value, key) ?? -1;
+                sorted = descending ? valid.OrderByDescending(numberOf) : valid.OrderBy(numberOf);
+            }
+            return sorted.ThenByDescending(entry =>
+                    LeagueMatchTimelineParser.Number(entry.Value, "championPoints") ?? -1)
+                .ThenBy(entry => entry.Key).Select(entry => entry.Value).ToList();
+        }
+
         private void RenderMasteries()
         {
-            _masteries.BeginUpdate(); _masteries.Items.Clear(); _masteryDetails.Text = string.Empty;
-            var query = _search.Text.Trim();
-            foreach (var row in _masteryRows ?? new List<Dictionary<string, object>>())
+            var selectedId = _masteries.SelectedItems.Count == 1
+                ? LeagueMatchTimelineParser.Number(_masteries.SelectedItems[0].Tag as Dictionary<string, object>, "championId")
+                : null;
+            var filtered = FilterAndSortMasteries(_masteryRows, _names, _search.Text,
+                _masterySortColumn, _masterySortDescending);
+            _masteries.BeginUpdate();
+            try
             {
-                var id = (int)LeagueMatchTimelineParser.Number(row, "championId").Value;
-                string name;
-                if (!_names.TryGetValue(id, out name)) name = "#" + id;
-                if (query.Length > 0 && name.IndexOf(query, StringComparison.CurrentCultureIgnoreCase) < 0 &&
-                    id.ToString().IndexOf(query, StringComparison.Ordinal) < 0) continue;
-                var item = new ListViewItem(name) { Tag = row };
-                item.SubItems.Add(Number(row, "championLevel")); item.SubItems.Add(Number(row, "championPoints"));
-                item.SubItems.Add(LastPlay(row)); _masteries.Items.Add(item);
+                _masteries.Items.Clear();
+                foreach (var row in filtered)
+                {
+                    var id = (int)LeagueMatchTimelineParser.Number(row, "championId").Value;
+                    string name;
+                    if (!_names.TryGetValue(id, out name)) name = "#" + id;
+                    var item = new ListViewItem(name) { Tag = row };
+                    item.SubItems.Add(Number(row, "championLevel"));
+                    item.SubItems.Add(Number(row, "championPoints"));
+                    item.SubItems.Add(LastPlay(row));
+                    _masteries.Items.Add(item);
+                    if (selectedId == id) item.Selected = true;
+                }
             }
-            _masteries.EndUpdate();
+            finally { _masteries.EndUpdate(); }
+            _masteryCount.Text = _masteryRows == null ? "—" :
+                _ui.Get(UiTextKeys.LeagueProfileMasteryCount)
+                    .Replace("{0}", filtered.Count.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{1}", _masteryRows.Count.ToString(CultureInfo.CurrentCulture));
+            ShowMastery();
         }
 
         private void ShowMastery()
