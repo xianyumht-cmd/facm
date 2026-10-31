@@ -410,6 +410,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerReplayFolderStatusUnknown, "回放开关状态未知"),
             Pair(UiTextKeys.LeaguePlayerReplayFolderStatusEnabled, "历史回放已启用"),
             Pair(UiTextKeys.LeaguePlayerReplayFolderStatusDisabled, "历史回放当前不可用"),
+            Pair(UiTextKeys.LeagueTimelinePlateTitle, "防御塔镀层统计"),
+            Pair(UiTextKeys.LeagueTimelinePlateCount, "摧毁镀层数"),
             Pair(UiTextKeys.LeaguePlayerCollectAction, "收集筛选战绩"),
             Pair(UiTextKeys.LeaguePlayerCollectTitle, "收集模式"),
             Pair(UiTextKeys.LeaguePlayerCollectHint, "按当前筛选条件逐页扫描。关闭窗口或点击停止即可中断；不修改原始战绩。"),

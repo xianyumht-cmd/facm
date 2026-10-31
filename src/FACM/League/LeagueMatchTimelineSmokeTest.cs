@@ -107,6 +107,29 @@ namespace FACM.League
             Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) ==
                     FACM.Services.UiTextKeys.LeagueTimelineTurretPlate,
                 "Untrusted lane values must not be copied into event text.");
+            var plateTimeline = new LeagueMatchTimeline { GameId = 701 };
+            plateTimeline.Events.Add(new LeagueMatchTimelineEvent
+                { Type = "TURRET_PLATE_DESTROYED", KillerId = 1 });
+            plateTimeline.Events.Add(new LeagueMatchTimelineEvent
+                { Type = "TURRET_PLATE_DESTROYED", KillerId = 2 });
+            plateTimeline.Events.Add(new LeagueMatchTimelineEvent
+                { Type = "TURRET_PLATE_DESTROYED", KillerId = 1 });
+            plateTimeline.Events.Add(new LeagueMatchTimelineEvent
+                { Type = "TURRET_PLATE_DESTROYED", KillerId = 0 });
+            plateTimeline.Events.Add(new LeagueMatchTimelineEvent
+                { Type = "CHAMPION_KILL", KillerId = 1 });
+            var plateRoster = new[] {
+                new LeaguePlayerMatchParticipant { ParticipantId = 1, ChampionId = 22 },
+                new LeaguePlayerMatchParticipant { ParticipantId = 2, ChampionId = 99 }
+            };
+            var plates = LeagueMatchTimelinePanel.ProjectPlateCounts(plateTimeline, plateRoster);
+            Require(plates.Count == 2 && plates[0].ParticipantId == 1 &&
+                plates[0].ChampionId == 22 && plates[0].Count == 2 &&
+                plates[1].ParticipantId == 2 && plates[1].Count == 1 &&
+                LeagueMatchTimelinePanel.ProjectPlateCounts(plateTimeline,
+                    new[] { plateRoster[0], plateRoster[0] }).Count == 0 &&
+                LeagueMatchTimelinePanel.ProjectPlateCounts(null, plateRoster).Count == 0,
+                "Plate totals must count only known source killers with unique participant ownership.");
             LeagueEventMapSmokeTest.Validate(parsed.Events[2]);
             LeagueDeathDamageSmokeTest.Validate();
             ValidateBuildProgression();

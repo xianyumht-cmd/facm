@@ -404,6 +404,8 @@ namespace FACM.Services
         public const string LeaguePlayerReplayFolderStatusUnknown = "LeaguePlayerReplayFolderStatusUnknown";
         public const string LeaguePlayerReplayFolderStatusEnabled = "LeaguePlayerReplayFolderStatusEnabled";
         public const string LeaguePlayerReplayFolderStatusDisabled = "LeaguePlayerReplayFolderStatusDisabled";
+        public const string LeagueTimelinePlateTitle = "LeagueTimelinePlateTitle";
+        public const string LeagueTimelinePlateCount = "LeagueTimelinePlateCount";
         public const string LeaguePlayerCollectAction = "LeaguePlayerCollectAction";
         public const string LeaguePlayerCollectTitle = "LeaguePlayerCollectTitle";
         public const string LeaguePlayerCollectHint = "LeaguePlayerCollectHint";

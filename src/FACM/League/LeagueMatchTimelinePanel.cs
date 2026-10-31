@@ -11,6 +11,13 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+    internal sealed class LeagueTimelinePlateCount
+    {
+        internal int ParticipantId;
+        internal int ChampionId;
+        internal int Count;
+    }
+
     internal sealed class LeagueMatchTimelinePanel : UserControl
     {
         private readonly UiTextCatalog _ui;
@@ -26,7 +33,7 @@ namespace FACM.League
         private readonly Button _retry, _damage;
         private readonly Func<bool> _isCurrentSession;
         private LeagueMatchTimelineEvent _selectedEvent;
-        private readonly ListView _events, _frames, _builds;
+        private readonly ListView _events, _frames, _builds, _plates;
         private readonly TextBox _details, _jungle;
         private readonly LeaguePlayerMatchSummary _match;
         private readonly LeagueEventMap _eventMap;
@@ -122,6 +129,9 @@ namespace FACM.League
             _builds = EventList();
             _events.RetrieveVirtualItem += (sender, args) => args.Item = EventRow(_shownEvents, args.ItemIndex);
             _builds.RetrieveVirtualItem += (sender, args) => args.Item = EventRow(_shownBuilds, args.ItemIndex);
+            _plates = BaseList();
+            _plates.Columns.Add(T(UiTextKeys.LeaguePlayerChampion), 260);
+            _plates.Columns.Add(T(UiTextKeys.LeagueTimelinePlateCount), 110);
             _frames = BaseList();
             _frames.VirtualMode = true;
             _frames.RetrieveVirtualItem += (sender, args) => args.Item = FrameRow(args.ItemIndex);
@@ -142,6 +152,7 @@ namespace FACM.League
                 LeagueCherryTeams.IsCherry(detail.Match.GameMode));
             AddTab(tabs, UiTextKeys.LeagueTimelineComparison, _comparison);
             AddTab(tabs, UiTextKeys.LeagueTimelineBuilds, _builds);
+            AddTab(tabs, UiTextKeys.LeagueTimelinePlateTitle, _plates);
             _frameStats = new LeagueTimelineFrameStats(ui);
             AddTab(tabs, UiTextKeys.LeagueFrameTitle, _frameStats);
             _jungle = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true,
@@ -172,6 +183,19 @@ namespace FACM.League
                 var result = await _load(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 _timeline = result;
+                _plates.BeginUpdate();
+                try
+                {
+                    _plates.Items.Clear();
+                    if (_isCurrentSession == null || _isCurrentSession())
+                        foreach (var plate in ProjectPlateCounts(result, _participants))
+                        {
+                            var row = new ListViewItem(PlayerName(plate.ParticipantId));
+                            row.SubItems.Add(plate.Count.ToString(CultureInfo.InvariantCulture));
+                            _plates.Items.Add(row);
+                        }
+                }
+                finally { _plates.EndUpdate(); }
                 _comparison.SetTimeline(result);
                 _buildProjection = LeagueTimelineBuilds.Project(result);
                 _buildSteps.Clear();
@@ -257,6 +281,27 @@ namespace FACM.League
             int anvils;
             if (id > 0 && _buildProjection.Anvils.TryGetValue(id, out anvils))
                 _status.Text += " · " + T(UiTextKeys.LeagueTimelineAnvils).Replace("{0}", anvils.ToString());
+        }
+
+        // Akari MatchCardEventsTab counts only source-confirmed plate killers.
+        internal static List<LeagueTimelinePlateCount> ProjectPlateCounts(
+            LeagueMatchTimeline timeline, IEnumerable<LeaguePlayerMatchParticipant> participants)
+        {
+            if (timeline == null || participants == null) return new List<LeagueTimelinePlateCount>();
+            var roster = participants.Where(p => p != null && p.ParticipantId > 0 &&
+                p.ParticipantId <= 20 && p.ChampionId > 0)
+                .GroupBy(p => p.ParticipantId).Where(group => group.Count() == 1)
+                .ToDictionary(group => group.Key, group => group.First());
+            return timeline.Events.Where(e => e != null && e.Type == "TURRET_PLATE_DESTROYED" &&
+                    e.KillerId > 0 && roster.ContainsKey(e.KillerId))
+                .GroupBy(e => e.KillerId)
+                .Select(group => new LeagueTimelinePlateCount
+                {
+                    ParticipantId = group.Key,
+                    ChampionId = roster[group.Key].ChampionId,
+                    Count = group.Count()
+                })
+                .OrderByDescending(row => row.Count).ThenBy(row => row.ParticipantId).ToList();
         }
 
         internal static List<LeagueMatchTimelineEvent> FilterEventsForSmokeTest(
