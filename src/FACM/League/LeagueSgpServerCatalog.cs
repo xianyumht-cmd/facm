@@ -26,7 +26,7 @@ namespace FACM.League
             await RefreshGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromMinutes(15)) return false;
+                if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
                 _lastAttempt = DateTime.UtcNow;
                 var data = await LeaguePublicDataTransport.TryGetBytesAsync(
                     CatalogUrl, TimeSpan.FromSeconds(4), token).ConfigureAwait(false);
