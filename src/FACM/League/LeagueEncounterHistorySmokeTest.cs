@@ -184,6 +184,10 @@ namespace FACM.League
             Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
                 "Unresolved participant identity cannot inherit an Akari score.");
             first.ParticipantResolved = true;
+            first.WinResult = "loss";
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "Conflicting participant and team outcomes must not produce a single-match score.");
+            first.WinResult = null;
             first.VisionScore = null;
             Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
                 "Missing vision data cannot become a zero-valued per-match score.");

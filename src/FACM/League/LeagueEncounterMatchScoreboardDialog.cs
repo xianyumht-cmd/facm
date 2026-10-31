@@ -870,6 +870,11 @@ namespace FACM.League
                 .Where(team => team != null && team.TeamId == groupId).Take(2).ToList();
             if (groupId <= 0 || matching.Count != 1 || !matching[0].Win.HasValue)
                 return null;
+            var rosterOutcome = LeaguePlayerHistoryAnalysis.Outcome(self);
+            if (rosterOutcome != LeagueHistoryOutcome.Unknown &&
+                rosterOutcome != (matching[0].Win.Value
+                    ? LeagueHistoryOutcome.Win : LeagueHistoryOutcome.Loss))
+                return null;
             var candidate = new LeaguePlayerMatchSummary {
                 GameId = match.GameId, GameType = match.GameType,
                 GameDurationSeconds = match.GameDurationSeconds,
