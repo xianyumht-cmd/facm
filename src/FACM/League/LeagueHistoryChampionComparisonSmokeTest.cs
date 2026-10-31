@@ -43,11 +43,13 @@ namespace FACM.League
                 !get(UiTextKeys.LeaguePlayerCompareMissingPings).Value.HasValue,
                 "One missing SGP ping source must leave both whole-sample averages unavailable.");
             var compact = LeagueHistoryChampionOverview.Project(matches, 22);
-            Require(compact.Count == 3 &&
+            Require(compact.Count == 4 &&
                 compact[0].TitleKey == UiTextKeys.LeaguePlayerOverviewPerformance &&
                 compact[1].TitleKey == UiTextKeys.LeaguePlayerOverviewCombat &&
                 compact[2].TitleKey == UiTextKeys.LeaguePlayerOverviewEconomy &&
-                compact.Sum(group => group.Metrics.Count) == 26 &&
+                compact[3].TitleKey == UiTextKeys.LeaguePlayerOverviewPreferences &&
+                compact[3].Metrics.Count == 2 &&
+                compact.Sum(group => group.Metrics.Count) == 28 &&
                 compact[0].Metrics.Any(v => v.Key == UiTextKeys.LeaguePlayerCompareVision && v.Value == 0d) &&
                 compact.All(group => group.Metrics.All(v =>
                     v.Key != UiTextKeys.LeaguePlayerComparePings &&
