@@ -1,3 +1,7 @@
+## 2026-11-01 — Native analysis metric additions must update all smoke contracts
+
+Adding source-backed champion comparison metrics changes more than the projection list: the compact overview may expose previously hidden groups when fixture team IDs are already known, and native ListView row/group counts must be revised too. In this run the first two executable candidates compiled but failed the `league-player` performance smoke because tests still expected 29 comparison rows and three overview groups. When extending analysis metrics, inspect all fixture evidence and assertions for aggregate count, overview group count, rendered ListView row count, optional-data coverage and empty-state behavior before triggering Windows CI. The final executable 8c95a2f passed all four gates after these corrections.
+
 ## C# JSON fixture quoting and remote-group preflight identity (2026-10-31)
 
 The first auto-select group fixture on executable `51b342c` failed Mayhem Source Probe compilation (CS1026/CS1003) because a verbatim C# string around `["*"]` had a misplaced closing quote. `a4115a4` uses an ordinary escaped JSON substring and passed all four Windows gates. Validate emitted C# literals, not the JavaScript transport representation. Remote group configuration can change while an action is pending; the resolved group must be included in the pre-write context identity, not just queue/mode/custom fields. Never log GSM `playerCredentials` bodies because the source shape includes credential material.

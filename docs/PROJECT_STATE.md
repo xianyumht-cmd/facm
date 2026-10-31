@@ -1,3 +1,24 @@
+## 2026-11-01 — Source-pinned player preference and active-session analysis (Draft #357)
+
+**Final executable/test SHA:** [8c95a2f](https://github.com/xianyumht-cmd/facm/commit/8c95a2fa39fba8afd9d54671661b092bfaf7719a). Three connected native source modules are now wired through player report, per-champion report, overview and comparison:
+
+1. **Flash key preference:** count Flash (spell 4) on D/F independently, with explicit valid-spell coverage; partial/unknown spell slots never become measured zero.
+2. **Blue/red side distribution:** count only source-confirmed TEAM-100/TEAM-200 and expose sample coverage. Deduplicated, confirmed win/loss history excludes remakes and unrelated games.
+3. **Active play session:** follow pinned Akari's 4-hour latest-match and 8-hour adjacent-game gap, using valid source timestamps/durations. Show current-session wins/losses and per-champion session win rate only with evidence; guard against future/invalid timestamps, mixed target PUUID and SGP server.
+
+Native comparison now contains 34 metrics (29 existing + four preference ratios + session win rate); overview adds a preference group only when source evidence exists. Synthetic tests cover known zero vs missing, duplicates, remakes, both Flash keys, sides, session gap/future/stale/unknown dates, player and region changes, and native list projections. No new HTTP owner, poller, package, game write or cloud field.
+
+| Source parity scope | Status | Remaining |
+| --- | --- | --- |
+| Aggregated Flash D/F, team side and active session | Implemented in native executable; four Windows gates passed | Real Tencent SGP/LCU source variation and user acceptance |
+| Existing champion comparison, mastery, EOG and jungle aggregate | Partial overall source parity | Early deaths with enemy jungler from non-jungler timelines, remaining per-match details and replay option audit |
+| Dynamic SGP, offline champion presets and cloud | Partial | Trusted new Riot-region enrollment, offline catalogs, real 256-row cloud acceptance |
+| Tencent CN, Windows 10 and DPI | Not tested | Owner's single consolidated final acceptance |
+
+**Four CI gates on 8c95a2f:** [Windows Build #41225183638](https://github.com/xianyumht-cmd/facm/actions/runs/41225183638), [Glass WebView2 #41225183498](https://github.com/xianyumht-cmd/facm/actions/runs/41225183498), [UI Text Contract #41225183490](https://github.com/xianyumht-cmd/facm/actions/runs/41225183490), [Mayhem Source Probe #41225183484](https://github.com/xianyumht-cmd/facm/actions/runs/41225183484) — all successful. Earlier candidates failed the native player smoke due to stale expected overview/row counts; those tests were corrected before final verification. Draft #357/#355 unchanged; no merge, publish, deployment, updater or production 3.5.78 modification.
+
+---
+
 ## 2026-11-01 — Native manual champion rune/spell presets and expanded storage (Draft #357)
 
 **Executable/test SHA:** [c421368](https://github.com/xianyumht-cmd/facm/commit/c421368eb7af85ade2e6342b9c62278ec1af0df9). This run delivers four connected native clusters:

@@ -1,3 +1,13 @@
+## 2026-11-01 — Player aggregated spells, team side and active session source audit
+
+Pinned upstream Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`: `src/shared/data-adapter/analysis/player/aggregate/{spells,team-side,win-loss}.ts` and `constants.ts`. The source counts Flash ID 4 independently on spell slots D/F, blue TEAM-100 and red TEAM-200, and active-session wins/losses with a latest-game end within 4 hours and adjacent game-start gap at most 8 hours. Native executable [8c95a2f](https://github.com/xianyumht-cmd/facm/commit/8c95a2fa39fba8afd9d54671661b092bfaf7719a) adds these projections with explicit source coverage, deduplicated win/loss sample filtering, timestamp bounds and PUUID/SGP-server separation. Both overall and champion-scoped reports expose counts, and the champion overview/comparison exposes evidenced ratios (34 total comparison metrics). No extra API calls, polling or network owner.
+
+The pinned `src/renderer-shared/components/match-card/MatchCardDetails.vue` explicitly disables replay action in `found` state; GGman's existing refusal to execute that state is not a missing replay capability. Source `analysis/player/single/early-deaths.ts` and `aggregate/details.ts` still identify a real gap: non-jungler early deaths involving enemy jungler require bounded, account-scoped timeline hydration and an end-to-end UI aggregate. This remains **missing**, not claimed complete. Live Tencent CN/Win10 DPI and real SGP response variation remain unverified.
+
+**CI on executable 8c95a2f:** [Build](https://github.com/xianyumht-cmd/facm/actions/runs/41225183638), [Glass](https://github.com/xianyumht-cmd/facm/actions/runs/41225183498), [UI Text](https://github.com/xianyumht-cmd/facm/actions/runs/41225183490), [Mayhem](https://github.com/xianyumht-cmd/facm/actions/runs/41225183484) all passed. No production/release/merge change.
+
+---
+
 ## 2026-11-01 — Pinned Akari v1.5.1 manual champion configuration audit
 
 Pinned upstream commit 14557723706ccc0e0a9d62c470141d4cb7190fcd. Source: src/renderer/src-main-window/views/automation/components/auto-champ-config/{ChampionConfig.vue,RuneV2Edit.vue,SummonerSpellEdit.vue,utils.ts} and src/shared/http-api-axios-helper/league-client/game-data.ts. Akari requires perkstyles schema version 2, classifies kKeyStone, kMixedRegularSplashable and kStatMod rows, and maps nine rune selections as four primary, two secondary from different rows and three stat shards. Its manual spell editor filters by source gameModes, and ChampionConfig selects champion and mode/role independently of the active draft.
