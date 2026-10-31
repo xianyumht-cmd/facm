@@ -173,7 +173,8 @@ namespace FACM.League
                 overview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                 Require(overview.SelectedChampionId == 22 &&
                     overview.Controls.OfType<ListView>().Single().Groups.Count == 4 &&
-                    overview.Controls.OfType<ListView>().Single().Items.Count == 32,
+                    overview.Controls.OfType<ListView>().Single().Items.Count ==
+                    LeagueHistoryChampionOverview.Project(matches, 22).Sum(group => group.Metrics.Count),
                     "Native champion overview must expose grouped metrics for the selected hero.");
                 overview.RefreshData(matches.Where(m => m.ChampionId == 145));
                 Require(overview.SelectedChampionId == 0,
@@ -192,7 +193,8 @@ namespace FACM.League
                 Require(view.SelectedLeftChampionId == 22,
                     "Cross-tab champion selection must update the comparison's left side.");
                 view.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                Require(view.Controls.OfType<ListView>().Single().Items.Count == 34,
+                Require(view.Controls.OfType<ListView>().Single().Items.Count ==
+                    LeagueHistoryChampionComparison.Calculate(matches, 22).Count,
                     "Native comparison must expose every available metric row.");
                 view.RefreshData(new LeaguePlayerMatchSummary[0]);
                 Require(view.Controls.OfType<ListView>().Single().Items[0].SubItems[1].Text.Contains("(0/0)"),
