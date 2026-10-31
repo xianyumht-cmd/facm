@@ -245,6 +245,21 @@ namespace FACM.League
                 .GetAwaiter().GetResult(), "Region/session replacement must reject in-flight GSM.");
             sgp.AfterRead = null;
 
+            api.Phase = "Lobby";
+            var exited = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.Phase = "InProgress";
+            var reentered = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!exited.SgpEnriched && !reentered.SgpEnriched,
+                "Gameflow exit must clear SGP enrichment instead of replaying a previous episode.");
+
+            var anonymousBot = SgpLiveFixture.ValidJson.Replace(
+                @"""teamTwo"":[{""puuid"":""enemy-puuid""", @"""teamTwo"":[{""puuid"":""""");
+            var parsedBots = LeagueLiveDataService.ParseSgpGame(
+                Encoding.UTF8.GetBytes(anonymousBot), 123456, "local-puuid");
+            Require(parsedBots != null && parsedBots.Count == 1 &&
+                parsedBots[0].IsLocalPlayer && parsedBots[0].Spell1Id == 4,
+                "Anonymous bot slots must not suppress verified local GSM team data.");
+
             Require(LeagueLiveDataService.ParseSgpGame(
                 Encoding.UTF8.GetBytes(SgpLiveFixture.ValidJson.Replace(
                     @"""puuid"":""enemy-puuid""", @"""puuid"":""local-puuid""")),

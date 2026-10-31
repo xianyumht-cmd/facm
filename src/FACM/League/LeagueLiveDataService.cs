@@ -65,7 +65,11 @@ namespace FACM.League
                     UpdatedAtUtc = phase.UpdatedAtUtc
                 };
 
-                if (!phase.Connected) return snapshot;
+                if (!phase.Connected)
+                {
+                    ClearSgpCache();
+                    return snapshot;
+                }
 
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
@@ -242,6 +246,9 @@ namespace FACM.League
                     {
                         if (++count > 20) return null;
                         var puuid = ReadString(member, "puuid");
+                        // Bot/anonymous slots have no stable PUUID and must never be merged
+                        // with a real player by name, cell or summoner ID.
+                        if (string.IsNullOrWhiteSpace(puuid)) continue;
                         if (!LeagueSgpMatchHistoryApiClient.SafePuuid(puuid) || !seen.Add(puuid))
                             return null;
                         rows.Add(new LeagueLivePlayerRow
