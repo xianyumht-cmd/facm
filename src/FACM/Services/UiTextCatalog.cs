@@ -563,6 +563,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerHistoryQueueRanked, "排位"),
             Pair(UiTextKeys.LeaguePlayerHistoryQueueNormal, "普通"),
             Pair(UiTextKeys.LeaguePlayerHistoryQueueNumber, "队列 {0}"),
+            Pair(UiTextKeys.LeaguePlayerHistoryCurrentLobbyQueue, "当前大厅 · {0}"),
             Pair(UiTextKeys.LeaguePlayerHistoryRegion, "大区"),
             Pair(UiTextKeys.LeaguePlayerHistoryCurrentRegion, "当前客户端大区"),
             Pair(UiTextKeys.LeaguePlayerRemoteHistoryTitle, "玩家资料与近期战绩"),

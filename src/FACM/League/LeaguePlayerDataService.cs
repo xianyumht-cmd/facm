@@ -586,6 +586,40 @@ namespace FACM.League
             }
         }
 
+        internal async Task<int?> LoadCurrentLobbyQueueIdAsync(string ownerPuuid,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            if (_session == null || expected == null || !IsSafePuuid(ownerPuuid) ||
+                !SessionStillCurrent(expected)) return null;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (!SessionStillCurrent(expected)) return null;
+                        var before = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        if (before == null || !string.Equals(before.PuuId, ownerPuuid,
+                            StringComparison.OrdinalIgnoreCase)) return null;
+                        var bytes = await _client.TryGetBytesAsync(
+                            "/lol-lobby/v2/lobby", deadline.Token).ConfigureAwait(false);
+                        var queue = LeagueSgpSupportedQueues.ParseLobbyQueueId(bytes);
+                        var after = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        return SessionStillCurrent(expected) && after != null &&
+                            string.Equals(after.PuuId, ownerPuuid, StringComparison.OrdinalIgnoreCase)
+                            ? queue : null;
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+                catch (Exception) { return null; }
+            }
+        }
+
         internal async Task<LeagueSgpEogResult> LoadSgpEogAsync(
             string ownerPuuid, string targetPuuid, long gameId,
             LeagueClientSession expected, CancellationToken token)

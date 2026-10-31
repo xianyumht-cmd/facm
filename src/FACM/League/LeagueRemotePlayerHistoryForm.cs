@@ -43,6 +43,7 @@ namespace FACM.League
         private readonly ComboBox _historyRegion;
         private readonly ComboBox _queueTag;
         private Dictionary<int, string> _queueNames = new Dictionary<int, string>();
+        private int? _currentLobbyQueueId;
         private bool _updatingSource;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
@@ -354,10 +355,13 @@ namespace FACM.League
             try
             {
                 var names = _service.LoadQueueNamesAsync(expected, _lifetime.Token);
+                var lobby = _service.LoadCurrentLobbyQueueIdAsync(
+                    _expected.PuuId, expected, _lifetime.Token);
                 await Task.WhenAll(LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token),
-                    LeagueSgpSupportedQueues.TryRefreshAsync(_lifetime.Token), names);
+                    LeagueSgpSupportedQueues.TryRefreshAsync(_lifetime.Token), names, lobby);
                 if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
                 _queueNames = await names;
+                _currentLobbyQueueId = await lobby;
             }
             catch (OperationCanceledException) { return; }
             if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
@@ -401,8 +405,24 @@ namespace FACM.League
                 _queueTag.Items.Add(new QueueTagOption { Tag = "normal",
                     Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNormal) });
                 var index = 0;
-                foreach (var id in LeagueSgpSupportedQueues.Snapshot())
+                var supported = LeagueSgpSupportedQueues.Snapshot();
+                if (_currentLobbyQueueId.HasValue &&
+                    Array.IndexOf(supported, _currentLobbyQueueId.Value) >= 0)
                 {
+                    var id = _currentLobbyQueueId.Value;
+                    string name;
+                    var label = _queueNames.TryGetValue(id, out name) ? name :
+                        _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNumber)
+                            .Replace("{0}", id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                    var tag = "q_" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var item = _queueTag.Items.Add(new QueueTagOption { Tag = tag,
+                        Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryCurrentLobbyQueue)
+                            .Replace("{0}", label) });
+                    if (tag == selectedTag) index = item;
+                }
+                foreach (var id in supported)
+                {
+                    if (id == _currentLobbyQueueId) continue;
                     var tag = "q_" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     string name;
                     var item = _queueTag.Items.Add(new QueueTagOption { Tag = tag,

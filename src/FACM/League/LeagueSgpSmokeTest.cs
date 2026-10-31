@@ -118,6 +118,7 @@ namespace FACM.League
             ValidateEogProjection();
             ValidateEogOnlyFallback();
             ValidateQueueNames();
+            ValidateCurrentLobbyQueue();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
@@ -135,6 +136,57 @@ namespace FACM.League
             Require(LeagueSgpSupportedQueues.ParseQueueNames(Bytes(@"{}")).Count == 0 &&
                 LeagueSgpSupportedQueues.ParseQueueNames(null).Count == 0,
                 "Unavailable or malformed queue metadata must preserve numeric fallback.");
+        }
+
+        private static void ValidateCurrentLobbyQueue()
+        {
+            Require(LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":420}}")) == 420 &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":450}}")) == 450 &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":""420""}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":-1}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":420.5}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(@"{}")) == null,
+                "Lobby queue suggestions require an exact bounded numeric LCU gameConfig.queueId.");
+            var session = Session("HN1", "TENCENT");
+            var active = session;
+            var local = new LobbyApi();
+            var service = new LeaguePlayerDataService(local,
+                new FACM.Performance.PerformanceBudgetProvider(), null, null, () => active);
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == 420 && local.Calls == 3,
+                "Current lobby queue must be read once between two verified local account reads.");
+            local.AfterLobby = () => local.Owner = "other";
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "A changed owner after the lobby read must discard the queue suggestion.");
+            local.Owner = "self";
+            local.AfterLobby = () => active = Session("HN10", "TENCENT");
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "A changed region/session after the lobby read must discard the queue suggestion.");
+        }
+
+        private sealed class LobbyApi : ILeagueClientApi
+        {
+            internal string Owner = "self";
+            internal int Calls;
+            internal Action AfterLobby;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Calls++;
+                if (path == "/lol-lobby/v2/lobby")
+                {
+                    AfterLobby?.Invoke();
+                    return Task.FromResult(Bytes(@"{""gameConfig"":{""queueId"":420}}"));
+                }
+                return Task.FromResult(Bytes("{\\"puuid\\":\\"" + Owner + "\\"}"));
+            }
         }
 
         private static void ValidateEogProjection()

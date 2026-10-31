@@ -55,6 +55,25 @@ namespace FACM.League
             return names;
         }
 
+        internal static int? ParseLobbyQueueId(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 64 * 1024) return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                object rawConfig, rawId;
+                if (root == null || !root.TryGetValue("gameConfig", out rawConfig)) return null;
+                var config = rawConfig as Dictionary<string, object>;
+                if (config == null || !config.TryGetValue("queueId", out rawId) || !(rawId is int))
+                    return null;
+                var id = (int)rawId;
+                return id > 0 && id <= 100000 ? (int?)id : null;
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
         internal static bool IsValidTag(string tag)
         {
             if (tag == null || tag == "ranked" || tag == "normal") return true;
