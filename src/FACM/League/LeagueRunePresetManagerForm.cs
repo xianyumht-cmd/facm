@@ -234,8 +234,17 @@ namespace FACM.League
             if (MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerDeleteSpellsConfirm),
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-            _controller.RemoveSpellPresetByKey(champion.Id, group);
-            RefreshSaved();
+            try
+            {
+                _controller.RemoveSpellPresetByKey(champion.Id, group);
+                RefreshSaved();
+            }
+            catch (Exception error)
+            {
+                AppLog.Error("League spell preset removal failed", error);
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.SaveFailed),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void EditSelected()
@@ -269,8 +278,17 @@ namespace FACM.League
             if (MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerDeleteConfirm),
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                 MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-            _controller.RemoveRunePresetByKey(champion.Id, group);
-            RefreshSaved();
+            try
+            {
+                _controller.RemoveRunePresetByKey(champion.Id, group);
+                RefreshSaved();
+            }
+            catch (Exception error)
+            {
+                AppLog.Error("League rune preset removal failed", error);
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.SaveFailed),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private string T(string key) { return LeagueAdvisorText.Get(_ui, key); }

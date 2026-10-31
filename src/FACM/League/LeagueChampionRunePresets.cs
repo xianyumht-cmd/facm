@@ -59,6 +59,7 @@ namespace FACM.League
         {
             if (!Valid(preset)) throw new ArgumentException("Invalid champion rune preset.");
             var rows = Parse(source).ToList();
+            EnsureReadable(source, rows.Count);
             rows.RemoveAll(row => Key(row) == Key(preset));
             rows.Add(preset);
             return Serialize(rows);
@@ -66,7 +67,9 @@ namespace FACM.League
 
         internal static string Remove(string source, int championId, string group)
         {
-            return Serialize(Parse(source).Where(row => row.ChampionId != championId || row.Group != group));
+            var rows = Parse(source);
+            EnsureReadable(source, rows.Count);
+            return Serialize(rows.Where(row => row.ChampionId != championId || row.Group != group));
         }
 
         internal static LeagueChampionRunePreset Resolve(string source, int championId, string group)
@@ -77,6 +80,14 @@ namespace FACM.League
             if (exact != null) return exact;
             return group.StartsWith("ranked-", StringComparison.Ordinal) ?
                 rows.FirstOrDefault(row => row.ChampionId == championId && row.Group == "ranked-default") : null;
+        }
+
+        private static void EnsureReadable(string source, int count)
+        {
+            if (string.IsNullOrWhiteSpace(source) || count > 0) return;
+            var decoded = LeaguePresetCodec.Decode(source, MaxLength);
+            if (!string.Equals(decoded == null ? null : decoded.Trim(), "[]", StringComparison.Ordinal))
+                throw new ArgumentException("Existing champion rune catalog is invalid.");
         }
 
         private static bool Valid(LeagueChampionRunePreset row)

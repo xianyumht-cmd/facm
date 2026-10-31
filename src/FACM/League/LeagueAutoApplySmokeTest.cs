@@ -61,6 +61,14 @@ namespace FACM.League
                 LeagueChampionRunePresets.Parse("z1:%%%").Count == 0 &&
                 LeaguePresetCodec.Decode("z1:%%%", 7500) == null,
                 "Malformed compressed champion presets must fail closed.");
+            var runeProtected = false;
+            var spellProtected = false;
+            try { LeagueChampionRunePresets.Upsert("z1:%%%", runeRows[0]); }
+            catch (ArgumentException) { runeProtected = true; }
+            try { LeagueChampionSpellPresets.Remove("z1:%%%", 1, "ranked-default"); }
+            catch (ArgumentException) { spellProtected = true; }
+            Require(runeProtected && spellProtected,
+                "An unreadable saved catalog must not be overwritten by editing or removal.");
             var expanded = new string('x', LeaguePresetCodec.MaxExpandedBytes + 1);
             var oversized = "z1:" + Convert.ToBase64String(CompressForSmokeTest(expanded));
             Require(LeaguePresetCodec.Decode(oversized, 7500) == null,
