@@ -11,6 +11,15 @@ namespace FACM.League
     // an active filter until the user applies a completely validated copy of the tree.
     internal sealed class LeagueAdvancedMatchHistoryForm : Form
     {
+        private sealed class QueueChoice
+        {
+            internal int Id;
+            public override string ToString()
+            {
+                return UiTextRuntime.Text(UiTextKeys.LeaguePlayerHistoryQueueNumber)
+                    .Replace("{0}", Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
         private static readonly LeagueAdvancedMatchKind[] ConditionKinds =
         {
             LeagueAdvancedMatchKind.IsGameMode,
@@ -70,6 +79,7 @@ namespace FACM.League
         private readonly ComboBox _rootMode;
         private readonly ComboBox _conditionType;
         private readonly TextBox _conditionValue;
+        private readonly ComboBox _queueChoice;
         private readonly Label _inputHint;
         private bool _changingSelection;
 
@@ -156,6 +166,23 @@ namespace FACM.League
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text
             };
+            _queueChoice = new ComboBox
+            {
+                Bounds = new Rectangle(556, 429, 162, 27),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedQueue),
+                Visible = false
+            };
+            foreach (var id in LeagueSgpSupportedQueues.Snapshot())
+                _queueChoice.Items.Add(new QueueChoice { Id = id });
+            _queueChoice.SelectedIndexChanged += (s, e) =>
+            {
+                if (_changingSelection || !(_queueChoice.SelectedItem is QueueChoice)) return;
+                _conditionValue.Text = ((QueueChoice)_queueChoice.SelectedItem).Id
+                    .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            };
             _inputHint = new Label
             {
                 Bounds = new Rectangle(18, 463, 700, 38),
@@ -175,7 +202,7 @@ namespace FACM.League
             CancelButton = cancel;
 
             Controls.AddRange(new Control[] { instruction, _rootMode, _tree, addCondition, addAnd, addOr,
-                addNot, remove, addScope, _conditionType, _conditionValue, _inputHint, clear, cancel, apply });
+                addNot, remove, addScope, _conditionType, _conditionValue, _queueChoice, _inputHint, clear, cancel, apply });
             _tree.AfterSelect += (s, e) => ShowSelectedCondition();
             _rootMode.SelectedIndexChanged += (s, e) =>
             {
@@ -368,6 +395,19 @@ namespace FACM.League
                 _conditionValue.Enabled = scopedIdentity || condition && !IsResultCondition(node.Kind);
                 _conditionType.SelectedIndex = condition ? Array.IndexOf(ConditionKinds, node.Kind) : -1;
                 _conditionValue.Text = condition || scopedIdentity ? node.Value ?? string.Empty : string.Empty;
+                _queueChoice.Visible = condition && node.Kind == LeagueAdvancedMatchKind.IsQueue;
+                _queueChoice.SelectedIndex = -1;
+                if (_queueChoice.Visible)
+                {
+                    int selected;
+                    if (int.TryParse(node.Value, out selected))
+                        for (var i = 0; i < _queueChoice.Items.Count; i++)
+                            if (((QueueChoice)_queueChoice.Items[i]).Id == selected)
+                            {
+                                _queueChoice.SelectedIndex = i;
+                                break;
+                            }
+                }
                 _inputHint.Text = scopedIdentity ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScopeHint) :
                     !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsGameMode ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedModeHint) :
@@ -428,6 +468,18 @@ namespace FACM.League
             var node = (LeagueAdvancedMatchNode)_tree.SelectedNode.Tag;
             if (LeagueAdvancedMatchNode.IsGroup(node.Kind) && !IsScopedIdentityGroup(node.Kind)) return;
             node.Value = _conditionValue.Text;
+            if (node.Kind == LeagueAdvancedMatchKind.IsQueue && _queueChoice.Visible)
+            {
+                int selected;
+                if (!int.TryParse(node.Value, out selected) ||
+                    !(_queueChoice.SelectedItem is QueueChoice) ||
+                    ((QueueChoice)_queueChoice.SelectedItem).Id != selected)
+                {
+                    _changingSelection = true;
+                    _queueChoice.SelectedIndex = -1;
+                    _changingSelection = false;
+                }
+            }
             _tree.SelectedNode.Text = Display(node);
         }
 
