@@ -17,6 +17,7 @@ namespace FACM.League
         {
             internal string Id;
             internal bool Custom;
+            internal string[] SupportedServers;
             internal readonly List<Tuple<string, string[]>> Targets = new List<Tuple<string, string[]>>();
         }
 
@@ -33,13 +34,22 @@ namespace FACM.League
 
         internal static bool TryGroupFor(string mode, string queueType, bool custom, out string group)
         {
+            return TryGroupFor(mode, queueType, custom, null, out group);
+        }
+
+        internal static bool TryGroupFor(string mode, string queueType, bool custom,
+            string sgpServerId, out string group)
+        {
             group = null;
             Group[] snapshot;
             lock (Sync) snapshot = _groups;
             if (snapshot == null) return false;
             foreach (var entry in snapshot)
             {
-                if (entry.Custom != custom) continue;
+                if (entry.Custom != custom ||
+                    !entry.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+                    (string.IsNullOrEmpty(sgpServerId) ||
+                     !entry.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) continue;
                 foreach (var target in entry.Targets)
                 {
                     if (target.Item1 != mode) continue;
@@ -105,7 +115,11 @@ namespace FACM.League
                         !icon.StartsWith("/lol-game-data/assets/", StringComparison.Ordinal) ||
                         icon.Contains("..") || icon.Any(char.IsControl)) return false;
                     var servers = Strings(Value(entry, "supportedSgpServers"), 64);
-                    if (servers == null || servers.Length != 1 || servers[0] != "*") return false;
+                    if (servers == null || servers.Length == 0 ||
+                        servers.Contains("*", StringComparer.Ordinal) && servers.Length != 1 ||
+                        servers.Any(server => server != "*" &&
+                            !LeagueSgpMatchHistoryApiClient.BuiltinServers.Any(known => known.Id == server)))
+                        return false;
                     var positions = Strings(Value(entry, "positions"), 8);
                     if (positions == null || positions.Length == 0 ||
                         positions.Any(p => !new[] { "default", "top", "jungle", "middle", "bottom", "utility" }.Contains(p)))
@@ -116,7 +130,8 @@ namespace FACM.League
                         !ValidActions(Value(entry, "excludedBans"), 0)) return false;
                     var targets = Value(entry, "targetGameModes") as object[];
                     if (targets == null || targets.Length == 0 || targets.Length > 10) return false;
-                    var group = new Group { Id = id, Custom = (bool)Value(entry, "isCustom") };
+                    var group = new Group { Id = id, Custom = (bool)Value(entry, "isCustom"),
+                        SupportedServers = servers };
                     foreach (var targetValue in targets)
                     {
                         var target = targetValue as Dictionary<string, object>;

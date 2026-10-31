@@ -10,9 +10,14 @@ namespace FACM.League
     {
         internal static string GroupFor(string mode, string queueType, bool custom)
         {
+            return GroupFor(mode, queueType, custom, null);
+        }
+
+        internal static string GroupFor(string mode, string queueType, bool custom, string sgpServerId)
+        {
             if (string.IsNullOrEmpty(mode) || string.IsNullOrEmpty(queueType)) return null;
             string remote;
-            if (LeagueAutoSelectGroupCatalog.TryGroupFor(mode, queueType, custom, out remote))
+            if (LeagueAutoSelectGroupCatalog.TryGroupFor(mode, queueType, custom, sgpServerId, out remote))
                 return remote;
             if (custom) return (mode == "CLASSIC" || mode == "PRACTICETOOL") && queueType == "NORMAL" ? "custom" : null;
             switch (mode)
@@ -32,6 +37,11 @@ namespace FACM.League
 
         internal static byte[] Bind(byte[] selection, byte[] gameflow)
         {
+            return Bind(selection, gameflow, null);
+        }
+
+        internal static byte[] Bind(byte[] selection, byte[] gameflow, string sgpServerId)
+        {
             if (selection == null || gameflow == null || selection.Length > 2097152 || gameflow.Length > 2097152) return null;
             try
             {
@@ -45,14 +55,14 @@ namespace FACM.League
                 var custom = Text(data, "isCustomGame").Equals("True", StringComparison.OrdinalIgnoreCase) ||
                     Text(session, "isCustomGame").Equals("True", StringComparison.OrdinalIgnoreCase);
                 int id;
-                var group = GroupFor(mode, type, custom);
+                var group = GroupFor(mode, type, custom, sgpServerId);
                 if (session == null || Text(flow, "phase") != "ChampSelect" || group == null ||
                     !int.TryParse(Text(queue, "id"), out id) || id < 0) return null;
                 session["queueId"] = id;
                 session["gameMode"] = mode;
                 session["autoSelectGroup"] = group == "aram" && LeagueQueueModePolicy.IsAramMayhem(id, mode) ? "mayhem" : group;
                 session["autoSelectContext"] = id.ToString(CultureInfo.InvariantCulture) + ":" + mode + ":" +
-                    type + ":" + custom + ":" + session["autoSelectGroup"];
+                    type + ":" + custom + ":" + (sgpServerId ?? "") + ":" + session["autoSelectGroup"];
                 return Encoding.UTF8.GetBytes(json.Serialize(session));
             }
             catch (ArgumentException) { return null; }

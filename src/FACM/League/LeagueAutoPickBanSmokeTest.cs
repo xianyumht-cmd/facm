@@ -103,15 +103,30 @@ namespace FACM.League
                 Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
                     !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
                     "Equal or stale auto-select group catalog must not replace the active snapshot.");
+                var scoped = valid.Replace("2026-08-02", "2026-08-03")
+                    .Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_HN1\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(scoped)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false, "TENCENT_HN1") == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false, "NA1") == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null,
+                    "Region-scoped groups must be selected only for their trusted server.");
+                var scopedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
+                Require(scopedBound != null &&
+                    Encoding.UTF8.GetString(scopedBound).Contains(":TENCENT_HN1:ranked") &&
+                    LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                        Bytes(Flow("RANKED_SOLO_5x5")), "NA1") == null,
+                    "The bound action must include its server and reject cross-region remote groups.");
                 foreach (var bad in new[] {
                     valid.Replace(@"""ranked""", @"""foreign"""),
                     valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
-                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_HN1\"]"),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_UNKNOWN\"]"),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"*\",\"NA1\"]"),
                     valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[123]"),
                     valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
                 })
-                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-03"))),
-                        "Unknown group, region-restricted group, unmodeled action or remote icon must fail closed.");
+                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-04"))),
+                        "Unknown group, server, mixed wildcard, unmodeled action or remote icon must fail closed.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

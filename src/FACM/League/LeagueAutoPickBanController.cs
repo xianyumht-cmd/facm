@@ -89,6 +89,7 @@ namespace FACM.League
         private readonly ILeagueBenchSwapWriteApi _benchWrite;
         private readonly ILeagueChampionTradeWriteApi _tradeWrite;
         private readonly ILeagueMatchmakingClock _clock;
+        private readonly Func<LeagueClientSession> _session;
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
         private Task _running;
@@ -137,13 +138,32 @@ namespace FACM.League
         {
         }
 
+        public LeagueAutoPickBanController(ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write, ILeagueBenchSwapWriteApi benchWrite,
+            ILeagueChampionTradeWriteApi tradeWrite, Func<LeagueClientSession> session)
+            : this(read, write, benchWrite, tradeWrite, new LeagueMatchmakingSystemClock(), session)
+        {
+        }
+
         internal LeagueAutoPickBanController(
             ILeagueClientApi read,
             ILeagueChampSelectActionWriteApi write,
             ILeagueBenchSwapWriteApi benchWrite,
             ILeagueChampionTradeWriteApi tradeWrite,
             ILeagueMatchmakingClock clock)
+            : this(read, write, benchWrite, tradeWrite, clock, null)
         {
+        }
+
+        internal LeagueAutoPickBanController(
+            ILeagueClientApi read,
+            ILeagueChampSelectActionWriteApi write,
+            ILeagueBenchSwapWriteApi benchWrite,
+            ILeagueChampionTradeWriteApi tradeWrite,
+            ILeagueMatchmakingClock clock,
+            Func<LeagueClientSession> session)
+        {
+            _session = session;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _benchWrite = benchWrite;
@@ -819,10 +839,19 @@ namespace FACM.League
 
         private async Task<byte[]> ReadSelectionSessionAsync(CancellationToken token)
         {
+            var expected = _session == null ? null : _session();
+            if (_session != null && expected == null) return null;
+            var serverId = expected == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(expected);
             var selection = await _read.TryGetBytesAsync(SessionPath, token).ConfigureAwait(false);
             if (selection == null) return null;
             var gameflow = await _read.TryGetBytesAsync(LeagueLiveDataService.GameflowSessionPath, token).ConfigureAwait(false);
-            return LeagueAutoSelectContext.Bind(selection, gameflow);
+            if (_session != null)
+            {
+                var current = _session();
+                if (current == null || !expected.Matches(current) ||
+                    serverId != LeagueSgpMatchHistoryApiClient.CurrentServerId(current)) return null;
+            }
+            return LeagueAutoSelectContext.Bind(selection, gameflow, serverId);
         }
 
         private static int LimitDelay(int configuredMs, int timeLeftMs)

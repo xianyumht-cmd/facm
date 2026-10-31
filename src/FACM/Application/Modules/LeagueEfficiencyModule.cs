@@ -149,7 +149,7 @@ namespace FACM.AppHost.Modules
             _reconnect.Configure(AutoReconnectEnabled);
             _autoSelect = new LeagueAutoPickBanController(_leagueClient,
                 (ILeagueChampSelectActionWriteApi)_leagueClient, (ILeagueBenchSwapWriteApi)_leagueClient,
-                (ILeagueChampionTradeWriteApi)_leagueClient);
+                (ILeagueChampionTradeWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient,
                 matchmakingWriter, (ILeagueLobbyNoticeWriteApi)_leagueClient);
