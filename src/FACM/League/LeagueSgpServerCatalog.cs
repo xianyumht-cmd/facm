@@ -68,8 +68,8 @@ namespace FACM.League
                             !entry.TryGetValue("common", out common) ||
                             !entry.TryGetValue("isTencent", out tencent) ||
                             !(tencent is bool) || (bool)tencent != server.IsTencent ||
-                            !SafeEndpoint(history as string, server.IsTencent) ||
-                            !SafeEndpoint(common as string, server.IsTencent) ||
+                            !SafeEndpoint(history as string, server) ||
+                            !SafeEndpoint(common as string, server) ||
                             entry.TryGetValue("regionPathParam", out region) &&
                             !string.Equals(region as string, server.PathRegion, StringComparison.Ordinal))
                             return false;
@@ -110,8 +110,9 @@ namespace FACM.League
             catch (InvalidOperationException) { return false; }
         }
 
-        private static bool SafeEndpoint(string value, bool tencent)
+        private static bool SafeEndpoint(string value, LeagueSgpServer server)
         {
+            var tencent = server.IsTencent;
             Uri uri;
             if (string.IsNullOrWhiteSpace(value) || value.Length > 256 ||
                 !Uri.TryCreate(value, UriKind.Absolute, out uri) ||
@@ -119,8 +120,10 @@ namespace FACM.League
                 uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
                 uri.AbsolutePath != "/" || uri.Port != (tencent ? 21019 : 443))
                 return false;
-            return uri.Host.EndsWith(tencent ? ".lol.qq.com" : ".sgp.pvp.net",
-                StringComparison.OrdinalIgnoreCase);
+            if (!uri.Host.EndsWith(tencent ? ".lol.qq.com" : ".sgp.pvp.net",
+                StringComparison.OrdinalIgnoreCase)) return false;
+            return !tencent || uri.Host.StartsWith(
+                server.PathRegion.ToLowerInvariant() + "-", StringComparison.OrdinalIgnoreCase);
         }
 
         private static LeagueSgpServer Clone(LeagueSgpServer server)

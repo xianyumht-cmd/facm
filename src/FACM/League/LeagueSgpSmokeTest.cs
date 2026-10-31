@@ -117,6 +117,7 @@ namespace FACM.League
                     "Catalog must reject stale or equal versions.");
                 foreach (var bad in new[] {
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn1-alt-sgp.lol.qq.com"),
                     valid.Replace("21019", "443"),
                     valid.Replace("true", "false"),
                     valid.Replace("TENCENT_HN10", "UNKNOWN")
