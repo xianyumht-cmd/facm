@@ -48,6 +48,7 @@ namespace FACM.League
             LeagueHistoryChampionComparisonSmokeTest.Validate();
             ValidateLoadedHistoryAnalysis();
             ValidateSourcePreferences();
+            ValidateActiveSession();
             ValidateAkariScoring();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
@@ -294,6 +295,37 @@ namespace FACM.League
                     LeaguePlayerHistoryAnalysis.PreferenceLines(FACM.Services.UiTextCatalog.Load(), p)
                         .All(line => line.Contains("--")),
                 "Missing or partial spell/side evidence must not appear as measured zero.");
+        }
+
+        private static void ValidateActiveSession()
+        {
+            var now = new DateTimeOffset(2026, 10, 31, 12, 0, 0, TimeSpan.Zero);
+            Func<int, string, LeaguePlayerMatchSummary> game = (hoursAgo, outcome) =>
+                new LeaguePlayerMatchSummary {
+                    GameId = 900 + hoursAgo, GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = outcome,
+                    GameCreationEpochMs = now.AddHours(-hoursAgo).ToUnixTimeMilliseconds(),
+                    GameDurationSeconds = 1800
+                };
+            var recent = new[] { game(2, "win"), game(4, "loss"), game(13, "win") };
+            var active = LeagueHistoryActiveSession.Calculate(recent, now);
+            Require(active.Available && active.Games == 2 && active.Wins == 1 &&
+                    active.Losses == 1, "Active session must stop at the source 8-hour adjacent gap.");
+            Require(!LeagueHistoryActiveSession.Calculate(new[] { game(6, "win") }, now).Available &&
+                    !LeagueHistoryActiveSession.Calculate(new[] { game(-1, "win") }, now).Available &&
+                    !LeagueHistoryActiveSession.Calculate(new[] {
+                        new LeaguePlayerMatchSummary { GameId = 1, ParticipantResolved = true,
+                            StatisticsAvailable = true, WinResult = "win" }
+                    }, now).Available,
+                "Old, future and timestamp-free games must not produce a fabricated active session.");
+            var invalid = game(3, "loss");
+            invalid.GameDurationSeconds = 0;
+            Require(LeagueHistoryActiveSession.Calculate(new[] { game(2, "win"), invalid }, now).Games == 1,
+                "An unknown older game duration must stop session chaining.");
+            var text = LeaguePlayerHistoryAnalysis.ActiveSessionLine(
+                FACM.Services.UiTextCatalog.Load(), active);
+            Require(text.Contains("1") && text.Contains("2"),
+                "Active-session win/loss evidence must reach the native report.");
         }
 
         private static void ValidatePlayerPageLayout()

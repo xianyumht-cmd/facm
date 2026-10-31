@@ -151,6 +151,12 @@ namespace FACM.League
                 preferences.BlueSide, preferences.SideSamples);
             addPreference(UiTextKeys.LeaguePlayerCompareRedSide,
                 preferences.RedSide, preferences.SideSamples);
+            var active = LeagueHistoryActiveSession.Calculate(rows, DateTimeOffset.UtcNow);
+            result.Add(new LeagueHistoryComparisonValue {
+                Key = UiTextKeys.LeaguePlayerCompareSessionWinRate, Percent = true,
+                Known = active.Available ? active.Games : 0, Total = rows.Count,
+                Value = active.Available ? (double?)active.Wins / active.Games : null
+            });
             return result;
         }
 
@@ -176,6 +182,7 @@ namespace FACM.League
     {
         private static readonly string[] Performance = {
             UiTextKeys.LeaguePlayerCompareScore, UiTextKeys.LeaguePlayerCompareWinRate,
+            UiTextKeys.LeaguePlayerCompareSessionWinRate,
             UiTextKeys.LeaguePlayerCompareKda, UiTextKeys.LeaguePlayerCompareParticipation,
             UiTextKeys.LeaguePlayerCompareKdaVariation, UiTextKeys.LeaguePlayerCompareVision,
             UiTextKeys.LeaguePlayerCompareVisionShare, UiTextKeys.LeaguePlayerComparePings,
@@ -226,7 +233,8 @@ namespace FACM.League
                 if (!values.TryGetValue(key, out value)) continue;
                 // Pinned ChampionAnalysisContent only exposes these optional fields
                 // when their complete source evidence is available.
-                if ((Preferences.Contains(key) && !value.Value.HasValue) ||
+                if (((Preferences.Contains(key) ||
+                      key == UiTextKeys.LeaguePlayerCompareSessionWinRate) && !value.Value.HasValue) ||
                     (key == UiTextKeys.LeaguePlayerCompareSoloKills ||
                      key == UiTextKeys.LeaguePlayerComparePings ||
                      key == UiTextKeys.LeaguePlayerCompareMissingPings) &&

@@ -616,6 +616,7 @@ namespace FACM.Services
         public const string LeaguePlayerCompareScore = "LeaguePlayerCompareScore";
         public const string LeaguePlayerCompareKda = "LeaguePlayerCompareKda";
         public const string LeaguePlayerCompareKdaVariation = "LeaguePlayerCompareKdaVariation";
+        public const string LeaguePlayerCompareSessionWinRate = "LeaguePlayerCompareSessionWinRate";
         public const string LeaguePlayerCompareFlashD = "LeaguePlayerCompareFlashD";
         public const string LeaguePlayerCompareFlashF = "LeaguePlayerCompareFlashF";
         public const string LeaguePlayerCompareBlueSide = "LeaguePlayerCompareBlueSide";
@@ -720,6 +721,7 @@ namespace FACM.Services
         public const string LeaguePlayerAnalysisTotals = "LeaguePlayerAnalysisTotals";
         public const string LeaguePlayerAnalysisWinRate = "LeaguePlayerAnalysisWinRate";
         public const string LeaguePlayerAnalysisKda = "LeaguePlayerAnalysisKda";
+        public const string LeaguePlayerAnalysisActiveSession = "LeaguePlayerAnalysisActiveSession";
         public const string LeaguePlayerAnalysisFlashPreference = "LeaguePlayerAnalysisFlashPreference";
         public const string LeaguePlayerAnalysisSidePreference = "LeaguePlayerAnalysisSidePreference";
         public const string LeaguePlayerAnalysisCs = "LeaguePlayerAnalysisCs";

@@ -66,6 +66,58 @@ namespace FACM.League
     }
 
     // Akari v1.5.1 aggregated spells and team-side evidence from confirmed matches.
+    // The pinned source treats games within 4h of the latest match as an active
+    // session, then follows preceding games while each start is within an 8h gap.
+    internal sealed class LeagueHistoryActiveSession
+    {
+        internal bool Available;
+        internal int Games, Wins, Losses;
+        private const long LatestWindowMs = 4L * 60 * 60 * 1000;
+        private const long AdjacentGapMs = 8L * 60 * 60 * 1000;
+
+        internal static LeagueHistoryActiveSession Calculate(
+            IEnumerable<LeaguePlayerMatchSummary> matches, DateTimeOffset now)
+        {
+            var result = new LeagueHistoryActiveSession();
+            var rows = (matches ?? Enumerable.Empty<LeaguePlayerMatchSummary>())
+                .Where(m => m != null &&
+                    (LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                     LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss) &&
+                    (string.IsNullOrWhiteSpace(m.GameType) ||
+                     string.Equals(m.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(m => m.GameCreationEpochMs).ToList();
+            if (rows.Count == 0) return result;
+            var nowMs = now.ToUnixTimeMilliseconds();
+            long lastEnd;
+            if (!TryEnd(rows[0], nowMs, out lastEnd) ||
+                lastEnd > nowMs || nowMs - lastEnd >= LatestWindowMs)
+                return result;
+            foreach (var row in rows)
+            {
+                long ended;
+                if (!TryEnd(row, nowMs, out ended)) break;
+                var gap = lastEnd - row.GameCreationEpochMs;
+                if (result.Games > 0 && (gap < 0 || gap > AdjacentGapMs)) break;
+                result.Games++;
+                if (LeaguePlayerHistoryAnalysis.Outcome(row) == LeagueHistoryOutcome.Win) result.Wins++;
+                else result.Losses++;
+                lastEnd = ended;
+            }
+            result.Available = result.Games > 0;
+            return result;
+        }
+
+        private static bool TryEnd(LeaguePlayerMatchSummary match, long nowMs, out long end)
+        {
+            end = 0;
+            if (match.GameCreationEpochMs < 1262304000000L ||
+                match.GameCreationEpochMs > nowMs || match.GameDurationSeconds <= 0 ||
+                match.GameDurationSeconds > 24 * 60 * 60) return false;
+            end = match.GameCreationEpochMs + match.GameDurationSeconds * 1000L;
+            return end >= match.GameCreationEpochMs && end <= nowMs;
+        }
+    }
+
     internal sealed class LeagueHistorySourcePreferences
     {
         internal int TotalGames, SpellSamples, FlashOnD, FlashOnF;
@@ -104,6 +156,7 @@ namespace FACM.League
         internal double? CsPerMinute, DamageShare, DamageTakenShare, GoldShare, KillParticipation;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal LeagueHistorySourcePreferences Preferences;
+        internal LeagueHistoryActiveSession ActiveSession;
         internal double? AverageCherryPlacement { get { return CherryKnownPlacements > 0
             ? (double?)CherryPlacementSum / CherryKnownPlacements : null; } }
     }
@@ -312,6 +365,7 @@ namespace FACM.League
         internal double? RecentFiveWinRate, PreviousFiveWinRate;
         internal LeagueHistoryAkariScore AkariScore;
         internal LeagueHistorySourcePreferences Preferences;
+        internal LeagueHistoryActiveSession ActiveSession;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal List<LeaguePlayerChampionStat> Champions = new List<LeaguePlayerChampionStat>();
         internal List<LeaguePlayerChampionStat> AllChampions = new List<LeaguePlayerChampionStat>();
@@ -368,6 +422,7 @@ namespace FACM.League
                 }
             }
             result.Preferences = LeagueHistorySourcePreferences.Calculate(played);
+            result.ActiveSession = LeagueHistoryActiveSession.Calculate(played, DateTimeOffset.UtcNow);
             result.AkariScore = LeagueHistoryAkariScore.Calculate(played);
             result.Kills = Mean(played.Select(m => (double?)m.Kills));
             result.Deaths = Mean(played.Select(m => (double?)m.Deaths));
@@ -393,6 +448,7 @@ namespace FACM.League
                 result.ChampionScores[group.Key] = LeagueHistoryAkariScore.Calculate(group);
                 var breakdown = new LeagueHistoryChampionBreakdown {
                     Preferences = LeagueHistorySourcePreferences.Calculate(group),
+                    ActiveSession = LeagueHistoryActiveSession.Calculate(group, DateTimeOffset.UtcNow),
                     Positions = BuildPositions(group),
                     CsPerMinute = Mean(group.Where(m => m.GameDurationSeconds > 0)
                         .Select(m => (double?)m.CreepScore * 60d / m.GameDurationSeconds)),
@@ -559,6 +615,15 @@ namespace FACM.League
                     ui.Get(keys[i]), values[i].ToString("0.00", CultureInfo.CurrentCulture), maxima[i]));
         }
 
+        internal static string ActiveSessionLine(UiTextCatalog ui, LeagueHistoryActiveSession session)
+        {
+            return string.Format(CultureInfo.CurrentCulture,
+                ui.Get(UiTextKeys.LeaguePlayerAnalysisActiveSession),
+                session != null && session.Available ? session.Wins.ToString(CultureInfo.CurrentCulture) : "--",
+                session != null && session.Available ? session.Losses.ToString(CultureInfo.CurrentCulture) : "--",
+                session != null && session.Available ? session.Games.ToString(CultureInfo.CurrentCulture) : "0");
+        }
+
         internal static IEnumerable<string> PreferenceLines(UiTextCatalog ui,
             LeagueHistorySourcePreferences preferences)
         {
@@ -602,6 +667,7 @@ namespace FACM.League
                 "", ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions)
             };
             lines.AddRange(PreferenceLines(ui, a.Preferences));
+            lines.Add(ActiveSessionLine(ui, a.ActiveSession));
             foreach (var c in a.Champions)
                 lines.Add(string.Format(CultureInfo.CurrentCulture,
                     ui.Get(UiTextKeys.LeaguePlayerAnalysisChampionRow),
@@ -1036,6 +1102,7 @@ namespace FACM.League
                                         Number(breakdown.AverageCherryPlacement)));
                                 }
                                 updated.AddRange(PreferenceLines(ui, breakdown.Preferences));
+                                updated.Add(ActiveSessionLine(ui, breakdown.ActiveSession));
                                 if (breakdown.UnknownModeGames > 0)
                                     updated.Add(string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroUnknownMode),

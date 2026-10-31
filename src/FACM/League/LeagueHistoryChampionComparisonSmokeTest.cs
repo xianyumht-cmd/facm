@@ -23,7 +23,7 @@ namespace FACM.League
             var matches = new[] { first, second, other, first };
             var values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Func<string, LeagueHistoryComparisonValue> get = key => values.Single(v => v.Key == key);
-            Require(values.Count == 33 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
+            Require(values.Count == 34 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
                 get(UiTextKeys.LeaguePlayerCompareKda).Total == 2,
                 "Hero comparisons must deduplicate games and use aggregate KDA, not mean game KDA.");
             Require(get(UiTextKeys.LeaguePlayerCompareKdaVariation).Value == 1d &&
