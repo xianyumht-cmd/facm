@@ -23,11 +23,21 @@ namespace FACM.League
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
         private readonly object _iconCacheSync = new object();
         private readonly Dictionary<int, byte[]> _championIconCache = new Dictionary<int, byte[]>();
+        private readonly ILeagueSgpGsmApi _sgpGsm;
+        private readonly Func<LeagueClientSession> _session;
+        private List<LeagueLivePlayerRow> _sgpRows;
+        private LeagueClientSession _sgpSession;
+        private string _sgpOwnerPuuid;
+        private long _sgpGameId;
+        private DateTime _sgpUntilUtc;
         private string _lastLocalPuuid;
         private int _lastBenchSwapRoute;
 
-        public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets)
+        public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
+            ILeagueSgpGsmApi sgpGsm = null, Func<LeagueClientSession> session = null)
         {
+            _sgpGsm = sgpGsm;
+            _session = session;
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _phaseService = new LeagueDashboardPhaseService(client, budgets);
@@ -71,6 +81,11 @@ namespace FACM.League
                     }
                 }
 
+                if (phase.Activity == LeagueActivityLevel.InGame)
+                    await ApplyCachedSgpAsync(snapshot, cancellationToken).ConfigureAwait(false);
+                else
+                    ClearSgpCache();
+
                 snapshot.BudgetName = _budgets.Current.Name;
                 snapshot.UpdatedAtUtc = DateTime.UtcNow;
                 return snapshot;
@@ -79,6 +94,204 @@ namespace FACM.League
             {
                 _requestGate.Release();
             }
+        }
+
+
+        // SGP is explicitly requested from the visible Live refresh button. The normal phase
+        // observer never performs a remote SGP request.
+        internal async Task<bool> TryRefreshSgpTeamsAsync(LeagueLiveSnapshot snapshot, CancellationToken token)
+        {
+            if (snapshot == null || snapshot.Activity != LeagueActivityLevel.InGame ||
+                snapshot.GameId <= 0 || _sgpGsm == null || _session == null) return false;
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                ClearSgpCache();
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(12));
+                    try
+                    {
+                        var ownerSession = _session();
+                        if (ownerSession == null || LeagueSgpMatchHistoryApiClient.ResolveServer(ownerSession) == null)
+                            return false;
+                        var owner = await ReadLocalPuuidAsync(timeout.Token).ConfigureAwait(false);
+                        if (!LeagueSgpMatchHistoryApiClient.SafePuuid(owner) || !SameSgpSession(ownerSession))
+                            return false;
+
+                        var payload = await _sgpGsm.TryGetGsmByPuuidAsync(owner, timeout.Token).ConfigureAwait(false);
+                        var rows = ParseSgpGame(payload, snapshot.GameId, owner);
+                        if (rows == null || !SameSgpSession(ownerSession)) return false;
+
+                        var after = await ReadLocalPuuidAsync(timeout.Token).ConfigureAwait(false);
+                        if (!string.Equals(owner, after, StringComparison.Ordinal) || !SameSgpSession(ownerSession))
+                            return false;
+
+                        var gameflow = await _client.TryGetBytesAsync(GameflowSessionPath, timeout.Token)
+                            .ConfigureAwait(false);
+                        var current = new LeagueLiveSnapshot();
+                        ApplyCurrentGame(current, gameflow);
+                        if (current.GameId != snapshot.GameId ||
+                            !string.Equals(current.Phase, "InProgress", StringComparison.OrdinalIgnoreCase) ||
+                            !SameSgpSession(ownerSession))
+                            return false;
+                        if (!MergeSgpRows(snapshot, rows, owner)) return false;
+
+                        _sgpRows = rows;
+                        _sgpSession = ownerSession;
+                        _sgpOwnerPuuid = owner;
+                        _sgpGameId = snapshot.GameId;
+                        _sgpUntilUtc = DateTime.UtcNow.AddSeconds(90);
+                        snapshot.SgpEnriched = true;
+                        return true;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        if (token.IsCancellationRequested) throw;
+                        return false;
+                    }
+                    catch (Exception) { return false; }
+                }
+            }
+            finally { _requestGate.Release(); }
+        }
+
+        private async Task ApplyCachedSgpAsync(LeagueLiveSnapshot snapshot, CancellationToken token)
+        {
+            if (_sgpRows == null) return;
+            if (snapshot.GameId <= 0 || snapshot.GameId != _sgpGameId ||
+                DateTime.UtcNow >= _sgpUntilUtc || !SameSgpSession(_sgpSession))
+            {
+                ClearSgpCache();
+                return;
+            }
+            var owner = await ReadLocalPuuidAsync(token).ConfigureAwait(false);
+            if (!string.Equals(owner, _sgpOwnerPuuid, StringComparison.Ordinal) ||
+                !MergeSgpRows(snapshot, _sgpRows, owner))
+                ClearSgpCache();
+            else
+                snapshot.SgpEnriched = true;
+        }
+
+        private async Task<string> ReadLocalPuuidAsync(CancellationToken token)
+        {
+            var bytes = await _client.TryGetBytesAsync(
+                LeagueDashboardDetailsService.SummonerPath, token).ConfigureAwait(false);
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 64 * 1024) return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                var puuid = ReadString(root, "puuid");
+                return LeagueSgpMatchHistoryApiClient.SafePuuid(puuid) ? puuid : null;
+            }
+            catch (Exception) { return null; }
+        }
+
+        private bool SameSgpSession(LeagueClientSession expected)
+        {
+            var current = _session == null ? null : _session();
+            return expected != null && expected.Matches(current) &&
+                string.Equals(LeagueSgpMatchHistoryApiClient.CurrentServerId(expected),
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(current), StringComparison.Ordinal);
+        }
+
+        private void ClearSgpCache()
+        {
+            _sgpRows = null;
+            _sgpSession = null;
+            _sgpOwnerPuuid = null;
+            _sgpGameId = 0;
+            _sgpUntilUtc = DateTime.MinValue;
+        }
+
+        internal static List<LeagueLivePlayerRow> ParseSgpGame(byte[] bytes, long gameId, string owner)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024 ||
+                gameId <= 0 || !LeagueSgpMatchHistoryApiClient.SafePuuid(owner)) return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                var credentials = ReadDictionary(root, "playerCredentials");
+                var game = ReadDictionary(root, "game");
+                if (ReadLong(credentials, "gameId") != gameId ||
+                    !string.Equals(ReadString(credentials, "puuid"), owner, StringComparison.Ordinal) ||
+                    ReadLong(game, "id") != gameId) return null;
+
+                var rows = new List<LeagueLivePlayerRow>();
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var side in new[] { "teamOne", "teamTwo" })
+                {
+                    var count = 0;
+                    foreach (var member in EnumerateDictionaries(ReadValue(game, side)))
+                    {
+                        if (++count > 20) return null;
+                        var puuid = ReadString(member, "puuid");
+                        if (!LeagueSgpMatchHistoryApiClient.SafePuuid(puuid) || !seen.Add(puuid))
+                            return null;
+                        rows.Add(new LeagueLivePlayerRow
+                        {
+                            Side = side == "teamOne" ? "team-1" : "team-2",
+                            PuuId = puuid,
+                            SummonerId = ReadLong(member, "summonerId"),
+                            DisplayName = ReadString(member, "summonerName"),
+                            Position = ReadString(member, "selectedPosition"),
+                            Role = ReadString(member, "selectedRole"),
+                            ChampionId = ReadInt(member, "championId"),
+                            IsLocalPlayer = string.Equals(puuid, owner, StringComparison.Ordinal)
+                        });
+                    }
+                }
+                if (rows.Count == 0 || !seen.Contains(owner)) return null;
+                var selected = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var choice in EnumerateDictionaries(ReadValue(game, "playerChampionSelections")))
+                {
+                    var puuid = ReadString(choice, "puuid");
+                    if (!LeagueSgpMatchHistoryApiClient.SafePuuid(puuid) || !selected.Add(puuid))
+                        return null;
+                    var row = rows.Find(item => string.Equals(item.PuuId, puuid, StringComparison.Ordinal));
+                    if (row == null) continue;
+                    if (row.ChampionId == 0) row.ChampionId = ReadInt(choice, "championId");
+                    row.Spell1Id = ReadInt(choice, "spell1Id");
+                    row.Spell2Id = ReadInt(choice, "spell2Id");
+                }
+                return rows;
+            }
+            catch (Exception) { return null; }
+        }
+
+        private static bool MergeSgpRows(LeagueLiveSnapshot snapshot,
+            IEnumerable<LeagueLivePlayerRow> rows, string owner)
+        {
+            var incoming = rows.ToList();
+            foreach (var row in incoming)
+            {
+                var existing = snapshot.Players.Find(item =>
+                    string.Equals(item.PuuId, row.PuuId, StringComparison.Ordinal));
+                if (existing != null && !string.Equals(existing.Side, row.Side, StringComparison.Ordinal))
+                    return false;
+            }
+            foreach (var item in snapshot.Players)
+                item.IsLocalPlayer = !string.IsNullOrEmpty(item.PuuId) &&
+                    string.Equals(item.PuuId, owner, StringComparison.Ordinal);
+            foreach (var row in incoming)
+            {
+                var existing = snapshot.Players.Find(item =>
+                    string.Equals(item.PuuId, row.PuuId, StringComparison.Ordinal));
+                if (existing == null)
+                {
+                    snapshot.Players.Add(row);
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(existing.DisplayName)) existing.DisplayName = row.DisplayName;
+                if (string.IsNullOrWhiteSpace(existing.Position)) existing.Position = row.Position;
+                if (string.IsNullOrWhiteSpace(existing.Role)) existing.Role = row.Role;
+                if (existing.ChampionId <= 0) existing.ChampionId = row.ChampionId;
+                if (existing.Spell1Id <= 0) existing.Spell1Id = row.Spell1Id;
+                if (existing.Spell2Id <= 0) existing.Spell2Id = row.Spell2Id;
+            }
+            return true;
         }
 
         /// <summary>

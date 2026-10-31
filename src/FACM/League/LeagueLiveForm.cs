@@ -137,7 +137,7 @@ namespace FACM.League
             _refreshButton = CreateButton(UiTextKeys.LeagueLiveRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(680, 626);
             _refreshButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            _refreshButton.Click += async delegate { await RefreshOnceAsync(); };
+            _refreshButton.Click += async delegate { await RefreshOnceAsync(true); };
 
             var close = CreateButton(UiTextKeys.Close, FacmButtonTone.Secondary);
             close.Location = new Point(780, 626);
@@ -222,7 +222,7 @@ namespace FACM.League
             }
         }
 
-        private async Task RefreshOnceAsync()
+        private async Task RefreshOnceAsync(bool includeSgp = false)
         {
             if (_refreshing || IsDisposed || _lifetime.IsCancellationRequested) return;
             _refreshing = true;
@@ -230,6 +230,9 @@ namespace FACM.League
             try
             {
                 var snapshot = await _service.RefreshAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (includeSgp && snapshot != null && snapshot.Activity == LeagueActivityLevel.InGame)
+                    await _service.TryRefreshSgpTeamsAsync(snapshot, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 ApplySnapshot(snapshot);
             }
@@ -328,7 +331,8 @@ namespace FACM.League
                                     "  ·  " + _ui.Get(UiTextKeys.LeagueLiveMode) + ": " + mode;
                 var queue = string.IsNullOrWhiteSpace(snapshot.QueueName) ? Value(snapshot.QueueId) : snapshot.QueueName + " #" + snapshot.QueueId;
                 _bansLabel.Text = _ui.Get(UiTextKeys.LeagueLiveQueue) + ": " + queue;
-                _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly);
+                _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly) +
+                    (snapshot.SgpEnriched ? " · SGP" : string.Empty);
                 ApplyBenchState(null);
             }
             else

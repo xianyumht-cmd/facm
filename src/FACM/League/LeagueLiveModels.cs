@@ -27,6 +27,7 @@ namespace FACM.League
         public string BudgetName { get; set; }
         public DateTime UpdatedAtUtc { get; set; }
 
+        public bool SgpEnriched { get; set; }
         public long GameId { get; set; }
         public int QueueId { get; set; }
         public string QueueName { get; set; }
