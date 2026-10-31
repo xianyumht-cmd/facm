@@ -11,6 +11,12 @@ namespace FACM.League
 {
     internal sealed class LeagueRemotePlayerHistoryForm : Form
     {
+        private sealed class QueueTagOption
+        {
+            internal string Tag;
+            internal string Label;
+            public override string ToString() { return Label; }
+        }
         private readonly LeaguePlayerDataService _service;
         private readonly UiTextCatalog _ui;
         private readonly LeaguePlayerProfile _expected;
@@ -35,6 +41,7 @@ namespace FACM.League
         private readonly ComboBox _pageSize;
         private readonly ComboBox _historySource;
         private readonly ComboBox _historyRegion;
+        private readonly ComboBox _queueTag;
         private bool _updatingSource;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
@@ -145,6 +152,14 @@ namespace FACM.League
             sourceRow.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerHistorySource), Width = 40,
                 Height = 27, ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft });
             sourceRow.Controls.Add(_historySource);
+            _queueTag = new ComboBox { Width = 126, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueTag) };
+            RebuildQueueTagOptions(null);
+            sourceRow.Controls.Add(new Label { Text = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueTag),
+                Width = 40, Height = 27, ForeColor = FacmDesignSystem.TextMuted,
+                TextAlign = ContentAlignment.MiddleLeft });
+            sourceRow.Controls.Add(_queueTag);
             var profileDetails = PageButton(UiTextKeys.LeagueProfileDetailsTitle, 110);
             profileDetails.Click += (sender, args) =>
             {
@@ -156,7 +171,27 @@ namespace FACM.League
             sourceRow.Controls.Add(profileDetails);
             _historySource.SelectedIndexChanged += async (sender, args) =>
             {
-                if (!_updatingSource && !_loading && Visible) await LoadPageAsync(0, _count);
+                if (_updatingSource || _loading || !Visible) return;
+                if (_historySource.SelectedIndex == (int)LeaguePlayerHistorySource.Lcu &&
+                    SelectedQueueTag() != null)
+                {
+                    _updatingSource = true;
+                    _queueTag.SelectedIndex = 0;
+                    _updatingSource = false;
+                }
+                await LoadPageAsync(0, _count);
+            };
+            _queueTag.SelectedIndexChanged += async (sender, args) =>
+            {
+                if (_updatingSource || _loading || !Visible) return;
+                if (SelectedQueueTag() != null &&
+                    _historySource.SelectedIndex == (int)LeaguePlayerHistorySource.Lcu)
+                {
+                    _updatingSource = true;
+                    _historySource.SelectedIndex = (int)LeaguePlayerHistorySource.Sgp;
+                    _updatingSource = false;
+                }
+                await LoadPageAsync(0, _count);
             };
             _historyRegion.SelectedIndexChanged += async (sender, args) =>
             {
@@ -315,10 +350,15 @@ namespace FACM.League
         {
             var expected = _currentSession?.Invoke();
             if (expected == null) return;
-            try { await LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token); }
+            try
+            {
+                await Task.WhenAll(LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token),
+                    LeagueSgpSupportedQueues.TryRefreshAsync(_lifetime.Token));
+            }
             catch (OperationCanceledException) { return; }
             if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
             var selected = SelectedServerId();
+            var selectedTag = SelectedQueueTag();
             var current = LeagueSgpMatchHistoryApiClient.CurrentServerId(expected);
             _updatingSource = true;
             _historyRegion.BeginUpdate();
@@ -335,12 +375,46 @@ namespace FACM.League
                     if (server.Id == selected) index = candidate;
                 }
                 _historyRegion.SelectedIndex = index;
+                RebuildQueueTagOptions(selectedTag);
             }
             finally
             {
                 _historyRegion.EndUpdate();
                 _updatingSource = false;
             }
+        }
+
+        private void RebuildQueueTagOptions(string selectedTag)
+        {
+            _queueTag.BeginUpdate();
+            try
+            {
+                _queueTag.Items.Clear();
+                _queueTag.Items.Add(new QueueTagOption { Tag = null,
+                    Label = _ui.Get(UiTextKeys.LeaguePlayerFilterAll) });
+                _queueTag.Items.Add(new QueueTagOption { Tag = "ranked",
+                    Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueRanked) });
+                _queueTag.Items.Add(new QueueTagOption { Tag = "normal",
+                    Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNormal) });
+                var index = 0;
+                foreach (var id in LeagueSgpSupportedQueues.Snapshot())
+                {
+                    var tag = "q_" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var item = _queueTag.Items.Add(new QueueTagOption { Tag = tag,
+                        Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNumber)
+                            .Replace("{0}", id.ToString(System.Globalization.CultureInfo.InvariantCulture)) });
+                    if (tag == selectedTag) index = item;
+                }
+                if (selectedTag == "ranked") index = 1;
+                if (selectedTag == "normal") index = 2;
+                _queueTag.SelectedIndex = index;
+            }
+            finally { _queueTag.EndUpdate(); }
+        }
+
+        private string SelectedQueueTag()
+        {
+            return (_queueTag.SelectedItem as QueueTagOption)?.Tag;
         }
 
         private Button PageButton(string key, int width)
@@ -401,6 +475,7 @@ namespace FACM.League
             _retryPage.Enabled = !_loading && !_replayRunning;
             _historySource.Enabled = !_loading && !_replayRunning && _historyRegion.SelectedIndex == 0;
             _historyRegion.Enabled = !_loading && !_replayRunning && _historyRegion.Items.Count > 1;
+            _queueTag.Enabled = !_loading && !_replayRunning && _collectionCancellation == null;
             _retryPage.Text = _ui.Get(regularPage ? UiTextKeys.LeaguePlayerRemoteRetry :
                 UiTextKeys.LeaguePlayerCollectBackToPage);
             _retryPage.Width = regularPage ? 52 : 80;
@@ -420,7 +495,7 @@ namespace FACM.League
 
         private bool HasCollectionFilter()
         {
-            return _winFilter.SelectedIndex > 0 ||
+            return _winFilter.SelectedIndex > 0 || SelectedQueueTag() != null ||
                 (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
         }
 
@@ -533,7 +608,8 @@ namespace FACM.League
             {
                 var result = await _service.CollectMatchesAsync(_expected, target, settings,
                     simple, advanced, progress, cancellation.Token,
-                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId());
+                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId(),
+                    SelectedQueueTag());
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (!SessionMatches(session) || result.Status == LeagueMatchCollectionStatus.AccountChanged ||
                     !string.Equals(target.PuuId, _targetProfile == null ? null : _targetProfile.PuuId,
@@ -681,7 +757,8 @@ namespace FACM.League
             {
                 var result = await _service.LoadRemotePlayerHistoryAsync(_expected, _puuid,
                     _lifetime.Token, startIndex, count,
-                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId());
+                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId(),
+                    SelectedQueueTag());
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 if (!SessionMatches(expectedSession))
                 {
