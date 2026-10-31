@@ -858,6 +858,16 @@ namespace FACM.League
             "totalHealsOnTeammates", "spell1Casts", "spell2Casts",
             "spell3Casts", "spell4Casts", "summoner1Casts", "summoner2Casts"
         };
+        private static readonly string[] DetailedPingKeys = {
+            "allInPings", "assistMePings", "basicPings", "commandPings",
+            "dangerPings", "enemyMissingPings", "enemyVisionPings", "getBackPings",
+            "holdPings", "needVisionPings", "onMyWayPings", "pushPings",
+            "retreatPings", "visionClearedPings"
+        };
+        private static readonly string[] DetailedMiscKeys = {
+            "champLevel", "champExperience", "timePlayed", "totalTimeSpentDead",
+            "unseenRecalls", "perfectGame", "gameLength"
+        };
         private static readonly string[] DetailedChallengeKeys = {
             "enemyChampionImmobilizations", "immobilizeAndKillWithAlly",
             "controlWardsPlaced", "stealthWardsPlaced", "wardTakedowns",
@@ -865,7 +875,34 @@ namespace FACM.League
             "quickSoloKills", "takedowns", "outnumberedKills", "multikills",
             "killAfterHiddenWithAlly", "takedownsBeforeJungleMinionSpawn",
             "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
-            "voidMonsterKill", "scuttleCrabKills", "abilityUses"
+            "voidMonsterKill", "scuttleCrabKills", "abilityUses",
+            "sightWardsBoughtInGame", "detectorWardsPlaced", "visionScorePerMinute",
+            "wardTakedownsBefore20M", "wardsGuarded", "twoWardsOneSweeperCount",
+            "visionScoreAdvantageLaneOpponent",
+            "survivedThreeImmobilizesInFight", "highestCrowdControlScore",
+            "multikillsAfterAggressiveFlash", "multiKillOneSpell",
+            "pickKillWithAlly", "killsWithHelpFromEpicMonster",
+            "takedownsFirstXMinutes", "takedownsAfterGainingLevelAdvantage",
+            "maxKillDeficit", "maxLevelLeadLaneOpponent", "takedownsInAlcove",
+            "takedownsInEnemyFountain", "killsOnOtherLanesEarlyJungleAsLaner",
+            "getTakedownsInAllLanesEarlyJungleAsLaner",
+            "killsOnRecentlyHealedByAramPack",
+            "turretPlatesTaken", "soloTurretsLategame", "turretsLost",
+            "turretsTakenWithRiftHerald", "multiTurretRiftHeraldCount",
+            "lostAnInhibitor", "nexusLost", "outnumberedNexusKill",
+            "objectivesStolenAssists", "bountyGold", "laneMinionsFirst10Minutes",
+            "totalAllyJungleMinionsKilled", "totalEnemyJungleMinionsKilled",
+            "earlyLaningPhaseGoldExpAdvantage", "laningPhaseGoldExpAdvantage",
+            "effectiveHealAndShielding", "HealFromMapSources",
+            "deathsByEnemyChamps", "survivedSingleDigitHpCount",
+            "tookLargeDamageSurvived", "killedChampTookFullTeamDamageSurvived",
+            "saveAllyFromDeath", "skillshotsDodged", "skillshotsHit",
+            "snowballsHit", "dodgeSkillShotsSmallWindow",
+            "landSkillShotsEarlyGame", "blastConeOppositeOpponentCount",
+            "quickCleanse", "dancedWithRiftHerald", "fistBumpParticipation",
+            "flawlessAces", "doubleAces", "acesBefore15Minutes",
+            "fullTeamTakedown", "shortestTimeToAceFromFirstTakedown",
+            "12AssistStreakCount", "teleportTakedowns"
         };
 
         private static readonly string[] DetailedBooleanKeys = {
@@ -927,6 +964,8 @@ namespace FACM.League
                 }
             };
             read(stats, DetailedStatKeys);
+            read(stats, DetailedPingKeys);
+            read(stats, DetailedMiscKeys);
             read(ReadObject(stats, "challenges"), DetailedChallengeKeys);
             return result;
         }

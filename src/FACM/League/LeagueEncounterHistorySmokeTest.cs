@@ -239,6 +239,36 @@ namespace FACM.League
                     raw["goldSpent"] == 2300 && raw["baronTakedowns"] == 2 &&
                     !raw.ContainsKey("jwt") && !raw.ContainsKey("arbitraryPrivateValue"),
                 "Raw match stats must accept only pinned numeric gameplay keys.");
+            var extended = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> {
+                    { "allInPings", 0 }, { "enemyMissingPings", 5 },
+                    { "timePlayed", 1250 }, { "jwt", "private" },
+                    { "challenges", new Dictionary<string, object> {
+                        { "skillshotsDodged", 3 }, { "flawlessAces", 1 },
+                        { "12AssistStreakCount", 2 }, { "unknownPrivateStat", 999 },
+                        { "survivedSingleDigitHpCount", -2 },
+                        { "quickCleanse", double.PositiveInfinity } } }
+                });
+            Require(extended.Count == 6 && extended["allInPings"] == 0 &&
+                    extended["enemyMissingPings"] == 5 &&
+                    extended["skillshotsDodged"] == 3 &&
+                    extended["flawlessAces"] == 1 &&
+                    extended["12AssistStreakCount"] == 2 &&
+                    !extended.ContainsKey("unknownPrivateStat") &&
+                    !extended.ContainsKey("survivedSingleDigitHpCount") &&
+                    !extended.ContainsKey("quickCleanse"),
+                "Pinned ping, survival and teamfight stats must preserve known zero and reject unlisted or invalid values.");
+            first.RawStats = extended;
+            var extraRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(extraRows.Single(row => row.Name == "allInPings").Values
+                        .SequenceEqual(new[] { "0", "—" }) &&
+                    extraRows.Single(row => row.Name == "skillshotsDodged").Values[0] == "3" &&
+                    extraRows.Single(row => row.Name == "flawlessAces").Values[0] == "1" &&
+                    extraRows.Single(row => row.Name == "12AssistStreakCount").Values[0] == "2" &&
+                    extraRows.Single(row => row.Name == "timePlayed").Values[0] == "1,250" &&
+                    extraRows.Select(row => row.GroupKey).Distinct().Count() >= 5,
+                "New match-card stat groups must be visible in the existing native details table.");
             first.RawStats = raw;
             var expanded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(new[] { first, second });
             Require(expanded.Single(row => row.Name == "wardsPlaced").Values[0] == "0" &&

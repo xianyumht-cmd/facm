@@ -961,7 +961,14 @@ namespace FACM.League
             raw(combat, new[] { "unrealKills", "killingSprees", "largestKillingSpree",
                 "largestMultiKill", "longestTimeSpentLiving", "largestCriticalStrike",
                 "legendaryCount", "quickSoloKills", "takedowns", "outnumberedKills",
-                "multikills", "killAfterHiddenWithAlly", "takedownsBeforeJungleMinionSpawn" });
+                "multikills", "killAfterHiddenWithAlly", "takedownsBeforeJungleMinionSpawn",
+                "multikillsAfterAggressiveFlash", "multiKillOneSpell", "pickKillWithAlly",
+                "killsWithHelpFromEpicMonster", "takedownsFirstXMinutes",
+                "takedownsAfterGainingLevelAdvantage", "maxKillDeficit",
+                "maxLevelLeadLaneOpponent", "takedownsInAlcove",
+                "takedownsInEnemyFountain", "killsOnOtherLanesEarlyJungleAsLaner",
+                "getTakedownsInAllLanesEarlyJungleAsLaner",
+                "killsOnRecentlyHealedByAramPack" });
             raw(damage, new[] { "totalDamageDealt", "physicalDamageDealt",
                 "magicDamageDealt", "trueDamageDealt", "damageDealtToObjectives",
                 "damageDealtToBuildings", "damageDealtToEpicMonsters", "damageSelfMitigated" });
@@ -970,18 +977,50 @@ namespace FACM.League
                 "consumablesPurchased", "itemsPurchased" });
             raw(utility, new[] { "totalTimeCCDealt", "totalTimeCrowdControlDealt",
                 "enemyChampionImmobilizations", "immobilizeAndKillWithAlly",
-                "totalUnitsHealed", "totalHealsOnTeammates", "abilityUses",
+                "totalUnitsHealed", "totalHealsOnTeammates",
+                "effectiveHealAndShielding", "HealFromMapSources",
+                "survivedThreeImmobilizesInFight", "highestCrowdControlScore",
+                "abilityUses",
                 "spell1Casts", "spell2Casts", "spell3Casts", "spell4Casts",
                 "summoner1Casts", "summoner2Casts" });
             raw(UiTextKeys.LeaguePlayerMatchDetailsVision, new[] {
                 "wardsPlaced", "wardsKilled", "visionWardsBoughtInGame",
-                "controlWardsPlaced", "stealthWardsPlaced", "wardTakedowns" });
+                "controlWardsPlaced", "stealthWardsPlaced", "wardTakedowns",
+                "sightWardsBoughtInGame", "detectorWardsPlaced", "visionScorePerMinute",
+                "wardTakedownsBefore20M", "wardsGuarded", "twoWardsOneSweeperCount",
+                "visionScoreAdvantageLaneOpponent" });
             raw(UiTextKeys.LeaguePlayerMatchDetailsBuildings, new[] {
                 "turretKills", "turretTakedowns", "inhibitorKills",
-                "inhibitorTakedowns", "nexusKills", "nexusTakedowns", "objectivesStolen" });
+                "inhibitorTakedowns", "nexusKills", "nexusTakedowns", "objectivesStolen",
+                "turretPlatesTaken", "soloTurretsLategame", "turretsLost",
+                "turretsTakenWithRiftHerald", "multiTurretRiftHeraldCount",
+                "lostAnInhibitor", "nexusLost", "outnumberedNexusKill",
+                "objectivesStolenAssists" });
             raw(UiTextKeys.LeaguePlayerMatchDetailsObjectives, new[] {
                 "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
                 "voidMonsterKill", "scuttleCrabKills" });
+            raw(economy, new[] { "bountyGold", "laneMinionsFirst10Minutes",
+                "totalAllyJungleMinionsKilled", "totalEnemyJungleMinionsKilled",
+                "earlyLaningPhaseGoldExpAdvantage", "laningPhaseGoldExpAdvantage" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsPings, new[] {
+                "allInPings", "assistMePings", "basicPings", "commandPings",
+                "dangerPings", "enemyMissingPings", "enemyVisionPings", "getBackPings",
+                "holdPings", "needVisionPings", "onMyWayPings", "pushPings",
+                "retreatPings", "visionClearedPings" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsSurvival, new[] {
+                "deathsByEnemyChamps", "survivedSingleDigitHpCount",
+                "tookLargeDamageSurvived", "killedChampTookFullTeamDamageSurvived",
+                "saveAllyFromDeath", "skillshotsDodged", "skillshotsHit",
+                "snowballsHit", "dodgeSkillShotsSmallWindow", "landSkillShotsEarlyGame",
+                "blastConeOppositeOpponentCount", "quickCleanse",
+                "dancedWithRiftHerald", "fistBumpParticipation" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsTeamfight, new[] {
+                "flawlessAces", "doubleAces", "acesBefore15Minutes",
+                "fullTeamTakedown", "shortestTimeToAceFromFirstTakedown",
+                "12AssistStreakCount", "teleportTakedowns" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsMisc, new[] {
+                "champLevel", "champExperience", "timePlayed", "totalTimeSpentDead",
+                "unseenRecalls", "perfectGame", "gameLength" });
             Action<string, string[]> flags = (group, keys) =>
             {
                 foreach (var key in keys)
