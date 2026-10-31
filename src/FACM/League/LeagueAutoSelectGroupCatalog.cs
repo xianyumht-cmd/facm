@@ -16,6 +16,7 @@ namespace FACM.League
         private sealed class Group
         {
             internal string Id;
+            internal string DisplayName;
             internal bool Custom;
             internal string[] SupportedServers;
             internal string[] Positions;
@@ -45,20 +46,57 @@ namespace FACM.League
             }
         }
 
+        internal static bool IsDynamicGroupId(string id)
+        {
+            return !string.IsNullOrEmpty(id) && id.Length >= 2 && id.Length <= 32 &&
+                id[0] >= 'a' && id[0] <= 'z' &&
+                id.All(c => c >= 'a' && c <= 'z' || c >= '0' && c <= '9' ||
+                    c == '-' || c == '_') &&
+                !LeagueAutoSelectProfiles.Modes.Contains(id, StringComparer.Ordinal);
+        }
+
+        internal static IReadOnlyList<Tuple<string, string>> RemoteGroups
+        {
+            get
+            {
+                lock (Sync)
+                    return _groups == null ? Array.Empty<Tuple<string, string>>() :
+                        _groups.Where(g => IsDynamicGroupId(g.Id))
+                            .Select(g => Tuple.Create(g.Id, g.DisplayName))
+                            .OrderBy(g => g.Item2, StringComparer.Ordinal).ToArray();
+            }
+        }
+
+        internal static bool SupportsRoles(string groupId)
+        {
+            lock (Sync)
+                return _groups != null && _groups.Any(g => g.Id == groupId &&
+                    g.Positions.Any(p => p != "default"));
+        }
+
+        internal static bool SupportsBench(string groupId)
+        {
+            lock (Sync)
+                return _groups != null && _groups.Any(g => g.Id == groupId &&
+                    g.Targets.Any(t => t.Item1 == "ARAM" || t.Item1 == "KIWI"));
+        }
+
         internal static bool SpecialAllowed(string groupId, string sgpServerId, bool pick, int championId)
         {
             if (groupId == "mayhem") groupId = "aram";
-            if (pick ? championId != -3 || groupId != "cherry" : championId != -1)
+            if (pick ? championId != -3 : championId != -1)
                 return false;
             Group[] snapshot;
             lock (Sync) snapshot = _groups;
-            if (snapshot == null) return true;
+            if (snapshot == null) return !LeagueAutoSelectProfiles.Modes.Contains(groupId, StringComparer.Ordinal)
+                ? false : pick ? groupId == "cherry" : true;
             var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
             if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                 (string.IsNullOrEmpty(sgpServerId) ||
                  !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
                  !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return false;
-            return pick ? group.AdditionalPicks.Contains(-3) : !group.ExcludedBans.Contains(-1);
+            return pick ? group.Targets.Any(t => t.Item1 == "CHERRY") &&
+                group.AdditionalPicks.Contains(-3) : !group.ExcludedBans.Contains(-1);
         }
 
         internal static List<int> FilterSpecials(IReadOnlyList<int> candidates,
@@ -157,9 +195,9 @@ namespace FACM.League
                 {
                     var entry = item as Dictionary<string, object>;
                     var id = Text(entry, "groupId");
-                    if (!KnownGroups.Contains(id) || !seen.Add(id) ||
+                    if ((!KnownGroups.Contains(id) && !IsDynamicGroupId(id)) || !seen.Add(id) ||
                         !(Value(entry, "isCustom") is bool) ||
-                        ((bool)Value(entry, "isCustom")) != (id == "custom"))
+                        (KnownGroups.Contains(id) && ((bool)Value(entry, "isCustom")) != (id == "custom")))
                         return false;
                     var names = Value(entry, "name") as Dictionary<string, object>;
                     if (!SafeName(Text(names, "zh-CN")) || !SafeName(Text(names, "en")))
@@ -178,13 +216,15 @@ namespace FACM.League
                     if (positions == null || positions.Length == 0 ||
                         positions.Any(p => !new[] { "default", "top", "jungle", "middle", "bottom", "utility" }.Contains(p)))
                         return false;
-                    if (!ValidActions(Value(entry, "additionalPicks"), id == "cherry" ? -3 : 0) ||
+                    if (!ValidActions(Value(entry, "additionalPicks"),
+                        id == "cherry" || IsDynamicGroupId(id) ? -3 : 0) ||
                         !ValidActions(Value(entry, "additionalBans"), 0) ||
                         !ValidActions(Value(entry, "excludedPicks"), -1) ||
                         !ValidActions(Value(entry, "excludedBans"), -1)) return false;
                     var targets = Value(entry, "targetGameModes") as object[];
                     if (targets == null || targets.Length == 0 || targets.Length > 10) return false;
-                    var group = new Group { Id = id, Custom = (bool)Value(entry, "isCustom"),
+                    var group = new Group { Id = id, DisplayName = Text(names, "zh-CN"),
+                        Custom = (bool)Value(entry, "isCustom"),
                         SupportedServers = servers, Positions = positions,
                         AdditionalPicks = Actions(Value(entry, "additionalPicks")),
                         ExcludedBans = Actions(Value(entry, "excludedBans")) };
@@ -198,6 +238,8 @@ namespace FACM.League
                             queues.Any(q => q != "*" && !SafeCode(q))) return false;
                         group.Targets.Add(Tuple.Create(mode, queues));
                     }
+                    if (group.AdditionalPicks.Contains(-3) &&
+                        !group.Targets.Any(t => t.Item1 == "CHERRY")) return false;
                     parsed.Add(group);
                 }
                 lock (Sync)
@@ -225,7 +267,9 @@ namespace FACM.League
                 case "ultbook": return mode == "ULTBOOK";
                 case "bot": return mode == "SWIFTPLAY";
                 case "custom": return mode == "CLASSIC" || mode == "PRACTICETOOL";
-                default: return false;
+                default: return IsDynamicGroupId(group) &&
+                    new[] { "CLASSIC", "ARAM", "KIWI", "CHERRY", "URF", "ONEFORALL",
+                        "ULTBOOK", "SWIFTPLAY", "PRACTICETOOL" }.Contains(mode, StringComparer.Ordinal);
             }
         }
 

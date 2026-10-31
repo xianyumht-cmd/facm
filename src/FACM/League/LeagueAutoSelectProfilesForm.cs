@@ -16,6 +16,7 @@ namespace FACM.League
         private readonly LeagueEfficiencyModule _module;
         private readonly UiTextCatalog _text;
         private readonly List<LeagueAutoSelectProfile> _profiles;
+        private readonly List<string> _remoteModeIds = new List<string>();
         private readonly Dictionary<int, string> _championNames = new Dictionary<int, string>();
         private readonly CancellationTokenSource _catalogLifetime = new CancellationTokenSource();
         private readonly ComboBox _mode;
@@ -192,6 +193,7 @@ namespace FACM.League
             _mode.SelectedIndex = 0;
             _role.SelectedIndex = 0;
             _action.SelectedIndex = 0;
+            RefreshRemoteModes();
             RefreshProfile();
             FormClosed += delegate { _catalogLifetime.Cancel(); _catalogLifetime.Dispose(); };
             _ = LoadCatalogAsync();
@@ -201,6 +203,7 @@ namespace FACM.League
                 {
                     await LeagueAutoSelectGroupCatalog.TryRefreshAsync(_catalogLifetime.Token);
                     if (IsDisposed || Disposing || _catalogLifetime.IsCancellationRequested) return;
+                    RefreshRemoteModes();
                     RefreshSpecialChoices();
                     RefreshProfile();
                 }
@@ -236,9 +239,45 @@ namespace FACM.League
             root.Controls.Add(button, 0, row);
         }
 
+        private string CurrentMode()
+        {
+            var index = Math.Max(0, _mode.SelectedIndex);
+            return index < LeagueAutoSelectProfiles.Modes.Length ?
+                LeagueAutoSelectProfiles.Modes[index] :
+                _remoteModeIds[index - LeagueAutoSelectProfiles.Modes.Length];
+        }
+
+        private void RefreshRemoteModes()
+        {
+            var selected = _mode.SelectedIndex < 0 ? "default" : CurrentMode();
+            var groups = LeagueAutoSelectGroupCatalog.RemoteGroups;
+            _binding = true;
+            try
+            {
+                while (_mode.Items.Count > LeagueAutoSelectProfiles.Modes.Length)
+                    _mode.Items.RemoveAt(_mode.Items.Count - 1);
+                _remoteModeIds.Clear();
+                foreach (var group in groups)
+                {
+                    _remoteModeIds.Add(group.Item1);
+                    _mode.Items.Add(group.Item2 + " (" + group.Item1 + ")");
+                }
+                var index = Array.IndexOf(LeagueAutoSelectProfiles.Modes, selected);
+                if (index < 0)
+                {
+                    var remoteIndex = _remoteModeIds.IndexOf(selected);
+                    index = remoteIndex < 0 ? 0 : remoteIndex + LeagueAutoSelectProfiles.Modes.Length;
+                }
+                _mode.SelectedIndex = index >= 0 && index < _mode.Items.Count ? index : 0;
+            }
+            finally { _binding = false; }
+            _role.Enabled = IsRoleMode();
+            if (!_role.Enabled && _role.SelectedIndex != 0) _role.SelectedIndex = 0;
+        }
+
         private LeagueAutoSelectProfile CurrentProfile(bool create)
         {
-            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
+            var mode = CurrentMode();
             var role = LeagueAutoSelectProfiles.Roles[Math.Max(0, _role.SelectedIndex)];
             var found = _profiles.FirstOrDefault(p => p.Mode == mode && p.Role == role);
             if (found == null && create)
@@ -257,14 +296,16 @@ namespace FACM.League
 
         private bool IsRoleMode()
         {
-            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
-            return mode == "rift" || mode == "ranked" || mode == "custom";
+            var mode = CurrentMode();
+            return mode == "rift" || mode == "ranked" || mode == "custom" ||
+                LeagueAutoSelectGroupCatalog.SupportsRoles(mode);
         }
 
         private bool IsBenchMode()
         {
-            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
-            return mode == "default" || mode == "aram" || mode == "mayhem";
+            var mode = CurrentMode();
+            return mode == "default" || mode == "aram" || mode == "mayhem" ||
+                LeagueAutoSelectGroupCatalog.SupportsBench(mode);
         }
 
         private void ContextChanged(object sender, EventArgs e)
@@ -287,7 +328,7 @@ namespace FACM.League
                 var option = _catalog.Items[i] as LeagueProfileChampionOption;
                 if (option != null && (option.Id == -1 || option.Id == -3)) _catalog.Items.RemoveAt(i);
             }
-            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
+            var mode = CurrentMode();
             var server = _module.AutoSelectServerId;
             if (_action.SelectedIndex == 1 &&
                 LeagueAutoSelectGroupCatalog.SpecialAllowed(mode, server, false, -1))
@@ -348,7 +389,7 @@ namespace FACM.League
             var option = _catalog.SelectedItem as LeagueProfileChampionOption;
             if (option == null || option.Id <= 0 &&
                 !LeagueAutoSelectGroupCatalog.SpecialAllowed(
-                    LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)],
+                    CurrentMode(),
                     _module.AutoSelectServerId, _action.SelectedIndex == 0, option.Id)) return;
             var list = CurrentList(true);
             if (list.Count >= 20 || list.Contains(option.Id)) return;

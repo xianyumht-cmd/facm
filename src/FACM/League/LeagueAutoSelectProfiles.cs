@@ -127,7 +127,8 @@ namespace FACM.League
                 foreach (var id in pick ? profile.Picks : profile.Bans)
                     if (!ordered.Contains(id)) ordered.Add(id);
             }
-            if (legacyDefault > 0 && !ordered.Contains(legacyDefault)) ordered.Add(legacyDefault);
+            if (legacyDefault > 0 && !LeagueAutoSelectGroupCatalog.IsDynamicGroupId(mode) &&
+                !ordered.Contains(legacyDefault)) ordered.Add(legacyDefault);
             return ordered;
         }
 
@@ -140,16 +141,22 @@ namespace FACM.League
                 var match = profiles == null ? null : profiles.FirstOrDefault(p => p.Mode + ":" + p.Role == key);
                 if (match != null) return match;
             }
-            return new LeagueAutoSelectProfile();
+            return new LeagueAutoSelectProfile
+            {
+                PickEnabled = !LeagueAutoSelectGroupCatalog.IsDynamicGroupId(mode),
+                BanEnabled = !LeagueAutoSelectGroupCatalog.IsDynamicGroupId(mode)
+            };
         }
 
         private static IEnumerable<string> ProfileKeys(string mode, string role)
         {
             mode = mode ?? "default";
             role = role ?? "default";
-            if (mode != "rift" && mode != "ranked" && mode != "custom") role = "default";
+            var dynamic = LeagueAutoSelectGroupCatalog.IsDynamicGroupId(mode);
+            if (mode != "rift" && mode != "ranked" && mode != "custom" && !dynamic) role = "default";
             yield return mode + ":" + role;
             yield return mode + ":default";
+            if (dynamic) yield break;
             if (mode == "ranked" || mode == "normal")
             {
                 yield return "rift:" + role;
@@ -161,14 +168,17 @@ namespace FACM.League
 
         private static bool Valid(LeagueAutoSelectProfile profile)
         {
-            return profile != null && Modes.Contains(profile.Mode, StringComparer.Ordinal) &&
+            return profile != null &&
+                (Modes.Contains(profile.Mode, StringComparer.Ordinal) ||
+                 LeagueAutoSelectGroupCatalog.IsDynamicGroupId(profile.Mode)) &&
                 Roles.Contains(profile.Role, StringComparer.Ordinal) &&
                 Strategies.Contains(profile.PickStrategy, StringComparer.Ordinal) &&
                 Strategies.Contains(profile.BanStrategy, StringComparer.Ordinal) &&
                 profile.PickDelayMs >= 0 && profile.PickDelayMs <= 15000 &&
                 profile.BanDelayMs >= 0 && profile.BanDelayMs <= 15000 &&
                 profile.BenchSwapDelayMs >= 0 && profile.BenchSwapDelayMs <= 15000 &&
-                ValidIds(profile.Picks, profile.Mode == "cherry" ? -3 : 0) &&
+                ValidIds(profile.Picks, profile.Mode == "cherry" ||
+                    LeagueAutoSelectGroupCatalog.IsDynamicGroupId(profile.Mode) ? -3 : 0) &&
                 ValidIds(profile.Bans, -1);
         }
 

@@ -130,7 +130,7 @@ namespace FACM.League
                     Encoding.UTF8.GetString(restrictedBound).Contains(":TENCENT_HN1:default:ranked"),
                     "A removed remote position must fall back to the default profile before a write.");
                 foreach (var bad in new[] {
-                    valid.Replace(@"""ranked""", @"""foreign"""),
+                    valid.Replace(@"""groupId"":""ranked""", @"""groupId"":""foreign!"""),
                     valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
                     valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_UNKNOWN\"]"),
                     valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"*\",\"NA1\"]"),
@@ -197,6 +197,52 @@ namespace FACM.League
                 }
                 Require(revokedPick.Calls.Count == 0,
                     "A removed remote bravery option must not be submitted from a saved profile.");
+
+                var expanded = valid.Replace("2026-08-02", "2026-08-08")
+                    .Replace(@"""groupId"":""ranked""", @"""groupId"":""ranked_next""");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(expanded)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked_next" &&
+                    LeagueAutoSelectGroupCatalog.RemoteGroups.Any(g => g.Item1 == "ranked_next") &&
+                    LeagueAutoSelectGroupCatalog.SupportsRoles("ranked_next"),
+                    "New trusted remote groups must become selectable without adding a new LCU write route.");
+                var dynamicProfile = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "ranked_next", Role = "top",
+                        Picks = new List<int> { 22 } } });
+                Require(LeagueAutoSelectProfiles.Parse(dynamicProfile).Count == 1 &&
+                    LeagueAutoSelectProfiles.Candidates(LeagueAutoSelectProfiles.Parse(dynamicProfile),
+                        "ranked_next", "top", true, 67).SequenceEqual(new[] { 22 }) &&
+                    LeagueAutoSelectProfiles.Candidates(Array.Empty<LeagueAutoSelectProfile>(),
+                        "ranked_next", "top", true, 67).Count == 0 &&
+                    !LeagueAutoSelectProfiles.ResolveStrategy(Array.Empty<LeagueAutoSelectProfile>(),
+                        "ranked_next", "top").PickEnabled,
+                    "A new remote group must use only explicit saved priorities, not a legacy fallback.");
+                var dynamicWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    dynamicWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(dynamicWrite.Calls.SequenceEqual(new[] { "pick:12:22:True" }),
+                    "Explicitly configured new remote group must reach the existing guarded pick writer.");
+                var removed = valid.Replace("2026-08-02", "2026-08-09");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(removed)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked" &&
+                    !LeagueAutoSelectGroupCatalog.RemoteGroups.Any(),
+                    "A newer catalog must revoke an earlier dynamic group without deleting saved preferences.");
+                var staleWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    staleWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(staleWrite.Calls.Count == 0,
+                    "A revoked remote group must never execute its previously saved priorities.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
