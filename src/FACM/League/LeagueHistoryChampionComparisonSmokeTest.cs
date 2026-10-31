@@ -11,6 +11,7 @@ namespace FACM.League
     {
         internal static void Validate()
         {
+            ValidateMasteryProjection();
             var first = Match(1, 22, 60, 60, 60);
             first.Kills = 2; first.Deaths = 0; first.Assists = 0;
             first.VisionScore = 0; first.SoloKills = 0;
@@ -174,6 +175,28 @@ namespace FACM.League
                 MetricBaselines = new Dictionary<string, double[]> { { "cs", new[] { 20d, 10d, 20d, 10d } } } };
             match.ParticipantRoster = new[] { match, peer };
             return match;
+        }
+
+        private static void ValidateMasteryProjection()
+        {
+            var rows = new[]
+            {
+                new Dictionary<string, object> { { "championId", 11 }, { "championLevel", 7 }, { "championPoints", 0 } },
+                new Dictionary<string, object> { { "championId", 22 }, { "championPoints", 120 } },
+                new Dictionary<string, object> { { "championId", 33 }, { "championLevel", 2 } },
+                new Dictionary<string, object> { { "championId", 11 }, { "championPoints", 500 } },
+                new Dictionary<string, object> { { "championId", -5 }, { "championPoints", 999 } }
+            };
+            var result = LeagueHistoryMasteryProjection.Project(rows,
+                new Dictionary<int, string> { { 22, "Known" } });
+            Require(result.Count == 3 && result[0].ChampionId == 22 &&
+                result[0].Name == "Known" && result[1].ChampionId == 11 &&
+                result[1].Points == 0 && result[2].ChampionId == 33 &&
+                result[2].Points == null && result[2].Name == "#33" &&
+                LeagueHistoryMasteryProjection.FindIndex(result, 11) == 1 &&
+                LeagueHistoryMasteryProjection.FindIndex(result, 99) == -1 &&
+                LeagueHistoryMasteryProjection.Project(null, null).Count == 0,
+                "Mastery projection must preserve known zero, missing values, unique heroes and selection.");
         }
 
         private static void Require(bool condition, string message)

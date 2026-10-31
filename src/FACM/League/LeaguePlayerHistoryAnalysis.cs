@@ -11,6 +11,51 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+    internal sealed class LeagueHistoryMasteryRow
+    {
+        internal int ChampionId;
+        internal string Name;
+        internal long? Level, Points;
+        internal Dictionary<string, object> Raw;
+    }
+
+    internal static class LeagueHistoryMasteryProjection
+    {
+        internal static List<LeagueHistoryMasteryRow> Project(
+            IEnumerable<Dictionary<string, object>> source, IDictionary<int, string> names)
+        {
+            var seen = new HashSet<int>();
+            var result = new List<LeagueHistoryMasteryRow>();
+            foreach (var raw in (source ?? Enumerable.Empty<Dictionary<string, object>>()).Take(512))
+            {
+                var id = LeagueMatchTimelineParser.Number(raw, "championId");
+                if (!id.HasValue || id.Value <= 0 || id.Value > 10000 || !seen.Add((int)id.Value)) continue;
+                string name;
+                if (names == null || !names.TryGetValue((int)id.Value, out name) || string.IsNullOrWhiteSpace(name))
+                    name = "#" + id.Value.ToString(CultureInfo.InvariantCulture);
+                result.Add(new LeagueHistoryMasteryRow
+                {
+                    ChampionId = (int)id.Value,
+                    Name = name,
+                    Level = LeagueMatchTimelineParser.Number(raw, "championLevel"),
+                    Points = LeagueMatchTimelineParser.Number(raw, "championPoints"),
+                    Raw = raw
+                });
+            }
+            return result.OrderBy(row => !row.Points.HasValue)
+                .ThenByDescending(row => row.Points ?? -1)
+                .ThenBy(row => row.ChampionId).ToList();
+        }
+
+        internal static int FindIndex(IList<LeagueHistoryMasteryRow> rows, int championId)
+        {
+            if (rows == null || championId <= 0) return -1;
+            for (var i = 0; i < rows.Count; i++)
+                if (rows[i].ChampionId == championId) return i;
+            return -1;
+        }
+    }
+
     internal enum LeagueHistoryOutcome { Unknown, Win, Loss, Remake, Abort }
 
     internal sealed class LeagueHistoryPositionStat
@@ -558,12 +603,129 @@ namespace FACM.League
                     Text = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll) };
                 positionTab.Controls.Add(positionChart);
                 positionTab.Controls.Add(positionHeading);
+                var masteryTab = new TabPage(ui.Get(UiTextKeys.LeagueProfileMastery));
+                var masteryLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+                masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+                masteryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+                var masteryHeader = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+                masteryHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                masteryHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+                var masteryStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                    TextAlign = ContentAlignment.MiddleLeft, ForeColor = FacmDesignSystem.Text };
+                var masteryAll = new CheckBox { Dock = DockStyle.Fill,
+                    Text = ui.Get(UiTextKeys.LeagueProfileMasteryAll) };
+                masteryHeader.Controls.Add(masteryStatus, 0, 0);
+                masteryHeader.Controls.Add(masteryAll, 1, 0);
+                var masteryList = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, HideSelection = false, MultiSelect = false,
+                    ShowItemToolTips = true, BackColor = FacmDesignSystem.SurfaceRaised,
+                    ForeColor = FacmDesignSystem.Text };
+                masteryList.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerChampion), 170);
+                masteryList.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel), 110);
+                masteryList.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryPoints), 135);
+                var masteryDetails = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                    Multiline = true, ScrollBars = ScrollBars.Vertical, TabStop = true,
+                    BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text };
+                masteryLayout.Controls.Add(masteryHeader, 0, 0);
+                masteryLayout.Controls.Add(masteryList, 0, 1);
+                masteryLayout.Controls.Add(masteryDetails, 0, 2);
+                masteryTab.Controls.Add(masteryLayout);
+                var masteryRows = new List<LeagueHistoryMasteryRow>();
+                var masteryLoaded = false;
+                var masteryBusy = false;
+                var selectedMasteryChampion = 0;
+                Action<int> selectHeroFromMastery = null;
+                Action<int> syncMasterySelection = championId =>
+                {
+                    selectedMasteryChampion = championId;
+                    var index = LeagueHistoryMasteryProjection.FindIndex(masteryRows, championId);
+                    if (index < 0 || index >= masteryList.Items.Count) return;
+                    if (!masteryList.Items[index].Selected)
+                        masteryList.Items[index].Selected = true;
+                };
+                masteryList.SelectedIndexChanged += (sender, args) =>
+                {
+                    if (masteryList.SelectedItems.Count != 1) { masteryDetails.Clear(); return; }
+                    var selected = masteryList.SelectedItems[0].Tag as LeagueHistoryMasteryRow;
+                    if (selected == null) return;
+                    masteryDetails.Text = LeaguePlayerProfileDialog.MasteryDetailText(ui, selected.Raw);
+                    if (selected.ChampionId != selectedMasteryChampion)
+                    {
+                        selectedMasteryChampion = selected.ChampionId;
+                        selectHeroFromMastery?.Invoke(selected.ChampionId);
+                    }
+                };
+                Func<Task> loadMastery = async () =>
+                {
+                    if (masteryLoaded || masteryBusy || lifetime.IsCancellationRequested ||
+                        dialog.IsDisposed || service == null) return;
+                    masteryBusy = true;
+                    masteryAll.Enabled = false;
+                    masteryStatus.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
+                    masteryList.Items.Clear();
+                    masteryRows.Clear();
+                    masteryDetails.Clear();
+                    try
+                    {
+                        var result = await service.LoadPlayerMasteriesAsync(selfPuuid, targetPuuid,
+                            session, null, lifetime.Token, !masteryAll.Checked);
+                        if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
+                        if (result.Status != LeaguePlayerDetailsStatus.Ready)
+                        {
+                            masteryStatus.Text = ui.Get(result.Status == LeaguePlayerDetailsStatus.AccountChanged
+                                ? UiTextKeys.LeaguePlayerRemoteAccountChanged
+                                : result.Status == LeaguePlayerDetailsStatus.UnsupportedRegion
+                                    ? UiTextKeys.LeagueProfileUnsupported
+                                    : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
+                            return;
+                        }
+                        masteryRows = LeagueHistoryMasteryProjection.Project(result.Masteries,
+                            service.TryGetCachedChampionNames());
+                        foreach (var row in masteryRows)
+                        {
+                            var item = new ListViewItem(row.Name) { Tag = row,
+                                ToolTipText = LeaguePlayerProfileDialog.MasteryDetailText(ui, row.Raw) };
+                            item.SubItems.Add(row.Level.HasValue ? row.Level.Value.ToString(CultureInfo.CurrentCulture) : "—");
+                            item.SubItems.Add(row.Points.HasValue ? row.Points.Value.ToString("N0", CultureInfo.CurrentCulture) : "—");
+                            masteryList.Items.Add(item);
+                        }
+                        masteryStatus.Text = ui.Get(UiTextKeys.LeagueProfileReady) + " · " +
+                            masteryRows.Count.ToString(CultureInfo.CurrentCulture);
+                        if (result.Score.HasValue)
+                            masteryStatus.Text += " · " + ui.Get(UiTextKeys.LeagueProfileMasteryScore)
+                                .Replace("{0}", result.Score.Value.ToString(CultureInfo.CurrentCulture));
+                        masteryLoaded = true;
+                        syncMasterySelection(selectedMasteryChampion);
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception)
+                    {
+                        if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                            masteryStatus.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
+                    }
+                    finally
+                    {
+                        masteryBusy = false;
+                        if (!dialog.IsDisposed) masteryAll.Enabled = true;
+                    }
+                };
+                masteryAll.CheckedChanged += async (sender, args) =>
+                {
+                    masteryLoaded = false;
+                    if (tabs.SelectedTab == masteryTab) await loadMastery();
+                };
+                tabs.SelectedIndexChanged += async (sender, args) =>
+                {
+                    if (tabs.SelectedTab == masteryTab) await loadMastery();
+                };
                 var jungleTab = new TabPage(ui.Get(UiTextKeys.LeagueJungleHistoryTitle));
                 var comparison = new LeagueHistoryChampionComparisonView(ui);
                 comparisonTab.Controls.Add(comparison);
                 tabs.TabPages.Add(overviewTab);
                 tabs.TabPages.Add(reportTab);
                 tabs.TabPages.Add(comparisonTab);
+                tabs.TabPages.Add(masteryTab);
                 tabs.TabPages.Add(jungleTab);
                 dialog.Controls.Add(tabs);
                 comparison.RefreshData(snapshot);
@@ -734,6 +896,11 @@ namespace FACM.League
                             a.AllChampions.FindIndex(c => c.ChampionId == championId);
                         if (selector.SelectedIndex != index + 1) selector.SelectedIndex = index + 1;
                     };
+                    selectHeroFromMastery = championId =>
+                    {
+                        if (a.AllChampions.Any(candidate => candidate.ChampionId == championId))
+                            selectHero(championId);
+                    };
                     overview.ChampionChanged += selectHero;
                     comparison.LeftChampionChanged += selectHero;
                     jungleSelector.SelectedIndexChanged += (sender, args) =>
@@ -768,6 +935,7 @@ namespace FACM.League
                             ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
                         overview.SelectChampion(selectedChampionId);
                         comparison.SelectLeftChampion(selectedChampionId);
+                        syncMasterySelection(selectedChampionId);
                         var jungleIndex = 0;
                         for (var i = 1; i < jungleSelector.Items.Count; i++)
                         {
