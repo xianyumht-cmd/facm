@@ -250,6 +250,54 @@ namespace FACM.League
             result = await service.LoadPlayerDetailsAsync("self", "target", session, null, LeaguePlayerHistorySource.Automatic, CancellationToken.None);
             Require(result.Status == LeaguePlayerDetailsStatus.Partial && result.Ranked == null && result.Cosmetics != null,
                 "One local endpoint timeout must not poison the subsequent optional profile request.");
+            var remoteRankedApi = new ChallengesApi
+            {
+                RankedPayload = Bytes("{\\"queues\\":[{\\"queueType\\":\\"RANKED_SOLO_5x5\\",\\"tier\\":\\"DIAMOND\\",\\"rank\\":\\"II\\",\\"leaguePoints\\":0,\\"wins\\":4,\\"losses\\":4}]}") 
+            };
+            var rankedService = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(),
+                null, remoteRankedApi, () => active);
+            result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,
+                LeaguePlayerHistorySource.Automatic, CancellationToken.None);
+            Require(result.Status == LeaguePlayerDetailsStatus.Ready &&
+                remoteRankedApi.RankedReads == 1 && remoteRankedApi.Target == "target" &&
+                LeagueMatchTimelineParser.Text(LeaguePlayerDataService.RankedEntry(
+                    result.Ranked, "RANKED_SOLO_5x5"), "tier") == "DIAMOND" &&
+                LeagueMatchTimelineParser.Number(LeaguePlayerDataService.RankedEntry(
+                    result.Ranked, "RANKED_SOLO_5x5"), "leaguePoints") == 0,
+                "A missing local ranked response must use authenticated same-region SGP queues and preserve zero LP.");
+
+            var priorReads = remoteRankedApi.RankedReads;
+            result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,
+                LeaguePlayerHistorySource.Lcu, CancellationToken.None);
+            Require(result.Status == LeaguePlayerDetailsStatus.Partial &&
+                remoteRankedApi.RankedReads == priorReads,
+                "LCU-only source must not silently use SGP-ranked data.");
+
+            remoteRankedApi.RankedPayload = Bytes("{\\"queues\\":[{\\"queueType\\":\\"RANKED_SOLO_5x5\\",\\"wins\\":4},{\\"queueType\\":\\"RANKED_SOLO_5x5\\",\\"wins\\":5}]}");
+            result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,
+                LeaguePlayerHistorySource.Automatic, CancellationToken.None);
+            Require(result.Status == LeaguePlayerDetailsStatus.Partial && result.Ranked == null,
+                "Conflicting SGP ranked queue records must not replace absent local rank data.");
+
+            remoteRankedApi.RankedPayload = Bytes("{\\"queues\\":[{\\"queueType\\":\\"RANKED_SOLO_5x5\\",\\"wins\\":-1}]}");
+            result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,
+                LeaguePlayerHistorySource.Automatic, CancellationToken.None);
+            Require(result.Status == LeaguePlayerDetailsStatus.Partial && result.Ranked == null,
+                "Negative ranked counters must fail closed.");
+
+            remoteRankedApi.RankedPayload = Bytes("{\\"queues\\":[]}");
+            remoteRankedApi.AfterRead = () => api.Changed = true;
+            result = await rankedService.LoadPlayerDetailsAsync("self", "target", session, null,
+                LeaguePlayerHistorySource.Automatic, CancellationToken.None);
+            Require(result.Status == LeaguePlayerDetailsStatus.AccountChanged &&
+                result.Profile == null && result.Ranked == null,
+                "An account change during SGP ranked fallback must not expose stale player data.");
+            api.Changed = false;
+            Require(LeaguePlayerDataService.ValidateSgpRankedStats(
+                    LeaguePlayerDataService.ParseDetailsObject(Bytes("{\\"queues\\":[]}"))) &&
+                !LeaguePlayerDataService.ValidateSgpRankedStats(
+                    LeaguePlayerDataService.ParseDetailsObject(Bytes("{\\"queueMap\\":{}}"))),
+                "Unranked source data differs from an incompatible ranked schema.");
             using (var dialog = new LeaguePlayerProfileDialog(service, UiTextCatalog.Load(), "self", "target", "fixture",
                 session, () => session))
             using (var bitmap = new Bitmap(700, 490))
@@ -257,10 +305,19 @@ namespace FACM.League
         }
         private static byte[] Bytes(string value) { return Encoding.UTF8.GetBytes(value); }
         private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
-        private sealed class ChallengesApi : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi
+        private sealed class ChallengesApi : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi
         {
             internal string Server, Target;
             internal Action AfterRead;
+            internal int RankedReads;
+            internal byte[] RankedPayload;
+            public Task<byte[]> TryGetRankedStatsAsync(string target, CancellationToken token, string serverId = null)
+            {
+                token.ThrowIfCancellationRequested();
+                Target = target; Server = serverId; RankedReads++;
+                AfterRead?.Invoke();
+                return Task.FromResult(RankedPayload);
+            }
             public Task<byte[]> TryGetChallengesAsync(string target, CancellationToken token, string serverId = null)
             {
                 Server = serverId; Target = target; AfterRead?.Invoke();
