@@ -46,7 +46,7 @@ namespace FACM.League
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
-        private static readonly LeagueSgpServer[] Servers =
+        internal static readonly LeagueSgpServer[] BuiltinServers =
         {
             new LeagueSgpServer { Id = "TENCENT_HN1", Name = "艾欧尼亚", PathRegion = "HN1", IsTencent = true,
                 MatchHistory = "https://hn1-k8s-sgp.lol.qq.com:21019", Common = "https://hn1-k8s-sgp.lol.qq.com:21019" },
@@ -101,6 +101,8 @@ namespace FACM.League
             new LeagueSgpServer { Id = "KR", Name = "KR", PathRegion = "KR", IsTencent = false,
                 MatchHistory = "https://apne1-red.pp.sgp.pvp.net", Common = "https://kr-red.lol.sgp.pvp.net" }
         };
+
+        internal static LeagueSgpServer[] Servers = BuiltinServers;
 
         private readonly Func<LeagueClientSession> _session;
         private readonly ILeagueClientApi _local;

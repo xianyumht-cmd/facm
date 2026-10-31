@@ -93,10 +93,46 @@ namespace FACM.League
                 }
             }
             ValidateRecovery();
+            ValidateCatalogRefresh();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
                 "League session credentials must be a bounded printable JSON string.");
+        }
+
+        private static void ValidateCatalogRefresh()
+        {
+            var owner = Session("HN10", "TENCENT");
+            var baseline = LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory;
+            var valid = "{\\"updatedAt\\":\\"2026-08-01T00:00:00.000Z\\",\\"servers\\":{\\"TENCENT_HN10\\":{" +
+                "\\"matchHistory\\":\\"https://hn10-alt-sgp.lol.qq.com:21019\\"," +
+                "\\"common\\":\\"https://hn10-alt-sgp.lol.qq.com:21019\\",\\"isTencent\\":true}}," +
+                "\\"serverNames\\":{\\"zh-CN\\":{\\"TENCENT_HN10\\":\\"黑玫瑰新区\\"}}}";
+            try
+            {
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory ==
+                        "https://hn10-alt-sgp.lol.qq.com:21019" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
+                    "Newer trusted catalog must update existing region destination and label.");
+                Require(!LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-07-01"))),
+                    "Catalog must reject stale or equal versions.");
+                foreach (var bad in new[] {
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
+                    valid.Replace("21019", "443"),
+                    valid.Replace("\\"isTencent\\":true", "\\"isTencent\\":false"),
+                    valid.Replace("TENCENT_HN10", "UNKNOWN")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(bad.Replace("2026-08-01", "2026-08-02"))),
+                        "Untrusted, wrong-port, wrong-owner and unknown-only catalogs must fail closed.");
+                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,
+                    "Dynamic catalog must not widen cross-region permissions.");
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
+            Require(LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory == baseline,
+                "Synthetic catalog must restore original endpoints.");
         }
 
         private static void ValidateRecovery()

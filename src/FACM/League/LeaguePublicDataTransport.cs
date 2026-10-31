@@ -40,7 +40,8 @@ namespace FACM.League
             "opgg.gg",
             "communitydragon.org",
             "arammayhem.com",
-            "hexdata.com.cn"
+            "hexdata.com.cn",
+            "akari-api.yuru-yuri.com"
         };
         private static readonly HttpClient Client = CreateClient();
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> Flights =
@@ -137,6 +138,7 @@ namespace FACM.League
             Require(!IsApproved(new Uri("http://op.gg/")), "HTTP must be rejected.");
             Require(!IsApproved(new Uri("https://127.0.0.1:2999/liveclientdata/allgamedata")), "Local client traffic must be rejected.");
             Require(!IsApproved(new Uri("https://localhost:2999/")), "localhost must be rejected.");
+            Require(IsApproved(new Uri("https://akari-api.yuru-yuri.com/config/v1/sgp/league-servers")), "Akari SGP catalog must use an approved HTTPS host.");
             Require(!IsApproved(new Uri("https://example.com/")), "Unknown public hosts must be rejected.");
         }
 

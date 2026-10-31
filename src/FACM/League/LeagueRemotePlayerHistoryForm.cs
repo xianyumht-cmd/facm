@@ -163,7 +163,7 @@ namespace FACM.League
                 _updatingSource = true;
                 if (_historyRegion.SelectedIndex > 0) _historySource.SelectedIndex = (int)LeaguePlayerHistorySource.Sgp;
                 _updatingSource = false;
-                if (!_loading && Visible) await LoadPageAsync(0, _count);
+                if (!_updatingSource && !_loading && Visible) await LoadPageAsync(0, _count);
             };
 
             var filterRow = new FlowLayoutPanel
@@ -297,13 +297,50 @@ namespace FACM.League
             Controls.Add(layout);
 
             UpdatePageButtons();
-            Shown += async (sender, args) => { FitMatchColumns(); await LoadPageAsync(0, _count); };
+            Shown += async (sender, args) =>
+            {
+                FitMatchColumns();
+                await RefreshRegionCatalogAsync();
+                await LoadPageAsync(0, _count);
+            };
             FormClosing += (sender, args) =>
             {
                 if (_collectionCancellation != null) _collectionCancellation.Cancel();
                 _lifetime.Cancel();
             };
             Disposed += (sender, args) => _lifetime.Dispose();
+        }
+
+        private async Task RefreshRegionCatalogAsync()
+        {
+            var expected = _currentSession?.Invoke();
+            if (expected == null) return;
+            try { await LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
+            var selected = SelectedServerId();
+            var current = LeagueSgpMatchHistoryApiClient.CurrentServerId(expected);
+            _updatingSource = true;
+            _historyRegion.BeginUpdate();
+            try
+            {
+                _historyRegion.Items.Clear();
+                _historyRegion.Items.Add(new LeagueSgpServer
+                    { Name = _ui.Get(UiTextKeys.LeaguePlayerHistoryCurrentRegion) });
+                var index = 0;
+                foreach (var server in LeagueSgpMatchHistoryApiClient.AvailableServers(expected))
+                {
+                    if (server.Id == current) continue;
+                    var candidate = _historyRegion.Items.Add(server);
+                    if (server.Id == selected) index = candidate;
+                }
+                _historyRegion.SelectedIndex = index;
+            }
+            finally
+            {
+                _historyRegion.EndUpdate();
+                _updatingSource = false;
+            }
         }
 
         private Button PageButton(string key, int width)
