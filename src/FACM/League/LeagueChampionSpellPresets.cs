@@ -147,6 +147,8 @@ namespace FACM.League
                    row.Spell2Id > 0 && row.Spell2Id <= 1000 && row.Spell1Id != row.Spell2Id;
         }
 
+        internal static IReadOnlyList<string> KnownGroups { get { return Groups.ToArray(); } }
+
         internal static bool ValidGroup(string group)
         {
             return Groups.Contains(group);

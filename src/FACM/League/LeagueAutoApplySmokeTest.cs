@@ -87,6 +87,15 @@ namespace FACM.League
             const string perks = "[{\"id\":8005,\"name\":\"Press\"},{\"id\":8008,\"name\":\"Lethal\"},{\"id\":9111,\"name\":\"Triumph\"},{\"id\":9104,\"name\":\"Legend\"},{\"id\":8014,\"name\":\"Coup\"},{\"id\":8112,\"name\":\"Electro\"},{\"id\":8126,\"name\":\"Sudden\"},{\"id\":8139,\"name\":\"Taste\"},{\"id\":8135,\"name\":\"Hunter\"},{\"id\":8105,\"name\":\"Relentless\"},{\"id\":5008,\"name\":\"Adaptive\"},{\"id\":5005,\"name\":\"Speed\"},{\"id\":5002,\"name\":\"Movement\"},{\"id\":5001,\"name\":\"Health\"},{\"id\":5011,\"name\":\"Scaling\"}]";
             var catalog = LeagueRuneCatalog.Parse(
                 System.Text.Encoding.UTF8.GetBytes(styles), System.Text.Encoding.UTF8.GetBytes(perks));
+            var champions = LeagueRuneCatalog.ParseChampions(System.Text.Encoding.UTF8.GetBytes(
+                "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":145,\"name\":\"KaiSa\"}]"));
+            Require(champions.Count == 2 && champions.Any(row => row.Id == 157) &&
+                LeagueRuneCatalog.ParseChampions(System.Text.Encoding.UTF8.GetBytes(
+                    "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":157,\"name\":\"Duplicate\"}]")).Count == 0,
+                "Champion preset manager must use a validated local LCU champion directory.");
+            Require(LeagueChampionSpellPresets.KnownGroups.Contains("ranked-utility") &&
+                LeagueChampionSpellPresets.KnownGroups.Contains("aram"),
+                "Champion preset manager lost supported source mode groups.");
             Require(catalog != null && catalog.Styles.Count == 2 &&
                 catalog.Choices(new[] { 8005 }).Single().Name == "Press",
                 "Rune editor did not load the current LCU perk catalog.");

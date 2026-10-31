@@ -43,6 +43,36 @@ namespace FACM.League
             _names = names;
         }
 
+        internal static IReadOnlyList<LeagueRuneOption> ParseChampions(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 1024 * 1024)
+                return Array.Empty<LeagueRuneOption>();
+            try
+            {
+                var serializer = new JavaScriptSerializer { MaxJsonLength = 1024 * 1024 };
+                var rows = Values(serializer.DeserializeObject(Encoding.UTF8.GetString(bytes))).ToArray();
+                if (rows.Length == 0 || rows.Length > 1000) return Array.Empty<LeagueRuneOption>();
+                var result = new List<LeagueRuneOption>();
+                foreach (var entry in rows)
+                {
+                    var data = entry as IDictionary<string, object>;
+                    var id = Number(Get(data, "id"));
+                    var name = Get(data, "name") as string;
+                    if (id <= 0 || id > 10000 || string.IsNullOrWhiteSpace(name) ||
+                        name.Length > 120 || result.Any(option => option.Id == id))
+                        return Array.Empty<LeagueRuneOption>();
+                    result.Add(new LeagueRuneOption { Id = id, Name = name });
+                }
+                return result.OrderBy(option => option.Name, StringComparer.CurrentCulture).ToArray();
+            }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            catch (InvalidCastException) { }
+            catch (FormatException) { }
+            catch (OverflowException) { }
+            return Array.Empty<LeagueRuneOption>();
+        }
+
         internal static LeagueRuneCatalog Parse(byte[] stylesBytes, byte[] perksBytes)
         {
             if (stylesBytes == null || perksBytes == null || stylesBytes.Length == 0 ||

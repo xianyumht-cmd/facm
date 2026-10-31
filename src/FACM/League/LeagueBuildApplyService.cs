@@ -235,6 +235,32 @@ namespace FACM.League
             }
         }
 
+        internal async Task<IReadOnlyList<LeagueRuneOption>> LoadChampionOptionsAsync(
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    var bytes = await _client.TryGetBytesAsync(
+                        "/lol-game-data/assets/v1/champion-summary.json", timeout.Token).ConfigureAwait(false);
+                    return LeagueRuneCatalog.ParseChampions(bytes);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    return Array.Empty<LeagueRuneOption>();
+                }
+                catch (Exception error)
+                {
+                    AppLog.Info("League champion catalog unavailable: " + error.GetType().Name);
+                    return Array.Empty<LeagueRuneOption>();
+                }
+            }
+        }
+
         internal async Task<bool> ValidatePresetContextAsync(
             LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
         {

@@ -511,6 +511,33 @@ namespace FACM.League
                    string.Equals(saved, "ranked-default", StringComparison.Ordinal);
         }
 
+        internal IReadOnlyList<LeagueChampionRunePreset> ListRunePresets()
+        {
+            return LeagueChampionRunePresets.Parse(_settings.LeagueChampionRunePresets);
+        }
+
+        internal void SaveRunePresetByKey(LeagueChampionRunePreset preset)
+        {
+            if (preset == null || !LeagueChampionSpellPresets.ValidGroup(preset.Group))
+                throw new ArgumentException("Invalid champion rune preset.");
+            var updated = LeagueChampionRunePresets.Upsert(_settings.LeagueChampionRunePresets, preset);
+            _settings.LeagueChampionRunePresets = updated;
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal void RemoveRunePresetByKey(int championId, string group)
+        {
+            if (championId <= 0 || !LeagueChampionSpellPresets.ValidGroup(group))
+                throw new ArgumentException("Invalid champion rune preset key.");
+            _settings.LeagueChampionRunePresets = LeagueChampionRunePresets.Remove(
+                _settings.LeagueChampionRunePresets, championId, group);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
         internal void SaveEditedRunePreset(LeagueBuildAdvisorSnapshot snapshot,
             LeagueChampionRunePreset preset)
         {
