@@ -717,7 +717,11 @@ namespace FACM.League
                 }
                 if (detail.EogOnly != null)
                 {
-                    using (var dialog = new LeagueSgpEogOnlyDialog(_ui, detail))
+                    using (var dialog = new LeagueSgpEogOnlyDialog(_ui, detail,
+                        _replay != null && LeagueEncounterReplayService.CanOfferHistoryReplay(session,
+                            _currentSession?.Invoke(), owner, detail.Match)
+                            ? (Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>>)
+                                ((match, token) => _replay(session, owner, _puuid, match, token)) : null))
                         dialog.ShowDialog(this);
                 }
                 else

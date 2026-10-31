@@ -109,10 +109,7 @@ namespace FACM.League
                                     return new LeagueEncounterMatchDetailResult
                                     {
                                         Status = LeagueEncounterMatchDetailStatus.Ready,
-                                        Match = new LeaguePlayerMatchSummary { GameId = record.GameId,
-                                            GameMode = eog.GameMode, QueueId = eog.QueueId,
-                                            DataSource = LeaguePlayerHistorySource.Sgp,
-                                            SgpServerId = LeagueSgpMatchHistoryApiClient.CurrentServerId(initial) },
+                                        Match = BuildEogSummary(eog, initial),
                                         EogOnly = eog,
                                         ChampionNames = _players.TryGetCachedChampionNames(),
                                         IsCurrentSession = () => IsSameSession(initial)
@@ -159,6 +156,18 @@ namespace FACM.League
                     return Result(LeagueEncounterMatchDetailStatus.Unavailable);
                 }
             }
+        }
+
+        private static LeaguePlayerMatchSummary BuildEogSummary(LeagueSgpEogResult eog,
+            LeagueClientSession session)
+        {
+            var match = LeagueSgpEogProjection.ReplayMetadata(eog) ??
+                new LeaguePlayerMatchSummary { GameId = eog.GameId };
+            match.GameMode = eog.GameMode;
+            match.QueueId = eog.QueueId;
+            match.DataSource = LeaguePlayerHistorySource.Sgp;
+            match.SgpServerId = LeagueSgpMatchHistoryApiClient.CurrentServerId(session);
+            return match;
         }
 
         internal static bool CanUseEogOnlyFallback(LeagueClientSession session,

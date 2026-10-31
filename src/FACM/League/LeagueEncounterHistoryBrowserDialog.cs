@@ -175,7 +175,8 @@ namespace FACM.League
                 {
                     if (detail.EogOnly != null)
                     {
-                        using (var eog = new LeagueSgpEogOnlyDialog(_ui, detail))
+                        using (var eog = new LeagueSgpEogOnlyDialog(_ui, detail,
+                            (match, token) => _replay(record, match, token)))
                             eog.ShowDialog(this);
                     }
                     else if (detail.Participants != null && detail.Participants.Count > 0)

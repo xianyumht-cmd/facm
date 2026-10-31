@@ -193,7 +193,8 @@ namespace FACM.League
         private static void ValidateEogProjection()
         {
             var fixture = Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",""gameMode"":""CLASSIC"",
-                ""queueId"":420,""gameLength"":1800,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
+                ""queueId"":420,""gameLength"":1800,""gameType"":""MATCHED_GAME"",
+                ""endOfGameTimestamp"":1720000000000,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
                 ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
                     ""teamId"":100,""championId"":12,""riotIdGameName"":""Local"",
                     ""level"":30,""wins"":12,""losses"":4,""eloChange"":-12.5,
@@ -211,6 +212,7 @@ namespace FACM.League
             var parsed = LeagueSgpEogProjection.Parse(fixture, 601, "local-puuid");
             Require(parsed != null && parsed.Players.Count == 2 &&
                 parsed.GameLengthSeconds == 1800 &&
+                parsed.GameEndEpochMs == 1720000000000L && parsed.GameType == "MATCHED_GAME" &&
                 parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
                 parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
                 parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
@@ -228,6 +230,16 @@ namespace FACM.League
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
 
+
+            var replayMatch = LeagueSgpEogProjection.ReplayMetadata(parsed);
+            Require(replayMatch != null && replayMatch.GameId == 601 && replayMatch.QueueId == 420 &&
+                replayMatch.GameType == "MATCHED_GAME" && replayMatch.GameDurationSeconds == 1800 &&
+                replayMatch.GameCreationEpochMs == 1720000000000L - 1800000L,
+                "Verified EOG end-time and duration must produce exact current-region replay metadata.");
+            parsed.GameEndEpochMs = null;
+            Require(LeagueSgpEogProjection.ReplayMetadata(parsed) == null,
+                "EOG replay must fail closed without a trusted millisecond end timestamp.");
+            parsed.GameEndEpochMs = 1720000000000L;
             var p1 = new LeagueSgpEogPlayer {
                 TeamId = 100, Kills = 5, Deaths = 2, Assists = 8,
                 Damage = 15000, Gold = 12000, Minions = 150, NeutralMinions = 20, Vision = 30 };

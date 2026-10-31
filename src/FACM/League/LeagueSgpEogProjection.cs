@@ -13,6 +13,8 @@ namespace FACM.League
         internal string GameMode;
         internal int QueueId;
         internal double? GameLengthSeconds;
+        internal long? GameEndEpochMs;
+        internal string GameType;
         internal List<LeagueSgpEogPlayer> Players;
     }
 
@@ -135,18 +137,40 @@ namespace FACM.League
                 if (!seen.Contains(ownerPuuid)) return null;
                 var queue = Number(root, "queueId");
                 var length = StatisticNumber(root, "gameLength");
+                var end = Number(root, "endOfGameTimestamp");
                 return new LeagueSgpEogResult
                 {
                     GameId = gameId, QueueId = queue.HasValue && queue > 0 && queue <= 100000
                         ? (int)queue.Value : 0,
                     GameMode = Text(root, "gameMode"), Players = players,
-                    GameLengthSeconds = length > 0 && length <= 86400 ? length : null
+                    GameLengthSeconds = length > 0 && length <= 86400 ? length : null,
+                    GameEndEpochMs = end >= 946684800000L && end <= 4102444800000L ? end : null,
+                    GameType = Text(root, "gameType")
                 };
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
             catch (FormatException) { return null; }
             catch (OverflowException) { return null; }
+        }
+
+        // EOG-only replay is possible only when the source supplies a complete, credible
+        // game end, duration and type. The existing LCU replay writer owns the actual action.
+        internal static LeaguePlayerMatchSummary ReplayMetadata(LeagueSgpEogResult match)
+        {
+            if (match == null || match.GameId <= 0 || match.QueueId <= 0 ||
+                !match.GameEndEpochMs.HasValue || !match.GameLengthSeconds.HasValue ||
+                string.IsNullOrWhiteSpace(match.GameType)) return null;
+            var duration = (int)Math.Round(match.GameLengthSeconds.Value);
+            if (duration <= 0 || duration > 86400 ||
+                match.GameEndEpochMs.Value <= (long)duration * 1000) return null;
+            return new LeaguePlayerMatchSummary
+            {
+                GameId = match.GameId, QueueId = match.QueueId,
+                GameType = match.GameType, GameMode = match.GameMode,
+                GameDurationSeconds = duration,
+                GameCreationEpochMs = match.GameEndEpochMs.Value - (long)duration * 1000
+            };
         }
 
         internal static IReadOnlyList<LeagueSgpEogTeamSummary> SummarizeTeams(LeagueSgpEogResult match)

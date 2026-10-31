@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Theming;
 using FACM.Services;
@@ -11,7 +13,10 @@ namespace FACM.League
     // EOG is a partial read-only fallback, not a fabricated SUMMARY scoreboard.
     internal sealed class LeagueSgpEogOnlyDialog : Form
     {
-        internal LeagueSgpEogOnlyDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail)
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+
+        internal LeagueSgpEogOnlyDialog(UiTextCatalog ui, LeagueEncounterMatchDetailResult detail,
+            Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterReplayResult>> replay = null)
         {
             if (detail == null || detail.EogOnly == null || detail.Match == null ||
                 detail.EogOnly.GameId != detail.Match.GameId ||
@@ -162,12 +167,47 @@ namespace FACM.League
                 finally { stats.EndUpdate(); }
             };
             layout.Controls.Add(split, 0, 2);
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105));
+            var replayStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleLeft };
+            footer.Controls.Add(replayStatus, 0, 0);
+            var replayButton = new Button { Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplay),
+                Dock = DockStyle.Top, Height = 30,
+                Enabled = replay != null && LeagueSgpEogProjection.ReplayMetadata(detail.EogOnly) != null };
+            replayButton.Click += async (sender, args) =>
+            {
+                if (replay == null || _lifetime.IsCancellationRequested || !IsCurrent(detail)) return;
+                replayButton.Enabled = false;
+                replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayChecking);
+                try
+                {
+                    var result = await replay(detail.Match, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent(detail)) return;
+                    replayStatus.Text = LeagueEncounterMatchScoreboardDialog.ReplayStatusText(result, t);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                        replayStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+                }
+                finally
+                {
+                    if (!IsDisposed && !_lifetime.IsCancellationRequested) replayButton.Enabled = true;
+                }
+            };
+            footer.Controls.Add(replayButton, 1, 0);
             var close = new Button { Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
-                Width = 100, Height = 30, Anchor = AnchorStyles.Right };
+                Width = 100, Height = 30, Dock = DockStyle.Top };
             close.Click += (sender, args) => Close();
-            layout.Controls.Add(close, 0, 3);
+            footer.Controls.Add(close, 2, 0);
+            layout.Controls.Add(footer, 0, 3);
             Controls.Add(layout);
             CancelButton = close;
+            FormClosed += (sender, args) => { _lifetime.Cancel(); _lifetime.Dispose(); };
             Shown += (sender, args) => { if (!IsCurrent(detail)) Close(); };
             Activated += (sender, args) => { if (!IsCurrent(detail)) Close(); };
         }
