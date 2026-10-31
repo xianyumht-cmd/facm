@@ -223,6 +223,23 @@ namespace FACM.League
                     !rows.Any(row => row.Name == "Physical champion damage") &&
                     rows.Select(row => row.GroupKey).Distinct().Count() >= 3,
                 "Detailed match stats must preserve known zero, missing values and source groups.");
+            var raw = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> {
+                    { "wardsPlaced", 0 }, { "goldSpent", 2300 },
+                    { "jwt", "secret-not-allowed" },
+                    { "challenges", new Dictionary<string, object> {
+                        { "baronTakedowns", 2 }, { "arbitraryPrivateValue", 42 } } }
+                });
+            Require(raw.Count == 3 && raw["wardsPlaced"] == 0 &&
+                    raw["goldSpent"] == 2300 && raw["baronTakedowns"] == 2 &&
+                    !raw.ContainsKey("jwt") && !raw.ContainsKey("arbitraryPrivateValue"),
+                "Raw match stats must accept only pinned numeric gameplay keys.");
+            first.RawStats = raw;
+            var expanded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(new[] { first, second });
+            Require(expanded.Single(row => row.Name == "wardsPlaced").Values[0] == "0" &&
+                    expanded.Single(row => row.Name == "baronTakedowns").Values[1] == "—" &&
+                    expanded.Select(row => row.GroupKey).Distinct().Count() >= 5,
+                "Source stat groups must display known zero without leaking unlisted fields.");
             var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 Enumerable.Repeat(first, 24));
             Require(bounded.All(row => row.Values.Length == 20) &&

@@ -943,6 +943,39 @@ namespace FACM.League
             var utility = UiTextKeys.LeaguePlayerMatchDetailsUtility;
             add(utility, "Total healing", p => p.TotalHeal);
             add(utility, "Time CCing others", p => p.TimeCCingOthers);
+            Action<string, string[]> raw = (group, keys) =>
+            {
+                foreach (var key in keys)
+                    add(group, key, p => {
+                        double value;
+                        return p.RawStats != null && p.RawStats.TryGetValue(key, out value)
+                            ? (double?)value : null;
+                    });
+            };
+            raw(combat, new[] { "unrealKills", "killingSprees", "largestKillingSpree",
+                "largestMultiKill", "longestTimeSpentLiving", "largestCriticalStrike",
+                "legendaryCount", "quickSoloKills", "takedowns", "outnumberedKills",
+                "multikills", "killAfterHiddenWithAlly", "takedownsBeforeJungleMinionSpawn" });
+            raw(damage, new[] { "totalDamageDealt", "physicalDamageDealt",
+                "magicDamageDealt", "trueDamageDealt", "damageDealtToObjectives",
+                "damageDealtToBuildings", "damageDealtToEpicMonsters", "damageSelfMitigated" });
+            raw(economy, new[] { "goldSpent", "totalMinionsKilled", "neutralMinionsKilled",
+                "neutralMinionsKilledEnemyJungle", "neutralMinionsKilledTeamJungle",
+                "consumablesPurchased", "itemsPurchased" });
+            raw(utility, new[] { "totalTimeCCDealt", "totalTimeCrowdControlDealt",
+                "enemyChampionImmobilizations", "immobilizeAndKillWithAlly",
+                "totalUnitsHealed", "totalHealsOnTeammates", "abilityUses",
+                "spell1Casts", "spell2Casts", "spell3Casts", "spell4Casts",
+                "summoner1Casts", "summoner2Casts" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsVision, new[] {
+                "wardsPlaced", "wardsKilled", "visionWardsBoughtInGame",
+                "controlWardsPlaced", "stealthWardsPlaced", "wardTakedowns" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsBuildings, new[] {
+                "turretKills", "turretTakedowns", "inhibitorKills",
+                "inhibitorTakedowns", "nexusKills", "nexusTakedowns", "objectivesStolen" });
+            raw(UiTextKeys.LeaguePlayerMatchDetailsObjectives, new[] {
+                "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
+                "voidMonsterKill", "scuttleCrabKills" });
             return rows;
         }
 

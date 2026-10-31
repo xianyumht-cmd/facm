@@ -222,6 +222,8 @@ namespace FACM.League
         public int? TotalDamageShieldedOnTeammates { get; set; }
         public int? SoloKills { get; set; }
         public double? MaxCsAdvantageOnLaneOpponent { get; set; }
+        // Explicitly allowlisted, bounded numeric match details; never store arbitrary stats.
+        public Dictionary<string, double> RawStats { get; set; }
         public int? KnockEnemyIntoTeamAndKill { get; set; }
         public int? KillsNearEnemyTurret { get; set; }
         public int? KillsUnderOwnTurret { get; set; }

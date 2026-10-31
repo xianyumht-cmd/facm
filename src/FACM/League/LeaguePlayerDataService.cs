@@ -841,6 +841,52 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        // Pinned MatchCardDetailsTab groups: only named numeric gameplay fields.
+        // No credentials, arbitrary JSON keys or user-generated text enter the UI.
+        private static readonly string[] DetailedStatKeys = {
+            "unrealKills", "killingSprees", "largestKillingSpree", "largestMultiKill",
+            "longestTimeSpentLiving", "largestCriticalStrike", "legendaryCount",
+            "totalDamageDealt", "physicalDamageDealt", "magicDamageDealt",
+            "trueDamageDealt", "damageDealtToObjectives", "damageDealtToBuildings",
+            "damageDealtToEpicMonsters", "damageSelfMitigated",
+            "totalTimeCCDealt", "totalTimeCrowdControlDealt",
+            "wardsPlaced", "wardsKilled", "visionWardsBoughtInGame",
+            "turretKills", "inhibitorKills", "nexusKills", "objectivesStolen",
+            "goldSpent", "totalMinionsKilled", "neutralMinionsKilled",
+            "neutralMinionsKilledEnemyJungle", "neutralMinionsKilledTeamJungle",
+            "consumablesPurchased", "itemsPurchased", "totalUnitsHealed",
+            "totalHealsOnTeammates", "spell1Casts", "spell2Casts",
+            "spell3Casts", "spell4Casts", "summoner1Casts", "summoner2Casts"
+        };
+        private static readonly string[] DetailedChallengeKeys = {
+            "enemyChampionImmobilizations", "immobilizeAndKillWithAlly",
+            "controlWardsPlaced", "stealthWardsPlaced", "wardTakedowns",
+            "turretTakedowns", "inhibitorTakedowns", "nexusTakedowns",
+            "quickSoloKills", "takedowns", "outnumberedKills", "multikills",
+            "killAfterHiddenWithAlly", "takedownsBeforeJungleMinionSpawn",
+            "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
+            "voidMonsterKill", "scuttleCrabKills", "abilityUses"
+        };
+
+        internal static Dictionary<string, double> ParseDetailedRawStats(Dictionary<string, object> stats)
+        {
+            var result = new Dictionary<string, double>(StringComparer.Ordinal);
+            if (stats == null) return result;
+            Action<Dictionary<string, object>, string[]> read = (source, keys) =>
+            {
+                if (source == null) return;
+                foreach (var key in keys)
+                {
+                    var value = ReadOptionalFiniteNumber(source, key);
+                    if (value.HasValue && value.Value >= 0 && value.Value <= 1000000000d)
+                        result[key] = value.Value;
+                }
+            };
+            read(stats, DetailedStatKeys);
+            read(ReadObject(stats, "challenges"), DetailedChallengeKeys);
+            return result;
+        }
+
         private static List<LeaguePlayerMatchParticipant> ParseParticipants(Dictionary<string, object> game, int targetId)
         {
             var identities = new Dictionary<int, Dictionary<string, object>>();
@@ -917,6 +963,7 @@ namespace FACM.League
                     MaxCsAdvantageOnLaneOpponent = ReadBool(game, "_sgp")
                         ? ReadOptionalFiniteNumber(ReadObject(stats, "challenges"),
                             "maxCsAdvantageOnLaneOpponent") : null,
+                    RawStats = ParseDetailedRawStats(stats),
                     KnockEnemyIntoTeamAndKill = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(ReadObject(stats, "challenges"),
                             "knockEnemyIntoTeamAndKill") : null,
