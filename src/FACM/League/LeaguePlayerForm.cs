@@ -275,7 +275,8 @@ namespace FACM.League
             {
                 if (_profile == null || _loading) return;
                 using (var dialog = new LeaguePlayerProfileDialog(_service, _ui, _profile.PuuId,
-                    _profile.PuuId, _profile.AccountName, _currentSession?.Invoke(), _currentSession)) dialog.ShowDialog(this);
+                    _profile.PuuId, _profile.AccountName, _currentSession?.Invoke(), _currentSession,
+                    null, LeaguePlayerHistorySource.Automatic, _loadAsset)) dialog.ShowDialog(this);
             };
             _filterPanel.Controls.Add(profileDetails);
             _championSearch.TextChanged += (sender, e) => UpdateFilterChoices(_loadedPage);

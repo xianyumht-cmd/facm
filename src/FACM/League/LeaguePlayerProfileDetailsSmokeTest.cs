@@ -139,6 +139,30 @@ namespace FACM.League
                     masteryNames, "2", 2, true)).SequenceEqual(new[] { 2 }) &&
                 LeaguePlayerProfileDialog.FilterAndSortMasteries(null, masteryNames, "", 2, true).Count == 0,
                 "Mastery list must support stable column sorting, name/ID filtering and missing-time ordering.");
+            Require(LeaguePlayerProfileDialog.MasteryPortraitReference(1) ==
+                    "lcu:/lol-game-data/assets/v1/champion-icons/1.png" &&
+                LeaguePlayerProfileDialog.MasteryPortraitReference(0) == null &&
+                LeaguePlayerProfileDialog.MasteryPortraitReference(-1) == null &&
+                LeaguePlayerProfileDialog.MasteryPortraitReference(100001) == null &&
+                FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    LeaguePlayerProfileDialog.MasteryPortraitReference(266)),
+                "Mastery portraits must use the pinned local champion icon path and reject invalid IDs.");
+            var requestedPortraits = new HashSet<int> { 2 };
+            Require(LeaguePlayerProfileDialog.SelectMasteryPortraitIds(
+                    new[] { -1, 0, 2, 1, 1, 3, 4 }, requestedPortraits, 2)
+                    .SequenceEqual(new[] { 1, 3 }) &&
+                LeaguePlayerProfileDialog.SelectMasteryPortraitIds(
+                    new[] { 1, 3 }, requestedPortraits, 0).Count == 0 &&
+                LeaguePlayerProfileDialog.SelectMasteryPortraitIds(
+                    null, requestedPortraits, 10).Count == 0,
+                "Visible mastery portraits must be deduplicated and bounded across filter/scroll changes.");
+            var tooltip = LeaguePlayerProfileDialog.MasteryDetailText(UiTextCatalog.Load(),
+                new Dictionary<string, object> { { "championPointsSinceLastLevel", 0 },
+                    { "championPointsUntilNextLevel", 1200 }, { "tokensEarned", 0 },
+                    { "markRequiredForNextLevel", 1 }, { "highestGrade", "S+" } });
+            Require(tooltip.Contains("S+") && tooltip.Contains("1,200") &&
+                !tooltip.Contains("System.Collections"),
+                "Mastery row inspection must preserve grade, progress and true zero without selecting a row.");
             var mastery = await service.LoadPlayerMasteriesAsync("self", "target", session, null, CancellationToken.None);
             Require(mastery.Status == LeaguePlayerDetailsStatus.Ready && mastery.Masteries.Count == 2 &&
                 LeagueMatchTimelineParser.Number(mastery.Masteries[0], "championId") == 2 &&

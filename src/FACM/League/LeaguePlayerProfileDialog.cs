@@ -100,6 +100,11 @@ namespace FACM.League
         private Dictionary<string, object> _challengeData;
         private long? _masteryScore;
         private readonly Label _masteryCount;
+        private readonly Func<string, CancellationToken, Task<Bitmap>> _loadAsset;
+        private readonly ImageList _masteryPortraits = new ImageList { ImageSize = new Size(28, 28), ColorDepth = ColorDepth.Depth32Bit };
+        private readonly HashSet<int> _requestedMasteryPortraits = new HashSet<int>();
+        private static readonly SemaphoreSlim MasteryPortraitGate = new SemaphoreSlim(3, 3);
+        private const int MasteryPortraitBudget = 64;
         private int _masterySortColumn = 2;
         private bool _masterySortDescending = true;
         private bool _busy;
@@ -107,10 +112,12 @@ namespace FACM.League
 
         internal LeaguePlayerProfileDialog(LeaguePlayerDataService service, UiTextCatalog ui, string self,
             string target, string name, LeagueClientSession session, Func<LeagueClientSession> currentSession,
-            string server = null, LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic)
+            string server = null, LeaguePlayerHistorySource source = LeaguePlayerHistorySource.Automatic,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
         {
             _service = service; _ui = ui; _self = self; _target = target; _session = session;
             _currentSession = currentSession; _server = server; _source = source;
+            _loadAsset = loadAsset;
             _names = service.TryGetCachedChampionNames() ?? new Dictionary<int, string>();
             Text = ui.Get(UiTextKeys.LeagueProfileDetailsTitle) + " · " + name;
             ClientSize = new Size(700, 490); MinimumSize = new Size(560, 380);
@@ -151,6 +158,14 @@ namespace FACM.League
             _search = new TextBox { Dock = DockStyle.Fill, AccessibleName = ui.Get(UiTextKeys.LeagueProfileMasterySearch) };
             _search.TextChanged += (sender, args) => RenderMasteries();
             _masteries = List();
+            _masteries.SmallImageList = _masteryPortraits;
+            _masteries.ShowItemToolTips = true;
+            _masteries.MouseWheel += (sender, args) =>
+            {
+                if (!IsDisposed && IsHandleCreated)
+                    BeginInvoke((Action)QueueMasteryPortraits);
+            };
+            _masteries.KeyUp += (sender, args) => QueueMasteryPortraits();
             var masteryColumns = new[] { UiTextKeys.LeaguePlayerChampion, UiTextKeys.LeagueProfileMasteryLevel,
                 UiTextKeys.LeagueProfileMasteryPoints, UiTextKeys.LeagueProfileMasteryLast };
             foreach (var key in masteryColumns)
@@ -264,6 +279,7 @@ namespace FACM.League
             var challenges = _tabs.SelectedIndex == 2;
             if (!force && (challenges ? _challengeData != null : mastery ? _masteryRows != null : _ranked.Items.Count > 0)) return;
             _busy = true; _refresh.Enabled = false; _tabs.Enabled = false;
+            _allMasteries.Enabled = false;
             _status.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
             try
             {
@@ -322,6 +338,7 @@ namespace FACM.League
                 {
                     _refresh.Enabled = true;
                     _tabs.Enabled = true;
+                    _allMasteries.Enabled = true;
                     if (_pendingPostgameRefresh && _tabs.SelectedIndex == 0 &&
                         !_lifetime.IsCancellationRequested && IsCurrent())
                         await RefreshAfterGameAsync();
@@ -462,7 +479,8 @@ namespace FACM.League
                     var id = (int)LeagueMatchTimelineParser.Number(row, "championId").Value;
                     string name;
                     if (!_names.TryGetValue(id, out name)) name = "#" + id;
-                    var item = new ListViewItem(name) { Tag = row };
+                    var item = new ListViewItem(name) { Tag = row,
+                        ImageKey = MasteryPortraitKey(id), ToolTipText = MasteryDetailText(_ui, row) };
                     item.SubItems.Add(Number(row, "championLevel"));
                     item.SubItems.Add(Number(row, "championPoints"));
                     item.SubItems.Add(LastPlay(row));
@@ -476,18 +494,93 @@ namespace FACM.League
                     .Replace("{0}", filtered.Count.ToString(CultureInfo.CurrentCulture))
                     .Replace("{1}", _masteryRows.Count.ToString(CultureInfo.CurrentCulture));
             ShowMastery();
+            QueueMasteryPortraits();
         }
 
         private void ShowMastery()
         {
             if (_masteries.SelectedItems.Count != 1) { _masteryDetails.Text = string.Empty; return; }
             var row = _masteries.SelectedItems[0].Tag as Dictionary<string, object>;
-            _masteryDetails.Text = _ui.Get(UiTextKeys.LeagueProfileMasteryProgress)
-                .Replace("{0}", Number(row, "championPointsSinceLastLevel")).Replace("{1}", Number(row, "championPointsUntilNextLevel")) +
-                "\r\n" + _ui.Get(UiTextKeys.LeagueProfileMasteryMarks).Replace("{0}", Number(row, "tokensEarned"))
+            _masteryDetails.Text = MasteryDetailText(_ui, row);
+        }
+
+        internal static string MasteryDetailText(UiTextCatalog ui, Dictionary<string, object> row)
+        {
+            return ui.Get(UiTextKeys.LeagueProfileMasteryProgress)
+                .Replace("{0}", Number(row, "championPointsSinceLastLevel"))
+                .Replace("{1}", Number(row, "championPointsUntilNextLevel")) +
+                "\r\n" + ui.Get(UiTextKeys.LeagueProfileMasteryMarks)
+                    .Replace("{0}", Number(row, "tokensEarned"))
                     .Replace("{1}", Number(row, "markRequiredForNextLevel")) +
-                "\r\n" + _ui.Get(UiTextKeys.LeagueProfileMasterySeason).Replace("{0}", Number(row, "championSeasonMilestone"))
+                "\r\n" + ui.Get(UiTextKeys.LeagueProfileMasterySeason)
+                    .Replace("{0}", Number(row, "championSeasonMilestone"))
                     .Replace("{1}", LeagueMatchTimelineParser.Text(row, "highestGrade") ?? "—");
+        }
+
+        internal static string MasteryPortraitReference(int championId)
+        {
+            return championId > 0 && championId <= 100000
+                ? "lcu:/lol-game-data/assets/v1/champion-icons/" +
+                    championId.ToString(CultureInfo.InvariantCulture) + ".png" : null;
+        }
+
+        private static string MasteryPortraitKey(int championId)
+        {
+            return championId.ToString(CultureInfo.InvariantCulture);
+        }
+
+        internal static List<int> SelectMasteryPortraitIds(IEnumerable<int> visibleIds,
+            ISet<int> requested, int remainingBudget)
+        {
+            if (visibleIds == null || requested == null || remainingBudget <= 0)
+                return new List<int>();
+            return visibleIds.Where(id => MasteryPortraitReference(id) != null && !requested.Contains(id))
+                .Distinct().Take(remainingBudget).ToList();
+        }
+
+        private void QueueMasteryPortraits()
+        {
+            if (_loadAsset == null || _masteryRows == null || _tabs.SelectedIndex != 1 ||
+                IsDisposed || _lifetime.IsCancellationRequested || !IsCurrent() ||
+                _requestedMasteryPortraits.Count >= MasteryPortraitBudget) return;
+            var first = 0;
+            if (_masteries.IsHandleCreated && _masteries.Items.Count > 0)
+            {
+                try { first = _masteries.TopItem == null ? 0 : _masteries.TopItem.Index; }
+                catch (InvalidOperationException) { first = 0; }
+            }
+            var visible = _masteries.Items.Cast<ListViewItem>().Skip(first).Take(24)
+                .Select(item => LeagueMatchTimelineParser.Number(
+                    item.Tag as Dictionary<string, object>, "championId"))
+                .Where(id => id.HasValue && id.Value <= int.MaxValue)
+                .Select(id => (int)id.Value);
+            foreach (var id in SelectMasteryPortraitIds(visible, _requestedMasteryPortraits,
+                MasteryPortraitBudget - _requestedMasteryPortraits.Count))
+            {
+                _requestedMasteryPortraits.Add(id);
+                _ = LoadMasteryPortraitAsync(id, MasteryPortraitReference(id));
+            }
+        }
+
+        private async Task LoadMasteryPortraitAsync(int id, string reference)
+        {
+            Bitmap image = null;
+            try
+            {
+                await MasteryPortraitGate.WaitAsync(_lifetime.Token);
+                try { image = await _loadAsset(reference, _lifetime.Token); }
+                finally { MasteryPortraitGate.Release(); }
+                if (image == null || IsDisposed || _lifetime.IsCancellationRequested ||
+                    !IsCurrent() || _masteries.IsDisposed) return;
+                var key = MasteryPortraitKey(id);
+                if (!_masteryPortraits.Images.ContainsKey(key))
+                    _masteryPortraits.Images.Add(key, image);
+                _masteries.Invalidate();
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { image?.Dispose(); }
         }
 
         private static string Number(Dictionary<string, object> data, string key)
@@ -544,6 +637,7 @@ namespace FACM.League
             {
                 LeaguePlayerPostgameRefreshBridge.PostgameEntered -= OnPostgameEntered;
                 _lifetime.Cancel();
+                _masteryPortraits.Dispose();
                 _lifetime.Dispose();
             }
             base.Dispose(disposing);
