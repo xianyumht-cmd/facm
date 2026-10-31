@@ -511,6 +511,33 @@ namespace FACM.League
                    string.Equals(saved, "ranked-default", StringComparison.Ordinal);
         }
 
+        internal IReadOnlyList<LeagueChampionSpellPreset> ListSpellPresets()
+        {
+            return LeagueChampionSpellPresets.Parse(_settings.LeagueChampionSpellPresets);
+        }
+
+        internal void SaveSpellPresetByKey(LeagueChampionSpellPreset preset)
+        {
+            if (preset == null || !LeagueChampionSpellPresets.ValidGroup(preset.Group))
+                throw new ArgumentException("Invalid champion spell preset.");
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Upsert(
+                _settings.LeagueChampionSpellPresets, preset);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal void RemoveSpellPresetByKey(int championId, string group)
+        {
+            if (championId <= 0 || !LeagueChampionSpellPresets.ValidGroup(group))
+                throw new ArgumentException("Invalid champion spell preset key.");
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
+                _settings.LeagueChampionSpellPresets, championId, group);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
         internal IReadOnlyList<LeagueChampionRunePreset> ListRunePresets()
         {
             return LeagueChampionRunePresets.Parse(_settings.LeagueChampionRunePresets);

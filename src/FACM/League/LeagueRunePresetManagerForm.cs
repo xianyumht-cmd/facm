@@ -20,14 +20,18 @@ namespace FACM.League
         private readonly ListView _saved = new ListView();
         private readonly Button _edit = new Button();
         private readonly Button _delete = new Button();
+        private readonly Button _editSpells = new Button();
+        private readonly Button _deleteSpells = new Button();
+        private readonly IReadOnlyList<LeagueRuneOption> _spellOptions;
         private readonly IReadOnlyList<LeagueRuneOption> _championOptions;
 
         internal LeagueRunePresetManagerForm(LeagueRuneCatalog catalog,
-            IReadOnlyList<LeagueRuneOption> champions, LeagueAutoApplyController controller,
-            UiTextCatalog ui, int selectedChampion, string selectedGroup)
+            IReadOnlyList<LeagueRuneOption> champions, IReadOnlyList<LeagueRuneOption> spells,
+            LeagueAutoApplyController controller, UiTextCatalog ui, int selectedChampion, string selectedGroup)
         {
             _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
             _championOptions = champions ?? throw new ArgumentNullException(nameof(champions));
+            _spellOptions = spells ?? throw new ArgumentNullException(nameof(spells));
             _controller = controller ?? throw new ArgumentNullException(nameof(controller));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerTitle);
@@ -62,8 +66,8 @@ namespace FACM.League
             _saved.HideSelection = false;
             _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.ManagerChampion), 210);
             _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.ManagerGroup), 165);
-            _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.PrimaryStyle), 120);
-            _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.SecondaryStyle), 120);
+            _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.ManagerRunes), 120);
+            _saved.Columns.Add(T(LeagueChampionSpellPresetUiTextKeys.ManagerSpells), 120);
             _saved.SelectedIndexChanged += delegate { SelectSaved(); };
             Controls.Add(_saved);
 
@@ -86,8 +90,18 @@ namespace FACM.League
             _delete.Width = 115;
             _delete.Height = 32;
             _delete.Click += delegate { DeleteSelected(); };
+            _editSpells.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerEditSpells);
+            _editSpells.Width = 115;
+            _editSpells.Height = 32;
+            _editSpells.Click += delegate { EditSpells(); };
+            _deleteSpells.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerDeleteSpells);
+            _deleteSpells.Width = 115;
+            _deleteSpells.Height = 32;
+            _deleteSpells.Click += delegate { DeleteSpells(); };
             buttons.Controls.Add(close);
+            buttons.Controls.Add(_deleteSpells);
             buttons.Controls.Add(_delete);
+            buttons.Controls.Add(_editSpells);
             buttons.Controls.Add(_edit);
             Controls.Add(buttons);
             // Restore docking order: header top, buttons bottom, saved fills remaining space.
@@ -129,10 +143,10 @@ namespace FACM.League
         private void SelectSaved()
         {
             if (_saved.SelectedItems.Count == 0) return;
-            var row = _saved.SelectedItems[0].Tag as LeagueChampionRunePreset;
+            var row = _saved.SelectedItems[0].Tag as Tuple<int, string>;
             if (row == null) return;
-            SelectChampion(row.ChampionId);
-            _groups.SelectedItem = row.Group;
+            SelectChampion(row.Item1);
+            _groups.SelectedItem = row.Item2;
             UpdateButtons();
         }
 
@@ -142,15 +156,20 @@ namespace FACM.League
             try
             {
                 _saved.Items.Clear();
-                foreach (var preset in _controller.ListRunePresets())
+                var runes = _controller.ListRunePresets();
+                var spells = _controller.ListSpellPresets();
+                var keys = runes.Select(row => Tuple.Create(row.ChampionId, row.Group))
+                    .Concat(spells.Select(row => Tuple.Create(row.ChampionId, row.Group)))
+                    .Distinct().OrderBy(row => row.Item1).ThenBy(row => row.Item2, StringComparer.Ordinal);
+                foreach (var key in keys)
                 {
-                    var champion = _championOptions.FirstOrDefault(option => option.Id == preset.ChampionId);
-                    var name = champion == null ? preset.ChampionId.ToString() : champion.Name;
+                    var champion = _championOptions.FirstOrDefault(option => option.Id == key.Item1);
+                    var name = champion == null ? key.Item1.ToString() : champion.Name;
                     var item = new ListViewItem(name);
-                    item.SubItems.Add(preset.Group);
-                    item.SubItems.Add(preset.PrimaryStyleId.ToString());
-                    item.SubItems.Add(preset.SecondaryStyleId.ToString());
-                    item.Tag = preset;
+                    item.SubItems.Add(key.Item2);
+                    item.SubItems.Add(runes.Any(row => row.ChampionId == key.Item1 && row.Group == key.Item2) ? "✓" : "—");
+                    item.SubItems.Add(spells.Any(row => row.ChampionId == key.Item1 && row.Group == key.Item2) ? "✓" : "—");
+                    item.Tag = key;
                     _saved.Items.Add(item);
                 }
             }
@@ -163,6 +182,8 @@ namespace FACM.League
             _edit.Enabled = _champions.SelectedItem is LeagueRuneOption &&
                             LeagueChampionSpellPresets.ValidGroup(_groups.SelectedItem as string);
             _delete.Enabled = _edit.Enabled && CurrentPreset() != null;
+            _editSpells.Enabled = _edit.Enabled && _spellOptions.Count >= 2;
+            _deleteSpells.Enabled = _edit.Enabled && CurrentSpellPreset() != null;
         }
 
         private LeagueChampionRunePreset CurrentPreset()
@@ -171,6 +192,49 @@ namespace FACM.League
             var group = _groups.SelectedItem as string;
             return champion == null ? null : _controller.ListRunePresets().FirstOrDefault(
                 preset => preset.ChampionId == champion.Id && preset.Group == group);
+        }
+
+        private LeagueChampionSpellPreset CurrentSpellPreset()
+        {
+            var champion = _champions.SelectedItem as LeagueRuneOption;
+            var group = _groups.SelectedItem as string;
+            return champion == null ? null : _controller.ListSpellPresets().FirstOrDefault(
+                preset => preset.ChampionId == champion.Id && preset.Group == group);
+        }
+
+        private void EditSpells()
+        {
+            var champion = _champions.SelectedItem as LeagueRuneOption;
+            var group = _groups.SelectedItem as string;
+            if (champion == null || !LeagueChampionSpellPresets.ValidGroup(group)) return;
+            using (var editor = new LeagueSummonerSpellPresetEditorForm(
+                _spellOptions, champion.Id, champion.Name, group, CurrentSpellPreset(), _ui))
+            {
+                if (editor.ShowDialog(this) != DialogResult.OK) return;
+                try
+                {
+                    _controller.SaveSpellPresetByKey(editor.Preset);
+                    RefreshSaved();
+                }
+                catch (Exception error)
+                {
+                    AppLog.Error("League spell preset save failed", error);
+                    MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.SaveFailed),
+                        Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        private void DeleteSpells()
+        {
+            var champion = _champions.SelectedItem as LeagueRuneOption;
+            var group = _groups.SelectedItem as string;
+            if (champion == null || CurrentSpellPreset() == null) return;
+            if (MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerDeleteSpellsConfirm),
+                Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+            _controller.RemoveSpellPresetByKey(champion.Id, group);
+            RefreshSaved();
         }
 
         private void EditSelected()

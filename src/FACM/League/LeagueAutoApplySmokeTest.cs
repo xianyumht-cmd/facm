@@ -93,6 +93,12 @@ namespace FACM.League
                 LeagueRuneCatalog.ParseChampions(System.Text.Encoding.UTF8.GetBytes(
                     "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":157,\"name\":\"Duplicate\"}]")).Count == 0,
                 "Champion preset manager must use a validated local LCU champion directory.");
+            var spellOptions = LeagueRuneCatalog.ParseSummonerSpells(System.Text.Encoding.UTF8.GetBytes(
+                "[{\"id\":4,\"name\":\"Flash\"},{\"id\":14,\"name\":\"Ignite\"}]"));
+            Require(spellOptions.Count == 2 && spellOptions.Any(option => option.Id == 4) &&
+                LeagueRuneCatalog.ParseSummonerSpells(System.Text.Encoding.UTF8.GetBytes(
+                    "[{\"id\":4,\"name\":\"Flash\"},{\"id\":4,\"name\":\"Duplicate\"}]")).Count == 0,
+                "Manual spell editor must reject a malformed LCU spell directory.");
             Require(LeagueChampionSpellPresets.KnownGroups.Contains("ranked-utility") &&
                 LeagueChampionSpellPresets.KnownGroups.Contains("aram"),
                 "Champion preset manager lost supported source mode groups.");

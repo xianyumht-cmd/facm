@@ -265,16 +265,20 @@ namespace FACM.League
             {
                 var catalog = await _applyService.LoadRuneCatalogAsync(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                var champions = await _applyService.LoadChampionOptionsAsync(_lifetime.Token);
+                var championsTask = _applyService.LoadChampionOptionsAsync(_lifetime.Token);
+                var spellsTask = _applyService.LoadSummonerSpellOptionsAsync(_lifetime.Token);
+                await Task.WhenAll(championsTask, spellsTask);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                if (catalog == null || champions.Count == 0)
+                var champions = championsTask.Result;
+                var spells = spellsTask.Result;
+                if (catalog == null || champions.Count == 0 || spells.Count < 2)
                 {
                     _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.RuneCatalogUnavailable);
                     return;
                 }
                 var group = expected == null ? null : LeagueChampionSpellPresets.GroupFor(
                     expected.QueueId, expected.Mode, expected.Position, expected.GameMode, expected.QueueType);
-                using (var manager = new LeagueRunePresetManagerForm(catalog, champions,
+                using (var manager = new LeagueRunePresetManagerForm(catalog, champions, spells,
                     _autoController, _ui, expected == null ? 0 : expected.ChampionId, group))
                     manager.ShowDialog(this);
                 _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerClosed);

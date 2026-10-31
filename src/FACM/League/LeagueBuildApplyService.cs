@@ -235,6 +235,32 @@ namespace FACM.League
             }
         }
 
+        internal async Task<IReadOnlyList<LeagueRuneOption>> LoadSummonerSpellOptionsAsync(
+            CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    var bytes = await _client.TryGetBytesAsync(
+                        "/lol-game-data/assets/v1/summoner-spells.json", timeout.Token).ConfigureAwait(false);
+                    return LeagueRuneCatalog.ParseSummonerSpells(bytes);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    return Array.Empty<LeagueRuneOption>();
+                }
+                catch (Exception error)
+                {
+                    AppLog.Info("League spell catalog unavailable: " + error.GetType().Name);
+                    return Array.Empty<LeagueRuneOption>();
+                }
+            }
+        }
+
         internal async Task<IReadOnlyList<LeagueRuneOption>> LoadChampionOptionsAsync(
             CancellationToken cancellationToken)
         {

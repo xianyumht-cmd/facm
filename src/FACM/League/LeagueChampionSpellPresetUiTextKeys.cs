@@ -38,6 +38,15 @@ namespace FACM.League
         public const string ManagerDeleteConfirm = "LeagueChampionSpellPresetManagerDeleteConfirm";
         public const string ManagerClosed = "LeagueChampionSpellPresetManagerClosed";
         public const string ManagerEdit = "LeagueChampionSpellPresetManagerEdit";
+        public const string ManagerRunes = "LeagueChampionSpellPresetManagerRunes";
+        public const string ManagerSpells = "LeagueChampionSpellPresetManagerSpells";
+        public const string ManagerEditSpells = "LeagueChampionSpellPresetManagerEditSpells";
+        public const string ManagerDeleteSpells = "LeagueChampionSpellPresetManagerDeleteSpells";
+        public const string ManagerDeleteSpellsConfirm = "LeagueChampionSpellPresetManagerDeleteSpellsConfirm";
+        public const string SpellEditorTitle = "LeagueChampionSpellPresetSpellEditorTitle";
+        public const string SpellSlot1 = "LeagueChampionSpellPresetSpellSlot1";
+        public const string SpellSlot2 = "LeagueChampionSpellPresetSpellSlot2";
+        public const string SpellEditorSave = "LeagueChampionSpellPresetSpellEditorSave";
 
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -67,6 +76,15 @@ namespace FACM.League
             { ManagerDeleteConfirm, "确认删除所选英雄和模式的符文预设？召唤师技能预设不受影响。" },
             { ManagerClosed, "符文预设管理已关闭。" },
             { ManagerEdit, "编辑 / 新建符文" },
+            { ManagerRunes, "符文" },
+            { ManagerSpells, "召唤师技能" },
+            { ManagerEditSpells, "编辑技能" },
+            { ManagerDeleteSpells, "删除技能" },
+            { ManagerDeleteSpellsConfirm, "确认删除所选英雄和模式的召唤师技能预设？符文预设不受影响。" },
+            { SpellEditorTitle, "编辑召唤师技能 · " },
+            { SpellSlot1, "召唤师技能一" },
+            { SpellSlot2, "召唤师技能二" },
+            { SpellEditorSave, "保存技能" },
             { Remove, "删除此预设" },
             { Saved, "已保存本英雄及模式的符文与技能预设。" },
             { SavedRunes, "已保存符文预设；技能读取不可用，旧技能预设未改动。" },
