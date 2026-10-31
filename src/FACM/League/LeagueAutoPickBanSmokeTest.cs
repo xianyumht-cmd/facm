@@ -243,6 +243,28 @@ namespace FACM.League
                 }
                 Require(staleWrite.Calls.Count == 0,
                     "A revoked remote group must never execute its previously saved priorities.");
+
+                var arenaGroup = cherry.Replace("2026-08-06", "2026-08-10")
+                    .Replace(@"""groupId"":""cherry""", @"""groupId"":""cherry_next""");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(arenaGroup)) &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == "cherry_next" &&
+                    LeagueAutoSelectGroupCatalog.IsArenaGroup("cherry_next") &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry_next", null, true, -3),
+                    "A new trusted Arena group must preserve source-authorized bravery.");
+                var arenaProfile = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "cherry_next",
+                        Picks = new List<int> { -3 } } });
+                var arenaWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0),
+                        GameflowJson = cherryFlow, Pickable = "[]" },
+                    arenaWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, arenaProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(arenaWrite.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "A source-approved dynamic Arena group must complete bravery through the existing writer.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

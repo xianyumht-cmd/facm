@@ -81,6 +81,13 @@ namespace FACM.League
                     g.Targets.Any(t => t.Item1 == "ARAM" || t.Item1 == "KIWI"));
         }
 
+        internal static bool IsArenaGroup(string groupId)
+        {
+            lock (Sync)
+                return _groups == null ? groupId == "cherry" :
+                    _groups.Any(g => g.Id == groupId && g.Targets.Any(t => t.Item1 == "CHERRY"));
+        }
+
         internal static bool SpecialAllowed(string groupId, string sgpServerId, bool pick, int championId)
         {
             if (groupId == "mayhem") groupId = "aram";

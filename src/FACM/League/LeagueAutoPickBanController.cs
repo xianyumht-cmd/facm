@@ -988,7 +988,7 @@ namespace FACM.League
         private static bool CandidateAvailable(HashSet<int> available, int championId, string actionType, string group)
         {
             if (championId == -3)
-                return actionType == "pick" && group == "cherry";
+                return actionType == "pick" && LeagueAutoSelectGroupCatalog.IsArenaGroup(group);
             if (championId == -1)
                 return actionType == "ban" && available.Contains(-1);
             return championId > 0 && available.Contains(championId);
