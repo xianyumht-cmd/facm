@@ -29,6 +29,7 @@ namespace FACM.League
             ValidateEogOnlyDetailAsync().GetAwaiter().GetResult();
             ValidateCardPresentation();
             ValidateSingleAkariScore();
+            ValidateDetailedStatMatrix();
             var availableIcons = new HashSet<int> { 4, 5, 6 };
             Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
                     new[] { 1, 2, 3, 4, 4, 5, 6 }, availableIcons.Contains, 2)
@@ -198,6 +199,35 @@ namespace FACM.League
             teams[0].Win = null;
             Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
                 "Unknown team outcome must not become a loss or a per-match score.");
+        }
+
+        private static void ValidateDetailedStatMatrix()
+        {
+            var first = new LeaguePlayerMatchParticipant {
+                ParticipantId = 1, Kills = 0, Deaths = 1, Assists = 2,
+                DamageAvailable = true, DamageToChampions = 0,
+                GoldAvailable = false, GoldEarned = 0, TotalHeal = 0,
+                TimeCCingOthers = 1.25
+            };
+            var second = new LeaguePlayerMatchParticipant {
+                ParticipantId = 2, Kills = 3, Deaths = 0, Assists = 4,
+                DamageAvailable = false, GoldAvailable = true, GoldEarned = 100
+            };
+            var rows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Func<string, LeagueMatchDetailStatRow> get = name => rows.Single(row => row.Name == name);
+            Require(get("Champion damage").Values.SequenceEqual(new[] { "0", "—" }) &&
+                    get("Gold earned").Values.SequenceEqual(new[] { "—", "100" }) &&
+                    get("Total healing").Values.SequenceEqual(new[] { "0", "—" }) &&
+                    get("Time CCing others").Values[0] != "—" &&
+                    !rows.Any(row => row.Name == "Physical champion damage") &&
+                    rows.Select(row => row.GroupKey).Distinct().Count() >= 3,
+                "Detailed match stats must preserve known zero, missing values and source groups.");
+            var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                Enumerable.Repeat(first, 24));
+            Require(bounded.All(row => row.Values.Length == 20) &&
+                    LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(null).Count == 0,
+                "Detailed stat matrix must bound participant columns and omit empty source rows.");
         }
 
         private static void ValidateCardPresentation()

@@ -613,6 +613,11 @@ namespace FACM.Services
         public const string LeaguePlayerCompareMetric = "LeaguePlayerCompareMetric";
         public const string LeaguePlayerCompareLeft = "LeaguePlayerCompareLeft";
         public const string LeaguePlayerCompareRight = "LeaguePlayerCompareRight";
+        public const string LeaguePlayerMatchDetailsTab = "LeaguePlayerMatchDetailsTab";
+        public const string LeaguePlayerMatchDetailsCombat = "LeaguePlayerMatchDetailsCombat";
+        public const string LeaguePlayerMatchDetailsDamage = "LeaguePlayerMatchDetailsDamage";
+        public const string LeaguePlayerMatchDetailsEconomy = "LeaguePlayerMatchDetailsEconomy";
+        public const string LeaguePlayerMatchDetailsUtility = "LeaguePlayerMatchDetailsUtility";
         public const string LeaguePlayerCompareScore = "LeaguePlayerCompareScore";
         public const string LeaguePlayerCompareKda = "LeaguePlayerCompareKda";
         public const string LeaguePlayerCompareKdaVariation = "LeaguePlayerCompareKdaVariation";

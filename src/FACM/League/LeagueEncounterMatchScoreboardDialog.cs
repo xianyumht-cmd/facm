@@ -14,6 +14,12 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+    internal sealed class LeagueMatchDetailStatRow
+    {
+        internal string GroupKey, Name;
+        internal string[] Values;
+    }
+
     internal sealed class LeagueEncounterMatchScoreboardDialog : Form
     {
         private static readonly SemaphoreSlim IconRequestGate = new SemaphoreSlim(3, 3);
@@ -411,6 +417,33 @@ namespace FACM.League
             var participantsTab = new TabPage(ui.Get(UiTextKeys.LeagueTimelineParticipants));
             participantsTab.Controls.Add(rows);
             matchTabs.TabPages.Add(participantsTab);
+            var detailedPlayers = rows.Items.Cast<ListViewItem>()
+                .Select(item => item.Tag as LeaguePlayerMatchParticipant)
+                .Where(player => player != null).Take(20).ToList();
+            var detailedStats = BuildDetailedStatRows(detailedPlayers);
+            var detailsTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerMatchDetailsTab));
+            var detailsTable = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                ShowGroups = true, GridLines = true, FullRowSelect = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = ui.Get(UiTextKeys.LeaguePlayerMatchDetailsTab) };
+            detailsTable.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerCompareMetric), 195);
+            foreach (var player in detailedPlayers)
+                detailsTable.Columns.Add(string.IsNullOrWhiteSpace(player.PlayerName)
+                    ? "#" + player.ChampionId.ToString(CultureInfo.InvariantCulture)
+                    : player.PlayerName, 115);
+            foreach (var group in detailedStats.GroupBy(row => row.GroupKey))
+            {
+                var section = new ListViewGroup(ui.Get(group.Key));
+                detailsTable.Groups.Add(section);
+                foreach (var stat in group)
+                {
+                    var values = new[] { stat.Name }.Concat(stat.Values).ToArray();
+                    var item = new ListViewItem(values) { Group = section };
+                    detailsTable.Items.Add(item);
+                }
+            }
+            detailsTab.Controls.Add(detailsTable);
+            matchTabs.TabPages.Add(detailsTab);
             var runesTab = new TabPage(t(LeagueEfficiencyUiTextKeys.DynamicEncounterRuneDetailsTab));
             var runeLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
             runeLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
@@ -848,6 +881,69 @@ namespace FACM.League
                 CreepScore = self.CreepScore, ParticipantRoster = match.ParticipantRoster
             };
             return LeagueHistoryAkariScore.Calculate(new[] { candidate });
+        }
+
+        // Pinned MatchCardDetailsTab's grouped stat matrix, limited to values
+        // already parsed from the selected match. No new API or zero-filling.
+        internal static List<LeagueMatchDetailStatRow> BuildDetailedStatRows(
+            IEnumerable<LeaguePlayerMatchParticipant> source)
+        {
+            var players = (source ?? Enumerable.Empty<LeaguePlayerMatchParticipant>())
+                .Where(player => player != null).Take(20).ToList();
+            var rows = new List<LeagueMatchDetailStatRow>();
+            Action<string, string, Func<LeaguePlayerMatchParticipant, double?>> add = (group, name, read) =>
+            {
+                var values = new string[players.Count];
+                var any = false;
+                for (var i = 0; i < players.Count; i++)
+                {
+                    var value = read(players[i]);
+                    if (!value.HasValue || value.Value < 0 ||
+                        double.IsNaN(value.Value) || double.IsInfinity(value.Value))
+                    {
+                        values[i] = "—";
+                        continue;
+                    }
+                    any = true;
+                    values[i] = Math.Abs(value.Value - Math.Round(value.Value)) < 0.000001d
+                        ? value.Value.ToString("N0", CultureInfo.CurrentCulture)
+                        : value.Value.ToString("0.##", CultureInfo.CurrentCulture);
+                }
+                if (any) rows.Add(new LeagueMatchDetailStatRow {
+                    GroupKey = group, Name = name, Values = values
+                });
+            };
+            var combat = UiTextKeys.LeaguePlayerMatchDetailsCombat;
+            add(combat, "Kills", p => p.Kills >= 0 ? (double?)p.Kills : null);
+            add(combat, "Deaths", p => p.Deaths >= 0 ? (double?)p.Deaths : null);
+            add(combat, "Assists", p => p.Assists >= 0 ? (double?)p.Assists : null);
+            add(combat, "Solo kills", p => p.SoloKills);
+            add(combat, "Double kills", p => p.DoubleKills);
+            add(combat, "Triple kills", p => p.TripleKills);
+            add(combat, "Quadra kills", p => p.QuadraKills);
+            add(combat, "Penta kills", p => p.PentaKills);
+            add(combat, "Kills near enemy turret", p => p.KillsNearEnemyTurret);
+            add(combat, "Kills under own turret", p => p.KillsUnderOwnTurret);
+            add(combat, "Knock into team and kill", p => p.KnockEnemyIntoTeamAndKill);
+            var damage = UiTextKeys.LeaguePlayerMatchDetailsDamage;
+            add(damage, "Champion damage", p => p.DamageAvailable ? (double?)p.DamageToChampions : null);
+            add(damage, "Physical champion damage", p => p.PhysicalDamageToChampions);
+            add(damage, "Magic champion damage", p => p.MagicDamageToChampions);
+            add(damage, "True champion damage", p => p.TrueDamageToChampions);
+            add(damage, "Damage taken", p => p.TotalDamageTaken);
+            add(damage, "Physical damage taken", p => p.PhysicalDamageTaken);
+            add(damage, "Magic damage taken", p => p.MagicDamageTaken);
+            add(damage, "True damage taken", p => p.TrueDamageTaken);
+            add(damage, "Turret damage", p => p.TotalDamageToTowers);
+            add(damage, "Teammate shielding", p => p.TotalDamageShieldedOnTeammates);
+            var economy = UiTextKeys.LeaguePlayerMatchDetailsEconomy;
+            add(economy, "Gold earned", p => p.GoldAvailable ? (double?)p.GoldEarned : null);
+            add(economy, "CS", p => p.CreepScoreAvailable ? (double?)p.CreepScore : null);
+            add(economy, "Max lane CS advantage", p => p.MaxCsAdvantageOnLaneOpponent);
+            var utility = UiTextKeys.LeaguePlayerMatchDetailsUtility;
+            add(utility, "Total healing", p => p.TotalHeal);
+            add(utility, "Time CCing others", p => p.TimeCCingOthers);
+            return rows;
         }
 
         internal static string FormatParticipantRates(LeaguePlayerMatchParticipant player,
