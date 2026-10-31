@@ -87,13 +87,14 @@ namespace FACM.League
 
         private static void ValidateRemoteGroupCatalog()
         {
-            var valid = @"{""updatedAt"":""2026-08-02T00:00:00.000Z"",""groups"":[{""groupId"":""ranked"",""name"":{""zh-CN"":""排位模式"",""en"":""Ranked""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL""]}],""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]},{""groupId"":""normal"",""name"":{""zh-CN"":""普通模式"",""en"":""Normal""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""NORMAL""]}],""positions"":[""default""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]}]}";
+            var valid = @"{""updatedAt"":""2026-08-02T00:00:00.000Z"",""groups"":[{""groupId"":""ranked"",""name"":{""zh-CN"":""排位模式"",""en"":""Ranked""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]}],""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]},{""groupId"":""normal"",""name"":{""zh-CN"":""普通模式"",""en"":""Normal""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""NORMAL""]}],""positions"":[""default""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]}]}";
             try
             {
                 Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked" &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal" &&
-                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null,
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_FLEX_SR", false) == null,
                     "Trusted newer group catalog must replace pinned queue routing without implicit fallback.");
                 Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
                     !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
