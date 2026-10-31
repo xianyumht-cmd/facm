@@ -56,6 +56,8 @@ namespace FACM.League
             players.Columns.Add("K/D/A", 85);
             players.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 95);
             players.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 85);
+            players.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 70);
+            players.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 70);
             players.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 70);
             split.Panel1.Controls.Add(players);
 
@@ -78,14 +80,22 @@ namespace FACM.League
                 {
                     var kda = FormatMetric(player.Kills) + "/" + FormatMetric(player.Deaths) +
                         "/" + FormatMetric(player.Assists);
+                    string champion;
+                    var championLabel = detail.ChampionNames != null &&
+                        detail.ChampionNames.TryGetValue(player.ChampionId, out champion)
+                            ? champion : player.ChampionId.ToString(CultureInfo.InvariantCulture);
+                    var cs = player.Minions.HasValue && player.NeutralMinions.HasValue
+                        ? (int?)Math.Min(int.MaxValue,
+                            (long)player.Minions.Value + player.NeutralMinions.Value) : null;
                     var item = new ListViewItem(new[] {
                         player.TeamId.ToString(CultureInfo.InvariantCulture),
                         string.IsNullOrWhiteSpace(player.Name) ? "—" : player.Name,
-                        player.ChampionId.ToString(CultureInfo.InvariantCulture),
+                        championLabel,
                         string.IsNullOrWhiteSpace(player.Position) ? "—" : player.Position,
                         player.Spell1Id > 0 && player.Spell2Id > 0
                             ? player.Spell1Id + " / " + player.Spell2Id : "—",
                         kda, FormatMetric(player.Damage), FormatMetric(player.Gold),
+                        FormatMetric(cs), FormatMetric(player.Vision),
                         player.Win.HasValue ? (player.Win.Value
                             ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)
                             : t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost)) : "—"

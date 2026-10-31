@@ -223,8 +223,12 @@ namespace FACM.League
                     Match = new LeaguePlayerMatchSummary { GameId = 601 },
                     EogOnly = parsed, IsCurrentSession = () => true }))
             {
-                Require(dialog.Controls.Count > 0 && dialog.Text.Length > 0,
-                    "A validated EOG-only match must construct a native details window without SUMMARY.");
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var split = layout?.Controls.OfType<System.Windows.Forms.SplitContainer>().FirstOrDefault();
+                var rows = split?.Panel1.Controls.OfType<System.Windows.Forms.ListView>().FirstOrDefault();
+                Require(dialog.Controls.Count > 0 && dialog.Text.Length > 0 &&
+                    rows != null && rows.Columns.Count == 11 && rows.Items.Count == 2,
+                    "A validated EOG-only match must construct complete native team/player rows without SUMMARY.");
             }
             Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&
                 LeagueSgpEogProjection.Parse(fixture, 601, "wrong-owner") == null &&

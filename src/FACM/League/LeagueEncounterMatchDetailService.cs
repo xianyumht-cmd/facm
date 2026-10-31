@@ -114,6 +114,7 @@ namespace FACM.League
                                             DataSource = LeaguePlayerHistorySource.Sgp,
                                             SgpServerId = LeagueSgpMatchHistoryApiClient.CurrentServerId(initial) },
                                         EogOnly = eog,
+                                        ChampionNames = _players.TryGetCachedChampionNames(),
                                         IsCurrentSession = () => IsSameSession(initial)
                                     };
                             }
