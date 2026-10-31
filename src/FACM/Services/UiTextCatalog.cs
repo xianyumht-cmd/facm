@@ -533,6 +533,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeagueProfileMasteryAll, "显示全部英雄"),
             Pair(UiTextKeys.LeagueProfileMasteryTop, "熟练度前八 · 总评分 {0}"),
             Pair(UiTextKeys.LeagueProfileMasteryCount, "{0}/{1} 英雄"),
+            Pair(UiTextKeys.LeagueProfileMasteryScore, "熟练度总评分 {0}"),
             Pair(UiTextKeys.LeagueTimelineEvents, "对局事件"),
             Pair(UiTextKeys.LeagueTimelineProgression, "成长记录"),
             Pair(UiTextKeys.LeagueTimelineBuilds, "装备变化"),

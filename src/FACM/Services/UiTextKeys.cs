@@ -527,6 +527,7 @@ namespace FACM.Services
         public const string LeagueProfileMasteryAll = "LeagueProfileMasteryAll";
         public const string LeagueProfileMasteryTop = "LeagueProfileMasteryTop";
         public const string LeagueProfileMasteryCount = "LeagueProfileMasteryCount";
+        public const string LeagueProfileMasteryScore = "LeagueProfileMasteryScore";
         public const string LeagueTimelineEvents = "LeagueTimelineEvents";
         public const string LeagueTimelineProgression = "LeagueTimelineProgression";
         public const string LeagueTimelineBuilds = "LeagueTimelineBuilds";

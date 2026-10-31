@@ -132,7 +132,7 @@ namespace FACM.League
                 ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
                     masteryNames, "", 1, true)).SequenceEqual(new[] { 2, 1, 3 }) &&
                 ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
-                    masteryNames, "", 3, false)).SequenceEqual(new[] { 3, 2, 1 }) &&
+                    masteryNames, "", 3, false)).SequenceEqual(new[] { 2, 1, 3 }) &&
                 ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,
                     masteryNames, "aH", 0, false)).SequenceEqual(new[] { 1 }) &&
                 ids(LeaguePlayerProfileDialog.FilterAndSortMasteries(masteryFixtures,

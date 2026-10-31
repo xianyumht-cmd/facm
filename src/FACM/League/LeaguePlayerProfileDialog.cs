@@ -173,7 +173,7 @@ namespace FACM.League
             masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
             masteryTools.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
             _masteryCount = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
-                AutoEllipsis = true, Text = "—" };
+                AutoEllipsis = true, Text = string.Empty };
             _allMasteries = new CheckBox { Dock = DockStyle.Fill, Text = ui.Get(UiTextKeys.LeagueProfileMasteryAll) };
             _allMasteries.CheckedChanged += async (sender, args) => await LoadSelectedAsync(true);
             masteryTools.Controls.Add(_search, 0, 0); masteryTools.Controls.Add(_masteryCount, 1, 0);
@@ -278,7 +278,9 @@ namespace FACM.League
                 }
                 else if (mastery)
                 {
-                    _masteryRows = null; RenderMasteries();
+                    _masteryRows = null;
+                    if (!_allMasteries.Checked) _masteryScore = null;
+                    RenderMasteries();
                     var result = await _service.LoadPlayerMasteriesAsync(_self, _target, _session, _server, _lifetime.Token, !_allMasteries.Checked);
                     if (IsDisposed || _lifetime.IsCancellationRequested) return;
                     if (result.Status == LeaguePlayerDetailsStatus.Ready && _names.Count == 0 && IsCurrent())
@@ -289,7 +291,11 @@ namespace FACM.League
                     }
                     status = result.Status;
                     if (!IsCurrent()) status = LeaguePlayerDetailsStatus.AccountChanged;
-                    if (status != LeaguePlayerDetailsStatus.AccountChanged) { _masteryRows = result.Masteries; _masteryScore = result.Score; }
+                    if (status != LeaguePlayerDetailsStatus.AccountChanged)
+                    {
+                        _masteryRows = result.Masteries;
+                        if (!_allMasteries.Checked) _masteryScore = result.Score;
+                    }
                     RenderMasteries();
                 }
                 else
@@ -303,8 +309,9 @@ namespace FACM.League
                 }
                 if (status == LeaguePlayerDetailsStatus.AccountChanged) Clear();
                 _status.Text = StatusText(status);
-                if (mastery && status == LeaguePlayerDetailsStatus.Ready && !_allMasteries.Checked)
-                    _status.Text += " · " + _ui.Get(UiTextKeys.LeagueProfileMasteryTop).Replace("{0}", _masteryScore?.ToString() ?? "—");
+                if (mastery && status == LeaguePlayerDetailsStatus.Ready && _masteryScore.HasValue)
+                    _status.Text += " · " + _ui.Get(UiTextKeys.LeagueProfileMasteryScore)
+                        .Replace("{0}", _masteryScore.Value.ToString(CultureInfo.CurrentCulture));
             }
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = StatusText(LeaguePlayerDetailsStatus.Unavailable); }
@@ -431,7 +438,8 @@ namespace FACM.League
                 var key = column == 1 ? "championLevel" : column == 3 ? "lastPlayTime" : "championPoints";
                 Func<KeyValuePair<int, Dictionary<string, object>>, long> numberOf =
                     entry => LeagueMatchTimelineParser.Number(entry.Value, key) ?? -1;
-                sorted = descending ? valid.OrderByDescending(numberOf) : valid.OrderBy(numberOf);
+                var presentFirst = valid.OrderBy(entry => numberOf(entry) < 0);
+                sorted = descending ? presentFirst.ThenByDescending(numberOf) : presentFirst.ThenBy(numberOf);
             }
             return sorted.ThenByDescending(entry =>
                     LeagueMatchTimelineParser.Number(entry.Value, "championPoints") ?? -1)
@@ -463,7 +471,7 @@ namespace FACM.League
                 }
             }
             finally { _masteries.EndUpdate(); }
-            _masteryCount.Text = _masteryRows == null ? "—" :
+            _masteryCount.Text = _masteryRows == null ? string.Empty :
                 _ui.Get(UiTextKeys.LeagueProfileMasteryCount)
                     .Replace("{0}", filtered.Count.ToString(CultureInfo.CurrentCulture))
                     .Replace("{1}", _masteryRows.Count.ToString(CultureInfo.CurrentCulture));
@@ -522,7 +530,7 @@ namespace FACM.League
                 status == LeaguePlayerDetailsStatus.Partial ? UiTextKeys.LeagueProfilePartial : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
         }
         private bool IsCurrent() { return _currentSession == null || LeagueEncounterReplayService.SessionMatches(_session, _currentSession()); }
-        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; RenderMasteries(); }
+        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
         private void AddRank(string key, string solo, string flex)
         { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(solo); row.SubItems.Add(flex); _ranked.Items.Add(row); }
         private void AddTab(string key, Control control)
