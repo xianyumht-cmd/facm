@@ -560,6 +560,39 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        internal async Task<LeagueSgpEogResult> LoadSgpEogAsync(
+            string ownerPuuid, long gameId, LeagueClientSession expected, CancellationToken token)
+        {
+            var eog = _sgpHistory as ILeagueSgpStatsEogApi;
+            if (eog == null || _session == null || expected == null || gameId <= 0 ||
+                !IsSafePuuid(ownerPuuid) || !SessionStillCurrent(expected)) return null;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(8));
+                try
+                {
+                    await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                    try
+                    {
+                        var before = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        if (before == null || !string.Equals(before.PuuId, ownerPuuid,
+                            StringComparison.OrdinalIgnoreCase) || !SessionStillCurrent(expected)) return null;
+                        var bytes = await eog.TryGetStatsEogAsync(gameId, ownerPuuid, deadline.Token)
+                            .ConfigureAwait(false);
+                        var after = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        if (after == null || !string.Equals(after.PuuId, ownerPuuid,
+                            StringComparison.OrdinalIgnoreCase) || !SessionStillCurrent(expected)) return null;
+                        return LeagueSgpEogProjection.Parse(bytes, gameId, ownerPuuid);
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+                catch (Exception) { return null; }
+            }
+        }
+
         internal async Task<LeaguePlayerMatchBreakdown> LoadMatchBreakdownAsync(
             LeaguePlayerProfile profile, long gameId, CancellationToken cancellationToken,
             string serverId = null, bool sgpOnly = false, bool allowSgpFallback = true)

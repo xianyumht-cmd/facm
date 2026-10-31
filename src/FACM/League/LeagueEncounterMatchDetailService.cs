@@ -22,6 +22,7 @@ namespace FACM.League
         internal System.Collections.Generic.Dictionary<int, string> ChampionNames;
         internal LeagueBuildAdvisorCatalog BuildCatalog;
         internal Func<CancellationToken, Task<LeagueMatchTimeline>> LoadTimeline;
+        internal Func<CancellationToken, Task<LeagueSgpEogResult>> LoadEog;
         internal Func<bool> IsCurrentSession;
     }
 
@@ -112,7 +113,14 @@ namespace FACM.League
                         BuildCatalog = breakdown.BuildCatalog,
                         IsCurrentSession = () => IsSameSession(initial),
                         LoadTimeline = cancellation => _players.LoadMatchTimelineAsync(
-                            timelineOwner, timelineMatch, cancellation, initial)
+                            timelineOwner, timelineMatch, cancellation, initial),
+                        LoadEog = string.IsNullOrEmpty(serverId) ||
+                            string.Equals(serverId, LeagueSgpMatchHistoryApiClient.CurrentServerId(initial),
+                                StringComparison.Ordinal)
+                            ? (Func<CancellationToken, Task<LeagueSgpEogResult>>)
+                                (cancellation => _players.LoadSgpEogAsync(record.SelfPuuid,
+                                    record.GameId, initial, cancellation))
+                            : null
                     };
                 }
                 catch (OperationCanceledException)

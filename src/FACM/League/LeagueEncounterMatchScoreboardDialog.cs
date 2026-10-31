@@ -422,9 +422,113 @@ namespace FACM.League
             var timeline = new LeagueMatchTimelinePanel(ui, detail, _lifetime.Token, loadAsset);
             timelineTab.Controls.Add(timeline);
             matchTabs.TabPages.Add(timelineTab);
+            TabPage eogTab = null;
+            Func<Task> loadEog = null;
+            if (detail.LoadEog != null)
+            {
+                eogTab = new TabPage("SGP EOG");
+                var eogLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+                eogLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+                eogLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var eogHeader = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false };
+                var eogStatus = new Label { Width = 380, Height = 30,
+                    Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading),
+                    TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
+                var eogRetry = new Button { Text = ui.Get(UiTextKeys.LeaguePlayerRemoteRetry),
+                    Width = 100, Height = 28 };
+                eogHeader.Controls.Add(eogStatus);
+                eogHeader.Controls.Add(eogRetry);
+                eogLayout.Controls.Add(eogHeader, 0, 0);
+                var eogRows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, GridLines = true, ShowGroups = true };
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 75);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 180);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 95);
+                eogRows.Columns.Add("K/D/A", 95);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 105);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 90);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 70);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 70);
+                eogRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 80);
+                eogLayout.Controls.Add(eogRows, 0, 1);
+                eogTab.Controls.Add(eogLayout);
+                matchTabs.TabPages.Add(eogTab);
+                var loaded = false;
+                var busy = false;
+                loadEog = async () =>
+                {
+                    if (busy || _lifetime.IsCancellationRequested || IsDisposed ||
+                        (detail.IsCurrentSession != null && !detail.IsCurrentSession())) return;
+                    busy = true;
+                    eogRetry.Enabled = false;
+                    eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading);
+                    try
+                    {
+                        var data = await detail.LoadEog(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested ||
+                            (detail.IsCurrentSession != null && !detail.IsCurrentSession())) return;
+                        eogRows.Items.Clear();
+                        eogRows.Groups.Clear();
+                        loaded = data != null && data.Players != null && data.Players.Count > 0;
+                        if (!loaded)
+                        {
+                            eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+                            return;
+                        }
+                        foreach (var group in data.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key))
+                        {
+                            var team = new ListViewGroup(
+                                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam) + " " + group.Key);
+                            eogRows.Groups.Add(team);
+                            foreach (var player in group)
+                            {
+                                string champion;
+                                var championName = detail.ChampionNames != null &&
+                                    detail.ChampionNames.TryGetValue(player.ChampionId, out champion)
+                                    ? champion : player.ChampionId.ToString(CultureInfo.InvariantCulture);
+                                Func<int?, string> number = value => value.HasValue
+                                    ? value.Value.ToString("N0", CultureInfo.CurrentCulture) : "—";
+                                var cs = player.Minions.HasValue && player.NeutralMinions.HasValue
+                                    ? (int?)Math.Min(int.MaxValue,
+                                        (long)player.Minions.Value + player.NeutralMinions.Value) : null;
+                                var kda = number(player.Kills) + "/" + number(player.Deaths) +
+                                    "/" + number(player.Assists);
+                                var item = new ListViewItem(new[] { player.TeamId.ToString(),
+                                    string.IsNullOrWhiteSpace(player.Name) ? "—" : player.Name,
+                                    championName, kda, number(player.Damage), number(player.Gold),
+                                    number(cs), number(player.Vision),
+                                    player.Win.HasValue ? (player.Win.Value
+                                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)
+                                        : t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost)) : "—" });
+                                item.Group = team;
+                                if (string.Equals(player.Puuid, match.PuuId,
+                                    StringComparison.OrdinalIgnoreCase))
+                                    item.BackColor = FacmDesignSystem.Canvas;
+                                eogRows.Items.Add(item);
+                            }
+                        }
+                        eogStatus.Text = "SGP EOG · " + data.Players.Count.ToString() + " players";
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception)
+                    {
+                        if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                            eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+                    }
+                    finally
+                    {
+                        busy = false;
+                        if (!IsDisposed) eogRetry.Enabled = true;
+                    }
+                };
+                eogRetry.Click += async (sender, e) => await loadEog();
+                eogTab.Tag = new Func<bool>(() => loaded);
+            }
             matchTabs.SelectedIndexChanged += async (sender, e) =>
             {
                 if (matchTabs.SelectedTab == timelineTab) await timeline.EnsureLoadedAsync();
+                if (eogTab != null && matchTabs.SelectedTab == eogTab && loadEog != null &&
+                    !((Func<bool>)eogTab.Tag)()) await loadEog();
             };
             layout.Controls.Add(matchTabs, 0, 2);
             layout.Controls.Add(iconStrip, 0, 3);
