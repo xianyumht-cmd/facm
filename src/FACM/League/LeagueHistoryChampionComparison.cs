@@ -138,6 +138,12 @@ namespace FACM.League
             add(UiTextKeys.LeaguePlayerCompareTowerShare, m => Relative(m, p => p.DamageToTowers, true, false), true, false);
             add(UiTextKeys.LeaguePlayerCompareTowerTeamMax, m => Relative(m, p => p.DamageToTowers, true, true), true, false);
             add(UiTextKeys.LeaguePlayerCompareTowerGameMax, m => Relative(m, p => p.DamageToTowers, false, true), true, false);
+            add(UiTextKeys.LeaguePlayerCompareShieldShare,
+                m => Relative(m, p => p.TotalDamageShieldedOnTeammates, true, false), true, true);
+            add(UiTextKeys.LeaguePlayerCompareShieldTeamMax,
+                m => Relative(m, p => p.TotalDamageShieldedOnTeammates, true, true), true, true);
+            add(UiTextKeys.LeaguePlayerCompareShieldGameMax,
+                m => Relative(m, p => p.TotalDamageShieldedOnTeammates, false, true), true, true);
             var preferences = LeagueHistorySourcePreferences.Calculate(rows);
             Action<string, int, int> addPreference = (key, count, known) =>
                 result.Add(new LeagueHistoryComparisonValue {
@@ -212,7 +218,10 @@ namespace FACM.League
             UiTextKeys.LeaguePlayerCompareTakenShare, UiTextKeys.LeaguePlayerCompareTakenTeamMax,
             UiTextKeys.LeaguePlayerCompareTakenGameMax, UiTextKeys.LeaguePlayerCompareDamageGold,
             UiTextKeys.LeaguePlayerCompareKillDamageEfficiency, UiTextKeys.LeaguePlayerCompareSoloKills,
-            UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths
+            UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths,
+            UiTextKeys.LeaguePlayerCompareShieldShare,
+            UiTextKeys.LeaguePlayerCompareShieldTeamMax,
+            UiTextKeys.LeaguePlayerCompareShieldGameMax
         };
         private static readonly string[] Economy = {
             UiTextKeys.LeaguePlayerCompareGoldShare, UiTextKeys.LeaguePlayerCompareGoldTeamMax,
@@ -258,7 +267,10 @@ namespace FACM.League
                     (key == UiTextKeys.LeaguePlayerCompareSoloKills ||
                      key == UiTextKeys.LeaguePlayerComparePings ||
                      key == UiTextKeys.LeaguePlayerCompareMissingPings ||
-                     key == UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths) &&
+                     key == UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths ||
+                     key == UiTextKeys.LeaguePlayerCompareShieldShare ||
+                     key == UiTextKeys.LeaguePlayerCompareShieldTeamMax ||
+                     key == UiTextKeys.LeaguePlayerCompareShieldGameMax) &&
                     !value.Value.HasValue) continue;
                 metrics.Add(value);
             }

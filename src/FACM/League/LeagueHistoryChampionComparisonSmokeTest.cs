@@ -23,7 +23,7 @@ namespace FACM.League
             var matches = new[] { first, second, other, first };
             var values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Func<string, LeagueHistoryComparisonValue> get = key => values.Single(v => v.Key == key);
-            Require(values.Count == 34 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
+            Require(values.Count == 37 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
                 get(UiTextKeys.LeaguePlayerCompareKda).Total == 2,
                 "Hero comparisons must deduplicate games and use aggregate KDA, not mean game KDA.");
             Require(get(UiTextKeys.LeaguePlayerCompareKdaVariation).Value == 1d &&
@@ -87,6 +87,27 @@ namespace FACM.League
                 !independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareKdaVariation).Value.HasValue &&
                 independent.All(v => v.Total == 1),
                 "Another hero must retain independent sample coverage and verified zero denominators.");
+            first.TotalDamageShieldedOnTeammates = 0;
+            first.ParticipantRoster[1].TotalDamageShieldedOnTeammates = 100;
+            values = LeagueHistoryChampionComparison.Calculate(matches, 22);
+            Require(!get(UiTextKeys.LeaguePlayerCompareShieldShare).Value.HasValue &&
+                get(UiTextKeys.LeaguePlayerCompareShieldShare).Known == 1 &&
+                get(UiTextKeys.LeaguePlayerCompareShieldShare).Total == 2,
+                "Partial shielding evidence must not be averaged as a complete source sample.");
+            second.TotalDamageShieldedOnTeammates = 20;
+            second.ParticipantRoster[1].TotalDamageShieldedOnTeammates = 80;
+            values = LeagueHistoryChampionComparison.Calculate(matches, 22);
+            Require(Math.Abs(get(UiTextKeys.LeaguePlayerCompareShieldShare).Value.Value - .1d) < .0001 &&
+                get(UiTextKeys.LeaguePlayerCompareShieldShare).Known == 2 &&
+                get(UiTextKeys.LeaguePlayerCompareShieldTeamMax).Known == 2 &&
+                get(UiTextKeys.LeaguePlayerCompareShieldGameMax).Known == 2,
+                "Complete shielding ratios must average per-match team and game baselines.");
+            compact = LeagueHistoryChampionOverview.Project(matches, 22);
+            Require(compact.SelectMany(group => group.Metrics).Count(v =>
+                v.Key == UiTextKeys.LeaguePlayerCompareShieldShare ||
+                v.Key == UiTextKeys.LeaguePlayerCompareShieldTeamMax ||
+                v.Key == UiTextKeys.LeaguePlayerCompareShieldGameMax) == 3,
+                "Evidence-backed optional shielding metrics must appear in native overview.");
             first.MetricBaselines = null;
             Require(!LeagueHistoryChampionComparison.Cs(first).HasValue,
                 "A default zero CS without both source components cannot become measured evidence.");

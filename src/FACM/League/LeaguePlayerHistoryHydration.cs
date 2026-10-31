@@ -149,6 +149,7 @@ namespace FACM.League
         {
             return new[] { m.SoloKills, m.VisionScore, m.ChampionDamageShare, m.DamageTakenShare,
                 m.GoldShare, m.KillParticipation, m.DamageGoldEfficiency, m.GoldEarned, m.GoldSpent,
+                m.TotalDamageShieldedOnTeammates,
                 m.DamageDealtToChampions, m.DamageTaken, m.TotalHeal, m.TimeCCingOthers };
         }
     }

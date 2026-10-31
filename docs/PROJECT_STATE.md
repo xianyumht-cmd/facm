@@ -1,3 +1,9 @@
+## 2026-11-01 — Optional teammate shielding comparison (Draft #357)
+
+Pinned Akari `single/summary.ts` exposes teammate-shielded damage ratios against team sum, team maximum and game maximum. Native match history now retains optional `totalDamageShieldedOnTeammates` through parse, clone and detail hydration, and adds three source-evidenced champion comparison/overview metrics. Whole-sample ratios stay unavailable if any selected game lacks a verified roster or shielding statistic; known zero remains zero. Synthetic tests cover partial and complete evidence. Base comparison has 37 metrics, plus the on-demand early enemy-jungler metric when timeline analysis is opened. CI pending; Tencent LCU/SGP schema and Win10/DPI untested.
+
+---
+
 ## 2026-11-01 — All-role Rift objectives from bounded timelines (Draft #357)
 
 Pinned Akari `single/objectives.ts` applies first dragon, team dragons/solo dragon, voidgrubs, heralds, barons and first objective times to **every role**. Native analysis now reuses existing `LeagueJungleAnalysis.ReadObjectives` through a non-jungle-gated projection, with a new on-demand player/hero objective tab and manual 8-match batches (40 successful cap). Existing account/session-fenced timeline reader and staged-batch final owner check are reused; no new polling, credentials, network client or game write. Unknown timeline and unknown first-dragon ownership stay separate from zero. Synthetic all-role team/solo/coverage tests added. Windows four-gate CI pending; Tencent/Win10/DPI still untested.

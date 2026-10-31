@@ -1,3 +1,9 @@
+## 2026-11-01 — Optional shielding source parity
+
+Pinned `src/shared/data-adapter/analysis/player/single/summary.ts` includes `totalDamageShieldedOnTeammatesRatioToTeamMax`, `RatioToMax` and `PercentageOfTeam`, nullable when source does not supply shielding. Native optional match summary, history hydration preservation, three comparison metrics and compact overview now implement those source ratios with full-roster evidence and unknown/zero separation. Synthetic partial/full tests added; four Windows CI and Tencent response compatibility pending.
+
+---
+
 ## 2026-11-01 — Pinned all-role objectives source audit
 
 `src/shared/data-adapter/analysis/player/single/objectives.ts` at pinned Akari commit computes team objectives for all roles, not just junglers. The native Rift objective projection now exposes the existing validated jungle objective event parser to non-junglers, preserving first-dragon team, team kills, solo dragon and first event timestamps. The player-analysis objectives tab reads on demand with bounded batch/session ownership and per-hero coverage. Synthetic tests cover non-jungler projection and unknown timelines; CI and Tencent schema acceptance pending.
