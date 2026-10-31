@@ -179,7 +179,8 @@ namespace FACM.League
         private static bool SafeCode(string value)
         {
             return !string.IsNullOrEmpty(value) && value.Length <= 40 &&
-                value.All(c => c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_');
+                value.All(c => c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' ||
+                    c >= '0' && c <= '9' || c == '_');
         }
 
         private static string[] Strings(object value, int maximum)
