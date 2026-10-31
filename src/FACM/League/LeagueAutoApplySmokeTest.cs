@@ -16,12 +16,69 @@ namespace FACM.League
             ValidateSettingsPersistenceContract();
             ValidateChampionSpellPresetContracts();
             ValidateRuneEditorCatalog();
+            ValidateExpandedChampionPresetCatalogs();
             ValidateStableExactlyOnceContract();
             ValidateDisableAndPhaseContract();
             ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
             ValidateStatusObserverIsolation();
             ValidateUiTextDefaults();
+        }
+
+        private static void ValidateExpandedChampionPresetCatalogs()
+        {
+            var spellRows = Enumerable.Range(1, 128).Select(id => new LeagueChampionSpellPreset
+            {
+                ChampionId = id, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
+            }).ToArray();
+            var runeRows = Enumerable.Range(1, 128).Select(id => new LeagueChampionRunePreset
+            {
+                ChampionId = id, Group = "ranked-default", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            }).ToArray();
+            var spells = LeagueChampionSpellPresets.Serialize(spellRows);
+            var runes = LeagueChampionRunePresets.Serialize(runeRows);
+            Require(spells.StartsWith("z1:", StringComparison.Ordinal) &&
+                runes.StartsWith("z1:", StringComparison.Ordinal) &&
+                spells.Length <= 4096 && runes.Length <= 7500 &&
+                LeagueChampionSpellPresets.Parse(spells).Count == 128 &&
+                LeagueChampionRunePresets.Parse(runes).Count == 128,
+                "Expanded compressed champion catalogs did not roundtrip.");
+            var restored = AppSettings.ParseLines(new[]
+            {
+                "LeagueChampionSpellPresets=" + spells,
+                "LeagueChampionRunePresets=" + runes
+            });
+            var cloud = CloudSettingsSnapshot.Capture(restored);
+            var fromCloud = AppSettings.ParseLines(Array.Empty<string>());
+            cloud.ApplyTo(fromCloud);
+            Require(fromCloud.LeagueChampionSpellPresets == spells &&
+                fromCloud.LeagueChampionRunePresets == runes &&
+                LeagueChampionRunePresets.Resolve(fromCloud.LeagueChampionRunePresets, 128, "ranked-top") != null,
+                "Compressed champion presets lost local/cloud or ranked fallback compatibility.");
+            Require(LeagueChampionSpellPresets.Parse("z1:%%%").Count == 0 &&
+                LeagueChampionRunePresets.Parse("z1:%%%").Count == 0 &&
+                LeaguePresetCodec.Decode("z1:%%%", 7500) == null,
+                "Malformed compressed champion presets must fail closed.");
+            var expanded = new string('x', LeaguePresetCodec.MaxExpandedBytes + 1);
+            var oversized = "z1:" + Convert.ToBase64String(CompressForSmokeTest(expanded));
+            Require(LeaguePresetCodec.Decode(oversized, 7500) == null,
+                "Compressed catalog expansion limit was bypassed.");
+        }
+
+        private static byte[] CompressForSmokeTest(string text)
+        {
+            using (var stream = new System.IO.MemoryStream())
+            {
+                using (var compressor = new System.IO.Compression.DeflateStream(
+                    stream, System.IO.Compression.CompressionLevel.Optimal, true))
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+                    compressor.Write(bytes, 0, bytes.Length);
+                }
+                return stream.ToArray();
+            }
         }
 
         private static void ValidateRuneEditorCatalog()

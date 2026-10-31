@@ -18,7 +18,7 @@ namespace FACM.League
     {
         // AppSettingsRecovery bounds each complete key/value line to 8192 characters.
         private const int MaxLength = 7500;
-        private const int MaxPresets = 32;
+        private const int MaxPresets = 256;
 
         internal static IReadOnlyList<LeagueChampionRunePreset> Parse(string source)
         {
@@ -26,8 +26,10 @@ namespace FACM.League
             if (source.Length > MaxLength) return Array.Empty<LeagueChampionRunePreset>();
             try
             {
-                var rows = new JavaScriptSerializer { MaxJsonLength = MaxLength }
-                    .Deserialize<List<LeagueChampionRunePreset>>(source);
+                var decoded = LeaguePresetCodec.Decode(source, MaxLength);
+                if (decoded == null) return Array.Empty<LeagueChampionRunePreset>();
+                var rows = new JavaScriptSerializer { MaxJsonLength = LeaguePresetCodec.MaxExpandedBytes }
+                    .Deserialize<List<LeagueChampionRunePreset>>(decoded);
                 if (rows == null || rows.Count > MaxPresets || rows.Any(row => !Valid(row)) ||
                     rows.Select(Key).Distinct(StringComparer.Ordinal).Count() != rows.Count)
                     return Array.Empty<LeagueChampionRunePreset>();
@@ -47,10 +49,10 @@ namespace FACM.League
             if (rows.Count > MaxPresets || rows.Any(row => !Valid(row)) ||
                 rows.Select(Key).Distinct(StringComparer.Ordinal).Count() != rows.Count)
                 throw new ArgumentException("Invalid champion rune presets.");
-            var json = new JavaScriptSerializer().Serialize(rows
-                .OrderBy(row => row.ChampionId).ThenBy(row => row.Group, StringComparer.Ordinal).ToList());
-            if (json.Length > MaxLength) throw new ArgumentException("Champion rune presets are too large.");
-            return json;
+            var json = new JavaScriptSerializer { MaxJsonLength = LeaguePresetCodec.MaxExpandedBytes }
+                .Serialize(rows.OrderBy(row => row.ChampionId)
+                    .ThenBy(row => row.Group, StringComparer.Ordinal).ToList());
+            return LeaguePresetCodec.Encode(json, MaxLength);
         }
 
         internal static string Upsert(string source, LeagueChampionRunePreset preset)

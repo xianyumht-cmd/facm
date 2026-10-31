@@ -21,7 +21,7 @@ namespace FACM.League
     internal static class LeagueChampionSpellPresets
     {
         private const int MaxLength = 4096;
-        private const int MaxPresets = 32;
+        private const int MaxPresets = 256;
         private static readonly string[] Groups =
         {
             "normal", "ranked-default", "ranked-top", "ranked-jungle",
@@ -35,8 +35,10 @@ namespace FACM.League
             if (value.Length > MaxLength) return Array.Empty<LeagueChampionSpellPreset>();
             try
             {
-                var rows = new JavaScriptSerializer { MaxJsonLength = MaxLength }
-                    .Deserialize<List<LeagueChampionSpellPreset>>(value);
+                var decoded = LeaguePresetCodec.Decode(value, MaxLength);
+                if (decoded == null) return Array.Empty<LeagueChampionSpellPreset>();
+                var rows = new JavaScriptSerializer { MaxJsonLength = LeaguePresetCodec.MaxExpandedBytes }
+                    .Deserialize<List<LeagueChampionSpellPreset>>(decoded);
                 if (rows == null || rows.Count > MaxPresets || rows.Any(row => !Valid(row)) ||
                     rows.Select(row => Key(row)).Distinct(StringComparer.Ordinal).Count() != rows.Count)
                     return Array.Empty<LeagueChampionSpellPreset>();
@@ -56,10 +58,10 @@ namespace FACM.League
             if (rows.Count > MaxPresets || rows.Any(row => !Valid(row)) ||
                 rows.Select(row => Key(row)).Distinct(StringComparer.Ordinal).Count() != rows.Count)
                 throw new ArgumentException("Invalid champion spell presets.");
-            var encoded = new JavaScriptSerializer().Serialize(rows
-                .OrderBy(row => row.ChampionId).ThenBy(row => row.Group, StringComparer.Ordinal).ToList());
-            if (encoded.Length > MaxLength) throw new ArgumentException("Champion spell presets are too large.");
-            return encoded;
+            var encoded = new JavaScriptSerializer { MaxJsonLength = LeaguePresetCodec.MaxExpandedBytes }
+                .Serialize(rows.OrderBy(row => row.ChampionId)
+                    .ThenBy(row => row.Group, StringComparer.Ordinal).ToList());
+            return LeaguePresetCodec.Encode(encoded, MaxLength);
         }
 
         internal static string Upsert(string source, LeagueChampionSpellPreset preset)
