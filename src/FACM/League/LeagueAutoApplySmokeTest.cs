@@ -194,6 +194,7 @@ namespace FACM.League
             var now = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc);
             var snapshot = CreateSnapshot(157, "Yasuo");
             snapshot.GameId = 100;
+            snapshot.Position = "top";
             snapshot.QueueType = "RANKED_SOLO_5x5";
             var combined = LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset);
             Require(combined.QueueType == snapshot.QueueType && combined.PresetGroup == rankedTop,
