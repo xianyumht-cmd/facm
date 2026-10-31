@@ -114,6 +114,14 @@ namespace FACM.League
                     mixed.ChampionScores[266] == null &&
                     mixed.AkariScore != null && mixed.AkariScore.Games == 8,
                 "Each champion must use its own verified scoring denominator without hiding sparse heroes.");
+            Require(mixed.OverallModeBreakdown.NormalGames == 4 &&
+                    mixed.OverallModeBreakdown.NormalWins == 3 &&
+                    mixed.OverallModeBreakdown.CherryGames == 3 &&
+                    mixed.OverallModeBreakdown.CherryWins == 3 &&
+                    mixed.OverallModeBreakdown.UnknownModeGames == 2 &&
+                    mixed.OverallModeBreakdown.CherryStreak == 3 &&
+                    mixed.OverallModeBreakdown.CherryStreakOutcome == LeagueHistoryOutcome.Win,
+                "Overall mode split and independent Arena streak must use known deduplicated games.");
             LeagueHistoryChampionBreakdown kaisa, ashe, aatrox;
             Require(mixed.ChampionBreakdowns.TryGetValue(145, out kaisa) &&
                     kaisa.NormalGames == 1 && kaisa.NormalWins == 1 &&
@@ -159,12 +167,19 @@ namespace FACM.League
                     ParticipantRoster = cherryRoster, RosterIdentitiesComplete = true
                 }
             };
-            var cherrySummary = LeaguePlayerHistoryAnalysis.Calculate(cherryGames).ChampionBreakdowns[202];
+            var cherryAnalysis = LeaguePlayerHistoryAnalysis.Calculate(cherryGames);
+            var cherrySummary = cherryAnalysis.ChampionBreakdowns[202];
             Require(cherrySummary.CherryGames == 4 && cherrySummary.CherryWins == 2 &&
                     cherrySummary.CherryKnownPlacements == 3 && cherrySummary.CherryFirstPlaces == 1 &&
                     cherrySummary.CherryKnownTopHalfGames == 1 && cherrySummary.CherryTopHalfFinishes == 1 &&
                     Math.Abs(cherrySummary.AverageCherryPlacement.Value - 7d / 3d) < .00001,
                 "Cherry top-half placement needs a consistent self/subteam roster; unknown placements do not count as losses.");
+            Require(cherryAnalysis.OverallModeBreakdown.CherryKnownTopHalfGames == 1 &&
+                    cherryAnalysis.OverallModeBreakdown.CherryFirstPlaces == 1 &&
+                    cherryAnalysis.OverallModeBreakdown.CherryStreak == 1 &&
+                    LeaguePlayerHistoryAnalysis.ModeLines(FACM.Services.UiTextCatalog.Load(),
+                        cherryAnalysis.OverallModeBreakdown).Count >= 2,
+                "Overall Arena analysis must show verified placement coverage and mode rows.");
 
             var incomplete = matches[0];
             incomplete.ParticipantRoster[1].GoldEarned = null;
