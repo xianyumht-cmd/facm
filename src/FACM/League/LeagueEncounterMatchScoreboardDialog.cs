@@ -1116,6 +1116,28 @@ namespace FACM.League
             flags(UiTextKeys.LeaguePlayerMatchDetailsBuildings, new[] {
                 "firstTowerKill", "firstTowerAssist", "firstInhibitorKill",
                 "firstInhibitorAssist", "hadOpenNexus" });
+            Action<string, string> role = (group, key) =>
+            {
+                var values = new string[players.Count];
+                var any = false;
+                for (var i = 0; i < players.Count; i++)
+                {
+                    string value;
+                    if (players[i].RawTextStats != null &&
+                        players[i].RawTextStats.TryGetValue(key, out value) &&
+                        !string.IsNullOrEmpty(value))
+                    {
+                        values[i] = value;
+                        any = true;
+                    }
+                    else values[i] = "—";
+                }
+                if (any) rows.Add(new LeagueMatchDetailStatRow {
+                    GroupKey = group, Name = key, Values = values
+                });
+            };
+            role(UiTextKeys.LeaguePlayerMatchDetailsGameState, "positionAssignedByMatchmaking");
+            role(UiTextKeys.LeaguePlayerMatchDetailsGameState, "selectedRolePreferences");
             flags(UiTextKeys.LeaguePlayerMatchDetailsGameState, new[] {
                 "gameEndedInEarlySurrender", "gameEndedInIGNBSurrender",
                 "gameEndedInSurrender", "causedGameEndFromIGNBSurrender",

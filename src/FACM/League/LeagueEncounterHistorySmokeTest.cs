@@ -393,6 +393,38 @@ namespace FACM.League
                         { "causedEarlySurrender", true }, { "earlySurrenderAccomplice", true }
                     }).Any(),
                 "Pinned source-hidden behavioral flags must not enter the public details matrix.");
+            var roleFields = LeaguePlayerDataService.ParseDetailedTextStats(
+                new Dictionary<string, object> {
+                    { "positionAssignedByMatchmaking", "JUNGLE" },
+                    { "selectedRolePreferences", "JUNGLE.AUTOFILL.TOP.UTILITY.NONE" },
+                    { "PlayerBehavior", "untrusted" }
+                });
+            Require(roleFields.Count == 2 &&
+                    roleFields["positionAssignedByMatchmaking"] == "JUNGLE" &&
+                    roleFields["selectedRolePreferences"] == "JUNGLE · TOP/UTILITY · AUTOFILL",
+                "Pinned matchmaking position and role preferences must be normalized.");
+            var conflictRole = LeaguePlayerDataService.ParseDetailedTextStats(
+                new Dictionary<string, object> { { "positionAssignedByMatchmaking", "TOP" } },
+                new Dictionary<string, object> { { "positionAssignedByMatchmaking", "JUNGLE" } });
+            Require(conflictRole.Count == 0 &&
+                    LeaguePlayerDataService.ParseDetailedTextStats(
+                        new Dictionary<string, object> {
+                            { "selectedRolePreferences", "NONE.NONE.NONE.UNSELECTED" },
+                            { "positionAssignedByMatchmaking", "<script>" }
+                        }).Count == 0 &&
+                    LeaguePlayerDataService.ParseDetailedTextStats(
+                        null, new Dictionary<string, object> {
+                            { "positionAssignedByMatchmaking", "MIDDLE" }
+                        })["positionAssignedByMatchmaking"] == "MIDDLE",
+                "Conflicting, empty and untrusted role text must fail closed; SGP root fields remain supported.");
+            first.RawTextStats = roleFields;
+            var roleRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(roleRows.Single(row => row.Name == "positionAssignedByMatchmaking")
+                        .Values.SequenceEqual(new[] { "JUNGLE", "—" }) &&
+                    roleRows.Single(row => row.Name == "selectedRolePreferences")
+                        .Values[0].Contains("AUTOFILL"),
+                "Normalized role fields must appear only for players with valid source evidence.");
             var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 Enumerable.Repeat(first, 24));
             Require(bounded.All(row => row.Values.Length == 20) &&

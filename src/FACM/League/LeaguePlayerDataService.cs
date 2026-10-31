@@ -974,6 +974,59 @@ namespace FACM.League
             return result;
         }
 
+        private static readonly HashSet<string> DetailedPositions =
+            new HashSet<string>(StringComparer.Ordinal) {
+                "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY",
+                "NONE", "FILL", "UNSELECTED"
+            };
+        private static readonly HashSet<string> DetailedRoleReasons =
+            new HashSet<string>(StringComparer.Ordinal) {
+                "NONE", "PRIMARY", "SECONDARY", "FILL_PRIMARY",
+                "FILL_SECONDARY", "AUTOFILL"
+            };
+
+        private static string ReadStrictRole(Dictionary<string, object> source, string key)
+        {
+            object raw;
+            return source != null && source.TryGetValue(key, out raw) ? raw as string : null;
+        }
+
+        internal static Dictionary<string, string> ParseDetailedTextStats(
+            Dictionary<string, object> stats, Dictionary<string, object> participant = null)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var key in new[] { "positionAssignedByMatchmaking", "selectedRolePreferences" })
+            {
+                var direct = ReadStrictRole(stats, key);
+                var outer = ReadStrictRole(participant, key);
+                if (direct != null && outer != null &&
+                    !string.Equals(direct, outer, StringComparison.Ordinal)) continue;
+                var value = direct ?? outer;
+                if (string.IsNullOrWhiteSpace(value) || value.Length > 96) continue;
+                if (key == "positionAssignedByMatchmaking")
+                {
+                    if (DetailedPositions.Contains(value) && value != "NONE" && value != "UNSELECTED")
+                        result[key] = value;
+                    continue;
+                }
+                var parts = value.Split('.');
+                if ((parts.Length != 4 && parts.Length != 5) ||
+                    !DetailedPositions.Contains(parts[0]) ||
+                    !DetailedRoleReasons.Contains(parts[1]) ||
+                    !DetailedPositions.Contains(parts[2]) ||
+                    !DetailedPositions.Contains(parts[3]) ||
+                    (parts.Length == 5 && !DetailedPositions.Contains(parts[4])))
+                    continue;
+                if (parts[0] == "NONE" && parts[1] == "NONE" &&
+                    parts[2] == "NONE" &&
+                    (parts[3] == "NONE" || parts[3] == "UNSELECTED"))
+                    continue;
+                result[key] = parts[0] + " · " + parts[2] + "/" + parts[3] +
+                    (parts[1] == "AUTOFILL" ? " · AUTOFILL" : string.Empty);
+            }
+            return result;
+        }
+
         internal static Dictionary<string, double> ParseDetailedRawStats(Dictionary<string, object> stats)
         {
             var result = new Dictionary<string, double>(StringComparer.Ordinal);
@@ -1086,6 +1139,7 @@ namespace FACM.League
                             "maxCsAdvantageOnLaneOpponent") : null,
                     RawStats = ParseDetailedRawStats(stats),
                     RawBooleanStats = ParseDetailedBooleanStats(stats),
+                    RawTextStats = ParseDetailedTextStats(stats, participant),
                     KnockEnemyIntoTeamAndKill = ReadBool(game, "_sgp")
                         ? ReadOptionalCount(ReadObject(stats, "challenges"),
                             "knockEnemyIntoTeamAndKill") : null,

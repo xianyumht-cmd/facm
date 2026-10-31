@@ -225,6 +225,8 @@ namespace FACM.League
         // Explicitly allowlisted, bounded numeric match details; never store arbitrary stats.
         public Dictionary<string, double> RawStats { get; set; }
         public Dictionary<string, bool> RawBooleanStats { get; set; }
+        // Only two pinned, strictly normalized role fields; never arbitrary player text.
+        public Dictionary<string, string> RawTextStats { get; set; }
         public int? KnockEnemyIntoTeamAndKill { get; set; }
         public int? KillsNearEnemyTurret { get; set; }
         public int? KillsUnderOwnTurret { get; set; }
