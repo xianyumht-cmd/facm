@@ -1,3 +1,16 @@
+## Region-aware native auto-select and trusted Tencent SGP enrollment (Draft #357, 2026-10-31)
+
+Executable candidate [28cb368](https://github.com/xianyumht-cmd/facm/commit/28cb368df433f95d63f96801f6cc0f4cde988493) adds three functional clusters without changing the production 3.5.78 branch: (1) remote Akari `supportedSgpServers` matching against a trusted current LCU server and source `positions` enforcement (including support/utility normalization); (2) action context and preflight fencing on server/role plus before/after League-session identity/region checks; (3) source-announced new Tencent SGP regions only under exact `<platform>-sgp.lol.qq.com` or `<platform>-k8s-sgp.lol.qq.com` HTTPS:21019 host templates, with optional matching `regionPathParam`, explicit revocation when removed from a newer catalog, and SGP refresh before remote auto-select group refresh. No new credential owner, continuous poller, Electron component, release, or deployment.
+
+| Source parity area | Status after candidate | Remaining gap |
+| --- | --- | --- |
+| Known Akari auto-select groups, queue routing, source positions and region-specific `supportedSgpServers` | Implemented in native candidate; synthetic region/role/session-change tests | Remote new group IDs, additional/excluded action choices and all source settings remain partial |
+| Tencent SGP catalog refresh and trusted newly announced platforms | Implemented with strict provider DNS/port/path, catalog replacement and revocation tests | New Riot-region enrollment and real remote Tencent compatibility not verified |
+| SGP GSM/EOG, player/champion analysis and replay | Partial existing functionality preserved | Complete analysis, remaining source options and replay behavior need option-by-option audit |
+| Windows 10/DPI and Tencent live game acceptance | Not performed | Reserved for owner's single final acceptance |
+
+The candidate is **not** considered executable-verified until Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe all succeed on SHA `28cb368`; check the exact SHA's Actions runs, not prior successful runs. PR #357 and stacked #355 remain Draft.
+
 ## Native EOG-only detail fallback and current-lobby SGP queue (Draft #357, 2026-10-31)
 
 Executable/test candidate [f470359](https://github.com/xianyumht-cmd/facm/commit/f4703598c67828d6e184dca83f307479e30719a7) adds a bounded same-region SGP EOG-only detail path when normal SUMMARY breakdown is missing. The native fallback works from both selected-player history and encountered-player history, with a separate team/player/raw-stat dialog rather than inventing a full SUMMARY scoreboard, replay or timeline. It requires a trusted current SGP server, non-LCU-only source, valid target/game, independent current LCU owner checks before/after the EOG request and session/region checks before showing data. Signed/fractional EOG numeric values are no longer intentionally rounded to two decimals in the existing scoreboard. Source EOG level, wins/losses, leaver/bot flags and signed rating change are projected only when present, without exposing room/JWT fields. The EOG-only view shows KDA, CS, vision, cached champion names and selectable raw/metadata values. A single fallback may extend the explicit detail-read deadline to 16 seconds; no polling, new client, token projection or production change.
