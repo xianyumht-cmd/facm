@@ -632,6 +632,7 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerMatchDetailsSurvival, "生存与技能"),
             Pair(UiTextKeys.LeaguePlayerMatchDetailsTeamfight, "团战"),
             Pair(UiTextKeys.LeaguePlayerMatchDetailsMisc, "其他统计"),
+            Pair(UiTextKeys.LeaguePlayerMatchDetailsStatistics, "综合指标"),
             Pair(UiTextKeys.LeaguePlayerCompareScore, "Akari 综合评分 / 17"),
             Pair(UiTextKeys.LeaguePlayerCompareKda, "累计 KDA 比"),
             Pair(UiTextKeys.LeaguePlayerCompareKdaVariation, "逐场 KDA 波动系数"),

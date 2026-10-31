@@ -228,6 +228,33 @@ namespace FACM.League
                     !rows.Any(row => row.Name == "Physical champion damage") &&
                     rows.Select(row => row.GroupKey).Distinct().Count() >= 3,
                 "Detailed match stats must preserve known zero, missing values and source groups.");
+            var fullTeam = Enumerable.Range(1, 10).Select(id =>
+                new LeaguePlayerMatchParticipant {
+                    ParticipantId = id, TeamId = id <= 5 ? 100 : 200,
+                    Kills = id == 1 ? 3 : 1, Deaths = 1, Assists = 2,
+                    DamageAvailable = true, DamageToChampions = 100,
+                    GoldAvailable = true, GoldEarned = 100, TotalDamageTaken = 100
+                }).ToList();
+            var derived = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                fullTeam, 1200);
+            Func<string, LeagueMatchDetailStatRow> derivedRow =
+                name => derived.Single(row => row.Name == name);
+            Require(derivedRow("KDA").Values[0] == "5" &&
+                    derivedRow("Damage / minute").Values[0] == "5" &&
+                    derivedRow("Gold / minute").Values[0] == "5" &&
+                    derivedRow("Damage / gold").Values[0] == "1" &&
+                    derivedRow("Team damage share (%)").Values[0] == "20" &&
+                    derivedRow("Damage taken share (%)").Values[0] == "20" &&
+                    derivedRow("Kill participation (%)").Values[0] != "—",
+                "Derived match statistics must use the complete source participant roster.");
+            fullTeam[1].DamageAvailable = false;
+            var incomplete = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                fullTeam, 1200);
+            Require(incomplete.Single(row => row.Name == "Team damage share (%)").Values[0] == "—" &&
+                    incomplete.Single(row => row.Name == "Damage / minute").Values[0] == "5" &&
+                    LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                        fullTeam.Take(4), 1200).All(row => row.Name != "Kill participation (%)"),
+                "Missing team evidence must not become a fabricated ratio or hide independent rates.");
             var raw = LeaguePlayerDataService.ParseDetailedRawStats(
                 new Dictionary<string, object> {
                     { "wardsPlaced", 0 }, { "goldSpent", 2300 },

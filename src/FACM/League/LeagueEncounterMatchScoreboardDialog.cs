@@ -420,7 +420,8 @@ namespace FACM.League
             var detailedPlayers = rows.Items.Cast<ListViewItem>()
                 .Select(item => item.Tag as LeaguePlayerMatchParticipant)
                 .Where(player => player != null).Take(20).ToList();
-            var detailedStats = BuildDetailedStatRows(detailedPlayers);
+            var detailedStats = BuildDetailedStatRows(
+                detailedPlayers, detail.Match.GameDurationSeconds, isCherry);
             var detailsTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerMatchDetailsTab));
             var detailsTable = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 ShowGroups = true, GridLines = true, FullRowSelect = true,
@@ -891,7 +892,8 @@ namespace FACM.League
         // Pinned MatchCardDetailsTab's grouped stat matrix, limited to values
         // already parsed from the selected match. No new API or zero-filling.
         internal static List<LeagueMatchDetailStatRow> BuildDetailedStatRows(
-            IEnumerable<LeaguePlayerMatchParticipant> source)
+            IEnumerable<LeaguePlayerMatchParticipant> source, int gameDurationSeconds = 0,
+            bool cherry = false)
         {
             var players = (source ?? Enumerable.Empty<LeaguePlayerMatchParticipant>())
                 .Where(player => player != null).Take(20).ToList();
@@ -918,6 +920,55 @@ namespace FACM.League
                     GroupKey = group, Name = name, Values = values
                 });
             };
+            Func<LeaguePlayerMatchParticipant, List<LeaguePlayerMatchParticipant>> teamOf = player =>
+            {
+                if (player == null) return null;
+                var groupId = LeagueCherryTeams.GroupId(player, cherry);
+                if (groupId <= 0) return null;
+                var team = players.Where(p => LeagueCherryTeams.GroupId(p, cherry) == groupId).ToList();
+                var expectedCount = cherry ? 2 : 5;
+                if (team.Count != expectedCount || team.Any(p => p.ParticipantId <= 0) ||
+                    team.Select(p => p.ParticipantId).Distinct().Count() != team.Count)
+                    return null;
+                return team;
+            };
+            var statistics = UiTextKeys.LeaguePlayerMatchDetailsStatistics;
+            add(statistics, "KDA", p => p.Kills >= 0 && p.Deaths >= 0 && p.Assists >= 0
+                ? (double?)(p.Kills + (double)p.Assists) / Math.Max(1, p.Deaths) : null);
+            add(statistics, "Damage / minute", p => gameDurationSeconds > 0 &&
+                p.DamageAvailable && p.DamageToChampions >= 0
+                    ? (double?)p.DamageToChampions * 60d / gameDurationSeconds : null);
+            add(statistics, "Gold / minute", p => gameDurationSeconds > 0 &&
+                p.GoldAvailable && p.GoldEarned >= 0
+                    ? (double?)p.GoldEarned * 60d / gameDurationSeconds : null);
+            add(statistics, "Damage / gold", p => p.DamageAvailable && p.GoldAvailable &&
+                p.DamageToChampions >= 0 && p.GoldEarned > 0
+                    ? (double?)p.DamageToChampions / p.GoldEarned : null);
+            add(statistics, "Kill participation (%)", p =>
+            {
+                var team = teamOf(p);
+                if (team == null || team.Any(member => member.Kills < 0) ||
+                    p.Kills < 0 || p.Assists < 0) return null;
+                var kills = team.Sum(member => (long)member.Kills);
+                if (kills == 0) return p.Kills == 0 && p.Assists == 0 ? (double?)0 : null;
+                return (p.Kills + (double)p.Assists) / kills * 100d;
+            });
+            add(statistics, "Team damage share (%)", p =>
+            {
+                var team = teamOf(p);
+                if (team == null || team.Any(member =>
+                    !member.DamageAvailable || member.DamageToChampions < 0)) return null;
+                var total = team.Sum(member => (long)member.DamageToChampions);
+                return total > 0 ? (double?)p.DamageToChampions / total * 100d : null;
+            });
+            add(statistics, "Damage taken share (%)", p =>
+            {
+                var team = teamOf(p);
+                if (team == null || team.Any(member =>
+                    !member.TotalDamageTaken.HasValue || member.TotalDamageTaken.Value < 0)) return null;
+                var total = team.Sum(member => (long)member.TotalDamageTaken.Value);
+                return total > 0 ? (double?)p.TotalDamageTaken.Value / total * 100d : null;
+            });
             var combat = UiTextKeys.LeaguePlayerMatchDetailsCombat;
             add(combat, "Kills", p => p.Kills >= 0 ? (double?)p.Kills : null);
             add(combat, "Deaths", p => p.Deaths >= 0 ? (double?)p.Deaths : null);
