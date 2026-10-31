@@ -902,7 +902,25 @@ namespace FACM.League
             "quickCleanse", "dancedWithRiftHerald", "fistBumpParticipation",
             "flawlessAces", "doubleAces", "acesBefore15Minutes",
             "fullTeamTakedown", "shortestTimeToAceFromFirstTakedown",
-            "12AssistStreakCount", "teleportTakedowns"
+            "12AssistStreakCount", "teleportTakedowns",
+            "firstTurretKilled", "firstTurretKilledTime",
+            "kTurretsDestroyedBeforePlatesFall",
+            "outerTurretExecutesBefore10Minutes", "quickFirstTurret",
+            "takedownOnFirstTurret", "inhibitorsLost",
+            "twentyMinionsIn3SecondsCount", "completeSupportQuestInTime",
+            "mejaisFullStackInTime",
+            "baronBuffGoldAdvantageOverThreshold", "earliestBaron",
+            "earliestDragonTakedown", "teamBaronKills",
+            "teamElderDragonKills", "teamRiftHeraldKills", "soloBaronKills",
+            "elderDragonKillsWithOpposingSoul", "elderDragonMultikills",
+            "perfectDragonSoulsTaken", "epicMonsterSteals",
+            "epicMonsterStolenWithoutSmite", "epicMonsterKillsNearEnemyJungler",
+            "epicMonsterKillsWithin30SecondsOfSpawn",
+            "junglerTakedownsNearDamagedEpicMonster",
+            "alliedJungleMonsterKills", "enemyJungleMonsterKills",
+            "buffsStolen", "jungleCsBefore10Minutes",
+            "initialBuffCount", "initialCrabCount",
+            "moreEnemyJungleThanOpponent"
         };
 
         private static readonly string[] DetailedBooleanKeys = {

@@ -269,6 +269,31 @@ namespace FACM.League
                     extraRows.Single(row => row.Name == "timePlayed").Values[0] == "1,250" &&
                     extraRows.Select(row => row.GroupKey).Distinct().Count() >= 5,
                 "New match-card stat groups must be visible in the existing native details table.");
+            var objectives = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> {
+                    { "challenges", new Dictionary<string, object> {
+                        { "teamBaronKills", 0 }, { "epicMonsterSteals", 2 },
+                        { "firstTurretKilled", 1 }, { "inhibitorsLost", 0 },
+                        { "twentyMinionsIn3SecondsCount", 3 },
+                        { "earliestBaron", -1 }, { "teamElderDragonKills", 1000000001d },
+                        { "hiddenMatchToken", 8 } } }
+                });
+            Require(objectives.Count == 5 && objectives["teamBaronKills"] == 0 &&
+                    objectives["epicMonsterSteals"] == 2 &&
+                    objectives["firstTurretKilled"] == 1 &&
+                    objectives["inhibitorsLost"] == 0 &&
+                    objectives["twentyMinionsIn3SecondsCount"] == 3 &&
+                    !objectives.ContainsKey("earliestBaron") &&
+                    !objectives.ContainsKey("teamElderDragonKills") &&
+                    !objectives.ContainsKey("hiddenMatchToken"),
+                "Pinned objective, structure and economy details must enforce numeric bounds.");
+            first.RawStats = objectives;
+            var objectiveRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(objectiveRows.Single(row => row.Name == "teamBaronKills").Values[0] == "0" &&
+                    objectiveRows.Single(row => row.Name == "firstTurretKilled").Values[1] == "—" &&
+                    objectiveRows.Single(row => row.Name == "twentyMinionsIn3SecondsCount").Values[0] == "3",
+                "Objective and structure stats must appear in the native matrix without zero-filling.");
             first.RawStats = raw;
             var expanded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(new[] { first, second });
             Require(expanded.Single(row => row.Name == "wardsPlaced").Values[0] == "0" &&

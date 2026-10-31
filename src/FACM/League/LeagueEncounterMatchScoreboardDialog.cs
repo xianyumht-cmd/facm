@@ -995,13 +995,30 @@ namespace FACM.League
                 "turretPlatesTaken", "soloTurretsLategame", "turretsLost",
                 "turretsTakenWithRiftHerald", "multiTurretRiftHeraldCount",
                 "lostAnInhibitor", "nexusLost", "outnumberedNexusKill",
-                "objectivesStolenAssists" });
+                "objectivesStolenAssists", "firstTurretKilled",
+                "firstTurretKilledTime", "kTurretsDestroyedBeforePlatesFall",
+                "outerTurretExecutesBefore10Minutes", "quickFirstTurret",
+                "takedownOnFirstTurret", "inhibitorsLost" });
             raw(UiTextKeys.LeaguePlayerMatchDetailsObjectives, new[] {
                 "baronTakedowns", "dragonTakedowns", "riftHeraldTakedowns",
-                "voidMonsterKill", "scuttleCrabKills" });
+                "voidMonsterKill", "scuttleCrabKills",
+                "baronBuffGoldAdvantageOverThreshold", "earliestBaron",
+                "earliestDragonTakedown", "teamBaronKills",
+                "teamElderDragonKills", "teamRiftHeraldKills", "soloBaronKills",
+                "elderDragonKillsWithOpposingSoul", "elderDragonMultikills",
+                "perfectDragonSoulsTaken", "epicMonsterSteals",
+                "epicMonsterStolenWithoutSmite", "epicMonsterKillsNearEnemyJungler",
+                "epicMonsterKillsWithin30SecondsOfSpawn",
+                "junglerTakedownsNearDamagedEpicMonster",
+                "alliedJungleMonsterKills", "enemyJungleMonsterKills",
+                "buffsStolen", "jungleCsBefore10Minutes",
+                "initialBuffCount", "initialCrabCount",
+                "moreEnemyJungleThanOpponent" });
             raw(economy, new[] { "bountyGold", "laneMinionsFirst10Minutes",
                 "totalAllyJungleMinionsKilled", "totalEnemyJungleMinionsKilled",
-                "earlyLaningPhaseGoldExpAdvantage", "laningPhaseGoldExpAdvantage" });
+                "earlyLaningPhaseGoldExpAdvantage", "laningPhaseGoldExpAdvantage",
+                "twentyMinionsIn3SecondsCount", "completeSupportQuestInTime",
+                "mejaisFullStackInTime" });
             raw(UiTextKeys.LeaguePlayerMatchDetailsPings, new[] {
                 "allInPings", "assistMePings", "basicPings", "commandPings",
                 "dangerPings", "enemyMissingPings", "enemyVisionPings", "getBackPings",
