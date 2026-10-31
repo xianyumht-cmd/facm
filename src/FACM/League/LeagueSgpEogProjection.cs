@@ -33,7 +33,7 @@ namespace FACM.League
         internal int? NeutralMinions;
         internal int? Vision;
         internal bool? Win;
-        internal Dictionary<string, int> Statistics;
+        internal Dictionary<string, double> Statistics;
     }
 
     // Project only documented end-of-game fields. Never retain room passwords, JWTs or credentials.
@@ -76,16 +76,15 @@ namespace FACM.League
                     else if (!string.IsNullOrEmpty(tag)) name += "#" + tag;
                     var stats = Array(row, "statistics");
                     if (stats == null || stats.Length > 128) return null;
-                    var values = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    var values = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
                     foreach (var item in stats)
                     {
                         var stat = item as Dictionary<string, object>;
                         if (stat == null) return null;
                         var key = Text(stat, "statTypeName");
-                        var value = Number(stat, "value");
+                        var value = StatisticNumber(stat, "value");
                         if (string.IsNullOrEmpty(key) || key.Length > 64 ||
-                            !value.HasValue || value < 0 || value > int.MaxValue ||
-                            !values.TryAddSafe(key, (int)value.Value)) return null;
+                            !value.HasValue || !values.TryAddSafe(key, value.Value)) return null;
                     }
                     players.Add(new LeagueSgpEogPlayer
                     {
@@ -119,10 +118,12 @@ namespace FACM.League
             catch (OverflowException) { return null; }
         }
 
-        private static int? Stat(Dictionary<string, int> stats, string key)
+        private static int? Stat(Dictionary<string, double> stats, string key)
         {
-            int value;
-            return stats.TryGetValue(key, out value) ? value : (int?)null;
+            double value;
+            return stats.TryGetValue(key, out value) && value >= 0 &&
+                value <= int.MaxValue && Math.Floor(value) == value
+                ? (int)value : (int?)null;
         }
 
         private static int PositiveId(Dictionary<string, object> row, string key)
@@ -148,6 +149,20 @@ namespace FACM.League
             return text.Trim();
         }
 
+        private static double? StatisticNumber(Dictionary<string, object> row, string key)
+        {
+            object value;
+            if (!row.TryGetValue(key, out value) || value == null ||
+                !(value is int || value is long || value is double || value is decimal)) return null;
+            try
+            {
+                var number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
+                return !double.IsNaN(number) && !double.IsInfinity(number) &&
+                    Math.Abs(number) <= 1000000000000d ? number : (double?)null;
+            }
+            catch (OverflowException) { return null; }
+        }
+
         private static long? Number(Dictionary<string, object> row, string key)
         {
             object value;
@@ -162,7 +177,7 @@ namespace FACM.League
             catch (OverflowException) { return null; }
         }
 
-        private static bool TryAddSafe(this Dictionary<string, int> stats, string key, int value)
+        private static bool TryAddSafe(this Dictionary<string, double> stats, string key, double value)
         {
             if (stats.ContainsKey(key)) return false;
             stats.Add(key, value);

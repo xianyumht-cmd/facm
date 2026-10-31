@@ -142,7 +142,9 @@ namespace FACM.League
                         {""statTypeName"":""CHAMPIONS_KILLED"",""value"":5},
                         {""statTypeName"":""NUM_DEATHS"",""value"":2},
                         {""statTypeName"":""ASSISTS"",""value"":8},
-                        {""statTypeName"":""WIN"",""value"":1}]}],
+                        {""statTypeName"":""WIN"",""value"":1},
+                        {""statTypeName"":""DAMAGE_RATIO"",""value"":0.75},
+                        {""statTypeName"":""RANK_CHANGE"",""value"":-12}]}],
                 ""otherTeamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""other-puuid"",
                     ""teamId"":200,""championId"":13,""statistics"":[]}]}");
             var parsed = LeagueSgpEogProjection.Parse(fixture, 601, "local-puuid");
@@ -150,8 +152,10 @@ namespace FACM.League
                 parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
                 parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
                 parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
-                parsed.Players[0].Statistics.Count == 4 &&
+                parsed.Players[0].Statistics.Count == 6 &&
                 parsed.Players[0].Statistics["CHAMPIONS_KILLED"] == 5 &&
+                parsed.Players[0].Statistics["DAMAGE_RATIO"] == 0.75 &&
+                parsed.Players[0].Statistics["RANK_CHANGE"] == -12 &&
                 !parsed.Players[0].Damage.HasValue &&
                 !parsed.Players[1].Win.HasValue,
                 "Pinned EOG team and participant stats must distinguish known values from missing metrics.");

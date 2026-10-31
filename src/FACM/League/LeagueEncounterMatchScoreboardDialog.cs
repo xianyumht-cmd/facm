@@ -473,7 +473,7 @@ namespace FACM.League
                         foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
                             StringComparer.OrdinalIgnoreCase))
                             eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
-                                stat.Value.ToString("N0", CultureInfo.CurrentCulture) }));
+                                stat.Value.ToString("0.##", CultureInfo.CurrentCulture) }));
                     }
                     finally { eogStats.EndUpdate(); }
                 };
