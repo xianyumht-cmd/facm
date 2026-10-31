@@ -399,6 +399,11 @@ namespace FACM.Services
         public const string LeaguePlayerRemoteUnavailable = "LeaguePlayerRemoteUnavailable";
         public const string LeaguePlayerRemoteHistoryAction = "LeaguePlayerRemoteHistoryAction";
         public const string LeaguePlayerReplayAction = "LeaguePlayerReplayAction";
+        public const string LeaguePlayerReplayFolderAction = "LeaguePlayerReplayFolderAction";
+        public const string LeaguePlayerReplayFolderTitle = "LeaguePlayerReplayFolderTitle";
+        public const string LeaguePlayerReplayFolderStatusUnknown = "LeaguePlayerReplayFolderStatusUnknown";
+        public const string LeaguePlayerReplayFolderStatusEnabled = "LeaguePlayerReplayFolderStatusEnabled";
+        public const string LeaguePlayerReplayFolderStatusDisabled = "LeaguePlayerReplayFolderStatusDisabled";
         public const string LeaguePlayerCollectAction = "LeaguePlayerCollectAction";
         public const string LeaguePlayerCollectTitle = "LeaguePlayerCollectTitle";
         public const string LeaguePlayerCollectHint = "LeaguePlayerCollectHint";

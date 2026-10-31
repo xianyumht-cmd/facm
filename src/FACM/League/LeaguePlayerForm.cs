@@ -352,7 +352,8 @@ namespace FACM.League
             _filterPanel.Controls.Add(analysisButton);
             if (_replayDirectory != null)
             {
-                _replayDirectoryButton = new Button { Text = "录像目录", Width = 88, Height = 27,
+                _replayDirectoryButton = new Button { Text = _ui.Get(UiTextKeys.LeaguePlayerReplayFolderAction),
+                    Width = 88, Height = 27,
                     FlatStyle = FlatStyle.Flat, Enabled = false };
                 _replayDirectoryButton.Click += async (sender, e) => await ShowReplayDirectoryAsync();
                 _filterPanel.Controls.Add(_replayDirectoryButton);
@@ -1080,11 +1081,13 @@ namespace FACM.League
                     return;
                 }
                 var status = !result.ReplaysEnabled.HasValue || !result.MatchHistoryEnabled.HasValue
-                    ? "回放开关状态未知" :
+                    ? _ui.Get(UiTextKeys.LeaguePlayerReplayFolderStatusUnknown) :
                     result.ReplaysEnabled.Value && result.MatchHistoryEnabled.Value
-                        ? "历史回放已启用" : "历史回放当前不可用";
+                        ? _ui.Get(UiTextKeys.LeaguePlayerReplayFolderStatusEnabled) :
+                            _ui.Get(UiTextKeys.LeaguePlayerReplayFolderStatusDisabled);
                 MessageBox.Show(this, result.Path + Environment.NewLine + Environment.NewLine + status,
-                    "LOL 录像目录（Ctrl+C 可复制）", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _ui.Get(UiTextKeys.LeaguePlayerReplayFolderTitle),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (OperationCanceledException) { }
             catch (Exception)
