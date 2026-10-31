@@ -89,8 +89,11 @@ namespace FACM.League
             var independent = LeagueHistoryChampionComparison.Calculate(matches, 145);
             Require(independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareDamageShare).Value == 0 &&
                 !independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareKdaVariation).Value.HasValue &&
-                independent.All(v => v.Total == 1),
-                "Another hero must retain independent sample coverage and verified zero denominators.");
+                independent.Where(v => v.Key != UiTextKeys.LeaguePlayerCompareCherryFirstRate &&
+                    v.Key != UiTextKeys.LeaguePlayerCompareCherryTopHalfRate &&
+                    v.Key != UiTextKeys.LeaguePlayerCompareCherryPlacement).All(v => v.Total == 1) &&
+                independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareCherryPlacement).Total == 0,
+                "Another hero must retain independent sample coverage and no invented Arena games.");
             first.TotalDamageShieldedOnTeammates = 0;
             first.ParticipantRoster[1].TotalDamageShieldedOnTeammates = 100;
             values = LeagueHistoryChampionComparison.Calculate(matches, 22);
