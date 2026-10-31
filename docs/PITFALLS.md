@@ -1,3 +1,7 @@
+## C# JSON fixture quoting and remote-group preflight identity (2026-10-31)
+
+The first auto-select group fixture on executable `51b342c` failed Mayhem Source Probe compilation (CS1026/CS1003) because a verbatim C# string around `["*"]` had a misplaced closing quote. `a4115a4` uses an ordinary escaped JSON substring and passed all four Windows gates. Validate emitted C# literals, not the JavaScript transport representation. Remote group configuration can change while an action is pending; the resolved group must be included in the pre-write context identity, not just queue/mode/custom fields. Never log GSM `playerCredentials` bodies because the source shape includes credential material.
+
 ## Do not double-escape JSON inside C# smoke fixtures (2026-10-31)
 
 The first dynamic SGP catalog test candidate `05cac9e` emitted a C# string containing `\\\\"` where the compiler expected a single escaped quote. Glass #41184806712 failed with CS1002/CS1056 at the synthetic fixture, before behavior was tested. Use a C# verbatim literal (`@"{""key"":...}"`) or serializer-generated JSON, inspect the committed source, and verify Windows compilation rather than interpreting an escaped tool payload as valid C#. Corrected in `1ea7c34`; the final SGP candidate requires its own four Windows CI gates.

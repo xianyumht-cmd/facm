@@ -1,3 +1,20 @@
+## Pinned SGP GSM and auto-select group source parity (2026-10-31)
+
+Pinned LeagueAkari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` defines GSM `GET /gsm/v1/ledge/region/{region}/puuid/{puuid}`, `GET /gsm/v1/ledge/region/{region}/gameId/{gameId}` and `GET /stats/endOfGame/region/{region}/gameId/{gameId}/puuid/{puuid}` in `src/shared/http-api-axios-helper/sgp/gsm.ts` and `stats.ts`. Native [a4115a4](https://github.com/xianyumht-cmd/facm/commit/a4115a46b63ddcdd398effb54f7a41c90dc50c95) exposes all three as bounded, same-region, read-only routes. The Live view consumes only GSM-by-PUUID on explicit refresh, validating playerCredentials owner/game, team membership, current LCU summoner, session/region and gameflow before merging spells/positions; no JWT or encryption key reaches the UI. GameId GSM and EOG are transport-only, not claimed as finished UI features.
+
+Pinned `src/main/shards/akari-api/cached-resources.ts`, `builtin.ts` and `src/main/shards/auto-select/state.ts` define the two-hour `auto-select/groups` configuration and group-to-mode/queue matching. Native `LeagueAutoSelectGroupCatalog` uses the exact public HTTPS path on advanced profile-editor open; only already-supported group IDs, pinned mode families and wildcard SGP coverage can update queue-type routing. Remote additional picks/bans, unknown groups and server-specific overrides fail closed rather than silently changing native action semantics. The resolved group now participates in the pre-write context key. This is partial dynamic parity, not the source's full remote group lifecycle.
+
+| Source scope | Status | Remaining |
+|---|---|---|
+| GSM current-game team, champion, position and spells | Native candidate, four Windows CI green | Real Tencent CN/live-client validation |
+| GSM gameId and stats EOG routes | API/test only | End-to-end EOG/other-player UI integration |
+| Auto-select group dynamic queue routing | Partial, bounded on-demand | Region-specific/new groups, remote additional action options |
+| SGP supported-queues remote catalog | Missing | History queue-tag UI and current active queue inclusion |
+| SGP server bootstrap/new IDs | Partial | Trusted expansion beyond pinned known endpoints |
+| Full user-facing Akari parity | Incomplete | Remaining modules and final Win10/DPI acceptance |
+
+**Four Windows gates on executable a4115a4:** [Windows Build #41189128965](https://github.com/xianyumht-cmd/facm/actions/runs/41189128965), [Glass #41189128864](https://github.com/xianyumht-cmd/facm/actions/runs/41189128864), [UI Text #41189128913](https://github.com/xianyumht-cmd/facm/actions/runs/41189128913), [Mayhem #41189128973](https://github.com/xianyumht-cmd/facm/actions/runs/41189128973). An intermediate smoke-fixture quoting failure was corrected before final verification; no live game test is claimed.
+
 ## Source-pinned dynamic SGP catalog: native candidate (2026-10-31)
 
 Pinned LeagueAkari v1.5.1 `src/main/shards/akari-api/cached-resources.ts`, `config-loader.ts`, `builtin.ts` and `src/shared/http-api-axios-helper/akari/api.ts` use the `sgp/league-servers` configuration resource, `updatedAt` and a two-hour refresh interval. Native [8e352b8](https://github.com/xianyumht-cmd/facm/commit/8e352b82e9337319431c8dc8d9583b631dd2339c) fetches the exact pinned default HTTPS resource only when the user opens regional history or an SGP-capable player profile; the existing `LeaguePublicDataTransport` owns caching/HTTP, not the authenticated SGP client. Known server IDs may update endpoints and Chinese labels, but new IDs and changed Tencent/region ownership cannot expand access. Tencent host prefixes must match their platform and stay under `.lol.qq.com:21019`; Riot endpoints stay under `.sgp.pvp.net:443`. No SGP tokens are attached to catalog reads, and failed/stale/unsafe updates retain the built-in source list. UI selection is rebuilt only under the same LeagueClientSession, with cancellation on close. Synthetic parser/host/region tests are included; **four Windows CI and real Tencent/Win10/DPI evidence remain separate**.
