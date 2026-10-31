@@ -13,6 +13,7 @@ namespace FACM.League
         public string Target { get; set; } = "all";
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
+        public int PremadeMatchThreshold { get; set; } = 5;
         public string JungleNameStrategy { get; set; } = "preferChampionName";
         public bool JungleShowCurrentChampion { get; set; } = true;
         public bool JungleActivityPreference { get; set; } = true;
@@ -64,7 +65,9 @@ namespace FACM.League
 
         private static bool Valid(LeagueDynamicMessageOptions options)
         {
-            if (options == null || !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
+            if (options == null || options.PremadeMatchThreshold < 2 ||
+                options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
+                !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.JungleNameStrategy)) return false;

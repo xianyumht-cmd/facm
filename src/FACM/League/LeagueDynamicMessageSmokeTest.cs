@@ -219,6 +219,9 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(saved).PremadeNameStrategy == "preferName" &&
                 LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeNameStrategy == "preferName",
                 "Premade name strategy must persist and remain backward-compatible with old settings.");
+            options.PremadeMatchThreshold = 6;
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).Count == 0,
+                "Premade threshold changes must affect outgoing messages, not just the selection UI.");
             Require(LeaguePremadeInference.Infer(snapshot, 6).Count == 0,
                 "Duplicate source histories counted one historical game more than once.");
             ally.Friendly = false;
@@ -229,6 +232,32 @@ namespace FACM.League
             ally.History.Matches.Clear();
             Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
                 "History without a verified source-player identity produced false premade evidence.");
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).PremadeMatchThreshold == 6 &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeMatchThreshold == 5,
+                "Premade source threshold must persist and older settings must keep the pinned default.");
+            Require(LeagueDynamicMessageOptions.Parse("{\"PremadeMatchThreshold\":1}").PremadeMatchThreshold == 5 &&
+                LeagueDynamicMessageOptions.Parse("{\"PremadeMatchThreshold\":21}").PremadeMatchThreshold == 5,
+                "Invalid thresholds must not weaken the source-defined bounds.");
+            var disputed = new LeagueDynamicMessageSnapshot();
+            var a = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "a" }, History = new LeaguePlayerMatchPage() };
+            var b = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "b" }, History = new LeaguePlayerMatchPage() };
+            disputed.Players.Add(a); disputed.Players.Add(b);
+            for (var game = 1; game <= 5; game++)
+            {
+                a.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game, SameTeamPuuids = new[] { "a", "b" } });
+                b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game, SameTeamPuuids = new[] { "b" } });
+            }
+            Require(LeaguePremadeInference.Infer(disputed).Count == 0,
+                "Conflicting participant team rosters must not imply a premade group.");
+            b.History.Matches.Clear();
+            Require(LeaguePremadeInference.Infer(disputed).Count == 1,
+                "Missing history is not a contradiction when another verified roster supplies evidence.");
+            b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, SameTeamPuuids = new[] { "a", "b" } });
+            b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, SameTeamPuuids = new[] { "b" } });
+            Require(LeaguePremadeInference.Infer(disputed).Count == 0,
+                "Contradictory duplicate source game rows must not be counted as premade evidence.");
         }
 
         private static void ValidateJungleTimeline()

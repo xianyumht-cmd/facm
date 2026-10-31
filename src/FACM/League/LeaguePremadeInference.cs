@@ -10,7 +10,7 @@ namespace FACM.League
         internal static IReadOnlyList<string[]> Infer(LeagueDynamicMessageSnapshot snapshot, int threshold = 5)
         {
             var result = new List<string[]>();
-            if (snapshot == null || threshold < 1 || threshold > LeaguePlayerDataService.MaximumMatchCount ||
+            if (snapshot == null || threshold < 2 || threshold > LeaguePlayerDataService.MaximumMatchCount ||
                 snapshot.Players.Count > 20) return result;
 
             var roster = snapshot.Players.Where(p => p != null && p.Player != null &&
@@ -18,6 +18,29 @@ namespace FACM.League
             if (roster.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != roster.Count) return result;
             var byId = roster.ToDictionary(p => p.Player.PuuId, StringComparer.Ordinal);
             var pairGames = new Dictionary<string, HashSet<long>>(StringComparer.Ordinal);
+            var observations = new Dictionary<string, Dictionary<long, HashSet<string>>>(StringComparer.Ordinal);
+            foreach (var player in roster)
+            {
+                var seen = new Dictionary<long, HashSet<string>>();
+                foreach (var match in (player.History?.Matches ?? new List<LeaguePlayerMatchSummary>())
+                    .Where(m => m != null && m.GameId > 0 && m.SameTeamPuuids != null)
+                    .Take(LeaguePlayerDataService.MaximumMatchCount))
+                {
+                    var members = new HashSet<string>(match.SameTeamPuuids, StringComparer.Ordinal);
+                    if (!members.Contains(player.Player.PuuId))
+                    {
+                        seen[match.GameId] = null;
+                        continue;
+                    }
+                    HashSet<string> prior;
+                    if (seen.TryGetValue(match.GameId, out prior))
+                    {
+                        if (prior == null || !prior.SetEquals(members)) seen[match.GameId] = null;
+                    }
+                    else seen[match.GameId] = members;
+                }
+                observations[player.Player.PuuId] = seen;
+            }
 
             foreach (var player in roster)
             {
@@ -37,6 +60,21 @@ namespace FACM.League
                         if (!pairGames.TryGetValue(pair, out games)) pairGames[pair] = games = new HashSet<long>();
                         games.Add(match.GameId);
                     }
+                }
+            }
+
+            // A conflicting historical team roster is not evidence of a shared game.
+            foreach (var pair in pairGames)
+            {
+                var members = pair.Key.Split('|');
+                foreach (var gameId in pair.Value.ToArray())
+                {
+                    if (members.Any(id =>
+                    {
+                        HashSet<string> observed;
+                        return observations[id].TryGetValue(gameId, out observed) &&
+                            (observed == null || !observed.Contains(members[0] == id ? members[1] : members[0]));
+                    })) pair.Value.Remove(gameId);
                 }
             }
 
@@ -88,7 +126,7 @@ namespace FACM.League
                 LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
                 .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
                 .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-            var groups = LeaguePremadeInference.Infer(snapshot).Select(g => new
+            var groups = LeaguePremadeInference.Infer(snapshot, options.PremadeMatchThreshold).Select(g => new
             {
                 Key = GroupKey(g),
                 Players = g.Select(id => byId[id]).ToArray(),

@@ -46,6 +46,23 @@ namespace FACM.League
             _names = Choice(new[] { T(LeagueEfficiencyUiTextKeys.DynamicNames), T(LeagueEfficiencyUiTextKeys.DynamicChampionNames), T(LeagueEfficiencyUiTextKeys.DynamicCombinedNames) });
             _names.SelectedIndex = Array.IndexOf(new[] { "preferName", "preferChampionName", "championNameWithName" }, _options.NameStrategy);
             choices.Controls.Add(_target); choices.Controls.Add(_names);
+            var thresholdLabel = new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.PremadeThreshold),
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 7, 0, 0), Visible = false };
+            var threshold = new NumericUpDown { Width = 58, Minimum = 2,
+                Maximum = LeaguePlayerDataService.MaximumMatchCount, Value = _options.PremadeMatchThreshold, Visible = false };
+            threshold.ValueChanged += delegate
+            {
+                if (_binding) return;
+                _options.PremadeMatchThreshold = (int)threshold.Value;
+                if (_snapshot != null)
+                {
+                    _binding = true;
+                    try { RebuildPremadeGroups(_snapshot, true); }
+                    finally { _binding = false; }
+                }
+                RefreshPreview();
+            };
+            choices.Controls.Add(thresholdLabel); choices.Controls.Add(threshold);
             var champion = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicCurrentChampion), Checked = _options.ShowCurrentChampion };
             champion.CheckedChanged += delegate
             {
@@ -202,6 +219,8 @@ namespace FACM.League
                 metrics.Visible = !IsJungle;
                 jungleMetrics.Visible = IsJungle;
                 _loadJungle.Visible = IsJungle;
+                thresholdLabel.Visible = IsPremade;
+                threshold.Visible = IsPremade;
                 _binding = false;
                 RefreshShortcuts();
                 RefreshPreview();
@@ -301,7 +320,8 @@ namespace FACM.League
                 LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
                 .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
                 .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-            foreach (var group in LeaguePremadeInference.Infer(snapshot).OrderByDescending(g => byId[g[0]].Friendly))
+            foreach (var group in LeaguePremadeInference.Infer(snapshot, _options.PremadeMatchThreshold)
+                .OrderByDescending(g => byId[g[0]].Friendly))
             {
                 var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount));
                 _groups.Items.Add(choice, !existing.Contains(choice.Key) || checkedGroups.Contains(choice.Key));
@@ -351,7 +371,7 @@ namespace FACM.League
                 LeagueDynamicMessageFormatter.Build(_snapshot, _options, Selected());
             if (!IsPremade && !IsJungle) _module.SelectDynamicPlayers(_snapshot, Selected());
             _preview.Text = lines.Count == 0 && IsPremade && _snapshot != null ?
-                T(LeagueEfficiencyUiTextKeys.PremadeNoGroups) : lines.Count == 0 && IsJungle && _snapshot != null ?
+                T(LeagueEfficiencyUiTextKeys.PremadeNoGroups).Replace("{0}", _options.PremadeMatchThreshold.ToString()) : lines.Count == 0 && IsJungle && _snapshot != null ?
                 T(LeagueEfficiencyUiTextKeys.JungleSelectHint) : string.Join(Environment.NewLine, lines);
             _loadJungle.Enabled = !_busy && IsJungle && _snapshot != null &&
                 _jungle.CheckedItems.Cast<PlayerChoice>().Any(p => p.Player.JungleSamples == null);
