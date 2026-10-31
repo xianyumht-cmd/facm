@@ -349,6 +349,10 @@ namespace FACM.League
                 })
                     Require(!LeagueSgpServerCatalog.TryApply(Bytes(unsafeNew.Replace("2026-08-03", "2026-08-04"))),
                         "A new platform must reject wrong provider, hostname, port or region identity.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-08-05"))) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
+                    "A newer catalog must revoke an omitted dynamic platform and retain its own known entries.");
                 Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN11") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,

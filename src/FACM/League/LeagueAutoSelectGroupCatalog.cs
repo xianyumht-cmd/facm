@@ -50,6 +50,7 @@ namespace FACM.League
                 if (entry.Custom != custom ||
                     !entry.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                     (string.IsNullOrEmpty(sgpServerId) ||
+                     !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
                      !entry.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) continue;
                 foreach (var target in entry.Targets)
                 {
@@ -73,6 +74,7 @@ namespace FACM.League
             var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
             if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                 (string.IsNullOrEmpty(sgpServerId) ||
+                 !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
                  !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return null;
             var sourceRole = assignedRole == "support" ? "utility" : assignedRole ?? "default";
             return group.Positions.Contains(sourceRole, StringComparer.Ordinal)

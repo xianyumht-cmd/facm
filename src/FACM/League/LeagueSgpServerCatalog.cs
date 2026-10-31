@@ -53,7 +53,9 @@ namespace FACM.League
                     updated.UtcDateTime > DateTime.UtcNow.AddDays(1)) return false;
                 var remote = serversValue as Dictionary<string, object>;
                 if (remote == null || remote.Count == 0 || remote.Count > 128) return false;
-                var existing = LeagueSgpMatchHistoryApiClient.Servers;
+                // Rebuild from the pinned baseline so a later trusted catalog can revoke
+                // an added platform rather than keeping its old credential destination.
+                var existing = LeagueSgpMatchHistoryApiClient.BuiltinServers;
                 var next = new List<LeagueSgpServer>(existing.Length);
                 var changed = 0;
                 foreach (var server in existing)
