@@ -333,6 +333,13 @@ namespace FACM.League
                 ParticipantResolved = true, StatisticsAvailable = true });
             Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
                 "Conflicting duplicate historical outcomes must suppress the entire team summary.");
+            low.Players[1].History.Matches.RemoveAt(low.Players[1].History.Matches.Count - 1);
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 400,
+                GameType = "CUSTOM_GAME", WinResult = "win", ParticipantResolved = true,
+                StatisticsAvailable = true });
+            Require(LeaguePremadeTeamAggregate.Project(low.Players).Wins == 0 &&
+                LeaguePremadeTeamTagProjection.Classify(low.Players) == LeaguePremadeTeamTagProjection.LossRateTeam,
+                "Non-matchmade history must not affect ongoing premade outcome labels.");
         }
 
         private static void ValidateOngoingPlayerTags()

@@ -153,7 +153,9 @@ namespace FACM.League
                 var seen = new Dictionary<long, LeaguePlayerMatchSummary>();
                 foreach (var match in player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount))
                 {
-                    if (match == null || match.GameId <= 0) continue;
+                    if (match == null || match.GameId <= 0 ||
+                        !string.IsNullOrWhiteSpace(match.GameType) &&
+                        !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) continue;
                     LeaguePlayerMatchSummary prior;
                     if (seen.TryGetValue(match.GameId, out prior))
                     {
@@ -209,7 +211,9 @@ namespace FACM.League
                 var seen = new Dictionary<long, LeaguePlayerMatchSummary>();
                 foreach (var match in member.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount))
                 {
-                    if (match == null || match.GameId <= 0) continue;
+                    if (match == null || match.GameId <= 0 ||
+                        !string.IsNullOrWhiteSpace(match.GameType) &&
+                        !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) continue;
                     LeaguePlayerMatchSummary prior;
                     if (seen.TryGetValue(match.GameId, out prior))
                     {
