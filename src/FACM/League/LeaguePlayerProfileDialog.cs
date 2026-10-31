@@ -94,6 +94,9 @@ namespace FACM.League
         private readonly TextBox _search, _masteryDetails;
         private readonly CheckBox _allMasteries;
         private readonly Label _profile, _status;
+        private readonly PictureBox _profileIcon;
+        private readonly Label _profileIconFallback;
+        private int _profileIconId, _profileIconGeneration;
         private readonly Button _refresh;
         private readonly Dictionary<int, string> _names;
         private List<Dictionary<string, object>> _masteryRows;
@@ -128,7 +131,22 @@ namespace FACM.League
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            _profile = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = name };
+            _profile = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = name,
+                TextAlign = ContentAlignment.MiddleLeft };
+            var profileHeader = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            profileHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 54));
+            profileHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            var portraitFrame = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 2, 6, 2),
+                BackColor = FacmDesignSystem.SurfaceRaised };
+            _profileIcon = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+            _profileIconFallback = new Label { Dock = DockStyle.Fill, Text = "—",
+                TextAlign = ContentAlignment.MiddleCenter, ForeColor = FacmDesignSystem.Text };
+            portraitFrame.Controls.Add(_profileIcon);
+            portraitFrame.Controls.Add(_profileIconFallback);
+            _profileIconFallback.BringToFront();
+            profileHeader.Controls.Add(portraitFrame, 0, 0);
+            profileHeader.Controls.Add(_profile, 1, 0);
             _tabs = new TabControl { Dock = DockStyle.Fill };
             _ranked = List();
             _ranked.Columns.Add(ui.Get(UiTextKeys.LeagueProfileField), 180);
@@ -214,7 +232,7 @@ namespace FACM.League
                     await LoadSelectedAsync(false);
             };
             footer.Controls.Add(_status, 0, 0); footer.Controls.Add(_refresh, 1, 0);
-            layout.Controls.Add(_profile, 0, 0); layout.Controls.Add(_tabs, 0, 1); layout.Controls.Add(footer, 0, 2);
+            layout.Controls.Add(profileHeader, 0, 0); layout.Controls.Add(_tabs, 0, 1); layout.Controls.Add(footer, 0, 2);
             Controls.Add(layout);
             Shown += async (sender, args) =>
             {
@@ -351,6 +369,7 @@ namespace FACM.League
             _profile.Text = details.Profile == null ? "—" : details.Profile.AccountName + " · " +
                 _ui.Get(UiTextKeys.LeagueDashboardLevel) + " " + (details.Profile.SummonerLevel > 0 ? details.Profile.SummonerLevel.ToString() : "—") +
                 "\r\n" + _ui.Get(UiTextKeys.LeagueProfileBackground).Replace("{0}", Number(details.Cosmetics, "backgroundSkinId"));
+            UpdateProfileIcon(details.Profile == null ? 0 : details.Profile.ProfileIconId);
             if (details.Status == LeaguePlayerDetailsStatus.UnsupportedRegion) return;
             var solo = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_SOLO_5x5");
             var flex = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_FLEX_SR");
@@ -517,6 +536,49 @@ namespace FACM.League
                     .Replace("{1}", LeagueMatchTimelineParser.Text(row, "highestGrade") ?? "—");
         }
 
+        internal static string ProfileIconReference(int profileIconId)
+        {
+            return profileIconId > 0 && profileIconId <= 1000000
+                ? "lcu:/lol-game-data/assets/v1/profile-icons/" +
+                    profileIconId.ToString(CultureInfo.InvariantCulture) + ".jpg" : null;
+        }
+
+        private void UpdateProfileIcon(int iconId)
+        {
+            if (_profileIconId == iconId) return;
+            _profileIconId = iconId;
+            var generation = ++_profileIconGeneration;
+            var old = _profileIcon.Image;
+            _profileIcon.Image = null;
+            old?.Dispose();
+            _profileIconFallback.Text = iconId > 0 ? iconId.ToString(CultureInfo.CurrentCulture) : "—";
+            _profileIconFallback.Visible = true;
+            _profileIconFallback.BringToFront();
+            var reference = ProfileIconReference(iconId);
+            if (reference != null && _loadAsset != null && IsCurrent() && !_lifetime.IsCancellationRequested)
+                _ = LoadProfileIconAsync(reference, generation);
+        }
+
+        private async Task LoadProfileIconAsync(string reference, int generation)
+        {
+            Bitmap image = null;
+            try
+            {
+                await MasteryPortraitGate.WaitAsync(_lifetime.Token);
+                try { image = await _loadAsset(reference, _lifetime.Token); }
+                finally { MasteryPortraitGate.Release(); }
+                if (image == null || IsDisposed || _lifetime.IsCancellationRequested ||
+                    !IsCurrent() || generation != _profileIconGeneration) return;
+                _profileIcon.Image = image;
+                image = null;
+                _profileIconFallback.Visible = false;
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception) { }
+            finally { image?.Dispose(); }
+        }
+
         internal static string MasteryPortraitReference(int championId)
         {
             return championId > 0 && championId <= 100000
@@ -623,7 +685,7 @@ namespace FACM.League
                 status == LeaguePlayerDetailsStatus.Partial ? UiTextKeys.LeagueProfilePartial : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
         }
         private bool IsCurrent() { return _currentSession == null || LeagueEncounterReplayService.SessionMatches(_session, _currentSession()); }
-        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
+        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; UpdateProfileIcon(0); _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
         private void AddRank(string key, string solo, string flex)
         { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(solo); row.SubItems.Add(flex); _ranked.Items.Add(row); }
         private void AddTab(string key, Control control)
@@ -637,6 +699,8 @@ namespace FACM.League
             {
                 LeaguePlayerPostgameRefreshBridge.PostgameEntered -= OnPostgameEntered;
                 _lifetime.Cancel();
+                _profileIcon.Image?.Dispose();
+                _profileIcon.Image = null;
                 _masteryPortraits.Dispose();
                 _lifetime.Dispose();
             }

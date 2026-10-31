@@ -69,6 +69,7 @@ namespace FACM.League
             var result = await service.LoadPlayerDetailsAsync("self", "target", session, null,
                 LeaguePlayerHistorySource.Automatic, CancellationToken.None);
             Require(result.Status == LeaguePlayerDetailsStatus.Ready && result.Profile.PuuId == "target" &&
+                result.Profile.ProfileIconId == 42 &&
                 api.Paths.SequenceEqual(new[] { LeagueDashboardDetailsService.SummonerPath,
                     "/lol-summoner/v2/summoners/puuid/target", "/lol-ranked/v1/ranked-stats/target",
                     "/lol-summoner/v1/summoner-profile?puuid=target", LeagueDashboardDetailsService.SummonerPath }) &&
@@ -139,6 +140,13 @@ namespace FACM.League
                     masteryNames, "2", 2, true)).SequenceEqual(new[] { 2 }) &&
                 LeaguePlayerProfileDialog.FilterAndSortMasteries(null, masteryNames, "", 2, true).Count == 0,
                 "Mastery list must support stable column sorting, name/ID filtering and missing-time ordering.");
+            Require(LeaguePlayerProfileDialog.ProfileIconReference(42) ==
+                    "lcu:/lol-game-data/assets/v1/profile-icons/42.jpg" &&
+                LeaguePlayerProfileDialog.ProfileIconReference(0) == null &&
+                LeaguePlayerProfileDialog.ProfileIconReference(-1) == null &&
+                FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(
+                    LeaguePlayerProfileDialog.ProfileIconReference(42)),
+                "Profile avatar must use the pinned LCU profile icon path with invalid-ID fallback.");
             Require(LeaguePlayerProfileDialog.MasteryPortraitReference(1) ==
                     "lcu:/lol-game-data/assets/v1/champion-icons/1.png" &&
                 LeaguePlayerProfileDialog.MasteryPortraitReference(0) == null &&
@@ -260,7 +268,7 @@ namespace FACM.League
                 if (path == LeagueDashboardDetailsService.SummonerPath)
                     return Task.FromResult(Bytes(Changed ? "{\"puuid\":\"other\"}" : "{\"puuid\":\"self\"}"));
                 if (path == "/lol-summoner/v2/summoners/puuid/target")
-                    return Task.FromResult(Bytes("{\"puuid\":\"target\",\"gameName\":\"Fixture\",\"summonerLevel\":42}"));
+                    return Task.FromResult(Bytes("{\"puuid\":\"target\",\"gameName\":\"Fixture\",\"summonerLevel\":42,\"profileIconId\":42}"));
                 if (path == "/lol-ranked/v1/ranked-stats/target")
                 {
                     if (TimeoutRanked) throw new OperationCanceledException();
