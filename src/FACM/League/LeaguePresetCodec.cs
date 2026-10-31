@@ -38,7 +38,6 @@ namespace FACM.League
             catch (FormatException) { }
             catch (InvalidDataException) { }
             catch (IOException) { }
-            catch (DecoderFallbackException) { }
             return null;
         }
 
