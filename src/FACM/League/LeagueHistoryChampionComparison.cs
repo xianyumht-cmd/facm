@@ -148,6 +148,233 @@ namespace FACM.League
         }
     }
 
+
+    // The source's compact overview groups the same evidence-backed metrics that
+    // the native 29-field comparison already computes. Never derive a second
+    // inconsistent set of ratios from partial LCU rows.
+    internal sealed class LeagueHistoryOverviewSection
+    {
+        internal string TitleKey;
+        internal List<LeagueHistoryComparisonValue> Metrics;
+    }
+
+    internal static class LeagueHistoryChampionOverview
+    {
+        private static readonly string[] Performance = {
+            UiTextKeys.LeaguePlayerCompareScore, UiTextKeys.LeaguePlayerCompareWinRate,
+            UiTextKeys.LeaguePlayerCompareKda, UiTextKeys.LeaguePlayerCompareParticipation,
+            UiTextKeys.LeaguePlayerCompareKdaVariation, UiTextKeys.LeaguePlayerCompareVision,
+            UiTextKeys.LeaguePlayerCompareVisionShare, UiTextKeys.LeaguePlayerComparePings,
+            UiTextKeys.LeaguePlayerCompareMissingPings
+        };
+        private static readonly string[] Combat = {
+            UiTextKeys.LeaguePlayerCompareDamageMinute, UiTextKeys.LeaguePlayerCompareDamageShare,
+            UiTextKeys.LeaguePlayerCompareDamageTeamMax, UiTextKeys.LeaguePlayerCompareDamageGameMax,
+            UiTextKeys.LeaguePlayerCompareTakenShare, UiTextKeys.LeaguePlayerCompareTakenTeamMax,
+            UiTextKeys.LeaguePlayerCompareTakenGameMax, UiTextKeys.LeaguePlayerCompareDamageGold,
+            UiTextKeys.LeaguePlayerCompareKillDamageEfficiency, UiTextKeys.LeaguePlayerCompareSoloKills
+        };
+        private static readonly string[] Economy = {
+            UiTextKeys.LeaguePlayerCompareGoldShare, UiTextKeys.LeaguePlayerCompareGoldTeamMax,
+            UiTextKeys.LeaguePlayerCompareGoldGameMax, UiTextKeys.LeaguePlayerCompareCsMinute,
+            UiTextKeys.LeaguePlayerCompareCsShare, UiTextKeys.LeaguePlayerCompareCsTeamMax,
+            UiTextKeys.LeaguePlayerCompareCsGameMax, UiTextKeys.LeaguePlayerCompareTowerShare,
+            UiTextKeys.LeaguePlayerCompareTowerTeamMax, UiTextKeys.LeaguePlayerCompareTowerGameMax
+        };
+
+        internal static List<LeagueHistoryOverviewSection> Project(
+            IEnumerable<LeaguePlayerMatchSummary> matches, int championId)
+        {
+            var values = LeagueHistoryChampionComparison.Calculate(matches, championId)
+                .ToDictionary(v => v.Key, StringComparer.Ordinal);
+            return new List<LeagueHistoryOverviewSection> {
+                Section(UiTextKeys.LeaguePlayerOverviewPerformance, Performance, values),
+                Section(UiTextKeys.LeaguePlayerOverviewCombat, Combat, values),
+                Section(UiTextKeys.LeaguePlayerOverviewEconomy, Economy, values)
+            };
+        }
+
+        private static LeagueHistoryOverviewSection Section(string title, IEnumerable<string> keys,
+            IDictionary<string, LeagueHistoryComparisonValue> values)
+        {
+            var metrics = new List<LeagueHistoryComparisonValue>();
+            foreach (var key in keys)
+            {
+                LeagueHistoryComparisonValue value;
+                if (!values.TryGetValue(key, out value)) continue;
+                // Pinned ChampionAnalysisContent only exposes these optional fields
+                // when their complete source evidence is available.
+                if ((key == UiTextKeys.LeaguePlayerCompareSoloKills ||
+                     key == UiTextKeys.LeaguePlayerComparePings ||
+                     key == UiTextKeys.LeaguePlayerCompareMissingPings) &&
+                    !value.Value.HasValue) continue;
+                metrics.Add(value);
+            }
+            return new LeagueHistoryOverviewSection { TitleKey = title, Metrics = metrics };
+        }
+    }
+
+    internal sealed class LeagueHistoryChampionOverviewView : UserControl
+    {
+        private readonly UiTextCatalog _ui;
+        private readonly ComboBox _selector;
+        private readonly Label _summary, _modes;
+        private readonly ListView _metrics;
+        private List<LeaguePlayerMatchSummary> _matches = new List<LeaguePlayerMatchSummary>();
+        private bool _rebuilding;
+        internal event Action<int> ChampionChanged;
+
+        private sealed class Choice
+        {
+            internal int Id;
+            internal string Name;
+            public override string ToString() { return Name; }
+        }
+
+        internal int SelectedChampionId
+        {
+            get { return (_selector.SelectedItem as Choice)?.Id ?? 0; }
+        }
+
+        internal LeagueHistoryChampionOverviewView(UiTextCatalog ui)
+        {
+            _ui = ui;
+            Dock = DockStyle.Fill;
+            BackColor = FacmDesignSystem.Canvas;
+            _selector = new ComboBox { Dock = DockStyle.Top, Height = 34,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.Surface, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroSelect) };
+            _summary = new Label { Dock = DockStyle.Top, Height = 34,
+                Padding = new Padding(8, 6, 8, 2), AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text };
+            _modes = new Label { Dock = DockStyle.Top, Height = 50,
+                Padding = new Padding(8, 2, 8, 5), AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.Text };
+            _metrics = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                ShowGroups = true, FullRowSelect = true, HideSelection = false,
+                MultiSelect = false, BackColor = FacmDesignSystem.Surface,
+                ForeColor = FacmDesignSystem.Text };
+            _metrics.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerCompareMetric), 215);
+            _metrics.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerCompareScope), 245);
+            Controls.Add(_metrics);
+            Controls.Add(_modes);
+            Controls.Add(_summary);
+            Controls.Add(_selector);
+            _selector.SelectedIndexChanged += (sender, args) =>
+            {
+                if (_rebuilding) return;
+                Render();
+                ChampionChanged?.Invoke(SelectedChampionId);
+            };
+        }
+
+        internal void RefreshData(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            var selectedId = SelectedChampionId;
+            _matches = LeaguePlayerHistoryAnalysis.LoadedMatches(matches);
+            var analysis = LeaguePlayerHistoryAnalysis.Calculate(_matches);
+            _rebuilding = true;
+            try
+            {
+                _selector.Items.Clear();
+                _selector.Items.Add(new Choice { Id = 0,
+                    Name = _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll) });
+                foreach (var champion in analysis.AllChampions)
+                    _selector.Items.Add(new Choice { Id = champion.ChampionId,
+                        Name = (string.IsNullOrWhiteSpace(champion.ChampionName)
+                            ? "#" + champion.ChampionId : champion.ChampionName) +
+                            " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")" });
+                var index = 0;
+                for (var i = 1; i < _selector.Items.Count; i++)
+                    if (((Choice)_selector.Items[i]).Id == selectedId) { index = i; break; }
+                _selector.SelectedIndex = index;
+            }
+            finally { _rebuilding = false; }
+            Render();
+        }
+
+        internal void SelectChampion(int championId)
+        {
+            for (var i = 0; i < _selector.Items.Count; i++)
+            {
+                if (((Choice)_selector.Items[i]).Id != championId) continue;
+                if (_selector.SelectedIndex != i) _selector.SelectedIndex = i;
+                return;
+            }
+            if (_selector.Items.Count > 0 && _selector.SelectedIndex != 0)
+                _selector.SelectedIndex = 0;
+        }
+
+        private void Render()
+        {
+            var id = SelectedChampionId;
+            var selected = _matches.Where(m => id == 0 || m.ChampionId == id).ToList();
+            var analysis = LeaguePlayerHistoryAnalysis.Calculate(selected);
+            var count = analysis.Wins + analysis.Losses;
+            var title = _selector.SelectedItem == null ?
+                _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroAll) : _selector.SelectedItem.ToString();
+            var rate = count > 0
+                ? (analysis.Wins * 100d / count).ToString("0", CultureInfo.CurrentCulture) + "%"
+                : "--";
+            _summary.Text = string.Format(CultureInfo.CurrentCulture,
+                _ui.Get(UiTextKeys.LeaguePlayerOverviewSummary),
+                title, count, analysis.Wins, analysis.Losses, rate);
+            var details = new List<string>();
+            if (analysis.Streak >= 2)
+                details.Add(string.Format(CultureInfo.CurrentCulture,
+                    _ui.Get(UiTextKeys.LeaguePlayerAnalysisStreak),
+                    _ui.Get(analysis.StreakOutcome == LeagueHistoryOutcome.Win
+                        ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss) +
+                    " × " + analysis.Streak.ToString(CultureInfo.CurrentCulture)));
+            LeagueHistoryChampionBreakdown breakdown;
+            if (id > 0 && analysis.ChampionBreakdowns.TryGetValue(id, out breakdown))
+            {
+                if (breakdown.NormalGames > 0)
+                    details.Add(string.Format(CultureInfo.CurrentCulture,
+                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
+                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroNormal),
+                        breakdown.NormalGames, breakdown.NormalWins));
+                if (breakdown.CherryGames > 0)
+                {
+                    details.Add(string.Format(CultureInfo.CurrentCulture,
+                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
+                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherry),
+                        breakdown.CherryGames, breakdown.CherryWins));
+                    details.Add(string.Format(CultureInfo.CurrentCulture,
+                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherryPlacement),
+                        breakdown.CherryKnownPlacements == 0 ? "--" :
+                            breakdown.CherryFirstPlaces + "/" + breakdown.CherryKnownPlacements,
+                        breakdown.CherryKnownTopHalfGames == 0 ? "--" :
+                            breakdown.CherryTopHalfFinishes + "/" + breakdown.CherryKnownTopHalfGames,
+                        breakdown.AverageCherryPlacement.HasValue
+                            ? breakdown.AverageCherryPlacement.Value.ToString("0.0", CultureInfo.CurrentCulture)
+                            : "--"));
+                }
+            }
+            _modes.Text = string.Join(" · ", details);
+            _metrics.BeginUpdate();
+            try
+            {
+                _metrics.Items.Clear();
+                _metrics.Groups.Clear();
+                foreach (var section in LeagueHistoryChampionOverview.Project(_matches, id))
+                {
+                    var group = new ListViewGroup(_ui.Get(section.TitleKey));
+                    _metrics.Groups.Add(group);
+                    foreach (var metric in section.Metrics)
+                    {
+                        var item = new ListViewItem(new[] { _ui.Get(metric.Key),
+                            LeagueHistoryChampionComparison.Format(metric) });
+                        item.Group = group;
+                        _metrics.Items.Add(item);
+                    }
+                }
+            }
+            finally { _metrics.EndUpdate(); }
+        }
+    }
+
     internal sealed class LeagueHistoryChampionComparisonView : UserControl
     {
         private readonly UiTextCatalog _ui;
@@ -155,6 +382,19 @@ namespace FACM.League
         private readonly ListView _values;
         private List<LeaguePlayerMatchSummary> _matches = new List<LeaguePlayerMatchSummary>();
         private bool _rebuilding;
+        internal event Action<int> LeftChampionChanged;
+        internal int SelectedLeftChampionId { get { return (_left.SelectedItem as Choice)?.Id ?? 0; } }
+
+        internal void SelectLeftChampion(int championId)
+        {
+            for (var i = 0; i < _left.Items.Count; i++)
+            {
+                if (((Choice)_left.Items[i]).Id != championId) continue;
+                if (_left.SelectedIndex != i) _left.SelectedIndex = i;
+                return;
+            }
+            if (_left.Items.Count > 0 && _left.SelectedIndex != 0) _left.SelectedIndex = 0;
+        }
 
         private sealed class Choice
         {
@@ -186,7 +426,11 @@ namespace FACM.League
             _values.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerCompareLeft), 145);
             _values.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerCompareRight), 145);
             Controls.Add(_values); Controls.Add(selectors); Controls.Add(hint);
-            _left.SelectedIndexChanged += (sender, args) => RenderRows();
+            _left.SelectedIndexChanged += (sender, args) =>
+            {
+                RenderRows();
+                if (!_rebuilding) LeftChampionChanged?.Invoke(SelectedLeftChampionId);
+            };
             _right.SelectedIndexChanged += (sender, args) => RenderRows();
         }
 

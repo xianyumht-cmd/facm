@@ -41,12 +41,29 @@ namespace FACM.League
                 get(UiTextKeys.LeaguePlayerComparePings).Known == 1 &&
                 !get(UiTextKeys.LeaguePlayerCompareMissingPings).Value.HasValue,
                 "One missing SGP ping source must leave both whole-sample averages unavailable.");
+            var compact = LeagueHistoryChampionOverview.Project(matches, 22);
+            Require(compact.Count == 3 &&
+                compact[0].TitleKey == UiTextKeys.LeaguePlayerOverviewPerformance &&
+                compact[1].TitleKey == UiTextKeys.LeaguePlayerOverviewCombat &&
+                compact[2].TitleKey == UiTextKeys.LeaguePlayerOverviewEconomy &&
+                compact.Sum(group => group.Metrics.Count) == 26 &&
+                compact[0].Metrics.Any(v => v.Key == UiTextKeys.LeaguePlayerCompareVision && v.Value == 0d) &&
+                compact.All(group => group.Metrics.All(v =>
+                    v.Key != UiTextKeys.LeaguePlayerComparePings &&
+                    v.Key != UiTextKeys.LeaguePlayerCompareMissingPings &&
+                    v.Key != UiTextKeys.LeaguePlayerCompareSoloKills)),
+                "Compact champion overview must group all evidenced metrics and hide source-optional gaps.");
             second.TotalPings = 8; second.EnemyMissingPings = 0;
             values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Require(get(UiTextKeys.LeaguePlayerComparePings).Value == 6d &&
                 get(UiTextKeys.LeaguePlayerCompareMissingPings).Value == 1d &&
                 get(UiTextKeys.LeaguePlayerCompareMissingPings).Known == 2,
                 "Two verified ping samples must permit zero missing-pings and average independently.");
+            compact = LeagueHistoryChampionOverview.Project(matches, 22);
+            Require(compact.Sum(group => group.Metrics.Count) == 28 &&
+                compact[0].Metrics.Any(v => v.Key == UiTextKeys.LeaguePlayerCompareMissingPings &&
+                    v.Value == 1d),
+                "Verified optional ping evidence must appear after history enrichment.");
             var independent = LeagueHistoryChampionComparison.Calculate(matches, 145);
             Require(independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareDamageShare).Value == 0 &&
                 !independent.Single(v => v.Key == UiTextKeys.LeaguePlayerCompareKdaVariation).Value.HasValue &&
@@ -107,11 +124,33 @@ namespace FACM.League
                 Require(string.IsNullOrEmpty(chart.AccessibleDescription),
                     "Empty/changed position data must clear the prior chart's accessible summary.");
             }
+            using (var overview = new LeagueHistoryChampionOverviewView(UiTextCatalog.Load()))
+            using (var bitmap = new Bitmap(520, 340))
+            {
+                overview.Size = bitmap.Size;
+                overview.RefreshData(matches);
+                overview.SelectChampion(22);
+                overview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
+                Require(overview.SelectedChampionId == 22 &&
+                    overview.Controls.OfType<ListView>().Single().Groups.Count == 3 &&
+                    overview.Controls.OfType<ListView>().Single().Items.Count == 28,
+                    "Native champion overview must expose grouped metrics for the selected hero.");
+                overview.RefreshData(matches.Where(m => m.ChampionId == 145));
+                Require(overview.SelectedChampionId == 0,
+                    "Removed champion selections must reset instead of showing stale data.");
+                overview.RefreshData(new LeaguePlayerMatchSummary[0]);
+                Require(overview.Controls.OfType<ListView>().Single().Items
+                    .Cast<ListViewItem>().All(item => item.SubItems[1].Text.Contains("(0/0)")),
+                    "Empty overview refresh must clear all prior numeric evidence.");
+            }
             using (var view = new LeagueHistoryChampionComparisonView(UiTextCatalog.Load()))
             using (var bitmap = new Bitmap(520, 330))
             {
                 view.Size = bitmap.Size;
                 view.RefreshData(matches);
+                view.SelectLeftChampion(22);
+                Require(view.SelectedLeftChampionId == 22,
+                    "Cross-tab champion selection must update the comparison's left side.");
                 view.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                 Require(view.Controls.OfType<ListView>().Single().Items.Count == 29,
                     "Native comparison must expose every available metric row.");

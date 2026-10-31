@@ -545,6 +545,9 @@ namespace FACM.League
             })
             {
                 var tabs = new TabControl { Dock = DockStyle.Fill };
+                var overviewTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerOverviewTitle));
+                var overview = new LeagueHistoryChampionOverviewView(ui);
+                overviewTab.Controls.Add(overview);
                 var reportTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisAction));
                 var comparisonTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerCompareTitle));
                 var positionTab = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisPositions));
@@ -558,11 +561,13 @@ namespace FACM.League
                 var jungleTab = new TabPage(ui.Get(UiTextKeys.LeagueJungleHistoryTitle));
                 var comparison = new LeagueHistoryChampionComparisonView(ui);
                 comparisonTab.Controls.Add(comparison);
+                tabs.TabPages.Add(overviewTab);
                 tabs.TabPages.Add(reportTab);
                 tabs.TabPages.Add(comparisonTab);
                 tabs.TabPages.Add(jungleTab);
                 dialog.Controls.Add(tabs);
                 comparison.RefreshData(snapshot);
+                overview.RefreshData(snapshot);
                 var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40f));
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));
@@ -723,6 +728,19 @@ namespace FACM.League
                                 " (#" + champion.ChampionId.ToString(CultureInfo.InvariantCulture) + ")");
                         selector.SelectedIndex = 0;
                     };
+                    Action<int> selectHero = championId =>
+                    {
+                        var index = championId <= 0 ? -1 :
+                            a.AllChampions.FindIndex(c => c.ChampionId == championId);
+                        if (selector.SelectedIndex != index + 1) selector.SelectedIndex = index + 1;
+                    };
+                    overview.ChampionChanged += selectHero;
+                    comparison.LeftChampionChanged += selectHero;
+                    jungleSelector.SelectedIndexChanged += (sender, args) =>
+                    {
+                        if (jungleSelector.SelectedIndex > 0)
+                            selectHero(((KeyValuePair<int, string>)jungleSelector.SelectedItem).Key);
+                    };
                     Action refreshPositions = () =>
                     {
                         var championId = selector.SelectedIndex > 0 &&
@@ -745,6 +763,21 @@ namespace FACM.League
                     selector.SelectedIndexChanged += (sender, args) =>
                     {
                         refreshPositions();
+                        var selectedChampionId = selector.SelectedIndex > 0 &&
+                            selector.SelectedIndex <= a.AllChampions.Count
+                            ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
+                        overview.SelectChampion(selectedChampionId);
+                        comparison.SelectLeftChampion(selectedChampionId);
+                        var jungleIndex = 0;
+                        for (var i = 1; i < jungleSelector.Items.Count; i++)
+                        {
+                            if (((KeyValuePair<int, string>)jungleSelector.Items[i]).Key != selectedChampionId)
+                                continue;
+                            jungleIndex = i;
+                            break;
+                        }
+                        if (jungleSelector.SelectedIndex != jungleIndex)
+                            jungleSelector.SelectedIndex = jungleIndex;
                         var updated = new List<string>(lines);
                         if (selector.SelectedIndex > 0 && selector.SelectedIndex <= a.AllChampions.Count)
                         {
@@ -857,6 +890,7 @@ namespace FACM.League
                                 ? a.AllChampions[selector.SelectedIndex - 1].ChampionId : 0;
                             a = Calculate(snapshot);
                             comparison.RefreshData(snapshot);
+                            overview.RefreshData(snapshot);
                             lines = ReportLines(ui, a);
                             rebuildSelector();
                             if (previousChampionId > 0)
