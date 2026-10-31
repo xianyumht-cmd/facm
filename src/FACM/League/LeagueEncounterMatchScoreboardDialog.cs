@@ -816,7 +816,7 @@ namespace FACM.League
             LeaguePlayerMatchSummary match, LeaguePlayerMatchParticipant player,
             IEnumerable<LeagueMatchTeamScore> teams, bool cherry)
         {
-            if (match == null || player == null || match.GameDurationSeconds <= 0 ||
+            if (match == null || player == null || match.GameId <= 0 || match.GameDurationSeconds <= 0 ||
                 !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase) ||
                 !match.RosterIdentitiesComplete || match.ParticipantRoster == null ||
                 match.ParticipantRoster.Length < 2 || match.ParticipantRoster.Length > 20 ||
@@ -825,7 +825,9 @@ namespace FACM.League
                 p.ParticipantId == player.ParticipantId).Take(2).ToList();
             if (members.Count != 1) return null;
             var self = members[0];
-            if (!self.StatisticsAvailable || self.TeamId != player.TeamId ||
+            if (!self.ParticipantResolved || !self.StatisticsAvailable ||
+                self.Kills < 0 || self.Deaths < 0 || self.Assists < 0 || self.CreepScore < 0 ||
+                self.TeamId != player.TeamId ||
                 (cherry && self.PlayerSubteamId != player.PlayerSubteamId) ||
                 (!string.IsNullOrWhiteSpace(self.PuuId) && !string.IsNullOrWhiteSpace(player.PuuId) &&
                  !string.Equals(self.PuuId, player.PuuId, StringComparison.OrdinalIgnoreCase)))

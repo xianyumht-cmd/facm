@@ -156,13 +156,15 @@ namespace FACM.League
         {
             var first = new LeaguePlayerMatchSummary {
                 ParticipantId = 1, TeamId = 100, PuuId = "first",
-                StatisticsAvailable = true, Kills = 10, Deaths = 1, Assists = 8,
+                ParticipantResolved = true, StatisticsAvailable = true,
+                Kills = 10, Deaths = 1, Assists = 8,
                 CreepScore = 200, DamageDealtToChampions = 300, DamageTaken = 200,
                 GoldEarned = 300, VisionScore = 20, TotalHeal = 200
             };
             var second = new LeaguePlayerMatchSummary {
                 ParticipantId = 2, TeamId = 100, PuuId = "second",
-                StatisticsAvailable = true, Kills = 0, Deaths = 2, Assists = 2,
+                ParticipantResolved = true, StatisticsAvailable = true,
+                Kills = 0, Deaths = 2, Assists = 2,
                 CreepScore = 100, DamageDealtToChampions = 100, DamageTaken = 100,
                 GoldEarned = 100, VisionScore = 10, TotalHeal = 10
             };
@@ -177,6 +179,10 @@ namespace FACM.League
             var score = LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false);
             Require(score != null && score.Games == 1 && score.Total > 0 && score.Total <= 17,
                 "Per-match Akari score must use complete source participant and team evidence.");
+            first.ParticipantResolved = false;
+            Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
+                "Unresolved participant identity cannot inherit an Akari score.");
+            first.ParticipantResolved = true;
             first.VisionScore = null;
             Require(LeagueEncounterMatchScoreboardDialog.SingleAkariScore(match, player, teams, false) == null,
                 "Missing vision data cannot become a zero-valued per-match score.");
