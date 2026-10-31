@@ -273,7 +273,14 @@ namespace FACM.League
                         if (completed)
                         {
                             _binding = true;
-                            try { RebuildPremadeGroups(current, true); }
+                            try
+                            {
+                                RebuildPremadeGroups(current, true);
+                                foreach (var choice in _players.Items.Cast<PlayerChoice>()
+                                    .Concat(_jungle.Items.Cast<PlayerChoice>())) choice.RefreshSourceTags();
+                                _players.Refresh();
+                                _jungle.Refresh();
+                            }
                             finally { _binding = false; }
                         }
                         _status.Text = T(completed ? LeagueEfficiencyUiTextKeys.DynamicReady :
@@ -594,12 +601,22 @@ namespace FACM.League
         {
             internal readonly LeagueDynamicMessagePlayer Player;
             internal string Tag;
-            internal PlayerChoice(LeagueDynamicMessagePlayer player) { Player = player; }
+            private IReadOnlyList<string> _sourceTags;
+            internal PlayerChoice(LeagueDynamicMessagePlayer player)
+            {
+                Player = player;
+                RefreshSourceTags();
+            }
+            internal void RefreshSourceTags()
+            {
+                _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History);
+            }
             public override string ToString()
             {
                 return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
                     " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer)) +
-                    (string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]");
+                    (string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +
+                    (_sourceTags == null || _sourceTags.Count == 0 ? string.Empty : " · " + string.Join(" · ", _sourceTags));
             }
         }
 

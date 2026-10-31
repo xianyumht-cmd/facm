@@ -18,6 +18,7 @@ namespace FACM.League
             LeagueEncounterHistorySmokeTest.Validate();
             ValidateAggregation();
             ValidatePremadeInference();
+            ValidateOngoingPlayerTags();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -325,6 +326,43 @@ namespace FACM.League
                 ParticipantResolved = true, StatisticsAvailable = true });
             Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
                 "Conflicting duplicate historical outcomes must suppress the entire team summary.");
+        }
+
+        private static void ValidateOngoingPlayerTags()
+        {
+            var page = new LeaguePlayerMatchPage();
+            var now = DateTime.UtcNow;
+            for (var i = 0; i < 16; i++)
+                page.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 1000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", SpellIds = i < 8 ? new[] { 4, 7 } : new[] { 7, 4 }
+                });
+            var tags = LeagueOngoingPlayerTagProjection.Project(page);
+            Require(tags.Count == 3 &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate)) &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash)) &&
+                tags.Any(tag => tag.Contains("16")),
+                "Source-backed player card tags must project winning streak, high win rate and mixed Flash slots.");
+            page.Matches[0].StatisticsAvailable = false;
+            tags = LeagueOngoingPlayerTagProjection.Project(page);
+            Require(tags.Count == 1 &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash)),
+                "Unknown newest game must break the streak and cannot count toward a 16-game win rate.");
+            var losses = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 4; i++)
+                losses.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 2000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss"
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Count == 1 &&
+                LeagueOngoingPlayerTagProjection.Project(losses)[0].Contains("4"),
+                "Pinned loss streak threshold must work without fabricating other player tags.");
+            Require(LeagueOngoingPlayerTagProjection.Project(new LeaguePlayerMatchPage()).Count == 0,
+                "Missing history must not create any player-card tags.");
         }
 
         private static void ValidateJungleTimeline()

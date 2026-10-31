@@ -374,6 +374,10 @@ namespace FACM.League
         public const string PremadeLossRateTeam = "LeagueEfficiencyPremadeLossRateTeam";
         public const string PremadeTeamStats = "LeagueEfficiencyPremadeTeamStats";
         public const string PremadeTeamWinRate = "LeagueEfficiencyPremadeTeamWinRate";
+        public const string OngoingWinStreak = "LeagueEfficiencyOngoingWinStreak";
+        public const string OngoingLossStreak = "LeagueEfficiencyOngoingLossStreak";
+        public const string OngoingHighWinRate = "LeagueEfficiencyOngoingHighWinRate";
+        public const string OngoingMixedFlash = "LeagueEfficiencyOngoingMixedFlash";
         public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
         public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
         public const string JungleTab = "LeagueEfficiencyJungleTab";
@@ -791,6 +795,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeLossRateTeam, "娱乐队" },
             { LeagueEfficiencyUiTextKeys.PremadeTeamStats, "成员样本胜率 {0}% · KDA {1}" },
             { LeagueEfficiencyUiTextKeys.PremadeTeamWinRate, "成员样本胜率 {0}%" },
+            { LeagueEfficiencyUiTextKeys.OngoingWinStreak, "连胜 {0}" },
+            { LeagueEfficiencyUiTextKeys.OngoingLossStreak, "连败 {0}" },
+            { LeagueEfficiencyUiTextKeys.OngoingHighWinRate, "高胜率" },
+            { LeagueEfficiencyUiTextKeys.OngoingMixedFlash, "闪现键位混用" },
             { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少 {0} 局），不能判定无人组队。" },
             { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.JungleTab, "打野分析" },

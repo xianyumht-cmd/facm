@@ -360,6 +360,31 @@ namespace FACM.League
         }
     }
 
+    internal static class LeagueOngoingPlayerTagProjection
+    {
+        // Pinned v1.5.1 player-card thresholds, evaluated only from the loaded history owner.
+        internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history)
+        {
+            var tags = new List<string>();
+            if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
+            var analysis = LeaguePlayerHistoryAnalysis.Calculate(
+                history.Matches.Take(LeaguePlayerDataService.MaximumMatchCount));
+            if (analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Win)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingWinStreak)
+                    .Replace("{0}", analysis.Streak.ToString(CultureInfo.InvariantCulture)));
+            if (analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Loss)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingLossStreak)
+                    .Replace("{0}", analysis.Streak.ToString(CultureInfo.InvariantCulture)));
+            if (analysis.Wins + analysis.Losses >= 16 &&
+                (double)analysis.Wins / (analysis.Wins + analysis.Losses) >= 0.85)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate));
+            if (analysis.Preferences != null && analysis.Preferences.FlashOnD > 0 &&
+                analysis.Preferences.FlashOnF > 0)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash));
+            return tags;
+        }
+    }
+
     internal sealed class LeaguePlayerHistoryAnalysis
     {
         internal int Loaded, Wins, Losses, Remakes, Aborts, Unknowns, Other;
