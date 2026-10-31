@@ -898,7 +898,7 @@ namespace FACM.League
                 for (var i = 0; i < players.Count; i++)
                 {
                     var value = read(players[i]);
-                    if (!value.HasValue || value.Value < 0 ||
+                    if (!value.HasValue ||
                         double.IsNaN(value.Value) || double.IsInfinity(value.Value))
                     {
                         values[i] = "—";
@@ -942,7 +942,8 @@ namespace FACM.League
             add(economy, "Max lane CS advantage", p => p.MaxCsAdvantageOnLaneOpponent);
             var utility = UiTextKeys.LeaguePlayerMatchDetailsUtility;
             add(utility, "Total healing", p => p.TotalHeal);
-            add(utility, "Time CCing others", p => p.TimeCCingOthers);
+            add(utility, "Time CCing others", p => p.TimeCCingOthers >= 0
+                ? p.TimeCCingOthers : null);
             Action<string, string[]> raw = (group, keys) =>
             {
                 foreach (var key in keys)

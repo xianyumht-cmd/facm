@@ -207,7 +207,7 @@ namespace FACM.League
                 ParticipantId = 1, Kills = 0, Deaths = 1, Assists = 2,
                 DamageAvailable = true, DamageToChampions = 0,
                 GoldAvailable = false, GoldEarned = 0, TotalHeal = 0,
-                TimeCCingOthers = 1.25
+                TimeCCingOthers = 1.25, MaxCsAdvantageOnLaneOpponent = -3.5
             };
             var second = new LeaguePlayerMatchParticipant {
                 ParticipantId = 2, Kills = 3, Deaths = 0, Assists = 4,
@@ -220,6 +220,7 @@ namespace FACM.League
                     get("Gold earned").Values.SequenceEqual(new[] { "—", "100" }) &&
                     get("Total healing").Values.SequenceEqual(new[] { "0", "—" }) &&
                     get("Time CCing others").Values[0] != "—" &&
+                    get("Max lane CS advantage").Values[0].StartsWith("-") &&
                     !rows.Any(row => row.Name == "Physical champion damage") &&
                     rows.Select(row => row.GroupKey).Distinct().Count() >= 3,
                 "Detailed match stats must preserve known zero, missing values and source groups.");
