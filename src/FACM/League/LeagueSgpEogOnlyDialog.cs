@@ -214,7 +214,7 @@ namespace FACM.League
             Activated += (sender, args) => { if (!IsCurrent(detail)) Close(); };
         }
 
-        private static void AddDerived(ListView stats, string label, double? value, bool percent)
+        internal static void AddDerived(ListView stats, string label, double? value, bool percent)
         {
             stats.Items.Add(new ListViewItem(new[] { label,
                 value.HasValue ? (percent ? value.Value * 100d : value.Value)

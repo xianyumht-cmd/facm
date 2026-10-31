@@ -461,6 +461,7 @@ namespace FACM.League
                 eogStats.Columns.Add("SGP Stat", 205);
                 eogStats.Columns.Add("Value", 100);
                 eogSplit.Panel2.Controls.Add(eogStats);
+                LeagueSgpEogResult currentEog = null;
                 eogRows.SelectedIndexChanged += (sender, e) =>
                 {
                     eogStats.BeginUpdate();
@@ -469,15 +470,32 @@ namespace FACM.League
                         eogStats.Items.Clear();
                         var selected = eogRows.SelectedItems.Count == 1
                             ? eogRows.SelectedItems[0].Tag as LeagueSgpEogPlayer : null;
-                        if (selected == null || selected.Statistics == null) return;
+                        if (selected == null || currentEog == null) return;
+                        var derived = LeagueSgpEogProjection.Analyze(currentEog, selected);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "KDA", derived.Kda, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Kill participation",
+                            derived.KillParticipation, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage share",
+                            derived.DamageShare, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold share",
+                            derived.GoldShare, true);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage/min",
+                            derived.DamagePerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold/min",
+                            derived.GoldPerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "CS/min",
+                            derived.CsPerMinute, false);
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Vision/min",
+                            derived.VisionPerMinute, false);
                         if (selected.Metadata != null)
                             foreach (var meta in selected.Metadata.OrderBy(x => x.Key,
                                 StringComparer.OrdinalIgnoreCase))
                                 eogStats.Items.Add(new ListViewItem(new[] { meta.Key, meta.Value }));
-                        foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
-                            StringComparer.OrdinalIgnoreCase))
-                            eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
-                                stat.Value.ToString("G", CultureInfo.CurrentCulture) }));
+                        if (selected.Statistics != null)
+                            foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
+                                StringComparer.OrdinalIgnoreCase))
+                                eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
+                                    stat.Value.ToString("G", CultureInfo.CurrentCulture) }));
                     }
                     finally { eogStats.EndUpdate(); }
                 };
@@ -492,6 +510,8 @@ namespace FACM.League
                         (detail.IsCurrentSession != null && !detail.IsCurrentSession())) return;
                     busy = true;
                     eogRetry.Enabled = false;
+                    currentEog = null;
+                    eogStats.Items.Clear();
                     eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailLoading);
                     try
                     {
@@ -506,6 +526,7 @@ namespace FACM.League
                             eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
                             return;
                         }
+                        currentEog = data;
                         foreach (var group in data.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key))
                         {
                             var complete = group.All(p => p.Kills.HasValue && p.Deaths.HasValue &&
