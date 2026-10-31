@@ -159,7 +159,16 @@ namespace FACM.League
                 case "OCE": return "OC1";
                 case "EUW1": return "EUW";
                 case "JP1": return "JP";
-                default: return region.Length > 0 ? region : platform;
+                default:
+                    // A newly trusted Riot platform may report a short region alias
+                    // (for example ME for ME1). Require an exact catalog entry and
+                    // a matching numeric platform suffix before resolving it.
+                    if (region.Length >= 2 && region.All(c => c >= 'A' && c <= 'Z') &&
+                        platform.Length > region.Length && platform.StartsWith(region, StringComparison.Ordinal) &&
+                        platform.Skip(region.Length).All(c => c >= '0' && c <= '9') &&
+                        Servers.Any(server => !server.IsTencent && server.Id == platform))
+                        return platform;
+                    return region.Length > 0 ? region : platform;
             }
         }
 

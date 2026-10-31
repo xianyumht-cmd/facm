@@ -435,6 +435,9 @@ namespace FACM.League
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(newRiot)) &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Id == "ME1" &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Name == "合成国际区" &&
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(Session("ME1", "ME")) == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "ME")) == null &&
                     LeagueSgpMatchHistoryApiClient.AvailableServers(newRiotSession).Length == 1 &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession, "NA1") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "ME1") == null,
