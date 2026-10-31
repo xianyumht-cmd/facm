@@ -1,3 +1,19 @@
+## 2026-11-01 — Source-pinned all-mode / Arena outcome analysis (Draft #357)
+
+Executable/test candidate [0e9039d](https://github.com/xianyumht-cmd/facm/commit/0e9039def4b3933cc4bfcd4a6479f34adc6cba27) extends the native player and champion history analysis with the pinned Akari v1.5.1 `aggregate/win-loss.ts` all/normal/CHERRY split. Overall history and individual champions now show separate normal/Arena games and wins, verified Arena first-place/upper-half/mean placement and per-mode winning/losing streaks. The champion overview reuses the same mode projection rather than recalculating from raw rows. Champion comparison adds three optional Arena metrics with independent known/total denominators; unknown placements are not scored as zero.
+
+Mode streaks require chronological timestamps and a stable PUUID/SGP region, while incomplete subteam rosters do not create upper-half evidence. The existing match snapshot, WinForms UI and synthetic smoke gates are reused; no new API, game writer, timer, package or cloud field. **Four exact-SHA Windows CI results must be checked separately**; no Tencent/Win10/DPI live acceptance is implied.
+
+| Scope | Status | Remaining |
+| --- | --- | --- |
+| Overall and champion normal/Arena outcome split and streaks | Implemented in source/test candidate | Windows four-gate confirmation and real SGP/LCU mode variations |
+| Arena first/top-half/mean placement comparison | Implemented, coverage-gated | Real Arena participant/subteam response variations |
+| Other Akari match-card, analysis and replay options | Partial | Remaining source option-by-option audit and functional integration |
+| Riot/Tencent SGP and 256-preset cloud sync | Synthetic/source candidate | Live provider and cloud capacity/identity acceptance |
+| Tencent CN, Windows 10 and DPI | Not tested | Single final owner acceptance |
+
+---
+
 ## 2026-11-01 — Trusted Riot SGP enrollment, region alias and full preset-capacity regression (Draft #357)
 
 Executable/test candidate [fe92dd3](https://github.com/xianyumht-cmd/facm/commit/fe92dd392470db97d463ac3948041b05cbd88709) adds source-announced Riot-region enrollment only when the common endpoint is the exact `<id>-red.lol.sgp.pvp.net` host, match-history uses a pinned Riot gateway, HTTPS/443/root path and source region identity are valid. The current LCU may report a short alphabetical region alias (e.g. ME) for an exact trusted platform (ME1); only a matching numeric suffix resolves that alias. Other regions and cross-region requests remain blocked; later catalogs revoke omitted dynamic servers. Existing SGP token/session owner, two-hour on-demand public refresh and read-only transport are unchanged.

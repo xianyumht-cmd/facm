@@ -1,3 +1,11 @@
+## 2026-11-01 — Pinned normal/Arena aggregate win-loss and placement comparison
+
+At LeagueAkari v1.5.1 commit `14557723706ccc0e0a9d62c470141d4cb7190fcd`, `src/shared/data-adapter/analysis/player/aggregate/win-loss.ts` computes all/normal/CHERRY win-loss aggregates, independent per-mode streaks, Arena first-place/top-half and mean placement. Native executable candidate [0e9039d](https://github.com/xianyumht-cmd/facm/commit/0e9039def4b3933cc4bfcd4a6479f34adc6cba27) shares one verified mode projection across overall player report, selected champion report and native champion overview. Three Arena placement metrics now appear in champion comparison only when their source evidence exists; top-half requires a consistent complete subteam roster, and missing placements never become zero. Streaks require valid chronological dates and consistent player/SGP owner. Synthetic tests cover deduplication, incomplete rosters, all-mode counts, mode-specific streaks, account switching and per-metric known/total coverage. Windows four-gate verification is separate; Tencent CN/Win10/DPI remains untested.
+
+**Remaining:** exact source-wide UI/action option audit, replay source variations, live Riot/Tencent SGP schemas, real 256-row cloud synchronization and the final consolidated Windows acceptance. No new credential owner, poller, network call or game writer.
+
+---
+
 ## 2026-11-01 — Pinned Riot SGP provider and full-capacity source audit
 
 At pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`, `src/main/shards/akari-api/builtin.ts` enumerates Riot match-history gateways under `*-red.pp.sgp.pvp.net` and per-region common hosts under `*-red.lol.sgp.pvp.net`; `src/shared/shards/akari-api/schemas.ts` models `matchHistory`, `common`, `isTencent` and optional `regionPathParam`. Native [c55d970](https://github.com/xianyumht-cmd/facm/commit/c55d97069e5c43a9a2542539776fae418f1ad2ae) enrolls new Riot IDs only when common host exactly matches the announced ID, match-history host is one of the pinned builtin gateways, and HTTPS/443/root path/identity are validated. New aliases not represented by that exact shape remain unavailable rather than expanding credential destinations.
