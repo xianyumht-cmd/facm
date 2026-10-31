@@ -543,8 +543,18 @@ namespace FACM.League
         {
             outcome = LeagueHistoryOutcome.Unknown;
             var count = 0;
+            string owner = null, region = null;
             foreach (var match in rows)
             {
+                if (match.GameCreationLocal == DateTime.MinValue) break;
+                if (count == 0)
+                {
+                    owner = match.PuuId;
+                    region = match.SgpServerId;
+                }
+                else if (!string.Equals(owner, match.PuuId, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(region, match.SgpServerId, StringComparison.OrdinalIgnoreCase))
+                    break;
                 var current = Outcome(match);
                 if (outcome == LeagueHistoryOutcome.Unknown) outcome = current;
                 if (current != outcome) break;

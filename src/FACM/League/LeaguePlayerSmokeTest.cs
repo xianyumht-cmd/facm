@@ -119,8 +119,7 @@ namespace FACM.League
                     mixed.OverallModeBreakdown.CherryGames == 3 &&
                     mixed.OverallModeBreakdown.CherryWins == 3 &&
                     mixed.OverallModeBreakdown.UnknownModeGames == 2 &&
-                    mixed.OverallModeBreakdown.CherryStreak == 3 &&
-                    mixed.OverallModeBreakdown.CherryStreakOutcome == LeagueHistoryOutcome.Win,
+                    mixed.OverallModeBreakdown.CherryStreak == 0,
                 "Overall mode split and independent Arena streak must use known deduplicated games.");
             LeagueHistoryChampionBreakdown kaisa, ashe, aatrox;
             Require(mixed.ChampionBreakdowns.TryGetValue(145, out kaisa) &&
@@ -176,11 +175,35 @@ namespace FACM.League
                 "Cherry top-half placement needs a consistent self/subteam roster; unknown placements do not count as losses.");
             Require(cherryAnalysis.OverallModeBreakdown.CherryKnownTopHalfGames == 1 &&
                     cherryAnalysis.OverallModeBreakdown.CherryFirstPlaces == 1 &&
-                    cherryAnalysis.OverallModeBreakdown.CherryStreak == 1 &&
+                    cherryAnalysis.OverallModeBreakdown.CherryStreak == 0 &&
                     LeaguePlayerHistoryAnalysis.ModeLines(FACM.Services.UiTextCatalog.Load(),
                         cherryAnalysis.OverallModeBreakdown).Count >= 2,
                 "Overall Arena analysis must show verified placement coverage and mode rows.");
 
+            var datedModes = new[] {
+                new LeaguePlayerMatchSummary { GameId = 910, GameCreationLocal = new DateTime(2026, 10, 30, 12, 0, 0),
+                    PuuId = "owner", SgpServerId = "HN1", GameMode = "CHERRY", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 911, GameCreationLocal = new DateTime(2026, 10, 30, 11, 0, 0),
+                    PuuId = "owner", SgpServerId = "HN1", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss" },
+                new LeaguePlayerMatchSummary { GameId = 912, GameCreationLocal = new DateTime(2026, 10, 30, 10, 0, 0),
+                    PuuId = "owner", SgpServerId = "HN1", GameMode = "CHERRY", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 913, GameCreationLocal = new DateTime(2026, 10, 30, 9, 0, 0),
+                    PuuId = "owner", SgpServerId = "HN1", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "loss" },
+                new LeaguePlayerMatchSummary { GameId = 914, GameCreationLocal = new DateTime(2026, 10, 30, 8, 0, 0),
+                    PuuId = "other", SgpServerId = "HN1", GameMode = "CHERRY", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" }
+            };
+            var dated = LeaguePlayerHistoryAnalysis.Calculate(datedModes).OverallModeBreakdown;
+            Require(dated.CherryStreak == 2 && dated.CherryStreakOutcome == LeagueHistoryOutcome.Win &&
+                    dated.NormalStreak == 2 && dated.NormalStreakOutcome == LeagueHistoryOutcome.Loss,
+                "Mode streaks must follow source date order independently of intervening game modes.");
+            datedModes[2].PuuId = "other";
+            Require(LeaguePlayerHistoryAnalysis.Calculate(datedModes).OverallModeBreakdown.CherryStreak == 1,
+                "A target-account switch must terminate a streak even within the same game mode.");
             var incomplete = matches[0];
             incomplete.ParticipantRoster[1].GoldEarned = null;
             Require(LeagueHistoryAkariScore.Calculate(new[] { incomplete }) == null,

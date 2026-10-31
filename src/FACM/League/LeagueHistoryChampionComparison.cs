@@ -394,32 +394,11 @@ namespace FACM.League
                     _ui.Get(analysis.StreakOutcome == LeagueHistoryOutcome.Win
                         ? UiTextKeys.LeaguePlayerWin : UiTextKeys.LeaguePlayerLoss) +
                     " × " + analysis.Streak.ToString(CultureInfo.CurrentCulture)));
-            LeagueHistoryChampionBreakdown breakdown;
-            if (id > 0 && analysis.ChampionBreakdowns.TryGetValue(id, out breakdown))
-            {
-                if (breakdown.NormalGames > 0)
-                    details.Add(string.Format(CultureInfo.CurrentCulture,
-                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
-                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroNormal),
-                        breakdown.NormalGames, breakdown.NormalWins));
-                if (breakdown.CherryGames > 0)
-                {
-                    details.Add(string.Format(CultureInfo.CurrentCulture,
-                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroModeRow),
-                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherry),
-                        breakdown.CherryGames, breakdown.CherryWins));
-                    details.Add(string.Format(CultureInfo.CurrentCulture,
-                        _ui.Get(UiTextKeys.LeaguePlayerAnalysisHeroCherryPlacement),
-                        breakdown.CherryKnownPlacements == 0 ? "--" :
-                            breakdown.CherryFirstPlaces + "/" + breakdown.CherryKnownPlacements,
-                        breakdown.CherryKnownTopHalfGames == 0 ? "--" :
-                            breakdown.CherryTopHalfFinishes + "/" + breakdown.CherryKnownTopHalfGames,
-                        breakdown.AverageCherryPlacement.HasValue
-                            ? breakdown.AverageCherryPlacement.Value.ToString("0.0", CultureInfo.CurrentCulture)
-                            : "--"));
-                }
-            }
+            LeagueHistoryChampionBreakdown breakdown = analysis.OverallModeBreakdown;
+            if (id > 0) analysis.ChampionBreakdowns.TryGetValue(id, out breakdown);
+            details.AddRange(LeaguePlayerHistoryAnalysis.ModeLines(_ui, breakdown));
             _modes.Text = string.Join(" · ", details);
+            _modes.AccessibleDescription = _modes.Text;
             _metrics.BeginUpdate();
             try
             {

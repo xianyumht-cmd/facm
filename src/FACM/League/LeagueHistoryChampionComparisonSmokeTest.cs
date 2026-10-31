@@ -180,7 +180,10 @@ namespace FACM.League
                 Require(overview.SelectedChampionId == 0,
                     "Removed champion selections must reset instead of showing stale data.");
                 overview.RefreshData(new LeaguePlayerMatchSummary[0]);
-                Require(overview.Controls.OfType<ListView>().Single().Items
+                Require(overview.Controls.OfType<Label>().All(label =>
+                        string.IsNullOrEmpty(label.AccessibleDescription) ||
+                        !label.AccessibleDescription.Contains("CHERRY")) &&
+                    overview.Controls.OfType<ListView>().Single().Items
                     .Cast<ListViewItem>().All(item => item.SubItems[1].Text.Contains("(0/0)")),
                     "Empty overview refresh must clear all prior numeric evidence.");
             }
