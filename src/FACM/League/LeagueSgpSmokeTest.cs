@@ -185,7 +185,7 @@ namespace FACM.League
                     AfterLobby?.Invoke();
                     return Task.FromResult(Bytes(@"{""gameConfig"":{""queueId"":420}}"));
                 }
-                return Task.FromResult(Bytes("{\\"puuid\\":\\"" + Owner + "\\"}"));
+                return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
             }
         }
 
