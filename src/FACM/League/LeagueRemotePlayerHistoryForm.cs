@@ -197,10 +197,17 @@ namespace FACM.League
             };
             _historyRegion.SelectedIndexChanged += async (sender, args) =>
             {
+                if (_updatingSource) return;
                 _updatingSource = true;
-                if (_historyRegion.SelectedIndex > 0) _historySource.SelectedIndex = (int)LeaguePlayerHistorySource.Sgp;
-                _updatingSource = false;
-                if (!_updatingSource && !_loading && Visible) await LoadPageAsync(0, _count);
+                try
+                {
+                    var selectedTag = SelectedQueueTag();
+                    if (_historyRegion.SelectedIndex > 0)
+                        _historySource.SelectedIndex = (int)LeaguePlayerHistorySource.Sgp;
+                    RebuildQueueTagOptions(selectedTag);
+                }
+                finally { _updatingSource = false; }
+                if (!_loading && Visible) await LoadPageAsync(0, _count);
             };
 
             var filterRow = new FlowLayoutPanel
@@ -406,7 +413,7 @@ namespace FACM.League
                     Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNormal) });
                 var index = 0;
                 var supported = LeagueSgpSupportedQueues.Snapshot();
-                if (_currentLobbyQueueId.HasValue &&
+                if (_historyRegion.SelectedIndex == 0 && _currentLobbyQueueId.HasValue &&
                     Array.IndexOf(supported, _currentLobbyQueueId.Value) >= 0)
                 {
                     var id = _currentLobbyQueueId.Value;
@@ -422,7 +429,7 @@ namespace FACM.League
                 }
                 foreach (var id in supported)
                 {
-                    if (id == _currentLobbyQueueId) continue;
+                    if (_historyRegion.SelectedIndex == 0 && id == _currentLobbyQueueId) continue;
                     var tag = "q_" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
                     string name;
                     var item = _queueTag.Items.Add(new QueueTagOption { Tag = tag,
