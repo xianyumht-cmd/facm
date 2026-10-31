@@ -82,6 +82,24 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Number(flex, "losses") == null &&
                 LeaguePlayerProfileDialog.Winrate(flex) == "—",
                 "Ranked queueMap precedence and queues fallback must retain zero and incomplete values.");
+            Require(LeaguePlayerProfileDialog.RankTierIndex("IRON") == 0 &&
+                LeaguePlayerProfileDialog.RankTierIndex("emerald") == 5 &&
+                LeaguePlayerProfileDialog.RankTierIndex("CHALLENGER") == 9 &&
+                LeaguePlayerProfileDialog.RankTierIndex("NA") == -1 &&
+                LeaguePlayerProfileDialog.RankTierIndex(null) == -1,
+                "Only known source-ranked tiers may receive a native rank emblem.");
+            using (var medal = new Bitmap(32, 32))
+            using (var graphics = Graphics.FromImage(medal))
+            {
+                graphics.Clear(Color.Transparent);
+                LeaguePlayerProfileDialog.DrawRankMedal(graphics, new Rectangle(1, 1, 30, 30), "EMERALD");
+                Require(medal.GetPixel(16, 16).A > 0 && medal.GetPixel(0, 0).A == 0,
+                    "Native ranked emblems must draw inside their own bounded cell.");
+            }
+            var rankedCard = LeaguePlayerProfileDialog.RankCardRecord(UiTextCatalog.Load(), solo);
+            Require(rankedCard.Contains("0") && rankedCard.Contains("50%") &&
+                LeaguePlayerProfileDialog.RankCardRecord(UiTextCatalog.Load(), flex).Contains("—"),
+                "Ranked cards must retain true zero LP and unavailable fallback records.");
             var rankedMap = new Dictionary<string, object>
             {
                 { "RANKED_SOLO_5x5", new Dictionary<string, object> {

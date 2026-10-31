@@ -96,6 +96,9 @@ namespace FACM.League
         private readonly Label _profile, _status;
         private readonly PictureBox _profileIcon;
         private readonly Label _profileIconFallback;
+        private readonly PictureBox[] _rankMedals = new PictureBox[2];
+        private readonly Label[,] _rankCardText = new Label[2, 3];
+        private readonly string[] _rankCardTiers = new string[2];
         private int _profileIconId, _profileIconGeneration;
         private readonly Button _refresh;
         private readonly Dictionary<int, string> _names;
@@ -163,11 +166,23 @@ namespace FACM.League
                 new[] { UiTextKeys.LeagueProfilePreviousHighest, "135" },
                 new[] { UiTextKeys.LeagueProfileHighest, "135" } })
                 _rankedQueues.Columns.Add(ui.Get(column[0]), int.Parse(column[1], CultureInfo.InvariantCulture));
-            var rankedLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
-            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 57));
-            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 43));
-            rankedLayout.Controls.Add(_ranked, 0, 0);
-            rankedLayout.Controls.Add(_rankedQueues, 0, 1);
+            _rankedQueues.OwnerDraw = true;
+            _rankedQueues.DrawColumnHeader += (sender, args) => args.DrawDefault = true;
+            _rankedQueues.DrawItem += (sender, args) =>
+            { if (_rankedQueues.View != View.Details) args.DrawDefault = true; };
+            _rankedQueues.DrawSubItem += DrawRankedQueueCell;
+            var rankCards = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+            rankCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            rankCards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            rankCards.Controls.Add(CreateRankCard(0, ui.Get(UiTextKeys.LeagueProfileSolo)), 0, 0);
+            rankCards.Controls.Add(CreateRankCard(1, ui.Get(UiTextKeys.LeagueProfileFlex)), 1, 0);
+            var rankedLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
+            rankedLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+            rankedLayout.Controls.Add(rankCards, 0, 0);
+            rankedLayout.Controls.Add(_ranked, 0, 1);
+            rankedLayout.Controls.Add(_rankedQueues, 0, 2);
             AddTab(UiTextKeys.LeagueProfileRanked, rankedLayout);
             var masteryLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
             masteryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
@@ -373,6 +388,8 @@ namespace FACM.League
             if (details.Status == LeaguePlayerDetailsStatus.UnsupportedRegion) return;
             var solo = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_SOLO_5x5");
             var flex = LeaguePlayerDataService.RankedEntry(details.Ranked, "RANKED_FLEX_SR");
+            UpdateRankCard(0, solo);
+            UpdateRankCard(1, flex);
             AddRank(UiTextKeys.LeagueProfileTier, Tier(solo, "tier", "division"), Tier(flex, "tier", "division"));
             foreach (var pair in new[] {
                 new[] { "leaguePoints", UiTextKeys.LeagueProfileLp }, new[] { "wins", UiTextKeys.LeagueProfileWins },
@@ -395,7 +412,7 @@ namespace FACM.League
                     var row = entry.Value;
                     var name = entry.Key == "RANKED_SOLO_5x5" ? _ui.Get(UiTextKeys.LeagueProfileSolo) :
                         entry.Key == "RANKED_FLEX_SR" ? _ui.Get(UiTextKeys.LeagueProfileFlex) : entry.Key;
-                    var item = new ListViewItem(name);
+                    var item = new ListViewItem(name) { Tag = row };
                     item.SubItems.Add(Tier(row, "tier", "division"));
                     item.SubItems.Add(RankedNumber(row, "leaguePoints"));
                     item.SubItems.Add(RankedNumber(row, "wins"));
@@ -407,6 +424,123 @@ namespace FACM.League
                 }
             }
             finally { _rankedQueues.EndUpdate(); }
+        }
+
+        private Control CreateRankCard(int index, string title)
+        {
+            var card = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 3,
+                Padding = new Padding(5), Margin = new Padding(3),
+                BackColor = FacmDesignSystem.SurfaceRaised };
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            for (var row = 0; row < 3; row++)
+                card.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / 3));
+            var medal = new PictureBox { Dock = DockStyle.Fill, AccessibleName = title };
+            medal.Paint += (sender, args) => DrawRankMedal(args.Graphics,
+                new Rectangle(3, 5, Math.Max(0, medal.Width - 6), Math.Max(0, medal.Height - 10)),
+                _rankCardTiers[index]);
+            _rankMedals[index] = medal;
+            card.Controls.Add(medal, 0, 0);
+            card.SetRowSpan(medal, 3);
+            for (var row = 0; row < 3; row++)
+            {
+                var label = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                    AutoEllipsis = true, ForeColor = FacmDesignSystem.Text };
+                _rankCardText[index, row] = label;
+                card.Controls.Add(label, 1, row);
+            }
+            _rankCardText[index, 0].Text = title;
+            return card;
+        }
+
+        private void UpdateRankCard(int index, Dictionary<string, object> entry)
+        {
+            var title = _ui.Get(index == 0 ? UiTextKeys.LeagueProfileSolo : UiTextKeys.LeagueProfileFlex);
+            _rankCardTiers[index] = LeagueMatchTimelineParser.Text(entry, "tier");
+            _rankCardText[index, 0].Text = title + " · " + Tier(entry, "tier", "division");
+            _rankCardText[index, 1].Text = RankCardRecord(_ui, entry);
+            _rankCardText[index, 2].Text = _ui.Get(UiTextKeys.LeagueProfileHighest) + ": " +
+                Tier(entry, "highestTier", "highestDivision") + " · " +
+                _ui.Get(UiTextKeys.LeagueProfilePrevious) + ": " +
+                Tier(entry, "previousSeasonEndTier", "previousSeasonEndDivision");
+            _rankMedals[index].AccessibleDescription = _rankCardText[index, 0].Text + " · " +
+                _rankCardText[index, 1].Text + " · " + _rankCardText[index, 2].Text;
+            _rankMedals[index].Invalidate();
+        }
+
+        internal static string RankCardRecord(UiTextCatalog ui, Dictionary<string, object> entry)
+        {
+            return ui.Get(UiTextKeys.LeagueProfileLp) + ": " + RankedNumber(entry, "leaguePoints") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileWins) + ": " + RankedNumber(entry, "wins") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileLosses) + ": " + RankedNumber(entry, "losses") +
+                " · " + ui.Get(UiTextKeys.LeagueProfileWinrate) + ": " + Winrate(entry);
+        }
+
+        private static readonly string[] RankTiers = {
+            "IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD",
+            "DIAMOND", "MASTER", "GRANDMASTER", "CHALLENGER"
+        };
+
+        internal static int RankTierIndex(string tier)
+        {
+            return Array.IndexOf(RankTiers, (tier ?? string.Empty).ToUpperInvariant());
+        }
+
+        internal static void DrawRankMedal(Graphics graphics, Rectangle bounds, string tier)
+        {
+            if (graphics == null || bounds.Width < 10 || bounds.Height < 10) return;
+            var colors = new[] {
+                Color.FromArgb(104, 113, 123), Color.FromArgb(162, 107, 70),
+                Color.FromArgb(166, 184, 196), Color.FromArgb(210, 166, 60),
+                Color.FromArgb(86, 174, 169), Color.FromArgb(38, 166, 113),
+                Color.FromArgb(87, 145, 221), Color.FromArgb(158, 98, 211),
+                Color.FromArgb(207, 75, 96), Color.FromArgb(223, 173, 61)
+            };
+            var index = RankTierIndex(tier);
+            var color = index < 0 ? Color.FromArgb(123, 132, 141) : colors[index];
+            var x = bounds.Left; var y = bounds.Top;
+            var w = bounds.Width; var h = bounds.Height;
+            var points = new[] { new Point(x + w / 2, y),
+                new Point(x + w - 2, y + h / 5),
+                new Point(x + w - w / 6, y + h * 3 / 4),
+                new Point(x + w / 2, y + h - 1),
+                new Point(x + w / 6, y + h * 3 / 4),
+                new Point(x + 1, y + h / 5) };
+            using (var fill = new SolidBrush(color))
+            using (var outline = new Pen(Color.FromArgb(190, 240, 240, 240), 1.3f))
+            using (var center = new Pen(Color.FromArgb(220, 255, 255, 255), 1.7f))
+            {
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                graphics.FillPolygon(fill, points);
+                graphics.DrawPolygon(outline, points);
+                graphics.DrawLine(center, x + w / 2, y + h / 5, x + w / 2, y + h * 3 / 4);
+                graphics.DrawLine(center, x + w / 3, y + h / 2, x + w * 2 / 3, y + h / 2);
+            }
+        }
+
+        private void DrawRankedQueueCell(object sender, DrawListViewSubItemEventArgs args)
+        {
+            var key = args.ColumnIndex == 1 ? "tier" :
+                args.ColumnIndex == 5 ? "previousSeasonEndTier" :
+                args.ColumnIndex == 6 ? "previousSeasonHighestTier" :
+                args.ColumnIndex == 7 ? "highestTier" : null;
+            var tier = key == null ? null : LeagueMatchTimelineParser.Text(
+                args.Item.Tag as Dictionary<string, object>, key);
+            if (RankTierIndex(tier) < 0)
+            {
+                args.DrawDefault = true;
+                return;
+            }
+            args.DrawBackground();
+            var iconSize = Math.Min(20, Math.Max(0, args.Bounds.Height - 2));
+            DrawRankMedal(args.Graphics, new Rectangle(args.Bounds.Left + 2,
+                args.Bounds.Top + (args.Bounds.Height - iconSize) / 2, iconSize, iconSize), tier);
+            var textBounds = new Rectangle(args.Bounds.Left + iconSize + 5, args.Bounds.Top,
+                Math.Max(0, args.Bounds.Width - iconSize - 7), args.Bounds.Height);
+            TextRenderer.DrawText(args.Graphics, args.SubItem.Text, _rankedQueues.Font,
+                textBounds, args.Item.Selected ? SystemColors.HighlightText : _rankedQueues.ForeColor,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
+                TextFormatFlags.SingleLine | TextFormatFlags.NoPrefix);
         }
 
         private void RenderChallenges()
@@ -685,7 +819,7 @@ namespace FACM.League
                 status == LeaguePlayerDetailsStatus.Partial ? UiTextKeys.LeagueProfilePartial : UiTextKeys.LeaguePlayerRemoteHistoryUnavailable);
         }
         private bool IsCurrent() { return _currentSession == null || LeagueEncounterReplayService.SessionMatches(_session, _currentSession()); }
-        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; UpdateProfileIcon(0); _ranked.Items.Clear(); _rankedQueues.Items.Clear(); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
+        private void Clear() { _challengeData = null; _challenges.Items.Clear(); _profile.Text = string.Empty; UpdateProfileIcon(0); _ranked.Items.Clear(); _rankedQueues.Items.Clear(); UpdateRankCard(0, null); UpdateRankCard(1, null); _masteryRows = null; _masteryScore = null; RenderMasteries(); }
         private void AddRank(string key, string solo, string flex)
         { var row = new ListViewItem(_ui.Get(key)); row.SubItems.Add(solo); row.SubItems.Add(flex); _ranked.Items.Add(row); }
         private void AddTab(string key, Control control)
