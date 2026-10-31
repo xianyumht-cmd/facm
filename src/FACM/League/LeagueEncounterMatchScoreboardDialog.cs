@@ -507,7 +507,7 @@ namespace FACM.League
                                 eogRows.Items.Add(item);
                             }
                         }
-                        eogStatus.Text = "SGP EOG · " + data.Players.Count.ToString() + " players";
+                        eogStatus.Text = ui.Get(UiTextKeys.LeaguePlayerMatchDetailReady);
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception)
