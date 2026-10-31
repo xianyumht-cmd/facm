@@ -231,10 +231,15 @@ namespace FACM.League
             {
                 var snapshot = await _service.RefreshAsync(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                if (includeSgp && snapshot != null && snapshot.Activity == LeagueActivityLevel.InGame)
+                var sgpAttempted = includeSgp && snapshot != null &&
+                    snapshot.Activity == LeagueActivityLevel.InGame;
+                if (sgpAttempted)
                     await _service.TryRefreshSgpTeamsAsync(snapshot, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 ApplySnapshot(snapshot);
+                if (sgpAttempted && !snapshot.SgpEnriched)
+                    _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly) + " · SGP " +
+                        _ui.Get(UiTextKeys.LeagueLiveUnknown);
             }
             catch (OperationCanceledException)
             {

@@ -254,6 +254,7 @@ namespace FACM.League
                         rows.Add(new LeagueLivePlayerRow
                         {
                             Side = side == "teamOne" ? "team-1" : "team-2",
+                            CellId = -1,
                             PuuId = puuid,
                             SummonerId = ReadLong(member, "summonerId"),
                             DisplayName = ReadString(member, "summonerName"),
@@ -266,8 +267,10 @@ namespace FACM.League
                 }
                 if (rows.Count == 0 || !seen.Contains(owner)) return null;
                 var selected = new HashSet<string>(StringComparer.Ordinal);
+                var choiceCount = 0;
                 foreach (var choice in EnumerateDictionaries(ReadValue(game, "playerChampionSelections")))
                 {
+                    if (++choiceCount > 40) return null;
                     var puuid = ReadString(choice, "puuid");
                     if (!LeagueSgpMatchHistoryApiClient.SafePuuid(puuid) || !selected.Add(puuid))
                         return null;

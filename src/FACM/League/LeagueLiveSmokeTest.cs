@@ -257,8 +257,17 @@ namespace FACM.League
             var parsedBots = LeagueLiveDataService.ParseSgpGame(
                 Encoding.UTF8.GetBytes(anonymousBot), 123456, "local-puuid");
             Require(parsedBots != null && parsedBots.Count == 1 &&
-                parsedBots[0].IsLocalPlayer && parsedBots[0].Spell1Id == 4,
+                parsedBots[0].IsLocalPlayer && parsedBots[0].CellId == -1 &&
+                parsedBots[0].Spell1Id == 4,
                 "Anonymous bot slots must not suppress verified local GSM team data.");
+
+            var oversizedSelections = string.Join(",", Enumerable.Range(1, 41)
+                .Select(id => "{\"puuid\":\"extra-" + id + "\",\"spell1Id\":4}"));
+            var oversizedGame = SgpLiveFixture.ValidJson.Replace(
+                @"""playerChampionSelections"":[", @"""playerChampionSelections"":[" + oversizedSelections + ",");
+            Require(LeagueLiveDataService.ParseSgpGame(
+                Encoding.UTF8.GetBytes(oversizedGame), 123456, "local-puuid") == null,
+                "Oversized GSM selection sets must fail within the bounded parser budget.");
 
             Require(LeagueLiveDataService.ParseSgpGame(
                 Encoding.UTF8.GetBytes(SgpLiveFixture.ValidJson.Replace(
