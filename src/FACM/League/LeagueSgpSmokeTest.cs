@@ -111,10 +111,24 @@ namespace FACM.League
             ValidateRecovery();
             ValidateCatalogRefresh();
             ValidateEogProjection();
+            ValidateQueueNames();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
                 "League session credentials must be a bounded printable JSON string.");
+        }
+
+        private static void ValidateQueueNames()
+        {
+            var names = LeagueSgpSupportedQueues.ParseQueueNames(Bytes(
+                @"[{""id"":420,""name"":""Ranked Solo""},{""id"":450,""name"":""ARAM""},
+                    {""id"":450,""name"":""Duplicate""},{""id"":-1,""name"":""Bad""},
+                    {""id"":430,""name"":""Line\nBreak""}]"));
+            Require(names.Count == 2 && names[420] == "Ranked Solo" && names[450] == "ARAM",
+                "LCU queue metadata must supply trusted display names without duplicate or unsafe labels.");
+            Require(LeagueSgpSupportedQueues.ParseQueueNames(Bytes(@"{}")).Count == 0 &&
+                LeagueSgpSupportedQueues.ParseQueueNames(null).Count == 0,
+                "Unavailable or malformed queue metadata must preserve numeric fallback.");
         }
 
         private static void ValidateEogProjection()

@@ -42,6 +42,7 @@ namespace FACM.League
         private readonly ComboBox _historySource;
         private readonly ComboBox _historyRegion;
         private readonly ComboBox _queueTag;
+        private Dictionary<int, string> _queueNames = new Dictionary<int, string>();
         private bool _updatingSource;
         private readonly Button _previousPage;
         private readonly Button _nextPage;
@@ -352,8 +353,11 @@ namespace FACM.League
             if (expected == null) return;
             try
             {
+                var names = _service.LoadQueueNamesAsync(expected, _lifetime.Token);
                 await Task.WhenAll(LeagueSgpServerCatalog.TryRefreshAsync(_lifetime.Token),
-                    LeagueSgpSupportedQueues.TryRefreshAsync(_lifetime.Token));
+                    LeagueSgpSupportedQueues.TryRefreshAsync(_lifetime.Token), names);
+                if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
+                _queueNames = await names;
             }
             catch (OperationCanceledException) { return; }
             if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(expected)) return;
@@ -400,9 +404,11 @@ namespace FACM.League
                 foreach (var id in LeagueSgpSupportedQueues.Snapshot())
                 {
                     var tag = "q_" + id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    string name;
                     var item = _queueTag.Items.Add(new QueueTagOption { Tag = tag,
-                        Label = _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNumber)
-                            .Replace("{0}", id.ToString(System.Globalization.CultureInfo.InvariantCulture)) });
+                        Label = _queueNames.TryGetValue(id, out name) ? name :
+                            _ui.Get(UiTextKeys.LeaguePlayerHistoryQueueNumber)
+                                .Replace("{0}", id.ToString(System.Globalization.CultureInfo.InvariantCulture)) });
                     if (tag == selectedTag) index = item;
                 }
                 if (selectedTag == "ranked") index = 1;

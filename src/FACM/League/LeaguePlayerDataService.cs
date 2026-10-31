@@ -560,6 +560,32 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        internal async Task<Dictionary<int, string>> LoadQueueNamesAsync(
+            LeagueClientSession expected, CancellationToken token)
+        {
+            var empty = new Dictionary<int, string>();
+            if (_session == null || expected == null || !SessionStillCurrent(expected)) return empty;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                try
+                {
+                    await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (!SessionStillCurrent(expected)) return empty;
+                        var bytes = await _client.TryGetBytesAsync(
+                            "/lol-game-data/assets/v1/queues.json", timeout.Token).ConfigureAwait(false);
+                        return SessionStillCurrent(expected)
+                            ? LeagueSgpSupportedQueues.ParseQueueNames(bytes) : empty;
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return empty; }
+                catch (Exception) { return empty; }
+            }
+        }
+
         internal async Task<LeagueSgpEogResult> LoadSgpEogAsync(
             string ownerPuuid, long gameId, LeagueClientSession expected, CancellationToken token)
         {

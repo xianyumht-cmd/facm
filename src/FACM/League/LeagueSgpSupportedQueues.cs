@@ -27,6 +27,34 @@ namespace FACM.League
             lock (Sync) return (int[])_queues.Clone();
         }
 
+        internal static Dictionary<int, string> ParseQueueNames(byte[] bytes)
+        {
+            var names = new Dictionary<int, string>();
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 512 * 1024) return names;
+            try
+            {
+                var rows = new JavaScriptSerializer { MaxJsonLength = 512 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (rows == null || rows.Length > 2048) return names;
+                foreach (var entry in rows)
+                {
+                    var row = entry as Dictionary<string, object>;
+                    if (row == null) continue;
+                    object rawId, rawName;
+                    if (!row.TryGetValue("id", out rawId) || !(rawId is int) ||
+                        !row.TryGetValue("name", out rawName)) continue;
+                    var id = (int)rawId;
+                    var name = rawName as string;
+                    if (id <= 0 || id > 100000 || string.IsNullOrWhiteSpace(name) ||
+                        name.Length > 80 || name.Any(char.IsControl) || names.ContainsKey(id)) continue;
+                    names.Add(id, name.Trim());
+                }
+            }
+            catch (ArgumentException) { names.Clear(); }
+            catch (InvalidOperationException) { names.Clear(); }
+            return names;
+        }
+
         internal static bool IsValidTag(string tag)
         {
             if (tag == null || tag == "ranked" || tag == "normal") return true;
