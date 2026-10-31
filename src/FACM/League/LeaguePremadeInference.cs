@@ -26,7 +26,8 @@ namespace FACM.League
                     .Where(m => m != null && m.GameId > 0 && m.SameTeamPuuids != null)
                     .Take(LeaguePlayerDataService.MaximumMatchCount))
                 {
-                    var members = new HashSet<string>(match.SameTeamPuuids, StringComparer.Ordinal);
+                    var members = new HashSet<string>(match.SameTeamPuuids.Where(id =>
+                        byId.ContainsKey(id) && byId[id].Friendly == player.Friendly), StringComparer.Ordinal);
                     if (!members.Contains(player.Player.PuuId))
                     {
                         seen[match.GameId] = null;
