@@ -29,8 +29,9 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(12),
-                ColumnCount = 1, RowCount = 3 };
+                ColumnCount = 1, RowCount = 4 };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 88));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             var mode = string.IsNullOrWhiteSpace(detail.EogOnly.GameMode)
@@ -41,6 +42,30 @@ namespace FACM.League
                 Text = ui.Get(UiTextKeys.LeaguePlayerEogOnlySummary)
                     .Replace("{0}", detail.Match.GameId.ToString(CultureInfo.InvariantCulture))
                     .Replace("{1}", mode) }, 0, 0);
+
+            var teams = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                FullRowSelect = false, MultiSelect = false, GridLines = true,
+                HeaderStyle = ColumnHeaderStyle.Nonclickable };
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 80);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 75);
+            teams.Columns.Add("K/D/A", 120);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardDamage), 110);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardGold), 110);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardCs), 100);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardVision), 100);
+            teams.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 90);
+            foreach (var team in LeagueSgpEogProjection.SummarizeTeams(detail.EogOnly))
+                teams.Items.Add(new ListViewItem(new[] {
+                    team.TeamId.ToString(CultureInfo.InvariantCulture),
+                    team.PlayerCount.ToString(CultureInfo.InvariantCulture),
+                    FormatTeam(team.Kills) + "/" + FormatTeam(team.Deaths) + "/" + FormatTeam(team.Assists),
+                    FormatTeam(team.Damage), FormatTeam(team.Gold), FormatTeam(team.CreepScore),
+                    FormatTeam(team.Vision),
+                    team.Win.HasValue ? (team.Win.Value
+                        ? t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon)
+                        : t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost)) : "—"
+                }));
+            layout.Controls.Add(teams, 0, 1);
 
             var split = new SplitContainer { Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical, Width = 1000, SplitterDistance = 720,
@@ -136,11 +161,11 @@ namespace FACM.League
                 }
                 finally { stats.EndUpdate(); }
             };
-            layout.Controls.Add(split, 0, 1);
+            layout.Controls.Add(split, 0, 2);
             var close = new Button { Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
                 Width = 100, Height = 30, Anchor = AnchorStyles.Right };
             close.Click += (sender, args) => Close();
-            layout.Controls.Add(close, 0, 2);
+            layout.Controls.Add(close, 0, 3);
             Controls.Add(layout);
             CancelButton = close;
             Shown += (sender, args) => { if (!IsCurrent(detail)) Close(); };
@@ -157,6 +182,11 @@ namespace FACM.League
         private static bool IsCurrent(LeagueEncounterMatchDetailResult detail)
         {
             return detail.IsCurrentSession == null || detail.IsCurrentSession();
+        }
+
+        internal static string FormatTeam(long? value)
+        {
+            return value.HasValue ? value.Value.ToString("N0", CultureInfo.InvariantCulture) : "—";
         }
 
         internal static string FormatMetric(int? value)

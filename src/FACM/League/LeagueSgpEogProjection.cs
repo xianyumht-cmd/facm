@@ -38,6 +38,20 @@ namespace FACM.League
         internal Dictionary<string, string> Metadata;
     }
 
+    internal sealed class LeagueSgpEogTeamSummary
+    {
+        internal int TeamId;
+        internal int PlayerCount;
+        internal long? Kills;
+        internal long? Deaths;
+        internal long? Assists;
+        internal long? Damage;
+        internal long? Gold;
+        internal long? CreepScore;
+        internal long? Vision;
+        internal bool? Win;
+    }
+
     internal sealed class LeagueSgpEogDerivedStats
     {
         internal double? Kda;
@@ -133,6 +147,39 @@ namespace FACM.League
             catch (InvalidOperationException) { return null; }
             catch (FormatException) { return null; }
             catch (OverflowException) { return null; }
+        }
+
+        internal static IReadOnlyList<LeagueSgpEogTeamSummary> SummarizeTeams(LeagueSgpEogResult match)
+        {
+            if (match == null || match.Players == null || match.Players.Count == 0 ||
+                match.Players.Any(p => p == null)) return Array.Empty<LeagueSgpEogTeamSummary>();
+            return match.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key)
+                .Select(group =>
+                {
+                    var members = group.ToArray();
+                    return new LeagueSgpEogTeamSummary
+                    {
+                        TeamId = group.Key, PlayerCount = members.Length,
+                        Kills = CompleteSum(members, p => p.Kills),
+                        Deaths = CompleteSum(members, p => p.Deaths),
+                        Assists = CompleteSum(members, p => p.Assists),
+                        Damage = CompleteSum(members, p => p.Damage),
+                        Gold = CompleteSum(members, p => p.Gold),
+                        CreepScore = members.All(p => p.Minions.HasValue && p.NeutralMinions.HasValue)
+                            ? (long?)members.Sum(p => (long)p.Minions.Value + p.NeutralMinions.Value) : null,
+                        Vision = CompleteSum(members, p => p.Vision),
+                        Win = members.All(p => p.Win.HasValue) &&
+                            members.All(p => p.Win.Value == members[0].Win.Value)
+                            ? members[0].Win : null
+                    };
+                }).ToArray();
+        }
+
+        private static long? CompleteSum(LeagueSgpEogPlayer[] players,
+            Func<LeagueSgpEogPlayer, int?> metric)
+        {
+            return players.All(p => metric(p).HasValue)
+                ? (long?)players.Sum(p => (long)metric(p).Value) : null;
         }
 
         internal static LeagueSgpEogDerivedStats Analyze(LeagueSgpEogResult match,

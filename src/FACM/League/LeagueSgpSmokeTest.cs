@@ -255,6 +255,13 @@ namespace FACM.League
                 "Missing duration must not fabricate per-minute metrics or erase complete KDA.");
             Require(!LeagueSgpEogProjection.Analyze(balanced, new LeagueSgpEogPlayer { TeamId = 100 }).Kda.HasValue,
                 "Unverified players must not receive derived EOG statistics.");
+            var summaries = LeagueSgpEogProjection.SummarizeTeams(balanced);
+            Require(summaries.Count == 1 && summaries[0].PlayerCount == 2 &&
+                summaries[0].Kills == 15 && summaries[0].Damage == null &&
+                summaries[0].Gold == 20000 && summaries[0].CreepScore == 270 &&
+                !summaries[0].Win.HasValue && LeagueSgpEogOnlyDialog.FormatTeam(null) == "—" &&
+                LeagueSgpEogOnlyDialog.FormatTeam(0) == "0",
+                "EOG team comparisons must preserve complete sums and unknown source values.");
             using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
                 new LeagueEncounterMatchDetailResult {
                     Status = LeagueEncounterMatchDetailStatus.Ready,
@@ -264,8 +271,10 @@ namespace FACM.League
                 var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
                 var split = layout?.Controls.OfType<System.Windows.Forms.SplitContainer>().FirstOrDefault();
                 var rows = split?.Panel1.Controls.OfType<System.Windows.Forms.ListView>().FirstOrDefault();
+                var teams = layout?.Controls.OfType<System.Windows.Forms.ListView>().FirstOrDefault();
                 Require(dialog.Controls.Count > 0 && dialog.Text.Length > 0 &&
-                    rows != null && rows.Columns.Count == 11 && rows.Items.Count == 2,
+                    rows != null && rows.Columns.Count == 11 && rows.Items.Count == 2 &&
+                    teams != null && teams.Columns.Count == 8 && teams.Items.Count == 2,
                     "A validated EOG-only match must construct complete native team/player rows without SUMMARY.");
             }
             Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&
