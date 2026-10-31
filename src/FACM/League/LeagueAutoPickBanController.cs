@@ -540,7 +540,8 @@ namespace FACM.League
                             Group = ReadString(root, "autoSelectGroup"),
                             ContextKey = ReadString(root, "autoSelectContext"),
                             Timer = LeagueAutoSelectContext.Dictionary(root, "timer"),
-                            Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
+                            Role = root.ContainsKey("autoSelectRole") ? ReadString(root, "autoSelectRole") :
+                                 LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadTimerRemaining(root)
                         };
                         AppendTeammateIntents(root, cell, next.TeammateIntentIds);
@@ -948,7 +949,8 @@ namespace FACM.League
                             Group = ReadString(root, "autoSelectGroup"),
                             ContextKey = ReadString(root, "autoSelectContext"),
                             Timer = LeagueAutoSelectContext.Dictionary(root, "timer"),
-                            Role = LeagueAutoSelectProfiles.LocalAssignedRole(root),
+                            Role = root.ContainsKey("autoSelectRole") ? ReadString(root, "autoSelectRole") :
+                                 LeagueAutoSelectProfiles.LocalAssignedRole(root),
                             TimeLeftMs = ReadInt((Dictionary<string, object>)root["timer"],
                                 "adjustedTimeLeftInPhase")
                         };

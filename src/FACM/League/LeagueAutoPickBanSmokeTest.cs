@@ -113,10 +113,21 @@ namespace FACM.League
                 var scopedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
                     Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
                 Require(scopedBound != null &&
-                    Encoding.UTF8.GetString(scopedBound).Contains(":TENCENT_HN1:ranked") &&
+                    Encoding.UTF8.GetString(scopedBound).Contains(":TENCENT_HN1:top:ranked") &&
                     LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
                         Bytes(Flow("RANKED_SOLO_5x5")), "NA1") == null,
                     "The bound action must include its server and reject cross-region remote groups.");
+                var restrictedRoles = scoped.Replace("2026-08-03", "2026-08-04")
+                    .Replace("\"positions\":[\"top\",\"jungle\",\"middle\",\"bottom\",\"utility\"]",
+                        "\"positions\":[\"jungle\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(restrictedRoles)),
+                    "Trusted role-restricted group update was rejected.");
+                var restrictedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
+                Require(restrictedBound != null &&
+                    LeagueAutoPickBanController.ParseCurrentAction(restrictedBound).Role == "default" &&
+                    Encoding.UTF8.GetString(restrictedBound).Contains(":TENCENT_HN1:default:ranked"),
+                    "A removed remote position must fall back to the default profile before a write.");
                 foreach (var bad in new[] {
                     valid.Replace(@"""ranked""", @"""foreign"""),
                     valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
@@ -125,7 +136,7 @@ namespace FACM.League
                     valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[123]"),
                     valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
                 })
-                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-04"))),
+                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-05"))),
                         "Unknown group, server, mixed wildcard, unmodeled action or remote icon must fail closed.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }

@@ -18,6 +18,7 @@ namespace FACM.League
             internal string Id;
             internal bool Custom;
             internal string[] SupportedServers;
+            internal string[] Positions;
             internal readonly List<Tuple<string, string[]>> Targets = new List<Tuple<string, string[]>>();
         }
 
@@ -62,6 +63,20 @@ namespace FACM.League
                 }
             }
             return true; // Remote configuration is authoritative, including no match.
+        }
+
+        internal static string RoleFor(string groupId, string sgpServerId, string assignedRole)
+        {
+            Group[] snapshot;
+            lock (Sync) snapshot = _groups;
+            if (snapshot == null) return assignedRole ?? "default";
+            var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
+            if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+                (string.IsNullOrEmpty(sgpServerId) ||
+                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return null;
+            var sourceRole = assignedRole == "support" ? "utility" : assignedRole ?? "default";
+            return group.Positions.Contains(sourceRole, StringComparer.Ordinal)
+                ? assignedRole ?? "default" : "default";
         }
 
         internal static async Task<bool> TryRefreshAsync(CancellationToken token)
@@ -131,7 +146,7 @@ namespace FACM.League
                     var targets = Value(entry, "targetGameModes") as object[];
                     if (targets == null || targets.Length == 0 || targets.Length > 10) return false;
                     var group = new Group { Id = id, Custom = (bool)Value(entry, "isCustom"),
-                        SupportedServers = servers };
+                        SupportedServers = servers, Positions = positions };
                     foreach (var targetValue in targets)
                     {
                         var target = targetValue as Dictionary<string, object>;
