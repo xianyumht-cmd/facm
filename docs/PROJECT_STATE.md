@@ -6,12 +6,12 @@ Champion rune/spell presets now use source-pinned `RANKED_*` queue type as well 
 
 | Source parity scope | Status at this executable candidate | Still missing / unverified |
 | --- | --- | --- |
-| Trusted remote new auto-select groups, role profiles and dynamic Arena bravery | Implemented; synthetic Windows gates pending | Unsupported source action IDs, non-modeled queue/game families, live Tencent selection |
-| Champion/position rune and spell presets across new `RANKED_*` queues | Implemented; synthetic Windows gates pending | Full manual rune editing/large preset catalogs, live queue schema and actual rune-page acceptance |
+| Trusted remote new auto-select groups, role profiles and dynamic Arena bravery | Implemented; all four Windows gates passed on c9acf53 | Unsupported source action IDs, non-modeled queue/game families, live Tencent selection |
+| Champion/position rune and spell presets across new `RANKED_*` queues | Implemented; all four Windows gates passed on c9acf53 | Full manual rune editing/large preset catalogs, live queue schema and actual rune-page acceptance |
 | SGP regional data, EOG, player/champion analysis, replay | Previously partial | International dynamic enrollment, EOG schema variants, full analysis/replay option parity |
 | Win10/DPI and Tencent gameplay | Not performed | Owner's single consolidated acceptance |
 
-**Final candidate verification:** Four Windows gates on `c9acf53` are pending; do not transfer prior green results to it. Draft PR #357 and stacked #355 remain Draft. No merge, release, updater, deployment or GGman 3.5.78 production change.
+**Final candidate verification:** All four Windows workflows passed on executable/test `c9acf53e417de8e0475c462ac41096048970390f`: [Windows Build #41214800107](https://github.com/xianyumht-cmd/facm/actions/runs/41214800107), [Glass WebView2 #41214800057](https://github.com/xianyumht-cmd/facm/actions/runs/41214800057), [UI Text Contract #41214800071](https://github.com/xianyumht-cmd/facm/actions/runs/41214800071), [Mayhem Source Probe #41214800076](https://github.com/xianyumht-cmd/facm/actions/runs/41214800076). This is synthetic/CI verification only, not live Tencent CN/Win10/DPI acceptance. Draft PR #357 and stacked #355 remain Draft. No merge, release, updater, deployment or GGman 3.5.78 production change.
 
 ---
 
