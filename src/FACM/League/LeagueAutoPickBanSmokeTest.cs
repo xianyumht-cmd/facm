@@ -96,6 +96,10 @@ namespace FACM.League
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_FLEX_SR", false) == null,
                     "Trusted newer group catalog must replace pinned queue routing without implicit fallback.");
+                var bound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")));
+                Require(bound != null && Encoding.UTF8.GetString(bound).Contains(":ranked"),
+                    "Auto-select context must include the resolved group so a remote route change invalidates in-flight writes.");
                 Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
                     !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
                     "Equal or stale auto-select group catalog must not replace the active snapshot.");

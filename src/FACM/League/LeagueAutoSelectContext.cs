@@ -51,7 +51,8 @@ namespace FACM.League
                 session["queueId"] = id;
                 session["gameMode"] = mode;
                 session["autoSelectGroup"] = group == "aram" && LeagueQueueModePolicy.IsAramMayhem(id, mode) ? "mayhem" : group;
-                session["autoSelectContext"] = id.ToString(CultureInfo.InvariantCulture) + ":" + mode + ":" + type + ":" + custom;
+                session["autoSelectContext"] = id.ToString(CultureInfo.InvariantCulture) + ":" + mode + ":" +
+                    type + ":" + custom + ":" + session["autoSelectGroup"];
                 return Encoding.UTF8.GetBytes(json.Serialize(session));
             }
             catch (ArgumentException) { return null; }
