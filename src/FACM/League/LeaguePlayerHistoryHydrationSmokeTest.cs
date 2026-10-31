@@ -92,6 +92,16 @@ namespace FACM.League
             Require(remote.Updated == 1 && remote.Matches[0].SgpServerId == "HN10" &&
                 sgp.Server == "HN10" && sgp.Calls == 1 && api.Games == reads,
                 "Regional enrichment must use the selected SUMMARY endpoint without an LCU game lookup.");
+            Require(await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
+                "The final timeline-batch owner check accepts an unchanged account and session.");
+            api.Changed = true;
+            Require(!await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
+                "A same-process account switch invalidates all staged timeline results.");
+            api.Changed = false;
+            active = new LeagueClientSession("LeagueClientUx", 2, 1001, "fixture", "https", "fixture", "HN10", "TENCENT");
+            Require(!await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
+                "A changed client session or region invalidates staged timeline results.");
+            active = session;
             var noWork = await service.HydrateAnalysisAsync("self", "target", session,
                 new[] { complete }, null, CancellationToken.None).ConfigureAwait(false);
             Require(noWork.Attempted.Count == 0 && api.Games == reads,

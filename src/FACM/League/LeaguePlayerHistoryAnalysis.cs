@@ -1252,6 +1252,8 @@ namespace FACM.League
                             deadline.CancelAfter(TimeSpan.FromSeconds(48));
                             try
                             {
+                                var staged = new List<LeagueJungleHistorySample>();
+                                var stagedAttempts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                                 foreach (var match in LeagueJungleHistoryAnalysis.PendingBatch(snapshot,
                                     targetPuuid, jungleAttempted, jungleSamples.Count))
                                 {
@@ -1261,15 +1263,30 @@ namespace FACM.League
                                         deadline.Token, session);
                                     if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
                                     deadline.Token.ThrowIfCancellationRequested();
-                                    jungleAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                                    stagedAttempts.Add(LeaguePlayerDataService.HistoryDetailKey(match));
                                     var analysis = LeagueJungleAnalysis.Calculate(timeline, match);
                                     if (analysis != null)
-                                        jungleSamples.Add(new LeagueJungleHistorySample { Match = match, Analysis = analysis });
+                                        staged.Add(new LeagueJungleHistorySample { Match = match, Analysis = analysis });
                                 }
-                                if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                if (!await service.VerifyTimelineOwnerAsync(selfPuuid, session, deadline.Token))
+                                {
+                                    stale = true;
+                                    jungleSamples.Clear(); jungleAttempted.Clear();
+                                    if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                    {
+                                        refreshJungle();
+                                        status.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
+                                    }
+                                }
+                                else if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                {
+                                    jungleAttempted.UnionWith(stagedAttempts);
+                                    jungleSamples.AddRange(staged);
+                                    refreshJungle();
                                     status.Text = string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeagueJungleHistoryDone),
                                         jungleSamples.Count, jungleAttempted.Count);
+                                }
                             }
                             catch (OperationCanceledException)
                             {
@@ -1304,6 +1321,8 @@ namespace FACM.League
                             deadline.CancelAfter(TimeSpan.FromSeconds(48));
                             try
                             {
+                                var staged = new List<LeagueEarlyJungleDeathSample>();
+                                var stagedAttempts = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                                 foreach (var match in LeagueEarlyJungleDeathAnalysis.PendingBatch(
                                     snapshot, targetPuuid, earlyAttempted, earlySamples.Count))
                                 {
@@ -1313,20 +1332,32 @@ namespace FACM.League
                                         deadline.Token, session);
                                     if (dialog.IsDisposed || lifetime.IsCancellationRequested) return;
                                     deadline.Token.ThrowIfCancellationRequested();
-                                    earlyAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                                    stagedAttempts.Add(LeaguePlayerDataService.HistoryDetailKey(match));
                                     var deaths = LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match);
                                     if (deaths.HasValue)
-                                        earlySamples.Add(new LeagueEarlyJungleDeathSample {
+                                        staged.Add(new LeagueEarlyJungleDeathSample {
                                             Match = match, Deaths = deaths.Value });
+                                }
+                                if (!await service.VerifyTimelineOwnerAsync(selfPuuid, session, deadline.Token))
+                                {
+                                    stale = true;
+                                    earlySamples.Clear(); earlyAttempted.Clear();
+                                    if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                        status.Text = ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
+                                }
+                                else if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
+                                {
+                                    earlyAttempted.UnionWith(stagedAttempts);
+                                    earlySamples.AddRange(staged);
+                                    status.Text = string.Format(CultureInfo.CurrentCulture,
+                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleDone),
+                                        earlySamples.Count, earlyAttempted.Count);
                                 }
                                 if (!dialog.IsDisposed && !lifetime.IsCancellationRequested)
                                 {
                                     refreshEarly();
                                     comparison.RefreshData(snapshot, earlySamples);
                                     overview.RefreshData(snapshot, earlySamples);
-                                    status.Text = string.Format(CultureInfo.CurrentCulture,
-                                        ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleDone),
-                                        earlySamples.Count, earlyAttempted.Count);
                                 }
                             }
                             catch (OperationCanceledException)

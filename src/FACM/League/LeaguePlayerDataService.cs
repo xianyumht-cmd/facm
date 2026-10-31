@@ -695,6 +695,34 @@ namespace FACM.League
             return breakdown;
         }
 
+        // A batch may span several independently verified reads; recheck the account
+        // before publishing any of its results into the analysis window.
+        internal async Task<bool> VerifyTimelineOwnerAsync(string selfPuuid,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            if (!IsSafePuuid(selfPuuid) || expected == null || _session == null ||
+                !SessionStillCurrent(expected)) return false;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                    try
+                    {
+                        if (!SessionStillCurrent(expected)) return false;
+                        var profile = ParseProfile(await _client.TryGetBytesAsync(
+                            LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
+                        return profile != null && string.Equals(profile.PuuId, selfPuuid,
+                            StringComparison.Ordinal) && SessionStillCurrent(expected);
+                    }
+                    finally { _requestGate.Release(); }
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return false; }
+                catch (System.Net.Http.HttpRequestException) { return false; }
+            }
+        }
+
         internal async Task<LeagueMatchTimeline> LoadMatchTimelineAsync(string selfPuuid,
             LeaguePlayerMatchSummary selected, CancellationToken token, LeagueClientSession expectedSession = null)
         {
