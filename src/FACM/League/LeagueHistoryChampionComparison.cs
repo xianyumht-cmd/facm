@@ -111,6 +111,26 @@ namespace FACM.League
             result.Add(new LeagueHistoryComparisonValue { Key = UiTextKeys.LeaguePlayerCompareKdaVariation,
                 Value = KdaVariation(rows), Known = rows.Count, Total = rows.Count });
             add(UiTextKeys.LeaguePlayerCompareWinRate, m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ? 1d : 0d, true, false);
+            // Arena placements require their own source coverage, not a zero for missing ranks.
+            var arena = LeaguePlayerHistoryAnalysis.BuildModeBreakdown(rows.Where(m =>
+                LeagueCherryTeams.IsCherry(m.GameMode)));
+            result.Add(new LeagueHistoryComparisonValue {
+                Key = UiTextKeys.LeaguePlayerCompareCherryFirstRate, Percent = true,
+                Known = arena.CherryKnownPlacements, Total = arena.CherryGames,
+                Value = arena.CherryKnownPlacements == 0 ? (double?)null :
+                    (double)arena.CherryFirstPlaces / arena.CherryKnownPlacements
+            });
+            result.Add(new LeagueHistoryComparisonValue {
+                Key = UiTextKeys.LeaguePlayerCompareCherryTopHalfRate, Percent = true,
+                Known = arena.CherryKnownTopHalfGames, Total = arena.CherryGames,
+                Value = arena.CherryKnownTopHalfGames == 0 ? (double?)null :
+                    (double)arena.CherryTopHalfFinishes / arena.CherryKnownTopHalfGames
+            });
+            result.Add(new LeagueHistoryComparisonValue {
+                Key = UiTextKeys.LeaguePlayerCompareCherryPlacement,
+                Known = arena.CherryKnownPlacements, Total = arena.CherryGames,
+                Value = arena.AverageCherryPlacement
+            });
             add(UiTextKeys.LeaguePlayerCompareParticipation, m => m.KillParticipation, true, false);
             add(UiTextKeys.LeaguePlayerCompareVision, m => m.VisionScore, false, false);
             add(UiTextKeys.LeaguePlayerCompareVisionShare, m => Relative(m, p => p.VisionScore, true, false), true, false);
@@ -206,6 +226,8 @@ namespace FACM.League
     {
         private static readonly string[] Performance = {
             UiTextKeys.LeaguePlayerCompareScore, UiTextKeys.LeaguePlayerCompareWinRate,
+            UiTextKeys.LeaguePlayerCompareCherryFirstRate, UiTextKeys.LeaguePlayerCompareCherryTopHalfRate,
+            UiTextKeys.LeaguePlayerCompareCherryPlacement,
             UiTextKeys.LeaguePlayerCompareSessionWinRate,
             UiTextKeys.LeaguePlayerCompareKda, UiTextKeys.LeaguePlayerCompareParticipation,
             UiTextKeys.LeaguePlayerCompareKdaVariation, UiTextKeys.LeaguePlayerCompareVision,
@@ -263,7 +285,10 @@ namespace FACM.League
                 // Pinned ChampionAnalysisContent only exposes these optional fields
                 // when their complete source evidence is available.
                 if (((Preferences.Contains(key) ||
-                      key == UiTextKeys.LeaguePlayerCompareSessionWinRate) && !value.Value.HasValue) ||
+                      key == UiTextKeys.LeaguePlayerCompareSessionWinRate ||
+                      key == UiTextKeys.LeaguePlayerCompareCherryFirstRate ||
+                      key == UiTextKeys.LeaguePlayerCompareCherryTopHalfRate ||
+                      key == UiTextKeys.LeaguePlayerCompareCherryPlacement) && !value.Value.HasValue) ||
                     (key == UiTextKeys.LeaguePlayerCompareSoloKills ||
                      key == UiTextKeys.LeaguePlayerComparePings ||
                      key == UiTextKeys.LeaguePlayerCompareMissingPings ||

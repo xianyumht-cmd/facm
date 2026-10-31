@@ -23,7 +23,7 @@ namespace FACM.League
             var matches = new[] { first, second, other, first };
             var values = LeagueHistoryChampionComparison.Calculate(matches, 22);
             Func<string, LeagueHistoryComparisonValue> get = key => values.Single(v => v.Key == key);
-            Require(values.Count == 37 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
+            Require(values.Count == 40 && get(UiTextKeys.LeaguePlayerCompareKda).Value == .2d &&
                 get(UiTextKeys.LeaguePlayerCompareKda).Total == 2,
                 "Hero comparisons must deduplicate games and use aggregate KDA, not mean game KDA.");
             Require(get(UiTextKeys.LeaguePlayerCompareKdaVariation).Value == 1d &&
@@ -42,6 +42,10 @@ namespace FACM.League
                 get(UiTextKeys.LeaguePlayerComparePings).Known == 1 &&
                 !get(UiTextKeys.LeaguePlayerCompareMissingPings).Value.HasValue,
                 "One missing SGP ping source must leave both whole-sample averages unavailable.");
+            Require(!get(UiTextKeys.LeaguePlayerCompareCherryFirstRate).Value.HasValue &&
+                    get(UiTextKeys.LeaguePlayerCompareCherryFirstRate).Known == 0 &&
+                    get(UiTextKeys.LeaguePlayerCompareCherryFirstRate).Total == 0,
+                "Non-Arena history must not fabricate Arena placement metrics.");
             var compact = LeagueHistoryChampionOverview.Project(matches, 22);
             Require(compact.Count == 4 &&
                 compact[0].TitleKey == UiTextKeys.LeaguePlayerOverviewPerformance &&
@@ -109,6 +113,41 @@ namespace FACM.League
                 v.Key == UiTextKeys.LeaguePlayerCompareShieldTeamMax ||
                 v.Key == UiTextKeys.LeaguePlayerCompareShieldGameMax) == 3,
                 "Evidence-backed optional shielding metrics must appear in native overview.");
+            var arenaRoster = new[] {
+                new LeaguePlayerMatchSummary { ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 1 },
+                new LeaguePlayerMatchSummary { ParticipantId = 2, PlayerSubteamId = 1, SubteamPlacement = 1 },
+                new LeaguePlayerMatchSummary { ParticipantId = 3, PlayerSubteamId = 2, SubteamPlacement = 2 },
+                new LeaguePlayerMatchSummary { ParticipantId = 4, PlayerSubteamId = 2, SubteamPlacement = 2 }
+            };
+            var arenaRows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 8001, ChampionId = 22, GameMode = "CHERRY",
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 1,
+                    RosterIdentitiesComplete = true, ParticipantRoster = arenaRoster },
+                new LeaguePlayerMatchSummary { GameId = 8002, ChampionId = 22, GameMode = "CHERRY",
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss", ParticipantId = 1, PlayerSubteamId = 1, SubteamPlacement = 2,
+                    RosterIdentitiesComplete = true, ParticipantRoster = arenaRoster.Select(p =>
+                        new LeaguePlayerMatchSummary { ParticipantId = p.ParticipantId,
+                            PlayerSubteamId = p.PlayerSubteamId,
+                            SubteamPlacement = p.PlayerSubteamId == 1 ? 2 : 1 }).ToArray() },
+                new LeaguePlayerMatchSummary { GameId = 8003, ChampionId = 22, GameMode = "CHERRY",
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss" }
+            };
+            var arenaMetrics = LeagueHistoryChampionComparison.Calculate(arenaRows, 22);
+            Func<string, LeagueHistoryComparisonValue> arenaMetric = key =>
+                arenaMetrics.Single(v => v.Key == key);
+            Require(arenaMetric(UiTextKeys.LeaguePlayerCompareCherryFirstRate).Value == .5d &&
+                    arenaMetric(UiTextKeys.LeaguePlayerCompareCherryTopHalfRate).Value == .5d &&
+                    arenaMetric(UiTextKeys.LeaguePlayerCompareCherryPlacement).Value == 1.5d &&
+                    arenaMetric(UiTextKeys.LeaguePlayerCompareCherryTopHalfRate).Known == 2 &&
+                    arenaMetric(UiTextKeys.LeaguePlayerCompareCherryTopHalfRate).Total == 3 &&
+                    LeagueHistoryChampionOverview.Project(arenaRows, 22)[0].Metrics
+                        .Count(v => v.Key == UiTextKeys.LeaguePlayerCompareCherryFirstRate ||
+                            v.Key == UiTextKeys.LeaguePlayerCompareCherryTopHalfRate ||
+                            v.Key == UiTextKeys.LeaguePlayerCompareCherryPlacement) == 3,
+                "Arena comparison and overview must use verified placement and team-count coverage.");
             first.MetricBaselines = null;
             Require(!LeagueHistoryChampionComparison.Cs(first).HasValue,
                 "A default zero CS without both source components cannot become measured evidence.");

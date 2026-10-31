@@ -623,6 +623,9 @@ namespace FACM.Services
         public const string LeaguePlayerCompareRedSide = "LeaguePlayerCompareRedSide";
         public const string LeaguePlayerOverviewPreferences = "LeaguePlayerOverviewPreferences";
         public const string LeaguePlayerCompareWinRate = "LeaguePlayerCompareWinRate";
+        public const string LeaguePlayerCompareCherryFirstRate = "LeaguePlayerCompareCherryFirstRate";
+        public const string LeaguePlayerCompareCherryTopHalfRate = "LeaguePlayerCompareCherryTopHalfRate";
+        public const string LeaguePlayerCompareCherryPlacement = "LeaguePlayerCompareCherryPlacement";
         public const string LeaguePlayerCompareParticipation = "LeaguePlayerCompareParticipation";
         public const string LeaguePlayerCompareVision = "LeaguePlayerCompareVision";
         public const string LeaguePlayerCompareVisionShare = "LeaguePlayerCompareVisionShare";
