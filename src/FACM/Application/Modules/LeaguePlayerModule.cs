@@ -56,7 +56,8 @@ namespace FACM.AppHost.Modules
                 (expected, self, target, match, token) => ExecuteHistoryReplayAsync(
                     expected, self, target, match, token),
                 (expected, self, target, match, token) => _details.ReadHistoryAsync(expected, self, target, match, token),
-                LoadMatchAssetAsync);
+                LoadMatchAssetAsync,
+                (expected, self, token) => _replay.ReadDirectoryAsync(expected, self, token));
         }
 
         private Task<Bitmap> LoadMatchAssetAsync(string reference, CancellationToken token)

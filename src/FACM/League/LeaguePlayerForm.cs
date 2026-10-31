@@ -20,6 +20,9 @@ namespace FACM.League
         private readonly Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
             CancellationToken, Task<LeagueEncounterMatchDetailResult>> _loadDetail;
         private readonly Func<string, CancellationToken, Task<Bitmap>> _loadAsset;
+        private readonly Func<LeagueClientSession, string, CancellationToken,
+            Task<LeagueReplayDirectoryResult>> _replayDirectory;
+        private readonly Button _replayDirectoryButton;
         private readonly Button _detailButton;
         private readonly Label _accountLabel;
         private readonly Panel _accountSurface;
@@ -83,7 +86,9 @@ namespace FACM.League
                 CancellationToken, Task<LeagueEncounterReplayResult>> replay = null,
             Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
                 CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail = null,
-            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null,
+            Func<LeagueClientSession, string, CancellationToken,
+                Task<LeagueReplayDirectoryResult>> replayDirectory = null)
         {
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
@@ -91,6 +96,7 @@ namespace FACM.League
             _replay = replay;
             _loadDetail = loadDetail;
             _loadAsset = loadAsset;
+            _replayDirectory = replayDirectory;
 
             Text = _ui.Get(UiTextKeys.LeaguePlayerWindowTitle);
             StartPosition = FormStartPosition.CenterScreen;
@@ -344,6 +350,13 @@ namespace FACM.League
                     _profile.PuuId, _profile.PuuId, _pageSession, _lifetime.Token);
             };
             _filterPanel.Controls.Add(analysisButton);
+            if (_replayDirectory != null)
+            {
+                _replayDirectoryButton = new Button { Text = "录像目录", Width = 88, Height = 27,
+                    FlatStyle = FlatStyle.Flat, Enabled = false };
+                _replayDirectoryButton.Click += async (sender, e) => await ShowReplayDirectoryAsync();
+                _filterPanel.Controls.Add(_replayDirectoryButton);
+            }
             UpdateAdvancedFilterLabel();
             UpdateFilterButtonLabels();
 
@@ -990,6 +1003,10 @@ namespace FACM.League
         private void UpdateReplayButton()
         {
             if (_replayButton == null || IsDisposed) return;
+            if (_replayDirectoryButton != null)
+                _replayDirectoryButton.Enabled = !_loading && !_replayRunning &&
+                    _replayDirectory != null && _profile != null &&
+                    LeagueDynamicMessageService.SafePuuid(_profile.PuuId) && SessionMatches(_pageSession);
             var selected = SelectedReplayMatch();
             _detailButton.Enabled = !_loading && !_replayRunning && _loadDetail != null &&
                 selected != null && selected.GameId > 0 && SessionMatches(_pageSession);
@@ -1032,6 +1049,49 @@ namespace FACM.League
             {
                 if (!IsDisposed && !_lifetime.IsCancellationRequested)
                     _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerMatchDetailUnavailable);
+            }
+            finally
+            {
+                _replayRunning = false;
+                if (!IsDisposed) UpdateReplayButton();
+            }
+        }
+
+
+        private async Task ShowReplayDirectoryAsync()
+        {
+            var session = _pageSession;
+            var owner = _profile == null ? null : _profile.PuuId;
+            if (_replayDirectory == null || _loading || _replayRunning ||
+                !SessionMatches(session) || !LeagueDynamicMessageService.SafePuuid(owner)) return;
+            _replayRunning = true;
+            UpdateReplayButton();
+            try
+            {
+                var result = await _replayDirectory(session, owner, _lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested || !SessionMatches(session) ||
+                    !string.Equals(owner, _profile == null ? null : _profile.PuuId, StringComparison.Ordinal))
+                    return;
+                if (result == null || result.Status != LeagueEncounterReplayStatus.Ready ||
+                    string.IsNullOrEmpty(result.Path))
+                {
+                    _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
+                    return;
+                }
+                var status = !result.ReplaysEnabled.HasValue || !result.MatchHistoryEnabled.HasValue
+                    ? "回放开关状态未知" :
+                    result.ReplaysEnabled.Value && result.MatchHistoryEnabled.Value
+                        ? "历史回放已启用" : "历史回放当前不可用";
+                MessageBox.Show(this, result.Path + Environment.NewLine + Environment.NewLine + status,
+                    "LOL 录像目录（Ctrl+C 可复制）", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusLabel.Text = LeagueEfficiencyText.Get(_ui,
+                        LeagueEfficiencyUiTextKeys.DynamicEncounterReplayUnavailable);
             }
             finally
             {
