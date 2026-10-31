@@ -15,12 +15,42 @@ namespace FACM.League
         {
             ValidateSettingsPersistenceContract();
             ValidateChampionSpellPresetContracts();
+            ValidateRuneEditorCatalog();
             ValidateStableExactlyOnceContract();
             ValidateDisableAndPhaseContract();
             ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
             ValidateStatusObserverIsolation();
             ValidateUiTextDefaults();
+        }
+
+        private static void ValidateRuneEditorCatalog()
+        {
+            const string styles = "{\"styles\":[{\"id\":8000,\"name\":\"Precision\",\"allowedSubStyles\":[8100],\"slots\":[{\"perks\":[8005,8008]},{\"perks\":[9111]},{\"perks\":[9104]},{\"perks\":[8014]}]},{\"id\":8100,\"name\":\"Domination\",\"allowedSubStyles\":[8000],\"slots\":[{\"perks\":[8112]},{\"perks\":[8126,8139]},{\"perks\":[8135]},{\"perks\":[8105]}]}]}";
+            const string perks = "[{\"id\":8005,\"name\":\"Press\"},{\"id\":8008,\"name\":\"Lethal\"},{\"id\":9111,\"name\":\"Triumph\"},{\"id\":9104,\"name\":\"Legend\"},{\"id\":8014,\"name\":\"Coup\"},{\"id\":8112,\"name\":\"Electro\"},{\"id\":8126,\"name\":\"Sudden\"},{\"id\":8139,\"name\":\"Taste\"},{\"id\":8135,\"name\":\"Hunter\"},{\"id\":8105,\"name\":\"Relentless\"},{\"id\":5008,\"name\":\"Adaptive\"},{\"id\":5005,\"name\":\"Speed\"},{\"id\":5002,\"name\":\"Movement\"},{\"id\":5001,\"name\":\"Health\"},{\"id\":5011,\"name\":\"Scaling\"}]";
+            var catalog = LeagueRuneCatalog.Parse(
+                System.Text.Encoding.UTF8.GetBytes(styles), System.Text.Encoding.UTF8.GetBytes(perks));
+            Require(catalog != null && catalog.Styles.Count == 2 &&
+                catalog.Choices(new[] { 8005 }).Single().Name == "Press",
+                "Rune editor did not load the current LCU perk catalog.");
+            var preset = new LeagueChampionRunePreset
+            {
+                ChampionId = 157, Group = "ranked-top", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5008, 5002, 5001 }
+            };
+            Require(catalog.Valid(preset), "Valid nine-slot rune selection was rejected.");
+            preset.SelectedPerkIds[5] = 8126;
+            Require(!catalog.Valid(preset), "Two secondary perks from the same row were accepted.");
+            preset.SelectedPerkIds[5] = 8135;
+            preset.SelectedPerkIds[8] = 5008;
+            Require(!catalog.Valid(preset), "Invalid stat shard row was accepted.");
+            preset.SelectedPerkIds[8] = 5001;
+            preset.SecondaryStyleId = 8000;
+            Require(!catalog.Valid(preset), "Primary style was accepted as its own secondary.");
+            Require(LeagueRuneCatalog.Parse(new byte[2 * 1024 * 1024 + 1],
+                System.Text.Encoding.UTF8.GetBytes(perks)) == null,
+                "Oversized LCU perk catalog was accepted.");
         }
 
         private static void ValidateChampionSpellPresetContracts()

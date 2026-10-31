@@ -193,6 +193,45 @@ namespace FACM.League
         /// Capture the user's current LCU spell slots for one champion/group preset. This is
         /// read-only and never fetches an external build or changes a rune page.
         /// </summary>
+        internal async Task<LeagueRuneCatalog> LoadRuneCatalogAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                try
+                {
+                    var styles = await _client.TryGetBytesAsync(
+                        "/lol-game-data/assets/v1/perkstyles.json", timeout.Token).ConfigureAwait(false);
+                    var perks = await _client.TryGetBytesAsync(
+                        "/lol-game-data/assets/v1/perks.json", timeout.Token).ConfigureAwait(false);
+                    return LeagueRuneCatalog.Parse(styles, perks);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (cancellationToken.IsCancellationRequested) throw;
+                    return null;
+                }
+                catch (Exception error)
+                {
+                    AppLog.Info("League rune catalog unavailable: " + error.GetType().Name);
+                    return null;
+                }
+            }
+        }
+
+        internal async Task<bool> ValidatePresetContextAsync(
+            LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(4));
+                var current = await _live.RefreshAsync(timeout.Token).ConfigureAwait(false);
+                return MatchesPresetCaptureContext(expected, current);
+            }
+        }
+
         internal async Task<LeagueBuildApplyPlan> CaptureCurrentSpellsAsync(
             LeagueBuildAdvisorSnapshot expected, CancellationToken cancellationToken)
         {

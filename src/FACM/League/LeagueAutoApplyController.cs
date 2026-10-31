@@ -494,6 +494,25 @@ namespace FACM.League
             return plan;
         }
 
+        internal void SaveEditedRunePreset(LeagueBuildAdvisorSnapshot snapshot,
+            LeagueChampionRunePreset preset)
+        {
+            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(
+                snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (preset == null || string.IsNullOrWhiteSpace(group) ||
+                snapshot.Activity != LeagueActivityLevel.ChampSelect ||
+                preset.ChampionId != snapshot.ChampionId ||
+                !string.Equals(preset.Group, group, StringComparison.Ordinal))
+                throw new ArgumentException("Rune preset context changed.");
+
+            var updated = LeagueChampionRunePresets.Upsert(_settings.LeagueChampionRunePresets, preset);
+            _settings.LeagueChampionRunePresets = updated;
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+            AppLog.Info("League rune preset edited; champion=" + preset.ChampionId + "; group=" + group);
+        }
+
         internal void SavePreset(LeagueBuildAdvisorSnapshot snapshot, LeagueBuildApplyPlan current)
         {
             var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);

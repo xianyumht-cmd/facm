@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly CheckBox _presetToggle;
         private readonly Button _savePresetButton;
         private readonly Button _removePresetButton;
+        private readonly Button _editRunesButton;
         private readonly Label _autoStatusValue;
         private readonly Label _contextValue;
         private readonly TextBox _spellValue;
@@ -101,13 +102,16 @@ namespace FACM.League
             {
                 Text = T(LeagueChampionSpellPresetUiTextKeys.Toggle),
                 Location = new Point(30, 390),
-                Size = new Size(460, 30),
+                Size = new Size(345, 30),
                 ForeColor = FacmDesignSystem.Text,
                 BackColor = Color.Transparent,
                 Checked = _autoController.PresetsEnabled,
                 Cursor = Cursors.Hand
             };
             _presetToggle.CheckedChanged += HandlePresetToggleChanged;
+            _editRunesButton = CreateButton(T(LeagueChampionSpellPresetUiTextKeys.EditRunes), FacmButtonTone.Secondary, 110);
+            _editRunesButton.Location = new Point(388, 388);
+            _editRunesButton.Click += async delegate { await EditRunesAsync(); };
             _savePresetButton = CreateButton(T(LeagueChampionSpellPresetUiTextKeys.Save), FacmButtonTone.Secondary, 110);
             _savePresetButton.Location = new Point(506, 388);
             _savePresetButton.Click += async delegate { await SaveCurrentPresetAsync(); };
@@ -145,6 +149,7 @@ namespace FACM.League
             Controls.Add(runeCaption);
             Controls.Add(_runeValue);
             Controls.Add(_presetToggle);
+            Controls.Add(_editRunesButton);
             Controls.Add(_savePresetButton);
             Controls.Add(_removePresetButton);
             Controls.Add(_statusValue);
@@ -248,6 +253,56 @@ namespace FACM.League
                 _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
             }
             finally { _syncingAutoToggle = false; }
+        }
+
+        private async Task EditRunesAsync()
+        {
+            if (_busy || !CanSavePreset(_snapshot) || IsDisposed) return;
+            _busy = true;
+            SetButtons(false);
+            var expected = _snapshot;
+            try
+            {
+                var catalog = await _applyService.LoadRuneCatalogAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                if (catalog == null)
+                {
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.RuneCatalogUnavailable);
+                    return;
+                }
+                var group = LeagueChampionSpellPresets.GroupFor(
+                    expected.QueueId, expected.Mode, expected.Position, expected.GameMode, expected.QueueType);
+                var existing = _autoController.FindRunePreset(expected);
+                using (var editor = new LeagueRunePresetEditorForm(
+                    catalog, expected.ChampionId, expected.ChampionName, group, existing))
+                {
+                    if (editor.ShowDialog(this) != DialogResult.OK) return;
+                    if (!await _applyService.ValidatePresetContextAsync(expected, _lifetime.Token))
+                    {
+                        _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ContextChanged);
+                        return;
+                    }
+                    _autoController.SaveEditedRunePreset(expected, editor.Preset);
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SavedRunes);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                if (!_lifetime.IsCancellationRequested)
+                    _statusValue.Text = T(LeagueBuildApplyUiTextKeys.ContextChanged);
+            }
+            catch (Exception error)
+            {
+                AppLog.Error("League rune editor failed", error);
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    _statusValue.Text = T(LeagueChampionSpellPresetUiTextKeys.SaveFailed);
+            }
+            finally
+            {
+                _busy = false;
+                if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                    SetButtons(CanApply(_snapshot));
+            }
         }
 
         private async Task SaveCurrentPresetAsync()
@@ -442,6 +497,7 @@ namespace FACM.League
                 ? T(LeagueBuildApplyUiTextKeys.Ready)
                 : T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = !_busy && CanApply(snapshot);
+            _editRunesButton.Enabled = !_busy && CanSavePreset(snapshot);
             _savePresetButton.Enabled = !_busy && CanSavePreset(snapshot);
             _removePresetButton.Enabled = !_busy &&
                 (_autoController.FindPreset(snapshot) != null || _autoController.FindRunePreset(snapshot) != null);
@@ -505,6 +561,7 @@ namespace FACM.League
             _runeValue.Text = string.Empty;
             _statusValue.Text = T(LeagueBuildApplyUiTextKeys.Waiting);
             _applyButton.Enabled = false;
+            _editRunesButton.Enabled = false;
             _savePresetButton.Enabled = false;
             _removePresetButton.Enabled = false;
         }
@@ -513,6 +570,7 @@ namespace FACM.League
         {
             _refreshButton.Enabled = !_busy;
             _applyButton.Enabled = !_busy && canApply;
+            _editRunesButton.Enabled = !_busy && CanSavePreset(_snapshot);
             _savePresetButton.Enabled = !_busy && CanSavePreset(_snapshot);
             _removePresetButton.Enabled = !_busy &&
                 (_autoController.FindPreset(_snapshot) != null || _autoController.FindRunePreset(_snapshot) != null);

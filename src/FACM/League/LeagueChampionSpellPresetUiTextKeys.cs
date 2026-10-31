@@ -14,11 +14,15 @@ namespace FACM.League
         public const string SaveFailed = "LeagueChampionSpellPresetSaveFailed";
         public const string SavedRunes = "LeagueChampionSpellPresetSavedRunes";
         public const string SavedSpells = "LeagueChampionSpellPresetSavedSpells";
+        public const string EditRunes = "LeagueChampionSpellPresetEditRunes";
+        public const string RuneCatalogUnavailable = "LeagueChampionSpellPresetRuneCatalogUnavailable";
 
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             { Toggle, "选人时自动恢复英雄配置（符文/技能，与 OP.GG 自动应用互斥）" },
             { Save, "保存当前配置" },
+            { EditRunes, "编辑符文" },
+            { RuneCatalogUnavailable, "当前客户端的符文资料不可用，未修改预设。" },
             { Remove, "删除此预设" },
             { Saved, "已保存本英雄及模式的符文与技能预设。" },
             { SavedRunes, "已保存符文预设；技能读取不可用，旧技能预设未改动。" },
