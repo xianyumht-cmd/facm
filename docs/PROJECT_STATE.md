@@ -1,8 +1,25 @@
+## 2026-11-01 — Replay folder ownership and multi-event timeline selection (Draft #357)
+
+**Executable/test candidate:** [40416f4](https://github.com/xianyumht-cmd/facm/commit/40416f4faca2c4caa5ebd98eed4dde81fceb67fd). The native player-history panel now exposes Akari v1.5.1's local replay-folder read endpoint `/lol-replays/v1/rofls/path` on explicit user action, together with source-known replay enablement flags. The LCU directory is only displayed; no filesystem browsing, opening, writing, polling, or new network owner. A 6-second bounded read verifies current LCU session, region and signed-in PUUID before and after reading; it rejects UNC paths, traversal, control characters, invalid drives and oversized responses. Synthetic tests cover valid JSON/plain Windows paths, invalid paths, account switch and session change.
+
+The native match timeline now permits multiple simultaneous event-type filters with a source-style checked menu and a reset-to-all action; participant filtering, event order, map and damage actions remain intact. Synthetic tests cover combined event types, empty selection and player/assist ownership. **CI on this exact executable SHA is pending until all four Windows workflows finish.** Earlier candidate 075f65a failed UI Text Contract because new user-visible strings were not registered; [d859528](https://github.com/xianyumht-cmd/facm/commit/d85952886c0936a700472dfb86265ad5a67eff0d) moved all new copy into UiTextKeys/UiTextCatalog before the final candidate.
+
+| Source area | Status | Remaining |
+| --- | --- | --- |
+| Replay download/watch, state and local folder | Native source/test candidate | Real LCU replay path and game-version compatibility; remaining source replay options |
+| Match timeline event multi-selection | Native source/test candidate | Additional per-champion filter options and live timeline payload variation |
+| Other Akari v1.5.1 source-wide options | Partial | Full option-by-option comparison and end-to-end integration |
+| Riot/Tencent SGP, 256-row real cloud, Windows 10/DPI | Not live verified | Final consolidated owner acceptance |
+
+Both #357 and stacked #355 remain Draft. No merge, updater, production 3.5.78, release, deployment, paid infrastructure or real game testing.
+
+---
+
 ## 2026-11-01 — Native role preferences and source game-time parity (Draft #357)
 
 **Latest executable/test:** [6520ad8](https://github.com/xianyumht-cmd/facm/commit/6520ad8a23525270a04166b2c8bbee093dbdb8dd), building on the earlier green [c0db85a](https://github.com/xianyumht-cmd/facm/commit/c0db85a1d78f8e67db5f4154579ae82f195698ce). The native MatchCard detailed-stat matrix now additionally displays the two non-hidden Akari v1.5.1 game-state role fields: `positionAssignedByMatchmaking` and `selectedRolePreferences`. It accepts only strict position/assignment enums and four/five-part role encodings, reconciles LCU stats versus SGP participant-root values only when they agree, and never displays arbitrary role text, hidden `PlayerBehavior` or unknown source fields. Six pinned `game-time` fields now use Akari's floor-seconds `MM:SS`/`HH:MM:SS` formatting, including earliest Baron/dragon, first turret, longest living, ace interval and game length. Synthetic regression covers valid, conflicting, absent and malicious role values, known zero, fractional times and hour rollover. No additional request owner, poller, writer, package, paid service or production change.
 
-**Exact latest executable CI:** [Windows Build](undefined) **passed**; [Glass WebView2](undefined) **passed**; [UI Text Contract](undefined) **passed**; [Mayhem Source Probe](undefined) **passed**. The previous c0db85a executable also passed all four gates. These are synthetic/Windows CI results, not real Tencent/Riot/Windows 10/DPI acceptance.
+**Exact latest executable CI:** [Windows Build](https://github.com/xianyumht-cmd/facm/actions/runs/41244359998) **passed**; [Glass WebView2](https://github.com/xianyumht-cmd/facm/actions/runs/41244359972) **passed**; [UI Text Contract](https://github.com/xianyumht-cmd/facm/actions/runs/41244359979) **passed**; [Mayhem Source Probe](https://github.com/xianyumht-cmd/facm/actions/runs/41244359963) **passed**. The previous c0db85a executable also passed all four gates. These are synthetic/Windows CI results, not real Tencent/Riot/Windows 10/DPI acceptance.
 
 **Current gap matrix:** detailed source fields, role enums, source time display and special timeline events are implemented/tested; remaining option-by-option replay/local replay-path features and richer localized field presentation are **partial**; live Tencent/Riot SGP payload variations, real 256-row cloud sync and Windows 10/DPI game acceptance remain **not verified**. Keep #357 and stacked #355 Draft, with no merge/release/updater/3.5.78 change.
 
