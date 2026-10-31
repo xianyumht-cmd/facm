@@ -377,6 +377,16 @@ namespace FACM.League
                 "Pinned loss streak threshold must work without fabricating other player tags.");
             Require(LeagueOngoingPlayerTagProjection.Project(new LeaguePlayerMatchPage()).Count == 0,
                 "Missing history must not create any player-card tags.");
+            var invalid = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 16; i++)
+                invalid.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 0, GameCreationLocal = now.AddMinutes(-i), GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                    SpellIds = new[] { 4, 7 }
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(invalid).Count == 0,
+                "Invalid game IDs must not create ongoing player-card tags.");
             losses.Matches[0].SoloKills = 2d;
             Require(LeagueOngoingPlayerTagProjection.Project(losses).Any(tag => tag.Contains("2.0")),
                 "Known solo kills must produce the pinned player-card solo-kill tag.");

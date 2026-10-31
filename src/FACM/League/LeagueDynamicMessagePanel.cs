@@ -40,7 +40,7 @@ namespace FACM.League
             foreach (var height in new[] { 38, 40, 115, 42 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
-            var choices = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true };
+            var choices = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true };
             _target = Choice(new[] { T(LeagueEfficiencyUiTextKeys.DynamicFriendly), T(LeagueEfficiencyUiTextKeys.DynamicEnemy), T(LeagueEfficiencyUiTextKeys.DynamicAll) });
             _target.SelectedIndex = Array.IndexOf(new[] { "friendly", "enemy", "all" }, _options.Target);
             _names = Choice(new[] { T(LeagueEfficiencyUiTextKeys.DynamicNames), T(LeagueEfficiencyUiTextKeys.DynamicChampionNames), T(LeagueEfficiencyUiTextKeys.DynamicCombinedNames) });

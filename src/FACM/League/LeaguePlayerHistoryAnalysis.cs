@@ -367,8 +367,10 @@ namespace FACM.League
         {
             var tags = new List<string>();
             if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
-            var analysis = LeaguePlayerHistoryAnalysis.Calculate(
-                history.Matches.Take(LeaguePlayerDataService.MaximumMatchCount));
+            var source = history.Matches.Where(m => m != null && m.GameId > 0)
+                .Take(LeaguePlayerDataService.MaximumMatchCount).ToArray();
+            if (source.Length == 0) return tags;
+            var analysis = LeaguePlayerHistoryAnalysis.Calculate(source);
             if (analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Win)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingWinStreak)
                     .Replace("{0}", analysis.Streak.ToString(CultureInfo.InvariantCulture)));
@@ -378,7 +380,7 @@ namespace FACM.League
             if (analysis.Wins + analysis.Losses >= 16 &&
                 (double)analysis.Wins / (analysis.Wins + analysis.Losses) >= 0.85)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate));
-            var soloKills = history.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
+            var soloKills = source.AsEnumerable()
                 .Where(m => m != null && m.SoloKills.HasValue && m.SoloKills.Value >= 0 &&
                     (LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
                      LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss))
