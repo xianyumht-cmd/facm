@@ -1,3 +1,7 @@
+## Do not double-escape JSON inside C# smoke fixtures (2026-10-31)
+
+The first dynamic SGP catalog test candidate `05cac9e` emitted a C# string containing `\\\\"` where the compiler expected a single escaped quote. Glass #41184806712 failed with CS1002/CS1056 at the synthetic fixture, before behavior was tested. Use a C# verbatim literal (`@"{""key"":...}"`) or serializer-generated JSON, inspect the committed source, and verify Windows compilation rather than interpreting an escaped tool payload as valid C#. Corrected in `1ea7c34`; the final SGP candidate requires its own four Windows CI gates.
+
 ## UI Text Contract guards placeholder literals in control initializers (2026-10-31)
 
 Mastery-list candidate `9a3107b` initialized a count label with a literal em dash (`Text = "—"`), which caused UI Text Contract run #41154969990 to fail even though the new catalog key was registered. Use `string.Empty` for not-yet-loaded control text, and set localized content through `UiTextKeys` once data arrives; avoid new inline user-visible literal placeholders. Corrected in `1186f42`; final UI Text Contract #41155054380 and the other three Windows checks passed.
