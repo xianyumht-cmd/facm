@@ -139,6 +139,64 @@ namespace FACM.League
                 })
                     Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-05"))),
                         "Unknown group, server, mixed wildcard, unmodeled action or remote icon must fail closed.");
+
+                var cherry = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""groups"":[{""groupId"":""cherry"",""name"":{""zh-CN"":""斗魂竞技场"",""en"":""Arena""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CHERRY"",""queueTypes"":[""ANY""]}],""positions"":[""default""],""additionalPicks"":[-3],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[-1]}]}";
+                var cherryFlow = Flow("ANY").Replace("\"CLASSIC\"", "\"CHERRY\"");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(cherry)) &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3) &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, false, -1) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -3, -1, 22 }, "cherry", null, true)
+                        .SequenceEqual(new[] { -3, 22 }) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -1, 22 }, "cherry", null, false)
+                        .SequenceEqual(new[] { 22 }),
+                    "Remote Arena special choices must enforce source allow/exclude lists.");
+                var before = LeagueAutoSelectContext.Bind(Bytes(Session("pick", 12, 0)), Bytes(cherryFlow));
+                Require(before != null, "Trusted Arena catalog must bind a local action.");
+                var specialProfiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 },
+                        Bans = new List<int> { -1 } } });
+                var pickWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0), GameflowJson = cherryFlow,
+                        Pickable = "[]" }, pickWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(pickWrite.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "Trusted Arena bravery must remain executable without an ordinary champion pool.");
+                var blockedBan = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("ban", 13, 0), GameflowJson = cherryFlow,
+                        Bannable = "[-1]" }, blockedBan, new InstantClock()))
+                {
+                    controller.Configure(false, 0, true, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(blockedBan.Calls.Count == 0,
+                    "A remotely excluded empty ban must never reach the LCU writer.");
+                var revoked = cherry.Replace("2026-08-06", "2026-08-07")
+                    .Replace(@"""additionalPicks"":[-3]", @"""additionalPicks"":[]")
+                    .Replace(@"""excludedBans"":[-1]", @"""excludedBans"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(revoked)) &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3) &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, false, -1) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -3, 22 }, "cherry", null, true)
+                        .SequenceEqual(new[] { 22 }),
+                    "Updated group restrictions must revoke obsolete special choices.");
+                var after = LeagueAutoSelectContext.Bind(Bytes(Session("pick", 12, 0)), Bytes(cherryFlow));
+                Require(after != null && !Encoding.UTF8.GetString(before).Equals(Encoding.UTF8.GetString(after),
+                    StringComparison.Ordinal), "Remote catalog revisions must invalidate an in-flight draft context.");
+                var revokedPick = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0), GameflowJson = cherryFlow,
+                        Pickable = "[]" }, revokedPick, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(revokedPick.Calls.Count == 0,
+                    "A removed remote bravery option must not be submitted from a saved profile.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

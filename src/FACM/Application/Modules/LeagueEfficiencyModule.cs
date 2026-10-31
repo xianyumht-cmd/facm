@@ -553,6 +553,10 @@ namespace FACM.AppHost.Modules
         public int AutoPickChampionId { get { return _settingsModule.Settings.LeagueAutoPickChampionId; } }
         public int AutoBanChampionId { get { return _settingsModule.Settings.LeagueAutoBanChampionId; } }
         public string AutoSelectProfilesJson { get { return _settingsModule.Settings.LeagueAutoSelectProfiles; } }
+        public string AutoSelectServerId
+        {
+            get { return LeagueSgpMatchHistoryApiClient.CurrentServerId(_leagueClient.CurrentSession); }
+        }
         public int AutoMatchmakingMinPartySize { get { return _settingsModule.Settings.LeagueAutoMatchmakingMinPartySize; } }
         public bool AutoMatchmakingWaitForInvitees { get { return _settingsModule.Settings.LeagueAutoMatchmakingWaitForInvitees; } }
         public bool AutoMatchmakingRoomNotices { get { return _settingsModule.Settings.LeagueAutoMatchmakingRoomNotices; } }

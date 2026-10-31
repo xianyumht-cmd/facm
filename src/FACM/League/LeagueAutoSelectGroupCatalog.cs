@@ -19,6 +19,8 @@ namespace FACM.League
             internal bool Custom;
             internal string[] SupportedServers;
             internal string[] Positions;
+            internal int[] AdditionalPicks;
+            internal int[] ExcludedBans;
             internal readonly List<Tuple<string, string[]>> Targets = new List<Tuple<string, string[]>>();
         }
 
@@ -32,6 +34,39 @@ namespace FACM.League
         private static Group[] _groups;
         private static DateTime _updatedAt = BuiltinTimestamp;
         private static DateTime _lastAttempt = DateTime.MinValue;
+
+        internal static string Revision
+        {
+            get
+            {
+                lock (Sync)
+                    return _groups == null ? "builtin" :
+                        _updatedAt.Ticks.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        internal static bool SpecialAllowed(string groupId, string sgpServerId, bool pick, int championId)
+        {
+            if (groupId == "mayhem") groupId = "aram";
+            if (pick ? championId != -3 || groupId != "cherry" : championId != -1)
+                return false;
+            Group[] snapshot;
+            lock (Sync) snapshot = _groups;
+            if (snapshot == null) return true;
+            var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
+            if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+                (string.IsNullOrEmpty(sgpServerId) ||
+                 !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
+                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return false;
+            return pick ? group.AdditionalPicks.Contains(-3) : !group.ExcludedBans.Contains(-1);
+        }
+
+        internal static List<int> FilterSpecials(IReadOnlyList<int> candidates,
+            string groupId, string sgpServerId, bool pick)
+        {
+            return candidates == null ? new List<int>() :
+                candidates.Where(id => id > 0 || SpecialAllowed(groupId, sgpServerId, pick, id)).ToList();
+        }
 
         internal static bool TryGroupFor(string mode, string queueType, bool custom, out string group)
         {
@@ -146,11 +181,13 @@ namespace FACM.League
                     if (!ValidActions(Value(entry, "additionalPicks"), id == "cherry" ? -3 : 0) ||
                         !ValidActions(Value(entry, "additionalBans"), 0) ||
                         !ValidActions(Value(entry, "excludedPicks"), -1) ||
-                        !ValidActions(Value(entry, "excludedBans"), 0)) return false;
+                        !ValidActions(Value(entry, "excludedBans"), -1)) return false;
                     var targets = Value(entry, "targetGameModes") as object[];
                     if (targets == null || targets.Length == 0 || targets.Length > 10) return false;
                     var group = new Group { Id = id, Custom = (bool)Value(entry, "isCustom"),
-                        SupportedServers = servers, Positions = positions };
+                        SupportedServers = servers, Positions = positions,
+                        AdditionalPicks = Actions(Value(entry, "additionalPicks")),
+                        ExcludedBans = Actions(Value(entry, "excludedBans")) };
                     foreach (var targetValue in targets)
                     {
                         var target = targetValue as Dictionary<string, object>;
@@ -203,6 +240,11 @@ namespace FACM.League
                     id != special || special == 0) return false;
             }
             return true;
+        }
+
+        private static int[] Actions(object value)
+        {
+            return ((object[])value).Select(item => Convert.ToInt32(item, CultureInfo.InvariantCulture)).ToArray();
         }
 
         private static bool SafeName(string value)

@@ -349,8 +349,10 @@ namespace FACM.League
             if (action.Completed || isPick && !pick || !isPick && !ban) return;
             var mode = action.Group ?? LeagueAutoSelectProfiles.ModeFor(action.QueueId, action.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, action.Role);
-            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, action.Role, isPick,
-                isPick ? pickId : banId);
+            var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, action.Role, isPick,
+                    isPick ? pickId : banId), mode,
+                _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), isPick);
             if (candidates.Count == 0 || isPick && !profile.PickEnabled || !isPick && !profile.BanEnabled) return;
             if (action.ChampionId > 0 && !candidates.Contains(action.ChampionId))
             {
@@ -448,7 +450,9 @@ namespace FACM.League
             var mode = intent.Group ?? LeagueAutoSelectProfiles.ModeFor(intent.QueueId, intent.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, intent.Role);
             if (!profile.PickEnabled || !profile.ShowPickIntent) return false;
-            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, intent.Role, true, pickId);
+            var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, intent.Role, true, pickId), mode,
+                _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
             if (candidates.Count == 0) return true;
 
             var available = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
@@ -604,7 +608,9 @@ namespace FACM.League
             if (incoming == null) return false;
             var key = "trade:" + incoming.Id;
             if (!attempted.Add(key)) return true;
-            var priorities = LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId);
+            var priorities = LeagueAutoSelectGroupCatalog.FilterSpecials(
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
+                _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
             var accept = SelectBenchTarget(priorities, state.LocalChampionId,
                 new[] { incoming.RequestedChampionId }, profile.BenchPreferHigherPriority) == incoming.RequestedChampionId;
             var watch = Stopwatch.StartNew();
@@ -692,7 +698,9 @@ namespace FACM.League
                 RecordOnce(reported, trace, "bench", "manual_choice_guard");
                 return;
             }
-            var candidates = LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId);
+            var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
+                _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
             var desired = SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds,
                 profile.BenchPreferHigherPriority);
             if (desired <= 0) return;

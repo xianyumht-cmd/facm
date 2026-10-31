@@ -197,7 +197,13 @@ namespace FACM.League
             _ = LoadCatalogAsync();
             Shown += async delegate
             {
-                try { await LeagueAutoSelectGroupCatalog.TryRefreshAsync(_catalogLifetime.Token); }
+                try
+                {
+                    await LeagueAutoSelectGroupCatalog.TryRefreshAsync(_catalogLifetime.Token);
+                    if (IsDisposed || Disposing || _catalogLifetime.IsCancellationRequested) return;
+                    RefreshSpecialChoices();
+                    RefreshProfile();
+                }
                 catch (OperationCanceledException) { }
             };
         }
@@ -281,13 +287,17 @@ namespace FACM.League
                 var option = _catalog.Items[i] as LeagueProfileChampionOption;
                 if (option != null && (option.Id == -1 || option.Id == -3)) _catalog.Items.RemoveAt(i);
             }
-            if (_action.SelectedIndex == 1)
+            var mode = LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)];
+            var server = _module.AutoSelectServerId;
+            if (_action.SelectedIndex == 1 &&
+                LeagueAutoSelectGroupCatalog.SpecialAllowed(mode, server, false, -1))
             {
                 var name = T(LeagueEfficiencyUiTextKeys.AdvancedNoBan);
                 _championNames[-1] = name;
                 _catalog.Items.Insert(0, new LeagueProfileChampionOption { Id = -1, Name = name });
             }
-            else if (_mode.SelectedIndex == Array.IndexOf(LeagueAutoSelectProfiles.Modes, "cherry"))
+            else if (_action.SelectedIndex == 0 &&
+                LeagueAutoSelectGroupCatalog.SpecialAllowed(mode, server, true, -3))
             {
                 var name = T(LeagueEfficiencyUiTextKeys.AdvancedCherryBravery);
                 _championNames[-3] = name;
@@ -337,9 +347,9 @@ namespace FACM.League
         {
             var option = _catalog.SelectedItem as LeagueProfileChampionOption;
             if (option == null || option.Id <= 0 &&
-                !(option.Id == -1 && _action.SelectedIndex == 1) &&
-                !(option.Id == -3 && _action.SelectedIndex == 0 &&
-                    _mode.SelectedIndex == Array.IndexOf(LeagueAutoSelectProfiles.Modes, "cherry"))) return;
+                !LeagueAutoSelectGroupCatalog.SpecialAllowed(
+                    LeagueAutoSelectProfiles.Modes[Math.Max(0, _mode.SelectedIndex)],
+                    _module.AutoSelectServerId, _action.SelectedIndex == 0, option.Id)) return;
             var list = CurrentList(true);
             if (list.Count >= 20 || list.Contains(option.Id)) return;
             list.Add(option.Id);
