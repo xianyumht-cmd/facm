@@ -110,6 +110,72 @@ namespace FACM.League
         }
     }
 
+    internal static class LeaguePremadeTeamTagProjection
+    {
+        internal const string WinRateTeam = "win-rate-team";
+        internal const string LossRateTeam = "loss-rate-team";
+
+        // Pinned Akari 1.5.1 team tag thresholds. Only loaded, classified match outcomes count.
+        internal static string Classify(IReadOnlyList<LeagueDynamicMessagePlayer> members)
+        {
+            if (members == null || members.Count < 2 || members.Count > 20 ||
+                members.Any(p => p == null || p.Player == null || p.History == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
+                members.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != members.Count ||
+                members.Any(p => p.Friendly != members[0].Friendly)) return null;
+
+            var winRates = new List<double>();
+            var games = new List<int>();
+            var streaks = new List<int>();
+            foreach (var member in members)
+            {
+                var seen = new Dictionary<long, LeaguePlayerMatchSummary>();
+                foreach (var match in member.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount))
+                {
+                    if (match == null || match.GameId <= 0) continue;
+                    LeaguePlayerMatchSummary prior;
+                    if (seen.TryGetValue(match.GameId, out prior))
+                    {
+                        if (!string.Equals(prior.WinResult, match.WinResult, StringComparison.OrdinalIgnoreCase) ||
+                            prior.GameCreationEpochMs != match.GameCreationEpochMs) return null;
+                    }
+                    else seen.Add(match.GameId, match);
+                }
+                var classified = seen.Values.Where(m =>
+                    string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(m.WinResult, "loss", StringComparison.OrdinalIgnoreCase)).ToArray();
+                var wins = classified.Count(m => string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase));
+                games.Add(classified.Length);
+                winRates.Add(classified.Length == 0 ? double.NaN : (double)wins / classified.Length);
+                // A streak is only meaningful when the full observed sequence is timestamped and classified.
+                var complete = seen.Count == classified.Length &&
+                    classified.All(m => m.GameCreationEpochMs > 0) &&
+                    classified.Select(m => m.GameCreationEpochMs).Distinct().Count() == classified.Length;
+                var streak = 0;
+                if (complete)
+                    foreach (var match in classified.OrderByDescending(m => m.GameCreationEpochMs))
+                    {
+                        if (!string.Equals(match.WinResult, "win", StringComparison.OrdinalIgnoreCase)) break;
+                        streak++;
+                    }
+                streaks.Add(streak);
+            }
+
+            if (members.Count >= 3)
+            {
+                for (var i = 0; i < members.Count; i++)
+                {
+                    if (games[i] < 13 || winRates[i] < 0.9) continue;
+                    var others = streaks.Where((value, index) => index != i).ToArray();
+                    if (others.Average() >= 4) return WinRateTeam;
+                }
+            }
+            if (games.All(n => n >= 2) && winRates.All(rate => rate <= 0.25))
+                return LossRateTeam;
+            return null;
+        }
+    }
+
     internal static class LeaguePremadeMessageFormatter
     {
         internal static string GroupKey(IEnumerable<string> members)

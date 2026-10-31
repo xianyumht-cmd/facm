@@ -154,7 +154,8 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.Text, HorizontalScrollbar = true,
                 AccessibleName = T(LeagueEfficiencyUiTextKeys.DynamicSelectPlayers) };
             _groups = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
-                ForeColor = FacmDesignSystem.Text, AccessibleName = T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups) };
+                ForeColor = FacmDesignSystem.Text, HorizontalScrollbar = true,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.PremadeSelectGroups) };
             _jungle = new CheckedListBox { Dock = DockStyle.Fill, CheckOnClick = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text, HorizontalScrollbar = true,
                 AccessibleName = T(LeagueEfficiencyUiTextKeys.JungleTab) };
@@ -323,7 +324,12 @@ namespace FACM.League
             foreach (var group in LeaguePremadeInference.Infer(snapshot, _options.PremadeMatchThreshold)
                 .OrderByDescending(g => byId[g[0]].Friendly))
             {
-                var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount));
+                var classification = LeaguePremadeTeamTagProjection.Classify(group.Select(id => byId[id]).ToArray());
+                var tag = classification == LeaguePremadeTeamTagProjection.WinRateTeam ?
+                    T(LeagueEfficiencyUiTextKeys.PremadeWinRateTeam) :
+                    classification == LeaguePremadeTeamTagProjection.LossRateTeam ?
+                    T(LeagueEfficiencyUiTextKeys.PremadeLossRateTeam) : null;
+                var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount), tag);
                 _groups.Items.Add(choice, !existing.Contains(choice.Key) || checkedGroups.Contains(choice.Key));
             }
         }
@@ -595,12 +601,14 @@ namespace FACM.League
         {
             internal readonly string Key;
             private readonly string _label;
-            internal PremadeChoice(string[] members, IDictionary<string, LeagueDynamicMessagePlayer> players, string countFormat)
+            internal PremadeChoice(string[] members, IDictionary<string, LeagueDynamicMessagePlayer> players,
+                string countFormat, string tag)
             {
                 Key = LeaguePremadeMessageFormatter.GroupKey(members);
                 var names = members.Select(id => LeagueDynamicMessageFormatter.DisplayName(players[id], "preferName",
                     new Dictionary<int, int>()));
-                _label = countFormat.Replace("{0}", members.Length.ToString()) + " · " + string.Join(" / ", names);
+                _label = countFormat.Replace("{0}", members.Length.ToString()) +
+                    (string.IsNullOrEmpty(tag) ? string.Empty : " · " + tag) + " · " + string.Join(" / ", names);
             }
             public override string ToString() { return _label; }
         }

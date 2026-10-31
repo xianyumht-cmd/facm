@@ -370,6 +370,8 @@ namespace FACM.League
         public const string PremadeSelectGroups = "LeagueEfficiencyPremadeSelectGroups";
         public const string PremadeGroupCount = "LeagueEfficiencyPremadeGroupCount";
         public const string PremadeThreshold = "LeagueEfficiencyPremadeThreshold";
+        public const string PremadeWinRateTeam = "LeagueEfficiencyPremadeWinRateTeam";
+        public const string PremadeLossRateTeam = "LeagueEfficiencyPremadeLossRateTeam";
         public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
         public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
         public const string JungleTab = "LeagueEfficiencyJungleTab";
@@ -783,6 +785,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeSelectGroups, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.PremadeGroupCount, "{0} 人同队记录" },
             { LeagueEfficiencyUiTextKeys.PremadeThreshold, "组队判定局数" },
+            { LeagueEfficiencyUiTextKeys.PremadeWinRateTeam, "胜率队" },
+            { LeagueEfficiencyUiTextKeys.PremadeLossRateTeam, "娱乐队" },
             { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少 {0} 局），不能判定无人组队。" },
             { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.JungleTab, "打野分析" },

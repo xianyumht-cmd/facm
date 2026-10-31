@@ -258,6 +258,47 @@ namespace FACM.League
             b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, SameTeamPuuids = new[] { "b" } });
             Require(LeaguePremadeInference.Infer(disputed).Count == 0,
                 "Contradictory duplicate source game rows must not be counted as premade evidence.");
+            var strong = new LeagueDynamicMessageSnapshot();
+            foreach (var id in new[] { "one", "two", "three" })
+                strong.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() });
+            for (var i = 0; i < 13; i++)
+                strong.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 100 + i,
+                    GameCreationEpochMs = 100000 + i * 1000, WinResult = "win" });
+            for (var index = 1; index < 3; index++)
+                for (var i = 0; i < 5; i++)
+                    strong.Players[index].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 200 + index * 10 + i,
+                        GameCreationEpochMs = 200000 + i * 1000, WinResult = "win" });
+            Require(LeaguePremadeTeamTagProjection.Classify(strong.Players) ==
+                LeaguePremadeTeamTagProjection.WinRateTeam,
+                "Pinned three-player high-win-rate/streak team classification was not projected.");
+            strong.Players[1].History.Matches[0].GameCreationEpochMs = 0;
+            Require(LeaguePremadeTeamTagProjection.Classify(strong.Players) == null,
+                "Missing chronological evidence must not create a high-win-rate team label.");
+            var low = new LeagueDynamicMessageSnapshot();
+            foreach (var id in new[] { "low1", "low2" })
+            {
+                var player = new LeagueDynamicMessagePlayer { Friendly = false,
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() };
+                for (var i = 0; i < 4; i++)
+                    player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 300 + i,
+                        WinResult = "loss" });
+                low.Players.Add(player);
+            }
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
+                LeaguePremadeTeamTagProjection.LossRateTeam,
+                "Pinned low-win-rate team classification must use known outcomes, not missing games.");
+            low.Players[1].History.Matches[0].WinResult = null;
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
+                LeaguePremadeTeamTagProjection.LossRateTeam,
+                "One unknown game must not be counted as a loss or erase other classified outcomes.");
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win" });
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
+                "Conflicting duplicate game outcomes must not create a team label.");
+            low.Players[1].History.Matches.RemoveAt(low.Players[1].History.Matches.Count - 1);
+            low.Players[1].Friendly = true;
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
+                "Current opposing sides must not share a premade team label.");
         }
 
         private static void ValidateJungleTimeline()
