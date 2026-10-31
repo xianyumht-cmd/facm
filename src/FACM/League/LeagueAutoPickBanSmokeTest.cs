@@ -248,6 +248,19 @@ namespace FACM.League
                     reader.Paths.Count(path => path == LeagueAutoPickBanController.SubsetPath) == 2,
                     "Subset pick must choose only an eligible offered champion and revalidate before write.");
             }
+            var showOnly = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 22 },
+                    PickStrategy = "just-show" } });
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, showOnly);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:22:True" }),
+                    "Subset draw must finalize even when the ordinary strategy is show-only.");
+            }
             reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
                 Pickable = "[22,67]", Subset = "[]" };
             writer = new FakeWrite();

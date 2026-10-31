@@ -363,6 +363,8 @@ namespace FACM.League
             }
 
             var strategy = isPick ? profile.PickStrategy : profile.BanStrategy;
+            // The source's subset-pick move always completes immediately; showing alone cannot finalize a draw.
+            if (isPick && action.AllowSubsetPicks) strategy = "lock-in-immediately";
             var delayMs = isPick ? profile.PickDelayMs : profile.BanDelayMs;
             delayMs = LeagueAutoSelectContext.PhaseDelay(delayMs, false, action.Timer, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (delayMs > 0)
