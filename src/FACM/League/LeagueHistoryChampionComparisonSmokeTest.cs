@@ -150,8 +150,8 @@ namespace FACM.League
                 overview.SelectChampion(22);
                 overview.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
                 Require(overview.SelectedChampionId == 22 &&
-                    overview.Controls.OfType<ListView>().Single().Groups.Count == 3 &&
-                    overview.Controls.OfType<ListView>().Single().Items.Count == 28,
+                    overview.Controls.OfType<ListView>().Single().Groups.Count == 4 &&
+                    overview.Controls.OfType<ListView>().Single().Items.Count == 32,
                     "Native champion overview must expose grouped metrics for the selected hero.");
                 overview.RefreshData(matches.Where(m => m.ChampionId == 145));
                 Require(overview.SelectedChampionId == 0,
