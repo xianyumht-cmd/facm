@@ -523,7 +523,7 @@ namespace FACM.League
             return snapshot != null && snapshot.Connected &&
                    snapshot.Activity == LeagueActivityLevel.ChampSelect && snapshot.ChampionId > 0 &&
                    !string.IsNullOrWhiteSpace(LeagueChampionSpellPresets.GroupFor(
-                       snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode));
+                       snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType));
         }
 
         private static bool CanApply(LeagueBuildAdvisorSnapshot snapshot)
