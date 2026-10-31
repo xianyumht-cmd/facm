@@ -564,6 +564,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerHistoryQueueNormal, "普通"),
             Pair(UiTextKeys.LeaguePlayerHistoryQueueNumber, "队列 {0}"),
             Pair(UiTextKeys.LeaguePlayerHistoryCurrentLobbyQueue, "当前大厅 · {0}"),
+            Pair(UiTextKeys.LeaguePlayerEogOnlyTitle, "SGP 赛后统计"),
+            Pair(UiTextKeys.LeaguePlayerEogOnlySummary, "SGP 赛后统计 · {0} · {1}"),
             Pair(UiTextKeys.LeaguePlayerHistoryRegion, "大区"),
             Pair(UiTextKeys.LeaguePlayerHistoryCurrentRegion, "当前客户端大区"),
             Pair(UiTextKeys.LeaguePlayerRemoteHistoryTitle, "玩家资料与近期战绩"),

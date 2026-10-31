@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
 using FACM.Theming;
+using FACM.Services;
 
 namespace FACM.League
 {
@@ -18,7 +19,7 @@ namespace FACM.League
                 throw new ArgumentException("Verified EOG details are required.", nameof(detail));
 
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
-            Text = "SGP EOG";
+            Text = ui.Get(UiTextKeys.LeaguePlayerEogOnlyTitle);
             ClientSize = new Size(1040, 570);
             MinimumSize = new Size(650, 400);
             StartPosition = FormStartPosition.CenterParent;
@@ -37,8 +38,9 @@ namespace FACM.League
                 : detail.EogOnly.GameMode;
             layout.Controls.Add(new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
                 TextAlign = ContentAlignment.MiddleLeft,
-                Text = "SGP EOG · " + detail.Match.GameId.ToString(CultureInfo.InvariantCulture) +
-                    " · " + mode }, 0, 0);
+                Text = ui.Get(UiTextKeys.LeaguePlayerEogOnlySummary)
+                    .Replace("{0}", detail.Match.GameId.ToString(CultureInfo.InvariantCulture))
+                    .Replace("{1}", mode) }, 0, 0);
 
             var split = new SplitContainer { Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical, SplitterDistance = 720,

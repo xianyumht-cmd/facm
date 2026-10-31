@@ -558,6 +558,8 @@ namespace FACM.Services
         public const string LeaguePlayerHistoryQueueNormal = "LeaguePlayerHistoryQueueNormal";
         public const string LeaguePlayerHistoryQueueNumber = "LeaguePlayerHistoryQueueNumber";
         public const string LeaguePlayerHistoryCurrentLobbyQueue = "LeaguePlayerHistoryCurrentLobbyQueue";
+        public const string LeaguePlayerEogOnlyTitle = "LeaguePlayerEogOnlyTitle";
+        public const string LeaguePlayerEogOnlySummary = "LeaguePlayerEogOnlySummary";
         public const string LeaguePlayerHistoryRegion = "LeaguePlayerHistoryRegion";
         public const string LeaguePlayerHistoryCurrentRegion = "LeaguePlayerHistoryCurrentRegion";
         public const string LeaguePlayerRemoteHistoryTitle = "LeaguePlayerRemoteHistoryTitle";
