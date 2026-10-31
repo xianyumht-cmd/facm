@@ -873,8 +873,7 @@ namespace FACM.League
             "firstTowerKill", "firstTowerAssist", "firstInhibitorKill",
             "firstInhibitorAssist", "hadOpenNexus", "gameEndedInEarlySurrender",
             "gameEndedInIGNBSurrender", "gameEndedInSurrender",
-            "causedEarlySurrender", "causedGameEndFromIGNBSurrender",
-            "earlySurrenderAccomplice", "teamEarlySurrendered",
+            "causedGameEndFromIGNBSurrender", "teamEarlySurrendered",
             "teamIGNBSurrendered", "wasPremadeWithIGNBGameEndCauser",
             "wasPremadeWithSevereTransgressor", "wasSevereTransgressor",
             "hadAfkTeammate", "PlayerBehavior_IsHeroInCombat"

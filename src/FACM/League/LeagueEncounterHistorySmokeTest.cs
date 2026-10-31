@@ -268,6 +268,11 @@ namespace FACM.League
                 });
             Require(!conflict.ContainsKey("firstBloodKill"),
                 "Conflicting root and nested boolean evidence must fail closed.");
+            Require(!LeaguePlayerDataService.ParseDetailedBooleanStats(
+                    new Dictionary<string, object> {
+                        { "causedEarlySurrender", true }, { "earlySurrenderAccomplice", true }
+                    }).Any(),
+                "Pinned source-hidden behavioral flags must not enter the public details matrix.");
             var bounded = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 Enumerable.Repeat(first, 24));
             Require(bounded.All(row => row.Values.Length == 20) &&

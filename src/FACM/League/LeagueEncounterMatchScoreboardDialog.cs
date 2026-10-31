@@ -1011,8 +1011,7 @@ namespace FACM.League
                 "firstInhibitorAssist", "hadOpenNexus" });
             flags(UiTextKeys.LeaguePlayerMatchDetailsGameState, new[] {
                 "gameEndedInEarlySurrender", "gameEndedInIGNBSurrender",
-                "gameEndedInSurrender", "causedEarlySurrender",
-                "causedGameEndFromIGNBSurrender", "earlySurrenderAccomplice",
+                "gameEndedInSurrender", "causedGameEndFromIGNBSurrender",
                 "teamEarlySurrendered", "teamIGNBSurrendered",
                 "wasPremadeWithIGNBGameEndCauser", "wasPremadeWithSevereTransgressor",
                 "wasSevereTransgressor", "hadAfkTeammate",
