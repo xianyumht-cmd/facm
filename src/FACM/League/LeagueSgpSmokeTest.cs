@@ -104,10 +104,7 @@ namespace FACM.League
         {
             var owner = Session("HN10", "TENCENT");
             var baseline = LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory;
-            var valid = "{\\"updatedAt\\":\\"2026-08-01T00:00:00.000Z\\",\\"servers\\":{\\"TENCENT_HN10\\":{" +
-                "\\"matchHistory\\":\\"https://hn10-alt-sgp.lol.qq.com:21019\\"," +
-                "\\"common\\":\\"https://hn10-alt-sgp.lol.qq.com:21019\\",\\"isTencent\\":true}}," +
-                "\\"serverNames\\":{\\"zh-CN\\":{\\"TENCENT_HN10\\":\\"黑玫瑰新区\\"}}}";
+            var valid = @"{""updatedAt"":""2026-08-01T00:00:00.000Z"",""servers"":{""TENCENT_HN10"":{""matchHistory"":""https://hn10-alt-sgp.lol.qq.com:21019"",""common"":""https://hn10-alt-sgp.lol.qq.com:21019"",""isTencent"":true}},""serverNames"":{""zh-CN"":{""TENCENT_HN10"":""黑玫瑰新区""}}}";
             try
             {
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
@@ -121,7 +118,7 @@ namespace FACM.League
                 foreach (var bad in new[] {
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
                     valid.Replace("21019", "443"),
-                    valid.Replace("\\"isTencent\\":true", "\\"isTencent\\":false"),
+                    valid.Replace("true", "false"),
                     valid.Replace("TENCENT_HN10", "UNKNOWN")
                 })
                     Require(!LeagueSgpServerCatalog.TryApply(Bytes(bad.Replace("2026-08-01", "2026-08-02"))),
