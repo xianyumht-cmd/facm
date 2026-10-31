@@ -587,11 +587,13 @@ namespace FACM.League
         }
 
         internal async Task<LeagueSgpEogResult> LoadSgpEogAsync(
-            string ownerPuuid, long gameId, LeagueClientSession expected, CancellationToken token)
+            string ownerPuuid, string targetPuuid, long gameId,
+            LeagueClientSession expected, CancellationToken token)
         {
             var eog = _sgpHistory as ILeagueSgpStatsEogApi;
             if (eog == null || _session == null || expected == null || gameId <= 0 ||
-                !IsSafePuuid(ownerPuuid) || !SessionStillCurrent(expected)) return null;
+                !IsSafePuuid(ownerPuuid) || !IsSafePuuid(targetPuuid) ||
+                !SessionStillCurrent(expected)) return null;
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 deadline.CancelAfter(TimeSpan.FromSeconds(8));
@@ -604,13 +606,13 @@ namespace FACM.League
                             LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
                         if (before == null || !string.Equals(before.PuuId, ownerPuuid,
                             StringComparison.OrdinalIgnoreCase) || !SessionStillCurrent(expected)) return null;
-                        var bytes = await eog.TryGetStatsEogAsync(gameId, ownerPuuid, deadline.Token)
+                        var bytes = await eog.TryGetStatsEogAsync(gameId, targetPuuid, deadline.Token)
                             .ConfigureAwait(false);
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
                         if (after == null || !string.Equals(after.PuuId, ownerPuuid,
                             StringComparison.OrdinalIgnoreCase) || !SessionStillCurrent(expected)) return null;
-                        return LeagueSgpEogProjection.Parse(bytes, gameId, ownerPuuid);
+                        return LeagueSgpEogProjection.Parse(bytes, gameId, targetPuuid);
                     }
                     finally { _requestGate.Release(); }
                 }

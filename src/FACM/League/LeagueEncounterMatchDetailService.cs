@@ -119,7 +119,7 @@ namespace FACM.League
                                 StringComparison.Ordinal)
                             ? (Func<CancellationToken, Task<LeagueSgpEogResult>>)
                                 (cancellation => _players.LoadSgpEogAsync(record.SelfPuuid,
-                                    record.GameId, initial, cancellation))
+                                    record.Puuid, record.GameId, initial, cancellation))
                             : null
                     };
                 }

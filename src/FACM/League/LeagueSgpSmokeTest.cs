@@ -79,6 +79,11 @@ namespace FACM.League
                 Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/local-puuid", StringComparison.Ordinal) &&
                     handler.Authorization == "Bearer profile-token",
                     "Pinned SGP end-of-game read must be current-region and League-session scoped.");
+                api.TryGetStatsEogAsync(601, "other-puuid", CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/other-puuid",
+                    StringComparison.Ordinal),
+                    "Current-region EOG must support a selected remote player without using the owner's PUUID.");
                 ValidateSupportedQueues(api, handler, local);
                 var calls = handler.Calls;
                 var reads = local.Paths.Count;
