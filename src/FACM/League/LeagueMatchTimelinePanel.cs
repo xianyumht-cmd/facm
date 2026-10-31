@@ -238,6 +238,8 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Text(entry.Data, "monsterType") ??
                 LeagueMatchTimelineParser.Text(entry.Data, "buildingType") ??
                 LeagueMatchTimelineParser.Text(entry.Data, "wardType") ?? string.Empty);
+            var special = SpecialEventDetail(entry, T);
+            if (!string.IsNullOrEmpty(special)) row.SubItems[4].Text = special;
             LeagueTimelineBuildStep step;
             if (ReferenceEquals(events, _shownBuilds) && _buildSteps.TryGetValue(entry, out step))
             {
@@ -282,6 +284,9 @@ namespace FACM.League
                 .Replace("{2}", PlayerName(entry.ParticipantId > 0 ? entry.ParticipantId : entry.KillerId))
                 .Replace("{3}", PlayerName(entry.VictimId))
                 .Replace("{4}", string.Join(", ", entry.Assists.Select(PlayerName)));
+            var special = SpecialEventDetail(entry, T);
+            if (!string.IsNullOrEmpty(special))
+                _details.Text += "\r\n" + special;
             if (entry.Type == "ITEM_UNDO")
                 _details.Text += "\r\n" + T(UiTextKeys.LeagueTimelineUndoDescription)
                     .Replace("{0}", ItemName(LeagueMatchTimelineParser.Number(entry.Data, "beforeId")))
@@ -305,9 +310,40 @@ namespace FACM.League
                 (string.IsNullOrWhiteSpace(player.PlayerName) ? "#" + id : player.PlayerName) +
                 " · " + (string.IsNullOrWhiteSpace(player.ChampionName) ? "#" + player.ChampionId : player.ChampionName);
         }
+        // Pinned MatchCardEventsTab: display only known special-kill and plate fields.
+        // Never render unbounded event text from a timeline payload.
+        internal static string SpecialEventDetail(LeagueMatchTimelineEvent entry, Func<string, string> t)
+        {
+            if (entry == null || entry.Data == null || t == null) return null;
+            if (entry.Type == "CHAMPION_SPECIAL_KILL")
+            {
+                var kind = LeagueMatchTimelineParser.Text(entry.Data, "killType");
+                if (kind == "KILL_FIRST_BLOOD") return t(UiTextKeys.LeagueTimelineSpecialFirstBlood);
+                if (kind == "KILL_ACE") return t(UiTextKeys.LeagueTimelineSpecialAce);
+                if (kind == "KILL_MULTI")
+                {
+                    var count = LeagueMatchTimelineParser.Number(entry.Data, "multiKillLength");
+                    return count >= 2 && count <= 5
+                        ? t(UiTextKeys.LeagueTimelineSpecialMultiKill).Replace("{0}",
+                            count.Value.ToString(CultureInfo.InvariantCulture)) : null;
+                }
+            }
+            if (entry.Type == "TURRET_PLATE_DESTROYED")
+            {
+                var lane = LeagueMatchTimelineParser.Text(entry.Data, "laneType");
+                var label = t(UiTextKeys.LeagueTimelineTurretPlate);
+                return lane == "TOP_LANE" ? label + " · TOP" :
+                    lane == "MID_LANE" ? label + " · MID" :
+                    lane == "BOT_LANE" ? label + " · BOT" : label;
+            }
+            return null;
+        }
+
         private string EventName(string type)
         {
-            var key = type == "CHAMPION_KILL" ? UiTextKeys.LeagueTimelineKill :
+            var key = type == "CHAMPION_SPECIAL_KILL" ? UiTextKeys.LeagueTimelineSpecialKill :
+                type == "TURRET_PLATE_DESTROYED" ? UiTextKeys.LeagueTimelineTurretPlate :
+                type == "CHAMPION_KILL" ? UiTextKeys.LeagueTimelineKill :
                 type == "ELITE_MONSTER_KILL" ? UiTextKeys.LeagueTimelineMonster :
                 type == "BUILDING_KILL" ? UiTextKeys.LeagueTimelineBuilding :
                 type == "ITEM_PURCHASED" ? UiTextKeys.LeagueTimelineItemBuy :

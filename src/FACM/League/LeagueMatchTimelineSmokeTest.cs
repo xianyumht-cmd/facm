@@ -57,6 +57,36 @@ namespace FACM.League
                 chart.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, bitmap.Size));
             }
 
+            var special = new LeagueMatchTimelineEvent {
+                Type = "CHAMPION_SPECIAL_KILL",
+                Data = new Dictionary<string, object> {
+                    { "killType", "KILL_MULTI" }, { "multiKillLength", 3 }
+                }
+            };
+            Func<string, string> specialText = key =>
+                key == FACM.Services.UiTextKeys.LeagueTimelineSpecialMultiKill
+                    ? "Multi ×{0}" : key;
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) == "Multi ×3",
+                "A source-defined multikill event must expose its bounded kill count.");
+            special.Data["multiKillLength"] = 1000;
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) == null,
+                "Unbounded multikill counts must not enter the event details.");
+            special.Data["killType"] = "KILL_ACE";
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) ==
+                    FACM.Services.UiTextKeys.LeagueTimelineSpecialAce,
+                "Source-defined ace events must remain distinct from ordinary kills.");
+            special.Data["killType"] = "untrusted-event";
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) == null,
+                "Unknown special kill kinds must not become fabricated match events.");
+            special.Type = "TURRET_PLATE_DESTROYED";
+            special.Data["laneType"] = "TOP_LANE";
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) ==
+                    FACM.Services.UiTextKeys.LeagueTimelineTurretPlate + " · TOP",
+                "Plate events must retain source-known lane information.");
+            special.Data["laneType"] = "untrusted-lane";
+            Require(LeagueMatchTimelinePanel.SpecialEventDetail(special, specialText) ==
+                    FACM.Services.UiTextKeys.LeagueTimelineTurretPlate,
+                "Untrusted lane values must not be copied into event text.");
             LeagueEventMapSmokeTest.Validate(parsed.Events[2]);
             LeagueDeathDamageSmokeTest.Validate();
             ValidateBuildProgression();

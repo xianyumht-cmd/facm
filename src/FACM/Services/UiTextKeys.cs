@@ -537,6 +537,11 @@ namespace FACM.Services
         public const string LeagueTimelineSummary = "LeagueTimelineSummary";
         public const string LeagueTimelineTarget = "LeagueTimelineTarget";
         public const string LeagueTimelineKill = "LeagueTimelineKill";
+        public const string LeagueTimelineSpecialKill = "LeagueTimelineSpecialKill";
+        public const string LeagueTimelineSpecialFirstBlood = "LeagueTimelineSpecialFirstBlood";
+        public const string LeagueTimelineSpecialMultiKill = "LeagueTimelineSpecialMultiKill";
+        public const string LeagueTimelineSpecialAce = "LeagueTimelineSpecialAce";
+        public const string LeagueTimelineTurretPlate = "LeagueTimelineTurretPlate";
         public const string LeagueTimelineMonster = "LeagueTimelineMonster";
         public const string LeagueTimelineBuilding = "LeagueTimelineBuilding";
         public const string LeagueTimelineItemBuy = "LeagueTimelineItemBuy";
