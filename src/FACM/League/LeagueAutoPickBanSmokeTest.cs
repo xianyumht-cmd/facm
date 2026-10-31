@@ -16,6 +16,7 @@ namespace FACM.League
         {
             ValidateQueueGroupsAndTiming();
             ValidateRemoteGroupCatalog();
+            ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
@@ -143,6 +144,36 @@ namespace FACM.League
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
                 LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == null,
                 "Built-in group routing must recover after synthetic remote catalog tests.");
+        }
+
+        private static async Task ValidateSessionRegionFenceAsync()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            var changed = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN10", "TENCENT");
+            var stableRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var stableWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(stableRead, stableWrite,
+                null, null, new InstantClock(), () => first))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(stableWrite.Calls.Count == 1,
+                    "Stable current-region draft must preserve the existing automatic pick.");
+            }
+
+            var switchedRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var switchedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(switchedRead, switchedWrite,
+                null, null, new InstantClock(),
+                () => switchedRead.Paths.Count == 0 ? first : changed))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedWrite.Calls.Count == 0,
+                    "A region switch during the two LCU reads must block the draft write.");
+            }
         }
 
         private static void ValidateQueueGroupsAndTiming()

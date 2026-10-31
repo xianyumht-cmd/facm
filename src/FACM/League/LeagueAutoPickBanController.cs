@@ -850,6 +850,8 @@ namespace FACM.League
             {
                 var current = _session();
                 if (current == null || !expected.Matches(current) ||
+                    !string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase) ||
+                    !string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) ||
                     serverId != LeagueSgpMatchHistoryApiClient.CurrentServerId(current)) return null;
             }
             return LeagueAutoSelectContext.Bind(selection, gameflow, serverId);
