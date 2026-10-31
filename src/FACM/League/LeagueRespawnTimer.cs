@@ -16,9 +16,21 @@ namespace FACM.League
         public double TotalTimeSeconds { get; set; }
     }
 
+    internal sealed class LeagueRespawnTimerIdentity
+    {
+        internal string AccountName;
+        internal string InternalName;
+    }
+
     internal static class LeagueRespawnTimerProjection
     {
         internal static string ReadCurrentAccount(byte[] currentSummoner)
+        {
+            var identity = ReadCurrentIdentity(currentSummoner);
+            return identity == null ? null : identity.AccountName;
+        }
+
+        internal static LeagueRespawnTimerIdentity ReadCurrentIdentity(byte[] currentSummoner)
         {
             if (currentSummoner == null || currentSummoner.Length == 0 || currentSummoner.Length > 65536)
                 return null;
@@ -29,16 +41,26 @@ namespace FACM.League
                 if (data == null) return null;
                 var gameName = ReadString(data, "gameName");
                 var tagLine = ReadString(data, "tagLine");
-                if (!string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(tagLine))
-                    return gameName.Trim() + "#" + tagLine.Trim();
+                var internalName = ReadString(data, "internalName");
                 var displayName = ReadString(data, "displayName");
-                return string.IsNullOrWhiteSpace(displayName) ? null : displayName.Trim();
+                var account = !string.IsNullOrWhiteSpace(gameName) && !string.IsNullOrWhiteSpace(tagLine)
+                    ? gameName.Trim() + "#" + tagLine.Trim()
+                    : !string.IsNullOrWhiteSpace(displayName) ? displayName.Trim()
+                    : internalName?.Trim();
+                if (string.IsNullOrWhiteSpace(account) || account.Length > 128) return null;
+                return new LeagueRespawnTimerIdentity
+                {
+                    AccountName = account,
+                    InternalName = !string.IsNullOrWhiteSpace(internalName) && internalName.Trim().Length <= 128
+                        ? internalName.Trim() : null
+                };
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
         }
 
-        internal static LeagueRespawnTimerSample Project(byte[] playerList, string accountName, LeagueRespawnTimerSample previous)
+        internal static LeagueRespawnTimerSample Project(byte[] playerList, string accountName,
+            LeagueRespawnTimerSample previous, string internalName = null)
         {
             if (playerList == null || playerList.Length == 0 || playerList.Length > 131072 ||
                 string.IsNullOrWhiteSpace(accountName)) return null;
@@ -60,8 +82,12 @@ namespace FACM.League
                 if (player == null) continue;
                 var riotId = ReadString(player, "riotId");
                 var summonerName = ReadString(player, "summonerName");
-                if (!SameName(riotId, accountName) &&
-                    !(string.IsNullOrEmpty(riotId) && SameName(summonerName, accountName))) continue;
+                if (!string.IsNullOrWhiteSpace(riotId))
+                {
+                    if (!SameName(riotId, accountName)) continue;
+                }
+                else if (!SameName(summonerName, accountName) &&
+                         !SameName(summonerName, internalName)) continue;
 
                 object deadValue;
                 object timerValue;
@@ -94,7 +120,7 @@ namespace FACM.League
 
         private static bool SameName(string candidate, string expected)
         {
-            return !string.IsNullOrWhiteSpace(candidate) &&
+            return !string.IsNullOrWhiteSpace(candidate) && !string.IsNullOrWhiteSpace(expected) &&
                 string.Equals(candidate.Trim(), expected.Trim(), StringComparison.OrdinalIgnoreCase);
         }
     }

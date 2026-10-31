@@ -339,7 +339,7 @@ namespace FACM.League
             }
 
             var key = action.Type + ":" + action.Id.ToString(CultureInfo.InvariantCulture);
-            if (!attempted.Add(key)) return;
+            if (attempted.Contains(key)) return;
 
             var watch = Stopwatch.StartNew();
             var availabilityPath = isPick ? PickablePath : BannablePath;
@@ -384,6 +384,9 @@ namespace FACM.League
                 return;
             }
 
+            // A temporarily empty pickable/subset list or a stale preflight must not consume
+            // this action for the whole draft. Only a verified write gets the one-shot fence.
+            if (!attempted.Add(key)) return;
             CompactTraceLog.Record(trace, "autoselect", "preflight", "ok", watch.ElapsedMilliseconds);
             var lockImmediately = strategy == "lock-in-immediately";
             var result = await _write.TryApplyAsync(action.Type, action.Id, desired, lockImmediately, episode.Token)

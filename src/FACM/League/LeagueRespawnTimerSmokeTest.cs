@@ -32,6 +32,14 @@ namespace FACM.League
             Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes(
                 "{\"displayName\":\"旧名称\"}")) == "旧名称",
                 "Legacy summoner display name was discarded.");
+            var identity = LeagueRespawnTimerProjection.ReadCurrentIdentity(Encoding.UTF8.GetBytes(
+                "{\"gameName\":\"玩家\",\"tagLine\":\"CN1\",\"internalName\":\"legacy123\"}"));
+            Require(identity != null && identity.AccountName == "玩家#CN1" &&
+                    identity.InternalName == "legacy123",
+                "Respawn account must preserve Riot ID and legacy internal name together.");
+            Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes(
+                "{\"internalName\":\"legacy123\"}")) == "legacy123",
+                "Legacy-only account identity must remain usable.");
             Require(LeagueRespawnTimerProjection.ReadCurrentAccount(Encoding.UTF8.GetBytes("[]")) == null,
                 "Malformed summoner account was accepted.");
             var alive = Sample("[{\"riotId\":\"玩家#CN1\",\"summonerName\":\"旧名称\",\"isDead\":false,\"respawnTimer\":0}]", "玩家#CN1", null);
@@ -55,6 +63,17 @@ namespace FACM.League
                 "Legacy player name fallback was lost.");
             Require(Sample("[{\"riotId\":\"其他人#CN1\",\"summonerName\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":10}]", "玩家#CN1", null) == null,
                 "Riot identity mismatch improperly used the fallback name.");
+            Require(LeagueRespawnTimerProjection.Project(Encoding.UTF8.GetBytes(
+                    "[{\"summonerName\":\"legacy123\",\"isDead\":true,\"respawnTimer\":17}]"),
+                    "玩家#CN1", null, "legacy123")?.TimeLeftSeconds == 17 &&
+                    LeagueRespawnTimerProjection.Project(Encoding.UTF8.GetBytes(
+                    "[{\"summonerName\":\"legacy123\",\"isDead\":true,\"respawnTimer\":17}]"),
+                    "玩家#CN1", null) == null,
+                "Live Client legacy internal-name fallback must require the verified LCU identity.");
+            Require(LeagueRespawnTimerProjection.Project(Encoding.UTF8.GetBytes(
+                    "[{\"riotId\":\"其他人#CN1\",\"summonerName\":\"legacy123\",\"isDead\":true,\"respawnTimer\":17}]"),
+                    "玩家#CN1", null, "legacy123") == null,
+                "An explicit different Riot ID must never be replaced by a legacy-name match.");
             Require(Sample("[{\"riotId\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":-5}]", "玩家#CN1", first) == null,
                 "Invalid negative timer was accepted.");
             Require(Sample("[]", "玩家#CN1", first) == null && Sample("not-json", "玩家#CN1", first) == null,

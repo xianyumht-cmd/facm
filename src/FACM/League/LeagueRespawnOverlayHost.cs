@@ -51,6 +51,7 @@ namespace FACM.League
         private LeagueRespawnTimerSample _sample;
         private LeagueClientSession _session;
         private string _account;
+        private string _internalName;
         private DateTime _nextIdentityReadUtc;
         private bool _enabled;
         private bool _inProgress;
@@ -140,6 +141,7 @@ namespace FACM.League
             _reader?.Dispose();
             _reader = null;
             _account = null;
+            _internalName = null;
             _sample = null;
             _session = null;
             _nextIdentityReadUtc = DateTime.MinValue;
@@ -168,6 +170,7 @@ namespace FACM.League
                 {
                     _session = session;
                     _account = null;
+                    _internalName = null;
                     _sample = null;
                     _nextIdentityReadUtc = DateTime.MinValue;
                     HideOverlay();
@@ -179,11 +182,15 @@ namespace FACM.League
                     var summoner = await _client.TryGetBytesAsync(
                         LeagueDashboardDetailsService.SummonerPath, _lifetime.Token).ConfigureAwait(true);
                     if (!IsCurrent(generation, session)) return;
-                    var account = LeagueRespawnTimerProjection.ReadCurrentAccount(summoner);
-                    if (!string.Equals(account, _account, StringComparison.OrdinalIgnoreCase))
+                    var identity = LeagueRespawnTimerProjection.ReadCurrentIdentity(summoner);
+                    var account = identity?.AccountName;
+                    var internalName = identity?.InternalName;
+                    if (!string.Equals(account, _account, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(internalName, _internalName, StringComparison.OrdinalIgnoreCase))
                     {
                         _sample = null;
                         _account = account;
+                        _internalName = internalName;
                         HideOverlay();
                     }
                     if (!string.IsNullOrEmpty(account)) _nextIdentityReadUtc = DateTime.UtcNow.AddSeconds(30);
@@ -192,7 +199,7 @@ namespace FACM.League
                 if (_reader == null) _reader = new LeagueRespawnTimerReader();
                 var bytes = await _reader.ReadAsync(_lifetime.Token).ConfigureAwait(true);
                 if (!IsCurrent(generation, session)) return;
-                _sample = LeagueRespawnTimerProjection.Project(bytes, _account, _sample);
+                _sample = LeagueRespawnTimerProjection.Project(bytes, _account, _sample, _internalName);
                 if (_sample == null || !_sample.IsDead || !LeagueRespawnOverlayVisibility.IsGameForeground())
                 {
                     HideOverlay();

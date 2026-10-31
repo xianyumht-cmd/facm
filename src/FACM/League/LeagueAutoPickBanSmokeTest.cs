@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
+            ValidateTransientEligibilityRecoveryAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -716,6 +717,45 @@ namespace FACM.League
             }
         }
 
+        private static async Task ValidateTransientEligibilityRecoveryAsync()
+        {
+            var read = new FakeRead { SessionJson = Session("pick", 81, 0),
+                Pickable = "[]", NextPickable = "[22]" };
+            var writer = new FakeWrite();
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] { "pick:81:22:True" }),
+                    "A temporarily empty pickable list must recover on the next phase-scoped tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 1,
+                    "Eligibility recovery must stop on phase exit without repeating the write.");
+            }
+
+            var selection = "{\"allowSubsetChampionPicks\":true," + SessionWithRole("pick", 82, "TOP").Substring(1);
+            read = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22]", Subset = "[]", NextSubset = "[22]" };
+            writer = new FakeWrite();
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] { "pick:82:22:True" }) &&
+                    read.Paths.Count(path => path == LeagueAutoPickBanController.SubsetPath) == 3,
+                    "Subset eligibility must recover without bypassing the fresh subset preflight.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 1,
+                    "Subset recovery must remain bounded to the active draft.");
+            }
+        }
+
         private static async Task ValidateFailureAndCancellationAsync()
         {
             var idleClock = new FakeClock();
@@ -901,6 +941,8 @@ namespace FACM.League
             public string TradeJson;
             public string NextTradeJson;
             public string Pickable = "[22,67]";
+            public string NextPickable;
+            private int _pickableCount;
             public string Bannable = "[22,67]";
             public string Subset = "[22,67]";
             public string NextSubset;
@@ -933,7 +975,11 @@ namespace FACM.League
                     var type = id == "420" ? "RANKED_SOLO_5x5" : id == "440" ? "RANKED_FLEX_SR" : "NORMAL";
                     return Task.FromResult(Bytes("{\"phase\":\"ChampSelect\",\"gameData\":{\"isCustomGame\":false,\"queue\":{\"id\":" + id + ",\"gameMode\":\"" + mode + "\",\"type\":\"" + type + "\"}}}"));
                 }
-                if (path == LeagueAutoPickBanController.PickablePath) return Task.FromResult(Bytes(Pickable));
+                if (path == LeagueAutoPickBanController.PickablePath)
+                {
+                    _pickableCount++;
+                    return Task.FromResult(Bytes(_pickableCount > 1 && NextPickable != null ? NextPickable : Pickable));
+                }
                 if (path == LeagueAutoPickBanController.BannablePath) return Task.FromResult(Bytes(Bannable));
                 if (path == LeagueAutoPickBanController.SubsetPath)
                 {
@@ -1037,6 +1083,22 @@ namespace FACM.League
                     Cancelled = true;
                     pending.TrySetCanceled();
                 });
+                return pending.Task;
+            }
+        }
+
+        private sealed class TwoStepClock : ILeagueMatchmakingClock
+        {
+            public int Delays;
+            public bool Cancelled;
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                Require(delay == LeagueAutoPickBanController.PollInterval,
+                    "Eligibility recovery must not create an extra polling cadence.");
+                Delays++;
+                if (Delays == 1) return Task.FromResult(0);
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
                 return pending.Task;
             }
         }
