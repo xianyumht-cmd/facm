@@ -18,7 +18,9 @@ namespace FACM.League
         private readonly CancellationTokenSource _lifetime;
         private readonly List<LeaguePlayerMatchParticipant> _participants;
         private readonly LeagueBuildAdvisorCatalog _catalog;
-        private readonly ComboBox _player, _eventType;
+        private readonly ComboBox _player;
+        private readonly Button _eventFilter;
+        private readonly ContextMenuStrip _eventMenu = new ContextMenuStrip();
         private readonly Label _status;
         private readonly Button _retry, _damage;
         private readonly Func<bool> _isCurrentSession;
@@ -68,11 +70,10 @@ namespace FACM.League
             _player.Items.Add(T(UiTextKeys.LeagueTimelineAllPlayers));
             foreach (var participant in _participants) _player.Items.Add(PlayerName(participant.ParticipantId));
             _player.SelectedIndex = 0;
-            _eventType = new ComboBox { Width = 160, DropDownStyle = ComboBoxStyle.DropDownList,
-                AccessibleName = T(UiTextKeys.LeagueTimelineEventType), BackColor = FacmDesignSystem.SurfaceRaised,
-                ForeColor = FacmDesignSystem.Text };
-            _eventType.Items.Add(T(UiTextKeys.LeagueTimelineAllEvents));
-            _eventType.SelectedIndex = 0;
+            _eventFilter = new Button { Width = 160, Height = 26,
+                Text = T(UiTextKeys.LeagueTimelineEventType),
+                AccessibleName = T(UiTextKeys.LeagueTimelineEventType) };
+            _eventFilter.Click += (sender, args) => _eventMenu.Show(_eventFilter, 0, _eventFilter.Height);
             _retry = new Button { Text = T(UiTextKeys.LeaguePlayerRemoteRetry), Width = 70, Height = 26 };
             _retry.Click += async (sender, args) => { _timeline = null; await EnsureLoadedAsync(); };
             _damage = new Button { Text = T(UiTextKeys.LeagueDeathDamageTitle), AutoSize = true, Height = 26, Enabled = false };
@@ -84,7 +85,7 @@ namespace FACM.League
                 using (var dialog = new LeagueDeathDamageDialog(_ui, projection, _participants, _catalog,
                     loadAsset, _isCurrentSession, _lifetime.Token)) dialog.ShowDialog(this);
             };
-            tools.Controls.Add(_player); tools.Controls.Add(_eventType); tools.Controls.Add(_retry);
+            tools.Controls.Add(_player); tools.Controls.Add(_eventFilter); tools.Controls.Add(_retry);
             tools.Controls.Add(_damage);
             _status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
             _events = EventList();
@@ -124,7 +125,6 @@ namespace FACM.League
             _events.SelectedIndexChanged += (sender, args) => ShowEvent(_events, _shownEvents);
             _builds.SelectedIndexChanged += (sender, args) => ShowEvent(_builds, _shownBuilds);
             _player.SelectedIndexChanged += (sender, args) => RefreshRows();
-            _eventType.SelectedIndexChanged += (sender, args) => RefreshRows();
             layout.Controls.Add(tools, 0, 0); layout.Controls.Add(_status, 0, 1);
             layout.Controls.Add(tabs, 0, 2); layout.Controls.Add(_details, 0, 3);
             Controls.Add(layout);
@@ -147,12 +147,27 @@ namespace FACM.League
                 _buildSteps.Clear();
                 foreach (var step in _buildProjection.Steps) _buildSteps[step.Event] = step;
                 _updating = true;
-                _eventType.Items.Clear();
-                _eventType.Items.Add(T(UiTextKeys.LeagueTimelineAllEvents));
+                _eventMenu.Items.Clear();
+                var selectAll = new ToolStripMenuItem(T(UiTextKeys.LeagueTimelineAllEvents));
+                selectAll.Click += (sender, args) =>
+                {
+                    _updating = true;
+                    foreach (var item in _eventMenu.Items.OfType<ToolStripMenuItem>())
+                        if (item.Tag is string) item.Checked = true;
+                    _updating = false;
+                    RefreshRows();
+                };
+                _eventMenu.Items.Add(selectAll);
                 if (result != null)
                     foreach (var type in result.Events.Select(entry => entry.Type).Distinct().OrderBy(value => value))
-                        _eventType.Items.Add(new EventTypeChoice { Type = type, Label = EventName(type) });
-                _eventType.SelectedIndex = 0;
+                    {
+                        var item = new ToolStripMenuItem(EventName(type))
+                        {
+                            Tag = type, Checked = true, CheckOnClick = true
+                        };
+                        item.CheckedChanged += (sender, args) => { if (!_updating) RefreshRows(); };
+                        _eventMenu.Items.Add(item);
+                    }
                 _updating = false;
                 RefreshRows();
             }
@@ -168,13 +183,15 @@ namespace FACM.League
         {
             if (_updating || IsDisposed) return;
             var id = _player.SelectedIndex <= 0 ? 0 : _participants[_player.SelectedIndex - 1].ParticipantId;
-            var type = (_eventType.SelectedItem as EventTypeChoice)?.Type;
+            var selectedTypes = _eventMenu.Items.OfType<ToolStripMenuItem>()
+                .Where(item => item.Checked && item.Tag is string)
+                .Select(item => (string)item.Tag).ToArray();
             _events.SelectedIndices.Clear();
             _builds.SelectedIndices.Clear();
             _events.VirtualListSize = 0;
             _builds.VirtualListSize = 0;
-            _shownEvents = _timeline == null ? new List<LeagueMatchTimelineEvent>() : _timeline.Events
-                .Where(entry => entry.Involves(id) && (type == null || entry.Type == type)).ToList();
+            _shownEvents = FilterEventsForSmokeTest(
+                _timeline == null ? null : _timeline.Events, id, selectedTypes);
             _shownBuilds = _buildProjection.Steps.Where(step => step.Event.Involves(id))
                 .Select(step => step.Event).ToList();
             _events.VirtualListSize = _shownEvents.Count;
@@ -205,6 +222,15 @@ namespace FACM.League
             int anvils;
             if (id > 0 && _buildProjection.Anvils.TryGetValue(id, out anvils))
                 _status.Text += " · " + T(UiTextKeys.LeagueTimelineAnvils).Replace("{0}", anvils.ToString());
+        }
+
+        internal static List<LeagueMatchTimelineEvent> FilterEventsForSmokeTest(
+            IEnumerable<LeagueMatchTimelineEvent> events, int participantId, IEnumerable<string> types)
+        {
+            var selected = new HashSet<string>(types ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            return (events ?? Enumerable.Empty<LeagueMatchTimelineEvent>())
+                .Where(entry => entry != null && selected.Contains(entry.Type) &&
+                    entry.Involves(participantId)).Take(10000).ToList();
         }
 
         private ListViewItem FrameRow(int index)
@@ -379,13 +405,8 @@ namespace FACM.League
         }
         protected override void Dispose(bool disposing)
         {
-            if (disposing && !IsDisposed) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            if (disposing && !IsDisposed) { _lifetime.Cancel(); _lifetime.Dispose(); _eventMenu.Dispose(); }
             base.Dispose(disposing);
-        }
-        private sealed class EventTypeChoice
-        {
-            internal string Type, Label;
-            public override string ToString() { return Label; }
         }
     }
 }

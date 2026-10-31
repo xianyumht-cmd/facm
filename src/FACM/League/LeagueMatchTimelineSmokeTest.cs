@@ -23,6 +23,17 @@ namespace FACM.League
                 LeagueMatchTimelineParser.Number(parsed.Frames[1].Participants[1], "currentGold") == null &&
                 LeagueMatchTimelineParser.Time(125000) == "2:05",
                 "Timeline projection must preserve equal-timestamp inventory order, assist filters, detailed SGP fields and absent values.");
+            Require(LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 1,
+                    new[] { "CHAMPION_KILL", "ITEM_UNDO" }).Count == 2 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 2,
+                    new[] { "CHAMPION_KILL", "ITEM_UNDO" }).Count == 1 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 1,
+                    new[] { "ITEM_PURCHASED" }).Count == 1 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(parsed.Events, 1,
+                    new string[0]).Count == 0 &&
+                LeagueMatchTimelinePanel.FilterEventsForSmokeTest(null, 0,
+                    new[] { "CHAMPION_KILL" }).Count == 0,
+                "Timeline multi-event filtering must preserve checked types and participant ownership.");
             Require(LeagueMatchTimelineParser.Parse(Bytes("{\"json\":" + Timeline + "}"), 701, true) != null &&
                 LeagueMatchTimelineParser.Parse(Bytes("{\"json\":" + Timeline + "}"), 702, true) == null &&
                 LeagueMatchTimelineParser.Parse(Bytes(Timeline.Replace("\"participantId\":1,\"level\":1", "\"participantId\":2,\"level\":1")), 701, false) == null &&
