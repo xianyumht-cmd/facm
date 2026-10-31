@@ -1,3 +1,24 @@
+## 2026-11-01 — Native manual champion rune/spell presets and expanded storage (Draft #357)
+
+**Executable/test SHA:** [c421368](https://github.com/xianyumht-cmd/facm/commit/c421368eb7af85ade2e6342b9c62278ec1af0df9). This run delivers four connected native clusters:
+
+1. **Nine-slot rune editor:** explicit local-LCU perkstyles schema-v2 and perks catalog reads, typed keystone/three primary rows, two secondary choices from distinct rows, three source-provided stat-mod rows and allowed substyles. Invalid schema/slot choices fail closed. Saving preferences does not directly write game actions.
+2. **Champion/mode manager:** select any champion from a validated local LCU directory, configure source-supported mode/position groups outside ChampSelect, list presets and independently edit/delete rune and spell entries. Summoner-spell choices use the current LCU spell catalog and source gameModes when available. The League client must be running to load these catalogs.
+3. **Expanded persistence:** rune and spell catalogs each grow from 32 to **256 entries**, using legacy JSON when small or bounded versioned Deflate/Base64 within the existing 7500/4096-character settings/cloud fields. Expansion is limited to 128 KiB; malformed existing data cannot be silently overwritten. Synthetic tests cover 128-row cloud/local roundtrips and corrupt/oversized inputs.
+4. **Saved-plan protection:** queue, queue type, role and mode/group changes invalidate stale rune/spell plans before LCU writes. The existing phase-scoped LCU writer remains the only action owner.
+
+| Source scope | Status | Remaining |
+| --- | --- | --- |
+| Manual nine-slot runes, champion/mode manager, manual spells | Implemented; four Windows CI gates passed | Live Tencent LCU schema, Win10/DPI visual acceptance, offline-without-client catalog support |
+| Larger rune/spell catalogs and cloud settings | Implemented; bounded synthetic tests | Actual cloud sync and worst-case 256-row field-size acceptance |
+| Saved-plan group/queue fencing | Implemented; synthetic drift tests | Real account/region/draft switching |
+| Player/champion analysis, SGP and replay | Previously partial | Remaining source option audit, trusted international SGP enrollment, replay variants |
+| Real Tencent CN and Win10/DPI | Not tested | Owner's single consolidated final acceptance |
+
+**Exact executable CI:** [Windows Build](undefined), [Glass WebView2](undefined), [UI Text Contract](undefined), [Mayhem Source Probe](undefined) — all successful. This does not prove live game compatibility. PR #357 and stacked #355 remain Draft; no merge, release, updater, deployment, paid infrastructure or GGman 3.5.78 production change.
+
+---
+
 ## 2026-10-31 — Trusted new draft groups and queue-type-aware champion presets (Draft #357)
 
 Executable commits: [f693f89](https://github.com/xianyumht-cmd/facm/commit/f693f89371fcc71efab9c1f0a9f16c4bed54edbe), [9f1fc2f](https://github.com/xianyumht-cmd/facm/commit/9f1fc2ff4f0493af2ccbba063314fe358d212290), [72ad07e](https://github.com/xianyumht-cmd/facm/commit/72ad07ed4e0b7936918765863382e94ac52e0f50), and final executable/test [c9acf53](https://github.com/xianyumht-cmd/facm/commit/c9acf53e417de8e0475c462ac41096048970390f). The native advanced editor now lists newly announced, strictly validated remote auto-select group IDs and stores explicit per-group/role pick and ban priorities. Unknown groups cannot use legacy default champions, and removed groups retain inert preferences without executing them. Source-authorized dynamic Arena groups support -3 bravery through the existing bounded ChampSelect writer; account, SGP region, catalog revision, phase and role preflight remain in force. The fixed native modes and their existing settings are preserved.

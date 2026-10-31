@@ -1,3 +1,13 @@
+## 2026-11-01 — Native champion preset editor ownership (Draft #357)
+
+LeagueRuneCatalog is a pure bounded parser for local LCU perkstyles schema v2, perk names, champion summary and summoner-spell metadata. It validates typed rune rows, allowed substyles, secondary-row separation and source game-mode spell availability. LeagueRunePresetEditorForm, LeagueSummonerSpellPresetEditorForm and LeagueRunePresetManagerForm provide explicit per-champion/mode preference editing outside ChampSelect, without taking ownership of LCU game writes, credentials, HTTP clients or polling loops.
+
+LeagueChampionRunePresets and LeagueChampionSpellPresets retain existing settings/cloud keys and limits while allowing up to 256 rows each through optional versioned, bounded Deflate storage. Legacy JSON remains readable and corrupt existing data cannot be silently overwritten. LeagueAutoApplyController persists settings and cancels stale applies. LeagueChampionSpellPresetCoordinator binds queue/type/mode/role/group; LeagueBuildApplyService rechecks the current group before saved LCU writes. The existing session-scoped writer remains sole action owner.
+
+Executable/test [c421368](https://github.com/xianyumht-cmd/facm/commit/c421368eb7af85ade2e6342b9c62278ec1af0df9) passed Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe. Live Tencent/Win10/DPI acceptance remains deferred; no updater, production, deployment or dependency change.
+
+---
+
 ## Native remote draft-group and champion loadout queue ownership (Draft #357, 2026-10-31)
 
 `LeagueAutoSelectGroupCatalog` validates a public Akari group snapshot before publishing an immutable revision. New IDs are limited to lowercase bounded identifiers, existing modeled game families, source positions, trusted SGP servers and already-supported action IDs. `LeagueAutoSelectProfilesForm` derives additional mode choices from the current catalog and persists profiles by group ID and role; a revoked ID remains inert rather than being silently mapped to the global fallback. The phase-scoped `LeagueAutoPickBanController` remains the only LCU writer; dynamic CHERRY bravery is checked against source CHERRY targets and the existing special-choice and session preflight gates.
