@@ -329,7 +329,13 @@ namespace FACM.League
                     T(LeagueEfficiencyUiTextKeys.PremadeWinRateTeam) :
                     classification == LeaguePremadeTeamTagProjection.LossRateTeam ?
                     T(LeagueEfficiencyUiTextKeys.PremadeLossRateTeam) : null;
-                var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount), tag);
+                var aggregate = LeaguePremadeTeamAggregate.Project(group.Select(id => byId[id]).ToArray());
+                var summary = aggregate == null ? null :
+                    (aggregate.Kda.HasValue ? T(LeagueEfficiencyUiTextKeys.PremadeTeamStats) :
+                        T(LeagueEfficiencyUiTextKeys.PremadeTeamWinRate))
+                    .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
+                    .Replace("{1}", aggregate.Kda.HasValue ? aggregate.Kda.Value.ToString("0.00") : string.Empty);
+                var choice = new PremadeChoice(group, byId, T(LeagueEfficiencyUiTextKeys.PremadeGroupCount), tag, summary);
                 _groups.Items.Add(choice, !existing.Contains(choice.Key) || checkedGroups.Contains(choice.Key));
             }
         }
@@ -602,13 +608,14 @@ namespace FACM.League
             internal readonly string Key;
             private readonly string _label;
             internal PremadeChoice(string[] members, IDictionary<string, LeagueDynamicMessagePlayer> players,
-                string countFormat, string tag)
+                string countFormat, string tag, string summary)
             {
                 Key = LeaguePremadeMessageFormatter.GroupKey(members);
                 var names = members.Select(id => LeagueDynamicMessageFormatter.DisplayName(players[id], "preferName",
                     new Dictionary<int, int>()));
                 _label = countFormat.Replace("{0}", members.Length.ToString()) +
-                    (string.IsNullOrEmpty(tag) ? string.Empty : " · " + tag) + " · " + string.Join(" / ", names);
+                    (string.IsNullOrEmpty(tag) ? string.Empty : " · " + tag) +
+                    (string.IsNullOrEmpty(summary) ? string.Empty : " · " + summary) + " · " + string.Join(" / ", names);
             }
             public override string ToString() { return _label; }
         }

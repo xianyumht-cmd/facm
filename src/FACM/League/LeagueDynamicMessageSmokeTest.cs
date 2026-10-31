@@ -299,6 +299,24 @@ namespace FACM.League
             low.Players[1].Friendly = true;
             Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
                 "Current opposing sides must not share a premade team label.");
+            Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
+                "Opposing current teams must not receive a shared member-history aggregate.");
+            low.Players[1].Friendly = false;
+            var aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
+            Require(aggregate != null && aggregate.Games == 7 && aggregate.Wins == 0 && !aggregate.Kda.HasValue,
+                "Premade member sample must count known outcomes without treating missing stats as zero.");
+            foreach (var member in low.Players)
+                foreach (var match in member.History.Matches)
+                {
+                    match.StatisticsAvailable = true;
+                    match.Kills = 2; match.Deaths = 1; match.Assists = 3;
+                }
+            aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
+            Require(aggregate != null && aggregate.Kda.HasValue && Math.Abs(aggregate.Kda.Value - 5d) < 0.0001,
+                "Premade member KDA must use only complete classified source samples.");
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win" });
+            Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
+                "Conflicting duplicate historical outcomes must suppress the entire team summary.");
         }
 
         private static void ValidateJungleTimeline()

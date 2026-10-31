@@ -110,6 +110,62 @@ namespace FACM.League
         }
     }
 
+    internal sealed class LeaguePremadeTeamAggregate
+    {
+        internal int Wins;
+        internal int Games;
+        internal double? Kda;
+
+        internal static LeaguePremadeTeamAggregate Project(IReadOnlyList<LeagueDynamicMessagePlayer> players)
+        {
+            if (players == null || players.Count < 2 || players.Count > 20 ||
+                players.Any(p => p == null || p.Player == null || p.History == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
+                players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != players.Count ||
+                players.Any(p => p.Friendly != players[0].Friendly)) return null;
+
+            var result = new LeaguePremadeTeamAggregate();
+            long kills = 0, deaths = 0, assists = 0;
+            var completeStats = true;
+            foreach (var player in players)
+            {
+                var seen = new Dictionary<long, LeaguePlayerMatchSummary>();
+                foreach (var match in player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount))
+                {
+                    if (match == null || match.GameId <= 0) continue;
+                    LeaguePlayerMatchSummary prior;
+                    if (seen.TryGetValue(match.GameId, out prior))
+                    {
+                        if (!string.Equals(prior.WinResult, match.WinResult, StringComparison.OrdinalIgnoreCase) ||
+                            prior.StatisticsAvailable != match.StatisticsAvailable ||
+                            prior.Kills != match.Kills || prior.Deaths != match.Deaths ||
+                            prior.Assists != match.Assists) return null;
+                    }
+                    else seen.Add(match.GameId, match);
+                }
+                var classified = seen.Values.Where(m =>
+                    string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(m.WinResult, "loss", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (classified.Length == 0) return null;
+                result.Games += classified.Length;
+                result.Wins += classified.Count(m => string.Equals(m.WinResult, "win", StringComparison.OrdinalIgnoreCase));
+                foreach (var match in classified)
+                {
+                    if (!match.StatisticsAvailable || match.Kills < 0 || match.Deaths < 0 || match.Assists < 0)
+                    {
+                        completeStats = false;
+                        continue;
+                    }
+                    kills += match.Kills;
+                    deaths += match.Deaths;
+                    assists += match.Assists;
+                }
+            }
+            if (completeStats) result.Kda = (double)(kills + assists) / Math.Max(1L, deaths);
+            return result;
+        }
+    }
+
     internal static class LeaguePremadeTeamTagProjection
     {
         internal const string WinRateTeam = "win-rate-team";
