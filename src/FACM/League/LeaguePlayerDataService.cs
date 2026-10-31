@@ -923,6 +923,13 @@ namespace FACM.League
             "moreEnemyJungleThanOpponent"
         };
 
+        private static readonly HashSet<string> SignedDetailedChallengeKeys =
+            new HashSet<string>(StringComparer.Ordinal) {
+                "visionScoreAdvantageLaneOpponent",
+                "earlyLaningPhaseGoldExpAdvantage",
+                "laningPhaseGoldExpAdvantage"
+            };
+
         private static readonly string[] DetailedBooleanKeys = {
             "firstBloodKill", "firstBloodAssist", "highestChampionDamage",
             "firstTowerKill", "firstTowerAssist", "firstInhibitorKill",
@@ -994,7 +1001,8 @@ namespace FACM.League
                 if (direct.HasValue && nested.HasValue && direct.Value != nested.Value)
                     continue;
                 var value = nested ?? direct;
-                if (value.HasValue && value.Value >= 0 && value.Value <= 1000000000d)
+                if (value.HasValue && value.Value <= 1000000000d &&
+                    value.Value >= (SignedDetailedChallengeKeys.Contains(key) ? -1000000000d : 0d))
                     result[key] = value.Value;
             }
             return result;

@@ -266,7 +266,8 @@ namespace FACM.League
                     extraRows.Single(row => row.Name == "skillshotsDodged").Values[0] == "3" &&
                     extraRows.Single(row => row.Name == "flawlessAces").Values[0] == "1" &&
                     extraRows.Single(row => row.Name == "12AssistStreakCount").Values[0] == "2" &&
-                    extraRows.Single(row => row.Name == "timePlayed").Values[0] == "1,250" &&
+                    extraRows.Single(row => row.Name == "timePlayed").Values[0] ==
+                        1250d.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) &&
                     extraRows.Select(row => row.GroupKey).Distinct().Count() >= 5,
                 "New match-card stat groups must be visible in the existing native details table.");
             var objectives = LeaguePlayerDataService.ParseDetailedRawStats(
@@ -304,6 +305,26 @@ namespace FACM.League
                 new Dictionary<string, object> { { "skillshotsDodged", 0 } });
             Require(legacyOnly.Count == 1 && legacyOnly["skillshotsDodged"] == 0,
                 "Legacy root-only challenge values must preserve source-known zero.");
+            var signed = LeaguePlayerDataService.ParseDetailedRawStats(
+                new Dictionary<string, object> {
+                    { "challenges", new Dictionary<string, object> {
+                        { "visionScoreAdvantageLaneOpponent", -2.5d },
+                        { "earlyLaningPhaseGoldExpAdvantage", -1 },
+                        { "skillshotsDodged", -2 } } }
+                });
+            Require(signed.Count == 2 &&
+                    signed["visionScoreAdvantageLaneOpponent"] == -2.5d &&
+                    signed["earlyLaningPhaseGoldExpAdvantage"] == -1d &&
+                    !signed.ContainsKey("skillshotsDodged"),
+                "Signed lane advantages must retain their values without admitting negative counts.");
+            first.RawStats = signed;
+            var signedRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
+                new[] { first, second });
+            Require(signedRows.Single(row => row.Name == "visionScoreAdvantageLaneOpponent")
+                        .Values[0].StartsWith("-") &&
+                    signedRows.Single(row => row.Name == "earlyLaningPhaseGoldExpAdvantage")
+                        .Values[0].StartsWith("-"),
+                "Signed source advantages must remain visible in the native matrix.");
             first.RawStats = objectives;
             var objectiveRows = LeagueEncounterMatchScoreboardDialog.BuildDetailedStatRows(
                 new[] { first, second });
