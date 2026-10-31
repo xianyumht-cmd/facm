@@ -265,7 +265,30 @@ namespace FACM.League
                 _role.SelectedIndex = 0;
                 return;
             }
+            RefreshSpecialChoices();
             RefreshProfile();
+        }
+
+        private void RefreshSpecialChoices()
+        {
+            for (var i = _catalog.Items.Count - 1; i >= 0; i--)
+            {
+                var option = _catalog.Items[i] as LeagueProfileChampionOption;
+                if (option != null && (option.Id == -1 || option.Id == -3)) _catalog.Items.RemoveAt(i);
+            }
+            if (_action.SelectedIndex == 1)
+            {
+                var name = T(LeagueEfficiencyUiTextKeys.AdvancedNoBan);
+                _championNames[-1] = name;
+                _catalog.Items.Insert(0, new LeagueProfileChampionOption { Id = -1, Name = name });
+            }
+            else if (_mode.SelectedIndex == Array.IndexOf(LeagueAutoSelectProfiles.Modes, "cherry"))
+            {
+                var name = T(LeagueEfficiencyUiTextKeys.AdvancedCherryBravery);
+                _championNames[-3] = name;
+                _catalog.Items.Insert(0, new LeagueProfileChampionOption { Id = -3, Name = name });
+            }
+            if (_catalog.Items.Count > 0) _catalog.SelectedIndex = 0;
         }
 
         private void RefreshProfile()
@@ -308,7 +331,10 @@ namespace FACM.League
         private void AddChampion()
         {
             var option = _catalog.SelectedItem as LeagueProfileChampionOption;
-            if (option == null || option.Id <= 0) return;
+            if (option == null || option.Id <= 0 &&
+                !(option.Id == -1 && _action.SelectedIndex == 1) &&
+                !(option.Id == -3 && _action.SelectedIndex == 0 &&
+                    _mode.SelectedIndex == Array.IndexOf(LeagueAutoSelectProfiles.Modes, "cherry"))) return;
             var list = CurrentList(true);
             if (list.Count >= 20 || list.Contains(option.Id)) return;
             list.Add(option.Id);
@@ -392,7 +418,7 @@ namespace FACM.League
                         _championNames[champion.Id] = champion.Name;
                         _catalog.Items.Add(champion);
                     }
-                    if (_catalog.Items.Count > 0) _catalog.SelectedIndex = 0;
+                    RefreshSpecialChoices();
                 }
                 finally { _binding = false; }
                 RefreshProfile();

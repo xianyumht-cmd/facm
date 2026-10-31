@@ -16,6 +16,7 @@ namespace FACM.League
         {
             ValidateQueueGroupsAndTiming();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
+            ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -28,6 +29,13 @@ namespace FACM.League
                 "Auto-select preferences did not parse.");
             Require(string.Join("\n", settings.BuildLines()).Contains("LeagueAutoPickChampionId=22"),
                 "Auto-select preferences did not serialize.");
+            Require(LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, -3) &&
+                    LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 0, -1) &&
+                    LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, -3) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 0, -3) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, -1) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, -1),
+                "Special champion write targets escaped their action restrictions.");
             Require(LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, 22) &&
                     LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 3, 67) &&
                     !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("DELETE", "pick", 0, 22) &&
@@ -165,6 +173,61 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.Calls.Count == 0, "Changed queue type bypassed the final context fence.");
+            }
+        }
+
+        private static async Task ValidateSpecialChampionsAsync()
+        {
+            var cherry = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 } } });
+            Require(LeagueAutoSelectProfiles.Parse(cherry)[0].Picks.Single() == -3 &&
+                    LeagueAutoSelectProfiles.Parse("[{\\"Mode\\":\\"aram\\",\\"Picks\\":[-3]}]").Count == 0 &&
+                    LeagueAutoSelectProfiles.Parse("[{\\"Mode\\":\\"ranked\\",\\"Bans\\":[-3]}]").Count == 0,
+                "Arena bravery must not be accepted outside its pick-only group.");
+            var selection = SessionWithRole("pick", 12, "TOP");
+            var arenaFlow = "{\\"phase\\":\\"ChampSelect\\",\\"gameData\\":{\\"queue\\":{\\"id\\":1700,\\"gameMode\\":\\"CHERRY\\",\\"type\\":\\"NORMAL\\"}}}";
+            var reader = new FakeRead { SessionJson = selection, GameflowJson = arenaFlow, Pickable = "[22]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, cherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "Arena bravery must be available without a normal champion grid ID.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"), Pickable = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, cherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Arena bravery escaped its gameflow context.");
+            }
+            var noBan = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Bans = new List<int> { -1 } } });
+            Require(LeagueAutoSelectProfiles.Parse(noBan)[0].Bans.Single() == -1 &&
+                    LeagueAutoPickBanController.IsAvailable(Bytes("[-1,22]"), -1, "ban", "ranked") &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("[22]"), -1, "ban", "ranked") &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("[-1]"), -1, "pick", "ranked"),
+                "Empty ban must require explicit LCU bannable eligibility.");
+            reader = new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[-1,22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, noBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "ban:12:-1:True" }),
+                    "Explicit empty ban was not submitted in an eligible turn.");
+            }
+            reader = new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, noBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Empty ban bypassed server bannable eligibility.");
             }
         }
 

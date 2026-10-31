@@ -145,6 +145,8 @@ namespace FACM.League
         public const string AdvancedRole = "LeagueEfficiencyAdvancedRole";
         public const string AdvancedAction = "LeagueEfficiencyAdvancedAction";
         public const string AdvancedPriority = "LeagueEfficiencyAdvancedPriority";
+        public const string AdvancedNoBan = "LeagueEfficiencyAdvancedNoBan";
+        public const string AdvancedCherryBravery = "LeagueEfficiencyAdvancedCherryBravery";
         public const string AdvancedAdd = "LeagueEfficiencyAdvancedAdd";
         public const string AdvancedRemove = "LeagueEfficiencyAdvancedRemove";
         public const string AdvancedUp = "LeagueEfficiencyAdvancedUp";
@@ -555,6 +557,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedRole, "分路" },
             { LeagueEfficiencyUiTextKeys.AdvancedAction, "操作类型" },
             { LeagueEfficiencyUiTextKeys.AdvancedPriority, "英雄优先级" },
+            { LeagueEfficiencyUiTextKeys.AdvancedNoBan, "空禁（不禁英雄）" },
+            { LeagueEfficiencyUiTextKeys.AdvancedCherryBravery, "勇敢举动（随机英雄）" },
             { LeagueEfficiencyUiTextKeys.AdvancedAdd, "添加英雄" },
             { LeagueEfficiencyUiTextKeys.AdvancedRemove, "移除" },
             { LeagueEfficiencyUiTextKeys.AdvancedUp, "上移" },

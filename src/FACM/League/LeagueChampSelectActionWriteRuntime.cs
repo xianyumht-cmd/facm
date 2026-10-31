@@ -103,12 +103,14 @@ namespace FACM.League
             return string.Equals(method, "PATCH", StringComparison.Ordinal) &&
                    (string.Equals(actionType, "pick", StringComparison.Ordinal) ||
                     string.Equals(actionType, "ban", StringComparison.Ordinal)) &&
-                   actionId >= 0 && championId > 0 && championId <= 10000;
+                   actionId >= 0 && (championId > 0 && championId <= 10000 ||
+                       actionType == "pick" && championId == -3 ||
+                       actionType == "ban" && championId == -1);
         }
 
         internal static bool IsAllowedIntentForSmokeTest(int actionId, int championId)
         {
-            return actionId >= 0 && championId > 0 && championId <= 10000;
+            return actionId >= 0 && (championId > 0 && championId <= 10000 || championId == -3);
         }
 
         public void Dispose()

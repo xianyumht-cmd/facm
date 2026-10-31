@@ -168,12 +168,14 @@ namespace FACM.League
                 profile.PickDelayMs >= 0 && profile.PickDelayMs <= 15000 &&
                 profile.BanDelayMs >= 0 && profile.BanDelayMs <= 15000 &&
                 profile.BenchSwapDelayMs >= 0 && profile.BenchSwapDelayMs <= 15000 &&
-                ValidIds(profile.Picks) && ValidIds(profile.Bans);
+                ValidIds(profile.Picks, profile.Mode == "cherry" ? -3 : 0) &&
+                ValidIds(profile.Bans, -1);
         }
 
-        private static bool ValidIds(List<int> ids)
+        private static bool ValidIds(List<int> ids, int specialId)
         {
-            return ids != null && ids.Count <= 20 && ids.All(id => id > 0 && id <= 10000) &&
+            return ids != null && ids.Count <= 20 &&
+                ids.All(id => id > 0 && id <= 10000 || specialId != 0 && id == specialId) &&
                 ids.Distinct().Count() == ids.Count;
         }
     }

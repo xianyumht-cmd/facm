@@ -344,10 +344,11 @@ namespace FACM.League
             var available = await _read.TryGetBytesAsync(availabilityPath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
             var availableIds = ParseAvailableIds(available);
-            var desired = action.ChampionId > 0 && availableIds.Contains(action.ChampionId) ? action.ChampionId :
-                candidates.FirstOrDefault(id => availableIds.Contains(id) &&
+            var desired = action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
+                ? action.ChampionId : candidates.FirstOrDefault(id =>
+                    CandidateAvailable(availableIds, id, action.Type, mode) &&
                     (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
-            if (desired <= 0)
+            if (desired == 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
                 return;
@@ -362,7 +363,7 @@ namespace FACM.League
                 await _clock.Delay(TimeSpan.FromMilliseconds(delayMs), episode.Token).ConfigureAwait(false);
                 if (!IsCurrent(episode)) return;
                 var recheckedAvailable = await _read.TryGetBytesAsync(availabilityPath, episode.Token).ConfigureAwait(false);
-                if (!IsCurrent(episode) || !IsAvailable(recheckedAvailable, desired)) return;
+                if (!IsCurrent(episode) || !IsAvailable(recheckedAvailable, desired, action.Type, mode)) return;
             }
 
             // Recheck the active local action: a manual user choice or turn transition wins.
@@ -410,7 +411,7 @@ namespace FACM.League
             HashSet<string> attempted, HashSet<string> reported, string trace)
         {
             var intent = ParsePickIntentAction(session);
-            if (intent == null || intent.ChampionId > 0) return false;
+            if (intent == null || intent.ChampionId != 0) return false;
             var mode = intent.Group ?? LeagueAutoSelectProfiles.ModeFor(intent.QueueId, intent.GameMode);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, intent.Role);
             if (!profile.PickEnabled || !profile.ShowPickIntent) return false;
@@ -420,9 +421,9 @@ namespace FACM.League
             var available = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return true;
             var availableIds = ParseAvailableIds(available);
-            var desired = candidates.FirstOrDefault(id => availableIds.Contains(id) &&
+            var desired = candidates.FirstOrDefault(id => CandidateAvailable(availableIds, id, "pick", mode) &&
                 (profile.IgnoreTeammateIntent || !intent.TeammateIntentIds.Contains(id)));
-            if (desired <= 0)
+            if (desired == 0)
             {
                 RecordOnce(reported, trace, "intent_eligibility", "no_available_candidate");
                 return true;
@@ -449,7 +450,7 @@ namespace FACM.League
                 return true;
             }
             var ready = await _read.TryGetBytesAsync(PickablePath, episode.Token).ConfigureAwait(false);
-            if (!IsCurrent(episode) || !IsAvailable(ready, desired)) return true;
+            if (!IsCurrent(episode) || !IsAvailable(ready, desired, "pick", mode)) return true;
             var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect-intent", "write",
                 result == null ? "failed_unavailable" :
@@ -904,6 +905,20 @@ namespace FACM.League
             return championId > 0 && ParseAvailableIds(bytes).Contains(championId);
         }
 
+        internal static bool IsAvailable(byte[] bytes, int championId, string actionType, string group)
+        {
+            return CandidateAvailable(ParseAvailableIds(bytes), championId, actionType, group);
+        }
+
+        private static bool CandidateAvailable(HashSet<int> available, int championId, string actionType, string group)
+        {
+            if (championId == -3)
+                return actionType == "pick" && group == "cherry";
+            if (championId == -1)
+                return actionType == "ban" && available.Contains(-1);
+            return championId > 0 && available.Contains(championId);
+        }
+
         private static HashSet<int> ParseAvailableIds(byte[] bytes)
         {
             var available = new HashSet<int>();
@@ -915,7 +930,7 @@ namespace FACM.League
                 foreach (var value in ids)
                 {
                     var id = Convert.ToInt32(value, CultureInfo.InvariantCulture);
-                    if (id > 0 && id <= 10000) available.Add(id);
+                    if (id == -1 || id > 0 && id <= 10000) available.Add(id);
                 }
             }
             catch (ArgumentException) { }
