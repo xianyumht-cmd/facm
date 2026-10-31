@@ -170,7 +170,7 @@ namespace FACM.League
                 Require(view.SelectedLeftChampionId == 22,
                     "Cross-tab champion selection must update the comparison's left side.");
                 view.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-                Require(view.Controls.OfType<ListView>().Single().Items.Count == 29,
+                Require(view.Controls.OfType<ListView>().Single().Items.Count == 34,
                     "Native comparison must expose every available metric row.");
                 view.RefreshData(new LeaguePlayerMatchSummary[0]);
                 Require(view.Controls.OfType<ListView>().Single().Items[0].SubItems[1].Text.Contains("(0/0)"),
