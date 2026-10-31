@@ -140,7 +140,7 @@ namespace FACM.League
             var portraitFrame = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 2, 6, 2),
                 BackColor = FacmDesignSystem.SurfaceRaised };
             _profileIcon = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
-            _profileIconFallback = new Label { Dock = DockStyle.Fill, Text = "—",
+            _profileIconFallback = new Label { Dock = DockStyle.Fill, Text = string.Empty,
                 TextAlign = ContentAlignment.MiddleCenter, ForeColor = FacmDesignSystem.Text };
             portraitFrame.Controls.Add(_profileIcon);
             portraitFrame.Controls.Add(_profileIconFallback);
