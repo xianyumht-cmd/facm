@@ -473,7 +473,8 @@ namespace FACM.League
             return ui.Get(UiTextKeys.LeagueProfileLp) + ": " + RankedNumber(entry, "leaguePoints") +
                 " · " + ui.Get(UiTextKeys.LeagueProfileWins) + ": " + RankedNumber(entry, "wins") +
                 " · " + ui.Get(UiTextKeys.LeagueProfileLosses) + ": " + RankedNumber(entry, "losses") +
-                " · " + ui.Get(UiTextKeys.LeagueProfileWinrate) + ": " + Winrate(entry);
+                " · " + ui.Get(UiTextKeys.LeagueProfileWinrate) + ": " +
+                (RankTierIndex(LeagueMatchTimelineParser.Text(entry, "tier")) < 0 ? "—" : Winrate(entry));
         }
 
         private static readonly string[] RankTiers = {

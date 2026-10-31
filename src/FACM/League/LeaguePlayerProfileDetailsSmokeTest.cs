@@ -100,6 +100,11 @@ namespace FACM.League
             Require(rankedCard.Contains("0") && rankedCard.Contains("50%") &&
                 LeaguePlayerProfileDialog.RankCardRecord(UiTextCatalog.Load(), flex).Contains("—"),
                 "Ranked cards must retain true zero LP and unavailable fallback records.");
+            var unrankedWithWins = new Dictionary<string, object> {
+                { "tier", "NA" }, { "wins", 1 }, { "losses", 0 }, { "leaguePoints", 0 } };
+            Require(!LeaguePlayerProfileDialog.RankCardRecord(UiTextCatalog.Load(), unrankedWithWins)
+                    .Contains("100%"),
+                "An unranked entry must not show a fabricated ranked win-rate badge.");
             var rankedMap = new Dictionary<string, object>
             {
                 { "RANKED_SOLO_5x5", new Dictionary<string, object> {
