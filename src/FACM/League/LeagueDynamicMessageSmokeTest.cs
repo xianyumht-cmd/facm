@@ -777,7 +777,7 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scope))
                 .MatchHistoryTagPreference == "current" &&
                 LeagueDynamicMessageOptions.Parse("{}").MatchHistoryTagPreference == "all" &&
-                LeagueDynamicMessageOptions.Parse("{\\"MatchHistoryTagPreference\\":\\"bad\\"}")
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryTagPreference\":\"bad\"}")
                     .MatchHistoryTagPreference == "all",
                 "Current-champion history scope must persist and reject invalid settings.");
             var history = new LeaguePlayerMatchPage();
