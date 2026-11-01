@@ -197,10 +197,13 @@ namespace FACM.League
                 Friendly = false, Player = new LeagueLivePlayerRow { PuuId = "enemy", Position = "TOP" } });
             snapshot.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary {
                 PuuId = "jungle", GameId = 1, ChampionId = 1, ParticipantResolved = true,
-                StatisticsAvailable = true, WinResult = "loss", Kills = 1, Deaths = 4, Assists = 1 });
+                StatisticsAvailable = true, WinResult = "loss", Kills = 15, Deaths = 1, Assists = 0 });
             snapshot.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary {
                 PuuId = "top", GameId = 2, ChampionId = 2, ParticipantResolved = true,
-                StatisticsAvailable = true, WinResult = "win", Kills = 9, Deaths = 1, Assists = 6 });
+                StatisticsAvailable = true, WinResult = "win", Kills = 10, Deaths = 0, Assists = 0 });
+            snapshot.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "top", GameId = 3, ChampionId = 2, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "win", Kills = 10, Deaths = 0, Assists = 0 });
             Func<string, string[]> order = mode => LeagueDynamicMessageService.OrderPlayers(snapshot, mode)
                 .Select(p => p.Player.PuuId).ToArray();
             Require(order("default").SequenceEqual(new[] { "jungle", "top", "enemy" }) &&

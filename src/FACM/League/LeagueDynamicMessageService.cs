@@ -224,9 +224,10 @@ namespace FACM.League
                     return analysis.Wins + analysis.Losses > 0
                         ? (double?)analysis.Wins / (analysis.Wins + analysis.Losses) : null;
                 if (mode == "kda")
-                    return analysis.Kills.HasValue && analysis.Assists.HasValue && analysis.Deaths.HasValue
-                        ? (double?)(analysis.Kills.Value + analysis.Assists.Value) /
-                            Math.Max(1d, analysis.Deaths.Value) : null;
+                    return history.Any(m => m.Kills < 0 || m.Deaths < 0 || m.Assists < 0)
+                        ? (double?)null
+                        : history.Sum(m => (long)m.Kills + m.Assists) /
+                            (double)Math.Max(1L, history.Sum(m => (long)m.Deaths));
                 return analysis.AkariScore?.Total;
             };
             return players.Select((p, i) => new {
