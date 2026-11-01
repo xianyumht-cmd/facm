@@ -215,4 +215,112 @@ namespace FACM.League
             Controls.Add(layout);
         }
     }
+    internal sealed class LeagueHistoricalRosterEditorDialog : Form
+    {
+        internal LeagueHistoricalRosterEditorDialog(UiTextCatalog ui,
+            LeagueDynamicMessageSnapshot snapshot, Func<bool> isCurrentSession)
+        {
+            if (ui == null || snapshot == null || isCurrentSession == null)
+                throw new ArgumentException("A verified historical lineup is required.");
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) + " · " +
+                t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle);
+            Width = 950; Height = 570; MinimumSize = new Size(660, 420);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
+                RowCount = 2, Padding = new Padding(12) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            var grid = new DataGridView {
+                Dock = DockStyle.Fill, AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false, MultiSelect = false,
+                RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                BackgroundColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text
+            };
+            grid.DataError += (sender, args) => { args.ThrowException = false; };
+            grid.Columns.Add(new DataGridViewTextBoxColumn {
+                Name = "player", HeaderText = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer),
+                ReadOnly = true, FillWeight = 140
+            });
+            grid.Columns.Add(new DataGridViewComboBoxColumn {
+                Name = "team", HeaderText = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam),
+                DataSource = snapshot.Players.Select(p => p.HistoricalOriginalTeamId)
+                    .Distinct().OrderBy(id => id).ToArray(), FillWeight = 60
+            });
+            grid.Columns.Add(new DataGridViewTextBoxColumn {
+                Name = "champion", HeaderText = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion),
+                FillWeight = 75
+            });
+            var roles = snapshot.HistoricalGameMode == "CHERRY" ? new[] { "" } :
+                new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            foreach (var name in new[] { "position", "primary", "secondary" })
+                grid.Columns.Add(new DataGridViewComboBoxColumn {
+                    Name = name, HeaderText = name == "position"
+                        ? t(LeagueEfficiencyUiTextKeys.DynamicPositions)
+                        : t(name == "primary" ? LeagueEfficiencyUiTextKeys.HistoricalDraftPrimary :
+                            LeagueEfficiencyUiTextKeys.HistoricalDraftSecondary),
+                    DataSource = roles.ToArray(), FillWeight = 80
+                });
+            foreach (var player in snapshot.Players.OrderBy(p => p.HistoricalTeamId)
+                .ThenBy(p => p.Player.CellId))
+            {
+                var index = grid.Rows.Add(player.Player.GameName ?? ("#" + player.Player.CellId),
+                    player.HistoricalTeamId, player.Player.ChampionId.ToString(CultureInfo.InvariantCulture),
+                    player.Player.Position ?? "", player.HistoricalPrimaryPosition ?? "",
+                    player.HistoricalSecondaryPosition ?? "");
+                grid.Rows[index].Tag = player.Player.PuuId;
+            }
+            layout.Controls.Add(grid, 0, 0);
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
+            var cancel = new Button { Width = 110, Height = 30, DialogResult = DialogResult.Cancel,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
+            var apply = new Button { Width = 150, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
+            apply.Click += (sender, args) =>
+            {
+                if (!isCurrentSession()) { apply.Enabled = false; Close(); return; }
+                grid.EndEdit();
+                var changes = new System.Collections.Generic.List<LeagueHistoricalRosterSelection>();
+                foreach (DataGridViewRow row in grid.Rows)
+                {
+                    int team, champion;
+                    if (!int.TryParse(Convert.ToString(row.Cells["team"].Value,
+                            CultureInfo.InvariantCulture), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out team) ||
+                        !int.TryParse(Convert.ToString(row.Cells["champion"].Value,
+                            CultureInfo.InvariantCulture), NumberStyles.Integer,
+                            CultureInfo.InvariantCulture, out champion))
+                    {
+                        MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    changes.Add(new LeagueHistoricalRosterSelection {
+                        PuuId = row.Tag as string, TeamId = team, ChampionId = champion,
+                        Position = row.Cells["position"].Value as string,
+                        PrimaryPosition = row.Cells["primary"].Value as string,
+                        SecondaryPosition = row.Cells["secondary"].Value as string
+                    });
+                }
+                if (!isCurrentSession() ||
+                    !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, changes))
+                {
+                    MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                DialogResult = DialogResult.OK; Close();
+            };
+            actions.Controls.Add(cancel); actions.Controls.Add(apply);
+            layout.Controls.Add(actions, 0, 1);
+            Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
+            Activated += (sender, args) => { if (!isCurrentSession()) Close(); };
+        }
+    }
+
 }

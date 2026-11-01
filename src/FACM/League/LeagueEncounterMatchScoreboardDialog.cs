@@ -635,6 +635,9 @@ namespace FACM.League
                 dryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
                 var dryButton = new Button { AutoSize = true, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunLoad) };
+                var dryRosterButton = new Button { AutoSize = true, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) + " · " +
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle), Enabled = false };
                 var dryStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
                     Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunHint) };
                 var dryRows = new ListView { Dock = DockStyle.Fill, View = View.Details,
@@ -648,7 +651,11 @@ namespace FACM.League
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam), 100);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats), 180);
                 dryRows.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions), 250);
-                dryLayout.Controls.Add(dryButton, 0, 0);
+                var dryActions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = false,
+                    AutoScroll = true };
+                dryActions.Controls.Add(dryButton);
+                dryActions.Controls.Add(dryRosterButton);
+                dryLayout.Controls.Add(dryActions, 0, 0);
                 dryLayout.Controls.Add(dryStatus, 0, 1);
                 dryLayout.Controls.Add(dryRows, 0, 2);
                 dryTab.Controls.Add(dryLayout);
@@ -685,6 +692,24 @@ namespace FACM.League
                             : "—";
                     }
                 };
+                dryRosterButton.Click += (sender, e) =>
+                {
+                    if (loadedDraft == null || detail.IsCurrentSession == null ||
+                        !detail.IsCurrentSession()) { dryRosterButton.Enabled = false; return; }
+                    using (var editor = new LeagueHistoricalRosterEditorDialog(
+                        ui, loadedDraft, detail.IsCurrentSession))
+                    {
+                        if (editor.ShowDialog(this) == DialogResult.OK && detail.IsCurrentSession())
+                            refreshDraftRows();
+                        else if (!detail.IsCurrentSession())
+                        {
+                            loadedDraft = null;
+                            dryRows.Items.Clear();
+                            dryRosterButton.Enabled = false;
+                            dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                        }
+                    }
+                };
                 dryRows.DoubleClick += (sender, e) =>
                 {
                     if (loadedDraft == null || dryRows.SelectedItems.Count != 1 ||
@@ -712,6 +737,7 @@ namespace FACM.League
                     if (_lifetime.IsCancellationRequested || detail.IsCurrentSession == null ||
                         !detail.IsCurrentSession()) return;
                     dryButton.Enabled = false;
+                    dryRosterButton.Enabled = false;
                     dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicLoading);
                     dryRows.Items.Clear();
                     loadedDraft = null;
@@ -725,6 +751,7 @@ namespace FACM.League
                             return;
                         }
                         loadedDraft = snapshot;
+                        dryRosterButton.Enabled = true;
                         var options = new LeagueDynamicMessageOptions();
                         var groups = LeaguePremadePlayerTagProjection.Project(snapshot,
                             options.PremadeMatchThreshold);
