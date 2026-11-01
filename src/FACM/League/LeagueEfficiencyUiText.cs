@@ -374,6 +374,13 @@ namespace FACM.League
         public const string PremadeLossRateTeam = "LeagueEfficiencyPremadeLossRateTeam";
         public const string PremadeTeamStats = "LeagueEfficiencyPremadeTeamStats";
         public const string PremadeTeamWinRate = "LeagueEfficiencyPremadeTeamWinRate";
+        public const string HistoricalDryRunTitle = "LeagueEfficiencyHistoricalDryRunTitle";
+        public const string HistoricalDryRunLoad = "LeagueEfficiencyHistoricalDryRunLoad";
+        public const string HistoricalDryRunHint = "LeagueEfficiencyHistoricalDryRunHint";
+        public const string HistoricalDryRunReady = "LeagueEfficiencyHistoricalDryRunReady";
+        public const string OngoingEasyGankHard = "LeagueEfficiencyOngoingEasyGankHard";
+        public const string OngoingEasyGankEasy = "LeagueEfficiencyOngoingEasyGankEasy";
+        public const string OngoingEasyGankVery = "LeagueEfficiencyOngoingEasyGankVery";
         public const string OngoingTagDisplay = "LeagueEfficiencyOngoingTagDisplay";
         public const string OngoingSelf = "LeagueEfficiencyOngoingSelf";
         public const string OngoingTagged = "LeagueEfficiencyOngoingTagged";
@@ -808,6 +815,13 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeLossRateTeam, "娱乐队" },
             { LeagueEfficiencyUiTextKeys.PremadeTeamStats, "成员样本胜率 {0}% · KDA {1}" },
             { LeagueEfficiencyUiTextKeys.PremadeTeamWinRate, "成员样本胜率 {0}%" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle, "历史阵容模拟" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDryRunLoad, "分析历史阵容" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDryRunHint, "仅分析历史阵容与当前可获取的近期战绩，不发送游戏操作" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDryRunReady, "已分析 {0}/{1} 名玩家的近期战绩；其余数据不可用" },
+            { LeagueEfficiencyUiTextKeys.OngoingEasyGankHard, "难抓" },
+            { LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy, "易抓" },
+            { LeagueEfficiencyUiTextKeys.OngoingEasyGankVery, "非常易抓" },
             { LeagueEfficiencyUiTextKeys.OngoingTagDisplay, "玩家标签显示" },
             { LeagueEfficiencyUiTextKeys.OngoingSelf, "本人" },
             { LeagueEfficiencyUiTextKeys.OngoingTagged, "已标记" },

@@ -25,6 +25,7 @@ namespace FACM.League
         internal Func<CancellationToken, Task<LeagueSgpEogResult>> LoadEog;
         internal LeagueSgpEogResult EogOnly;
         internal Func<bool> IsCurrentSession;
+        internal Func<CancellationToken, Task<LeagueDynamicMessageSnapshot>> LoadDryRun;
     }
 
     // Single user-requested detail read; never observes a game or fetches match history in the background.
@@ -135,6 +136,15 @@ namespace FACM.League
                         ChampionNames = breakdown.ChampionNames,
                         BuildCatalog = breakdown.BuildCatalog,
                         IsCurrentSession = () => IsSameSession(initial),
+                        LoadDryRun = LeagueHistoricalMatchDryRun.Build(breakdown.Match, breakdown.Participants,
+                            record.Puuid) != null &&
+                            (string.IsNullOrEmpty(breakdown.Match.SgpServerId) ||
+                             string.Equals(breakdown.Match.SgpServerId,
+                                 LeagueSgpMatchHistoryApiClient.CurrentServerId(initial),
+                                 StringComparison.OrdinalIgnoreCase))
+                            ? (Func<CancellationToken, Task<LeagueDynamicMessageSnapshot>>)
+                                (cancellation => LoadHistoricalDryRunAsync(initial, record.SelfPuuid,
+                                    record.Puuid, breakdown, cancellation)) : null,
                         LoadTimeline = cancellation => _players.LoadMatchTimelineAsync(
                             timelineOwner, timelineMatch, cancellation, initial),
                         LoadEog = string.IsNullOrEmpty(serverId) ||
@@ -191,6 +201,57 @@ namespace FACM.League
         {
             return string.Equals((left ?? "").Trim(), (right ?? "").Trim(),
                 StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<LeagueDynamicMessageSnapshot> LoadHistoricalDryRunAsync(
+            LeagueClientSession expected, string owner, string target,
+            LeaguePlayerMatchBreakdown breakdown, CancellationToken token)
+        {
+            var snapshot = LeagueHistoricalMatchDryRun.Build(breakdown.Match, breakdown.Participants, target);
+            if (snapshot == null || !IsSameSession(expected) ||
+                !string.IsNullOrEmpty(breakdown.Match.SgpServerId) &&
+                !string.Equals(breakdown.Match.SgpServerId,
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(expected),
+                    StringComparison.OrdinalIgnoreCase)) return null;
+
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(38));
+                try
+                {
+                    var before = await _players.LoadProfileAsync(true, deadline.Token).ConfigureAwait(false);
+                    if (before == null || !string.Equals(before.PuuId, owner, StringComparison.Ordinal) ||
+                        !IsSameSession(expected)) return null;
+
+                    foreach (var player in snapshot.Players)
+                    {
+                        deadline.Token.ThrowIfCancellationRequested();
+                        if (!IsSameSession(expected)) return null;
+                        using (var playerDeadline = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token))
+                        {
+                            playerDeadline.CancelAfter(TimeSpan.FromSeconds(3));
+                            try
+                            {
+                                var page = await _players.LoadRecentMatchesAsync(
+                                    new LeaguePlayerProfile { PuuId = player.Player.PuuId }, 0, 5,
+                                    false, playerDeadline.Token).ConfigureAwait(false);
+                                if (!IsSameSession(expected)) return null;
+                                if (page != null && page.Matches.Count <= 5 &&
+                                    page.Matches.All(m => m != null &&
+                                        (string.IsNullOrEmpty(m.PuuId) ||
+                                         string.Equals(m.PuuId, player.Player.PuuId, StringComparison.Ordinal))))
+                                    player.History = page;
+                            }
+                            catch (OperationCanceledException) when (!deadline.IsCancellationRequested) { }
+                        }
+                    }
+
+                    var after = await _players.LoadProfileAsync(true, deadline.Token).ConfigureAwait(false);
+                    return after != null && string.Equals(after.PuuId, owner, StringComparison.Ordinal) &&
+                        IsSameSession(expected) && !token.IsCancellationRequested ? snapshot : null;
+                }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
+            }
         }
 
         private static LeagueEncounterMatchDetailResult Result(LeagueEncounterMatchDetailStatus status)

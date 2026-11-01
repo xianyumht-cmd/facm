@@ -625,6 +625,79 @@ namespace FACM.League
                 eogRetry.Click += async (sender, e) => await loadEog();
                 eogTab.Tag = new Func<bool>(() => loaded);
             }
+            if (detail.LoadDryRun != null)
+            {
+                var dryTab = new TabPage(t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle));
+                var dryLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
+                    RowCount = 3, Padding = new Padding(8) };
+                dryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+                dryLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
+                dryLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var dryButton = new Button { AutoSize = true, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunLoad) };
+                var dryStatus = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunHint) };
+                var dryRows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                    FullRowSelect = true, GridLines = true, ShowItemToolTips = true,
+                    BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 85);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 150);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 120);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingTagDisplay), 360);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam), 100);
+                dryLayout.Controls.Add(dryButton, 0, 0);
+                dryLayout.Controls.Add(dryStatus, 0, 1);
+                dryLayout.Controls.Add(dryRows, 0, 2);
+                dryTab.Controls.Add(dryLayout);
+                matchTabs.TabPages.Add(dryTab);
+                dryButton.Click += async (sender, e) =>
+                {
+                    if (_lifetime.IsCancellationRequested || detail.IsCurrentSession == null ||
+                        !detail.IsCurrentSession()) return;
+                    dryButton.Enabled = false;
+                    dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                    dryRows.Items.Clear();
+                    try
+                    {
+                        var snapshot = await detail.LoadDryRun(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested) return;
+                        if (snapshot == null || !detail.IsCurrentSession())
+                        {
+                            dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                            return;
+                        }
+                        var options = new LeagueDynamicMessageOptions();
+                        var groups = LeaguePremadePlayerTagProjection.Project(snapshot,
+                            options.PremadeMatchThreshold);
+                        foreach (var player in snapshot.Players.OrderByDescending(p => p.Friendly))
+                        {
+                            var row = new ListViewItem(t(player.Friendly ?
+                                LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                                LeagueEfficiencyUiTextKeys.DynamicEnemy));
+                            row.SubItems.Add(player.Player.AccountName ?? ("#" + player.Player.CellId));
+                            row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
+                            var tags = LeagueOngoingPlayerTagProjection.Project(player.History, options);
+                            row.SubItems.Add(tags.Count == 0 ? "—" : string.Join(" · ", tags.Take(8)));
+                            string group;
+                            row.SubItems.Add(groups.TryGetValue(player.Player.PuuId, out group) ? group : "—");
+                            dryRows.Items.Add(row);
+                        }
+                        dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)
+                            .Replace("{0}", snapshot.Players.Count(p => p.History != null).ToString())
+                            .Replace("{1}", snapshot.Players.Count.ToString());
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception)
+                    {
+                        if (!IsDisposed && !_lifetime.IsCancellationRequested)
+                            dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                    }
+                    finally
+                    {
+                        if (!IsDisposed && !_lifetime.IsCancellationRequested) dryButton.Enabled = true;
+                    }
+                };
+            }
             matchTabs.SelectedIndexChanged += async (sender, e) =>
             {
                 if (matchTabs.SelectedTab == timelineTab) await timeline.EnsureLoadedAsync();

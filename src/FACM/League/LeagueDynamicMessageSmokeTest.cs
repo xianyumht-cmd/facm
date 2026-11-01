@@ -21,6 +21,7 @@ namespace FACM.League
             ValidateOngoingPlayerTags();
             ValidateEncounterCardTags();
             ValidateKillDamageEfficiencyTag();
+            ValidateHistoricalDryRun();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -646,6 +647,43 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .ShowAverageKillDamageEfficiencyTag,
                 "The new optional badge must roundtrip without changing old defaults.");
+        }
+
+        private static void ValidateHistoricalDryRun()
+        {
+            var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
+                GameMode = "CLASSIC", TeamId = 100, PuuId = "target" };
+            var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {
+                ParticipantId = i, TeamId = i <= 5 ? 100 : 200,
+                PuuId = i == 1 ? "target" : "player-" + i,
+                ChampionId = i + 10, PlayerName = "Player" + i,
+                Position = i == 7 ? "JUNGLE" : "TOP",
+                SpellIds = new[] { 4, 7 }
+            }).ToList();
+            var snapshot = LeagueHistoricalMatchDryRun.Build(match, roster, "target");
+            Require(snapshot != null && snapshot.Players.Count == 10 &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "target").Player.ChampionId == 11 &&
+                snapshot.Players.All(p => p.History == null) &&
+                snapshot.Phase == "HistoricalPreview",
+                "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            roster[9].PuuId = roster[8].PuuId;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Duplicate historical player identities must fail closed.");
+            roster[9].PuuId = "player-10";
+            roster[9].TeamId = 100;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "A contradictory five-versus-five historical roster must fail closed.");
+            roster[9].TeamId = 200;
+            roster[9].PuuId = null;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Anonymous historical players must not be guessed.");
+            roster[9].PuuId = "player-10";
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "other") == null,
+                "A different target must never reuse a historical draft.");
+            match.MapId = 12;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Non-Rift historical games must not masquerade as standard two-team drafts.");
         }
 
         private static void ValidateJungleTimeline()

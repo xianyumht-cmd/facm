@@ -82,10 +82,25 @@ namespace FACM.League
                 new LeagueEarlyJungleDeathSample[0]).SelectMany(s => s.Metrics)
                 .All(v => v.Key != UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths),
                 "Unknown early-jungle metrics are hidden in overview.");
+            Require(LeagueEarlyJungleDeathAnalysis.Classify(null, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(double.NaN, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(0, true) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.0, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.49, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(0.99, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankHard &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.5, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy &&
+                LeagueEarlyJungleDeathAnalysis.Classify(2, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy &&
+                LeagueEarlyJungleDeathAnalysis.Classify(2.01, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankVery,
+                "Source easy-gank thresholds must be exact and unknown/jungler data must fail closed.");
             var ui = UiTextCatalog.Load();
             var report = LeagueEarlyJungleDeathAnalysis.Report(ui, new[] { sample, sample },
                 candidates, "target", attempted, 0);
-            Require(report.Contains("0.00") && report.Contains("1/2"),
+            Require(report.Contains("0.00") && report.Contains("1/2") &&
+                report.Contains(LeagueEfficiencyText.Get(ui, LeagueEfficiencyUiTextKeys.OngoingEasyGankHard)),
                 "Known zero, duplicates and coverage are distinct.");
             Require(LeagueEarlyJungleDeathAnalysis.Report(ui, null, candidates, "target",
                 attempted, 0).Contains("--"), "Unloaded samples are unknown.");

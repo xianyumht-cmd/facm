@@ -91,6 +91,16 @@ namespace FACM.League
                  (e.Assists != null && e.Assists.Any(enemySet.Contains))));
         }
 
+        // Pinned Akari v1.5.1 player-card easy-gank thresholds; missing evidence is not zero.
+        internal static string Classify(double? average, bool isJungler)
+        {
+            if (isJungler || !average.HasValue || double.IsNaN(average.Value) ||
+                double.IsInfinity(average.Value) || average.Value < 0) return null;
+            if (average.Value > 2) return LeagueEfficiencyUiTextKeys.OngoingEasyGankVery;
+            if (average.Value >= 1.5) return LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy;
+            return average.Value < 1 ? LeagueEfficiencyUiTextKeys.OngoingEasyGankHard : null;
+        }
+
         internal static string Report(UiTextCatalog ui, IEnumerable<LeagueEarlyJungleDeathSample> samples,
             IEnumerable<LeaguePlayerMatchSummary> matches, string target,
             ISet<string> attempted, int championId)
@@ -106,11 +116,14 @@ namespace FACM.League
                 .GroupBy(s => LeaguePlayerDataService.HistoryDetailKey(s.Match),
                     StringComparer.OrdinalIgnoreCase).Select(g => g.First()).ToList();
             var attemptedCount = attempted == null ? 0 : keys.Count(attempted.Contains);
-            return string.Format(CultureInfo.CurrentCulture,
+            var report = string.Format(CultureInfo.CurrentCulture,
                 ui.Get(UiTextKeys.LeaguePlayerAnalysisEarlyJungleResult),
                 known.Count == 0 ? "--" : known.Average(s => s.Deaths).ToString("0.00", CultureInfo.CurrentCulture),
                 known.Count, eligible.Count, attemptedCount,
                 known.Count == 0 ? "--" : known.Sum(s => s.Deaths).ToString(CultureInfo.CurrentCulture));
+            var label = Classify(known.Count == 0 ? (double?)null : known.Average(s => s.Deaths), false);
+            return label == null ? report : report + Environment.NewLine +
+                LeagueEfficiencyText.Get(ui, label);
         }
     }
 }
