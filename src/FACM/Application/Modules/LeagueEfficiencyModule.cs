@@ -170,7 +170,7 @@ namespace FACM.AppHost.Modules
             _respawnOverlay = new LeagueRespawnOverlayHost(_leagueClient, () => _leagueClient.CurrentSession);
             _respawnOverlay.Configure(RespawnOverlayEnabled, _dashboard.CurrentGameflowState);
             _dynamicMessages = new LeagueDynamicMessageService(_leagueClient, _dashboard.BudgetProvider,
-                () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState);
+                () => _leagueClient.CurrentSession, () => _dashboard.CurrentGameflowState, _leagueClient);
             _encounterRecorder = new LeagueEncounterHistoryRecorder(_leagueClient, _dashboard.BudgetProvider,
                 () => _leagueClient.CurrentSession, _encounterHistory);
             _tagReminders = new LeagueTaggedPlayerReminderController(_leagueClient,
@@ -253,10 +253,13 @@ namespace FACM.AppHost.Modules
         }
 
         public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token,
-            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount)
+            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount,
+            string historyTagPreference = null)
         {
             ThrowIfDisposed();
-            return _dynamicMessages.LoadAsync(token, historyLoadCount);
+            var preference = historyTagPreference ??
+                LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson).MatchHistoryTagPreference;
+            return _dynamicMessages.LoadAsync(token, historyLoadCount, preference);
         }
 
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,

@@ -17,6 +17,7 @@ namespace FACM.League
             LeagueTaggedPlayerReminderSmokeTest.Validate();
             LeagueEncounterHistorySmokeTest.Validate();
             ValidateAggregation();
+            ValidateQueueTagPreference();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
             ValidateEncounterCardTags();
@@ -122,6 +123,24 @@ namespace FACM.League
                     "Invalid player tag storage must fail without overwriting the damaged file.");
             }
             finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        }
+
+        private static void ValidateQueueTagPreference()
+        {
+            var defaults = LeagueDynamicMessageOptions.Parse("{}");
+            Require(defaults.MatchHistoryTagPreference == "all" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("all", 420) == null &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 420) == "q_420" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 0) == "" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 99999) == "" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("unknown", 420) == "",
+                "Current-queue history must use an allowlisted SGP tag and fail closed on unknown queues.");
+            defaults.MatchHistoryTagPreference = "current";
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(defaults))
+                    .MatchHistoryTagPreference == "current" &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryTagPreference\":\"invalid\"}")
+                    .MatchHistoryTagPreference == "all",
+                "Queue-tag preferences must roundtrip and reject invalid persisted modes.");
         }
 
         private static void ValidateAggregation()

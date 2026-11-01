@@ -297,10 +297,12 @@ namespace FACM.League
         }
 
         public async Task<LeaguePlayerMatchPage> LoadRecentMatchesAsync(
-            LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken)
+            LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken,
+            string queueTag = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (profile == null || !IsSafePuuid(profile.PuuId)) return null;
+            if (profile == null || !IsSafePuuid(profile.PuuId) ||
+                (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag))) return null;
             startIndex = Math.Max(0, startIndex);
             count = Math.Max(1, Math.Min(MaximumMatchCount, count));
             if (startIndex > int.MaxValue - count) return null;
@@ -308,7 +310,8 @@ namespace FACM.League
             if (!SessionStillCurrent(session)) return null;
             lock (_cacheSync)
             {
-                if (!force && _cachedPage != null && CacheSessionMatches(_cachedPageSession, session) &&
+                if (queueTag == null && !force && _cachedPage != null &&
+                    CacheSessionMatches(_cachedPageSession, session) &&
                     string.Equals(_cachedPagePuuId, profile.PuuId, StringComparison.OrdinalIgnoreCase) &&
                     _cachedPage.StartIndex == startIndex && _cachedPage.RequestedCount == count &&
                     DateTime.UtcNow - _pageCachedUtc < TimeSpan.FromSeconds(45)) return ClonePage(_cachedPage);
@@ -317,6 +320,7 @@ namespace FACM.League
             try
             {
                 LeaguePlayerMatchPage page = null;
+                if (queueTag == null)
                 using (var localDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     localDeadline.CancelAfter(_budgets.Current.NetworkConcurrency <= 1
@@ -341,7 +345,8 @@ namespace FACM.League
                             var before = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
                             if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
-                            page = await TryLoadSgpPageAsync(profile, startIndex, count, regionalDeadline.Token).ConfigureAwait(false);
+                            page = await TryLoadSgpPageAsync(profile, startIndex, count,
+                                regionalDeadline.Token, null, queueTag).ConfigureAwait(false);
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
                             if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
@@ -353,7 +358,7 @@ namespace FACM.League
                 if (page != null)
                 {
                     page.ClientSession = session;
-                    CachePage(profile.PuuId, page, session);
+                    if (queueTag == null) CachePage(profile.PuuId, page, session);
                 }
                 return page;
             }

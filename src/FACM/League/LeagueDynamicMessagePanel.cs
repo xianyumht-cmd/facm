@@ -65,6 +65,22 @@ namespace FACM.League
                 RefreshPreview();
             };
             choices.Controls.Add(historyCount);
+            var historyTag = Choice(new[] { T(LeagueEfficiencyUiTextKeys.OngoingHistoryAllQueues),
+                T(LeagueEfficiencyUiTextKeys.OngoingHistoryCurrentQueue) });
+            historyTag.SelectedIndex = _options.MatchHistoryTagPreference == "current" ? 1 : 0;
+            historyTag.SelectedIndexChanged += delegate
+            {
+                if (_binding) return;
+                _options.MatchHistoryTagPreference = historyTag.SelectedIndex == 1 ? "current" : "all";
+                _snapshot = null;
+                _binding = true;
+                try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                finally { _binding = false; }
+                _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                RefreshPreview();
+            };
+            choices.Controls.Add(historyTag);
             var thresholdLabel = new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.PremadeThreshold),
                 TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 7, 0, 0), Visible = false };
             var threshold = new NumericUpDown { Width = 58, Minimum = 2,
@@ -465,9 +481,11 @@ namespace FACM.League
                     return;
                 }
                 var requestedHistoryCount = _options.MatchHistoryLoadCount;
+                var requestedTagPreference = _options.MatchHistoryTagPreference;
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token,
-                    requestedHistoryCount);
-                if (IsDisposed || requestedHistoryCount != _options.MatchHistoryLoadCount) return;
+                    requestedHistoryCount, requestedTagPreference);
+                if (IsDisposed || requestedHistoryCount != _options.MatchHistoryLoadCount ||
+                    requestedTagPreference != _options.MatchHistoryTagPreference) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)

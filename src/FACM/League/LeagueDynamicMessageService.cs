@@ -15,6 +15,7 @@ namespace FACM.League
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
         public int MatchHistoryLoadCount { get; set; } = 20;
+        public string MatchHistoryTagPreference { get; set; } = "all";
         public string ChampionUsageMode { get; set; } = "recent";
         public bool ShowSelfTag { get; set; } = true;
         public bool ShowTaggedTag { get; set; } = true;
@@ -92,6 +93,7 @@ namespace FACM.League
                 options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
+                !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "none", "recent", "mastery" }.Contains(options.ChampionUsageMode) ||
                 !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
@@ -138,6 +140,7 @@ namespace FACM.League
         internal string Phase;
         internal string HistoricalGameMode;
         internal int HistoryLoadCount = LeaguePlayerDataService.MaximumMatchCount;
+        internal string HistoryQueueTag;
         internal string RosterKey;
         internal string SelfPuuid;
         internal LeagueClientSession Session;
@@ -174,21 +177,33 @@ namespace FACM.League
         }
 
         internal LeagueDynamicMessageService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
-            Func<LeagueClientSession> session, Func<LeagueDashboardPhaseState> phase)
+            Func<LeagueClientSession> session, Func<LeagueDashboardPhaseState> phase,
+            ILeagueSgpMatchHistoryApi sgpHistory = null)
         {
             _client = client;
-            _players = new LeaguePlayerDataService(client, budgets);
+            _players = new LeaguePlayerDataService(client, budgets, null, sgpHistory, session);
             _live = new LeagueLiveDataService(client, budgets);
             _session = session;
             _phase = phase;
             _observedPhase = phase()?.Phase;
         }
 
+        internal static string ResolveHistoryQueueTag(string preference, int queueId)
+        {
+            if (preference == "all") return null;
+            if (preference != "current" || queueId <= 0 || queueId > 100000)
+                return string.Empty;
+            var tag = "q_" + queueId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return LeagueSgpSupportedQueues.IsValidTag(tag) ? tag : string.Empty;
+        }
+
         internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token,
-            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount)
+            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount,
+            string historyTagPreference = "all")
         {
             if (historyLoadCount < 2 ||
-                historyLoadCount > LeaguePlayerDataService.MaximumMatchCount) return null;
+                historyLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
+                (historyTagPreference != "all" && historyTagPreference != "current")) return null;
             var phase = _phase();
             var session = _session();
             if (phase == null || !phase.Connected || (phase.Phase != "ChampSelect" && phase.Phase != "InProgress") || session == null) return null;
@@ -213,7 +228,10 @@ namespace FACM.League
                 var roster = await ReadRosterAsync(phase.Phase, active.Token).ConfigureAwait(false);
                 var own = roster.Players.FirstOrDefault(p => p.PuuId == me.PuuId);
                 if (own == null || roster.Players.Count > 20 || roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Any(g => g.Count() != 1)) return null;
+                var historyQueueTag = ResolveHistoryQueueTag(historyTagPreference, roster.QueueId);
+                if (historyQueueTag == string.Empty) return null;
                 var snapshot = new LeagueDynamicMessageSnapshot { Phase = phase.Phase, Session = session,
+                    HistoryQueueTag = historyQueueTag,
                     SelfPuuid = me.PuuId, RosterKey = RosterKey(roster),
                     HistoryLoadCount = historyLoadCount, CreatedUtc = DateTime.UtcNow,
                     UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
@@ -231,7 +249,8 @@ namespace FACM.League
                         try
                         {
                             player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
-                                SummonerId = row.SummonerId }, 0, historyLoadCount, false, playerTimeout.Token).ConfigureAwait(false);
+                                SummonerId = row.SummonerId }, 0, historyLoadCount, false,
+                                playerTimeout.Token, historyQueueTag).ConfigureAwait(false);
                             if (player.History != null && player.History.Matches.Count > historyLoadCount)
                                 player.History.Matches.RemoveRange(historyLoadCount,
                                     player.History.Matches.Count - historyLoadCount);
@@ -584,7 +603,7 @@ namespace FACM.League
             var count = snapshot.HistoryLoadCount;
             if (count < 2 || count > LeaguePlayerDataService.MaximumMatchCount) return false;
             var history = await _players.LoadRecentMatchesAsync(profile, 0,
-                count, false, token).ConfigureAwait(false);
+                count, false, token, snapshot.HistoryQueueTag).ConfigureAwait(false);
             if (history == null || !Current(snapshot.Session, snapshot.Phase)) return false;
             if (history.Matches.Count > count)
                 history.Matches.RemoveRange(count, history.Matches.Count - count);
