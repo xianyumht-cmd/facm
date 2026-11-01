@@ -786,6 +786,49 @@ namespace FACM.League
             match.MapId = 12;
             Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
                 "Non-Rift historical games must not masquerade as standard two-team drafts.");
+
+            var arena = new LeaguePlayerMatchSummary { GameId = 501, MapId = 30,
+                GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
+            var arenaRoster = Enumerable.Range(1, 16).Select(i => new LeaguePlayerMatchParticipant {
+                ParticipantId = i, TeamId = i <= 8 ? 100 : 200,
+                PlayerSubteamId = (i + 1) / 2, SubteamPlacement = (i + 1) / 2,
+                PuuId = i == 1 ? "target" : "arena-" + i,
+                ChampionId = i + 20, PlayerName = "Arena" + i
+            }).ToList();
+            var arenaDraft = LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target");
+            Require(arenaDraft != null && arenaDraft.HistoricalGameMode == "CHERRY" &&
+                arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
+                "Arena historical draft must preserve eight independent two-player subteams.");
+            var enemyOne = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3");
+            var enemyTwo = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-5");
+            enemyOne.History = new LeaguePlayerMatchPage();
+            enemyTwo.History = new LeaguePlayerMatchPage();
+            for (var game = 1; game <= 5; game++)
+            {
+                enemyOne.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "arena-3", "arena-5" } });
+                enemyTwo.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "arena-3", "arena-5" } });
+            }
+            Require(LeaguePremadeInference.Infer(arenaDraft).Count == 0 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(arenaDraft).Count == 0,
+                "Arena draft must never infer a premade across two enemy subteams.");
+            arenaRoster[15].PlayerSubteamId = 1;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Arena subteam overflow must fail closed.");
+            arenaRoster[15].PlayerSubteamId = 8;
+            arenaRoster[15].SubteamPlacement = 1;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Conflicting Arena placement must fail closed.");
+            arenaRoster[15].SubteamPlacement = 8;
+            arena.PlayerSubteamId = 2;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Historical Arena target subteam mismatch must fail closed.");
+            arena.PlayerSubteamId = 1;
+            arenaRoster.RemoveAt(15);
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Incomplete Arena rosters must not be treated as full drafts.");
         }
 
         private static void ValidateJungleTimeline()

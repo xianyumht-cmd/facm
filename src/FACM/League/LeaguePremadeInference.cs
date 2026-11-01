@@ -27,7 +27,9 @@ namespace FACM.League
                     .Take(LeaguePlayerDataService.MaximumMatchCount))
                 {
                     var members = new HashSet<string>(match.SameTeamPuuids.Where(id =>
-                        byId.ContainsKey(id) && byId[id].Friendly == player.Friendly), StringComparer.Ordinal);
+                        byId.ContainsKey(id) && byId[id].Friendly == player.Friendly &&
+                        (snapshot.Phase != "HistoricalPreview" ||
+                         byId[id].HistoricalTeamId == player.HistoricalTeamId)), StringComparer.Ordinal);
                     if (!members.Contains(player.Player.PuuId))
                     {
                         seen[match.GameId] = null;
@@ -51,7 +53,9 @@ namespace FACM.League
                 {
                     if (!match.SameTeamPuuids.Contains(player.Player.PuuId, StringComparer.Ordinal)) continue;
                     var members = match.SameTeamPuuids.Where(id => byId.ContainsKey(id) &&
-                        byId[id].Friendly == player.Friendly).Distinct(StringComparer.Ordinal)
+                        byId[id].Friendly == player.Friendly &&
+                        (snapshot.Phase != "HistoricalPreview" ||
+                         byId[id].HistoricalTeamId == player.HistoricalTeamId)).Distinct(StringComparer.Ordinal)
                         .OrderBy(id => id, StringComparer.Ordinal).ToArray();
                     for (var i = 0; i < members.Length; i++)
                     for (var j = i + 1; j < members.Length; j++)

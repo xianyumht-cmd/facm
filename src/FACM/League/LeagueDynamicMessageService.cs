@@ -111,6 +111,7 @@ namespace FACM.League
         internal LeagueLivePlayerRow Player;
         internal LeaguePlayerMatchPage History;
         internal bool Friendly;
+        internal int HistoricalTeamId;
         internal string ChampionName;
         internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
         internal double? EarlyGankAverage;
@@ -123,6 +124,7 @@ namespace FACM.League
     {
         internal readonly List<LeagueDynamicMessagePlayer> Players = new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
+        internal string HistoricalGameMode;
         internal string RosterKey;
         internal string SelfPuuid;
         internal LeagueClientSession Session;

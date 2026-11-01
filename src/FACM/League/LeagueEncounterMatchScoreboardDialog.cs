@@ -674,9 +674,10 @@ namespace FACM.League
                             options.PremadeMatchThreshold);
                         foreach (var player in snapshot.Players.OrderByDescending(p => p.Friendly))
                         {
-                            var row = new ListViewItem(t(player.Friendly ?
-                                LeagueEfficiencyUiTextKeys.DynamicFriendly :
-                                LeagueEfficiencyUiTextKeys.DynamicEnemy));
+                            var row = new ListViewItem(snapshot.HistoricalGameMode == "CHERRY"
+                                ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
+                                : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                                    LeagueEfficiencyUiTextKeys.DynamicEnemy));
                             row.SubItems.Add(player.Player.AccountName ?? ("#" + player.Player.CellId));
                             row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
                             var tags = LeagueOngoingPlayerTagProjection.Project(player.History, options);
