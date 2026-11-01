@@ -48,8 +48,8 @@ namespace FACM.League
             var breakdown = LeagueOngoingCardBreakdown.Project(matches, "target");
             Require(breakdown.Count(row => row.Kind == "champion") == 2 &&
                 breakdown.Count(row => row.Kind == "champion-position") == 2 &&
-                breakdown.Count(row => row.Kind == "champion-mode") == 2 &&
-                breakdown.Count(row => row.Kind == "position-mode") == 2 &&
+                breakdown.Count(row => row.Kind == "champion-mode") == 3 &&
+                breakdown.Count(row => row.Kind == "position-mode") == 3 &&
                 breakdown.Single(row => row.Kind == "champion-position" &&
                     row.ChampionId == 22 && row.Position == "TOP").Analysis.Games == 2 &&
                 breakdown.Single(row => row.Kind == "champion-mode" &&
