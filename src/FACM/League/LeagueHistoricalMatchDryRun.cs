@@ -180,12 +180,22 @@ namespace FACM.League
             {
                 var name = new string((participant.PlayerName ?? string.Empty)
                     .Where(c => !char.IsControl(c)).Take(64).ToArray()).Trim();
+                var championName = new string((participant.ChampionName ?? string.Empty)
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                var sourcePosition = !cherry && new[] {
+                    "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"
+                }.Contains(participant.Position, StringComparer.Ordinal)
+                    ? participant.Position : string.Empty;
                 snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                    HistoricalOriginalChampionId = participant.ChampionId,
+                    HistoricalOriginalChampionName = string.IsNullOrWhiteSpace(championName)
+                        ? "#" + participant.ChampionId : championName,
+                    HistoricalOriginalPosition = sourcePosition,
                     Friendly = cherry ? participant.PlayerSubteamId == target.PlayerSubteamId :
                         participant.TeamId == match.TeamId,
                     HistoricalTeamId = cherry ? participant.PlayerSubteamId.Value : participant.TeamId,
-                    ChampionName = string.IsNullOrWhiteSpace(participant.ChampionName)
-                        ? "#" + participant.ChampionId : participant.ChampionName,
+                    ChampionName = string.IsNullOrWhiteSpace(championName)
+                        ? "#" + participant.ChampionId : championName,
                     Player = new LeagueLivePlayerRow {
                         PuuId = participant.PuuId,
                         CellId = participant.ParticipantId,

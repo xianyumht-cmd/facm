@@ -843,6 +843,11 @@ namespace FACM.League
                 snapshot.Players.All(p => p.History == null) &&
                 snapshot.Phase == "HistoricalPreview",
                 "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            Require(snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalChampionId == 12 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalPosition == "TOP",
+                "Historical drafts must retain an immutable source selection for local reset.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE") &&
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.ChampionId == 99 &&
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.Position == "MIDDLE" &&
@@ -859,8 +864,10 @@ namespace FACM.League
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 22, "JUNGLE",
                 "Ashe\u0001") &&
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "Ashe" &&
-                roster[1].ChampionId == 12 && roster[1].Position == "TOP",
-                "Historical selection edits must sanitize source names and never alter match evidence.");
+                roster[1].ChampionId == 12 && roster[1].Position == "TOP" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalChampionId == 12,
+                "Historical selection edits must sanitize names and preserve immutable source evidence.");
             var target = snapshot.Players.Single(p => p.Player.PuuId == "target");
             var teammate = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
             target.History = new LeaguePlayerMatchPage();

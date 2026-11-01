@@ -119,6 +119,9 @@ namespace FACM.League
         internal LeaguePlayerMatchPage History;
         internal bool Friendly;
         internal int HistoricalTeamId;
+        internal int HistoricalOriginalChampionId;
+        internal string HistoricalOriginalChampionName;
+        internal string HistoricalOriginalPosition;
         internal string ChampionName;
         internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
         internal double? EarlyGankAverage;

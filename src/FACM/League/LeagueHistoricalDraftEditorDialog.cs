@@ -91,17 +91,30 @@ namespace FACM.League
             layout.Controls.Add(recent, 0, 2);
             layout.SetColumnSpan(recent, 2);
 
-            var apply = new Button { Dock = DockStyle.Fill,
+            var reset = new Button { Width = 145, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftReset) };
+            reset.Click += (sender, args) =>
+            {
+                if (player.HistoricalOriginalChampionId < 1 ||
+                    player.HistoricalOriginalChampionId > 9999) return;
+                champion.Value = player.HistoricalOriginalChampionId;
+                position.SelectedIndex = Math.Max(0,
+                    Array.IndexOf(positions, player.HistoricalOriginalPosition ?? ""));
+            };
+            var apply = new Button { Width = 155, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
-            var cancel = new Button { Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel,
+            var cancel = new Button { Width = 95, Height = 30,
+                DialogResult = DialogResult.Cancel,
                 Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
             apply.Click += (sender, args) =>
             {
+                var restoredOriginal = (int)champion.Value == player.HistoricalOriginalChampionId &&
+                    positions[position.SelectedIndex] == player.HistoricalOriginalPosition;
+                var selectedName = restoredOriginal ? player.HistoricalOriginalChampionName :
+                    recentMatches.FirstOrDefault(m => m.ChampionId == (int)champion.Value)?.ChampionName;
                 if (!isCurrentSession() ||
                     !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, player.Player.PuuId,
-                        (int)champion.Value, positions[position.SelectedIndex],
-                        recentMatches.FirstOrDefault(m => m.ChampionId == (int)champion.Value)
-                            ?.ChampionName))
+                        (int)champion.Value, positions[position.SelectedIndex], selectedName))
                 {
                     apply.Enabled = false;
                     return;
@@ -109,8 +122,11 @@ namespace FACM.League
                 DialogResult = DialogResult.OK;
                 Close();
             };
-            layout.Controls.Add(apply, 0, 3);
-            layout.Controls.Add(cancel, 1, 3);
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                WrapContents = false, AutoScroll = true };
+            actions.Controls.Add(reset); actions.Controls.Add(apply); actions.Controls.Add(cancel);
+            layout.Controls.Add(actions, 0, 3);
+            layout.SetColumnSpan(actions, 2);
             AcceptButton = apply; CancelButton = cancel;
             Controls.Add(layout);
         }
