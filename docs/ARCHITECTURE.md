@@ -1,3 +1,9 @@
+### 2026-11-01 — Native historical team swaps and tagged SGP history ownership
+
+- `LeagueHistoricalMatchDryRun` keeps `HistoricalOriginalTeamId` as immutable source evidence. `TrySwapTeams` exchanges only two non-target players from different verified teams; normal Rift remains 5/5 and Arena remains 2 per subteam. `TryRestoreOriginalDraft` validates the whole roster before atomically restoring team, champion, lane and role preferences. The match source and LCU are never written. `LeagueEncounterMatchScoreboardDialog` recomputes all team labels and premade aggregates after an edit.
+- `LeagueDynamicMessageOptions.MatchHistoryTagPreference` stores `all/current`. The current mode resolves a trusted `q_{queueId}` from the phase-bound roster; unknown or revoked queue IDs are rejected rather than silently falling back. `LeagueClientModule` now delegates `ILeagueSgpTaggedHistoryApi` to its existing authenticated SGP client; `LeaguePlayerDataService` bypasses LCU and untagged cache for tagged reads. The before/after LCU identity must equal the signed-in owner, not the requested opponent, and the phase/session roster must remain current. Shortcuts honor saved count and queue preference. This adds no new network owner or background polling.
+- Source parity remains **partial**: up to 20 matches per player, sequential bounded loading, no Lobby-phase query, and no full free-form draft target/queue/team editor. Real Tencent/Riot SGP, 256-row cloud and Win10/DPI are unverified.
+
 ### 2026-11-01 — Ongoing card history and historical draft ownership
 
 - Historical draft editing is local to the verified `LeagueHistoricalMatchDryRun` snapshot. Champion, selected/primary/secondary position changes and immutable-source reset never mutate `LeaguePlayerMatchParticipant`, remote data, live gameflow or LCU.
