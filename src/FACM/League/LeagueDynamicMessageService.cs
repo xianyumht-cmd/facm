@@ -15,6 +15,7 @@ namespace FACM.League
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
         public int MatchHistoryLoadCount { get; set; } = 20;
+        public int HistoryConcurrency { get; set; } = 2;
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
         public string OrderPlayerBy { get; set; } = "default";
@@ -96,6 +97,7 @@ namespace FACM.League
                 options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
+                options.HistoryConcurrency < 1 || options.HistoryConcurrency > 4 ||
                 options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }
@@ -262,9 +264,11 @@ namespace FACM.League
 
         internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token,
             int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount,
-            string historyTagPreference = "all", bool queryInLobbyPhase = false)
+            string historyTagPreference = "all", bool queryInLobbyPhase = false,
+            int historyConcurrency = 2)
         {
-            if (historyLoadCount < 2 ||
+            if (historyConcurrency < 1 || historyConcurrency > 4 ||
+                historyLoadCount < 2 ||
                 historyLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 (historyTagPreference != "all" && historyTagPreference != "current")) return null;
             var phase = _phase();
@@ -302,30 +306,64 @@ namespace FACM.League
                     UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
                     snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
-                foreach (var player in snapshot.Players)
+                Func<LeagueDynamicMessagePlayer, CancellationToken, Task> loadOne = async (player, ct) =>
                 {
-                    if (!Current(session, phase.Phase)) return null;
-                    var remaining = deadline - DateTime.UtcNow - TimeSpan.FromSeconds(4);
-                    if (remaining <= TimeSpan.Zero) break;
                     var row = player.Player;
-                    using (var playerTimeout = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                    var profile = new LeaguePlayerProfile { PuuId = row.PuuId, SummonerId = row.SummonerId };
+                    player.History = historyQueueTag != null && historyConcurrency > 1
+                        ? await _players.LoadTaggedRosterHistoryAsync(profile, 0, historyLoadCount,
+                            historyQueueTag, me.PuuId, ct).ConfigureAwait(false)
+                        : await _players.LoadRecentMatchesAsync(profile, 0, historyLoadCount,
+                            false, ct, historyQueueTag, me.PuuId).ConfigureAwait(false);
+                    if (player.History != null && player.History.Matches.Count > historyLoadCount)
+                        player.History.Matches.RemoveRange(historyLoadCount,
+                            player.History.Matches.Count - historyLoadCount);
+                    if (player.History != null)
+                        player.History = await _players.EnrichChampionNamesAsync(profile,
+                            player.History, ct).ConfigureAwait(false);
+                    player.ChampionName = player.History?.Matches.FirstOrDefault(
+                        m => m.ChampionId == row.ChampionId)?.ChampionName;
+                    player.JungleSamples = CachedJungle(row.PuuId, player.History);
+                };
+                if (historyQueueTag != null && historyConcurrency > 1)
+                {
+                    using (var slots = new SemaphoreSlim(historyConcurrency, historyConcurrency))
                     {
-                        playerTimeout.CancelAfter(remaining < TimeSpan.FromSeconds(2) ? remaining : TimeSpan.FromSeconds(2));
-                        try
+                        var jobs = snapshot.Players.Select(async player =>
                         {
-                            player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
-                                SummonerId = row.SummonerId }, 0, historyLoadCount, false,
-                                playerTimeout.Token, historyQueueTag, me.PuuId).ConfigureAwait(false);
-                            if (player.History != null && player.History.Matches.Count > historyLoadCount)
-                                player.History.Matches.RemoveRange(historyLoadCount,
-                                    player.History.Matches.Count - historyLoadCount);
-                            if (player.History != null)
-                                player.History = await _players.EnrichChampionNamesAsync(new LeaguePlayerProfile { PuuId = row.PuuId },
-                                    player.History, playerTimeout.Token).ConfigureAwait(false);
-                            player.ChampionName = player.History?.Matches.FirstOrDefault(m => m.ChampionId == row.ChampionId)?.ChampionName;
-                            player.JungleSamples = CachedJungle(row.PuuId, player.History);
+                            await slots.WaitAsync(active.Token).ConfigureAwait(false);
+                            try
+                            {
+                                if (!Current(session, phase.Phase)) return;
+                                var remaining = deadline - DateTime.UtcNow - TimeSpan.FromSeconds(4);
+                                if (remaining <= TimeSpan.Zero) return;
+                                using (var playerTimeout = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                                {
+                                    playerTimeout.CancelAfter(remaining < TimeSpan.FromSeconds(8)
+                                        ? remaining : TimeSpan.FromSeconds(8));
+                                    try { await loadOne(player, playerTimeout.Token).ConfigureAwait(false); }
+                                    catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
+                                }
+                            }
+                            finally { slots.Release(); }
+                        }).ToArray();
+                        await Task.WhenAll(jobs).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    foreach (var player in snapshot.Players)
+                    {
+                        if (!Current(session, phase.Phase)) return null;
+                        var remaining = deadline - DateTime.UtcNow - TimeSpan.FromSeconds(4);
+                        if (remaining <= TimeSpan.Zero) break;
+                        using (var playerTimeout = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                        {
+                            playerTimeout.CancelAfter(remaining < TimeSpan.FromSeconds(2)
+                                ? remaining : TimeSpan.FromSeconds(2));
+                            try { await loadOne(player, playerTimeout.Token).ConfigureAwait(false); }
+                            catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
                         }
-                        catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
                     }
                 }
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return null;

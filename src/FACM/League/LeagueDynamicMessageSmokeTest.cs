@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateAggregation();
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
+            ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
@@ -178,6 +179,37 @@ namespace FACM.League
                 CancellationToken.None, "q_420", "self").ConfigureAwait(false);
             Require(page == null && sgp.TaggedCalls == 2,
                 "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static async Task ValidateTaggedConcurrencyAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { HistoryConcurrency = 4 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .HistoryConcurrency == 4 &&
+                LeagueDynamicMessageOptions.Parse("{\\"HistoryConcurrency\\":5}").HistoryConcurrency == 2,
+                "SGP concurrency must persist and reject invalid settings.");
+            var fake = new Fake();
+            var sgp = new TaggedHistoryFake { DelayMs = 30 };
+            var session = Session("parallel-tagged");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase, sgp))
+            {
+                Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 0)
+                    .ConfigureAwait(false) == null && sgp.TaggedCalls == 0,
+                    "Invalid concurrency must fail before network reads.");
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
+                    .ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.History != null) && sgp.TaggedCalls == 2 &&
+                    sgp.MaxConcurrent == 2 && fake.MaxConcurrent == 1 &&
+                    !fake.Paths.Any(p => p.Contains("/matches?")),
+                    "Tagged SGP reads must overlap within the configured bound while LCU stays serialized.");
+                sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
+                Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
+                    .ConfigureAwait(false) == null,
+                    "Account replacement during concurrent SGP must discard the roster.");
+            }
         }
 
         private static async Task ValidateExplicitHistoryHydrationAsync()
@@ -1597,16 +1629,26 @@ namespace FACM.League
             internal string LastPuuid;
             internal string LastTag;
             internal Action OnTagged;
+            internal int DelayMs;
+            internal int MaxConcurrent;
+            private int _concurrent;
 
-            public Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex,
+            public async Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex,
                 int count, CancellationToken token, string serverId, string tag)
             {
                 token.ThrowIfCancellationRequested();
-                TaggedCalls++;
-                LastPuuid = targetPuuid;
-                LastTag = tag;
-                OnTagged?.Invoke();
-                return Task.FromResult(Bytes("{\"games\":[]}"));
+                Interlocked.Increment(ref TaggedCalls);
+                var concurrent = Interlocked.Increment(ref _concurrent);
+                MaxConcurrent = Math.Max(MaxConcurrent, concurrent);
+                try
+                {
+                    LastPuuid = targetPuuid;
+                    LastTag = tag;
+                    if (DelayMs > 0) await Task.Delay(DelayMs, token).ConfigureAwait(false);
+                    OnTagged?.Invoke();
+                    return Bytes("{\\"games\\":[]}");
+                }
+                finally { Interlocked.Decrement(ref _concurrent); }
             }
 
             public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex,

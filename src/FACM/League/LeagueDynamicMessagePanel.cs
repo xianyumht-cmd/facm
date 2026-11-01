@@ -66,6 +66,21 @@ namespace FACM.League
             };
             choices.Controls.Add(historyCount);
             choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingHistoryConcurrency),
+                Padding = new Padding(4, 7, 0, 0) });
+            var concurrency = new NumericUpDown { Width = 48, Minimum = 1,
+                Maximum = 4, Value = _options.HistoryConcurrency };
+            concurrency.ValueChanged += delegate
+            {
+                if (_binding) return;
+                _options.HistoryConcurrency = (int)concurrency.Value;
+                _snapshot = null;
+                _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                RefreshPreview();
+            };
+            choices.Controls.Add(concurrency);
+            choices.Controls.Add(new Label { AutoSize = true,
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingGameDetailsCount),
                 Padding = new Padding(4, 7, 0, 0) });
             var detailsCount = new NumericUpDown { Width = 58, Minimum = 0, Maximum = 20,
@@ -569,11 +584,13 @@ namespace FACM.League
                 var requestedHistoryCount = _options.MatchHistoryLoadCount;
                 var requestedTagPreference = _options.MatchHistoryTagPreference;
                 var requestedLobbyQuery = _options.QueryInLobbyPhase;
+                var requestedConcurrency = _options.HistoryConcurrency;
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token,
-                    requestedHistoryCount, requestedTagPreference, requestedLobbyQuery);
+                    requestedHistoryCount, requestedTagPreference, requestedLobbyQuery, requestedConcurrency);
                 if (IsDisposed || requestedHistoryCount != _options.MatchHistoryLoadCount ||
                     requestedTagPreference != _options.MatchHistoryTagPreference ||
-                    requestedLobbyQuery != _options.QueryInLobbyPhase) return;
+                    requestedLobbyQuery != _options.QueryInLobbyPhase ||
+                    requestedConcurrency != _options.HistoryConcurrency) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)

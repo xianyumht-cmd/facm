@@ -376,6 +376,54 @@ namespace FACM.League
             finally { _requestGate.Release(); }
         }
 
+        // Only authenticated owner reads hold the shared LCU gate; SGP may overlap.
+        internal async Task<LeaguePlayerMatchPage> LoadTaggedRosterHistoryAsync(
+            LeaguePlayerProfile target, int startIndex, int count, string tag,
+            string ownerPuuid, CancellationToken token)
+        {
+            if (target == null || !IsSafePuuid(target.PuuId) || !IsSafePuuid(ownerPuuid) ||
+                !LeagueSgpSupportedQueues.IsValidTag(tag) || startIndex < 0 ||
+                count < 1 || count > MaximumMatchCount || startIndex > int.MaxValue - count ||
+                _sgpHistory == null) return null;
+            var session = _session?.Invoke();
+            if (!SessionStillCurrent(session)) return null;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(8));
+                try
+                {
+                    var before = await ReadRosterOwnerAsync(deadline.Token).ConfigureAwait(false);
+                    if (!SgpOwnerMatches(before, before, ownerPuuid) ||
+                        !SessionStillCurrent(session)) return null;
+                    var page = await TryLoadSgpPageAsync(target, startIndex, count,
+                        deadline.Token, null, tag).ConfigureAwait(false);
+                    if (!SessionStillCurrent(session)) return null;
+                    var after = await ReadRosterOwnerAsync(deadline.Token).ConfigureAwait(false);
+                    if (!SgpOwnerMatches(before, after, ownerPuuid) ||
+                        !SessionStillCurrent(session)) return null;
+                    if (page != null) page.ClientSession = session;
+                    return page;
+                }
+                catch (OperationCanceledException)
+                {
+                    token.ThrowIfCancellationRequested();
+                    return null;
+                }
+            }
+        }
+
+        private async Task<string> ReadRosterOwnerAsync(CancellationToken token)
+        {
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                var profile = ParseProfile(await _client.TryGetBytesAsync(
+                    LeagueDashboardDetailsService.SummonerPath, token).ConfigureAwait(false));
+                return profile?.PuuId;
+            }
+            finally { _requestGate.Release(); }
+        }
+
         internal Task<LeagueMatchCollectionResult> CollectMatchesAsync(
             LeaguePlayerProfile profile, LeagueMatchCollectionSettings settings,
             LeagueSimpleMatchHistoryFilter simpleFilter, LeagueAdvancedMatchHistoryFilter advancedFilter,
@@ -1559,7 +1607,7 @@ namespace FACM.League
             }
             else bytes = await _sgpHistory.TryGetSummaryAsync(target.PuuId, startIndex, count, token, serverId)
                 .ConfigureAwait(false);
-            return ParseSgpMatchPage(bytes, target, startIndex, count, serverId);
+            lock (_cacheSync) return ParseSgpMatchPage(bytes, target, startIndex, count, serverId);
         }
 
         internal LeaguePlayerMatchPage ParseSgpMatchPage(byte[] bytes,
