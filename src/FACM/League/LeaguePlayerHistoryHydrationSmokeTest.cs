@@ -39,6 +39,18 @@ namespace FACM.League
                 "Ambiguous duplicate game IDs cannot enter filtered player analysis.");
             Require(LeagueOngoingHistoryFilter.Select(matches, "target", 0, "").Count == 2,
                 "An invalid page cannot contaminate other verified card rows.");
+            Require(LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 40, 0) &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 0, "", 40, 0) &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 200, 0) &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 40, 5) &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "MID", 40, 0),
+                "Filtered collection must be explicit, page-bounded and reject unsupported roles.");
+            var enough = Enumerable.Range(401, 20).Select(i =>
+            {
+                var row = Sparse(i); row.ChampionId = 22; row.Position = "TOP"; return row;
+            }).ToList();
+            Require(!LeagueOngoingHistoryFilter.NeedsCollection(enough, "target", 22, "TOP", 60, 0),
+                "Filtered collection must stop after twenty matching verified games.");
         }
 
         private static async Task ValidateAsync()

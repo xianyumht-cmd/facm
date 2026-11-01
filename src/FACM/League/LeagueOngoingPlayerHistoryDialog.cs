@@ -37,6 +37,17 @@ namespace FACM.League
                 .ToArray();
         }
 
+        internal static bool NeedsCollection(IList<LeaguePlayerMatchSummary> matches, string puuid,
+            int championId, string position, int nextIndex, int requests)
+        {
+            return (championId > 0 || !string.IsNullOrEmpty(position)) &&
+                championId >= 0 && championId <= 9999 &&
+                (string.IsNullOrEmpty(position) || Roles.Contains(position, StringComparer.Ordinal)) &&
+                nextIndex >= 0 && nextIndex < 200 && requests >= 0 && requests < 5 &&
+                matches != null && matches.Count <= 200 &&
+                Select(matches, puuid, championId, position).Count < 20;
+        }
+
         internal static int[] Champions(IList<LeaguePlayerMatchSummary> matches, string puuid)
         {
             return Select(matches, puuid, 0, "").GroupBy(m => m.ChampionId)
@@ -190,6 +201,7 @@ namespace FACM.League
             filters.Controls.Add(championChoice, 1, 0);
             filters.Controls.Add(positionLabel, 2, 0);
             filters.Controls.Add(positionChoice, 3, 0);
+            Action updateCollect = null;
             Action refreshRows = () =>
             {
                 rows.BeginUpdate();
@@ -201,6 +213,7 @@ namespace FACM.League
                 finally { rows.EndUpdate(); }
                 summary.Text = summaryText();
                 refreshStats();
+                if (updateCollect != null) updateCollect();
             };
             var updatingChoices = false;
             Action rebuildChoices = () =>
@@ -259,15 +272,27 @@ namespace FACM.League
             var hasMore = nextIndex < 200 && !player.RosterCardExhausted;
             var more = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
-            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            var collect = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect), Enabled = false };
+            var collecting = false;
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
             header.Controls.Add(summary, 0, 0);
             header.Controls.Add(more, 1, 0);
+            header.Controls.Add(collect, 2, 0);
+            updateCollect = () =>
+            {
+                collect.Enabled = !collecting && !loading && hasMore && isCurrent() &&
+                    LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
+                        selectedChampion, selectedPosition, nextIndex, 0);
+            };
+            updateCollect();
             Func<CancellationToken, Task<bool>> fetchNext = async requestToken =>
             {
                 if (loading || !hasMore || !isCurrent()) return false;
-                loading = true; more.Enabled = false;
+                loading = true; more.Enabled = false; collect.Enabled = false;
                 try
                 {
                     var page = await loadMore(nextIndex, requestToken);
@@ -304,10 +329,45 @@ namespace FACM.League
                 finally
                 {
                     loading = false;
-                    if (!IsDisposed) more.Enabled = hasMore && nextIndex < 200 && isCurrent();
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = hasMore && nextIndex < 200 && isCurrent() && !collecting;
+                        updateCollect();
+                    }
                 }
             };
             more.Click += async (sender, args) => await fetchNext(_lifetime.Token);
+            collect.Click += async (sender, args) =>
+            {
+                if (collecting || loading || !isCurrent()) return;
+                collecting = true;
+                more.Enabled = false;
+                updateCollect();
+                try
+                {
+                    using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                    {
+                        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+                        for (var requests = 0; requests < 5; requests++)
+                        {
+                            if (deadline.IsCancellationRequested ||
+                                !LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
+                                    selectedChampion, selectedPosition, nextIndex, requests) ||
+                                !hasMore || !await fetchNext(deadline.Token)) break;
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                finally
+                {
+                    collecting = false;
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = hasMore && !loading && isCurrent();
+                        updateCollect();
+                    }
+                }
+            };
             rows.DoubleClick += async (sender, args) =>
             {
                 if (loading || !isCurrent() || rows.SelectedItems.Count != 1) return;

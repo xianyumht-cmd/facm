@@ -381,6 +381,7 @@ namespace FACM.League
         public const string HistoricalDryRunTeamStats = "LeagueEfficiencyHistoricalDryRunTeamStats";
         public const string HistoricalDraftEdit = "LeagueEfficiencyHistoricalDraftEdit";
         public const string HistoricalDraftTarget = "LeagueEfficiencyHistoricalDraftTarget";
+        public const string OngoingCardCollect = "LeagueEfficiencyOngoingCardCollect";
         public const string OngoingCardFilterAll = "LeagueEfficiencyOngoingCardFilterAll";
         public const string OngoingCardFilterChampion = "LeagueEfficiencyOngoingCardFilterChampion";
         public const string OngoingCardFilterPosition = "LeagueEfficiencyOngoingCardFilterPosition";
@@ -868,6 +869,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats, "组队近期表现" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftEdit, "编辑模拟英雄与位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftTarget, "模拟观察目标（只读）" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardCollect, "按筛选收集（最多 5 页）" },
             { LeagueEfficiencyUiTextKeys.OngoingCardFilterAll, "全部" },
             { LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion, "英雄" },
             { LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition, "位置" },
