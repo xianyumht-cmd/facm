@@ -1,3 +1,7 @@
+### 2026-11-01 — Complete-evidence kill/damage efficiency in player and champion reports
+
+Executable [1dbe5c8](https://github.com/xianyumht-cmd/facm/commit/1dbe5c8702b988a461a9f3da3402347c3727c348) shares the source-pinned 1.35/0.65 kill-to-damage efficiency projection across optional ongoing-game badges, overall player analysis and selected-champion analysis. Missing full-team or Arena-subteam evidence is shown as unknown (`--`), never fabricated zero. Synthetic tests include normal, CHERRY, duplicate participant IDs/PUUIDs, wrong owner, missing damage and conflicting recent encounter rosters. Four Windows CI gates for the executable are pending at this documentation update; Tencent/Riot and Win10/DPI remain untested.
+
 ## 2026-11-01 — Source-pinned ongoing identity, encounter and kill/damage efficiency tags (Draft #357)
 
 **Executable candidate:** `055bf52a2e279907e338ab89bbb9fc2b73c0f9e8` plus final synthetic-test candidate in this commit. **Windows four-gate status: pending for the final executable SHA; prior green results cannot be reused.** Pinned LeagueAkari v1.5.1 commit `14557723706ccc0e0a9d62c470141d4cb7190fcd`, `player-card-tags/tags/{basic,tagged,met}.tsx` and `analysis/player/{single,aggregate}/summary.ts`.
