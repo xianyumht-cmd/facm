@@ -252,10 +252,11 @@ namespace FACM.AppHost.Modules
             return true;
         }
 
-        public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token)
+        public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token,
+            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount)
         {
             ThrowIfDisposed();
-            return _dynamicMessages.LoadAsync(token);
+            return _dynamicMessages.LoadAsync(token, historyLoadCount);
         }
 
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,

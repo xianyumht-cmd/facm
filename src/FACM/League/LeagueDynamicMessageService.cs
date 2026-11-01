@@ -14,6 +14,7 @@ namespace FACM.League
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
+        public int MatchHistoryLoadCount { get; set; } = 20;
         public string ChampionUsageMode { get; set; } = "recent";
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool ShowSelfTag { get; set; } = true;
@@ -90,6 +91,8 @@ namespace FACM.League
         {
             if (options == null || options.PremadeMatchThreshold < 2 ||
                 options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
+                options.MatchHistoryLoadCount < 2 ||
+                options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 !new[] { "none", "recent", "mastery" }.Contains(options.ChampionUsageMode) ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
@@ -130,6 +133,7 @@ namespace FACM.League
         internal readonly List<LeagueDynamicMessagePlayer> Players = new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
         internal string HistoricalGameMode;
+        internal int HistoryLoadCount = LeaguePlayerDataService.MaximumMatchCount;
         internal string RosterKey;
         internal string SelfPuuid;
         internal LeagueClientSession Session;
@@ -176,8 +180,11 @@ namespace FACM.League
             _observedPhase = phase()?.Phase;
         }
 
-        internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token)
+        internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token,
+            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount)
         {
+            if (historyLoadCount < 2 ||
+                historyLoadCount > LeaguePlayerDataService.MaximumMatchCount) return null;
             var phase = _phase();
             var session = _session();
             if (phase == null || !phase.Connected || (phase.Phase != "ChampSelect" && phase.Phase != "InProgress") || session == null) return null;
@@ -203,7 +210,8 @@ namespace FACM.League
                 var own = roster.Players.FirstOrDefault(p => p.PuuId == me.PuuId);
                 if (own == null || roster.Players.Count > 20 || roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Any(g => g.Count() != 1)) return null;
                 var snapshot = new LeagueDynamicMessageSnapshot { Phase = phase.Phase, Session = session,
-                    SelfPuuid = me.PuuId, RosterKey = RosterKey(roster), CreatedUtc = DateTime.UtcNow,
+                    SelfPuuid = me.PuuId, RosterKey = RosterKey(roster),
+                    HistoryLoadCount = historyLoadCount, CreatedUtc = DateTime.UtcNow,
                     UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
                     snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
@@ -219,10 +227,10 @@ namespace FACM.League
                         try
                         {
                             player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
-                                SummonerId = row.SummonerId }, 0, LeaguePlayerDataService.MaximumMatchCount, false, playerTimeout.Token).ConfigureAwait(false);
-                            if (player.History != null && player.History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
-                                player.History.Matches.RemoveRange(LeaguePlayerDataService.MaximumMatchCount,
-                                    player.History.Matches.Count - LeaguePlayerDataService.MaximumMatchCount);
+                                SummonerId = row.SummonerId }, 0, historyLoadCount, false, playerTimeout.Token).ConfigureAwait(false);
+                            if (player.History != null && player.History.Matches.Count > historyLoadCount)
+                                player.History.Matches.RemoveRange(historyLoadCount,
+                                    player.History.Matches.Count - historyLoadCount);
                             if (player.History != null)
                                 player.History = await _players.EnrichChampionNamesAsync(new LeaguePlayerProfile { PuuId = row.PuuId },
                                     player.History, playerTimeout.Token).ConfigureAwait(false);
@@ -569,12 +577,13 @@ namespace FACM.League
             if (!Current(snapshot.Session, snapshot.Phase)) return false;
             var profile = new LeaguePlayerProfile { PuuId = player.Player.PuuId,
                 SummonerId = player.Player.SummonerId };
+            var count = snapshot.HistoryLoadCount;
+            if (count < 2 || count > LeaguePlayerDataService.MaximumMatchCount) return false;
             var history = await _players.LoadRecentMatchesAsync(profile, 0,
-                LeaguePlayerDataService.MaximumMatchCount, false, token).ConfigureAwait(false);
+                count, false, token).ConfigureAwait(false);
             if (history == null || !Current(snapshot.Session, snapshot.Phase)) return false;
-            if (history.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
-                history.Matches.RemoveRange(LeaguePlayerDataService.MaximumMatchCount,
-                    history.Matches.Count - LeaguePlayerDataService.MaximumMatchCount);
+            if (history.Matches.Count > count)
+                history.Matches.RemoveRange(count, history.Matches.Count - count);
             history = await _players.EnrichChampionNamesAsync(profile, history, token).ConfigureAwait(false);
             if (!Current(snapshot.Session, snapshot.Phase)) return false;
             player.History = history;

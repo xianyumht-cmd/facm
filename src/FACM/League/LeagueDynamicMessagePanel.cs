@@ -46,6 +46,25 @@ namespace FACM.League
             _names = Choice(new[] { T(LeagueEfficiencyUiTextKeys.DynamicNames), T(LeagueEfficiencyUiTextKeys.DynamicChampionNames), T(LeagueEfficiencyUiTextKeys.DynamicCombinedNames) });
             _names.SelectedIndex = Array.IndexOf(new[] { "preferName", "preferChampionName", "championNameWithName" }, _options.NameStrategy);
             choices.Controls.Add(_target); choices.Controls.Add(_names);
+            choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingHistoryCount),
+                TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 7, 0, 0) });
+            var historyCount = new NumericUpDown { Width = 58, Minimum = 2,
+                Maximum = LeaguePlayerDataService.MaximumMatchCount,
+                Value = _options.MatchHistoryLoadCount };
+            historyCount.ValueChanged += delegate
+            {
+                if (_binding) return;
+                _options.MatchHistoryLoadCount = (int)historyCount.Value;
+                _snapshot = null;
+                _binding = true;
+                try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                finally { _binding = false; }
+                _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                RefreshPreview();
+            };
+            choices.Controls.Add(historyCount);
             var thresholdLabel = new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.PremadeThreshold),
                 TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 7, 0, 0), Visible = false };
             var threshold = new NumericUpDown { Width = 58, Minimum = 2,
@@ -470,7 +489,8 @@ namespace FACM.League
                     }
                     return;
                 }
-                var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token);
+                var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token,
+                    _options.MatchHistoryLoadCount);
                 if (IsDisposed) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);

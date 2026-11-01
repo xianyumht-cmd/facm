@@ -393,6 +393,7 @@ namespace FACM.League
         public const string OngoingTagScope = "LeagueEfficiencyOngoingTagScope";
         public const string OngoingTagAll = "LeagueEfficiencyOngoingTagAll";
         public const string OngoingTagCurrent = "LeagueEfficiencyOngoingTagCurrent";
+        public const string OngoingHistoryCount = "LeagueEfficiencyOngoingHistoryCount";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
         public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
@@ -854,6 +855,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingTagScope, "玩家标签战绩范围" },
             { LeagueEfficiencyUiTextKeys.OngoingTagAll, "全部近期对局" },
             { LeagueEfficiencyUiTextKeys.OngoingTagCurrent, "仅当前英雄" },
+            { LeagueEfficiencyUiTextKeys.OngoingHistoryCount, "近期战绩局数" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },

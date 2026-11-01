@@ -773,6 +773,15 @@ namespace FACM.League
 
         private static void ValidateChampionUsageMode()
         {
+            var historySettings = new LeagueDynamicMessageOptions { MatchHistoryLoadCount = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(historySettings))
+                    .MatchHistoryLoadCount == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").MatchHistoryLoadCount == 20 &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryLoadCount\":1}")
+                    .MatchHistoryLoadCount == 20 &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryLoadCount\":21}")
+                    .MatchHistoryLoadCount == 20,
+                "Native history load budget must persist and reject out-of-range counts.");
             var scope = new LeagueDynamicMessageOptions { MatchHistoryTagPreference = "current" };
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scope))
                 .MatchHistoryTagPreference == "current" &&
