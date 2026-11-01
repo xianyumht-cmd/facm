@@ -82,7 +82,7 @@ namespace FACM.League
             var apply = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
             var cancel = new Button { Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel,
-                Text = t(LeagueEfficiencyUiTextKeys.DynamicCancel) };
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
             apply.Click += (sender, args) =>
             {
                 if (!isCurrentSession() ||
