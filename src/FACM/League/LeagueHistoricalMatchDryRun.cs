@@ -74,7 +74,8 @@ namespace FACM.League
             var cherry = LeagueCherryTeams.IsCherry(match.GameMode);
             if (!cherry && match.TeamId != 100 && match.TeamId != 200) return null;
             var roster = participants.ToList();
-            if (roster.Count != (cherry ? 16 : 10) || roster.Any(p => p == null ||
+            if ((cherry ? roster.Count != 8 && roster.Count != 16 : roster.Count != 10) ||
+                roster.Any(p => p == null ||
                 p.ParticipantId < 1 || p.ParticipantId > (cherry ? 20 : 10) ||
                 (cherry ? !LeagueCherryTeams.ValidSubteamId(p.PlayerSubteamId).HasValue :
                     p.TeamId != 100 && p.TeamId != 200) ||
@@ -88,7 +89,7 @@ namespace FACM.League
             if (cherry)
             {
                 var teams = roster.GroupBy(p => p.PlayerSubteamId.Value).ToArray();
-                if (teams.Length != 8 || teams.Any(g => g.Count() != 2 ||
+                if (teams.Length != roster.Count / 2 || teams.Any(g => g.Count() != 2 ||
                     g.Any(p => p.SubteamPlacement.HasValue &&
                         !LeagueCherryTeams.ValidPlacement(p.SubteamPlacement).HasValue) ||
                     g.Select(p => p.SubteamPlacement).Where(value => value.HasValue).Distinct().Count() > 1) ||

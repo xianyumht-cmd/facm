@@ -897,6 +897,14 @@ namespace FACM.League
             Require(LeaguePremadeInference.Infer(arenaDraft).Count == 0 &&
                 LeagueHistoricalMatchDryRun.TeamAggregates(arenaDraft).Count == 0,
                 "Arena draft must never infer a premade across two enemy subteams.");
+            var legacyArena = new LeaguePlayerMatchSummary { GameId = 502, MapId = 30,
+                GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
+            var legacyDraft = LeagueHistoricalMatchDryRun.Build(legacyArena,
+                arenaRoster.Take(8).ToArray(), "target");
+            Require(legacyDraft != null && legacyDraft.Players.Count == 8 &&
+                legacyDraft.Players.Count(p => p.Friendly) == 2 &&
+                legacyDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 4,
+                "Historical four-subteam Arena drafts must remain compatible with older valid matches.");
             arenaRoster[15].PlayerSubteamId = 1;
             Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
                 "Arena subteam overflow must fail closed.");
