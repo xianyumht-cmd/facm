@@ -1680,7 +1680,7 @@ namespace FACM.League
                 snapshot.SelfPuuid == custom.Player.PuuId &&
                 custom.Player.GameName == "Changed Custom",
                 "Editing a synthetic player's name must preserve its draft identity.");
-            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Bad\\nName";
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Bad\nName";
             Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
                 custom.Player.GameName == "Changed Custom",
                 "Invalid custom names must reject the entire draft without mutation.");
