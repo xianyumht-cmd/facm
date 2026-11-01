@@ -295,6 +295,16 @@ namespace FACM.League
                 if (choice.Player.PuuId == snapshot.SelfPuuid) target.SelectedIndex = index;
             }
             targetRow.Controls.Add(target);
+            targetRow.Controls.Add(new Label {
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterQueue) + " ID",
+                AutoSize = true, Margin = new Padding(8, 8, 4, 0)
+            });
+            var queueId = new NumericUpDown {
+                Minimum = 0, Maximum = 100000, Width = 100,
+                Value = Math.Max(0, Math.Min(100000, snapshot.HistoricalQueueId)),
+                AccessibleName = t(LeagueEfficiencyUiTextKeys.DynamicEncounterQueue) + " ID"
+            };
+            targetRow.Controls.Add(queueId);
             layout.Controls.Add(targetRow, 0, 1);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
@@ -332,7 +342,8 @@ namespace FACM.League
                 var selectedTarget = targetChoice is System.Collections.Generic.KeyValuePair<string, string>
                     ? ((System.Collections.Generic.KeyValuePair<string, string>)targetChoice).Key : null;
                 if (!isCurrentSession() ||
-                    !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, changes, selectedTarget))
+                    !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, changes, selectedTarget,
+                        (int)queueId.Value))
                 {
                     MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
                         MessageBoxButtons.OK, MessageBoxIcon.Information);

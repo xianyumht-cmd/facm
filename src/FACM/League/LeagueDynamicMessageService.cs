@@ -157,6 +157,8 @@ namespace FACM.League
         internal readonly List<LeagueDynamicMessagePlayer> Players = new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
         internal string HistoricalGameMode;
+        internal int HistoricalQueueId;
+        internal int HistoricalOriginalQueueId;
         internal int HistoryLoadCount = LeaguePlayerDataService.MaximumMatchCount;
         internal string HistoryQueueTag;
         internal string RosterKey;

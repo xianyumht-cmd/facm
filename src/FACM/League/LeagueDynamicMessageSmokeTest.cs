@@ -1472,7 +1472,7 @@ namespace FACM.League
                 zeroKda.NormalWinRate == 0 && !zeroKda.CherryWinRate.HasValue,
                 "Zero-mean KDA samples must not produce NaN or an invented variation.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
-                GameMode = "CLASSIC", TeamId = 100, PuuId = "target" };
+                GameMode = "CLASSIC", QueueId = 420, TeamId = 100, PuuId = "target" };
             var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {
                 ParticipantId = i, TeamId = i <= 5 ? 100 : 200,
                 PuuId = i == 1 ? "target" : "player-" + i,
@@ -1482,6 +1482,8 @@ namespace FACM.League
             }).ToList();
             var snapshot = LeagueHistoricalMatchDryRun.Build(match, roster, "target");
             Require(snapshot != null && snapshot.Players.Count == 10 &&
+                snapshot.HistoricalQueueId == 420 &&
+                snapshot.HistoricalOriginalQueueId == 420 &&
                 snapshot.Players.Count(p => p.Friendly) == 5 &&
                 snapshot.Players.Single(p => p.Player.PuuId == "target").Player.ChampionId == 11 &&
                 snapshot.Players.All(p => p.History == null) &&
@@ -1615,13 +1617,19 @@ namespace FACM.League
                 LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target") &&
                 snapshot.SelfPuuid == "target" && target.Friendly,
                 "An existing reassigned player must be selectable as the preview perspective.");
-            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-7") &&
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target", -1) &&
+                !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target", 100001) &&
+                snapshot.HistoricalQueueId == 420 && snapshot.SelfPuuid == "target",
+                "Invalid historical queue IDs must reject the entire preview transaction.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-7", 440) &&
+                snapshot.HistoricalQueueId == 440 &&
                 snapshot.SelfPuuid == "player-7" &&
                 snapshot.Players.Count(p => p.Friendly) == 5 &&
                 !target.Friendly && teammate.Friendly && !swapped.Friendly &&
                 roster[6].PuuId == "player-7" && roster[6].TeamId == 200,
                 "Historical target switching must reproject only the preview perspective.");
             Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.HistoricalQueueId == 420 &&
                 snapshot.SelfPuuid == "target" && target.Friendly && teammate.Friendly &&
                 teammate.HistoricalTeamId == 100 && teammate.Player.ChampionId == 12,
                 "Bulk lineup reset must restore immutable historical source evidence.");

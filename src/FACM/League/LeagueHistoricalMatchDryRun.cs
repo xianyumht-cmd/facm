@@ -350,8 +350,16 @@ namespace FACM.League
         internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
             IEnumerable<LeagueHistoricalRosterSelection> selections, string targetPuuid)
         {
+            return TryApplyRosterDraft(snapshot, selections, targetPuuid,
+                snapshot == null ? 0 : snapshot.HistoricalQueueId);
+        }
+
+        internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
+            IEnumerable<LeagueHistoricalRosterSelection> selections, string targetPuuid, int queueId)
+        {
             if (!ValidTeamDraft(snapshot) || selections == null ||
-                !LeagueDynamicMessageService.SafePuuid(targetPuuid)) return false;
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
+                queueId < 0 || queueId > 100000) return false;
             var requested = selections.ToArray();
             if (requested.Length != snapshot.Players.Count ||
                 requested.Any(p => p == null || !LeagueDynamicMessageService.SafePuuid(p.PuuId)) ||
@@ -397,6 +405,7 @@ namespace FACM.League
                 player.HistoricalTeamId = selection.TeamId;
             }
             snapshot.SelfPuuid = targetPuuid;
+            snapshot.HistoricalQueueId = queueId;
             RefreshDraftSides(snapshot);
             return true;
         }
@@ -450,6 +459,7 @@ namespace FACM.League
                 player.HistoricalSecondaryPosition = "";
             }
             snapshot.SelfPuuid = snapshot.HistoricalOriginalTargetPuuid;
+            snapshot.HistoricalQueueId = snapshot.HistoricalOriginalQueueId;
             RefreshDraftSides(snapshot);
             return true;
         }
@@ -468,6 +478,9 @@ namespace FACM.League
         private static bool ValidTeamDraft(LeagueDynamicMessageSnapshot snapshot)
         {
             if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
+                snapshot.HistoricalQueueId < 0 || snapshot.HistoricalQueueId > 100000 ||
+                snapshot.HistoricalOriginalQueueId < 0 ||
+                snapshot.HistoricalOriginalQueueId > 100000 ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
                 (snapshot.HistoricalGameMode != "CLASSIC" && snapshot.HistoricalGameMode != "CHERRY") ||
                 (snapshot.HistoricalGameMode == "CLASSIC" ? snapshot.Players.Count != 10 :
@@ -585,6 +598,10 @@ namespace FACM.League
                 Phase = "HistoricalPreview", SelfPuuid = targetPuuid,
                 HistoricalOriginalTargetPuuid = targetPuuid,
                 HistoricalGameMode = cherry ? "CHERRY" : "CLASSIC",
+                HistoricalQueueId = match.QueueId > 0 && match.QueueId <= 100000
+                    ? match.QueueId : 0,
+                HistoricalOriginalQueueId = match.QueueId > 0 && match.QueueId <= 100000
+                    ? match.QueueId : 0,
                 RosterKey = "historical:" + match.GameId,
                 CreatedUtc = DateTime.UtcNow
             };
