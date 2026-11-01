@@ -21,6 +21,7 @@ namespace FACM.League
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
             ValidateAutoHistoryPages();
+            ValidateCardPageAdditions();
             ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
@@ -52,6 +53,44 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":10}").AutoHistoryPages == 0 &&
                 LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":-1}").AutoHistoryPages == 0,
                 "Player-card automatic history pagination must be opt-in and bounded to nine pages.");
+        }
+
+        private static void ValidateCardPageAdditions()
+        {
+            var original = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win",
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
+                GameCreationEpochMs = 1000
+            };
+            var same = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win",
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
+                GameCreationEpochMs = 1000
+            };
+            var next = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 2, ChampionId = 22, WinResult = "loss",
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420
+            };
+            var current = new List<LeaguePlayerMatchSummary> { original };
+            var additions = LeagueHistoricalMatchDryRun.CardPageAdditions(
+                current, new[] { same, next }, "self");
+            Require(additions != null && additions.Count == 1 &&
+                additions[0].GameId == 2 && current.Count == 1,
+                "Overlapping card pages must add only new, validated games without mutation.");
+            same.ChampionId = 33;
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { same, next }, "self") == null,
+                "Contradictory game identities across history pages must fail closed.");
+            same.ChampionId = 11;
+            next.PuuId = "foreign";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { next }, "self") == null,
+                "Foreign player history must not enter the current card.");
+            next.PuuId = "self";
+            next.DataSource = LeaguePlayerHistorySource.Sgp;
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { next }, "self") != null,
+                "Source-consistent page validation must permit independent verified rows.");
         }
 
         private static void ValidatePlayerTags()

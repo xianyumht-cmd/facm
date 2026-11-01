@@ -96,6 +96,49 @@ namespace FACM.League
                 .ThenByDescending(m => m.GameId).ToArray();
         }
 
+        // Reject conflicting cross-page identities before mutating the displayed card.
+        internal static IReadOnlyList<LeaguePlayerMatchSummary> CardPageAdditions(
+            IList<LeaguePlayerMatchSummary> current,
+            IReadOnlyList<LeaguePlayerMatchSummary> page, string puuid)
+        {
+            if (!LeagueDynamicMessageService.SafePuuid(puuid) || current == null ||
+                page == null || current.Count > 200 || page.Count > 20) return null;
+            var known = new Dictionary<long, LeaguePlayerMatchSummary>();
+            foreach (var row in current)
+            {
+                if (row == null || row.GameId <= 0 || known.ContainsKey(row.GameId)) return null;
+                known.Add(row.GameId, row);
+            }
+            var additions = new List<LeaguePlayerMatchSummary>();
+            foreach (var row in page)
+            {
+                if (row == null || row.GameId <= 0 || row.ChampionId <= 0 ||
+                    (!string.IsNullOrEmpty(row.PuuId) &&
+                     !string.Equals(row.PuuId, puuid, StringComparison.Ordinal)) ||
+                    (!string.IsNullOrWhiteSpace(row.GameType) &&
+                     !string.Equals(row.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) ||
+                    LeaguePlayerHistoryAnalysis.Outcome(row) == LeagueHistoryOutcome.Unknown)
+                    return null;
+                LeaguePlayerMatchSummary prior;
+                if (known.TryGetValue(row.GameId, out prior))
+                {
+                    if (prior.ChampionId != row.ChampionId ||
+                        prior.DataSource != row.DataSource ||
+                        !string.Equals(prior.SgpServerId ?? "", row.SgpServerId ?? "",
+                            StringComparison.OrdinalIgnoreCase) ||
+                        LeaguePlayerHistoryAnalysis.Outcome(prior) !=
+                            LeaguePlayerHistoryAnalysis.Outcome(row) ||
+                        (prior.QueueId > 0 && row.QueueId > 0 && prior.QueueId != row.QueueId) ||
+                        (prior.GameCreationEpochMs > 0 && row.GameCreationEpochMs > 0 &&
+                         prior.GameCreationEpochMs != row.GameCreationEpochMs)) return null;
+                    continue;
+                }
+                known.Add(row.GameId, row);
+                additions.Add(row);
+            }
+            return current.Count + additions.Count <= 200 ? additions : null;
+        }
+
         // A swap only changes the bounded preview; the source match is never modified.
         internal static bool TrySwapTeams(LeagueDynamicMessageSnapshot snapshot,
             string firstPuuid, string secondPuuid)

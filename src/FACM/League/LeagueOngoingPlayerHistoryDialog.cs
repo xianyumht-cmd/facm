@@ -105,15 +105,20 @@ namespace FACM.League
                         summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
                         return false;
                     }
+                    var additions = LeagueHistoricalMatchDryRun.CardPageAdditions(
+                        matches, page, player.Player.PuuId);
+                    if (additions == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return false;
+                    }
                     nextIndex += Math.Min(20, 200 - nextIndex);
-                    var known = new HashSet<long>(matches.Select(m => m.GameId));
-                    foreach (var match in page)
-                        if (match != null && known.Add(match.GameId))
-                        {
-                            matches.Add(match);
-                            appendMatch(match);
-                        }
-                    hasMore = page.Count > 0 && nextIndex < 200;
+                    foreach (var match in additions)
+                    {
+                        matches.Add(match);
+                        appendMatch(match);
+                    }
+                    hasMore = additions.Count > 0 && nextIndex < 200;
                     summary.Text = summaryText();
                     return page.Count > 0;
                 }
