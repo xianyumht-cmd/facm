@@ -35,6 +35,7 @@ namespace FACM.League
             ValidateEncounterCardTags();
             ValidateKillDamageEfficiencyTag();
             ValidateHistoricalDryRun();
+            ValidateOngoingKdaOutliers();
             ValidatePrivacyTag();
             ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
             ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
@@ -1357,6 +1358,55 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(
                     "{\"ChampionUsageMode\":\"invalid\"}").ChampionUsageMode == "recent",
                 "Unknown champion usage mode must fail closed to the source default.");
+        }
+
+
+        private static void ValidateOngoingKdaOutliers()
+        {
+            var values = new Dictionary<string, double?> {
+                { "one", 1d }, { "two", 2d }, { "three", 3d },
+                { "four", 4d }, { "five", 20d }
+            };
+            var outliers = LeagueOngoingKdaOutliers.Detect(values);
+            Require(outliers.Count == 1 && outliers["five"] == "over",
+                "Source IQR comparison must flag a verified high-KDA outlier.");
+            values["one"] = -1d;
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Invalid KDA evidence must suppress the whole comparison.");
+            values["one"] = 0d;
+            values["five"] = 4d;
+            outliers = LeagueOngoingKdaOutliers.Detect(values);
+            Require(outliers.Count == 1 && outliers["one"] == "below",
+                "Source IQR comparison must flag a low-KDA outlier.");
+            values.Remove("five");
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Comparisons with fewer than five verified players must stay unknown.");
+            values["five"] = null;
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Missing per-player statistics must not fabricate an outlier.");
+
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            foreach (var entry in new[] { 1, 2, 3, 4, 20 }.Select((kda, index) =>
+                new { Kda = kda, Index = index }))
+            {
+                var id = "player-" + entry.Index;
+                var page = new LeaguePlayerMatchPage();
+                page.Matches.Add(new LeaguePlayerMatchSummary {
+                    GameId = 100 + entry.Index, PuuId = id, ChampionId = 22,
+                    WinResult = "win", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true,
+                    Kills = entry.Kda, Deaths = 1, Assists = 0
+                });
+                snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = page
+                });
+            }
+            outliers = LeagueOngoingKdaOutliers.Project(snapshot);
+            Require(outliers.Count == 1 && outliers["player-4"] == "over",
+                "Roster KDA comparison must use verified individual match histories.");
+            snapshot.Players[4].History.Matches[0].PuuId = "foreign";
+            Require(LeagueOngoingKdaOutliers.Project(snapshot).Count == 0,
+                "Foreign player evidence must suppress roster outlier comparison.");
         }
 
         private static void ValidateHistoricalDryRun()

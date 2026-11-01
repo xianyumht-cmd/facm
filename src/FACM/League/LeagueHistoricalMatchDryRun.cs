@@ -25,6 +25,7 @@ namespace FACM.League
             ? (double?)(100d * CherryWins / (CherryWins + CherryLosses)) : null;
         internal int StatisticsGames, Kills, Deaths, Assists;
         internal double? KdaCv;
+        internal double? AverageGameKda;
         internal int ArenaPlacements, ArenaFirstPlaces;
         internal readonly Dictionary<string, int> Positions =
             new Dictionary<string, int>(StringComparer.Ordinal);
@@ -35,6 +36,64 @@ namespace FACM.League
             ? (double?) (100d * Wins / (Wins + Losses)) : null;
         internal double? Kda => StatisticsGames > 0
             ? (double?) ((Kills + Assists) / (double)Math.Max(1, Deaths)) : null;
+    }
+
+
+    // Pinned Akari v1.5.1 uses average per-match KDA, interpolated quartiles and
+    // a 0.65 IQR threshold to compare players in the same ongoing-game roster.
+    internal static class LeagueOngoingKdaOutliers
+    {
+        internal static IReadOnlyDictionary<string, string> Project(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Players.Count < 5 ||
+                snapshot.Players.Any(p => p?.Player == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
+                snapshot.Players.Select(p => p.Player.PuuId)
+                    .Distinct(StringComparer.Ordinal).Count() != snapshot.Players.Count)
+                return new Dictionary<string, string>(StringComparer.Ordinal);
+
+            var averages = new Dictionary<string, double?>(StringComparer.Ordinal);
+            foreach (var player in snapshot.Players)
+            {
+                var id = player.Player.PuuId;
+                var matches = LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player);
+                var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(matches, id);
+                averages[id] = analysis?.AverageGameKda;
+            }
+            return Detect(averages);
+        }
+
+        internal static IReadOnlyDictionary<string, string> Detect(
+            IReadOnlyDictionary<string, double?> averages)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (averages == null || averages.Count < 5 ||
+                averages.Keys.Any(id => !LeagueDynamicMessageService.SafePuuid(id)) ||
+                averages.Values.Any(value => !value.HasValue ||
+                    double.IsNaN(value.Value) || double.IsInfinity(value.Value) ||
+                    value.Value < 0d)) return result;
+
+            var sorted = averages.Values.Select(value => value.Value).OrderBy(value => value).ToArray();
+            var q1 = Percentile(sorted, 0.25d);
+            var q3 = Percentile(sorted, 0.75d);
+            var low = q1 - 0.65d * (q3 - q1);
+            var high = q3 + 0.65d * (q3 - q1);
+            foreach (var entry in averages)
+            {
+                if (entry.Value.Value < low) result[entry.Key] = "below";
+                else if (entry.Value.Value > high) result[entry.Key] = "over";
+            }
+            return result;
+        }
+
+        private static double Percentile(double[] sorted, double percentile)
+        {
+            var index = percentile * (sorted.Length - 1);
+            var lower = (int)Math.Floor(index);
+            var fraction = index - lower;
+            return lower == sorted.Length - 1 ? sorted[lower] :
+                sorted[lower] + fraction * (sorted[lower + 1] - sorted[lower]);
+        }
     }
 
     // Read-only draft from one verified historical match; never writes to LCU or a live game.
@@ -111,6 +170,7 @@ namespace FACM.League
             if (perGameKda.Count > 0)
             {
                 var mean = perGameKda.Average();
+                result.AverageGameKda = mean;
                 if (mean > 0d)
                     result.KdaCv = Math.Sqrt(perGameKda.Average(
                         value => (value - mean) * (value - mean))) / mean;

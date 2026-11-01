@@ -663,6 +663,7 @@ namespace FACM.League
                             selected == null || selected.Contains(player.Player.PuuId));
                         _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count }, false);
                     }
+                    RefreshKdaOutlierLabels(snapshot);
                     RebuildPremadeGroups(snapshot, false);
                 }
                 _binding = false; RefreshPreview();
@@ -713,6 +714,7 @@ namespace FACM.League
                         {
                             foreach (var row in _players.Items.Cast<PlayerChoice>()
                                 .Concat(_jungle.Items.Cast<PlayerChoice>())) row.RefreshSourceTags();
+                            RefreshKdaOutlierLabels(snapshot);
                             RebuildPremadeGroups(snapshot, true);
                             _players.Refresh(); _jungle.Refresh();
                         }
@@ -792,6 +794,7 @@ namespace FACM.League
                     {
                         foreach (var row in _players.Items.Cast<PlayerChoice>()
                             .Concat(_jungle.Items.Cast<PlayerChoice>())) row.RefreshSourceTags();
+                        RefreshKdaOutlierLabels(snapshot);
                         RebuildPremadeGroups(snapshot, true);
                         _players.Refresh(); _jungle.Refresh();
                     }
@@ -1113,6 +1116,19 @@ namespace FACM.League
             }
         }
 
+        private void RefreshKdaOutlierLabels(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (!ReferenceEquals(_snapshot, snapshot)) return;
+            var outliers = LeagueOngoingKdaOutliers.Project(snapshot);
+            foreach (var choice in _players.Items.Cast<PlayerChoice>()
+                .Concat(_jungle.Items.Cast<PlayerChoice>()))
+            {
+                string result;
+                choice.KdaOutlier = choice.Player?.Player != null &&
+                    outliers.TryGetValue(choice.Player.Player.PuuId, out result) ? result : null;
+            }
+        }
+
         private void RefreshTagLabels()
         {
             if (_snapshot == null) return;
@@ -1257,6 +1273,7 @@ namespace FACM.League
             internal string PremadeGroup;
             internal bool IsSelf;
             internal int EncounterCount;
+            internal string KdaOutlier;
             private IReadOnlyList<string> _sourceTags;
             internal PlayerChoice(LeagueDynamicMessagePlayer player, LeagueDynamicMessageOptions options)
             {
@@ -1281,6 +1298,8 @@ namespace FACM.League
                     (IsSelf && _options.ShowSelfTag ? " · " + LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingSelf) : string.Empty) +
                     (!_options.ShowTaggedTag || IsSelf || string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +
                     (string.IsNullOrEmpty(PremadeGroup) ? string.Empty : " · " + PremadeGroup) +
+                    (KdaOutlier == "over" ? " · KDA↑" :
+                     KdaOutlier == "below" ? " · KDA↓" : string.Empty) +
                     (!IsSelf && _options.ShowMetTag && EncounterCount > 0 ? " · " +
                         LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMet)
                             .Replace("{0}", EncounterCount.ToString()) : string.Empty) +
