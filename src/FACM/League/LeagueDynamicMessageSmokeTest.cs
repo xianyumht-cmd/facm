@@ -368,7 +368,7 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .AutoRosterDetailPrefetchCount == 2 &&
                 LeagueDynamicMessageOptions.Parse("{}").AutoRosterDetailPrefetchCount == 0 &&
-                LeagueDynamicMessageOptions.Parse("{\\"AutoRosterDetailPrefetchCount\\":21}")
+                LeagueDynamicMessageOptions.Parse("{\"AutoRosterDetailPrefetchCount\":21}")
                     .AutoRosterDetailPrefetchCount == 0,
                 "Automatic roster detail prefetch must be opt-in, persisted and bounded.");
             var fake = new Fake { IncompleteHistory = true };
