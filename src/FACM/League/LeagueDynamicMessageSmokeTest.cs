@@ -1361,6 +1361,33 @@ namespace FACM.League
 
         private static void ValidateHistoricalDryRun()
         {
+            var cardRows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
+                    PuuId = "target", WinResult = "win", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 7, Deaths = 0, Assists = 8 },
+                new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 23,
+                    PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4 },
+                new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 24,
+                    PuuId = "target", WinResult = "remake" },
+                new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 25,
+                    PuuId = "target", WinResult = "win", GameMode = "CHERRY",
+                    SubteamPlacement = 1 }
+            };
+            var cardStats = LeagueHistoricalMatchDryRun.CardAnalysis(cardRows, "target");
+            Require(cardStats != null && cardStats.Games == 4 &&
+                cardStats.Wins == 2 && cardStats.Losses == 1 && cardStats.Remakes == 1 &&
+                Math.Abs(cardStats.WinRate.Value - 200d / 3d) < 0.001 &&
+                cardStats.StatisticsGames == 2 && cardStats.Kda == 10.5 &&
+                cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1,
+                "Card analysis must exclude remakes from win rate and missing stats from KDA.");
+            Require(LeagueHistoricalMatchDryRun.CardAnalysis(cardRows.Concat(
+                    new[] { cardRows[0] }).ToArray(), "target") == null &&
+                LeagueHistoricalMatchDryRun.CardAnalysis(cardRows, "foreign") == null &&
+                LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
+                    new LeaguePlayerMatchSummary { GameId = 8, ChampionId = 22,
+                        PuuId = "target", WinResult = null } }, "target") == null,
+                "Card analysis must reject duplicate, foreign and unknown source evidence.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
                 GameMode = "CLASSIC", TeamId = 100, PuuId = "target" };
             var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {

@@ -38,8 +38,9 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
-                RowCount = 2, Padding = new Padding(12) };
+                RowCount = 3, Padding = new Padding(12) };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             var matches = player.RosterCardHistory != null &&
                 player.RosterCardNextIndex >= snapshot.HistoryLoadCount
@@ -52,6 +53,33 @@ namespace FACM.League
                 .Replace("{2}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
                     LeagueHistoryOutcome.Loss).ToString(CultureInfo.CurrentCulture));
             var summary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = summaryText() };
+            var stats = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted };
+            var statsTip = new ToolTip();
+            Action refreshStats = () =>
+            {
+                var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(matches, player.Player.PuuId);
+                if (analysis == null)
+                {
+                    stats.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                    return;
+                }
+                var detail = t(LeagueEfficiencyUiTextKeys.OngoingCardStats)
+                    .Replace("{0}", analysis.WinRate.HasValue
+                        ? analysis.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—")
+                    .Replace("{1}", analysis.Wins.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{2}", analysis.Losses.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{3}", analysis.Kda.HasValue
+                        ? analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—")
+                    .Replace("{4}", analysis.StatisticsGames.ToString(CultureInfo.CurrentCulture));
+                if (analysis.ArenaPlacements > 0)
+                    detail += " · " + t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst)
+                        .Replace("{0}", analysis.ArenaFirstPlaces.ToString(CultureInfo.CurrentCulture))
+                        .Replace("{1}", analysis.ArenaPlacements.ToString(CultureInfo.CurrentCulture));
+                stats.Text = detail;
+                statsTip.SetToolTip(stats, detail);
+            };
+            refreshStats();
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text };
@@ -128,6 +156,7 @@ namespace FACM.League
                     player.RosterCardNextIndex = nextIndex;
                     player.RosterCardExhausted = !hasMore;
                     summary.Text = summaryText();
+                    refreshStats();
                     return page.Count > 0;
                 }
                 catch (OperationCanceledException) { return false; }
@@ -186,7 +215,8 @@ namespace FACM.League
                 }
             };
             layout.Controls.Add(header, 0, 0);
-            layout.Controls.Add(rows, 0, 1);
+            layout.Controls.Add(stats, 0, 1);
+            layout.Controls.Add(rows, 0, 2);
             Controls.Add(layout);
             Shown += async (sender, args) =>
             {

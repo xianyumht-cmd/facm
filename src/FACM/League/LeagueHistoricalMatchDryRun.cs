@@ -15,9 +15,67 @@ namespace FACM.League
         internal string SecondaryPosition;
     }
 
+    internal sealed class LeagueHistoricalCardAnalysis
+    {
+        internal int Games, Wins, Losses, Remakes, Aborts;
+        internal int StatisticsGames, Kills, Deaths, Assists;
+        internal int ArenaPlacements, ArenaFirstPlaces;
+        internal double? WinRate => Wins + Losses > 0
+            ? (double?) (100d * Wins / (Wins + Losses)) : null;
+        internal double? Kda => StatisticsGames > 0
+            ? (double?) ((Kills + Assists) / (double)Math.Max(1, Deaths)) : null;
+    }
+
     // Read-only draft from one verified historical match; never writes to LCU or a live game.
     internal static class LeagueHistoricalMatchDryRun
     {
+        // Derived only from the verified card sample, never from unbounded live-client reads.
+        internal static LeagueHistoricalCardAnalysis CardAnalysis(
+            IReadOnlyList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            if (matches == null || matches.Count > 200 ||
+                !LeagueDynamicMessageService.SafePuuid(puuid)) return null;
+            var result = new LeagueHistoricalCardAnalysis();
+            var seen = new HashSet<long>();
+            foreach (var match in matches)
+            {
+                if (match == null || match.GameId <= 0 || match.ChampionId <= 0 ||
+                    !seen.Add(match.GameId) ||
+                    !string.IsNullOrEmpty(match.PuuId) &&
+                    !string.Equals(match.PuuId, puuid, StringComparison.Ordinal) ||
+                    !string.IsNullOrWhiteSpace(match.GameType) &&
+                    !string.Equals(match.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                var outcome = LeaguePlayerHistoryAnalysis.Outcome(match);
+                if (outcome == LeagueHistoryOutcome.Unknown) return null;
+                result.Games++;
+                switch (outcome)
+                {
+                    case LeagueHistoryOutcome.Win: result.Wins++; break;
+                    case LeagueHistoryOutcome.Loss: result.Losses++; break;
+                    case LeagueHistoryOutcome.Remake: result.Remakes++; break;
+                    case LeagueHistoryOutcome.Abort: result.Aborts++; break;
+                }
+                if (match.StatisticsAvailable && match.ParticipantResolved &&
+                    match.Kills >= 0 && match.Kills <= 999 &&
+                    match.Deaths >= 0 && match.Deaths <= 999 &&
+                    match.Assists >= 0 && match.Assists <= 999)
+                {
+                    result.StatisticsGames++;
+                    result.Kills += match.Kills;
+                    result.Deaths += match.Deaths;
+                    result.Assists += match.Assists;
+                }
+                if (string.Equals(match.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) &&
+                    LeagueCherryTeams.ValidPlacement(match.SubteamPlacement).HasValue)
+                {
+                    result.ArenaPlacements++;
+                    if (match.SubteamPlacement == 1) result.ArenaFirstPlaces++;
+                }
+            }
+            return result;
+        }
+
         internal static IReadOnlyDictionary<string, LeaguePremadeTeamAggregate> TeamAggregates(
             LeagueDynamicMessageSnapshot snapshot, int threshold = 5)
         {
