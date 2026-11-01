@@ -1604,12 +1604,17 @@ namespace FACM.League
             var original = service.LoadRecentMatchesAsync(own, 0, 10, false, CancellationToken.None).GetAwaiter().GetResult();
             Require(service.TryGetCachedProfile() != null && service.TryGetCachedPage() != null,
                 "Fresh Player caches must remain usable within their original client session.");
+            var older = service.LoadRecentMatchesAsync(own, 20, 20, true,
+                CancellationToken.None).GetAwaiter().GetResult();
+            Require(older != null && older.StartIndex == 20 &&
+                service.TryGetCachedPage().StartIndex == 0,
+                "Forced older-card pages must not evict the initial quick-history cache.");
             session = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture", "https", "fixture", "HN1", "TENCENT");
             Require(service.TryGetCachedProfile() == null && service.TryGetCachedPage() == null,
                 "The same PUUID/port/password must not authorize a previous region's profile or history cache.");
             service.LoadProfileAsync(false, CancellationToken.None).GetAwaiter().GetResult();
             service.LoadRecentMatchesAsync(own, 0, 10, false, CancellationToken.None).GetAwaiter().GetResult();
-            Require(CountPrefix(local.Paths, "/lol-match-history/") == 2 &&
+            Require(CountPrefix(local.Paths, "/lol-match-history/") == 3 &&
                 CountPath(local.Paths, LeagueDashboardDetailsService.SummonerPath) == 2 &&
                 service.EnrichChampionNamesAsync(own, original, CancellationToken.None).GetAwaiter().GetResult() == null,
                 "Region replacement must reread quick caches and prevent stale asynchronous enrichment from relabelling an old page.");

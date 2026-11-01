@@ -369,7 +369,8 @@ namespace FACM.League
                 if (page != null)
                 {
                     page.ClientSession = session;
-                    if (queueTag == null) CachePage(profile.PuuId, page, session);
+                    if (queueTag == null && page.StartIndex == 0)
+                        CachePage(profile.PuuId, page, session);
                 }
                 return page;
             }
@@ -605,7 +606,7 @@ namespace FACM.League
             }
 
             if (!SessionStillCurrent(session)) return null;
-            if (changed) CachePage(profile.PuuId, result, session);
+            if (changed && result.StartIndex == 0) CachePage(profile.PuuId, result, session);
             return result;
         }
 
@@ -1388,7 +1389,8 @@ namespace FACM.League
             }
 
             if (!SessionStillCurrent(session)) return null;
-            if (changed && cacheUntaggedPage) CachePage(profile.PuuId, result, session);
+            if (changed && cacheUntaggedPage && result.StartIndex == 0)
+                CachePage(profile.PuuId, result, session);
             return result;
         }
 
