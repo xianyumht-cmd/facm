@@ -162,6 +162,7 @@ namespace FACM.League
         private readonly ILeagueClientApi _client;
         private readonly LeaguePlayerDataService _players;
         private readonly LeagueLiveDataService _live;
+        private readonly PerformanceBudgetProvider _budgets;
         private readonly Func<LeagueClientSession> _session;
         private readonly Func<LeagueDashboardPhaseState> _phase;
         private readonly object _sync = new object();
@@ -190,6 +191,7 @@ namespace FACM.League
             ILeagueSgpMatchHistoryApi sgpHistory = null)
         {
             _client = client;
+            _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _players = new LeaguePlayerDataService(client, budgets, null, sgpHistory, session);
             _live = new LeagueLiveDataService(client, budgets);
             _session = session;
@@ -306,11 +308,12 @@ namespace FACM.League
                     UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
                     snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
+                var effectiveConcurrency = Math.Min(historyConcurrency, _budgets.Current.NetworkConcurrency);
                 Func<LeagueDynamicMessagePlayer, CancellationToken, Task> loadOne = async (player, ct) =>
                 {
                     var row = player.Player;
                     var profile = new LeaguePlayerProfile { PuuId = row.PuuId, SummonerId = row.SummonerId };
-                    player.History = historyQueueTag != null && historyConcurrency > 1
+                    player.History = historyQueueTag != null && effectiveConcurrency > 1
                         ? await _players.LoadTaggedRosterHistoryAsync(profile, 0, historyLoadCount,
                             historyQueueTag, me.PuuId, ct).ConfigureAwait(false)
                         : await _players.LoadRecentMatchesAsync(profile, 0, historyLoadCount,
@@ -325,9 +328,9 @@ namespace FACM.League
                         m => m.ChampionId == row.ChampionId)?.ChampionName;
                     player.JungleSamples = CachedJungle(row.PuuId, player.History);
                 };
-                if (historyQueueTag != null && historyConcurrency > 1)
+                if (historyQueueTag != null && effectiveConcurrency > 1)
                 {
-                    using (var slots = new SemaphoreSlim(historyConcurrency, historyConcurrency))
+                    using (var slots = new SemaphoreSlim(effectiveConcurrency, effectiveConcurrency))
                     {
                         var jobs = snapshot.Players.Select(async player =>
                         {

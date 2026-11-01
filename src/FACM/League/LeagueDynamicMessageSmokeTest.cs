@@ -238,6 +238,18 @@ namespace FACM.League
                         sequential.TaggedCalls == 2 && sequential.MaxConcurrent == 1,
                         "Concurrency one must preserve serialized tagged SGP reads.");
                 }
+                var restrictedBudget = new PerformanceBudgetProvider();
+                restrictedBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+                var restrictedSgp = new TaggedHistoryFake { DelayMs = 30 };
+                using (var restricted = new LeagueDynamicMessageService(new Fake(),
+                    restrictedBudget, () => session, () => phase, restrictedSgp))
+                {
+                    var capped = await restricted.LoadAsync(CancellationToken.None, 2, "current", true, 4)
+                        .ConfigureAwait(false);
+                    Require(capped != null && restrictedSgp.TaggedCalls == 2 &&
+                        restrictedSgp.MaxConcurrent == 1,
+                        "Game-sensitive performance budget must cap configured SGP concurrency.");
+                }
                 sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
                 Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
                     .ConfigureAwait(false) == null,
