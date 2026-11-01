@@ -13,6 +13,7 @@ namespace FACM.League
         internal string Position;
         internal string PrimaryPosition;
         internal string SecondaryPosition;
+        internal string DraftName;
     }
 
     internal sealed class LeagueHistoricalCardAnalysis
@@ -380,6 +381,9 @@ namespace FACM.League
 
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
             var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            if (requested.Any(p => p.DraftName != null &&
+                (p.DraftName.Trim().Length == 0 || p.DraftName.Trim().Length > 48 ||
+                 p.DraftName.Any(char.IsControl)))) return false;
             if (requested.Any(p => p.ChampionId < 1 || p.ChampionId > 9999 ||
                 p.Position == null || p.PrimaryPosition == null || p.SecondaryPosition == null ||
                 (cherry ? p.Position != "" || p.PrimaryPosition != "" ||
@@ -393,6 +397,35 @@ namespace FACM.League
             foreach (var selection in requested)
             {
                 var player = current[selection.PuuId];
+                var draftName = selection.DraftName == null ? null : selection.DraftName.Trim();
+                if (draftName != null && draftName != player.Player.GameName)
+                {
+                    if (player.HistoricalOriginalPlayer == null)
+                    {
+                        var draftId = "draft-" + Guid.NewGuid().ToString("N");
+                        var replacement = new LeagueDynamicMessagePlayer {
+                            HistoricalOriginalPlayer = player,
+                            HistoricalOriginalTeamId = player.HistoricalOriginalTeamId,
+                            HistoricalOriginalChampionId = player.HistoricalOriginalChampionId,
+                            HistoricalOriginalChampionName = player.HistoricalOriginalChampionName,
+                            HistoricalOriginalPosition = player.HistoricalOriginalPosition,
+                            HistoricalTeamId = player.HistoricalTeamId,
+                            HistoricalPrimaryPosition = player.HistoricalPrimaryPosition,
+                            HistoricalSecondaryPosition = player.HistoricalSecondaryPosition,
+                            ChampionName = player.ChampionName,
+                            Friendly = player.Friendly,
+                            Player = new LeagueLivePlayerRow {
+                                PuuId = draftId, CellId = player.Player.CellId,
+                                GameName = draftName, ChampionId = player.Player.ChampionId,
+                                Position = player.Player.Position, Side = player.Player.Side
+                            }
+                        };
+                        snapshot.Players[snapshot.Players.IndexOf(player)] = replacement;
+                        if (targetPuuid == selection.PuuId) targetPuuid = draftId;
+                        player = replacement;
+                    }
+                    else player.Player.GameName = draftName;
+                }
                 if (player.Player.ChampionId != selection.ChampionId)
                 {
                     player.ChampionName = selection.ChampionId == player.HistoricalOriginalChampionId
@@ -440,15 +473,20 @@ namespace FACM.League
         internal static bool TryRestoreOriginalDraft(LeagueDynamicMessageSnapshot snapshot)
         {
             if (!ValidTeamDraft(snapshot) ||
-                !LeagueDynamicMessageService.SafePuuid(snapshot.HistoricalOriginalTargetPuuid) ||
-                !snapshot.Players.Any(p => p.Player.PuuId == snapshot.HistoricalOriginalTargetPuuid) ||
-                snapshot.Players.Any(p =>
-                p.HistoricalOriginalChampionId < 1 || p.HistoricalOriginalChampionId > 9999 ||
-                p.HistoricalOriginalChampionName == null ||
-                (p.HistoricalOriginalPosition != "" &&
-                 !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
-                    .Contains(p.HistoricalOriginalPosition, StringComparer.Ordinal))))
+                !LeagueDynamicMessageService.SafePuuid(snapshot.HistoricalOriginalTargetPuuid))
                 return false;
+            var originals = snapshot.Players.Select(p => p.HistoricalOriginalPlayer ?? p).ToArray();
+            if (!originals.Any(p => p.Player.PuuId == snapshot.HistoricalOriginalTargetPuuid) ||
+                originals.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != originals.Length ||
+                originals.Any(p => p.HistoricalOriginalChampionId < 1 ||
+                    p.HistoricalOriginalChampionId > 9999 ||
+                    p.HistoricalOriginalChampionName == null ||
+                    (p.HistoricalOriginalPosition != "" &&
+                     !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                        .Contains(p.HistoricalOriginalPosition, StringComparer.Ordinal))))
+                return false;
+            for (var index = 0; index < originals.Length; index++)
+                snapshot.Players[index] = originals[index];
             foreach (var player in snapshot.Players)
             {
                 player.HistoricalTeamId = player.HistoricalOriginalTeamId;

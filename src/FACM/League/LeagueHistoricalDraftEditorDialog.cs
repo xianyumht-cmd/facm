@@ -244,7 +244,8 @@ namespace FACM.League
             grid.DataError += (sender, args) => { args.ThrowException = false; };
             grid.Columns.Add(new DataGridViewTextBoxColumn {
                 Name = "player", HeaderText = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer),
-                ReadOnly = true, FillWeight = 140
+                ReadOnly = false, FillWeight = 140,
+                ToolTipText = t(LeagueEfficiencyUiTextKeys.HistoricalDraftPlayerSlotHint)
             });
             grid.Columns.Add(new DataGridViewComboBoxColumn {
                 Name = "team", HeaderText = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam),
@@ -333,6 +334,8 @@ namespace FACM.League
                     }
                     changes.Add(new LeagueHistoricalRosterSelection {
                         PuuId = row.Tag as string, TeamId = team, ChampionId = champion,
+                        DraftName = Convert.ToString(row.Cells["player"].Value,
+                            CultureInfo.InvariantCulture),
                         Position = row.Cells["position"].Value as string,
                         PrimaryPosition = row.Cells["primary"].Value as string,
                         SecondaryPosition = row.Cells["secondary"].Value as string
@@ -351,7 +354,18 @@ namespace FACM.League
                 }
                 DialogResult = DialogResult.OK; Close();
             };
-            actions.Controls.Add(cancel); actions.Controls.Add(apply);
+            var restore = new Button { Width = 160, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreAll) };
+            restore.Click += (sender, args) =>
+            {
+                if (!isCurrentSession() || !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot))
+                {
+                    restore.Enabled = false;
+                    return;
+                }
+                DialogResult = DialogResult.OK; Close();
+            };
+            actions.Controls.Add(cancel); actions.Controls.Add(apply); actions.Controls.Add(restore);
             layout.Controls.Add(actions, 0, 2);
             Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
             Activated += (sender, args) => { if (!isCurrentSession()) Close(); };

@@ -1650,6 +1650,45 @@ namespace FACM.League
                 !target.Friendly && teammate.Friendly && !swapped.Friendly &&
                 roster[6].PuuId == "player-7" && roster[6].TeamId == 200,
                 "Historical target switching must reproject only the preview perspective.");
+            // Free-form names replace only a draft slot, never a verified source participant.
+            var customBatch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            var customSlot = customBatch.Single(p => p.PuuId == "player-2");
+            customSlot.DraftName = "Custom Teammate";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch, "player-2", 440) &&
+                snapshot.SelfPuuid.StartsWith("draft-", StringComparison.Ordinal) &&
+                snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid).History == null &&
+                snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid).Player.GameName == "Custom Teammate" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                roster[1].PuuId == "player-2" && roster[1].TeamId == 100,
+                "Custom draft players must replace only preview slots, with no inherited match evidence.");
+            var custom = snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid);
+            customBatch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Changed Custom";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                snapshot.SelfPuuid == custom.Player.PuuId &&
+                custom.Player.GameName == "Changed Custom",
+                "Editing a synthetic player's name must preserve its draft identity.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Bad\\nName";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                custom.Player.GameName == "Changed Custom",
+                "Invalid custom names must reject the entire draft without mutation.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
+                snapshot.Players.All(p => !p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                snapshot.SelfPuuid == "target" && teammate.HistoricalOriginalPlayer == null,
+                "Full draft reset must recover original source identities and evidence.");
             Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
                 snapshot.HistoricalQueueId == 420 &&
                 snapshot.SelfPuuid == "target" && target.Friendly && teammate.Friendly &&
