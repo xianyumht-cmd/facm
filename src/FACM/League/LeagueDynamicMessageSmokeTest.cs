@@ -46,13 +46,13 @@ namespace FACM.League
 
         private static void ValidateAutoHistoryPages()
         {
-            var options = new LeagueDynamicMessageOptions { AutoHistoryPages = 9 };
+            var options = new LeagueDynamicMessageOptions { AutoHistoryPages = 10 };
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
-                    .AutoHistoryPages == 9 &&
+                    .AutoHistoryPages == 10 &&
                 LeagueDynamicMessageOptions.Parse("{}").AutoHistoryPages == 0 &&
-                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":10}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":11}").AutoHistoryPages == 0 &&
                 LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":-1}").AutoHistoryPages == 0,
-                "Player-card automatic history pagination must be opt-in and bounded to nine pages.");
+                "Player-card automatic history pagination must be opt-in and bounded to ten pages.");
         }
 
         private static void ValidateCardPageAdditions()

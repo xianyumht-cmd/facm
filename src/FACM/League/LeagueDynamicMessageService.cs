@@ -99,7 +99,7 @@ namespace FACM.League
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 options.HistoryConcurrency < 1 || options.HistoryConcurrency > 4 ||
-                options.AutoHistoryPages < 0 || options.AutoHistoryPages > 9 ||
+                options.AutoHistoryPages < 0 || options.AutoHistoryPages > 10 ||
                 options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }

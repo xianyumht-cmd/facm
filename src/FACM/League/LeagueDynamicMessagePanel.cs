@@ -69,7 +69,7 @@ namespace FACM.League
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingAutoHistoryPages),
                 Padding = new Padding(4, 7, 0, 0) });
             var autoHistoryPages = new NumericUpDown { Width = 48, Minimum = 0,
-                Maximum = 9, Value = _options.AutoHistoryPages };
+                Maximum = 10, Value = _options.AutoHistoryPages };
             autoHistoryPages.ValueChanged += delegate
             {
                 if (!_binding) _options.AutoHistoryPages = (int)autoHistoryPages.Value;

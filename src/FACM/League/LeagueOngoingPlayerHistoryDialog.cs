@@ -28,7 +28,7 @@ namespace FACM.League
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
                 !snapshot.Players.Contains(player) ||
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
-                autoPages < 0 || autoPages > 9)
+                autoPages < 0 || autoPages > 10)
                 throw new ArgumentException("A current player-card snapshot is required.");
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · " +
