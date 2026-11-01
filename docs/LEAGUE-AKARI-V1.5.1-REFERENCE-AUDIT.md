@@ -1,6 +1,6 @@
 ### 2026-11-01 — Native player history, draft overrides and source history controls (Draft #357)
 
-**Latest executable/test candidate:** [0141f29](https://github.com/xianyumht-cmd/facm/commit/0141f2911c1298d26f761321bc4d48d68bb4388f). Four exact-SHA Windows CI gates are **pending/in progress at this documentation snapshot**; do not infer success from earlier candidates. Prior fully verified executable: [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6).
+**Latest executable/test candidate:** [0141f29](https://github.com/xianyumht-cmd/facm/commit/0141f2911c1298d26f761321bc4d48d68bb4388f). **Four exact-SHA Windows CI gates passed for executable 0141f29 on 2026-11-01:** [Windows Build #41273662234](https://github.com/xianyumht-cmd/facm/actions/runs/41273662234), [Glass WebView2 #41273662205](https://github.com/xianyumht-cmd/facm/actions/runs/41273662205), [UI Text Contract #41273662244](https://github.com/xianyumht-cmd/facm/actions/runs/41273662244), [Mayhem Source Probe #41273662212](https://github.com/xianyumht-cmd/facm/actions/runs/41273662212). This verifies synthetic Windows source/build gates, **not** live Tencent CN, cloud sync or Win10/DPI acceptance.
 
 | Akari v1.5.1 user capability | Native source status | Remaining gap |
 | --- | --- | --- |
