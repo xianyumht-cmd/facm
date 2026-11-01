@@ -144,6 +144,8 @@ namespace FACM
                         try
                         {
                             FACM.League.LeagueDynamicMessageSmokeTest.Validate();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateWriteRetryAsync().GetAwaiter().GetResult();
+                            FACM.League.LeaguePlayerSmokeTest.ValidateCardCollectionSubjectFilters();
                             FACM.League.LeaguePlayerHistoryHydrationSmokeTest.Validate();
                             FACM.League.LeagueRespawnTimerSmokeTest.Validate();
                             FACM.League.LeagueSgpSmokeTest.ValidateRefreshCancellation();

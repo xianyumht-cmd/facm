@@ -1,3 +1,16 @@
+### 2026-11-01 — Source-backed full player-card collection and ChampSelect retry (Draft #357)
+
+**Executable/test candidate:** `f9e25d3f6e264c26cd696f33a133e9aa2e9c6eb5` (full-card navigation), plus the present history-smoke/docs HEAD. Four exact-HEAD Windows CI gates **pending** until all results are confirmed; previous four-gate verified `b990da35e25565eac2165d0712a0617ddfef2bdc`. Both PR #357 and stacked #355 remain Draft.
+
+| Source capability | Status | Native implementation / remaining gap |
+| --- | --- | --- |
+| Akari player-card collect-by-champion/position | **PARTIAL (candidate)** | A verified ongoing player-card filter can open the existing remote-player collection form with the selected **subject champion and/or position** preapplied. The full player-tab collector supports up to 1000 matches, bounded pages, user confirmation, cancel, account/session checks and the **same** LCU/SGP player-data owner. No new transport, poller or automatic unbounded reads. The original 200-row quick card remains lightweight. |
+| ChampSelect transient action recovery | **PARTIAL (candidate)** | HTTP failure no longer permanently consumes the current local pick/ban action. A successful first-stage show is remembered so a failed show-and-lock finalization retries only the lock on the existing two-second phase tick. Every retry still passes current action, session, gameflow, availability and intent checks. |
+| Executable synthetic coverage | **PENDING CI** | History gate now exercises pick/ban HTTP 503 recovery, failed staged lock retry and selected-player champion/role filter isolation. |
+| Remaining | **PARTIAL / UNVERIFIED** | Full source player-card popovers, historical free-form queue/new-player editing, remaining ChampSelect/gameflow strategies, all-source concurrency, Riot/Tencent live SGP, 256-row cloud round-trip and Windows 10/DPI acceptance. |
+
+No merge, release, updater, deployment, paid infrastructure or production GGman 3.5.78 change.
+
 ### 2026-11-01 — Cancel-safe regional SGP catalog refresh (Draft #357)
 
 The existing public-data catalog refresh now preserves its two-hour on-demand throttle for completed attempts, but **does not throttle a request cancelled by account/session departure**. The current cancellation token is checked after the public transport returns and before catalog application; cancellation propagates, clears the attempt timestamp, and never publishes that response. The existing trusted Tencent/Riot endpoint allowlist, exact region matching and authenticated SGP request owner remain unchanged. A deterministic no-network synthetic test exercises cancellation, immediate retry and ordinary throttle under the Windows `--league-history-test` gate. This is source-level reliability, **not** proof of live Riot/Tencent compatibility. Remaining SGP token/provider parity and real-region acceptance are open.

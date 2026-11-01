@@ -57,7 +57,7 @@ namespace FACM.League
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
         }
 
-        private static void ValidateCardCollectionSubjectFilters()
+        internal static void ValidateCardCollectionSubjectFilters()
         {
             var rows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,

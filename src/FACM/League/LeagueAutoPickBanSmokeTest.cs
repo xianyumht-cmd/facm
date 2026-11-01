@@ -977,7 +977,7 @@ namespace FACM.League
         }
 
 
-        private static async Task ValidateWriteRetryAsync()
+        internal static async Task ValidateWriteRetryAsync()
         {
             // A rejected action remains eligible on the next existing ChampSelect tick.
             var read = new FakeRead { SessionJson = Session("pick", 83, 0) };
