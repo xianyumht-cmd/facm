@@ -84,17 +84,30 @@ namespace FACM.League
             lock (Sync) return Array.IndexOf(_queues, id) >= 0;
         }
 
-        internal static async Task<bool> TryRefreshAsync(CancellationToken token)
+        internal static Task<bool> TryRefreshAsync(CancellationToken token)
         {
+            return TryRefreshAsync(token, t => LeaguePublicDataTransport.TryGetBytesAsync(
+                Url, TimeSpan.FromSeconds(4), t));
+        }
+
+        internal static async Task<bool> TryRefreshAsync(CancellationToken token,
+            Func<CancellationToken, Task<byte[]>> load)
+        {
+            if (load == null) throw new ArgumentNullException(nameof(load));
             token.ThrowIfCancellationRequested();
             await Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
                 _lastAttempt = DateTime.UtcNow;
-                var bytes = await LeaguePublicDataTransport.TryGetBytesAsync(
-                    Url, TimeSpan.FromSeconds(4), token).ConfigureAwait(false);
+                var bytes = await load(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
                 return TryApply(bytes);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                _lastAttempt = DateTime.MinValue;
+                throw;
             }
             catch (OperationCanceledException) when (!token.IsCancellationRequested) { return false; }
             finally { Gate.Release(); }

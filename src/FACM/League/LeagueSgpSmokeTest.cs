@@ -51,8 +51,50 @@ namespace FACM.League
             finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
         }
 
+        internal static void ValidateSupportedQueueRefreshCancellation()
+        {
+            LeagueSgpSupportedQueues.ResetForSmokeTest();
+            try
+            {
+                var attempts = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var cancelled = false;
+                    try
+                    {
+                        LeagueSgpSupportedQueues.TryRefreshAsync(cancellation.Token, token =>
+                        {
+                            attempts++;
+                            cancellation.Cancel();
+                            return Task.FromResult(Bytes(
+                                "{\\"updatedAt\\":\\"2026-08-01T00:00:00.000Z\\",\\"queues\\":[420,450]}"));
+                        }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled && attempts == 1 &&
+                        LeagueSgpSupportedQueues.Snapshot().Length == 17,
+                        "Cancelled supported-queue catalog must not publish stale data.");
+                }
+                Require(!LeagueSgpSupportedQueues.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult() && attempts == 2,
+                    "Cancelled supported-queue refresh must permit an immediate explicit retry.");
+                LeagueSgpSupportedQueues.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(attempts == 2,
+                    "An ordinary supported-queue refresh must retain its two-hour throttle.");
+            }
+            finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
+        }
+
         internal static void Validate()
         {
+            ValidateSupportedQueueRefreshCancellation();
             var current = Session("HN10", "TENCENT");
             var local = new TokenApi();
             var handler = new CaptureHandler();
