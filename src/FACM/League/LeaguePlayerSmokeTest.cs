@@ -108,6 +108,10 @@ namespace FACM.League
             rows[2].GameMode = "PRACTICETOOL";
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow).Count == 0,
                 "Practice-tool rows cannot satisfy an Arena collection.");
+            rows[2].GameMode = "CHERRY";
+            rows[2].GameType = "CUSTOM_GAME";
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow).Count == 0,
+                "Custom-game evidence cannot satisfy a mode-scoped matched-game collection.");
         }
 
         private static void ValidateAkariScoring()

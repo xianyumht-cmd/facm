@@ -36,6 +36,7 @@ namespace FACM.League
         private readonly ListView _matches;
         private readonly Button _replayButton;
         private readonly ComboBox _winFilter;
+        private readonly ComboBox _modeFilter;
         private readonly Button _advancedFilterButton;
         private readonly Button _collectButton;
         private readonly Button _stopCollectButton;
@@ -244,21 +245,36 @@ namespace FACM.League
                 RenderRows();
                 UpdatePageButtons();
             };
+            _modeFilter = new ComboBox {
+                Width = 116, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerMode)
+            };
+            _modeFilter.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerFilterAll));
+            _modeFilter.Items.Add(LeagueEfficiencyText.Get(_ui,
+                LeagueEfficiencyUiTextKeys.ProfileModeNormal));
+            _modeFilter.Items.Add(LeagueEfficiencyText.Get(_ui,
+                LeagueEfficiencyUiTextKeys.ProfileModeCherry));
+            _modeFilter.SelectedIndex = _cardMode == "NORMAL" ? 1 : _cardMode == "CHERRY" ? 2 : 0;
+            _modeFilter.SelectedIndexChanged += (sender, args) =>
+            {
+                _cardMode = _modeFilter.SelectedIndex == 1 ? "NORMAL" :
+                    _modeFilter.SelectedIndex == 2 ? "CHERRY" : "";
+                RenderRows();
+                UpdatePageButtons();
+            };
             _advancedFilterButton = PageButton(UiTextKeys.LeaguePlayerAdvancedFilter, 154);
             _advancedFilterButton.Click += (sender, args) => EditAdvancedFilter();
             var cardFilter = new Button {
                 Width = 118, Height = 27,
                 Text = (_cardChampionId > 0 ? "#" + _cardChampionId : "") +
-                    (_cardPosition.Length > 0 ? " " + _cardPosition : "") +
-                    (_cardMode.Length > 0 ? " " + _ui.Get(_cardMode == "CHERRY"
-                        ? UiTextKeys.LeaguePlayerMode : UiTextKeys.LeaguePlayerMode) + ":" + _cardMode : "") + " ×",
-                Visible = _cardChampionId > 0 || _cardPosition.Length > 0 || _cardMode.Length > 0,
+                    (_cardPosition.Length > 0 ? " " + _cardPosition : "") + " ×",
+                Visible = _cardChampionId > 0 || _cardPosition.Length > 0,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text
             };
             cardFilter.Click += (sender, args) => {
                 _cardChampionId = 0;
                 _cardPosition = "";
-                _cardMode = "";
                 cardFilter.Visible = false;
                 RenderRows();
                 UpdatePageButtons();
@@ -281,6 +297,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft
             });
             filterRow.Controls.Add(_winFilter);
+            filterRow.Controls.Add(_modeFilter);
             filterRow.Controls.Add(_advancedFilterButton);
             var analysisButton = PageButton(UiTextKeys.LeaguePlayerAnalysisAction, 90);
             analysisButton.Click += async (sender, args) =>
@@ -550,6 +567,8 @@ namespace FACM.League
                 : _ui.Get(UiTextKeys.LeaguePlayerCollectTitle);
             if (number <= _pageNumber.Maximum) _pageNumber.Value = number;
             _winFilter.Enabled = _loaded && !_loading && !_replayRunning;
+            _modeFilter.Enabled = _loaded && !_loading && !_replayRunning &&
+                _collectionCancellation == null;
             _advancedFilterButton.Enabled = _loaded && !_loading && !_replayRunning;
             _collectButton.Enabled = _loaded && !_loading && !_replayRunning &&
                 _targetProfile != null && HasCollectionFilter() && SessionMatches(_pageSession);
