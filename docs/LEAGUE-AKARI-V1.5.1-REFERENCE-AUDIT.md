@@ -1,3 +1,7 @@
+### 2026-11-02 — Mode-aware full player-card collection (Draft #357)
+
+**Candidate, CI pending:** the existing authenticated 1000-match remote-player collector now accepts the ongoing card's NORMAL/CHERRY mode alongside champion and position. All filters are intersected in the collection service and reflected in remote results; invalid mode values and missing mode evidence fail closed. Mode-only collection can open the same explicit confirmation/cancel workflow. No additional HTTP owner, background requests or game writes. Executable player smoke covers Arena/normal, unknown mode, champion intersection and practice-tool exclusion. Real Tencent/Win10/cloud acceptance remains deferred.
+
 ### 2026-11-02 — Native player-card mode filters and interactive breakdown (Draft #357)
 
 **Executable/test candidate:** `709d6520990c393ea8f5643a183c6d79089aadde` (mode filter `652821c56df79d8aa5aaa8137dba92f1d7f2b27e`). Four exact-executable Windows gates **pending** at documentation time; the prior four-gate-verified HEAD is `46a5ae44bac9f415e21fb5c23e0d70c137e510bd`. Synthetic CI does not establish live Tencent/Windows compatibility.

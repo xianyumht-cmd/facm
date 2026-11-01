@@ -234,7 +234,7 @@ namespace FACM.League
             Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
             Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
-            int autoPages = 0, Func<int, string, Form> openFullCollection = null)
+            int autoPages = 0, Func<int, string, string, Form> openFullCollection = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -479,13 +479,13 @@ namespace FACM.League
                         selectedChampion, selectedPosition, nextIndex, 0, selectedMode);
                 fullCollect.Enabled = !collecting && !loading && isCurrent() &&
                     openFullCollection != null &&
-                    selectedMode == "" &&
-                    (selectedChampion > 0 || !string.IsNullOrEmpty(selectedPosition));
+                    (selectedMode != "" || selectedChampion > 0 ||
+                     !string.IsNullOrEmpty(selectedPosition));
             };
             fullCollect.Click += (sender, args) =>
             {
                 if (!fullCollect.Enabled || !isCurrent()) return;
-                using (var dialog = openFullCollection(selectedChampion, selectedPosition))
+                using (var dialog = openFullCollection(selectedChampion, selectedPosition, selectedMode))
                     if (dialog != null) dialog.ShowDialog(this);
                 if (!IsDisposed) updateCollect();
             };

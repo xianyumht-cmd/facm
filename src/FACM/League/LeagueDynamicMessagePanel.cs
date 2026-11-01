@@ -413,9 +413,9 @@ namespace FACM.League
                     (asset, token) => _module.LoadEncounterAssetAsync(asset, token),
                     (startIndex, token) => _module.LoadDynamicHistoryPageAsync(snapshot,
                         choice.Player.Player.PuuId, startIndex, token), _options.AutoHistoryPages,
-                    (championId, position) => _module.CreateDynamicPlayerCollectionForm(_ui,
+                    (championId, position, mode) => _module.CreateDynamicPlayerCollectionForm(_ui,
                         snapshot, choice.Player.Player.PuuId, choice.Player.Player.GameName,
-                        championId, position)))
+                        championId, position, mode)))
                     dialog.ShowDialog(this);
             };
             enrichHistory.Click += async (sender, e) =>

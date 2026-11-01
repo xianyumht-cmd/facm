@@ -84,6 +84,30 @@ namespace FACM.League
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
                 .Select(m => m.GameId).SequenceEqual(new[] { 1L, 3L, 4L }),
                 "Champion-only collection must not count another player's champion.");
+            rows[0].GameMode = "CLASSIC";
+            rows[1].GameMode = "CHERRY";
+            rows[2].GameMode = "CHERRY";
+            rows[3].GameMode = null;
+            filter.SubjectChampionId = 0;
+            filter.SubjectMode = "CHERRY";
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 2L, 3L }),
+                "Arena-only collection must keep only verified Arena games.");
+            filter.SubjectMode = "NORMAL";
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 1L }),
+                "Normal-only collection must reject unknown game modes.");
+            filter.SubjectMode = "unknown";
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow).Count == 0,
+                "Unknown mode filters must fail closed.");
+            filter.SubjectMode = "CHERRY";
+            filter.SubjectChampionId = 22;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 3L }),
+                "Arena collection must intersect the subject champion filter.");
+            rows[2].GameMode = "PRACTICETOOL";
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow).Count == 0,
+                "Practice-tool rows cannot satisfy an Arena collection.");
         }
 
         private static void ValidateAkariScoring()

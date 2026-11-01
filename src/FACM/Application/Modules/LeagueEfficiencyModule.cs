@@ -301,10 +301,11 @@ namespace FACM.AppHost.Modules
         // filtered collection; no second LCU/SGP transport or background poller.
         public Form CreateDynamicPlayerCollectionForm(UiTextCatalog ui,
             LeagueDynamicMessageSnapshot snapshot, string targetPuuid, string targetName,
-            int championId, string position)
+            int championId, string position, string mode = "")
         {
             ThrowIfDisposed();
-            if (snapshot?.Session == null || _dynamicMessages == null ||
+            if ((mode != "" && mode != "NORMAL" && mode != "CHERRY") ||
+                snapshot?.Session == null || _dynamicMessages == null ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
                 !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
                 !snapshot.Players.Any(p => p?.Player != null &&
@@ -320,7 +321,7 @@ namespace FACM.AppHost.Modules
                     _encounterReplay.ExecuteForHistoryAsync(expected, self, target, match, token),
                 (expected, self, target, match, token) =>
                     _encounterDetails.ReadHistoryAsync(expected, self, target, match, token),
-                LoadEncounterAssetAsync, championId, position);
+                LoadEncounterAssetAsync, championId, position, mode);
         }
 
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
