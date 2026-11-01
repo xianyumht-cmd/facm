@@ -83,7 +83,7 @@ namespace FACM.League
             Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
             Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
-            int autoPages = 0)
+            int autoPages = 0, Func<int, string, Form> openFullCollection = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -94,7 +94,7 @@ namespace FACM.League
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · " +
                 (player.Player.GameName ?? ("#" + player.Player.CellId));
-            Width = 720; Height = 490; MinimumSize = new Size(480, 350);
+            Width = 780; Height = 490; MinimumSize = new Size(520, 350);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
@@ -278,18 +278,32 @@ namespace FACM.League
             var collect = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect), Enabled = false };
             var collecting = false;
-            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
+            var fullCollect = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
             header.Controls.Add(summary, 0, 0);
             header.Controls.Add(more, 1, 0);
             header.Controls.Add(collect, 2, 0);
+            header.Controls.Add(fullCollect, 3, 0);
             updateCollect = () =>
             {
                 collect.Enabled = !collecting && !loading && hasMore && isCurrent() &&
                     LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
                         selectedChampion, selectedPosition, nextIndex, 0);
+                fullCollect.Enabled = !collecting && !loading && isCurrent() &&
+                    openFullCollection != null &&
+                    (selectedChampion > 0 || !string.IsNullOrEmpty(selectedPosition));
+            };
+            fullCollect.Click += (sender, args) =>
+            {
+                if (!fullCollect.Enabled || !isCurrent()) return;
+                using (var dialog = openFullCollection(selectedChampion, selectedPosition))
+                    if (dialog != null) dialog.ShowDialog(this);
+                if (!IsDisposed) updateCollect();
             };
             updateCollect();
             Func<CancellationToken, Task<bool>> fetchNext = async requestToken =>

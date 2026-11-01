@@ -24,6 +24,7 @@ namespace FACM.League
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
+            ValidateCardCollectionSubjectFilters();
             ValidateAdvancedCombinatorFilters();
             ValidateAdvancedParticipantEquipmentFilters();
             ValidateAdvancedRelativeMetricFilters();
@@ -54,6 +55,35 @@ namespace FACM.League
             ValidateAkariScoring();
             if (!LeaguePlayerUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("Player tray bridge lost MainForm tray access.");
+        }
+
+        private static void ValidateCardCollectionSubjectFilters()
+        {
+            var rows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
+                    Position = "TOP", MatchChampionIds = new[] { 22, 67 } },
+                new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 67,
+                    Position = "TOP", MatchChampionIds = new[] { 22, 67 } },
+                new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 22,
+                    Position = "JUNGLE", MatchChampionIds = new[] { 22, 67 } },
+                new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 22,
+                    Position = "", MatchChampionIds = new[] { 22, 67 } }
+            };
+            var filter = new LeagueSimpleMatchHistoryFilter {
+                SubjectChampionId = 22, SubjectPosition = "TOP"
+            };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 1L }),
+                "Card collection must filter the selected player's own champion and role.");
+            filter.SubjectChampionId = 0;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 1L, 2L }),
+                "Role-only card collection must exclude unknown and different roles.");
+            filter.SubjectPosition = "";
+            filter.SubjectChampionId = 22;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, DateTime.UtcNow)
+                .Select(m => m.GameId).SequenceEqual(new[] { 1L, 3L, 4L }),
+                "Champion-only collection must not count another player's champion.");
         }
 
         private static void ValidateAkariScoring()

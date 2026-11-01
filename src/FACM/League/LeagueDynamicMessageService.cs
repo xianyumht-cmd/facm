@@ -171,6 +171,7 @@ namespace FACM.League
     {
         private readonly ILeagueClientApi _client;
         private readonly LeaguePlayerDataService _players;
+        internal LeaguePlayerDataService PlayerHistoryService { get { return _players; } }
         private readonly LeagueLiveDataService _live;
         private readonly PerformanceBudgetProvider _budgets;
         private readonly Func<LeagueClientSession> _session;

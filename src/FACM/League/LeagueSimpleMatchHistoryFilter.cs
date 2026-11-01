@@ -28,6 +28,9 @@ namespace FACM.League
         internal LeagueMatchTimeRangeFilter TimeRange;
         internal int[] ChampionIds;
         internal string[] PlayerPuuids;
+        // The selected player's champion/role, not any participant in the match.
+        internal int SubjectChampionId;
+        internal string SubjectPosition;
 
         internal bool Matches(LeaguePlayerMatchSummary match, DateTime nowUtc)
         {
@@ -47,6 +50,11 @@ namespace FACM.League
                 var createdUtc = match.GameCreationLocal.ToUniversalTime();
                 if (createdUtc < nowUtc - range.Value || createdUtc > nowUtc) return false;
             }
+
+            if (SubjectChampionId > 0 && match.ChampionId != SubjectChampionId) return false;
+            if (!string.IsNullOrEmpty(SubjectPosition) &&
+                !string.Equals(match.Position, SubjectPosition, StringComparison.OrdinalIgnoreCase))
+                return false;
 
             if (ChampionIds != null && ChampionIds.Length > 0)
             {

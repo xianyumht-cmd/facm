@@ -297,6 +297,32 @@ namespace FACM.AppHost.Modules
             return _dynamicMessages.LoadHistoryPageAsync(snapshot, playerPuuid, startIndex, token);
         }
 
+        // Reuse the ongoing-game authenticated player-data owner for full 1000-row
+        // filtered collection; no second LCU/SGP transport or background poller.
+        public Form CreateDynamicPlayerCollectionForm(UiTextCatalog ui,
+            LeagueDynamicMessageSnapshot snapshot, string targetPuuid, string targetName,
+            int championId, string position)
+        {
+            ThrowIfDisposed();
+            if (snapshot?.Session == null || _dynamicMessages == null ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
+                !snapshot.Players.Any(p => p?.Player != null &&
+                    string.Equals(p.Player.PuuId, targetPuuid, StringComparison.Ordinal)) ||
+                !LeagueEncounterReplayService.SessionMatches(snapshot.Session,
+                    _leagueClient.CurrentSession))
+                return null;
+            return new LeagueRemotePlayerHistoryForm(_dynamicMessages.PlayerHistoryService, ui,
+                new LeaguePlayerProfile { PuuId = snapshot.SelfPuuid }, targetPuuid, targetName,
+                () => LeagueEncounterReplayService.SessionMatches(snapshot.Session,
+                    _leagueClient.CurrentSession) ? _leagueClient.CurrentSession : null,
+                (expected, self, target, match, token) =>
+                    _encounterReplay.ExecuteForHistoryAsync(expected, self, target, match, token),
+                (expected, self, target, match, token) =>
+                    _encounterDetails.ReadHistoryAsync(expected, self, target, match, token),
+                LoadEncounterAssetAsync, championId, position);
+        }
+
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid, CancellationToken token)
         {

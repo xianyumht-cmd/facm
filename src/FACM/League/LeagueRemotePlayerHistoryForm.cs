@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -64,6 +65,8 @@ namespace FACM.League
         private LeagueMatchCollectionResult _collectionResult;
         private LeagueMatchCollectionSettings _collectionSettings = new LeagueMatchCollectionSettings();
         private CancellationTokenSource _collectionCancellation;
+        private int _cardChampionId;
+        private string _cardPosition;
 
         internal LeagueRemotePlayerHistoryForm(LeaguePlayerDataService service, UiTextCatalog ui,
             LeaguePlayerProfile current, string targetPuuid, string targetName,
@@ -72,8 +75,16 @@ namespace FACM.League
                 CancellationToken, Task<LeagueEncounterReplayResult>> replay = null,
             Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
                 CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail = null,
-            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null)
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset = null,
+            int cardChampionId = 0, string cardPosition = null)
         {
+            if (cardChampionId < 0 || cardChampionId > 9999 ||
+                !string.IsNullOrEmpty(cardPosition) &&
+                !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(cardPosition, StringComparer.Ordinal))
+                throw new ArgumentException("Invalid player-card collection filter.");
+            _cardChampionId = cardChampionId;
+            _cardPosition = cardPosition ?? "";
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _expected = new LeaguePlayerProfile { PuuId = current == null ? null : current.PuuId };
@@ -232,6 +243,21 @@ namespace FACM.League
             };
             _advancedFilterButton = PageButton(UiTextKeys.LeaguePlayerAdvancedFilter, 154);
             _advancedFilterButton.Click += (sender, args) => EditAdvancedFilter();
+            var cardFilter = new Button {
+                Width = 118, Height = 27,
+                Text = (_cardChampionId > 0 ? "#" + _cardChampionId : "") +
+                    (_cardPosition.Length > 0 ? " " + _cardPosition : "") + " ×",
+                Visible = _cardChampionId > 0 || _cardPosition.Length > 0,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text
+            };
+            cardFilter.Click += (sender, args) => {
+                _cardChampionId = 0;
+                _cardPosition = "";
+                cardFilter.Visible = false;
+                RenderRows();
+                UpdatePageButtons();
+            };
+            filterRow.Controls.Add(cardFilter);
             _collectButton = PageButton(UiTextKeys.LeaguePlayerCollectAction, 122);
             _collectButton.Click += async (sender, args) => await StartCollectionAsync();
             _stopCollectButton = PageButton(UiTextKeys.LeaguePlayerCollectStop, 64);
@@ -529,6 +555,7 @@ namespace FACM.League
         private bool HasCollectionFilter()
         {
             return _winFilter.SelectedIndex > 0 || SelectedQueueTag() != null ||
+                _cardChampionId > 0 || _cardPosition.Length > 0 ||
                 (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
         }
 
@@ -552,7 +579,8 @@ namespace FACM.League
             if (_activePage == null) return new List<LeaguePlayerMatchSummary>();
             var rows = LeagueSimpleMatchHistoryFilter.Apply(_activePage.Matches,
                 new LeagueSimpleMatchHistoryFilter {
-                    WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
+                    WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
+                    SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition
                 }, DateTime.UtcNow);
             return LeagueAdvancedMatchHistoryFilter.Apply(rows, _advancedFilter);
         }
@@ -620,7 +648,8 @@ namespace FACM.League
             var target = _targetProfile;
             var simple = new LeagueSimpleMatchHistoryFilter
             {
-                WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex)
+                WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
+                SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition
             };
             var advanced = _advancedFilter;
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -789,6 +818,7 @@ namespace FACM.League
         {
             if (_loading || _replayRunning || IsDisposed || _lifetime.IsCancellationRequested) return;
             var expectedSession = _currentSession == null ? null : _currentSession();
+            if (_currentSession != null && expectedSession == null) return;
             _pageSession = null;
             _activePage = null;
             _collectionResult = null;
