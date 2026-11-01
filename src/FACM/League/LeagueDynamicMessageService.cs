@@ -14,6 +14,19 @@ namespace FACM.League
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
+        public bool ShowPremadeTeamTag { get; set; } = true;
+        public bool ShowWinRateTeamTag { get; set; } = true;
+        public bool ShowWinningStreakTag { get; set; } = true;
+        public bool ShowLosingStreakTag { get; set; } = true;
+        public bool ShowSuspiciousFlashPositionTag { get; set; } = true;
+        public bool ShowSoloKillsTag { get; set; } = true;
+        public bool ShowAverageTeamDamageTag { get; set; }
+        public bool ShowAverageTeamDamageTakenTag { get; set; }
+        public bool ShowAverageTeamGoldTag { get; set; }
+        public bool ShowAverageCsPerMinuteTag { get; set; }
+        public bool ShowAverageDamageGoldEfficiencyTag { get; set; }
+        public bool ShowAverageEnemyMissingPingsTag { get; set; }
+        public bool ShowAverageVisionScoreTag { get; set; }
         public string JungleNameStrategy { get; set; } = "preferChampionName";
         public bool JungleShowCurrentChampion { get; set; } = true;
         public bool JungleActivityPreference { get; set; } = true;

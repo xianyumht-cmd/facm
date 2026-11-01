@@ -393,6 +393,44 @@ namespace FACM.League
             losses.Matches[0].SoloKills = null;
             Require(LeagueOngoingPlayerTagProjection.Project(losses).Count == 1,
                 "Missing solo-kill evidence must not be treated as a positive average.");
+            var metrics = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 2; i++)
+                metrics.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 3000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", GameDurationSeconds = 1800, CreepScore = 180,
+                    ChampionDamageShare = 0.42, DamageTakenShare = 0.21, GoldShare = 0.25,
+                    DamageGoldEfficiency = 1.4, EnemyMissingPings = 3, VisionScore = 20
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(metrics).Count == 0,
+                "Source-default optional metric tags must remain disabled.");
+            var tagOptions = new LeagueDynamicMessageOptions
+            {
+                ShowAverageTeamDamageTag = true, ShowAverageTeamDamageTakenTag = true,
+                ShowAverageTeamGoldTag = true, ShowAverageCsPerMinuteTag = true,
+                ShowAverageDamageGoldEfficiencyTag = true, ShowAverageEnemyMissingPingsTag = true,
+                ShowAverageVisionScoreTag = true
+            };
+            var metricTags = LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions);
+            Require(metricTags.Count == 7 && metricTags.Any(value => value.Contains("42%")) &&
+                metricTags.Any(value => value.Contains("6.0")) && metricTags.Any(value => value.Contains("3.0")),
+                "Seven source-backed optional player-card metrics must use verified history.");
+            var savedOptions = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(tagOptions));
+            Require(savedOptions.ShowAverageEnemyMissingPingsTag &&
+                savedOptions.ShowAverageTeamDamageTag &&
+                !LeagueDynamicMessageOptions.Parse("{}").ShowAverageTeamDamageTag,
+                "Player-card display switches must persist and old settings must retain source defaults.");
+            metrics.Matches[0].ChampionDamageShare = null;
+            metrics.Matches[1].ChampionDamageShare = null;
+            metrics.Matches[0].EnemyMissingPings = double.NaN;
+            metrics.Matches[1].EnemyMissingPings = -1;
+            metricTags = LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions);
+            Require(metricTags.Count == 5 && !metricTags.Any(value => value.Contains("42%")),
+                "Missing and invalid optional statistics must not produce phantom tags.");
+            tagOptions.ShowAverageTeamGoldTag = false;
+            Require(LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions).Count == 4,
+                "Independent player-card toggles must change projection without changing match data.");
         }
 
         private static void ValidateJungleTimeline()

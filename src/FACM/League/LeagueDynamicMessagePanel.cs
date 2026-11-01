@@ -82,6 +82,34 @@ namespace FACM.League
                 Tone = FacmButtonTone.Secondary };
             _exchangeMenu = new ContextMenuStrip();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse)).Click += (sender, e) => BrowseTags();
+            var tagVisibility = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.OngoingTagDisplay));
+            _exchangeMenu.Items.Add(tagVisibility);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingPremadeTeam,
+                () => _options.ShowPremadeTeamTag, value => _options.ShowPremadeTeamTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingHighWinRate,
+                () => _options.ShowWinRateTeamTag, value => _options.ShowWinRateTeamTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingWinStreak,
+                () => _options.ShowWinningStreakTag, value => _options.ShowWinningStreakTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingLossStreak,
+                () => _options.ShowLosingStreakTag, value => _options.ShowLosingStreakTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingMixedFlash,
+                () => _options.ShowSuspiciousFlashPositionTag, value => _options.ShowSuspiciousFlashPositionTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicSoloKills,
+                () => _options.ShowSoloKillsTag, value => _options.ShowSoloKillsTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicDamage,
+                () => _options.ShowAverageTeamDamageTag, value => _options.ShowAverageTeamDamageTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicTaken,
+                () => _options.ShowAverageTeamDamageTakenTag, value => _options.ShowAverageTeamDamageTakenTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicGold,
+                () => _options.ShowAverageTeamGoldTag, value => _options.ShowAverageTeamGoldTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicCs,
+                () => _options.ShowAverageCsPerMinuteTag, value => _options.ShowAverageCsPerMinuteTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicEfficiency,
+                () => _options.ShowAverageDamageGoldEfficiencyTag, value => _options.ShowAverageDamageGoldEfficiencyTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingMissingPings,
+                () => _options.ShowAverageEnemyMissingPingsTag, value => _options.ShowAverageEnemyMissingPingsTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicVision,
+                () => _options.ShowAverageVisionScoreTag, value => _options.ShowAverageVisionScoreTag = value);
             _exchangeMenu.Items.Add(new ToolStripSeparator());
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
@@ -303,8 +331,8 @@ namespace FACM.League
                     {
                         string tag;
                         tags.TryGetValue(player.Player.PuuId, out tag);
-                        _players.Items.Add(new PlayerChoice(player) { Tag = tag }, selected == null || selected.Contains(player.Player.PuuId));
-                        _jungle.Items.Add(new PlayerChoice(player) { Tag = tag }, false);
+                        _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag }, selected == null || selected.Contains(player.Player.PuuId));
+                        _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag }, false);
                     }
                     RebuildPremadeGroups(snapshot, false);
                 }
@@ -328,7 +356,7 @@ namespace FACM.League
             foreach (var choice in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>()))
             {
                 string label;
-                choice.PremadeGroup = premadeLabels.TryGetValue(choice.Player.Player.PuuId, out label) ? label : null;
+                choice.PremadeGroup = _options.ShowPremadeTeamTag && premadeLabels.TryGetValue(choice.Player.Player.PuuId, out label) ? label : null;
             }
             _players.Refresh();
             _jungle.Refresh();
@@ -574,6 +602,30 @@ namespace FACM.League
             finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
+        private void AddTagChoice(ToolStripMenuItem parent, string key, Func<bool> read, Action<bool> write)
+        {
+            var item = new ToolStripMenuItem(T(key).Replace("{0}", "").Trim())
+            {
+                CheckOnClick = true,
+                Checked = read()
+            };
+            item.CheckedChanged += delegate
+            {
+                write(item.Checked);
+                if (_snapshot != null)
+                {
+                    foreach (var choice in _players.Items.Cast<PlayerChoice>()
+                        .Concat(_jungle.Items.Cast<PlayerChoice>()))
+                        choice.RefreshSourceTags();
+                    RebuildPremadeGroups(_snapshot, true);
+                    _players.Refresh();
+                    _jungle.Refresh();
+                }
+                RefreshPreview();
+            };
+            parent.DropDownItems.Add(item);
+        }
+
         private string Shortcut(int index)
         {
             if (IsJungle) return index == 0 ? _options.JungleFriendlyShortcut : index == 1 ? _options.JungleEnemyShortcut : _options.JungleAllShortcut;
@@ -608,17 +660,19 @@ namespace FACM.League
         private sealed class PlayerChoice
         {
             internal readonly LeagueDynamicMessagePlayer Player;
+            private readonly LeagueDynamicMessageOptions _options;
             internal string Tag;
             internal string PremadeGroup;
             private IReadOnlyList<string> _sourceTags;
-            internal PlayerChoice(LeagueDynamicMessagePlayer player)
+            internal PlayerChoice(LeagueDynamicMessagePlayer player, LeagueDynamicMessageOptions options)
             {
                 Player = player;
+                _options = options;
                 RefreshSourceTags();
             }
             internal void RefreshSourceTags()
             {
-                _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History);
+                _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History, _options);
             }
             public override string ToString()
             {

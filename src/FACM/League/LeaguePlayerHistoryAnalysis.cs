@@ -363,21 +363,23 @@ namespace FACM.League
     internal static class LeagueOngoingPlayerTagProjection
     {
         // Pinned v1.5.1 player-card thresholds, evaluated only from the loaded history owner.
-        internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history)
+        internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history,
+            LeagueDynamicMessageOptions options = null)
         {
             var tags = new List<string>();
             if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
+            options = options ?? new LeagueDynamicMessageOptions();
             var source = history.Matches.Where(m => m != null && m.GameId > 0)
                 .Take(LeaguePlayerDataService.MaximumMatchCount).ToArray();
             if (source.Length == 0) return tags;
             var analysis = LeaguePlayerHistoryAnalysis.Calculate(source);
-            if (analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Win)
+            if (options.ShowWinningStreakTag && analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Win)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingWinStreak)
                     .Replace("{0}", analysis.Streak.ToString(CultureInfo.InvariantCulture)));
-            if (analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Loss)
+            if (options.ShowLosingStreakTag && analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Loss)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingLossStreak)
                     .Replace("{0}", analysis.Streak.ToString(CultureInfo.InvariantCulture)));
-            if (analysis.Wins + analysis.Losses >= 16 &&
+            if (options.ShowWinRateTeamTag && analysis.Wins + analysis.Losses >= 16 &&
                 (double)analysis.Wins / (analysis.Wins + analysis.Losses) >= 0.85)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate));
             var soloKills = source.AsEnumerable()
@@ -385,13 +387,56 @@ namespace FACM.League
                     (LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
                      LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss))
                 .Select(m => m.SoloKills.Value).ToArray();
-            if (soloKills.Length > 0 && soloKills.Average() > 0)
+            if (options.ShowSoloKillsTag && soloKills.Length > 0 && soloKills.Average() > 0)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingSoloKills)
                     .Replace("{0}", soloKills.Average().ToString("0.0", CultureInfo.InvariantCulture)));
-            if (analysis.Preferences != null && analysis.Preferences.FlashOnD > 0 &&
+            if (options.ShowSuspiciousFlashPositionTag && analysis.Preferences != null && analysis.Preferences.FlashOnD > 0 &&
                 analysis.Preferences.FlashOnF > 0)
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash));
+            if (options.ShowAverageTeamDamageTag)
+                AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicDamage, analysis.DamageShare);
+            if (options.ShowAverageTeamDamageTakenTag)
+                AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicTaken, analysis.DamageTakenShare);
+            if (options.ShowAverageTeamGoldTag)
+                AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicGold, analysis.GoldShare);
+            if (options.ShowAverageCsPerMinuteTag)
+                AddNumber(tags, LeagueEfficiencyUiTextKeys.DynamicCs, analysis.CsPerMinute, 1000);
+            var played = source.Where(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss).ToArray();
+            if (options.ShowAverageDamageGoldEfficiencyTag)
+                AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicEfficiency,
+                    KnownMean(played.Select(m => m.DamageGoldEfficiency), 100), 100);
+            if (options.ShowAverageEnemyMissingPingsTag)
+                AddNumber(tags, LeagueEfficiencyUiTextKeys.OngoingMissingPings,
+                    KnownMean(played.Select(m => m.EnemyMissingPings), 10000), 10000);
+            if (options.ShowAverageVisionScoreTag)
+                AddNumber(tags, LeagueEfficiencyUiTextKeys.DynamicVision,
+                    KnownMean(played.Select(m => m.VisionScore), 10000), 10000);
             return tags;
+        }
+
+        private static double? KnownMean(IEnumerable<double?> values, double max)
+        {
+            var known = values.Where(v => v.HasValue && !double.IsNaN(v.Value) &&
+                !double.IsInfinity(v.Value) && v.Value >= 0 && v.Value <= max)
+                .Select(v => v.Value).ToArray();
+            return known.Length == 0 ? (double?)null : known.Average();
+        }
+
+        private static void AddPercent(List<string> tags, string key, double? ratio, double max = 1)
+        {
+            if (!ratio.HasValue || double.IsNaN(ratio.Value) || double.IsInfinity(ratio.Value) ||
+                ratio.Value < 0 || ratio.Value > max) return;
+            tags.Add(LeagueEfficiencyText.Get(null, key) + " " +
+                (ratio.Value * 100).ToString("0", CultureInfo.InvariantCulture) + "%");
+        }
+
+        private static void AddNumber(List<string> tags, string key, double? value, double max)
+        {
+            if (!value.HasValue || double.IsNaN(value.Value) || double.IsInfinity(value.Value) ||
+                value.Value < 0 || value.Value > max) return;
+            tags.Add(LeagueEfficiencyText.Get(null, key) + " " +
+                value.Value.ToString("0.0", CultureInfo.InvariantCulture));
         }
     }
 
