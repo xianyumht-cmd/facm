@@ -1,3 +1,16 @@
+### 2026-11-02 — Native player-card mode filters and interactive breakdown (Draft #357)
+
+**Executable/test candidate:** `709d6520990c393ea8f5643a183c6d79089aadde` (mode filter `652821c56df79d8aa5aaa8137dba92f1d7f2b27e`). Four exact-executable Windows gates **pending** at documentation time; the prior four-gate-verified HEAD is `46a5ae44bac9f415e21fb5c23e0d70c137e510bd`. Synthetic CI does not establish live Tencent/Windows compatibility.
+
+| Akari v1.5.1 source capability | Status | Native implementation / remaining gap |
+| --- | --- | --- |
+| Player-card mode-specific history | **PARTIAL (CI pending)** | Existing 200-row verified native player-card history now filters by normal/non-Arena versus Arena, intersected with champion and position. The selection survives explicit and opt-in automatic pagination; win/loss, KDA and sample counts recompute from the selected evidence. Invalid mode values fail closed; no new API calls or pollers. |
+| Player-card interactive analysis | **PARTIAL (CI pending)** | New native drilldown shows source-bounded champion, position and mode groups with game counts, win rate, KDA, per-game KDA CV and Arena first-place evidence. Double-clicking a group applies its filter to the existing history card. Reuses the current verified sample and existing translation keys; no network owner or persistent UI state. |
+| Synthetic regression | **PENDING CI** | Executable history smoke checks mode/champion/role intersections, unsupported mode rejection, grouping by verified identity and wrong-owner rejection. |
+| Remaining source parity | **PARTIAL / MISSING** | Complete Akari player-card popover details, historical free-form queue/new-player editing, all-source concurrency and remaining ChampSelect/gameflow strategies. Riot/Tencent SGP, 256-row cloud sync and Win10/DPI final user acceptance remain unverified. |
+
+PR #357 and stacked #355 remain Draft; no merge, release, updater, deployment, paid infrastructure or production 3.5.78 modification.
+
 ### 2026-11-02 — Historical perspective reassignments and card KDA variability (Draft #357)
 
 **Executable/test candidate:** `2eddf12f8f70fc105ab33a96d329d7a41b282faa` (historical target/team `147ae1e8167f05fbfc02a3a2d393266ff59702a9`). Four exact-candidate Windows gates **pending**; last confirmed four-gate executable: `66c4f1c7a09154c15643184f32323329144e4167`. CI build/synthetic coverage is not Tencent/Windows live acceptance.
