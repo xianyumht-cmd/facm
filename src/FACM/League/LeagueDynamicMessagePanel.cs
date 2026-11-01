@@ -623,6 +623,7 @@ namespace FACM.League
                                 RebuildPremadeGroups(current, true);
                                 foreach (var choice in _players.Items.Cast<PlayerChoice>()
                                     .Concat(_jungle.Items.Cast<PlayerChoice>())) choice.RefreshSourceTags();
+                                RefreshKdaOutlierLabels(current);
                                 _players.Refresh();
                                 _jungle.Refresh();
                             }
