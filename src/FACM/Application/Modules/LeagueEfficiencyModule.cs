@@ -253,13 +253,13 @@ namespace FACM.AppHost.Modules
         }
 
         public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token,
-            int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount,
-            string historyTagPreference = null)
+            int? historyLoadCount = null, string historyTagPreference = null)
         {
             ThrowIfDisposed();
-            var preference = historyTagPreference ??
-                LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson).MatchHistoryTagPreference;
-            return _dynamicMessages.LoadAsync(token, historyLoadCount, preference);
+            var options = LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson);
+            return _dynamicMessages.LoadAsync(token,
+                historyLoadCount ?? options.MatchHistoryLoadCount,
+                historyTagPreference ?? options.MatchHistoryTagPreference);
         }
 
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
