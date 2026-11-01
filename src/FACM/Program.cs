@@ -145,6 +145,7 @@ namespace FACM
                         {
                             FACM.League.LeagueDynamicMessageSmokeTest.Validate();
                             FACM.League.LeaguePlayerHistoryHydrationSmokeTest.Validate();
+                            FACM.League.LeagueRespawnTimerSmokeTest.Validate();
                             Console.WriteLine("GGman League history synthetic smoke passed.");
                             Environment.ExitCode = 0;
                         }
