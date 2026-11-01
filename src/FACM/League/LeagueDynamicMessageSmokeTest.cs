@@ -49,8 +49,8 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .AutoHistoryPages == 9 &&
                 LeagueDynamicMessageOptions.Parse("{}").AutoHistoryPages == 0 &&
-                LeagueDynamicMessageOptions.Parse("{\\"AutoHistoryPages\\":10}").AutoHistoryPages == 0 &&
-                LeagueDynamicMessageOptions.Parse("{\\"AutoHistoryPages\\":-1}").AutoHistoryPages == 0,
+                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":10}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":-1}").AutoHistoryPages == 0,
                 "Player-card automatic history pagination must be opt-in and bounded to nine pages.");
         }
 
