@@ -87,10 +87,13 @@ namespace FACM.League
                     current, new[] { next }, "self") == null,
                 "Foreign player history must not enter the current card.");
             next.PuuId = "self";
-            next.DataSource = LeaguePlayerHistorySource.Sgp;
+            same.DataSource = LeaguePlayerHistorySource.Sgp;
             Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
-                    current, new[] { next }, "self") != null,
-                "Source-consistent page validation must permit independent verified rows.");
+                    current, new[] { same }, "self") == null,
+                "The same game cannot switch source between card pages.");
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { next }, "self")?.Count == 1,
+                "A new verified game may be appended after an overlapping page.");
         }
 
         private static void ValidatePlayerTags()
