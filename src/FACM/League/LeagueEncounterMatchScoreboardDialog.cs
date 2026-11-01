@@ -654,6 +654,37 @@ namespace FACM.League
                 dryTab.Controls.Add(dryLayout);
                 matchTabs.TabPages.Add(dryTab);
                 LeagueDynamicMessageSnapshot loadedDraft = null;
+                Action refreshDraftRows = () =>
+                {
+                    if (loadedDraft == null) return;
+                    var options = new LeagueDynamicMessageOptions();
+                    var groups = LeaguePremadePlayerTagProjection.Project(loadedDraft,
+                        options.PremadeMatchThreshold);
+                    var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(loadedDraft,
+                        options.PremadeMatchThreshold);
+                    foreach (ListViewItem row in dryRows.Items)
+                    {
+                        var player = row.Tag as LeagueDynamicMessagePlayer;
+                        if (player?.Player == null || row.SubItems.Count < 7) continue;
+                        row.SubItems[0].Text = loadedDraft.HistoricalGameMode == "CHERRY"
+                            ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
+                            : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                                LeagueEfficiencyUiTextKeys.DynamicEnemy);
+                        row.SubItems[2].Text = player.ChampionName ?? ("#" + player.Player.ChampionId);
+                        row.SubItems[3].Text = string.IsNullOrEmpty(player.Player.Position) ? "—" :
+                            LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position);
+                        string group;
+                        row.SubItems[5].Text = groups.TryGetValue(player.Player.PuuId, out group)
+                            ? group : "—";
+                        LeaguePremadeTeamAggregate aggregate;
+                        row.SubItems[6].Text = aggregates.TryGetValue(player.Player.PuuId, out aggregate)
+                            ? t(LeagueEfficiencyUiTextKeys.PremadeTeamStats)
+                                .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
+                                .Replace("{1}", aggregate.Kda.HasValue
+                                    ? aggregate.Kda.Value.ToString("0.00") : "—")
+                            : "—";
+                    }
+                };
                 dryRows.DoubleClick += (sender, e) =>
                 {
                     if (loadedDraft == null || dryRows.SelectedItems.Count != 1 ||
@@ -666,9 +697,7 @@ namespace FACM.League
                     {
                         if (editor.ShowDialog(this) == DialogResult.OK && detail.IsCurrentSession())
                         {
-                            selectedRow.SubItems[2].Text = selectedPlayer.ChampionName;
-                            selectedRow.SubItems[3].Text = string.IsNullOrEmpty(selectedPlayer.Player.Position)
-                                ? "—" : LeaguePlayerHistoryAnalysis.PositionName(ui, selectedPlayer.Player.Position);
+                            refreshDraftRows();
                         }
                         else if (!detail.IsCurrentSession())
                         {
