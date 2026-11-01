@@ -1087,6 +1087,29 @@ namespace FACM.League
                     "Staged retry must remain owned by the current ChampSelect episode.");
             }
 
+            var alternatePicks = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 67, 22 }, PickStrategy = "show-and-lock-in" }
+            });
+            read = new FakeRead {
+                SessionJson = SessionWithRole("pick", 86, "TOP"),
+                FifthSessionJson = SessionWithRole("pick", 86, "TOP")
+                    .Replace("\"championId\":0", "\"championId\":22")
+            };
+            writer = new FakeWrite { FailFirstCompletedResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 67, false, 0, alternatePicks);
+                controller.Observe(Selecting());
+                Require(writer.Calls.SequenceEqual(new[] {
+                    "pick:86:67:False", "pick:86:67:True"
+                }), "A manual alternative after showing must never be locked by a retry.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
             read = new FakeRead { SessionJson = Session("ban", 85, 0) };
             writer = new FakeWrite { FailFirstResponses = 1 };
             clock = new TwoStepClock();
@@ -1305,6 +1328,7 @@ namespace FACM.League
             public List<string> ActionPaths { get { return Paths.Where(p => p != LeagueLiveDataService.GameflowSessionPath).ToList(); } }
             public string NextSessionJson;
             public string ThirdSessionJson;
+            public string FifthSessionJson;
             public string TeamBuilderJson;
             public string TradeJson;
             public string NextTradeJson;
@@ -1326,7 +1350,8 @@ namespace FACM.League
                 if (path == LeagueAutoPickBanController.SessionPath)
                 {
                     _sessionCount++;
-                    var next = _sessionCount > 2 && ThirdSessionJson != null ? ThirdSessionJson :
+                    var next = _sessionCount > 4 && FifthSessionJson != null ? FifthSessionJson :
+                        _sessionCount > 2 && ThirdSessionJson != null ? ThirdSessionJson :
                         _sessionCount > 1 && NextSessionJson != null ? NextSessionJson : SessionJson;
                     _lastSession = next;
                     return Task.FromResult(Bytes(next));

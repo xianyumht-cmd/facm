@@ -366,6 +366,20 @@ namespace FACM.League
             var shownKey = key + ":shown";
             var lockedKey = key + ":locked";
             if (attempted.Contains(key) || staged && attempted.Contains(lockedKey)) return;
+            var shownChampionId = 0;
+            if (staged && attempted.Contains(shownKey))
+            {
+                shownChampionId = candidates.FirstOrDefault(id =>
+                    attempted.Contains(shownKey + ":" + id.ToString(CultureInfo.InvariantCulture)));
+                if (shownChampionId <= 0 ||
+                    action.ChampionId > 0 && action.ChampionId != shownChampionId)
+                {
+                    // A manual choice or changed profile cannot be locked as our old intent.
+                    attempted.Add(lockedKey);
+                    RecordOnce(reported, trace, "turn", "manual_choice_after_show");
+                    return;
+                }
+            }
 
             var watch = Stopwatch.StartNew();
             var availabilityPath = isPick ? PickablePath : BannablePath;
@@ -378,10 +392,13 @@ namespace FACM.League
                 if (!IsCurrent(episode)) return;
                 availableIds.IntersectWith(ParseAvailableIds(subset));
             }
-            var desired = action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
-                ? action.ChampionId : candidates.FirstOrDefault(id =>
-                    CandidateAvailable(availableIds, id, action.Type, mode) &&
-                    (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
+            var desired = shownChampionId > 0
+                ? (CandidateAvailable(availableIds, shownChampionId, action.Type, mode)
+                    ? shownChampionId : 0)
+                : action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
+                    ? action.ChampionId : candidates.FirstOrDefault(id =>
+                        CandidateAvailable(availableIds, id, action.Type, mode) &&
+                        (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
             if (desired == 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
@@ -420,7 +437,11 @@ namespace FACM.League
             // Only a confirmed successful write consumes this action stage. A transient
             // HTTP failure can retry on the existing phase-scoped two-second tick.
             if (result != null && result.IsSuccessStatusCode)
+            {
                 attempted.Add(staged ? (lockImmediately ? lockedKey : shownKey) : key);
+                if (staged && !lockImmediately)
+                    attempted.Add(shownKey + ":" + desired.ToString(CultureInfo.InvariantCulture));
+            }
             CompactTraceLog.Record(trace, "autoselect", "write",
                 result == null ? "failed_unavailable" :
                 result.IsSuccessStatusCode ? (lockImmediately ? "lock_submitted" : "show_submitted") :
