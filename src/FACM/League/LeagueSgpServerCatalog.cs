@@ -20,17 +20,31 @@ namespace FACM.League
         private static DateTime _updatedAt = BuiltinTimestamp;
         private static DateTime _lastAttempt = DateTime.MinValue;
 
-        internal static async Task<bool> TryRefreshAsync(CancellationToken token)
+        internal static Task<bool> TryRefreshAsync(CancellationToken token)
         {
+            return TryRefreshAsync(token, t => LeaguePublicDataTransport.TryGetBytesAsync(
+                CatalogUrl, TimeSpan.FromSeconds(4), t));
+        }
+
+        internal static async Task<bool> TryRefreshAsync(CancellationToken token,
+            Func<CancellationToken, Task<byte[]>> load)
+        {
+            if (load == null) throw new ArgumentNullException(nameof(load));
             token.ThrowIfCancellationRequested();
             await RefreshGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
                 if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
                 _lastAttempt = DateTime.UtcNow;
-                var data = await LeaguePublicDataTransport.TryGetBytesAsync(
-                    CatalogUrl, TimeSpan.FromSeconds(4), token).ConfigureAwait(false);
+                var data = await load(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
                 return TryApply(data);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // A cancelled account/session read must not suppress the next explicit refresh.
+                _lastAttempt = DateTime.MinValue;
+                throw;
             }
             catch (OperationCanceledException) when (!token.IsCancellationRequested) { return false; }
             finally { RefreshGate.Release(); }
@@ -225,6 +239,7 @@ namespace FACM.League
             {
                 LeagueSgpMatchHistoryApiClient.Servers = LeagueSgpMatchHistoryApiClient.BuiltinServers;
                 _updatedAt = BuiltinTimestamp;
+                _lastAttempt = DateTime.MinValue;
             }
         }
     }

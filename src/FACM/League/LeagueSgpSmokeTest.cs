@@ -11,6 +11,46 @@ namespace FACM.League
 {
     internal static class LeagueSgpSmokeTest
     {
+        internal static void ValidateRefreshCancellation()
+        {
+            LeagueSgpServerCatalog.ResetForSmokeTest();
+            try
+            {
+                var attempts = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var canceled = false;
+                    try
+                    {
+                        LeagueSgpServerCatalog.TryRefreshAsync(cancellation.Token, token =>
+                        {
+                            attempts++;
+                            cancellation.Cancel();
+                            return Task.FromResult<byte[]>(null);
+                        }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { canceled = true; }
+                    Require(canceled && attempts == 1,
+                        "Cancelling a catalog refresh must propagate without publishing data.");
+                }
+                var result = LeagueSgpServerCatalog.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(!result && attempts == 2,
+                    "Cancelled catalog refresh must not throttle the next explicit request.");
+                LeagueSgpServerCatalog.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(attempts == 2,
+                    "An ordinary completed catalog attempt retains the two-hour on-demand throttle.");
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
+        }
+
         internal static void Validate()
         {
             var current = Session("HN10", "TENCENT");

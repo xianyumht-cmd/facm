@@ -1,3 +1,7 @@
+### 2026-11-01 — Cancel-safe regional SGP catalog refresh (Draft #357)
+
+The existing public-data catalog refresh now preserves its two-hour on-demand throttle for completed attempts, but **does not throttle a request cancelled by account/session departure**. The current cancellation token is checked after the public transport returns and before catalog application; cancellation propagates, clears the attempt timestamp, and never publishes that response. The existing trusted Tencent/Riot endpoint allowlist, exact region matching and authenticated SGP request owner remain unchanged. A deterministic no-network synthetic test exercises cancellation, immediate retry and ordinary throttle under the Windows `--league-history-test` gate. This is source-level reliability, **not** proof of live Riot/Tencent compatibility. Remaining SGP token/provider parity and real-region acceptance are open.
+
 ### 2026-11-01 — Native player-card champion/role collection and phase-owned respawn reads (Draft #357)
 
 **Executable/test candidate:** [cb22636](https://github.com/xianyumht-cmd/facm/commit/cb22636a07dad669cbc965926a281b1570ed137a). The four exact-SHA Windows gates are **pending**; do not treat earlier green checks as verification of this candidate. Last previously verified executable: [5680007](https://github.com/xianyumht-cmd/facm/commit/568000703e8844e815294de15d5d31ba6a7635f3). Pinned upstream: LeagueAkari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`.
