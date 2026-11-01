@@ -23,6 +23,7 @@ namespace FACM.League
             var b = Sparse(302); b.ChampionId = 22; b.Position = "TOP"; b.WinResult = "loss";
             var c = Sparse(303); c.ChampionId = 55; c.Position = "JUNGLE";
             var foreign = Sparse(304); foreign.PuuId = "someone-else";
+            foreign.ChampionId = 99; foreign.ChampionName = "untrusted";
             var matches = new List<LeaguePlayerMatchSummary> { a, b, c, foreign };
             var all = LeagueOngoingHistoryFilter.Select(matches, "target", 0, "");
             Require(all.Count == 3 &&
@@ -43,7 +44,8 @@ namespace FACM.League
                 !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 0, "", 40, 0) &&
                 !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 200, 0) &&
                 !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 40, 5) &&
-                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "MID", 40, 0),
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "MID", 40, 0) &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "not valid!", 22, "TOP", 40, 0),
                 "Filtered collection must be explicit, page-bounded and reject unsupported roles.");
             var enough = Enumerable.Range(401, 20).Select(i =>
             {

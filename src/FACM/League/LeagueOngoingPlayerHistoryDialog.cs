@@ -41,6 +41,7 @@ namespace FACM.League
             int championId, string position, int nextIndex, int requests)
         {
             return (championId > 0 || !string.IsNullOrEmpty(position)) &&
+                LeagueDynamicMessageService.SafePuuid(puuid) &&
                 championId >= 0 && championId <= 9999 &&
                 (string.IsNullOrEmpty(position) || Roles.Contains(position, StringComparer.Ordinal)) &&
                 nextIndex >= 0 && nextIndex < 200 && requests >= 0 && requests < 5 &&
@@ -224,9 +225,11 @@ namespace FACM.League
                     championChoice.Items.Clear();
                     championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
                     { ChampionId = 0, Label = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll) });
+                    var verifiedChoices = LeagueOngoingHistoryFilter.Select(
+                        matches, player.Player.PuuId, 0, "");
                     foreach (var id in LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId))
                     {
-                        var row = matches.First(m => m.ChampionId == id);
+                        var row = verifiedChoices.First(m => m.ChampionId == id);
                         championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
                         {
                             ChampionId = id,
