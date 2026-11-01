@@ -41,6 +41,16 @@ namespace FACM.League
                 LeagueOngoingHistoryFilter.Select(matches, "target", 55, "JUNGLE", "NORMAL").Count == 1 &&
                 LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "unknown").Count == 0,
                 "Mode filters must intersect verified champion and position evidence.");
+            var breakdown = LeagueOngoingCardBreakdown.Project(matches, "target");
+            Require(breakdown.Count(row => row.Kind == "champion") == 2 &&
+                breakdown.Count(row => row.Kind == "position") == 2 &&
+                breakdown.Count(row => row.Kind == "mode") == 2 &&
+                breakdown.Single(row => row.Kind == "champion" && row.ChampionId == 22)
+                    .Analysis.Games == 2 &&
+                breakdown.Single(row => row.Kind == "mode" && row.Mode == "CHERRY")
+                    .Analysis.Games == 1 &&
+                LeagueOngoingCardBreakdown.Project(matches, "bad id!").Count == 0,
+                "Card drilldown must use only verified champion, role and mode evidence.");
             matches.Add(Sparse(301));
             Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP").Count == 1,
                 "Ambiguous duplicate game IDs cannot enter filtered player analysis.");

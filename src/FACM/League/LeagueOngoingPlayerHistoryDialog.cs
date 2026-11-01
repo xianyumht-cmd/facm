@@ -68,6 +68,145 @@ namespace FACM.League
         }
     }
 
+
+    internal sealed class LeagueOngoingCardBreakdownRow
+    {
+        internal string Kind, Label, Mode, Position;
+        internal int ChampionId;
+        internal LeagueHistoricalCardAnalysis Analysis;
+    }
+
+    // The popup never initiates history reads: every row comes from the current verified card.
+    internal static class LeagueOngoingCardBreakdown
+    {
+        internal static IReadOnlyList<LeagueOngoingCardBreakdownRow> Project(
+            IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            if (matches == null || matches.Count > 200 ||
+                !LeagueDynamicMessageService.SafePuuid(puuid))
+                return new LeagueOngoingCardBreakdownRow[0];
+            var verified = LeagueOngoingHistoryFilter.Select(matches, puuid, 0, "");
+            var result = new List<LeagueOngoingCardBreakdownRow>();
+            foreach (var group in verified.GroupBy(m => m.ChampionId)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key))
+            {
+                var name = group.Select(m => m.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion", ChampionId = group.Key,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            }
+            foreach (var group in verified.Where(m => new[] {
+                "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"
+            }.Contains(m.Position, StringComparer.Ordinal)).GroupBy(m => m.Position)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "position", Position = group.Key, Label = group.Key,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            foreach (var group in verified.GroupBy(m =>
+                string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)
+                    ? "CHERRY" : "NORMAL").OrderBy(g => g.Key, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "mode", Mode = group.Key, Label = group.Key,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            return result.Where(row => row.Analysis != null).ToArray();
+        }
+    }
+
+    internal sealed class LeagueOngoingCardBreakdownDialog : Form
+    {
+        internal bool HasSelection { get; private set; }
+        internal int SelectedChampionId { get; private set; }
+        internal string SelectedPosition { get; private set; }
+        internal string SelectedMode { get; private set; }
+
+        internal LeagueOngoingCardBreakdownDialog(UiTextCatalog ui,
+            IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown);
+            Width = 780; Height = 460; MinimumSize = new Size(540, 320);
+            AutoScaleMode = AutoScaleMode.Font; StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var breakdown = LeagueOngoingCardBreakdown.Project(matches, puuid);
+            foreach (var kind in new[] { "champion", "position", "mode" })
+            {
+                var label = kind == "champion"
+                    ? t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion)
+                    : kind == "position"
+                    ? t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition)
+                    : t(LeagueEfficiencyUiTextKeys.AdvancedMode);
+                var page = new TabPage(label) { BackColor = FacmDesignSystem.Canvas };
+                var list = new ListView {
+                    Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                    GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
+                    ForeColor = FacmDesignSystem.Text
+                };
+                list.Columns.Add(label, 145);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame), 75);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate), 95);
+                list.Columns.Add("KDA", 85);
+                list.Columns.Add("KDA CV", 85);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst), 115);
+                foreach (var item in breakdown.Where(row => row.Kind == kind))
+                {
+                    var a = item.Analysis;
+                    var title = kind == "mode"
+                        ? t(item.Mode == "CHERRY"
+                            ? LeagueEfficiencyUiTextKeys.ProfileModeCherry
+                            : LeagueEfficiencyUiTextKeys.ProfileModeNormal)
+                        : kind == "position"
+                        ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
+                        : item.Label;
+                    var row = new ListViewItem(title);
+                    row.SubItems.Add(a.Games.ToString(CultureInfo.CurrentCulture));
+                    row.SubItems.Add(a.WinRate.HasValue
+                        ? a.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—");
+                    row.SubItems.Add(a.Kda.HasValue
+                        ? a.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—");
+                    row.SubItems.Add(a.KdaCv.HasValue
+                        ? a.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—");
+                    row.SubItems.Add(a.ArenaPlacements > 0
+                        ? a.ArenaFirstPlaces + "/" + a.ArenaPlacements : "—");
+                    row.Tag = item;
+                    list.Items.Add(row);
+                }
+                list.DoubleClick += (sender, args) =>
+                {
+                    if (list.SelectedItems.Count != 1) return;
+                    var selected = list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow;
+                    if (selected == null) return;
+                    HasSelection = true;
+                    SelectedChampionId = selected.Kind == "champion" ? selected.ChampionId : 0;
+                    SelectedPosition = selected.Kind == "position" ? selected.Position : "";
+                    SelectedMode = selected.Kind == "mode" ? selected.Mode : "";
+                    DialogResult = DialogResult.OK;
+                    Close();
+                };
+                page.Controls.Add(list);
+                tabs.TabPages.Add(page);
+            }
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
+                Padding = new Padding(10) };
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.Controls.Add(tabs, 0, 0);
+            var close = new Button { Dock = DockStyle.Right, Width = 100,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
+                DialogResult = DialogResult.Cancel };
+            root.Controls.Add(close, 0, 1);
+            Controls.Add(root); CancelButton = close;
+        }
+    }
+
     internal sealed class LeagueOngoingHistoryFilterOption
     {
         internal int ChampionId;
@@ -464,7 +603,29 @@ namespace FACM.League
             };
             layout.Controls.Add(header, 0, 0);
             layout.Controls.Add(filters, 0, 1);
-            layout.Controls.Add(stats, 0, 2);
+            var statsRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            statsRow.Controls.Add(stats, 0, 0);
+            var breakdownButton = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown) };
+            breakdownButton.Click += (sender, args) =>
+            {
+                if (!isCurrent() || loading || collecting) return;
+                using (var dialog = new LeagueOngoingCardBreakdownDialog(ui,
+                    matches, player.Player.PuuId))
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK || !dialog.HasSelection ||
+                        !isCurrent()) return;
+                    selectedChampion = dialog.SelectedChampionId;
+                    selectedPosition = dialog.SelectedPosition;
+                    selectedMode = dialog.SelectedMode;
+                    rebuildChoices();
+                    refreshRows();
+                }
+            };
+            statsRow.Controls.Add(breakdownButton, 1, 0);
+            layout.Controls.Add(statsRow, 0, 2);
             layout.Controls.Add(rows, 0, 3);
             Controls.Add(layout);
             Shown += async (sender, args) =>
