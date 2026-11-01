@@ -38,16 +38,18 @@ namespace FACM.League
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
                 return new LeaguePlayerChampionStat[0];
             var rows = player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
-                .Where(m => m != null && m.GameId > 0 && m.ChampionId > 0 &&
+                .Where(m => m != null && m.GameId > 0)
+                .GroupBy(m => m.GameId)
+                .Where(g => g.All(m => m.ChampionId > 0 &&
                     (string.IsNullOrEmpty(m.PuuId) ||
                      string.Equals(m.PuuId, player.Player.PuuId, StringComparison.Ordinal)) &&
                     (string.IsNullOrWhiteSpace(m.GameType) ||
                      string.Equals(m.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) &&
                     (LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
-                     LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss))
-                .GroupBy(m => m.GameId)
-                .Where(g => g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
-                    g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1)
+                     LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss)) &&
+                    g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
+                    g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1 &&
+                    g.Select(m => m.SgpServerId ?? "").Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
                 .Select(g => g.First())
                 .ToArray();
             return rows.GroupBy(m => m.ChampionId)

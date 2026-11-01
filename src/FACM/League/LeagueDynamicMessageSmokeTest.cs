@@ -844,7 +844,11 @@ namespace FACM.League
                 new LeaguePlayerMatchSummary { GameId = 103, PuuId = "other", ChampionId = 1,
                     ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
                 new LeaguePlayerMatchSummary { GameId = 104, PuuId = "target", ChampionId = 1,
-                    ParticipantResolved = true, StatisticsAvailable = false, WinResult = "win" }
+                    ParticipantResolved = true, StatisticsAvailable = false, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 105, PuuId = "target", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 105, PuuId = "other", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" }
             });
             var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
             Require(usage.Count == 1 && usage[0].ChampionId == 22 &&

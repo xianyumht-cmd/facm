@@ -311,7 +311,9 @@ namespace FACM.League
                             (level.HasValue ? level.Value.ToString() : "—") + " · " +
                             (points.HasValue ? points.Value.ToString("N0") : "—");
                     });
-                    MessageBox.Show(this, string.Join(Environment.NewLine, rows),
+                    var content = rows.ToArray();
+                    MessageBox.Show(this, content.Length == 0 ? "—" :
+                            string.Join(Environment.NewLine, content),
                         _ui.Get(UiTextKeys.LeagueProfileMastery),
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                     _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicReady);

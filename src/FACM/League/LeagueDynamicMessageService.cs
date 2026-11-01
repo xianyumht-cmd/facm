@@ -258,9 +258,10 @@ namespace FACM.League
             string puuid, CancellationToken token)
         {
             if (snapshot == null || !SafePuuid(puuid)) return false;
-            var player = snapshot.Players.SingleOrDefault(p => p.Player != null &&
-                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal));
-            if (player == null) return false;
+            var matching = snapshot.Players.Where(p => p?.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal)).Take(2).ToArray();
+            if (matching.Length != 1) return false;
+            var player = matching[0];
             if (player.Mastery != null)
                 return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
             CancellationTokenSource active;
