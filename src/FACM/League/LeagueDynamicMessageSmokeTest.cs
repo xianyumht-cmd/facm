@@ -1684,6 +1684,17 @@ namespace FACM.League
             Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
                 custom.Player.GameName == "Changed Custom",
                 "Invalid custom names must reject the entire draft without mutation.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = new string('Z', 49);
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                custom.Player.GameName == "Changed Custom",
+                "Overlong new-player names must fail without modifying the preview.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Changed Custom";
+            var anotherSlot = customBatch.Single(p => p.PuuId == "player-3");
+            anotherSlot.DraftName = "Another Draft Player";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                snapshot.Players.Count(p => p.HistoricalOriginalPlayer != null) == 2 &&
+                snapshot.Players.All(p => p.HistoricalOriginalPlayer == null || p.History == null),
+                "Multiple custom draft players must retain original slots and never inherit verified history.");
             Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
                 snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
                 snapshot.Players.All(p => !p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&

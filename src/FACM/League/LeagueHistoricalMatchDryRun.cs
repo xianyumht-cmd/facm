@@ -382,6 +382,7 @@ namespace FACM.League
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
             var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
             if (requested.Any(p => p.DraftName != null &&
+                !string.Equals(p.DraftName, current[p.PuuId].Player.GameName, StringComparison.Ordinal) &&
                 (p.DraftName.Trim().Length == 0 || p.DraftName.Trim().Length > 48 ||
                  p.DraftName.Any(char.IsControl)))) return false;
             if (requested.Any(p => p.ChampionId < 1 || p.ChampionId > 9999 ||
@@ -402,7 +403,10 @@ namespace FACM.League
                 {
                     if (player.HistoricalOriginalPlayer == null)
                     {
-                        var draftId = "draft-" + Guid.NewGuid().ToString("N");
+                        string draftId;
+                        do { draftId = "draft-" + Guid.NewGuid().ToString("N"); }
+                        while (snapshot.Players.Any(p => p.Player.PuuId == draftId ||
+                            (p.HistoricalOriginalPlayer ?? p).Player.PuuId == draftId));
                         var replacement = new LeagueDynamicMessagePlayer {
                             HistoricalOriginalPlayer = player,
                             HistoricalOriginalTeamId = player.HistoricalOriginalTeamId,
