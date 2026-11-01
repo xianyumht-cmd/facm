@@ -408,19 +408,31 @@ namespace FACM.League
                     KnownMean(played.Select(m => m.DamageGoldEfficiency), 100), 100);
             if (options.ShowAverageEnemyMissingPingsTag)
                 AddNumber(tags, LeagueEfficiencyUiTextKeys.OngoingMissingPings,
-                    KnownMean(played.Select(m => m.EnemyMissingPings), 10000), 10000);
+                    KnownMean(played.Select(m => m.EnemyMissingPings), 10000, true), 10000);
             if (options.ShowAverageVisionScoreTag)
                 AddNumber(tags, LeagueEfficiencyUiTextKeys.DynamicVision,
                     KnownMean(played.Select(m => m.VisionScore), 10000), 10000);
+            if (analysis.AkariScore != null)
+            {
+                if (options.ShowGreatPerformanceTag && analysis.AkariScore.Extraordinary)
+                    tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance));
+                else if (options.ShowGreatPerformanceTag && analysis.AkariScore.Outstanding)
+                    tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingGreatPerformance));
+                if (options.ShowAkariScoreTag)
+                    tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingAkariScore) + " " +
+                        analysis.AkariScore.Total.ToString("0.00", CultureInfo.InvariantCulture));
+            }
             return tags;
         }
 
-        private static double? KnownMean(IEnumerable<double?> values, double max)
+        private static double? KnownMean(IEnumerable<double?> values, double max, bool requireAll = false)
         {
-            var known = values.Where(v => v.HasValue && !double.IsNaN(v.Value) &&
+            var supplied = values.ToArray();
+            var known = supplied.Where(v => v.HasValue && !double.IsNaN(v.Value) &&
                 !double.IsInfinity(v.Value) && v.Value >= 0 && v.Value <= max)
                 .Select(v => v.Value).ToArray();
-            return known.Length == 0 ? (double?)null : known.Average();
+            return known.Length == 0 || requireAll && known.Length != supplied.Length
+                ? (double?)null : known.Average();
         }
 
         private static void AddPercent(List<string> tags, string key, double? ratio, double max = 1)

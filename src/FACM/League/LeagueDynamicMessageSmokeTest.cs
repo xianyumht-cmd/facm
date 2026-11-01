@@ -431,6 +431,54 @@ namespace FACM.League
             tagOptions.ShowAverageTeamGoldTag = false;
             Require(LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions).Count == 4,
                 "Independent player-card toggles must change projection without changing match data.");
+            metrics.Matches[0].EnemyMissingPings = 2;
+            Require(!LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions)
+                .Any(value => value.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMissingPings))),
+                "Source enemy-missing ping average requires every valid match to supply the metric.");
+
+            var scored = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 8; i++)
+            {
+                var match = new LeaguePlayerMatchSummary
+                {
+                    GameId = 4000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", GameDurationSeconds = 1800, CreepScore = 300,
+                    TeamId = 100, ParticipantId = 1, PuuId = "scored",
+                    Kills = 10, Deaths = 1, Assists = 10,
+                    DamageDealtToChampions = 20000, DamageTaken = 20000,
+                    GoldEarned = 20000, VisionScore = 80, TotalHeal = 5000
+                };
+                var teammates = Enumerable.Range(2, 4).Select(id => new LeaguePlayerMatchSummary
+                {
+                    ParticipantId = id, TeamId = 100, PuuId = "mate-" + id,
+                    StatisticsAvailable = true, Kills = 1,
+                    DamageDealtToChampions = 1000, DamageTaken = 1000,
+                    GoldEarned = 1000, VisionScore = 10
+                }).ToArray();
+                match.ParticipantRoster = new[] { match }.Concat(teammates).ToArray();
+                scored.Matches.Add(match);
+            }
+            var scoreTags = LeagueOngoingPlayerTagProjection.Project(scored);
+            Require(scoreTags.Any(value => value == LeagueEfficiencyText.Get(null,
+                    LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance)) &&
+                !scoreTags.Any(value => value.Contains("Akari")),
+                "Pinned eight-game exceptional score must display the source-default performance tag.");
+            var scoreOptions = new LeagueDynamicMessageOptions
+            {
+                ShowGreatPerformanceTag = false, ShowAkariScoreTag = true
+            };
+            scoreTags = LeagueOngoingPlayerTagProjection.Project(scored, scoreOptions);
+            Require(scoreTags.Any(value => value.Contains("Akari")) &&
+                !scoreTags.Any(value => value == LeagueEfficiencyText.Get(null,
+                    LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance)),
+                "Performance and exact score badges must be independently configurable.");
+            scored.Matches.Clear();
+            Require(LeagueOngoingPlayerTagProjection.Project(scored, scoreOptions).Count == 0,
+                "Empty evidence must never retain a previous player's score.");
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scoreOptions))
+                .ShowAkariScoreTag && !LeagueDynamicMessageOptions.Parse("{}").ShowAkariScoreTag,
+                "Source-default Akari score visibility must survive settings roundtrip.");
         }
 
         private static void ValidateJungleTimeline()

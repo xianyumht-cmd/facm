@@ -376,6 +376,9 @@ namespace FACM.League
         public const string PremadeTeamWinRate = "LeagueEfficiencyPremadeTeamWinRate";
         public const string OngoingTagDisplay = "LeagueEfficiencyOngoingTagDisplay";
         public const string OngoingMissingPings = "LeagueEfficiencyOngoingMissingPings";
+        public const string OngoingGreatPerformance = "LeagueEfficiencyOngoingGreatPerformance";
+        public const string OngoingExtraordinaryPerformance = "LeagueEfficiencyOngoingExtraordinaryPerformance";
+        public const string OngoingAkariScore = "LeagueEfficiencyOngoingAkariScore";
         public const string OngoingWinStreak = "LeagueEfficiencyOngoingWinStreak";
         public const string OngoingLossStreak = "LeagueEfficiencyOngoingLossStreak";
         public const string OngoingHighWinRate = "LeagueEfficiencyOngoingHighWinRate";
@@ -801,6 +804,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeTeamWinRate, "成员样本胜率 {0}%" },
             { LeagueEfficiencyUiTextKeys.OngoingTagDisplay, "玩家标签显示" },
             { LeagueEfficiencyUiTextKeys.OngoingMissingPings, "场均敌人消失信号" },
+            { LeagueEfficiencyUiTextKeys.OngoingGreatPerformance, "出色表现" },
+            { LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance, "超凡表现" },
+            { LeagueEfficiencyUiTextKeys.OngoingAkariScore, "Akari 评分" },
             { LeagueEfficiencyUiTextKeys.OngoingWinStreak, "连胜 {0}" },
             { LeagueEfficiencyUiTextKeys.OngoingLossStreak, "连败 {0}" },
             { LeagueEfficiencyUiTextKeys.OngoingHighWinRate, "高胜率" },

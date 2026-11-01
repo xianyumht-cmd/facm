@@ -110,6 +110,10 @@ namespace FACM.League
                 () => _options.ShowAverageEnemyMissingPingsTag, value => _options.ShowAverageEnemyMissingPingsTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicVision,
                 () => _options.ShowAverageVisionScoreTag, value => _options.ShowAverageVisionScoreTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingGreatPerformance,
+                () => _options.ShowGreatPerformanceTag, value => _options.ShowGreatPerformanceTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingAkariScore,
+                () => _options.ShowAkariScoreTag, value => _options.ShowAkariScoreTag = value);
             _exchangeMenu.Items.Add(new ToolStripSeparator());
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
