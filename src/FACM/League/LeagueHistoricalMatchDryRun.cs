@@ -445,7 +445,7 @@ namespace FACM.League
                         GameName = string.IsNullOrWhiteSpace(name)
                             ? "#" + participant.ParticipantId : name,
                         ChampionId = participant.ChampionId,
-                        Position = participant.Position,
+                        Position = sourcePosition,
                         Spell1Id = participant.SpellIds != null && participant.SpellIds.Length > 0
                             ? participant.SpellIds[0] : 0,
                         Spell2Id = participant.SpellIds != null && participant.SpellIds.Length > 1

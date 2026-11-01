@@ -1377,6 +1377,13 @@ namespace FACM.League
                 snapshot.Players.All(p => p.History == null) &&
                 snapshot.Phase == "HistoricalPreview",
                 "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            roster[8].Position = "NOT_A_LANE";
+            var sanitized = LeagueHistoricalMatchDryRun.Build(match, roster, "target");
+            Require(sanitized != null &&
+                sanitized.Players.Single(p => p.Player.PuuId == "player-9").Player.Position == "" &&
+                sanitized.Players.Single(p => p.Player.PuuId == "player-9").HistoricalOriginalPosition == "",
+                "Historical roster must not carry unverified lane names into editable draft cells.");
+            roster[8].Position = "TOP";
             Require(snapshot.Players.Single(p => p.Player.PuuId == "player-2")
                     .HistoricalOriginalChampionId == 12 &&
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2")
@@ -1566,6 +1573,12 @@ namespace FACM.League
                 ChampionId = i + 20, PlayerName = "Arena" + i
             }).ToList();
             var arenaDraft = LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target");
+            arenaRoster[2].Position = "TOP";
+            var sanitizedArena = LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target");
+            Require(sanitizedArena != null &&
+                sanitizedArena.Players.All(p => p.Player.Position == ""),
+                "Arena historical preview must not expose standard lane assignments.");
+            arenaRoster[2].Position = null;
             Require(arenaDraft != null && arenaDraft.HistoricalGameMode == "CHERRY" &&
                 arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
                 arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
