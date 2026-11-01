@@ -35,6 +35,12 @@ namespace FACM.League
                 LeagueOngoingHistoryFilter.Select(matches, "target", 55, "TOP").Count == 0 &&
                 LeagueOngoingHistoryFilter.Select(matches, "target", 0, "MID").Count == 0,
                 "Champion and position selection must intersect without guessing missing roles.");
+            b.GameMode = "CHERRY";
+            Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "CHERRY").Count == 1 &&
+                LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "NORMAL").Count == 1 &&
+                LeagueOngoingHistoryFilter.Select(matches, "target", 55, "JUNGLE", "NORMAL").Count == 1 &&
+                LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "unknown").Count == 0,
+                "Mode filters must intersect verified champion and position evidence.");
             matches.Add(Sparse(301));
             Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP").Count == 1,
                 "Ambiguous duplicate game IDs cannot enter filtered player analysis.");

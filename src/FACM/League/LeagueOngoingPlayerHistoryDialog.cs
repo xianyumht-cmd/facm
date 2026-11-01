@@ -17,11 +17,13 @@ namespace FACM.League
         private static readonly string[] Roles = { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
 
         internal static IReadOnlyList<LeaguePlayerMatchSummary> Select(
-            IList<LeaguePlayerMatchSummary> matches, string puuid, int championId, string position)
+            IList<LeaguePlayerMatchSummary> matches, string puuid, int championId, string position,
+            string mode = "")
         {
             if (matches == null || matches.Count > 200 ||
                 !LeagueDynamicMessageService.SafePuuid(puuid) ||
                 championId < 0 || championId > 9999 ||
+                (mode != "" && mode != "NORMAL" && mode != "CHERRY") ||
                 (!string.IsNullOrEmpty(position) && !Roles.Contains(position, StringComparer.Ordinal)))
                 return new LeaguePlayerMatchSummary[0];
             return matches.Where(m => m != null && m.GameId > 0 && m.ChampionId > 0 &&
@@ -32,7 +34,9 @@ namespace FACM.League
                 .GroupBy(m => m.GameId).Where(g => g.Count() == 1).Select(g => g.First())
                 .Where(m => (championId == 0 || m.ChampionId == championId) &&
                     (string.IsNullOrEmpty(position) ||
-                     string.Equals(m.Position, position, StringComparison.OrdinalIgnoreCase)))
+                     string.Equals(m.Position, position, StringComparison.OrdinalIgnoreCase)) &&
+                    (mode == "" || (mode == "CHERRY") ==
+                     string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)))
                 .OrderByDescending(m => m.GameCreationEpochMs).ThenByDescending(m => m.GameId)
                 .ToArray();
         }
@@ -110,9 +114,10 @@ namespace FACM.League
                 : LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
             var selectedChampion = 0;
             var selectedPosition = "";
+            var selectedMode = "";
             Func<IReadOnlyList<LeaguePlayerMatchSummary>> visibleMatches = () =>
                 LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId,
-                    selectedChampion, selectedPosition);
+                    selectedChampion, selectedPosition, selectedMode);
             Func<string> summaryText = () =>
             {
                 var visible = visibleMatches();
@@ -202,17 +207,24 @@ namespace FACM.League
                 row.Tag = match;
                 rows.Items.Add(row);
             };
-            var filters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
-            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19));
-            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
-            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19));
-            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
+            var filters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6 };
+            foreach (var width in new[] { 13f, 21f, 13f, 21f, 12f, 20f })
+                filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, width));
             var championLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) };
             var positionLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition) };
             var championChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
             var positionChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            var modeChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll));
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.ProfileModeNormal));
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.ProfileModeCherry));
+            modeChoice.SelectedIndex = 0;
+            filters.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.AdvancedMode),
+                TextAlign = ContentAlignment.MiddleLeft }, 4, 0);
+            filters.Controls.Add(modeChoice, 5, 0);
             filters.Controls.Add(championLabel, 0, 0);
             filters.Controls.Add(championChoice, 1, 0);
             filters.Controls.Add(positionLabel, 2, 0);
@@ -266,6 +278,8 @@ namespace FACM.League
                     for (var i = 0; i < positionChoice.Items.Count; i++)
                         if (((LeagueOngoingHistoryFilterOption)positionChoice.Items[i]).Position == selectedPosition)
                             positionChoice.SelectedIndex = i;
+                    modeChoice.SelectedIndex = selectedMode == "CHERRY" ? 2 :
+                        selectedMode == "NORMAL" ? 1 : 0;
                 }
                 finally { updatingChoices = false; }
             };
@@ -279,6 +293,13 @@ namespace FACM.League
             {
                 if (updatingChoices) return;
                 selectedPosition = ((LeagueOngoingHistoryFilterOption)positionChoice.SelectedItem).Position;
+                refreshRows();
+            };
+            modeChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedMode = modeChoice.SelectedIndex == 2 ? "CHERRY" :
+                    modeChoice.SelectedIndex == 1 ? "NORMAL" : "";
                 refreshRows();
             };
             rebuildChoices();
