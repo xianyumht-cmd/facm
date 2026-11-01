@@ -22,6 +22,7 @@ namespace FACM.League
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
             ValidateAutoHistoryPages();
             ValidateCardPageAdditions();
+            ValidateAutomaticCardOffsets();
             ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
@@ -53,6 +54,18 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":11}").AutoHistoryPages == 0 &&
                 LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":-1}").AutoHistoryPages == 0,
                 "Player-card automatic history pagination must be opt-in and bounded to ten pages.");
+        }
+
+        private static void ValidateAutomaticCardOffsets()
+        {
+            var small = LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(2, 10);
+            var normal = LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(20, 10);
+            Require(small.Length == 10 && small[0] == 2 && small[9] == 182 &&
+                normal.Length == 9 && normal[0] == 20 && normal[8] == 180 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(2, 0).Length == 0 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(1, 10).Length == 0 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(20, 11).Length == 0,
+                "Automatic player-card pages must cover at most 200 games with exact offsets.");
         }
 
         private static void ValidateCardPageAdditions()

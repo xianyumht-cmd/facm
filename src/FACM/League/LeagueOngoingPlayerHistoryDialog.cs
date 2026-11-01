@@ -188,8 +188,12 @@ namespace FACM.League
                 using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
                 {
                     deadline.CancelAfter(TimeSpan.FromSeconds(95));
-                    for (var i = 0; i < autoPages && hasMore && !deadline.IsCancellationRequested; i++)
-                        if (!await fetchNext(deadline.Token)) break;
+                    foreach (var offset in LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(
+                        snapshot.HistoryLoadCount, autoPages))
+                    {
+                        if (!hasMore || deadline.IsCancellationRequested || nextIndex != offset ||
+                            !await fetchNext(deadline.Token)) break;
+                    }
                 }
             };
             Activated += (sender, args) => { if (!isCurrent()) Close(); };

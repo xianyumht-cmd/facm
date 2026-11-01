@@ -96,6 +96,16 @@ namespace FACM.League
                 .ThenByDescending(m => m.GameId).ToArray();
         }
 
+        internal static int[] AutomaticCardPageOffsets(int initialCount, int pages)
+        {
+            if (initialCount < 2 || initialCount > LeaguePlayerDataService.MaximumMatchCount ||
+                pages < 0 || pages > 10) return new int[0];
+            var offsets = new List<int>();
+            for (var index = initialCount; index < 200 && offsets.Count < pages; index += 20)
+                offsets.Add(index);
+            return offsets.ToArray();
+        }
+
         // Reject conflicting cross-page identities before mutating the displayed card.
         internal static IReadOnlyList<LeaguePlayerMatchSummary> CardPageAdditions(
             IList<LeaguePlayerMatchSummary> current,
