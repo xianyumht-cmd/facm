@@ -489,9 +489,10 @@ namespace FACM.League
                     }
                     return;
                 }
+                var requestedHistoryCount = _options.MatchHistoryLoadCount;
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token,
-                    _options.MatchHistoryLoadCount);
-                if (IsDisposed) return;
+                    requestedHistoryCount);
+                if (IsDisposed || requestedHistoryCount != _options.MatchHistoryLoadCount) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)
