@@ -1,3 +1,12 @@
+### 2026-11-02 — Supported-queue cancellation, historical queue editing and three-way card analysis (Draft #357)
+
+**Executable/test candidate:** `1146383f2886d8baf4f0ca561ede6ac5aa186a1c`; four exact-SHA Windows gates pending at this snapshot. Prior `cd56006f8e25183573bf265cc79871902b4e07f8` passed all four.
+
+- **SGP supported-queue refresh:** an owner-cancelled public catalog request no longer consumes the two-hour on-demand throttle or publishes late data. A deterministic injected-transport test verifies cancellation, immediate retry and ordinary throttle; existing trusted public endpoint and authenticated SGP read owner are unchanged.
+- **Historical dry-run queue:** the read-only Rift/Arena roster editor now exposes a bounded queue ID (0 = unknown) alongside target and team/champion/position edits. The atomic preview transaction rejects out-of-range queue IDs, preserves the source match, and restores the original queue on full reset. This is queue metadata editing, **not** arbitrary new-player creation or real gameflow changes.
+- **Player-card combined analysis:** champion + position + mode groups now support native double-click/Enter drilldown into the existing verified 200-row history and 1000-row collection filters. Synthetic tests cover three-way grouping and unknown/foreign identities; no additional network reads.
+- **Still partial/missing:** free-form new-player draft composition, complete Akari card popovers, all-source concurrency and remaining ChampSelect/gameflow strategies. Real Riot/Tencent SGP, 256-row cloud round-trip and Win10/DPI acceptance remain unverified. #357/#355 stay Draft; no merge, release, updater, deployment or production 3.5.78 change.
+
 ### 2026-11-02 — Native player-card combined analysis and KDA roster outliers (Draft #357)
 
 **Executable/test candidate:** `f6e9e10a1bc2305fa1231ddf1ae8c739929bcdd7`. Four exact-SHA Windows gates **pending**. Prior `5ca80af2110253e93e647d08ef10075814943092` passed Build, Glass WebView2, UI Text Contract and Mayhem Source Probe.
