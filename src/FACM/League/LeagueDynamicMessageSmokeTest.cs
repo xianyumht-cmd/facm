@@ -1691,10 +1691,25 @@ namespace FACM.League
                 teammate.Player.ChampionId == 88 && teammate.HistoricalTeamId == 200,
                 "Invalid bulk champion must reject the entire lineup without partial mutation.");
             firstBatch.ChampionId = 88; secondBatch.TeamId = 200;
-            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
-                swapped.HistoricalTeamId == 100,
-                "Unbalanced bulk teams must fail closed.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                swapped.HistoricalTeamId == 200 &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 100) == 4 &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 200) == 6 &&
+                snapshot.Players.Count(p => p.Friendly) == 4,
+                "Source-style Rift draft teams may be unbalanced without changing verified match data.");
+            var oneSide = batch.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.PuuId, TeamId = 100, ChampionId = p.ChampionId,
+                Position = p.Position, PrimaryPosition = p.PrimaryPosition,
+                SecondaryPosition = p.SecondaryPosition
+            }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, oneSide) &&
+                swapped.HistoricalTeamId == 200,
+                "A draft cannot silently remove the other Rift team.");
             secondBatch.TeamId = 100;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                swapped.HistoricalTeamId == 100 &&
+                snapshot.Players.Count(p => p.Friendly) == 5,
+                "A free-form Rift draft must be reversible without a full source reset.");
             firstBatch.PuuId = "target";
             Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
                 teammate.HistoricalTeamId == 200,
@@ -1766,6 +1781,24 @@ namespace FACM.League
                 snapshot.Players.Count(p => p.HistoricalOriginalPlayer != null) == 2 &&
                 snapshot.Players.All(p => p.HistoricalOriginalPlayer == null || p.History == null),
                 "Multiple custom draft players must retain original slots and never inherit verified history.");
+            var restoreOne = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            restoreOne.Single(p => p.PuuId == custom.Player.PuuId).DraftName =
+                custom.HistoricalOriginalPlayer.Player.GameName;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, restoreOne,
+                    custom.Player.PuuId) &&
+                snapshot.SelfPuuid == "player-2" &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
+                teammate.History != null &&
+                snapshot.Players.Count(p => p.HistoricalOriginalPlayer != null) == 1 &&
+                snapshot.Players.Any(p => p.Player.GameName == "Another Draft Player" &&
+                    p.History == null),
+                "Restoring one custom slot by its exact source name must recover its verified identity without resetting other custom slots.");
             Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
                 snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
                 snapshot.Players.All(p => !p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&

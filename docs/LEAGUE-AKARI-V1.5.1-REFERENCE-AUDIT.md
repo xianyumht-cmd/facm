@@ -1,3 +1,7 @@
+### 2026-11-02 — Source-style flexible Rift draft and reversible synthetic slots (Draft #357)
+
+The historical read-only Rift lineup editor now accepts source-style uneven team compositions (both TEAM-100 and TEAM-200 must remain present, identities and total roster unchanged); verified original 5v5 evidence remains immutable. Arena continues enforcing real two-player subteams rather than conflating the source's TEAM-ALL display grouping with subteam identity. Editing a synthetic player's name back to its exact original source name now restores that one verified player object and history without resetting other custom slots; the selected perspective follows the restored identity. Executable history regressions cover 4v6, rejection of an absent side, 5v5 reversal, and isolated single-slot restoration. Four exact-HEAD Windows gates pending; no live-client write or new network owner. Standalone arbitrary-size draft creation and source TEAM-ALL display parity remain open.
+
 ### 2026-11-02 — Player card without prior match history (Draft #357)
 
 The native current-roster card is now reachable for a valid player without initial match rows, allowing source-style on-demand mastery/jungle evidence before history is available. The old card paging route is deliberately disabled without its initial history owner; full collection is still user-confirmed. Synthetic mastery projection verifies empty-history behavior. This is partial Akari player-card parity and remains subject to Windows CI and final Tencent acceptance.

@@ -374,8 +374,9 @@ namespace FACM.League
                 .ToDictionary(g => g.Key, g => g.Count());
             if (requested.Any(p => !current.ContainsKey(p.PuuId)) ||
                 requestedCounts.Count != originalCounts.Count ||
-                originalCounts.Any(g => !requestedCounts.ContainsKey(g.Key) ||
-                    requestedCounts[g.Key] != g.Value) ||
+                requestedCounts.Keys.Any(id => !originalCounts.ContainsKey(id)) ||
+                (snapshot.HistoricalGameMode == "CHERRY" &&
+                 originalCounts.Any(g => requestedCounts[g.Key] != g.Value)) ||
                 !current.ContainsKey(targetPuuid))
                 return false;
 
@@ -383,7 +384,12 @@ namespace FACM.League
             var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
             if (requested.Any(p => p.DraftName != null &&
                 !string.Equals(p.DraftName, current[p.PuuId].Player.GameName, StringComparison.Ordinal) &&
-                (p.DraftName.Trim().Length == 0 || p.DraftName.Trim().Length > 48 ||
+                (p.DraftName.Trim().Length == 0 ||
+                 (p.DraftName.Trim().Length > 48 &&
+                  (current[p.PuuId].HistoricalOriginalPlayer == null ||
+                   !string.Equals(p.DraftName,
+                       current[p.PuuId].HistoricalOriginalPlayer.Player.GameName,
+                       StringComparison.Ordinal))) ||
                  p.DraftName.Any(char.IsControl)))) return false;
             if (requested.Any(p => p.ChampionId < 1 || p.ChampionId > 9999 ||
                 p.Position == null || p.PrimaryPosition == null || p.SecondaryPosition == null ||
@@ -401,7 +407,16 @@ namespace FACM.League
                 var draftName = selection.DraftName == null ? null : selection.DraftName.Trim();
                 if (draftName != null && draftName != player.Player.GameName)
                 {
-                    if (player.HistoricalOriginalPlayer == null)
+                    if (player.HistoricalOriginalPlayer != null &&
+                        string.Equals(draftName,
+                            player.HistoricalOriginalPlayer.Player.GameName, StringComparison.Ordinal))
+                    {
+                        var original = player.HistoricalOriginalPlayer;
+                        snapshot.Players[snapshot.Players.IndexOf(player)] = original;
+                        if (targetPuuid == selection.PuuId) targetPuuid = original.Player.PuuId;
+                        player = original;
+                    }
+                    else if (player.HistoricalOriginalPlayer == null)
                     {
                         string draftId;
                         do { draftId = "draft-" + Guid.NewGuid().ToString("N"); }
@@ -546,7 +561,7 @@ namespace FACM.League
                     p.HistoricalOriginalTeamId : p.HistoricalTeamId).ToArray();
                 if (cherry ? groups.Length != snapshot.Players.Count / 2 ||
                     groups.Any(g => g.Count() != 2) :
-                    groups.Length != 2 || groups.Any(g => g.Count() != 5))
+                    groups.Length != 2 || original && groups.Any(g => g.Count() != 5))
                     return false;
             }
             return true;
