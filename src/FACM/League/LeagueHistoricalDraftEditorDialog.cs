@@ -27,11 +27,13 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
-                RowCount = 4, Padding = new Padding(12) };
+                RowCount = 6, Padding = new Padding(12) };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
 
@@ -56,6 +58,28 @@ namespace FACM.League
                 position.Enabled = false;
             }
             layout.Controls.Add(position, 1, 1);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftPrimary) }, 0, 2);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftSecondary) }, 1, 2);
+            var primary = new ComboBox { Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList };
+            var secondary = new ComboBox { Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList };
+            foreach (var selector in new[] { primary, secondary })
+            {
+                selector.Items.Add("—");
+                foreach (var role in positions.Skip(1))
+                    selector.Items.Add(LeaguePlayerHistoryAnalysis.PositionName(ui, role));
+                selector.SelectedIndex = 0;
+                selector.Enabled = snapshot.HistoricalGameMode != "CHERRY";
+            }
+            primary.SelectedIndex = Math.Max(0,
+                Array.IndexOf(positions, player.HistoricalPrimaryPosition ?? ""));
+            secondary.SelectedIndex = Math.Max(0,
+                Array.IndexOf(positions, player.HistoricalSecondaryPosition ?? ""));
+            layout.Controls.Add(primary, 0, 3);
+            layout.Controls.Add(secondary, 1, 3);
 
             var recent = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
@@ -88,7 +112,7 @@ namespace FACM.League
                 if (snapshot.HistoricalGameMode == "CLASSIC" && index >= 0)
                     position.SelectedIndex = index;
             };
-            layout.Controls.Add(recent, 0, 2);
+            layout.Controls.Add(recent, 0, 4);
             layout.SetColumnSpan(recent, 2);
 
             var reset = new Button { Width = 145, Height = 30,
@@ -100,6 +124,8 @@ namespace FACM.League
                 champion.Value = player.HistoricalOriginalChampionId;
                 position.SelectedIndex = Math.Max(0,
                     Array.IndexOf(positions, player.HistoricalOriginalPosition ?? ""));
+                primary.SelectedIndex = 0;
+                secondary.SelectedIndex = 0;
             };
             var apply = new Button { Width = 155, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
@@ -114,7 +140,8 @@ namespace FACM.League
                     recentMatches.FirstOrDefault(m => m.ChampionId == (int)champion.Value)?.ChampionName;
                 if (!isCurrentSession() ||
                     !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, player.Player.PuuId,
-                        (int)champion.Value, positions[position.SelectedIndex], selectedName))
+                        (int)champion.Value, positions[position.SelectedIndex], selectedName,
+                        positions[primary.SelectedIndex], positions[secondary.SelectedIndex]))
                 {
                     apply.Enabled = false;
                     return;
@@ -125,7 +152,7 @@ namespace FACM.League
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
                 WrapContents = false, AutoScroll = true };
             actions.Controls.Add(reset); actions.Controls.Add(apply); actions.Controls.Add(cancel);
-            layout.Controls.Add(actions, 0, 3);
+            layout.Controls.Add(actions, 0, 5);
             layout.SetColumnSpan(actions, 2);
             AcceptButton = apply; CancelButton = cancel;
             Controls.Add(layout);

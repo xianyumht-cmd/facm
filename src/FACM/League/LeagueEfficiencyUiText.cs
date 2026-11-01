@@ -382,6 +382,8 @@ namespace FACM.League
         public const string HistoricalDraftEdit = "LeagueEfficiencyHistoricalDraftEdit";
         public const string HistoricalDraftApply = "LeagueEfficiencyHistoricalDraftApply";
         public const string HistoricalDraftReset = "LeagueEfficiencyHistoricalDraftReset";
+        public const string HistoricalDraftPrimary = "LeagueEfficiencyHistoricalDraftPrimary";
+        public const string HistoricalDraftSecondary = "LeagueEfficiencyHistoricalDraftSecondary";
         public const string HistoricalDraftHint = "LeagueEfficiencyHistoricalDraftHint";
         public const string HistoricalDraftRecent = "LeagueEfficiencyHistoricalDraftRecent";
         public const string HistoricalDraftGame = "LeagueEfficiencyHistoricalDraftGame";
@@ -842,6 +844,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftEdit, "编辑模拟英雄与位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftApply, "应用到本次模拟" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftReset, "恢复历史选择" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftPrimary, "模拟主选位置" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftSecondary, "模拟次选位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftHint, "双击玩家可查看近期战绩并编辑模拟选择" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftRecent, "已验证的近期对局" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftGame, "对局编号" },

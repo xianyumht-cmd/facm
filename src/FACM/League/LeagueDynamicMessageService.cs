@@ -120,6 +120,8 @@ namespace FACM.League
         internal int HistoricalOriginalChampionId;
         internal string HistoricalOriginalChampionName;
         internal string HistoricalOriginalPosition;
+        internal string HistoricalPrimaryPosition = "";
+        internal string HistoricalSecondaryPosition = "";
         internal string ChampionName;
         internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
         internal double? EarlyGankAverage;

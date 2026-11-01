@@ -826,6 +826,18 @@ namespace FACM.League
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.Position == "MIDDLE" &&
                 snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "#99",
                 "A local historical draft must allow bounded champion and lane overrides.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE",
+                    null, "JUNGLE", "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalPrimaryPosition == "JUNGLE" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalSecondaryPosition == "TOP",
+                "Historical drafts must preserve independent primary and secondary position choices.");
+            Require(!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE",
+                    null, "TOP", "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalPrimaryPosition == "JUNGLE",
+                "Duplicate draft position preferences must be rejected without mutation.");
             Require(!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 0, "TOP") &&
                 !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 10000, "TOP") &&
                 !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "INVALID") &&
@@ -935,6 +947,8 @@ namespace FACM.League
                 "Arena historical draft must preserve eight independent two-player subteams.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "") &&
                 !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "",
+                    null, "TOP", "") &&
                 arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.Position == "",
                 "Arena draft edits must never invent standard lane assignments.");
             var enemyOne = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3");

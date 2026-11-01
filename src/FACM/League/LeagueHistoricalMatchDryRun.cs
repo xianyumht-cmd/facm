@@ -98,18 +98,26 @@ namespace FACM.League
 
         // Only changes an ephemeral historical preview, never a match record or LCU state.
         internal static bool TryEditSelection(LeagueDynamicMessageSnapshot snapshot,
-            string puuid, int championId, string position, string championName = null)
+            string puuid, int championId, string position, string championName = null,
+            string primaryPosition = null, string secondaryPosition = null)
         {
+            var roles = new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
             if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
                 !LeagueDynamicMessageService.SafePuuid(puuid) ||
                 championId < 1 || championId > 9999 || position == null ||
                 (snapshot.HistoricalGameMode != "CLASSIC" &&
                  snapshot.HistoricalGameMode != "CHERRY") ||
-                (snapshot.HistoricalGameMode == "CHERRY" && position.Length != 0) ||
+                (snapshot.HistoricalGameMode == "CHERRY" && (position.Length != 0 ||
+                    !string.IsNullOrEmpty(primaryPosition) || !string.IsNullOrEmpty(secondaryPosition))) ||
                 (snapshot.HistoricalGameMode == "CLASSIC" && position.Length != 0 &&
-                 !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
-                     .Contains(position, StringComparer.Ordinal)) ||
+                 !roles.Contains(position, StringComparer.Ordinal)) ||
+                (primaryPosition != null && primaryPosition.Length != 0 &&
+                 !roles.Contains(primaryPosition, StringComparer.Ordinal)) ||
+                (secondaryPosition != null && secondaryPosition.Length != 0 &&
+                 !roles.Contains(secondaryPosition, StringComparer.Ordinal)) ||
+                (primaryPosition != null && secondaryPosition != null &&
+                 primaryPosition.Length != 0 && primaryPosition == secondaryPosition) ||
                 snapshot.Players.Count != (snapshot.HistoricalGameMode == "CLASSIC" ? 10 :
                     snapshot.Players.Count == 8 ? 8 : 16) ||
                 snapshot.Players.Any(p => p?.Player == null ||
@@ -129,6 +137,8 @@ namespace FACM.League
             }
             player.Player.ChampionId = championId;
             player.Player.Position = position;
+            if (primaryPosition != null) player.HistoricalPrimaryPosition = primaryPosition;
+            if (secondaryPosition != null) player.HistoricalSecondaryPosition = secondaryPosition;
             return true;
         }
 
