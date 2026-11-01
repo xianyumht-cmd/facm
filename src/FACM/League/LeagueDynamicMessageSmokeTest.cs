@@ -820,6 +820,11 @@ namespace FACM.League
                 "Invalid historical draft overrides must not mutate any player.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "TOP"),
                 "A historical draft override must support restoring its original selection.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 22, "JUNGLE",
+                "Ashe\u0001") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "Ashe" &&
+                roster[1].ChampionId == 12 && roster[1].Position == "TOP",
+                "Historical selection edits must sanitize source names and never alter match evidence.");
             var target = snapshot.Players.Single(p => p.Player.PuuId == "target");
             var teammate = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
             target.History = new LeaguePlayerMatchPage();

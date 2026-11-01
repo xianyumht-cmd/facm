@@ -74,7 +74,7 @@ namespace FACM.League
 
         // Only changes an ephemeral historical preview, never a match record or LCU state.
         internal static bool TryEditSelection(LeagueDynamicMessageSnapshot snapshot,
-            string puuid, int championId, string position)
+            string puuid, int championId, string position, string championName = null)
         {
             if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
@@ -97,7 +97,12 @@ namespace FACM.League
             var player = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == puuid);
             if (player == null) return false;
             if (player.Player.ChampionId != championId)
-                player.ChampionName = "#" + championId;
+            {
+                var safeName = new string((championName ?? string.Empty)
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                player.ChampionName = string.IsNullOrWhiteSpace(safeName)
+                    ? "#" + championId : safeName;
+            }
             player.Player.ChampionId = championId;
             player.Player.Position = position;
             return true;

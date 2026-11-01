@@ -64,7 +64,8 @@ namespace FACM.League
             recent.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 150);
             recent.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftKda), 160);
             recent.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftRecent), 120);
-            foreach (var match in LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player))
+            var recentMatches = LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player);
+            foreach (var match in recentMatches)
             {
                 var row = new ListViewItem(match.GameId.ToString(CultureInfo.InvariantCulture));
                 row.SubItems.Add(string.IsNullOrWhiteSpace(match.ChampionName)
@@ -74,8 +75,19 @@ namespace FACM.League
                 row.SubItems.Add(t(LeaguePlayerHistoryAnalysis.Outcome(match) == LeagueHistoryOutcome.Win
                     ? LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon
                     : LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost));
+                row.Tag = match;
                 recent.Items.Add(row);
             }
+            recent.DoubleClick += (sender, args) =>
+            {
+                if (recent.SelectedItems.Count != 1) return;
+                var match = recent.SelectedItems[0].Tag as LeaguePlayerMatchSummary;
+                if (match == null || match.ChampionId < 1 || match.ChampionId > 9999) return;
+                champion.Value = match.ChampionId;
+                var index = Array.IndexOf(positions, match.Position ?? "");
+                if (snapshot.HistoricalGameMode == "CLASSIC" && index >= 0)
+                    position.SelectedIndex = index;
+            };
             layout.Controls.Add(recent, 0, 2);
             layout.SetColumnSpan(recent, 2);
 
@@ -87,7 +99,9 @@ namespace FACM.League
             {
                 if (!isCurrentSession() ||
                     !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, player.Player.PuuId,
-                        (int)champion.Value, positions[position.SelectedIndex]))
+                        (int)champion.Value, positions[position.SelectedIndex],
+                        recentMatches.FirstOrDefault(m => m.ChampionId == (int)champion.Value)
+                            ?.ChampionName))
                 {
                     apply.Enabled = false;
                     return;

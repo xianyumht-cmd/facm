@@ -707,7 +707,7 @@ namespace FACM.League
                                 ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
                                 : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
                                     LeagueEfficiencyUiTextKeys.DynamicEnemy));
-                            row.SubItems.Add(player.Player.AccountName ?? ("#" + player.Player.CellId));
+                            row.SubItems.Add(player.Player.GameName ?? ("#" + player.Player.CellId));
                             row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
                             row.SubItems.Add(string.IsNullOrEmpty(player.Player.Position) ? "—" :
                                 LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position));
