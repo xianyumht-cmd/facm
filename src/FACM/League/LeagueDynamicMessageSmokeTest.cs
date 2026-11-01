@@ -596,8 +596,9 @@ namespace FACM.League
             }).ToArray();
             self.ParticipantRoster = new[] { self }.Concat(teammates).ToArray();
             page.Matches.Add(self);
-            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == 4d,
-                "Pinned kill/damage efficiency must use team kill and champion damage shares.");
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == 4d &&
+                LeaguePlayerHistoryAnalysis.Calculate(page.Matches).KillDamageEfficiency == 4d,
+                "Pinned kill/damage efficiency must use team kill and champion damage shares in player analysis.");
             var options = new LeagueDynamicMessageOptions { ShowAverageKillDamageEfficiencyTag = true };
             Require(LeagueOngoingPlayerTagProjection.Project(page, options)
                 .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh)),
@@ -612,6 +613,7 @@ namespace FACM.League
                 "Low kill/damage efficiency must use the pinned 0.65 boundary.");
             teammates[0].DamageDealtToChampions = null;
             Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null &&
+                LeaguePlayerHistoryAnalysis.Calculate(page.Matches).KillDamageEfficiency == null &&
                 !LeagueOngoingPlayerTagProjection.Project(page, options)
                     .Any(tag => tag.Contains("击杀伤害效率")),
                 "Missing team damage cannot create a misleading efficiency badge.");

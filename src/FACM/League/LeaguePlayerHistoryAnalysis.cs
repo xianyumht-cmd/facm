@@ -159,6 +159,7 @@ namespace FACM.League
         internal int NormalStreak, CherryStreak;
         internal LeagueHistoryOutcome NormalStreakOutcome, CherryStreakOutcome;
         internal double? CsPerMinute, DamageShare, DamageTakenShare, GoldShare, KillParticipation;
+        internal double? KillDamageEfficiency;
         internal List<LeagueHistoryPositionStat> Positions = new List<LeagueHistoryPositionStat>();
         internal LeagueHistorySourcePreferences Preferences;
         internal LeagueHistoryActiveSession ActiveSession;
@@ -408,11 +409,7 @@ namespace FACM.League
                     KnownMean(played.Select(m => m.DamageGoldEfficiency), 100), 100);
             if (options.ShowAverageKillDamageEfficiencyTag)
             {
-                var complete = LeaguePlayerHistoryAnalysis.LoadedMatches(source)
-                    .Where(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
-                        LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss)
-                    .ToArray();
-                var efficiency = KnownMean(complete.Select(KillDamageEfficiency), 1000, true);
+                var efficiency = analysis.KillDamageEfficiency;
                 if (efficiency > 1.35)
                     tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh));
                 else if (efficiency < 0.65)
@@ -473,6 +470,15 @@ namespace FACM.League
                 ? (double?)null : result;
         }
 
+        internal static double? CompleteKillDamageEfficiency(IEnumerable<LeaguePlayerMatchSummary> matches)
+        {
+            var samples = (matches ?? Enumerable.Empty<LeaguePlayerMatchSummary>())
+                .Select(KillDamageEfficiency).ToArray();
+            return samples.Length == 0 || samples.Any(v => !v.HasValue ||
+                double.IsNaN(v.Value) || double.IsInfinity(v.Value) || v.Value < 0 || v.Value > 1000)
+                ? (double?)null : samples.Average(v => v.Value);
+        }
+
         private static double? KnownMean(IEnumerable<double?> values, double max, bool requireAll = false)
         {
             var supplied = values.ToArray();
@@ -506,7 +512,7 @@ namespace FACM.League
         internal int Streak;
         internal LeagueHistoryOutcome StreakOutcome;
         internal double? Kills, Deaths, Assists, CsPerMinute, DamageShare, GoldShare;
-        internal double? KillParticipation, DamageTakenShare;
+        internal double? KillParticipation, DamageTakenShare, KillDamageEfficiency;
         internal double? RecentFiveWinRate, PreviousFiveWinRate;
         internal LeagueHistoryAkariScore AkariScore;
         internal LeagueHistoryChampionBreakdown OverallModeBreakdown;
@@ -580,6 +586,7 @@ namespace FACM.League
             result.GoldShare = Mean(played.Select(m => m.GoldShare));
             result.KillParticipation = Mean(played.Select(m => m.KillParticipation));
             result.DamageTakenShare = Mean(played.Select(m => m.DamageTakenShare));
+            result.KillDamageEfficiency = LeagueOngoingPlayerTagProjection.CompleteKillDamageEfficiency(played);
             result.Positions = BuildPositions(played);
             var dated = played.Where(m => m.GameCreationLocal != DateTime.MinValue)
                 .OrderByDescending(m => m.GameCreationLocal).ToList();
@@ -603,6 +610,7 @@ namespace FACM.League
                 breakdown.DamageTakenShare = Mean(group.Select(m => m.DamageTakenShare));
                 breakdown.GoldShare = Mean(group.Select(m => m.GoldShare));
                 breakdown.KillParticipation = Mean(group.Select(m => m.KillParticipation));
+                breakdown.KillDamageEfficiency = LeagueOngoingPlayerTagProjection.CompleteKillDamageEfficiency(group);
                 result.ChampionBreakdowns[group.Key] = breakdown;
             }
             result.AllChampions = championGroups.Select(g => new LeaguePlayerChampionStat {
@@ -887,6 +895,8 @@ namespace FACM.League
                     ui.Get(a.StreakOutcome == LeagueHistoryOutcome.Win ? UiTextKeys.LeaguePlayerWin :
                         UiTextKeys.LeaguePlayerLoss) + " × " + a.Streak),
             };
+            lines.Add(LeagueEfficiencyText.Get(ui, LeagueEfficiencyUiTextKeys.OngoingKillDamageTag) +
+                " " + Number(a.KillDamageEfficiency, true));
             lines.AddRange(ModeLines(ui, a.OverallModeBreakdown));
             lines.Add(string.Empty);
             lines.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
@@ -1353,6 +1363,8 @@ namespace FACM.League
                                 updated.Add(string.Format(CultureInfo.CurrentCulture,
                                     ui.Get(UiTextKeys.LeaguePlayerAnalysisExtraShares),
                                     Number(breakdown.KillParticipation, true), Number(breakdown.DamageTakenShare, true)));
+                                updated.Add(LeagueEfficiencyText.Get(ui, LeagueEfficiencyUiTextKeys.OngoingKillDamageTag) +
+                                    " " + Number(breakdown.KillDamageEfficiency, true));
                                 foreach (var role in breakdown.Positions)
                                     updated.Add(string.Format(CultureInfo.CurrentCulture,
                                         ui.Get(UiTextKeys.LeaguePlayerAnalysisPositionRow),
