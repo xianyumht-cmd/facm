@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
+            ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
@@ -179,6 +180,28 @@ namespace FACM.League
                 CancellationToken.None, "q_420", "self").ConfigureAwait(false);
             Require(page == null && sgp.TaggedCalls == 2,
                 "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static async Task ValidateTaggedCacheIsolationAsync()
+        {
+            var fake = new Fake { ChampionNamesJson = "[{\"id\":77,\"name\":\"Alpha\"}]" };
+            var session = Session("cache-isolation");
+            var service = new LeaguePlayerDataService(fake, new PerformanceBudgetProvider(),
+                null, null, () => session);
+            var target = new LeaguePlayerProfile { PuuId = "enemy" };
+            var tagged = new LeaguePlayerMatchPage { ClientSession = session,
+                StartIndex = 0, RequestedCount = 2 };
+            tagged.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "enemy", GameId = 999, ChampionId = 77 });
+            var named = await service.EnrichChampionNamesAsync(target, tagged,
+                CancellationToken.None, false).ConfigureAwait(false);
+            Require(named != null && named.Matches[0].ChampionName == "Alpha",
+                "Tagged source fixture must actually enrich champion metadata.");
+            var untagged = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, null, "self").ConfigureAwait(false);
+            Require(untagged != null && untagged.Matches.All(m => m.GameId != 999) &&
+                fake.Paths.Any(p => p.Contains("/matches?")),
+                "Tagged SGP enrichment must not pollute the untagged LCU history cache.");
         }
 
         private static async Task ValidateTaggedConcurrencyAsync()
@@ -1698,6 +1721,7 @@ namespace FACM.League
             internal int LobbyReads;
             internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
+            internal string ChampionNamesJson = "[]";
             internal Action<string> OnRead;
             internal Action OnMastery;
             internal int MasteryReads;
@@ -1750,7 +1774,7 @@ namespace FACM.League
                     if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
                     if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
                         return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
-                    if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes("[]");
+                    if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes(ChampionNamesJson);
                     throw new InvalidOperationException("Unexpected dynamic analysis route.");
                 }
                 finally { Interlocked.Decrement(ref _concurrent); }

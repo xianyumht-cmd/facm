@@ -1362,7 +1362,7 @@ namespace FACM.League
         public async Task<LeaguePlayerMatchPage> EnrichChampionNamesAsync(
             LeaguePlayerProfile profile,
             LeaguePlayerMatchPage page,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, bool cacheUntaggedPage = true)
         {
             var session = page?.ClientSession;
             if (!SessionStillCurrent(session)) return null;
@@ -1388,7 +1388,7 @@ namespace FACM.League
             }
 
             if (!SessionStillCurrent(session)) return null;
-            if (changed) CachePage(profile.PuuId, result, session);
+            if (changed && cacheUntaggedPage) CachePage(profile.PuuId, result, session);
             return result;
         }
 

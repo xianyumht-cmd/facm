@@ -320,7 +320,7 @@ namespace FACM.League
                             player.History.Matches.Count - historyLoadCount);
                     if (player.History != null)
                         player.History = await _players.EnrichChampionNamesAsync(profile,
-                            player.History, ct).ConfigureAwait(false);
+                            player.History, ct, historyQueueTag == null).ConfigureAwait(false);
                     player.ChampionName = player.History?.Matches.FirstOrDefault(
                         m => m.ChampionId == row.ChampionId)?.ChampionName;
                     player.JungleSamples = CachedJungle(row.PuuId, player.History);
@@ -423,8 +423,8 @@ namespace FACM.League
                     .ConfigureAwait(false);
                 if (page == null || page.Matches.Count > count ||
                     !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return null;
-                page = await _players.EnrichChampionNamesAsync(profile, page, active.Token)
-                    .ConfigureAwait(false);
+                page = await _players.EnrichChampionNamesAsync(profile, page, active.Token,
+                    snapshot.HistoryQueueTag == null).ConfigureAwait(false);
                 if (page == null || !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false))
                     return null;
                 var rows = LeagueHistoricalMatchDryRun.CardRecentMatches(
@@ -820,7 +820,8 @@ namespace FACM.League
             if (history == null || !Current(snapshot.Session, snapshot.Phase)) return false;
             if (history.Matches.Count > count)
                 history.Matches.RemoveRange(count, history.Matches.Count - count);
-            history = await _players.EnrichChampionNamesAsync(profile, history, token).ConfigureAwait(false);
+            history = await _players.EnrichChampionNamesAsync(profile, history, token,
+                snapshot.HistoryQueueTag == null).ConfigureAwait(false);
             if (!Current(snapshot.Session, snapshot.Phase)) return false;
             player.History = history;
             player.ChampionName = history.Matches.FirstOrDefault(m => m.ChampionId == player.Player.ChampionId)?.ChampionName;
