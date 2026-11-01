@@ -140,9 +140,9 @@ jobs:
       - name: Run League history synthetic smoke
         shell: pwsh
         run: |
-          & (Resolve-Path $env:OUTPUT_EXE).Path --league-history-test
-          if ($LASTEXITCODE -ne 0) {
-            throw "League history synthetic smoke failed with exit code $LASTEXITCODE"
+          $smoke = Start-Process -FilePath (Resolve-Path $env:OUTPUT_EXE).Path -ArgumentList '--league-history-test' -Wait -PassThru -NoNewWindow
+          if ($smoke.ExitCode -ne 0) {
+            throw "League history synthetic smoke failed with exit code $($smoke.ExitCode)"
           }
 
       - name: Verify lightweight GGman.exe
