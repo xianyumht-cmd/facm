@@ -1,3 +1,8 @@
+### 2026-11-01 — Executable League history synthetic test ownership
+
+- Windows Build now runs `GGman.exe --league-history-test` using a waited process exit after the lightweight Release build. The CLI executes `LeagueDynamicMessageSmokeTest.Validate` and `LeaguePlayerHistoryHydrationSmokeTest.Validate`, with a distinct test mutex and nonzero failure exit code. These are synthetic fake-client tests, not live Tencent CN/game acceptance.
+- Candidate [229efd9](https://github.com/xianyumht-cmd/facm/commit/229efd96778740debfca3b1c8b614de0a9ae6597) awaits all four exact-SHA Windows gates; last verified executable remains [8148346](https://github.com/xianyumht-cmd/facm/commit/8148346274e93b82c75441d582e24a7173303831).
+
 ### 2026-11-01 — Explicit bounded player-card detail hydration
 
 - `LeagueDynamicMessageOptions.GameDetailsLoadCount` stores a 0–20 explicit-detail budget (0 disables). The existing player context menu calls `LeagueEfficiencyModule.HydrateDynamicPlayerHistoryAsync` with the current UI budget, then `LeagueDynamicMessageService.HydrateHistoryAsync` under the current roster/account/session gate. It delegates to the existing `LeaguePlayerDataService.HydrateAnalysisAsync` with a bounded attempt count, never introduces a new request owner or background prefetch.
