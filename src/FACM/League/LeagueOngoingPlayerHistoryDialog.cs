@@ -373,20 +373,25 @@ namespace FACM.League
         internal double TopRate, MidRate, BotRate, Level3Rate, Level4Rate;
         internal double? FirstDragonRate;
         internal double AverageDragons, AverageVoidgrubs, AverageHeralds, AverageBarons;
+        internal double? AverageFirstDragonSeconds;
+        internal IReadOnlyDictionary<string, int> FirstCamps;
     }
 
     internal static class LeagueOngoingCardJungleProjection
     {
         internal static LeagueOngoingCardJungleSummary Project(
-            IReadOnlyList<LeagueJungleTimelineSample> samples)
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId = 0)
         {
-            if (samples == null || samples.Count == 0 ||
+            if (samples == null || samples.Count == 0 || championId < 0 ||
+                championId > 9999 ||
                 samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
                 samples.Any(row => row == null || row.GameId <= 0 ||
                     row.ChampionId <= 0 || row.TeamId != 100 && row.TeamId != 200) ||
                 samples.Select(row => row.GameId).Distinct().Count() != samples.Count)
                 return null;
-            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(samples);
+            var selected = championId == 0 ? samples :
+                samples.Where(row => row.ChampionId == championId).ToArray();
+            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(selected);
             if (aggregate == null) return null;
             return new LeagueOngoingCardJungleSummary {
                 Games = aggregate.Games,
@@ -394,8 +399,10 @@ namespace FACM.League
                 BotRate = aggregate.BotRate,
                 Level3Rate = aggregate.Level3GankRate,
                 Level4Rate = aggregate.Level4GankRate,
-                FirstDragonRate = samples.Any(row => row.FirstDragonWon.HasValue)
+                FirstDragonRate = selected.Any(row => row.FirstDragonWon.HasValue)
                     ? (double?)aggregate.FirstDragonRate : null,
+                AverageFirstDragonSeconds = aggregate.AverageFirstDragonSeconds,
+                FirstCamps = aggregate.FirstCamps,
                 AverageDragons = aggregate.AverageDragons,
                 AverageVoidgrubs = aggregate.AverageVoidgrubs,
                 AverageHeralds = aggregate.AverageHeralds,
@@ -495,15 +502,24 @@ namespace FACM.League
                     ColumnCount = 1, RowCount = 2 };
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-                var load = new Button { Dock = DockStyle.Right, Width = 160,
+                var jungleHeader = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
+                var load = new Button { Width = 160, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.JungleLoad) };
+                var currentChampion = new CheckBox { AutoSize = true,
+                    Text = t(LeagueEfficiencyUiTextKeys.DynamicCurrentChampion),
+                    Checked = player.Player.ChampionId > 0,
+                    Enabled = player.Player.ChampionId > 0 };
+                jungleHeader.Controls.Add(load);
+                jungleHeader.Controls.Add(currentChampion);
                 var jungle = MakeList();
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleActivity), 320);
                 Action refresh = () =>
                 {
                     jungle.Items.Clear();
-                    var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples);
+                    var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples,
+                        currentChampion.Checked ? player.Player.ChampionId : 0);
                     if (data == null)
                     {
                         jungle.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
@@ -528,12 +544,22 @@ namespace FACM.League
                         "3: " + rate(data.Level3Rate) + " / 4: " + rate(data.Level4Rate));
                     add(t(LeagueEfficiencyUiTextKeys.JungleDragon),
                         (data.FirstDragonRate.HasValue ? rate(data.FirstDragonRate.Value) : "—") +
-                        " / " + number(data.AverageDragons));
+                        " / " + number(data.AverageDragons) +
+                        " / " + (data.AverageFirstDragonSeconds.HasValue
+                            ? TimeSpan.FromSeconds(data.AverageFirstDragonSeconds.Value).ToString(@"m\:ss")
+                            : "—"));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleFirstClear),
+                        data.FirstCamps.Count == 0 ? "—" :
+                        string.Join(" / ", data.FirstCamps.OrderByDescending(entry => entry.Value)
+                            .ThenBy(entry => entry.Key, StringComparer.Ordinal).Take(3)
+                            .Select(entry => entry.Key.Replace("/", " · ") + " " +
+                                rate(entry.Value / (double)data.Games))));
                     add(t(LeagueEfficiencyUiTextKeys.JungleMonsters),
                         number(data.AverageVoidgrubs) + " / " + number(data.AverageHeralds) +
                         " / " + number(data.AverageBarons));
                 };
                 refresh();
+                currentChampion.CheckedChanged += (sender, args) => refresh();
                 load.Click += async (sender, args) =>
                 {
                     if (!isCurrent() || !load.Enabled) return;
@@ -548,7 +574,7 @@ namespace FACM.League
                     catch (Exception) { }
                     finally { if (!IsDisposed) load.Enabled = true; }
                 };
-                jungleLayout.Controls.Add(load, 0, 0);
+                jungleLayout.Controls.Add(jungleHeader, 0, 0);
                 jungleLayout.Controls.Add(jungle, 0, 1);
                 junglePage.Controls.Add(jungleLayout);
                 tabs.TabPages.Add(junglePage);

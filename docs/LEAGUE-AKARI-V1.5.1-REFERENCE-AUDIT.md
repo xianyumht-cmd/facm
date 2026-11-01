@@ -1,3 +1,7 @@
+### 2026-11-02 — Jungle current-champion and first-clear source parity (Draft #357)
+
+Native card Jungle tab now supports source-style current-champion-only versus all-champion history selection, reuses the existing verified timeline sample owner, and exposes first-camp distribution plus known first-dragon timing. No new LCU requests on filter changes; missing data remains unknown. Executable history smoke verifies source champion isolation and first-camp evidence. This is partial native metric parity, not the original Akari path-map rendering.
+
 ### 2026-11-02 — Native player-card jungle evidence (Draft #357)
 
 Pinned LeagueAkari v1.5.1 `PlayerInfoCardJunglePathing.vue` and GGman's existing `LeagueJungleTimelineAnalysis`: the player-card insights dialog now includes explicit, cancellable jungle timeline loading and read-only lane/gank/objective aggregates. Unknown first-dragon samples are displayed as unavailable, duplicate/invalid sample IDs are rejected, and no new API owner or polling is introduced. This is **PARTIAL** visual/interaction parity, not the source path map or Tencent live acceptance. Synthetic history smoke exercises projection evidence and duplicate failure. Draft PRs remain unmerged.

@@ -1536,17 +1536,24 @@ namespace FACM.League
             var jungleRows = new[] {
                 new LeagueJungleTimelineSample { GameId = 1001, ChampionId = 22,
                     TeamId = 100, TopWeight = 6, MidWeight = 4, TotalWeight = 10,
-                    Level3Gank = true, Dragons = 1 },
+                    Level3Gank = true, Dragons = 1,
+                    FirstCamp = "blue", FirstCampSide = "blue" },
                 new LeagueJungleTimelineSample { GameId = 1002, ChampionId = 22,
                     TeamId = 200, TopWeight = 2, BotWeight = 8, TotalWeight = 10,
-                    Level4Gank = true, Dragons = 2 }
+                    Level4Gank = true, Dragons = 2,
+                    FirstCamp = "red", FirstCampSide = "blue" }
             };
             var jungleCard = LeagueOngoingCardJungleProjection.Project(jungleRows);
             Require(jungleCard != null && jungleCard.Games == 2 &&
                 Math.Abs(jungleCard.TopRate - 0.4) < 0.001 &&
                 jungleCard.Level3Rate == 0.5 && jungleCard.Level4Rate == 0.5 &&
-                !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5,
+                !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5 &&
+                jungleCard.FirstCamps.Count == 2,
                 "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            jungleRows[1].ChampionId = 23;
+            Require(LeagueOngoingCardJungleProjection.Project(jungleRows, 22).Games == 1 &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 99) == null,
+                "Current-champion jungle filter must not mix different champion timelines.");
             jungleRows[1].GameId = 1001;
             Require(LeagueOngoingCardJungleProjection.Project(jungleRows) == null,
                 "Duplicate jungle game IDs must not fabricate a player-card sample.");
