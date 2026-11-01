@@ -1076,7 +1076,6 @@ namespace FACM.League
                 controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
                 await pending.ConfigureAwait(false);
             }
-        }
 
             // Planning-stage intent uses the same phase-scoped retry as a failed pick or ban.
             var intentProfiles = LeagueAutoSelectProfiles.Serialize(new[] {
@@ -1098,6 +1097,7 @@ namespace FACM.League
                 Require(clock.Cancelled && writer.IntentCalls.Count == 2,
                     "Planning intent retry must stop when the ChampSelect episode ends.");
             }
+        }
 
         private static async Task ValidateFailureAndCancellationAsync()
         {
