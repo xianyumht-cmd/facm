@@ -296,6 +296,14 @@ namespace FACM.League
             }
         }
 
+        internal static bool SgpOwnerMatches(string before, string after, string expectedOwnerPuuid)
+        {
+            return IsSafePuuid(before) && string.Equals(before, after, StringComparison.Ordinal) &&
+                (expectedOwnerPuuid == null ||
+                 IsSafePuuid(expectedOwnerPuuid) &&
+                 string.Equals(before, expectedOwnerPuuid, StringComparison.Ordinal));
+        }
+
         public async Task<LeaguePlayerMatchPage> LoadRecentMatchesAsync(
             LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken,
             string queueTag = null, string expectedOwnerPuuid = null)
@@ -345,15 +353,14 @@ namespace FACM.League
                         {
                             var before = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
-                            if (before == null || !IsSafePuuid(before.PuuId) ||
-                                (expectedOwnerPuuid != null && !string.Equals(before.PuuId,
-                                    expectedOwnerPuuid, StringComparison.Ordinal))) return null;
+                            if (before == null || !SgpOwnerMatches(before.PuuId, before.PuuId,
+                                expectedOwnerPuuid)) return null;
                             page = await TryLoadSgpPageAsync(profile, startIndex, count,
                                 regionalDeadline.Token, null, queueTag).ConfigureAwait(false);
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
-                            if (after == null || !string.Equals(after.PuuId, before.PuuId,
-                                StringComparison.Ordinal)) return null;
+                            if (after == null || !SgpOwnerMatches(before.PuuId, after.PuuId,
+                                expectedOwnerPuuid)) return null;
                         }
                         catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); return null; }
                     }

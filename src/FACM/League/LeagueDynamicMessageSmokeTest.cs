@@ -128,6 +128,12 @@ namespace FACM.League
         private static void ValidateQueueTagPreference()
         {
             var defaults = LeagueDynamicMessageOptions.Parse("{}");
+            Require(LeaguePlayerDataService.SgpOwnerMatches("self", "self", "self") &&
+                LeaguePlayerDataService.SgpOwnerMatches("self", "self", null) &&
+                !LeaguePlayerDataService.SgpOwnerMatches("self", "target", "self") &&
+                !LeaguePlayerDataService.SgpOwnerMatches("self", "self", "other") &&
+                !LeaguePlayerDataService.SgpOwnerMatches("../unsafe", "../unsafe", null),
+                "SGP opponent history must validate the signed-in owner, not the target player.");
             Require(defaults.MatchHistoryTagPreference == "all" &&
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("all", 420) == null &&
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 420) == "q_420" &&
