@@ -275,6 +275,13 @@ namespace FACM.AppHost.Modules
                 detailLoadCount ?? options.GameDetailsLoadCount);
         }
 
+        public Task<int> PrefetchDynamicRosterDetailsAsync(
+            LeagueDynamicMessageSnapshot snapshot, int requestBudget, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.PrefetchRosterDetailsAsync(snapshot, requestBudget, token);
+        }
+
         public Task<IReadOnlyList<LeaguePlayerMatchSummary>> LoadDynamicHistoryPageAsync(
             LeagueDynamicMessageSnapshot snapshot, string playerPuuid, int startIndex,
             CancellationToken token)

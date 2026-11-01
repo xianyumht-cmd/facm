@@ -17,6 +17,7 @@ namespace FACM.League
         public int MatchHistoryLoadCount { get; set; } = 20;
         public int HistoryConcurrency { get; set; } = 2;
         public int AutoHistoryPages { get; set; }
+        public int AutoRosterDetailPrefetchCount { get; set; }
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
         public string OrderPlayerBy { get; set; } = "default";
@@ -100,6 +101,7 @@ namespace FACM.League
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 options.HistoryConcurrency < 1 || options.HistoryConcurrency > 4 ||
                 options.AutoHistoryPages < 0 || options.AutoHistoryPages > 10 ||
+                options.AutoRosterDetailPrefetchCount < 0 || options.AutoRosterDetailPrefetchCount > 20 ||
                 options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }
@@ -501,6 +503,60 @@ namespace FACM.League
                 if (entered) _gate.Release();
                 lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
                 active.Dispose();
+            }
+        }
+
+        // Explicitly opted-in roster prefetch uses the same single-owner detail path as
+        // manual hydration. Each round gives every eligible player at most one request.
+        internal async Task<int> PrefetchRosterDetailsAsync(
+            LeagueDynamicMessageSnapshot snapshot, int requestBudget, CancellationToken token)
+        {
+            if (requestBudget < 0 || requestBudget > 20 || snapshot == null) return -1;
+            if (requestBudget == 0) return 0;
+            var players = snapshot.Players.Where(p => p?.Player != null &&
+                    SafePuuid(p.Player.PuuId) && p.History != null &&
+                    p.History.Matches.Count > 0 &&
+                    p.History.Matches.Count <= LeaguePlayerDataService.MaximumMatchCount)
+                .OrderByDescending(p => p.Friendly)
+                .ThenByDescending(p => p.Player.PuuId == snapshot.SelfPuuid).ToArray();
+            if (players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != players.Length)
+                return -1;
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(45));
+                try
+                {
+                    if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false)) return -1;
+                    var remaining = requestBudget;
+                    var updatedPlayers = new HashSet<string>(StringComparer.Ordinal);
+                    while (remaining > 0)
+                    {
+                        var attempted = false;
+                        foreach (var player in players)
+                        {
+                            if (remaining == 0) break;
+                            if (!player.History.Matches.Any(match =>
+                                LeaguePlayerDataService.NeedsAnalysisDetail(match) &&
+                                !player.AnalysisDetailAttempted.Contains(
+                                    LeaguePlayerDataService.HistoryDetailKey(match)))) continue;
+                            var before = player.AnalysisDetailAttempted.Count;
+                            var changed = await HydrateHistoryAsync(snapshot, player.Player.PuuId,
+                                deadline.Token, 1).ConfigureAwait(false);
+                            if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false))
+                                return -1;
+                            var used = player.AnalysisDetailAttempted.Count - before;
+                            if (used < 0 || used > 1) return -1;
+                            if (used == 0) continue;
+                            attempted = true;
+                            remaining -= used;
+                            if (changed) updatedPlayers.Add(player.Player.PuuId);
+                        }
+                        if (!attempted) break;
+                    }
+                    return await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false)
+                        ? updatedPlayers.Count : -1;
+                }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { return -1; }
             }
         }
 

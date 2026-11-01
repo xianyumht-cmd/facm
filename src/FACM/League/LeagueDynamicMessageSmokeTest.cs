@@ -26,6 +26,7 @@ namespace FACM.League
             ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
+            ValidateRosterDetailPrefetchAsync().GetAwaiter().GetResult();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
@@ -358,6 +359,44 @@ namespace FACM.League
                 session = Session("changed");
                 Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
                     .ConfigureAwait(false), "Old account/session must not reuse hydrated player history.");
+            }
+        }
+
+        private static async Task ValidateRosterDetailPrefetchAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoRosterDetailPrefetchCount = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoRosterDetailPrefetchCount == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoRosterDetailPrefetchCount == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\\"AutoRosterDetailPrefetchCount\\":21}")
+                    .AutoRosterDetailPrefetchCount == 0,
+                "Automatic roster detail prefetch must be opt-in, persisted and bounded.");
+            var fake = new Fake { IncompleteHistory = true };
+            var session = Session("roster-detail-prefetch");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2,
+                    "Roster detail fixture must have two source-backed players.");
+                var before = fake.Paths.Count(path => path == "/lol-match-history/v1/games/1");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 0, CancellationToken.None)
+                        .ConfigureAwait(false) == 0 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before,
+                    "Disabled prefetch must make no detail request.");
+                var changed = await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(changed == 1 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before + 1 &&
+                    fake.MaxConcurrent == 1,
+                    "Roster detail prefetch must honor the global request budget and single LCU owner.");
+                var reads = fake.Paths.Count(path => path == "/lol-match-history/v1/games/1");
+                session = Session("replaced");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == reads,
+                    "Stale account/session cannot issue automatic roster detail requests.");
             }
         }
 

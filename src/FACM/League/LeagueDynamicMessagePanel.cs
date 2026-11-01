@@ -104,6 +104,16 @@ namespace FACM.League
                 _options.GameDetailsLoadCount = (int)detailsCount.Value;
             };
             choices.Controls.Add(detailsCount);
+            choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingAutoRosterDetails),
+                Padding = new Padding(4, 7, 0, 0) });
+            var autoDetails = new NumericUpDown { Width = 58, Minimum = 0, Maximum = 20,
+                Value = _options.AutoRosterDetailPrefetchCount };
+            autoDetails.ValueChanged += delegate
+            {
+                if (!_binding) _options.AutoRosterDetailPrefetchCount = (int)autoDetails.Value;
+            };
+            choices.Controls.Add(autoDetails);
             var historyTag = Choice(new[] { T(LeagueEfficiencyUiTextKeys.OngoingHistoryAllQueues),
                 T(LeagueEfficiencyUiTextKeys.OngoingHistoryCurrentQueue) });
             historyTag.SelectedIndex = _options.MatchHistoryTagPreference == "current" ? 1 : 0;
@@ -636,6 +646,40 @@ namespace FACM.League
                 _status.Text = T(snapshot == null ? LeagueEfficiencyUiTextKeys.DynamicUnavailable :
                     snapshot.UnavailableIdentityCount > 0 || snapshot.Players.Any(p => p.History == null) ? LeagueEfficiencyUiTextKeys.DynamicPartial :
                     snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint : LeagueEfficiencyUiTextKeys.DynamicReady);
+                var requestedAutoDetails = _options.AutoRosterDetailPrefetchCount;
+                if (snapshot != null && requestedAutoDetails > 0)
+                {
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                    var enriched = await _module.PrefetchDynamicRosterDetailsAsync(snapshot,
+                        requestedAutoDetails, _lifetime.Token);
+                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot) ||
+                        requestedAutoDetails != _options.AutoRosterDetailPrefetchCount) return;
+                    if (enriched < 0)
+                    {
+                        _snapshot = null; _players.Items.Clear(); _groups.Items.Clear();
+                        _jungle.Items.Clear(); _send.Enabled = false;
+                        _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                        return;
+                    }
+                    if (enriched > 0)
+                    {
+                        _binding = true;
+                        try
+                        {
+                            foreach (var row in _players.Items.Cast<PlayerChoice>()
+                                .Concat(_jungle.Items.Cast<PlayerChoice>())) row.RefreshSourceTags();
+                            RebuildPremadeGroups(snapshot, true);
+                            _players.Refresh(); _jungle.Refresh();
+                        }
+                        finally { _binding = false; }
+                        RefreshPreview();
+                    }
+                    _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
+                        snapshot.Players.Any(row => row.History == null)
+                        ? LeagueEfficiencyUiTextKeys.DynamicPartial :
+                        snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint :
+                        LeagueEfficiencyUiTextKeys.DynamicReady);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
