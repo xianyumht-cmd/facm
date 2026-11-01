@@ -368,7 +368,7 @@ namespace FACM.League
                 try
                 {
                     var updated = await _module.HydrateDynamicPlayerHistoryAsync(snapshot,
-                        choice.Player.Player.PuuId, _lifetime.Token);
+                        choice.Player.Player.PuuId, _lifetime.Token, _options.GameDetailsLoadCount);
                     if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
                     if (updated)
                     {
