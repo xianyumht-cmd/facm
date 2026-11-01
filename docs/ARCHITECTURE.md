@@ -2,7 +2,7 @@
 
 - Historical draft editing is local to the verified `LeagueHistoricalMatchDryRun` snapshot. Champion and position changes never mutate `LeaguePlayerMatchParticipant`, remote data, live gameflow or LCU.
 - Ongoing player history uses `LeagueDynamicMessageSnapshot` -> `CardRecentMatches` (bounded identity/conflict filter) -> `LeagueOngoingPlayerHistoryDialog` -> `LeagueEfficiencyModule.LoadDynamicPlayerMatchDetailAsync` -> existing `LeagueEncounterMatchDetailService.ReadHistoryAsync` -> native scoreboard/EOG. Each read verifies account, region and session; dialogs cancel on disposal/context invalidation.
-- `MatchHistoryLoadCount` (2–20) is stored in existing dynamic-message settings, copied to the snapshot and enforced by both initial and recovery fetches. Tag history scope (`all/current`) filters the loaded local sample only; it never initiates a separate fetch or changes premade inference.
+- `MatchHistoryLoadCount` (2–20) is stored in existing dynamic-message settings, copied to the snapshot and enforced by both initial and recovery fetches. The pinned Akari `matchHistoryTagPreference` controls SGP queue-tag queries (`all/current queue`), not champion filtering. The incorrect champion filter was removed; exact SGP queue-tag parity remains an explicit gap.
 
 ## 2026-11-01 — Explicit historical and player-card data ownership (Draft #357)
 
