@@ -1533,6 +1533,10 @@ namespace FACM.League
             masteryPlayer.Mastery.Masteries[1]["championId"] = 22;
             Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
                 "Conflicting duplicate champion mastery must fail closed.");
+            masteryPlayer.Mastery.Masteries[1]["championId"] = 23;
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer,
+                new List<LeaguePlayerMatchSummary>()).Count == 2,
+                "Current-roster mastery must remain accessible before match history is loaded.");
             var jungleRows = new[] {
                 new LeagueJungleTimelineSample { GameId = 1001, ChampionId = 22,
                     TeamId = 100, TopWeight = 6, MidWeight = 4, TotalWeight = 10,

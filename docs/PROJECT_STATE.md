@@ -1,3 +1,7 @@
+### 2026-11-02 — Mastery-first player cards for new accounts (Draft #357)
+
+The ongoing player-card context entry no longer requires existing recent match rows: a current, verified roster player can open the card and explicitly fetch mastery or jungle evidence even when the match-history owner has not populated the initial page. Manual/automatic card paging remains disabled when `History == null` because its source API requires an initial history owner and offset; the existing full 1000-game collector can still be reached from verified mastery champion selection. Synthetic regression confirms mastery projection with empty history. No additional background fetch, game write or network owner. Four Windows gates pending.
+
 ### 2026-11-02 — Source current-champion jungle path split (Draft #357)
 
 The native player-card Jungle tab now toggles **current champion vs all verified jungle samples** without additional requests, shows first-camp blue/red normal/invade distribution and known average first-dragon time alongside lane/gank/objective evidence. Unknown times and absent champion samples remain unavailable rather than guessed. Existing per-player session-scoped timeline loading remains opt-in and bounded; synthetic tests cover champion isolation, missing champion evidence, first-camp aggregation and duplicate game rejection. Full Akari visual path map and real Tencent compatibility remain partial/unverified. Four Windows gates pending.

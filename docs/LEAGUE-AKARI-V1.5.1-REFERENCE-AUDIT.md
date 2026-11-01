@@ -1,3 +1,7 @@
+### 2026-11-02 — Player card without prior match history (Draft #357)
+
+The native current-roster card is now reachable for a valid player without initial match rows, allowing source-style on-demand mastery/jungle evidence before history is available. The old card paging route is deliberately disabled without its initial history owner; full collection is still user-confirmed. Synthetic mastery projection verifies empty-history behavior. This is partial Akari player-card parity and remains subject to Windows CI and final Tencent acceptance.
+
 ### 2026-11-02 — Jungle current-champion and first-clear source parity (Draft #357)
 
 Native card Jungle tab now supports source-style current-champion-only versus all-champion history selection, reuses the existing verified timeline sample owner, and exposes first-camp distribution plus known first-dragon timing. No new LCU requests on filter changes; missing data remains unknown. Executable history smoke verifies source champion isolation and first-camp evidence. This is partial native metric parity, not the original Akari path-map rendering.

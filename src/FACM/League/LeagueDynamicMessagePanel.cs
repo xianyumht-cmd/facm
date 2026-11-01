@@ -393,8 +393,8 @@ namespace FACM.League
                 recentChampions.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player).Count > 0;
                 championMastery.Enabled = !e.Cancel;
-                recentHistory.Enabled = !e.Cancel &&
-                    LeagueHistoricalMatchDryRun.CardRecentMatches(choice.Player).Count > 0;
+                // A new player can have mastery and jungle evidence before any match history.
+                recentHistory.Enabled = !e.Cancel;
                 enrichHistory.Enabled = !e.Cancel && _options.GameDetailsLoadCount > 0 &&
                     choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>

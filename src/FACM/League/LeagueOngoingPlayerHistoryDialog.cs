@@ -844,7 +844,8 @@ namespace FACM.League
             var nextIndex = player.RosterCardHistory != null &&
                 player.RosterCardNextIndex >= snapshot.HistoryLoadCount
                 ? player.RosterCardNextIndex : snapshot.HistoryLoadCount;
-            var hasMore = nextIndex < 200 && !player.RosterCardExhausted;
+            var hasMore = player.History != null &&
+                nextIndex < 200 && !player.RosterCardExhausted;
             var more = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
             var collect = new Button { Dock = DockStyle.Fill,
