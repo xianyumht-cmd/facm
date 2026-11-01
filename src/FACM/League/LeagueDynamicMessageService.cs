@@ -149,6 +149,7 @@ namespace FACM.League
         internal readonly HashSet<string> AnalysisDetailAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         internal List<LeaguePlayerMatchSummary> RosterCardHistory;
         internal int RosterCardNextIndex;
+        internal bool RosterCardExhausted;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -527,6 +528,7 @@ namespace FACM.League
                     {
                         stage.Player.RosterCardHistory = stage.Matches;
                         stage.Player.RosterCardNextIndex = stage.NextIndex;
+                        stage.Player.RosterCardExhausted = stage.Done || stage.NextIndex >= 200;
                     }
                     return requests;
                 }

@@ -453,7 +453,8 @@ namespace FACM.League
                     CancellationToken.None).ConfigureAwait(false);
                 Require(fetched == 2 && snapshot.Players.All(player =>
                         player.RosterCardHistory != null &&
-                        player.RosterCardNextIndex == snapshot.HistoryLoadCount + 20) &&
+                        player.RosterCardNextIndex == snapshot.HistoryLoadCount + 20 &&
+                        player.RosterCardExhausted) &&
                     snapshot.Players[0].History.Matches.Count == firstCount &&
                     fake.MaxConcurrent == 1,
                     "Roster paging must keep the analysis sample small and isolate card-only history.");

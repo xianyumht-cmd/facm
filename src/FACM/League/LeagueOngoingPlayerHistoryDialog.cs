@@ -89,7 +89,7 @@ namespace FACM.League
             var nextIndex = player.RosterCardHistory != null &&
                 player.RosterCardNextIndex >= snapshot.HistoryLoadCount
                 ? player.RosterCardNextIndex : snapshot.HistoryLoadCount;
-            var hasMore = nextIndex < 200;
+            var hasMore = nextIndex < 200 && !player.RosterCardExhausted;
             var more = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
             var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
@@ -126,6 +126,7 @@ namespace FACM.League
                     hasMore = additions.Count > 0 && nextIndex < 200;
                     player.RosterCardHistory = matches.ToList();
                     player.RosterCardNextIndex = nextIndex;
+                    player.RosterCardExhausted = !hasMore;
                     summary.Text = summaryText();
                     return page.Count > 0;
                 }
