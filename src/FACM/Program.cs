@@ -145,10 +145,12 @@ namespace FACM
                         {
                             FACM.League.LeagueDynamicMessageSmokeTest.Validate();
                             FACM.League.LeaguePlayerHistoryHydrationSmokeTest.Validate();
+                            Console.WriteLine("GGman League history synthetic smoke passed.");
                             Environment.ExitCode = 0;
                         }
                         catch (Exception exception)
                         {
+                            Console.Error.WriteLine(exception);
                             System.Diagnostics.Debug.WriteLine(exception);
                             Environment.ExitCode = 4;
                         }
