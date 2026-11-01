@@ -417,6 +417,11 @@ namespace FACM.League
                         snapshot, choice.Player.Player.PuuId, choice.Player.Player.GameName,
                         championId, position, mode)))
                     dialog.ShowDialog(this);
+                if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))
+                {
+                    RefreshKdaOutlierLabels(snapshot);
+                    _players.Refresh(); _jungle.Refresh();
+                }
             };
             enrichHistory.Click += async (sender, e) =>
             {
@@ -437,6 +442,7 @@ namespace FACM.League
                             .Concat(_jungle.Items.Cast<PlayerChoice>())
                             .Where(p => ReferenceEquals(p.Player, choice.Player)))
                             row.RefreshSourceTags();
+                        RefreshKdaOutlierLabels(snapshot);
                         _players.Refresh(); _jungle.Refresh();
                         RefreshPreview();
                     }
