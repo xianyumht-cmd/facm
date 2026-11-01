@@ -1,3 +1,7 @@
+### 2026-11-02 — Staged champion intent ownership on retry (Draft #357)
+
+The native `show-and-lock-in` retry on `d991b4b638b132fdadf15300217990cef8877755` pins the shown champion ID to the current action episode, following the source's distinction between show and complete moves in pinned `src/main/shards/auto-select/computed-state.ts` and `ban-pick-controller.ts`. A manual alternate champion, changed preference, or lost availability cannot silently redirect the second-stage lock. Deterministic fake-session regression added. This closes a specific staged-retry mismatch, not all remaining ChampSelect strategies; real Tencent acceptance remains pending.
+
 ### 2026-11-02 — Queue draft and player-card triple filter source audit (Draft #357)
 
 Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`: `src/shared/shards/ongoing-game/index.ts` defines `DraftOptions.queueId`, target `puuid`, team members, champion selections and position preferences; `src/main/shards/akari-api/cached-resources.ts` defines `sgp/supported-queues` as a public timestamped resource. Native candidate `1146383f2886d8baf4f0ca561ede6ac5aa186a1c` now preserves editable queue ID in a source-isolated historical preview, resets it to the immutable original, and retries owner-cancelled supported-queue refreshes without consuming the two-hour throttle. The existing player-card filter/collector supports three-way champion + role + mode drilldown from a new analysis tab. Synthetic tests are wired to Windows gates, not yet claimed green at this snapshot.

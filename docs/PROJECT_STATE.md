@@ -1,3 +1,7 @@
+### 2026-11-02 — Staged ChampSelect pick retry keeps original champion (Draft #357)
+
+**Executable/test candidate:** `d991b4b638b132fdadf15300217990cef8877755`; exact-head four Windows gates pending. When a successful `show-and-lock-in` preselection has a failed lock, the existing phase-scoped retry now remembers the exact champion shown. A manual selection of another allowed champion or a changed profile stops automatic lock rather than locking the new selection; temporary unavailability never substitutes another champion. Added two-tick fake-LCU regression and wired the supported-queue cancellation fixture into the executable Windows history smoke. No new poller, network owner or game writes outside the existing opt-in selector. Remaining parity and final real-client acceptance are unchanged.
+
 ### 2026-11-02 — Supported-queue cancellation, historical queue editing and three-way card analysis (Draft #357)
 
 **Executable/test candidate:** `1146383f2886d8baf4f0ca561ede6ac5aa186a1c`; four exact-SHA Windows gates pending at this snapshot. Prior `cd56006f8e25183573bf265cc79871902b4e07f8` passed all four.
