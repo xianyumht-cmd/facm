@@ -156,6 +156,16 @@ namespace FACM.League
                 if (analysis.KdaCv.HasValue)
                     expanded += Environment.NewLine + "KDA CV: " +
                         analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture);
+                if (analysis.NormalWinRate.HasValue)
+                    expanded += Environment.NewLine + "Normal: " +
+                        analysis.NormalWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
+                        "% (" + (analysis.NormalWins + analysis.NormalLosses).ToString(
+                            CultureInfo.CurrentCulture) + ")";
+                if (analysis.CherryWinRate.HasValue)
+                    expanded += Environment.NewLine + "CHERRY: " +
+                        analysis.CherryWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
+                        "% (" + (analysis.CherryWins + analysis.CherryLosses).ToString(
+                            CultureInfo.CurrentCulture) + ")";
                 stats.AccessibleDescription = expanded;
                 statsTip.SetToolTip(stats, expanded);
             };

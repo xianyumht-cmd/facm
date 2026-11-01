@@ -1388,6 +1388,9 @@ namespace FACM.League
                 cardStats.KdaCv.HasValue &&
                 Math.Abs(cardStats.KdaCv.Value - Math.Sqrt(42d) / 6d) < 0.00001 &&
                 cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1 &&
+                cardStats.NormalWins == 1 && cardStats.NormalLosses == 1 &&
+                cardStats.CherryWins == 1 && cardStats.CherryLosses == 0 &&
+                cardStats.NormalWinRate == 50 && cardStats.CherryWinRate == 100 &&
                 cardStats.MostPlayedPositions.Count == 2 &&
                 cardStats.Positions["TOP"] == 1 && cardStats.Positions["JUNGLE"] == 1 &&
                 !cardStats.Positions.ContainsKey("BOTTOM"),
@@ -1404,7 +1407,8 @@ namespace FACM.League
                     PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
                     ParticipantResolved = true, Kills = 0, Deaths = 4, Assists = 0 }
             }, "target");
-            Require(zeroKda != null && zeroKda.Kda == 0 && !zeroKda.KdaCv.HasValue,
+            Require(zeroKda != null && zeroKda.Kda == 0 && !zeroKda.KdaCv.HasValue &&
+                zeroKda.NormalWinRate == 0 && !zeroKda.CherryWinRate.HasValue,
                 "Zero-mean KDA samples must not produce NaN or an invented variation.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
                 GameMode = "CLASSIC", TeamId = 100, PuuId = "target" };

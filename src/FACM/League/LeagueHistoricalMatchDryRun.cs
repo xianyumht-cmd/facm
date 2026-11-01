@@ -18,6 +18,11 @@ namespace FACM.League
     internal sealed class LeagueHistoricalCardAnalysis
     {
         internal int Games, Wins, Losses, Remakes, Aborts;
+        internal int NormalWins, NormalLosses, CherryWins, CherryLosses;
+        internal double? NormalWinRate => NormalWins + NormalLosses > 0
+            ? (double?)(100d * NormalWins / (NormalWins + NormalLosses)) : null;
+        internal double? CherryWinRate => CherryWins + CherryLosses > 0
+            ? (double?)(100d * CherryWins / (CherryWins + CherryLosses)) : null;
         internal int StatisticsGames, Kills, Deaths, Assists;
         internal double? KdaCv;
         internal int ArenaPlacements, ArenaFirstPlaces;
@@ -67,6 +72,16 @@ namespace FACM.League
                     case LeagueHistoryOutcome.Abort: result.Aborts++; break;
                 }
                 if (!eligible) continue;
+                if (string.Equals(match.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (outcome == LeagueHistoryOutcome.Win) result.CherryWins++;
+                    else result.CherryLosses++;
+                }
+                else
+                {
+                    if (outcome == LeagueHistoryOutcome.Win) result.NormalWins++;
+                    else result.NormalLosses++;
+                }
                 if (new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
                     .Contains(match.Position, StringComparer.Ordinal))
                 {
