@@ -186,7 +186,7 @@ namespace FACM.League
             var options = new LeagueDynamicMessageOptions { HistoryConcurrency = 4 };
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .HistoryConcurrency == 4 &&
-                LeagueDynamicMessageOptions.Parse("{\\"HistoryConcurrency\\":5}").HistoryConcurrency == 2,
+                LeagueDynamicMessageOptions.Parse("{\"HistoryConcurrency\":5}").HistoryConcurrency == 2,
                 "SGP concurrency must persist and reject invalid settings.");
             var fake = new Fake();
             var sgp = new TaggedHistoryFake { DelayMs = 30 };
@@ -1646,7 +1646,7 @@ namespace FACM.League
                     LastTag = tag;
                     if (DelayMs > 0) await Task.Delay(DelayMs, token).ConfigureAwait(false);
                     OnTagged?.Invoke();
-                    return Bytes("{\\"games\\":[]}");
+                    return Bytes("{\"games\":[]}");
                 }
                 finally { Interlocked.Decrement(ref _concurrent); }
             }
