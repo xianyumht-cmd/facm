@@ -22,6 +22,7 @@ namespace FACM.League
             ValidateEncounterCardTags();
             ValidateKillDamageEfficiencyTag();
             ValidateHistoricalDryRun();
+            ValidatePrivacyTag();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -662,6 +663,36 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .ShowAverageKillDamageEfficiencyTag,
                 "The new optional badge must roundtrip without changing old defaults.");
+        }
+
+        private static void ValidatePrivacyTag()
+        {
+            Func<string, byte[]> bytes = value => Encoding.UTF8.GetBytes(value);
+            Require(LeagueDynamicMessageService.ParsePrivacy(
+                bytes("{\"puuid\":\"target\",\"privacy\":\"PRIVATE\"}"), "target") == true &&
+                LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"PUBLIC\"}"), "target") == false &&
+                !LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"PRIVATE\"}"), "other").HasValue &&
+                !LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"UNKNOWN\"}"), "target").HasValue &&
+                !LeagueDynamicMessageService.ParsePrivacy(bytes("{}"), "target").HasValue,
+                "Summoner privacy must require an exact owner and a source-known enum.");
+            var options = new LeagueDynamicMessageOptions();
+            var privateTag = LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate);
+            Require(LeagueOngoingPlayerTagProjection.Project(null, options, null, false, true)
+                    .Contains(privateTag) &&
+                !LeagueOngoingPlayerTagProjection.Project(null, options, null, false, false)
+                    .Contains(privateTag) &&
+                !LeagueOngoingPlayerTagProjection.Project(null, options, null, false, null)
+                    .Contains(privateTag),
+                "Private is a verified explicit status, not missing or public data.");
+            options.ShowPrivacyTag = false;
+            Require(!LeagueOngoingPlayerTagProjection.Project(null, options, null, false, true)
+                    .Contains(privateTag) &&
+                !LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).ShowPrivacyTag &&
+                LeagueDynamicMessageOptions.Parse("{}").ShowPrivacyTag,
+                "Privacy visibility must persist without breaking old settings.");
         }
 
         private static void ValidateHistoricalDryRun()

@@ -30,6 +30,7 @@ namespace FACM.League
         public bool ShowAverageDamageGoldEfficiencyTag { get; set; }
         public bool ShowAverageKillDamageEfficiencyTag { get; set; }
         public bool ShowEasyGankTag { get; set; } = true;
+        public bool ShowPrivacyTag { get; set; } = true;
         public bool ShowAverageEnemyMissingPingsTag { get; set; }
         public bool ShowAverageVisionScoreTag { get; set; }
         public bool ShowGreatPerformanceTag { get; set; } = true;
@@ -114,6 +115,8 @@ namespace FACM.League
         internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
         internal double? EarlyGankAverage;
         internal bool EarlyGankLoaded;
+        internal bool? IsPrivate;
+        internal bool PrivacyLoaded;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -246,6 +249,70 @@ namespace FACM.League
         }
 
         // Explicit one-player, phase-bound analysis. No background or periodic timeline requests.
+        // A single explicit LCU summoner lookup; never infer privacy from a missing profile.
+        internal async Task<bool> LoadPrivacyAsync(LeagueDynamicMessageSnapshot snapshot,
+            string puuid, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid)) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal));
+            if (player == null) return false;
+            if (player.PrivacyLoaded) return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(8));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                var bytes = await _client.TryGetBytesAsync(
+                    "/lol-summoner/v2/summoners/puuid/" + Uri.EscapeDataString(puuid),
+                    active.Token).ConfigureAwait(false);
+                var privacy = ParsePrivacy(bytes, puuid);
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                active.Token.ThrowIfCancellationRequested();
+                player.IsPrivate = privacy;
+                player.PrivacyLoaded = true;
+                return privacy.HasValue;
+            }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception) { return false; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
+        }
+
+        internal static bool? ParsePrivacy(byte[] bytes, string puuid)
+        {
+            if (!SafePuuid(puuid) || bytes == null || bytes.Length == 0 || bytes.Length > 65536)
+                return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 65536 }
+                    .DeserializeObject(System.Text.Encoding.UTF8.GetString(bytes))
+                    as Dictionary<string, object>;
+                object identity, value;
+                if (root == null || !root.TryGetValue("puuid", out identity) ||
+                    !string.Equals(identity as string, puuid, StringComparison.Ordinal) ||
+                    !root.TryGetValue("privacy", out value)) return null;
+                var privacy = value as string;
+                return privacy == "PRIVATE" ? true : privacy == "PUBLIC" ? (bool?)false : null;
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
         internal async Task<bool> LoadEarlyGankAsync(LeagueDynamicMessageSnapshot snapshot,
             string puuid, CancellationToken token)
         {

@@ -440,6 +440,13 @@ namespace FACM.AppHost.Modules
             return _dynamicMessages.LoadJungleAsync(snapshot, selectedPuuid, token);
         }
 
+        public Task<bool> LoadPrivacyMessagesAsync(LeagueDynamicMessageSnapshot snapshot,
+            string selectedPuuid, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.LoadPrivacyAsync(snapshot, selectedPuuid, token);
+        }
+
         public Task<bool> LoadEarlyGankMessagesAsync(LeagueDynamicMessageSnapshot snapshot,
             string selectedPuuid, CancellationToken token)
         {

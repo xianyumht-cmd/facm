@@ -378,6 +378,9 @@ namespace FACM.League
         public const string HistoricalDryRunLoad = "LeagueEfficiencyHistoricalDryRunLoad";
         public const string HistoricalDryRunHint = "LeagueEfficiencyHistoricalDryRunHint";
         public const string HistoricalDryRunReady = "LeagueEfficiencyHistoricalDryRunReady";
+        public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
+        public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
+        public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
         public const string OngoingEasyGankTag = "LeagueEfficiencyOngoingEasyGankTag";
         public const string OngoingEasyGankAnalyze = "LeagueEfficiencyOngoingEasyGankAnalyze";
         public const string OngoingEasyGankHard = "LeagueEfficiencyOngoingEasyGankHard";
@@ -821,6 +824,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunLoad, "分析历史阵容" },
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunHint, "仅分析历史阵容与当前可获取的近期战绩，不发送游戏操作" },
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunReady, "已分析 {0}/{1} 名玩家的近期战绩；其余数据不可用" },
+            { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
+            { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
+            { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },
             { LeagueEfficiencyUiTextKeys.OngoingEasyGankTag, "易抓程度" },
             { LeagueEfficiencyUiTextKeys.OngoingEasyGankAnalyze, "分析选中玩家易抓程度" },
             { LeagueEfficiencyUiTextKeys.OngoingEasyGankHard, "难抓" },

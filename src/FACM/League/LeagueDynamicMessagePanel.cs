@@ -123,11 +123,15 @@ namespace FACM.League
                 () => _options.ShowGreatPerformanceTag, value => _options.ShowGreatPerformanceTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingAkariScore,
                 () => _options.ShowAkariScoreTag, value => _options.ShowAkariScoreTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingPrivacyTag,
+                () => _options.ShowPrivacyTag, value => _options.ShowPrivacyTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingEasyGankTag,
                 () => _options.ShowEasyGankTag, value => _options.ShowEasyGankTag = value);
             _exchangeMenu.Items.Add(new ToolStripSeparator());
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingEasyGankAnalyze))
                 .Click += async (sender, e) => await AnalyzeEasyGankAsync();
+            _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze))
+                .Click += async (sender, e) => await AnalyzePrivacyAsync();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
             tagTools.Click += (sender, e) => _exchangeMenu.Show(tagTools, new Point(0, tagTools.Height));
@@ -442,6 +446,41 @@ namespace FACM.League
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
             finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
+        }
+
+        private async Task AnalyzePrivacyAsync()
+        {
+            if (_busy || _snapshot == null || IsJungle || IsPremade) return;
+            var selected = _players.SelectedItem as PlayerChoice;
+            if (selected == null || selected.Player == null || selected.Player.PrivacyLoaded) return;
+            var snapshot = _snapshot;
+            _busy = true;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+            _load.Enabled = false; _send.Enabled = false;
+            try
+            {
+                var completed = await _module.LoadPrivacyMessagesAsync(snapshot,
+                    selected.Player.Player.PuuId, _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                if (completed)
+                {
+                    foreach (var choice in _players.Items.Cast<PlayerChoice>()
+                        .Concat(_jungle.Items.Cast<PlayerChoice>())) choice.RefreshSourceTags();
+                    _players.Refresh();
+                    _jungle.Refresh();
+                }
+                _status.Text = T(completed ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                    LeagueEfficiencyUiTextKeys.DynamicPartial);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+            }
+            finally
+            {
+                if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+            }
         }
 
         private async Task AnalyzeEasyGankAsync()
@@ -760,7 +799,7 @@ namespace FACM.League
                      string.Equals(row.Role, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
                      row.Spell1Id == 11 || row.Spell2Id == 11);
                 _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History, _options,
-                    Player.EarlyGankAverage, jungler);
+                    Player.EarlyGankAverage, jungler, Player.IsPrivate);
             }
             public override string ToString()
             {

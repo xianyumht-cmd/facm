@@ -366,11 +366,13 @@ namespace FACM.League
         // Pinned v1.5.1 player-card thresholds, evaluated only from the loaded history owner.
         internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history,
             LeagueDynamicMessageOptions options = null, double? earlyGankAverage = null,
-            bool currentJungler = false)
+            bool currentJungler = false, bool? isPrivate = null)
         {
             var tags = new List<string>();
-            if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
             options = options ?? new LeagueDynamicMessageOptions();
+            if (options.ShowPrivacyTag && isPrivate == true)
+                tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate));
+            if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
             var source = history.Matches.Where(m => m != null && m.GameId > 0)
                 .Take(LeaguePlayerDataService.MaximumMatchCount).ToArray();
             if (source.Length == 0) return tags;
