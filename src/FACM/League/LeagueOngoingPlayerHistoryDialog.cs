@@ -581,6 +581,14 @@ namespace FACM.League
             }
             tabs.SelectedTab = masteryPage;
             Controls.Add(tabs);
+            Activated += (sender, args) =>
+            {
+                if (isCurrent != null && !isCurrent()) Close();
+            };
+            Shown += (sender, args) =>
+            {
+                if (isCurrent != null && !isCurrent()) Close();
+            };
         }
 
         protected override void Dispose(bool disposing)
