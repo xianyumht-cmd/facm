@@ -198,6 +198,20 @@ namespace FACM.League
                     snapshot.Players[0].Player.PuuId == "self" && snapshot.Players[1].Player.PuuId == "enemy" &&
                     snapshot.HistoryLoadCount == 2 && fake.MaxConcurrent == 1,
                     "Opt-in Lobby analysis must use only the current party with bounded shared history reads.");
+                var older = await service.LoadHistoryPageAsync(snapshot, "enemy", 2,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(older != null && older.Count <= 20 &&
+                    fake.Paths.Any(p => p.Contains("begIndex=2&endIndex=21")),
+                    "Explicit player-card history pagination must request only a bounded 20-row page.");
+                var reads = fake.Paths.Count;
+                Require(await service.LoadHistoryPageAsync(snapshot, "enemy", 201,
+                    CancellationToken.None).ConfigureAwait(false) == null && fake.Paths.Count == reads,
+                    "Out-of-range player-card pagination must not issue requests.");
+                fake.OnRead = path => { if (path.Contains("/matches?")) session = Session("changed"); };
+                Require(await service.LoadHistoryPageAsync(snapshot, "enemy", 2,
+                    CancellationToken.None).ConfigureAwait(false) == null,
+                    "An account change during player-card pagination must discard the page.");
+                fake.OnRead = null; session = Session("lobby");
                 var sends = 0;
                 Require(!await service.SendAsync(snapshot, new[] { "test" }, 0,
                     (line, token) => { sends++; return Task.FromResult(true); }, CancellationToken.None)

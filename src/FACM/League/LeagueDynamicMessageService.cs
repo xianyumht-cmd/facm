@@ -289,6 +289,63 @@ namespace FACM.League
                 snapshot.RosterKey == RosterKey(roster);
         }
 
+        // An explicit player-card action can browse at most 200 source matches in 20-row
+        // pages. The normal roster preview remains bounded to its configured 2-20 rows.
+        internal async Task<IReadOnlyList<LeaguePlayerMatchSummary>> LoadHistoryPageAsync(
+            LeagueDynamicMessageSnapshot snapshot, string puuid, int startIndex, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid) ||
+                startIndex < snapshot.HistoryLoadCount || startIndex >= 200 ||
+                (startIndex - snapshot.HistoryLoadCount) % 20 != 0) return null;
+            var matches = snapshot.Players.Where(p => p?.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal)).Take(2).ToArray();
+            if (matches.Length != 1 || matches[0].History == null) return null;
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return null;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(14));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return null;
+                var count = Math.Min(20, 200 - startIndex);
+                var profile = new LeaguePlayerProfile { PuuId = puuid,
+                    SummonerId = matches[0].Player.SummonerId };
+                var page = await _players.LoadRecentMatchesAsync(profile, startIndex, count,
+                    true, active.Token, snapshot.HistoryQueueTag, snapshot.SelfPuuid)
+                    .ConfigureAwait(false);
+                if (page == null || page.Matches.Count > count ||
+                    !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return null;
+                page = await _players.EnrichChampionNamesAsync(profile, page, active.Token)
+                    .ConfigureAwait(false);
+                if (page == null || !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false))
+                    return null;
+                var rows = LeagueHistoricalMatchDryRun.CardRecentMatches(
+                    new LeagueDynamicMessagePlayer { Player = matches[0].Player, History = page });
+                var original = matches[0].History.Matches.FirstOrDefault(m =>
+                    m != null && m.DataSource != LeaguePlayerHistorySource.Automatic);
+                if (original != null && rows.Any(m => m.DataSource != original.DataSource ||
+                    !string.Equals(m.SgpServerId ?? "", original.SgpServerId ?? "",
+                        StringComparison.OrdinalIgnoreCase))) return null;
+                active.Token.ThrowIfCancellationRequested();
+                return rows;
+            }
+            catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
+        }
+
         // Mastery is read only on a player's explicit request through the existing LCU owner.
         internal async Task<bool> LoadMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
             string puuid, CancellationToken token)

@@ -319,7 +319,9 @@ namespace FACM.League
                     choice.Player, () => !IsDisposed && ReferenceEquals(_snapshot, snapshot),
                     (match, token) => _module.LoadDynamicPlayerMatchDetailAsync(snapshot,
                         choice.Player.Player.PuuId, match, token),
-                    (asset, token) => _module.LoadEncounterAssetAsync(asset, token)))
+                    (asset, token) => _module.LoadEncounterAssetAsync(asset, token),
+                    (startIndex, token) => _module.LoadDynamicHistoryPageAsync(snapshot,
+                        choice.Player.Player.PuuId, startIndex, token)))
                     dialog.ShowDialog(this);
             };
             editTag.Click += async (sender, e) =>

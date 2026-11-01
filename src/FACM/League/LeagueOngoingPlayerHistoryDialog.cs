@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Globalization;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,10 +20,11 @@ namespace FACM.League
             LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessagePlayer player,
             Func<bool> isCurrent,
             Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
-            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
-                isCurrent == null || loadDetail == null || loadAsset == null ||
+                isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
                 !snapshot.Players.Contains(player) ||
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
                 throw new ArgumentException("A current player-card snapshot is required.");
@@ -37,14 +39,14 @@ namespace FACM.League
                 RowCount = 2, Padding = new Padding(12) };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var matches = LeagueHistoricalMatchDryRun.CardRecentMatches(player);
-            var wins = matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win);
-            var losses = matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss);
-            var summary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
-                Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
-                    .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
-                    .Replace("{1}", wins.ToString(CultureInfo.CurrentCulture))
-                    .Replace("{2}", losses.ToString(CultureInfo.CurrentCulture)) };
+            var matches = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
+            Func<string> summaryText = () => t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
+                .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
+                .Replace("{1}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                    LeagueHistoryOutcome.Win).ToString(CultureInfo.CurrentCulture))
+                .Replace("{2}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                    LeagueHistoryOutcome.Loss).ToString(CultureInfo.CurrentCulture));
+            var summary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = summaryText() };
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text };
@@ -54,7 +56,7 @@ namespace FACM.League
                 t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost), 100);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftKda), 150);
             rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 115);
-            foreach (var match in matches)
+            Action<LeaguePlayerMatchSummary> appendMatch = match =>
             {
                 var outcome = LeaguePlayerHistoryAnalysis.Outcome(match);
                 var row = new ListViewItem(match.GameId.ToString(CultureInfo.InvariantCulture));
@@ -76,8 +78,54 @@ namespace FACM.League
                 row.SubItems.Add(string.IsNullOrWhiteSpace(match.Position) ? "—" : match.Position);
                 row.Tag = match;
                 rows.Items.Add(row);
-            }
+            };
+            foreach (var match in matches) appendMatch(match);
             var loading = false;
+            var nextIndex = snapshot.HistoryLoadCount;
+            var hasMore = nextIndex < 200;
+            var more = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
+            header.Controls.Add(summary, 0, 0);
+            header.Controls.Add(more, 1, 0);
+            more.Click += async (sender, args) =>
+            {
+                if (loading || !hasMore || !isCurrent()) return;
+                loading = true; more.Enabled = false;
+                try
+                {
+                    var page = await loadMore(nextIndex, _lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                    if (page == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    nextIndex += Math.Min(20, 200 - nextIndex);
+                    var known = new HashSet<long>(matches.Select(m => m.GameId));
+                    foreach (var match in page)
+                        if (match != null && known.Add(match.GameId))
+                        {
+                            matches.Add(match);
+                            appendMatch(match);
+                        }
+                    hasMore = page.Count > 0 && nextIndex < 200;
+                    summary.Text = summaryText();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed) more.Enabled = hasMore && nextIndex < 200 && isCurrent();
+                }
+            };
             rows.DoubleClick += async (sender, args) =>
             {
                 if (loading || !isCurrent() || rows.SelectedItems.Count != 1) return;
@@ -116,13 +164,10 @@ namespace FACM.League
                 {
                     loading = false;
                     if (!IsDisposed && isCurrent())
-                        summary.Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
-                            .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
-                            .Replace("{1}", wins.ToString(CultureInfo.CurrentCulture))
-                            .Replace("{2}", losses.ToString(CultureInfo.CurrentCulture));
+                        summary.Text = summaryText();
                 }
             };
-            layout.Controls.Add(summary, 0, 0);
+            layout.Controls.Add(header, 0, 0);
             layout.Controls.Add(rows, 0, 1);
             Controls.Add(layout);
             Shown += (sender, args) => { if (!isCurrent()) Close(); };

@@ -263,6 +263,14 @@ namespace FACM.AppHost.Modules
                 queryInLobbyPhase ?? options.QueryInLobbyPhase);
         }
 
+        public Task<IReadOnlyList<LeaguePlayerMatchSummary>> LoadDynamicHistoryPageAsync(
+            LeagueDynamicMessageSnapshot snapshot, string playerPuuid, int startIndex,
+            CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.LoadHistoryPageAsync(snapshot, playerPuuid, startIndex, token);
+        }
+
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid, CancellationToken token)
         {
