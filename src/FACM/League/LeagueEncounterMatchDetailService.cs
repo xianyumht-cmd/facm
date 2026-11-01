@@ -234,10 +234,11 @@ namespace FACM.League
                             try
                             {
                                 var page = await _players.LoadRecentMatchesAsync(
-                                    new LeaguePlayerProfile { PuuId = player.Player.PuuId }, 0, 5,
+                                    new LeaguePlayerProfile { PuuId = player.Player.PuuId }, 0,
+                                    LeaguePlayerDataService.MaximumMatchCount,
                                     false, playerDeadline.Token).ConfigureAwait(false);
                                 if (!IsSameSession(expected)) return null;
-                                if (page != null && page.Matches.Count <= 5 &&
+                                if (page != null && page.Matches.Count <= LeaguePlayerDataService.MaximumMatchCount &&
                                     page.Matches.All(m => m != null &&
                                         (string.IsNullOrEmpty(m.PuuId) ||
                                          string.Equals(m.PuuId, player.Player.PuuId, StringComparison.Ordinal))))
