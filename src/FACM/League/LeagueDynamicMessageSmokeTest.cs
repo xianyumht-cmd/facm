@@ -1138,6 +1138,17 @@ namespace FACM.League
                 Require(snapshot != null && snapshot.Players.Count == 2 && snapshot.Players.All(p => p.History != null) &&
                     snapshot.Players[0].Friendly && !snapshot.Players[1].Friendly && fake.MaxConcurrent == 1,
                     "Both-team loading must use bounded sequential shared LCU reads.");
+                var beforeBudget = fake.Paths.Count;
+                Require(await service.LoadAsync(CancellationToken.None, 1).ConfigureAwait(false) == null &&
+                    fake.Paths.Count == beforeBudget,
+                    "Invalid match-history budgets must fail without issuing a request.");
+                var bounded = await service.LoadAsync(CancellationToken.None, 2).ConfigureAwait(false);
+                var boundedPaths = fake.Paths.Skip(beforeBudget)
+                    .Where(path => path.Contains("/matches?")).ToArray();
+                Require(bounded != null && bounded.HistoryLoadCount == 2 &&
+                    boundedPaths.Length > 0 && boundedPaths.All(path => path.Contains("endIndex=1")) &&
+                    bounded.Players.All(p => p.History == null || p.History.Matches.Count <= 2),
+                    "The native match-history budget must reach actual LCU requests and bound results.");
                 snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
                 var reads = fake.Paths.Count;
                 Require(!await service.IsCurrentAsync(snapshot, CancellationToken.None).ConfigureAwait(false) && fake.Paths.Count == reads,
