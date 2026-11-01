@@ -406,6 +406,18 @@ namespace FACM.League
             if (options.ShowAverageDamageGoldEfficiencyTag)
                 AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicEfficiency,
                     KnownMean(played.Select(m => m.DamageGoldEfficiency), 100), 100);
+            if (options.ShowAverageKillDamageEfficiencyTag)
+            {
+                var complete = LeaguePlayerHistoryAnalysis.LoadedMatches(source)
+                    .Where(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win ||
+                        LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss)
+                    .ToArray();
+                var efficiency = KnownMean(complete.Select(KillDamageEfficiency), 1000, true);
+                if (efficiency > 1.35)
+                    tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh));
+                else if (efficiency < 0.65)
+                    tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageLow));
+            }
             if (options.ShowAverageEnemyMissingPingsTag)
                 AddNumber(tags, LeagueEfficiencyUiTextKeys.OngoingMissingPings,
                     KnownMean(played.Select(m => m.EnemyMissingPings), 10000, true), 10000);
@@ -423,6 +435,39 @@ namespace FACM.League
                         analysis.AkariScore.Total.ToString("0.00", CultureInfo.InvariantCulture));
             }
             return tags;
+        }
+
+        // Pinned single/summary.ts: kill share divided by champion-damage share.
+        // Incomplete team evidence cannot be used to classify a player's efficiency.
+        internal static double? KillDamageEfficiency(LeaguePlayerMatchSummary match)
+        {
+            if (match == null || !match.ParticipantResolved || !match.StatisticsAvailable ||
+                match.ParticipantId <= 0 || match.Kills < 0 || match.ParticipantRoster == null ||
+                match.ParticipantRoster.Length > 20) return null;
+            var cherry = LeagueCherryTeams.IsCherry(match.GameMode);
+            var groupId = LeagueCherryTeams.GroupId(match, cherry);
+            if (groupId <= 0) return null;
+            var members = match.ParticipantRoster.Where(p => p != null &&
+                LeagueCherryTeams.GroupId(p, cherry) == groupId).ToArray();
+            if (members.Length != (cherry ? 2 : 5) ||
+                members.Select(p => p.ParticipantId).Distinct().Count() != members.Length ||
+                members.Any(p => p.ParticipantId <= 0 || string.IsNullOrEmpty(p.PuuId) ||
+                    !p.StatisticsAvailable || p.Kills < 0 || p.Kills > 200 ||
+                    !p.DamageDealtToChampions.HasValue || double.IsNaN(p.DamageDealtToChampions.Value) ||
+                    double.IsInfinity(p.DamageDealtToChampions.Value) ||
+                    p.DamageDealtToChampions.Value < 0 || p.DamageDealtToChampions.Value > 100000000))
+                return null;
+            var self = members.SingleOrDefault(p => p.ParticipantId == match.ParticipantId);
+            if (self == null || self.Kills != match.Kills ||
+                (!string.IsNullOrEmpty(match.PuuId) && self.PuuId != match.PuuId))
+                return null;
+            var kills = members.Sum(p => p.Kills);
+            var damage = members.Sum(p => p.DamageDealtToChampions.Value);
+            if (kills == 0 || damage == 0) return 1;
+            var share = self.DamageDealtToChampions.Value / damage;
+            var result = self.Kills / (double)kills / (share == 0 ? 1 : share);
+            return double.IsNaN(result) || double.IsInfinity(result) || result > 1000
+                ? (double?)null : result;
         }
 
         private static double? KnownMean(IEnumerable<double?> values, double max, bool requireAll = false)

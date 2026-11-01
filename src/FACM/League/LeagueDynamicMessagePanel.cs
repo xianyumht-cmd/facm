@@ -112,6 +112,9 @@ namespace FACM.League
                 () => _options.ShowAverageCsPerMinuteTag, value => _options.ShowAverageCsPerMinuteTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicEfficiency,
                 () => _options.ShowAverageDamageGoldEfficiencyTag, value => _options.ShowAverageDamageGoldEfficiencyTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingKillDamageTag,
+                () => _options.ShowAverageKillDamageEfficiencyTag,
+                value => _options.ShowAverageKillDamageEfficiencyTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingMissingPings,
                 () => _options.ShowAverageEnemyMissingPingsTag, value => _options.ShowAverageEnemyMissingPingsTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.DynamicVision,

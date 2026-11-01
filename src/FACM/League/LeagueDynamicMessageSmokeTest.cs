@@ -20,6 +20,7 @@ namespace FACM.League
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
             ValidateEncounterCardTags();
+            ValidateKillDamageEfficiencyTag();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -523,6 +524,53 @@ namespace FACM.League
             var restored = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
             Require(!restored.ShowSelfTag && !restored.ShowTaggedTag && !restored.ShowMetTag,
                 "Identity tag switches must persist independently.");
+        }
+
+        private static void ValidateKillDamageEfficiencyTag()
+        {
+            var page = new LeaguePlayerMatchPage();
+            var self = new LeaguePlayerMatchSummary
+            {
+                GameId = 7001, GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                ParticipantId = 1, PuuId = "self", TeamId = 100,
+                Kills = 8, DamageDealtToChampions = 1000
+            };
+            var teammates = Enumerable.Range(2, 4).Select(id => new LeaguePlayerMatchSummary
+            {
+                ParticipantId = id, PuuId = "mate-" + id, TeamId = 100,
+                StatisticsAvailable = true, Kills = id == 2 ? 2 : 0,
+                DamageDealtToChampions = 1000
+            }).ToArray();
+            self.ParticipantRoster = new[] { self }.Concat(teammates).ToArray();
+            page.Matches.Add(self);
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == 4d,
+                "Pinned kill/damage efficiency must use team kill and champion damage shares.");
+            var options = new LeagueDynamicMessageOptions { ShowAverageKillDamageEfficiencyTag = true };
+            Require(LeagueOngoingPlayerTagProjection.Project(page, options)
+                .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh)),
+                "High kill/damage efficiency must be opt-in and source threshold based.");
+            self.Kills = 1;
+            teammates[0].Kills = 9;
+            self.DamageDealtToChampions = 3000;
+            teammates[0].DamageDealtToChampions = 2000;
+            foreach (var mate in teammates.Skip(1)) mate.DamageDealtToChampions = 0;
+            Require(LeagueOngoingPlayerTagProjection.Project(page, options)
+                .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageLow)),
+                "Low kill/damage efficiency must use the pinned 0.65 boundary.");
+            teammates[0].DamageDealtToChampions = null;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null &&
+                !LeagueOngoingPlayerTagProjection.Project(page, options)
+                    .Any(tag => tag.Contains("击杀伤害效率")),
+                "Missing team damage cannot create a misleading efficiency badge.");
+            teammates[0].DamageDealtToChampions = 2000;
+            teammates[0].ParticipantId = 1;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null,
+                "Duplicate team participant IDs must fail closed.");
+            Require(!LeagueDynamicMessageOptions.Parse("{}").ShowAverageKillDamageEfficiencyTag &&
+                LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .ShowAverageKillDamageEfficiencyTag,
+                "The new optional badge must roundtrip without changing old defaults.");
         }
 
         private static void ValidateJungleTimeline()

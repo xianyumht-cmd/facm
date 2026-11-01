@@ -28,6 +28,7 @@ namespace FACM.League
         public bool ShowAverageTeamGoldTag { get; set; }
         public bool ShowAverageCsPerMinuteTag { get; set; }
         public bool ShowAverageDamageGoldEfficiencyTag { get; set; }
+        public bool ShowAverageKillDamageEfficiencyTag { get; set; }
         public bool ShowAverageEnemyMissingPingsTag { get; set; }
         public bool ShowAverageVisionScoreTag { get; set; }
         public bool ShowGreatPerformanceTag { get; set; } = true;

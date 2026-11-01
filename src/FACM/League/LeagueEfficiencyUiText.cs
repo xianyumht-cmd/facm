@@ -379,6 +379,9 @@ namespace FACM.League
         public const string OngoingTagged = "LeagueEfficiencyOngoingTagged";
         public const string OngoingMet = "LeagueEfficiencyOngoingMet";
         public const string OngoingMissingPings = "LeagueEfficiencyOngoingMissingPings";
+        public const string OngoingKillDamageTag = "LeagueEfficiencyOngoingKillDamageTag";
+        public const string OngoingKillDamageHigh = "LeagueEfficiencyOngoingKillDamageHigh";
+        public const string OngoingKillDamageLow = "LeagueEfficiencyOngoingKillDamageLow";
         public const string OngoingGreatPerformance = "LeagueEfficiencyOngoingGreatPerformance";
         public const string OngoingExtraordinaryPerformance = "LeagueEfficiencyOngoingExtraordinaryPerformance";
         public const string OngoingAkariScore = "LeagueEfficiencyOngoingAkariScore";
@@ -810,6 +813,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingTagged, "已标记" },
             { LeagueEfficiencyUiTextKeys.OngoingMet, "相遇 {0} 局" },
             { LeagueEfficiencyUiTextKeys.OngoingMissingPings, "场均敌人消失信号" },
+            { LeagueEfficiencyUiTextKeys.OngoingKillDamageTag, "击杀伤害效率" },
+            { LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh, "高击杀伤害效率" },
+            { LeagueEfficiencyUiTextKeys.OngoingKillDamageLow, "低击杀伤害效率" },
             { LeagueEfficiencyUiTextKeys.OngoingGreatPerformance, "出色表现" },
             { LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance, "超凡表现" },
             { LeagueEfficiencyUiTextKeys.OngoingAkariScore, "Akari 评分" },
