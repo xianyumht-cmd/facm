@@ -873,6 +873,24 @@ namespace FACM.League
                 aggregates["player-2"].Wins == 10 &&
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot, 6).Count == 0,
                 "Historical premade stats require a validated shared-game threshold.");
+            var swapped = snapshot.Players.Single(p => p.Player.PuuId == "player-6");
+            Require(!LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "target", "player-6") &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-3") &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "missing") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
+                teammate.HistoricalTeamId == 200 && swapped.HistoricalTeamId == 100 &&
+                !teammate.Friendly && swapped.Friendly &&
+                teammate.Player.Side == "enemy" && swapped.Player.Side == "ally" &&
+                teammate.HistoricalOriginalTeamId == 100 && swapped.HistoricalOriginalTeamId == 200 &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 0,
+                "Rift draft swaps must preserve five-player sides, original evidence and premade scope.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                teammate.Friendly && !swapped.Friendly &&
+                teammate.HistoricalTeamId == 100 && swapped.HistoricalTeamId == 200 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 2 &&
+                roster[1].TeamId == 100 && roster[5].TeamId == 200,
+                "Restoring a historical team draft must restore inference without touching source records.");
             target.History.Matches.Clear();
             target.History.Matches.AddRange(new[] {
                 new LeaguePlayerMatchSummary { GameId = 100, PuuId = "target", ChampionId = 22,
@@ -965,6 +983,16 @@ namespace FACM.League
             Require(LeaguePremadeInference.Infer(arenaDraft).Count == 0 &&
                 LeagueHistoricalMatchDryRun.TeamAggregates(arenaDraft).Count == 0,
                 "Arena draft must never infer a premade across two enemy subteams.");
+            Require(!LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "target", "arena-3") &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-4") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-5") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 3 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-5").HistoricalTeamId == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(arenaDraft) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
+                arenaRoster[2].PlayerSubteamId == 2,
+                "Arena swaps must preserve two-player subteams and original source identity.");
             var legacyArena = new LeaguePlayerMatchSummary { GameId = 502, MapId = 30,
                 GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
             var legacyDraft = LeagueHistoricalMatchDryRun.Build(legacyArena,

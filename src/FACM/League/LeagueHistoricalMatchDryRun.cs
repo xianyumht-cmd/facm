@@ -96,6 +96,78 @@ namespace FACM.League
                 .ThenByDescending(m => m.GameId).ToArray();
         }
 
+        // A swap only changes the bounded preview; the source match is never modified.
+        internal static bool TrySwapTeams(LeagueDynamicMessageSnapshot snapshot,
+            string firstPuuid, string secondPuuid)
+        {
+            if (!ValidTeamDraft(snapshot) || firstPuuid == secondPuuid ||
+                firstPuuid == snapshot.SelfPuuid || secondPuuid == snapshot.SelfPuuid ||
+                !LeagueDynamicMessageService.SafePuuid(firstPuuid) ||
+                !LeagueDynamicMessageService.SafePuuid(secondPuuid)) return false;
+            var first = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == firstPuuid);
+            var second = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == secondPuuid);
+            if (first == null || second == null || first.HistoricalTeamId == second.HistoricalTeamId)
+                return false;
+            var oldTeam = first.HistoricalTeamId;
+            first.HistoricalTeamId = second.HistoricalTeamId;
+            second.HistoricalTeamId = oldTeam;
+            RefreshDraftSides(snapshot);
+            return true;
+        }
+
+        internal static bool TryRestoreOriginalTeams(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (!ValidTeamDraft(snapshot)) return false;
+            foreach (var player in snapshot.Players)
+                player.HistoricalTeamId = player.HistoricalOriginalTeamId;
+            RefreshDraftSides(snapshot);
+            return true;
+        }
+
+        private static void RefreshDraftSides(LeagueDynamicMessageSnapshot snapshot)
+        {
+            var selfTeam = snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid)
+                .HistoricalTeamId;
+            foreach (var player in snapshot.Players)
+            {
+                player.Friendly = player.HistoricalTeamId == selfTeam;
+                player.Player.Side = player.Friendly ? "ally" : "enemy";
+            }
+        }
+
+        private static bool ValidTeamDraft(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
+                (snapshot.HistoricalGameMode != "CLASSIC" && snapshot.HistoricalGameMode != "CHERRY") ||
+                (snapshot.HistoricalGameMode == "CLASSIC" ? snapshot.Players.Count != 10 :
+                    snapshot.Players.Count != 8 && snapshot.Players.Count != 16) ||
+                snapshot.Players.Any(p => p?.Player == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
+                snapshot.Players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() !=
+                    snapshot.Players.Count) return false;
+            var self = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == snapshot.SelfPuuid);
+            if (self == null || self.HistoricalTeamId != self.HistoricalOriginalTeamId)
+                return false;
+            var cherry = snapshot.HistoricalGameMode == "CHERRY";
+            Func<int, bool> validTeam = id => cherry ? LeagueCherryTeams.ValidSubteamId(id).HasValue :
+                id == 100 || id == 200;
+            if (snapshot.Players.Any(p => !validTeam(p.HistoricalTeamId) ||
+                !validTeam(p.HistoricalOriginalTeamId) ||
+                p.Friendly != (p.HistoricalTeamId == self.HistoricalTeamId) ||
+                p.Player.Side != (p.Friendly ? "ally" : "enemy"))) return false;
+            foreach (var original in new[] { false, true })
+            {
+                var groups = snapshot.Players.GroupBy(p => original ?
+                    p.HistoricalOriginalTeamId : p.HistoricalTeamId).ToArray();
+                if (cherry ? groups.Length != snapshot.Players.Count / 2 ||
+                    groups.Any(g => g.Count() != 2) :
+                    groups.Length != 2 || groups.Any(g => g.Count() != 5))
+                    return false;
+            }
+            return true;
+        }
+
         // Only changes an ephemeral historical preview, never a match record or LCU state.
         internal static bool TryEditSelection(LeagueDynamicMessageSnapshot snapshot,
             string puuid, int championId, string position, string championName = null,
@@ -197,6 +269,7 @@ namespace FACM.League
                 }.Contains(participant.Position, StringComparer.Ordinal)
                     ? participant.Position : string.Empty;
                 snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                    HistoricalOriginalTeamId = cherry ? participant.PlayerSubteamId.Value : participant.TeamId,
                     HistoricalOriginalChampionId = participant.ChampionId,
                     HistoricalOriginalChampionName = string.IsNullOrWhiteSpace(championName)
                         ? "#" + participant.ChampionId : championName,

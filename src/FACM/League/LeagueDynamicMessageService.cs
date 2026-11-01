@@ -117,6 +117,7 @@ namespace FACM.League
         internal LeaguePlayerMatchPage History;
         internal bool Friendly;
         internal int HistoricalTeamId;
+        internal int HistoricalOriginalTeamId;
         internal int HistoricalOriginalChampionId;
         internal string HistoricalOriginalChampionName;
         internal string HistoricalOriginalPosition;

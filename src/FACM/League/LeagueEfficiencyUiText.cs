@@ -388,6 +388,9 @@ namespace FACM.League
         public const string HistoricalDraftRecent = "LeagueEfficiencyHistoricalDraftRecent";
         public const string HistoricalDraftGame = "LeagueEfficiencyHistoricalDraftGame";
         public const string HistoricalDraftKda = "LeagueEfficiencyHistoricalDraftKda";
+        public const string HistoricalDraftSwapTeam = "LeagueEfficiencyHistoricalDraftSwapTeam";
+        public const string HistoricalDraftSwapApply = "LeagueEfficiencyHistoricalDraftSwapApply";
+        public const string HistoricalDraftRestoreTeams = "LeagueEfficiencyHistoricalDraftRestoreTeams";
         public const string OngoingRecentHistory = "LeagueEfficiencyOngoingRecentHistory";
         public const string OngoingRecentSummary = "LeagueEfficiencyOngoingRecentSummary";
         public const string OngoingRecentRemake = "LeagueEfficiencyOngoingRecentRemake";
@@ -850,6 +853,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftRecent, "已验证的近期对局" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftGame, "对局编号" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftKda, "击杀 / 死亡 / 助攻" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapTeam, "与其他队伍的玩家交换位置" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapApply, "交换模拟队伍" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreTeams, "恢复原始队伍" },
             { LeagueEfficiencyUiTextKeys.OngoingRecentHistory, "玩家近期战绩" },
             { LeagueEfficiencyUiTextKeys.OngoingRecentSummary, "已验证 {0} 场 · 胜利 {1} 场 · 失败 {2} 场" },
             { LeagueEfficiencyUiTextKeys.OngoingRecentRemake, "重开" },

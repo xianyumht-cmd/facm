@@ -20,18 +20,20 @@ namespace FACM.League
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) + " · " +
                 (player.Player.GameName ?? ("#" + player.Player.CellId));
-            Width = 640; Height = 480; MinimumSize = new Size(470, 350);
+            Width = 680; Height = 550; MinimumSize = new Size(470, 400);
             AutoScaleMode = AutoScaleMode.Font;
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
 
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
-                RowCount = 6, Padding = new Padding(12) };
+                RowCount = 8, Padding = new Padding(12) };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -81,6 +83,43 @@ namespace FACM.League
             layout.Controls.Add(primary, 0, 3);
             layout.Controls.Add(secondary, 1, 3);
 
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftSwapTeam) }, 0, 4);
+            var swapCandidates = snapshot.Players.Where(p => p?.Player != null &&
+                p.Player.PuuId != player.Player.PuuId &&
+                p.Player.PuuId != snapshot.SelfPuuid &&
+                p.HistoricalTeamId != player.HistoricalTeamId).ToArray();
+            var swap = new ComboBox { Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList };
+            swap.Items.Add("—");
+            foreach (var candidate in swapCandidates)
+                swap.Items.Add((candidate.Player.GameName ?? ("#" + candidate.Player.CellId)) +
+                    " · #" + candidate.Player.CellId);
+            swap.SelectedIndex = 0;
+            swap.Enabled = player.Player.PuuId != snapshot.SelfPuuid && swapCandidates.Length > 0;
+            layout.Controls.Add(swap, 0, 5);
+            var swapApply = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftSwapApply),
+                Enabled = swap.Enabled };
+            swapApply.Click += (sender, args) =>
+            {
+                if (swap.SelectedIndex < 1 || !isCurrentSession())
+                {
+                    swapApply.Enabled = false;
+                    return;
+                }
+                if (!LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, player.Player.PuuId,
+                    swapCandidates[swap.SelectedIndex - 1].Player.PuuId))
+                {
+                    MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            layout.Controls.Add(swapApply, 1, 5);
+
             var recent = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
                 ForeColor = FacmDesignSystem.Text };
@@ -112,7 +151,7 @@ namespace FACM.League
                 if (snapshot.HistoricalGameMode == "CLASSIC" && index >= 0)
                     position.SelectedIndex = index;
             };
-            layout.Controls.Add(recent, 0, 4);
+            layout.Controls.Add(recent, 0, 6);
             layout.SetColumnSpan(recent, 2);
 
             var reset = new Button { Width = 145, Height = 30,
@@ -126,6 +165,18 @@ namespace FACM.League
                     Array.IndexOf(positions, player.HistoricalOriginalPosition ?? ""));
                 primary.SelectedIndex = 0;
                 secondary.SelectedIndex = 0;
+            };
+            var restoreTeams = new Button { Width = 150, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreTeams) };
+            restoreTeams.Click += (sender, args) =>
+            {
+                if (!isCurrentSession() || !LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot))
+                {
+                    restoreTeams.Enabled = false;
+                    return;
+                }
+                DialogResult = DialogResult.OK;
+                Close();
             };
             var apply = new Button { Width = 155, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
@@ -156,8 +207,9 @@ namespace FACM.League
             };
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
                 WrapContents = false, AutoScroll = true };
-            actions.Controls.Add(reset); actions.Controls.Add(apply); actions.Controls.Add(cancel);
-            layout.Controls.Add(actions, 0, 5);
+            actions.Controls.Add(reset); actions.Controls.Add(restoreTeams);
+            actions.Controls.Add(apply); actions.Controls.Add(cancel);
+            layout.Controls.Add(actions, 0, 7);
             layout.SetColumnSpan(actions, 2);
             AcceptButton = apply; CancelButton = cancel;
             Controls.Add(layout);
