@@ -555,6 +555,18 @@ namespace FACM.League
             tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
                 new[] { "self", "ally" }, recent, "HN1");
             Require(tags["ally"] == 2, "Cross-region SGP matches must not enter current-session encounter badges.");
+            ownHistory.Matches[0].SgpServerId = null;
+            allyHistory.Matches[0].SgpServerId = null;
+            allyHistory.Matches[0].PuuId = "wrong-owner";
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Wrong-owner recent history must not create an encounter.");
+            allyHistory.Matches[0].PuuId = "ally";
+            allyHistory.Matches.Add(allyHistory.Matches[0]);
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Duplicate recent game IDs must fail closed without throwing.");
+            allyHistory.Matches.RemoveAt(1);
             var options = LeagueDynamicMessageOptions.Parse("{}");
             Require(options.ShowSelfTag && options.ShowTaggedTag && options.ShowMetTag,
                 "Pinned player-card identity tag defaults must survive old settings.");
