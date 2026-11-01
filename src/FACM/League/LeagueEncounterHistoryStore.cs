@@ -37,7 +37,8 @@ namespace FACM.League
     {
         // One local read for the visible roster; a game is counted once per opponent.
         internal static IReadOnlyDictionary<string, int> Project(IEnumerable<LeagueEncounterRecord> records,
-            string selfPuuid, string region, string platformId, IEnumerable<string> roster)
+            string selfPuuid, string region, string platformId, IEnumerable<string> roster,
+            IEnumerable<LeagueDynamicMessagePlayer> recentPlayers = null, string currentServerId = null)
         {
             var empty = new Dictionary<string, int>(StringComparer.Ordinal);
             if (records == null || roster == null || !LeagueDynamicMessageService.SafePuuid(selfPuuid) ||
@@ -47,12 +48,63 @@ namespace FACM.League
                 .Distinct(StringComparer.Ordinal).Take(21).ToArray();
             if (members.Length > 20 || !members.Contains(selfPuuid, StringComparer.Ordinal)) return empty;
             var allowed = new HashSet<string>(members.Where(id => id != selfPuuid), StringComparer.Ordinal);
-            return records.Where(r => r != null && r.GameId > 0 && r.SelfPuuid == selfPuuid &&
-                    allowed.Contains(r.Puuid) &&
-                    string.Equals(r.Region, region, StringComparison.OrdinalIgnoreCase) &&
-                    string.Equals(r.PlatformId, platformId, StringComparison.OrdinalIgnoreCase))
-                .GroupBy(r => r.Puuid, StringComparer.Ordinal)
-                .ToDictionary(g => g.Key, g => g.Select(r => r.GameId).Distinct().Count(), StringComparer.Ordinal);
+            var games = allowed.ToDictionary(id => id, id => new HashSet<long>(), StringComparer.Ordinal);
+            foreach (var record in records.Where(r => r != null && r.GameId > 0 &&
+                r.SelfPuuid == selfPuuid && allowed.Contains(r.Puuid) &&
+                string.Equals(r.Region, region, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(r.PlatformId, platformId, StringComparison.OrdinalIgnoreCase)))
+                games[record.Puuid].Add(record.GameId);
+
+            // Source met.tsx merges locally saved encounters with recent history.
+            // Only mutually confirmed, same-server participant rosters can add an unsaved match.
+            if (recentPlayers != null)
+            {
+                var loaded = recentPlayers.Where(p => p?.Player != null &&
+                    LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                    .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                    .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(),
+                        StringComparer.Ordinal);
+                LeagueDynamicMessagePlayer own;
+                if (loaded.TryGetValue(selfPuuid, out own) && own.History?.Matches != null)
+                {
+                    foreach (var otherId in allowed)
+                    {
+                        LeagueDynamicMessagePlayer other;
+                        if (!loaded.TryGetValue(otherId, out other) || other.History?.Matches == null) continue;
+                        var recent = other.History.Matches.Where(m => VerifiedRecent(m, selfPuuid, otherId,
+                            currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount)
+                            .ToDictionary(m => m.GameId, m => m);
+                        foreach (var match in own.History.Matches.Where(m => VerifiedRecent(m,
+                            selfPuuid, otherId, currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount))
+                        {
+                            LeaguePlayerMatchSummary counterpart;
+                            if (recent.TryGetValue(match.GameId, out counterpart) &&
+                                string.Equals(match.SgpServerId ?? "", counterpart.SgpServerId ?? "",
+                                    StringComparison.OrdinalIgnoreCase))
+                                games[otherId].Add(match.GameId);
+                        }
+                    }
+                }
+            }
+            return games.Where(g => g.Value.Count > 0).ToDictionary(g => g.Key,
+                g => g.Value.Count, StringComparer.Ordinal);
+        }
+
+        private static bool VerifiedRecent(LeaguePlayerMatchSummary match, string selfPuuid,
+            string otherPuuid, string currentServerId)
+        {
+            if (match == null || match.GameId <= 0 || !match.ParticipantResolved ||
+                match.MatchPlayers == null || match.MatchPlayers.Length < 2 ||
+                match.MatchPlayers.Length > 20 ||
+                (!string.IsNullOrEmpty(match.SgpServerId) &&
+                    (string.IsNullOrEmpty(currentServerId) ||
+                     !string.Equals(match.SgpServerId, currentServerId, StringComparison.OrdinalIgnoreCase))))
+                return false;
+            var ids = match.MatchPlayers.Select(p => p?.PuuId).ToArray();
+            return ids.All(LeagueDynamicMessageService.SafePuuid) &&
+                ids.Distinct(StringComparer.Ordinal).Count() == ids.Length &&
+                ids.Contains(selfPuuid, StringComparer.Ordinal) &&
+                ids.Contains(otherPuuid, StringComparer.Ordinal);
         }
     }
 

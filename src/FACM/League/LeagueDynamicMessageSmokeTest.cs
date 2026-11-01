@@ -515,6 +515,46 @@ namespace FACM.League
                 LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
                     new[] { "ally", "enemy" }).Count == 0,
                 "Encounter card tags must fail closed across account, platform and absent self.");
+            var ownHistory = new LeaguePlayerMatchPage();
+            var allyHistory = new LeaguePlayerMatchPage();
+            var roster = new[]
+            {
+                new LeaguePlayerMatchIdentity { PuuId = "self" },
+                new LeaguePlayerMatchIdentity { PuuId = "ally" }
+            };
+            ownHistory.Matches.Add(new LeaguePlayerMatchSummary
+            {
+                GameId = 16, PuuId = "self", ParticipantResolved = true, MatchPlayers = roster
+            });
+            allyHistory.Matches.Add(new LeaguePlayerMatchSummary
+            {
+                GameId = 16, PuuId = "ally", ParticipantResolved = true, MatchPlayers = roster
+            });
+            var recent = new[]
+            {
+                new LeagueDynamicMessagePlayer { Player = new LeagueLivePlayerRow { PuuId = "self" },
+                    History = ownHistory },
+                new LeagueDynamicMessagePlayer { Player = new LeagueLivePlayerRow { PuuId = "ally" },
+                    History = allyHistory }
+            };
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally", "enemy" }, recent);
+            Require(tags["ally"] == 3 && tags["enemy"] == 1,
+                "Recent verified mutual rosters must merge with saved encounters without extra network calls.");
+            allyHistory.Matches[0].MatchPlayers = new[]
+            {
+                new LeaguePlayerMatchIdentity { PuuId = "self" },
+                new LeaguePlayerMatchIdentity { PuuId = "stranger" }
+            };
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Contradictory recent rosters cannot invent encounters.");
+            allyHistory.Matches[0].MatchPlayers = roster;
+            ownHistory.Matches[0].SgpServerId = "foreign";
+            allyHistory.Matches[0].SgpServerId = "foreign";
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent, "HN1");
+            Require(tags["ally"] == 2, "Cross-region SGP matches must not enter current-session encounter badges.");
             var options = LeagueDynamicMessageOptions.Parse("{}");
             Require(options.ShowSelfTag && options.ShowTaggedTag && options.ShowMetTag,
                 "Pinned player-card identity tag defaults must survive old settings.");

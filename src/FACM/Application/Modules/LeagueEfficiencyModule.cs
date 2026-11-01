@@ -283,7 +283,8 @@ namespace FACM.AppHost.Modules
                 return new Dictionary<string, int>(StringComparer.Ordinal);
             return LeagueEncounterTagProjection.Project(_encounterHistory.ReadAll(), snapshot.SelfPuuid,
                 session.Region, session.PlatformId, snapshot.Players.Where(p => p?.Player != null)
-                    .Select(p => p.Player.PuuId));
+                    .Select(p => p.Player.PuuId), snapshot.Players,
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(session));
         }
 
         public int ImportPlayerTags(string path)
