@@ -213,6 +213,7 @@ namespace FACM.League
             var editTag = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagEdit));
             var removeTag = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagRemove));
             var encountered = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterHistory));
+            var recentChampions = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             _players.ContextMenuStrip = tagMenu;
             _jungle.ContextMenuStrip = tagMenu;
             _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
@@ -221,9 +222,14 @@ namespace FACM.League
             {
                 var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
                 e.Cancel = _busy || _snapshot == null || choice == null || choice.Player == null ||
-                    choice.Player.Player == null || !LeagueDynamicMessageService.SafePuuid(choice.Player.Player.PuuId) ||
-                    string.Equals(choice.Player.Player.PuuId, _snapshot.SelfPuuid, StringComparison.Ordinal);
-                removeTag.Enabled = !e.Cancel && !string.IsNullOrEmpty(choice.Tag);
+                    choice.Player.Player == null || !LeagueDynamicMessageService.SafePuuid(choice.Player.Player.PuuId);
+                var isSelf = !e.Cancel && string.Equals(choice.Player.Player.PuuId,
+                    _snapshot.SelfPuuid, StringComparison.Ordinal);
+                editTag.Enabled = !e.Cancel && !isSelf;
+                removeTag.Enabled = !e.Cancel && !isSelf && !string.IsNullOrEmpty(choice.Tag);
+                encountered.Enabled = !e.Cancel && !isSelf;
+                recentChampions.Enabled = !e.Cancel &&
+                    LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player).Count > 0;
             };
             editTag.Click += async (sender, e) =>
             {
@@ -246,6 +252,20 @@ namespace FACM.League
             {
                 var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
                 if (choice != null) ShowEncounterHistory(_snapshot, choice);
+            };
+            recentChampions.Click += (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                if (choice == null || _snapshot == null || _busy ||
+                    !_snapshot.Players.Contains(choice.Player)) return;
+                var champions = LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player);
+                if (champions.Count == 0) return;
+                var lines = champions.Select(c =>
+                    (string.IsNullOrWhiteSpace(c.ChampionName) ? "#" + c.ChampionId : c.ChampionName) +
+                    " · " + c.Games + " · " + c.WinRate.ToString("0") + "%");
+                MessageBox.Show(this, string.Join(Environment.NewLine, lines),
+                    _ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions),
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
             _selectionTabs = new TabControl { Dock = DockStyle.Fill };
             var playerTab = new TabPage(T(LeagueEfficiencyUiTextKeys.DynamicPlayer));

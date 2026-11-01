@@ -769,6 +769,31 @@ namespace FACM.League
                 aggregates["player-2"].Wins == 10 &&
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot, 6).Count == 0,
                 "Historical premade stats require a validated shared-game threshold.");
+            target.History.Matches.Clear();
+            target.History.Matches.AddRange(new[] {
+                new LeaguePlayerMatchSummary { GameId = 100, PuuId = "target", ChampionId = 22,
+                    ChampionName = "Ashe", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target", ChampionId = 22,
+                    ChampionName = "Ashe", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss" },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target", ChampionId = 1,
+                    ChampionName = "Annie", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target", ChampionId = 2,
+                    ChampionName = "Olaf", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 103, PuuId = "other", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 104, PuuId = "target", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = false, WinResult = "win" }
+            });
+            var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
+            Require(usage.Count == 1 && usage[0].ChampionId == 22 &&
+                usage[0].Games == 2 && usage[0].Wins == 1 && usage[0].WinRate == 50 &&
+                LeagueHistoricalMatchDryRun.RecentChampionUsage(
+                    new LeagueDynamicMessagePlayer { Player = target.Player }).Count == 0,
+                "Recent champion usage must exclude conflicting duplicate games, wrong owners and unknown outcomes.");
             roster[9].PuuId = roster[8].PuuId;
             Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
                 "Duplicate historical player identities must fail closed.");

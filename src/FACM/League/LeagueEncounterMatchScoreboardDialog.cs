@@ -646,6 +646,7 @@ namespace FACM.League
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingTagDisplay), 360);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam), 100);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats), 180);
+                dryRows.Columns.Add(ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions), 250);
                 dryLayout.Controls.Add(dryButton, 0, 0);
                 dryLayout.Controls.Add(dryStatus, 0, 1);
                 dryLayout.Controls.Add(dryRows, 0, 2);
@@ -691,6 +692,14 @@ namespace FACM.League
                                     .Replace("{1}", aggregate.Kda.HasValue
                                         ? aggregate.Kda.Value.ToString("0.00") : "—")
                                 : "—");
+                            var champions = LeagueHistoricalMatchDryRun.RecentChampionUsage(player);
+                            row.SubItems.Add(champions.Count == 0 ? "—" : string.Join(" · ",
+                                champions.Take(3).Select(c =>
+                                    (string.IsNullOrWhiteSpace(c.ChampionName) ? "#" + c.ChampionId : c.ChampionName) +
+                                    " ×" + c.Games)));
+                            row.ToolTipText = champions.Count == 0 ? string.Empty : string.Join(" · ",
+                                champions.Select(c => "#" + c.ChampionId + " ×" + c.Games +
+                                    " (" + c.WinRate.ToString("0") + "%)"));
                             dryRows.Items.Add(row);
                         }
                         dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)
