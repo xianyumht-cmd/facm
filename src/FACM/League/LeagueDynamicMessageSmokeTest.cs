@@ -1496,9 +1496,11 @@ namespace FACM.League
                 "Zero-mean KDA samples must not produce NaN or an invented variation.");
             var unknownMode = LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
                 new LeaguePlayerMatchSummary { GameId = 10, ChampionId = 22,
-                    PuuId = "target", WinResult = "win", GameMode = "" },
+                    PuuId = "target", WinResult = "win", GameMode = "",
+                    ParticipantResolved = true, StatisticsAvailable = true },
                 new LeaguePlayerMatchSummary { GameId = 11, ChampionId = 23,
-                    PuuId = "target", WinResult = "loss", GameMode = "CHERRY" }
+                    PuuId = "target", WinResult = "loss", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true }
             }, "target");
             Require(unknownMode != null && unknownMode.Wins == 1 && unknownMode.Losses == 1 &&
                 unknownMode.NormalWins == 0 && unknownMode.NormalLosses == 0 &&
