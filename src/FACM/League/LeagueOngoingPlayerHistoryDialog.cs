@@ -120,6 +120,52 @@ namespace FACM.League
                     Kind = "mode", Mode = group.Key, Label = group.Key,
                     Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
                 });
+
+            var roles = new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            foreach (var group in verified.Where(m => roles.Contains(m.Position, StringComparer.Ordinal))
+                .GroupBy(m => new { m.ChampionId, m.Position })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.ChampionId)
+                .ThenBy(g => g.Key.Position, StringComparer.Ordinal))
+            {
+                var name = group.Select(m => m.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion-position", ChampionId = group.Key.ChampionId,
+                    Position = group.Key.Position,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key.ChampionId : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            }
+            var modes = verified.Where(m => !string.IsNullOrWhiteSpace(m.GameMode) &&
+                !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase))
+                .Select(m => new { Match = m, Mode = string.Equals(m.GameMode, "CHERRY",
+                    StringComparison.OrdinalIgnoreCase) ? "CHERRY" : "NORMAL" }).ToArray();
+            foreach (var group in modes.GroupBy(m => new { m.Match.ChampionId, m.Mode })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.ChampionId)
+                .ThenBy(g => g.Key.Mode, StringComparer.Ordinal))
+            {
+                var name = group.Select(m => m.Match.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion-mode", ChampionId = group.Key.ChampionId,
+                    Mode = group.Key.Mode,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key.ChampionId : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.Select(m => m.Match).ToArray(), puuid)
+                });
+            }
+            foreach (var group in modes.Where(m => roles.Contains(m.Match.Position, StringComparer.Ordinal))
+                .GroupBy(m => new { m.Match.Position, m.Mode })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.Position, StringComparer.Ordinal)
+                .ThenBy(g => g.Key.Mode, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "position-mode", Position = group.Key.Position, Mode = group.Key.Mode,
+                    Label = group.Key.Position,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.Select(m => m.Match).ToArray(), puuid)
+                });
             return result.Where(row => row.Analysis != null).ToArray();
         }
     }
@@ -142,13 +188,18 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
             var tabs = new TabControl { Dock = DockStyle.Fill };
             var breakdown = LeagueOngoingCardBreakdown.Project(matches, puuid);
-            foreach (var kind in new[] { "champion", "position", "mode" })
+            foreach (var kind in new[] { "champion", "position", "mode",
+                "champion-position", "champion-mode", "position-mode" })
             {
-                var label = kind == "champion"
-                    ? t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion)
-                    : kind == "position"
-                    ? t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition)
-                    : t(LeagueEfficiencyUiTextKeys.AdvancedMode);
+                var championLabel = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion);
+                var positionLabel = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition);
+                var modeLabel = t(LeagueEfficiencyUiTextKeys.AdvancedMode);
+                var label = kind == "champion" ? championLabel
+                    : kind == "position" ? positionLabel
+                    : kind == "mode" ? modeLabel
+                    : kind == "champion-position" ? championLabel + " / " + positionLabel
+                    : kind == "champion-mode" ? championLabel + " / " + modeLabel
+                    : positionLabel + " / " + modeLabel;
                 var page = new TabPage(label) { BackColor = FacmDesignSystem.Canvas };
                 var list = new ListView {
                     Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
@@ -164,13 +215,16 @@ namespace FACM.League
                 foreach (var item in breakdown.Where(row => row.Kind == kind))
                 {
                     var a = item.Analysis;
-                    var title = kind == "mode"
-                        ? t(item.Mode == "CHERRY"
-                            ? LeagueEfficiencyUiTextKeys.ProfileModeCherry
-                            : LeagueEfficiencyUiTextKeys.ProfileModeNormal)
-                        : kind == "position"
-                        ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
-                        : item.Label;
+                    var modeName = item.Mode == "CHERRY"
+                        ? t(LeagueEfficiencyUiTextKeys.ProfileModeCherry)
+                        : t(LeagueEfficiencyUiTextKeys.ProfileModeNormal);
+                    var title = kind == "mode" ? modeName
+                        : kind == "position" ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
+                        : kind == "champion-position" ? item.Label + " / " +
+                            LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
+                        : kind == "champion-mode" ? item.Label + " / " + modeName
+                        : kind == "position-mode" ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position) +
+                            " / " + modeName : item.Label;
                     var row = new ListViewItem(title);
                     row.SubItems.Add(a.Games.ToString(CultureInfo.CurrentCulture));
                     row.SubItems.Add(a.WinRate.HasValue
@@ -190,9 +244,14 @@ namespace FACM.League
                     var selected = list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow;
                     if (selected == null) return;
                     HasSelection = true;
-                    SelectedChampionId = selected.Kind == "champion" ? selected.ChampionId : 0;
-                    SelectedPosition = selected.Kind == "position" ? selected.Position : "";
-                    SelectedMode = selected.Kind == "mode" ? selected.Mode : "";
+                    SelectedChampionId = selected.Kind.StartsWith("champion", StringComparison.Ordinal)
+                        ? selected.ChampionId : 0;
+                    SelectedPosition = selected.Kind == "position" ||
+                        selected.Kind == "champion-position" || selected.Kind == "position-mode"
+                        ? selected.Position : "";
+                    SelectedMode = selected.Kind == "mode" ||
+                        selected.Kind == "champion-mode" || selected.Kind == "position-mode"
+                        ? selected.Mode : "";
                     DialogResult = DialogResult.OK;
                     Close();
                 };

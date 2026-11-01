@@ -47,6 +47,15 @@ namespace FACM.League
                 "Mode filters must intersect verified champion and position evidence.");
             var breakdown = LeagueOngoingCardBreakdown.Project(matches, "target");
             Require(breakdown.Count(row => row.Kind == "champion") == 2 &&
+                breakdown.Count(row => row.Kind == "champion-position") == 2 &&
+                breakdown.Count(row => row.Kind == "champion-mode") == 2 &&
+                breakdown.Count(row => row.Kind == "position-mode") == 2 &&
+                breakdown.Single(row => row.Kind == "champion-position" &&
+                    row.ChampionId == 22 && row.Position == "TOP").Analysis.Games == 2 &&
+                breakdown.Single(row => row.Kind == "champion-mode" &&
+                    row.ChampionId == 22 && row.Mode == "CHERRY").Analysis.Games == 1 &&
+                breakdown.Single(row => row.Kind == "position-mode" &&
+                    row.Position == "TOP" && row.Mode == "CHERRY").Analysis.Games == 1 &&
                 breakdown.Count(row => row.Kind == "position") == 2 &&
                 breakdown.Count(row => row.Kind == "mode") == 2 &&
                 breakdown.Single(row => row.Kind == "champion" && row.ChampionId == 22)
