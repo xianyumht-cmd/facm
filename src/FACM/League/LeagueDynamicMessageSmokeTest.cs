@@ -58,17 +58,17 @@ namespace FACM.League
         private static void ValidateCardPageAdditions()
         {
             var original = new LeaguePlayerMatchSummary {
-                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win",
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win", ParticipantResolved = true, StatisticsAvailable = true,
                 DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
                 GameCreationEpochMs = 1000
             };
             var same = new LeaguePlayerMatchSummary {
-                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win",
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win", ParticipantResolved = true, StatisticsAvailable = true,
                 DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
                 GameCreationEpochMs = 1000
             };
             var next = new LeaguePlayerMatchSummary {
-                PuuId = "self", GameId = 2, ChampionId = 22, WinResult = "loss",
+                PuuId = "self", GameId = 2, ChampionId = 22, WinResult = "loss", ParticipantResolved = true, StatisticsAvailable = true,
                 DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420
             };
             var current = new List<LeaguePlayerMatchSummary> { original };
