@@ -361,7 +361,11 @@ namespace FACM.League
             }
 
             var key = action.Type + ":" + action.Id.ToString(CultureInfo.InvariantCulture);
-            if (attempted.Contains(key)) return;
+            var staged = (isPick ? profile.PickStrategy : profile.BanStrategy) == "show-and-lock-in" &&
+                !(isPick && action.AllowSubsetPicks);
+            var shownKey = key + ":shown";
+            var lockedKey = key + ":locked";
+            if (attempted.Contains(key) || staged && attempted.Contains(lockedKey)) return;
 
             var watch = Stopwatch.StartNew();
             var availabilityPath = isPick ? PickablePath : BannablePath;
@@ -408,17 +412,21 @@ namespace FACM.League
 
             // A temporarily empty pickable/subset list or a stale preflight must not consume
             // this action for the whole draft. Only a verified write gets the one-shot fence.
-            if (!attempted.Add(key)) return;
             CompactTraceLog.Record(trace, "autoselect", "preflight", "ok", watch.ElapsedMilliseconds);
-            var lockImmediately = strategy == "lock-in-immediately";
+            var lockImmediately = strategy == "lock-in-immediately" ||
+                staged && attempted.Contains(shownKey);
             var result = await _write.TryApplyAsync(action.Type, action.Id, desired, lockImmediately, episode.Token)
                 .ConfigureAwait(false);
+            // Only a confirmed successful write consumes this action stage. A transient
+            // HTTP failure can retry on the existing phase-scoped two-second tick.
+            if (result != null && result.IsSuccessStatusCode)
+                attempted.Add(staged ? (lockImmediately ? lockedKey : shownKey) : key);
             CompactTraceLog.Record(trace, "autoselect", "write",
                 result == null ? "failed_unavailable" :
                 result.IsSuccessStatusCode ? (lockImmediately ? "lock_submitted" : "show_submitted") :
                 "failed_http_" + result.StatusCode,
                 watch.ElapsedMilliseconds);
-            if (strategy != "show-and-lock-in" || result == null || !result.IsSuccessStatusCode ||
+            if (!staged || lockImmediately || result == null || !result.IsSuccessStatusCode ||
                 !IsCurrent(episode)) return;
 
             var shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
@@ -435,6 +443,7 @@ namespace FACM.League
             }
             var locked = await _write.TryApplyAsync(action.Type, action.Id, desired, true, episode.Token)
                 .ConfigureAwait(false);
+            if (locked != null && locked.IsSuccessStatusCode) attempted.Add(lockedKey);
             CompactTraceLog.Record(trace, "autoselect", "lock",
                 locked == null ? "failed_unavailable" :
                 locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,

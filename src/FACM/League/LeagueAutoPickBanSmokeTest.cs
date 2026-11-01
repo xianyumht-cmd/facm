@@ -21,6 +21,7 @@ namespace FACM.League
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
             ValidateTransientEligibilityRecoveryAsync().GetAwaiter().GetResult();
+            ValidateWriteRetryAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -975,6 +976,64 @@ namespace FACM.League
             }
         }
 
+
+        private static async Task ValidateWriteRetryAsync()
+        {
+            // A rejected action remains eligible on the next existing ChampSelect tick.
+            var read = new FakeRead { SessionJson = Session("pick", 83, 0) };
+            var writer = new FakeWrite { FailFirstResponses = 1 };
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "pick:83:22:True", "pick:83:22:True"
+                }), "Transient pick HTTP failure must retry in the same verified draft.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 2,
+                    "Successful retry must not repeat after the draft ends.");
+            }
+
+            var showAndLock = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 67 }, PickStrategy = "show-and-lock-in" }
+            });
+            read = new FakeRead { SessionJson = SessionWithRole("pick", 84, "TOP") };
+            writer = new FakeWrite { FailFirstCompletedResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "pick:84:67:False", "pick:84:67:True", "pick:84:67:True"
+                }), "Failed second-stage lock must retry the lock without repeating the successful show.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 3,
+                    "Staged retry must remain owned by the current ChampSelect episode.");
+            }
+
+            read = new FakeRead { SessionJson = Session("ban", 85, 0) };
+            writer = new FakeWrite { FailFirstResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(false, 0, true, 67);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "ban:85:67:True", "ban:85:67:True"
+                }), "Transient ban HTTP failure must not permanently consume the local action.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+        }
+
         private static async Task ValidateFailureAndCancellationAsync()
         {
             var idleClock = new FakeClock();
@@ -1257,13 +1316,22 @@ namespace FACM.League
         {
             public readonly List<string> Calls = new List<string>();
             public readonly List<string> IntentCalls = new List<string>();
+            public int FailFirstResponses;
+            public int FailFirstCompletedResponses;
 
             public Task<LeagueClientWriteResponse> TryApplyAsync(
                 string type, int id, int championId, bool completed, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(type + ":" + id + ":" + championId + ":" + completed);
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+                var fail = FailFirstResponses > 0;
+                if (fail) FailFirstResponses--;
+                else if (completed && FailFirstCompletedResponses > 0)
+                {
+                    FailFirstCompletedResponses--;
+                    fail = true;
+                }
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
             }
 
             public Task<LeagueClientWriteResponse> TryIntentAsync(
