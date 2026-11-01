@@ -591,6 +591,9 @@ namespace FACM.League
                     result.Matches.Count != source.Count ||
                     !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
                 active.Token.ThrowIfCancellationRequested();
+                if (preferCardHistory &&
+                    !ReferenceEquals(source, player.RosterCardHistory ?? player.History.Matches))
+                    return false;
                 foreach (var key in result.Attempted) player.AnalysisDetailAttempted.Add(key);
                 if (result.Updated <= 0) return false;
                 if (preferCardHistory && ReferenceEquals(source, player.RosterCardHistory))
