@@ -71,11 +71,15 @@ namespace FACM.League
                     {
                         LeagueDynamicMessagePlayer other;
                         if (!loaded.TryGetValue(otherId, out other) || other.History?.Matches == null) continue;
-                        var recent = other.History.Matches.Where(m => VerifiedRecent(m, selfPuuid, otherId,
-                            currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount)
+                        var recent = other.History.Matches.Where(m => m != null && m.GameId > 0)
+                            .GroupBy(m => m.GameId).Where(g => g.Count() == 1).Select(g => g.First())
+                            .Where(m => m.PuuId == otherId && VerifiedRecent(m, selfPuuid, otherId,
+                                currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount)
                             .ToDictionary(m => m.GameId, m => m);
-                        foreach (var match in own.History.Matches.Where(m => VerifiedRecent(m,
-                            selfPuuid, otherId, currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount))
+                        foreach (var match in own.History.Matches.Where(m => m != null && m.GameId > 0)
+                            .GroupBy(m => m.GameId).Where(g => g.Count() == 1).Select(g => g.First())
+                            .Where(m => m.PuuId == selfPuuid && VerifiedRecent(m, selfPuuid, otherId,
+                                currentServerId)).Take(LeaguePlayerDataService.MaximumMatchCount))
                         {
                             LeaguePlayerMatchSummary counterpart;
                             if (recent.TryGetValue(match.GameId, out counterpart) &&
