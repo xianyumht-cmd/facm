@@ -375,6 +375,9 @@ namespace FACM.League
         public const string PremadeTeamStats = "LeagueEfficiencyPremadeTeamStats";
         public const string PremadeTeamWinRate = "LeagueEfficiencyPremadeTeamWinRate";
         public const string OngoingTagDisplay = "LeagueEfficiencyOngoingTagDisplay";
+        public const string OngoingSelf = "LeagueEfficiencyOngoingSelf";
+        public const string OngoingTagged = "LeagueEfficiencyOngoingTagged";
+        public const string OngoingMet = "LeagueEfficiencyOngoingMet";
         public const string OngoingMissingPings = "LeagueEfficiencyOngoingMissingPings";
         public const string OngoingGreatPerformance = "LeagueEfficiencyOngoingGreatPerformance";
         public const string OngoingExtraordinaryPerformance = "LeagueEfficiencyOngoingExtraordinaryPerformance";
@@ -803,6 +806,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeTeamStats, "成员样本胜率 {0}% · KDA {1}" },
             { LeagueEfficiencyUiTextKeys.PremadeTeamWinRate, "成员样本胜率 {0}%" },
             { LeagueEfficiencyUiTextKeys.OngoingTagDisplay, "玩家标签显示" },
+            { LeagueEfficiencyUiTextKeys.OngoingSelf, "本人" },
+            { LeagueEfficiencyUiTextKeys.OngoingTagged, "已标记" },
+            { LeagueEfficiencyUiTextKeys.OngoingMet, "相遇 {0} 局" },
             { LeagueEfficiencyUiTextKeys.OngoingMissingPings, "场均敌人消失信号" },
             { LeagueEfficiencyUiTextKeys.OngoingGreatPerformance, "出色表现" },
             { LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance, "超凡表现" },

@@ -84,6 +84,12 @@ namespace FACM.League
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse)).Click += (sender, e) => BrowseTags();
             var tagVisibility = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.OngoingTagDisplay));
             _exchangeMenu.Items.Add(tagVisibility);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingSelf,
+                () => _options.ShowSelfTag, value => _options.ShowSelfTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingTagged,
+                () => _options.ShowTaggedTag, value => _options.ShowTaggedTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingMet,
+                () => _options.ShowMetTag, value => _options.ShowMetTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingPremadeTeam,
                 () => _options.ShowPremadeTeamTag, value => _options.ShowPremadeTeamTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingHighWinRate,
@@ -331,12 +337,21 @@ namespace FACM.League
                     catch (System.IO.InvalidDataException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
                     catch (System.IO.IOException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
                     catch (System.UnauthorizedAccessException) { tags = new Dictionary<string, string>(StringComparer.Ordinal); }
+                    IReadOnlyDictionary<string, int> encounters;
+                    try { encounters = _module.ReadPlayerEncounterCounts(snapshot); }
+                    catch (System.IO.InvalidDataException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
+                    catch (System.IO.IOException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
+                    catch (System.UnauthorizedAccessException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
                     foreach (var player in snapshot.Players)
                     {
                         string tag;
+                        int count;
                         tags.TryGetValue(player.Player.PuuId, out tag);
-                        _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag }, selected == null || selected.Contains(player.Player.PuuId));
-                        _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag }, false);
+                        encounters.TryGetValue(player.Player.PuuId, out count);
+                        var self = string.Equals(player.Player.PuuId, snapshot.SelfPuuid, StringComparison.Ordinal);
+                        _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count },
+                            selected == null || selected.Contains(player.Player.PuuId));
+                        _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count }, false);
                     }
                     RebuildPremadeGroups(snapshot, false);
                 }
@@ -564,6 +579,20 @@ namespace FACM.League
                 snapshot, choice.Player.Player.PuuId,
                 () => !IsDisposed && ReferenceEquals(snapshot, _snapshot)))
                 dialog.ShowDialog(this);
+            if (!IsDisposed && ReferenceEquals(snapshot, _snapshot)) RefreshEncounterLabels();
+        }
+
+        private void RefreshEncounterLabels()
+        {
+            if (_snapshot == null) return;
+            var counts = _module.ReadPlayerEncounterCounts(_snapshot);
+            foreach (var choice in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>()))
+            {
+                int count;
+                choice.EncounterCount = choice.Player?.Player != null &&
+                    counts.TryGetValue(choice.Player.Player.PuuId, out count) ? count : 0;
+            }
+            _players.Refresh(); _jungle.Refresh();
         }
 
         private Form CreateTagDialog(string currentTag)
@@ -667,6 +696,8 @@ namespace FACM.League
             private readonly LeagueDynamicMessageOptions _options;
             internal string Tag;
             internal string PremadeGroup;
+            internal bool IsSelf;
+            internal int EncounterCount;
             private IReadOnlyList<string> _sourceTags;
             internal PlayerChoice(LeagueDynamicMessagePlayer player, LeagueDynamicMessageOptions options)
             {
@@ -682,8 +713,12 @@ namespace FACM.League
             {
                 return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
                     " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer)) +
-                    (string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +
+                    (IsSelf && _options.ShowSelfTag ? " · " + LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingSelf) : string.Empty) +
+                    (!_options.ShowTaggedTag || IsSelf || string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +
                     (string.IsNullOrEmpty(PremadeGroup) ? string.Empty : " · " + PremadeGroup) +
+                    (!IsSelf && _options.ShowMetTag && EncounterCount > 0 ? " · " +
+                        LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMet)
+                            .Replace("{0}", EncounterCount.ToString()) : string.Empty) +
                     (_sourceTags == null || _sourceTags.Count == 0 ? string.Empty : " · " + string.Join(" · ", _sourceTags));
             }
         }

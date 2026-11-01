@@ -33,6 +33,29 @@ namespace FACM.League
         public int PageSize { get; set; }
     }
 
+    internal static class LeagueEncounterTagProjection
+    {
+        // One local read for the visible roster; a game is counted once per opponent.
+        internal static IReadOnlyDictionary<string, int> Project(IEnumerable<LeagueEncounterRecord> records,
+            string selfPuuid, string region, string platformId, IEnumerable<string> roster)
+        {
+            var empty = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (records == null || roster == null || !LeagueDynamicMessageService.SafePuuid(selfPuuid) ||
+                string.IsNullOrWhiteSpace(region) || string.IsNullOrWhiteSpace(platformId) ||
+                region.Length > 64 || platformId.Length > 64) return empty;
+            var members = roster.Where(LeagueDynamicMessageService.SafePuuid)
+                .Distinct(StringComparer.Ordinal).Take(21).ToArray();
+            if (members.Length > 20 || !members.Contains(selfPuuid, StringComparer.Ordinal)) return empty;
+            var allowed = new HashSet<string>(members.Where(id => id != selfPuuid), StringComparer.Ordinal);
+            return records.Where(r => r != null && r.GameId > 0 && r.SelfPuuid == selfPuuid &&
+                    allowed.Contains(r.Puuid) &&
+                    string.Equals(r.Region, region, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(r.PlatformId, platformId, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(r => r.Puuid, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Select(r => r.GameId).Distinct().Count(), StringComparer.Ordinal);
+        }
+    }
+
     // Encounter metadata stays on this computer, separate from cloud preferences and tagged-player exchange.
     internal sealed class LeagueEncounterHistoryStore
     {

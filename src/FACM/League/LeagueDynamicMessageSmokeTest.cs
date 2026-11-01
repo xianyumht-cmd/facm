@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateAggregation();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
+            ValidateEncounterCardTags();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -479,6 +480,49 @@ namespace FACM.League
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scoreOptions))
                 .ShowAkariScoreTag && !LeagueDynamicMessageOptions.Parse("{}").ShowAkariScoreTag,
                 "Source-default Akari score visibility must survive settings roundtrip.");
+        }
+
+        private static void ValidateEncounterCardTags()
+        {
+            var records = new[]
+            {
+                new LeagueEncounterRecord { GameId = 10, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 10, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 11, SelfPuuid = "self", Puuid = "ally",
+                    Region = "hn1", PlatformId = "hn1" },
+                new LeagueEncounterRecord { GameId = 12, SelfPuuid = "self", Puuid = "enemy",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 13, SelfPuuid = "other", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 14, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN2", PlatformId = "HN2" },
+                new LeagueEncounterRecord { GameId = 15, SelfPuuid = "self", Puuid = "stranger",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = -1, SelfPuuid = "self", Puuid = "enemy",
+                    Region = "HN1", PlatformId = "HN1" }
+            };
+            var tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally", "enemy" });
+            Require(tags.Count == 2 && tags["ally"] == 2 && tags["enemy"] == 1,
+                "Encounter card tags must deduplicate game IDs and enforce account, region and roster.");
+            Require(LeagueEncounterTagProjection.Project(records, "other", "HN1", "HN1",
+                new[] { "other", "enemy" }).Count == 0 &&
+                LeagueEncounterTagProjection.Project(records, "self", "HN2", "HN1",
+                    new[] { "self", "ally" }).Count == 0 &&
+                LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                    new[] { "ally", "enemy" }).Count == 0,
+                "Encounter card tags must fail closed across account, platform and absent self.");
+            var options = LeagueDynamicMessageOptions.Parse("{}");
+            Require(options.ShowSelfTag && options.ShowTaggedTag && options.ShowMetTag,
+                "Pinned player-card identity tag defaults must survive old settings.");
+            options.ShowSelfTag = false;
+            options.ShowTaggedTag = false;
+            options.ShowMetTag = false;
+            var restored = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(!restored.ShowSelfTag && !restored.ShowTaggedTag && !restored.ShowMetTag,
+                "Identity tag switches must persist independently.");
         }
 
         private static void ValidateJungleTimeline()

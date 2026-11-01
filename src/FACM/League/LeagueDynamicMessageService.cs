@@ -14,6 +14,9 @@ namespace FACM.League
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
+        public bool ShowSelfTag { get; set; } = true;
+        public bool ShowTaggedTag { get; set; } = true;
+        public bool ShowMetTag { get; set; } = true;
         public bool ShowPremadeTeamTag { get; set; } = true;
         public bool ShowWinRateTeamTag { get; set; } = true;
         public bool ShowWinningStreakTag { get; set; } = true;

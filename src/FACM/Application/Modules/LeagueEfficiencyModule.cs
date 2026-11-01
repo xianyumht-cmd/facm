@@ -274,6 +274,18 @@ namespace FACM.AppHost.Modules
                 : new Dictionary<string, string>(StringComparer.Ordinal);
         }
 
+        public IReadOnlyDictionary<string, int> ReadPlayerEncounterCounts(LeagueDynamicMessageSnapshot snapshot)
+        {
+            ThrowIfDisposed();
+            var session = _leagueClient.CurrentSession;
+            if (snapshot == null || snapshot.Session == null || session == null ||
+                !snapshot.Session.Matches(session) || !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid))
+                return new Dictionary<string, int>(StringComparer.Ordinal);
+            return LeagueEncounterTagProjection.Project(_encounterHistory.ReadAll(), snapshot.SelfPuuid,
+                session.Region, session.PlatformId, snapshot.Players.Where(p => p?.Player != null)
+                    .Select(p => p.Player.PuuId));
+        }
+
         public int ImportPlayerTags(string path)
         {
             ThrowIfDisposed();
