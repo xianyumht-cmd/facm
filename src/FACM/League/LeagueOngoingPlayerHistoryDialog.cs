@@ -35,8 +35,10 @@ namespace FACM.League
                 .Where(m => (championId == 0 || m.ChampionId == championId) &&
                     (string.IsNullOrEmpty(position) ||
                      string.Equals(m.Position, position, StringComparison.OrdinalIgnoreCase)) &&
-                    (mode == "" || (mode == "CHERRY") ==
-                     string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)))
+                    (mode == "" || (!string.IsNullOrWhiteSpace(m.GameMode) &&
+                     !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase) &&
+                     (mode == "CHERRY") ==
+                     string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase))))
                 .OrderByDescending(m => m.GameCreationEpochMs).ThenByDescending(m => m.GameId)
                 .ToArray();
         }
@@ -109,8 +111,10 @@ namespace FACM.League
                     Kind = "position", Position = group.Key, Label = group.Key,
                     Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
                 });
-            foreach (var group in verified.GroupBy(m =>
-                string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)
+            foreach (var group in verified.Where(m =>
+                !string.IsNullOrWhiteSpace(m.GameMode) &&
+                !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(m => string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)
                     ? "CHERRY" : "NORMAL").OrderBy(g => g.Key, StringComparer.Ordinal))
                 result.Add(new LeagueOngoingCardBreakdownRow {
                     Kind = "mode", Mode = group.Key, Label = group.Key,

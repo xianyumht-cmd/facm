@@ -36,6 +36,10 @@ namespace FACM.League
                 LeagueOngoingHistoryFilter.Select(matches, "target", 0, "MID").Count == 0,
                 "Champion and position selection must intersect without guessing missing roles.");
             b.GameMode = "CHERRY";
+            c.GameMode = null;
+            Require(LeagueOngoingHistoryFilter.Select(matches, "target", 55, "JUNGLE", "NORMAL").Count == 0,
+                "Unknown mode evidence must not enter normal-mode card analysis.");
+            c.GameMode = "CLASSIC";
             Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "CHERRY").Count == 1 &&
                 LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP", "NORMAL").Count == 1 &&
                 LeagueOngoingHistoryFilter.Select(matches, "target", 55, "JUNGLE", "NORMAL").Count == 1 &&

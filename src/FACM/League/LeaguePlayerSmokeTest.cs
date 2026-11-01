@@ -44,6 +44,7 @@ namespace FACM.League
             ValidateHistoryDetailsAndSparseCompletion();
             ValidateHistoryDeadlinesAndSessionCache();
             ValidateMatchHistoryCollection();
+            ValidateModeCollectionPipeline();
             ValidatePaginationBoundary();
             ValidateCancellation();
             ValidatePlayerPageLayout();
@@ -602,9 +603,37 @@ namespace FACM.League
                 "Collection limits must reject over-budget requests before any LCU call.");
         }
 
-        private static string CollectionGame(long id, int champion, string puuid = "self")
+        internal static void ValidateModeCollectionPipeline()
         {
-            return "{\"gameId\":" + id + ",\"gameMode\":\"ARAM\",\"queueId\":450," +
+            var pages = new Dictionary<int, string> {
+                { 0, CollectionHistory(CollectionGame(701, 22, "target", "ARAM"),
+                    CollectionGame(702, 22, "target", "CHERRY")) },
+                { 2, CollectionHistory(CollectionGame(703, 22, "target", "CHERRY")) }
+            };
+            var settings = new LeagueMatchCollectionSettings {
+                CountPerIteration = 2, ExpectedCount = 2, MaxIterations = 2
+            };
+            var api = new CollectionFixtureApi(pages, "target");
+            var service = new LeaguePlayerDataService(api, new PerformanceBudgetProvider());
+            var filter = new LeagueSimpleMatchHistoryFilter {
+                SubjectMode = "CHERRY", SubjectChampionId = 22
+            };
+            var result = service.CollectMatchesAsync(
+                new LeaguePlayerProfile { PuuId = "self" },
+                new LeaguePlayerProfile { PuuId = "target" },
+                settings, filter, null, null, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Status == LeagueMatchCollectionStatus.Completed &&
+                result.Page.Matches.Select(m => m.GameId).SequenceEqual(new long[] { 702, 703 }) &&
+                result.Iterations == 2 && result.ScannedCount == 3 &&
+                api.ProfileReads == 4 &&
+                service.TryGetCachedPage() == null && service.TryGetCachedProfile() == null,
+                "Mode-scoped full collection must intersect the target's mode and champion across pages without cache pollution.");
+        }
+
+        private static string CollectionGame(long id, int champion, string puuid = "self",
+            string mode = "ARAM")
+        {
+            return "{\"gameId\":" + id + ",\"gameMode\":\"" + mode + "\",\"queueId\":450," +
                 "\"participantIdentities\":[{\"participantId\":1,\"player\":{\"puuid\":\"" + puuid + "\"}}]," +
                 "\"participants\":[{\"participantId\":1,\"championId\":" + champion +
                 ",\"stats\":{\"win\":true,\"kills\":3,\"deaths\":1,\"assists\":8}}]}";
