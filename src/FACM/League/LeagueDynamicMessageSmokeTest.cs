@@ -567,6 +567,27 @@ namespace FACM.League
             teammates[0].ParticipantId = 1;
             Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null,
                 "Duplicate team participant IDs must fail closed.");
+            teammates[0].ParticipantId = 2;
+            teammates[0].PuuId = "self";
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null,
+                "Duplicate team PUUIDs must fail closed.");
+            var arena = new LeaguePlayerMatchSummary
+            {
+                GameId = 7002, GameMode = "CHERRY", ParticipantResolved = true,
+                StatisticsAvailable = true, ParticipantId = 1, PuuId = "arena-self",
+                PlayerSubteamId = 3, Kills = 8, DamageDealtToChampions = 1000
+            };
+            var arenaAlly = new LeaguePlayerMatchSummary
+            {
+                ParticipantId = 2, PuuId = "arena-ally", PlayerSubteamId = 3,
+                StatisticsAvailable = true, Kills = 2, DamageDealtToChampions = 4000
+            };
+            arena.ParticipantRoster = new[] { arena, arenaAlly };
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(arena) == 4d,
+                "Arena efficiency must use the complete two-player subteam, not a five-player roster.");
+            arenaAlly.PlayerSubteamId = 4;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(arena) == null,
+                "Incomplete Arena subteams must not produce efficiency tags.");
             Require(!LeagueDynamicMessageOptions.Parse("{}").ShowAverageKillDamageEfficiencyTag &&
                 LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
                     .ShowAverageKillDamageEfficiencyTag,

@@ -588,7 +588,11 @@ namespace FACM.League
         private void RefreshEncounterLabels()
         {
             if (_snapshot == null) return;
-            var counts = _module.ReadPlayerEncounterCounts(_snapshot);
+            IReadOnlyDictionary<string, int> counts;
+            try { counts = _module.ReadPlayerEncounterCounts(_snapshot); }
+            catch (System.IO.InvalidDataException) { counts = new Dictionary<string, int>(StringComparer.Ordinal); }
+            catch (System.IO.IOException) { counts = new Dictionary<string, int>(StringComparer.Ordinal); }
+            catch (System.UnauthorizedAccessException) { counts = new Dictionary<string, int>(StringComparer.Ordinal); }
             foreach (var choice in _players.Items.Cast<PlayerChoice>().Concat(_jungle.Items.Cast<PlayerChoice>()))
             {
                 int count;

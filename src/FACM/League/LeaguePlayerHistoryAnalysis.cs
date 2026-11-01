@@ -451,6 +451,7 @@ namespace FACM.League
                 LeagueCherryTeams.GroupId(p, cherry) == groupId).ToArray();
             if (members.Length != (cherry ? 2 : 5) ||
                 members.Select(p => p.ParticipantId).Distinct().Count() != members.Length ||
+                members.Select(p => p.PuuId).Distinct(StringComparer.Ordinal).Count() != members.Length ||
                 members.Any(p => p.ParticipantId <= 0 || string.IsNullOrEmpty(p.PuuId) ||
                     !p.StatisticsAvailable || p.Kills < 0 || p.Kills > 200 ||
                     !p.DamageDealtToChampions.HasValue || double.IsNaN(p.DamageDealtToChampions.Value) ||
@@ -459,6 +460,8 @@ namespace FACM.League
                 return null;
             var self = members.SingleOrDefault(p => p.ParticipantId == match.ParticipantId);
             if (self == null || self.Kills != match.Kills ||
+                (match.DamageDealtToChampions.HasValue &&
+                    match.DamageDealtToChampions != self.DamageDealtToChampions) ||
                 (!string.IsNullOrEmpty(match.PuuId) && self.PuuId != match.PuuId))
                 return null;
             var kills = members.Sum(p => p.Kills);
