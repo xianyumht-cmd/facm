@@ -333,7 +333,7 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse("{\"HistoryConcurrency\":5}").HistoryConcurrency == 2,
                 "SGP concurrency must persist and reject invalid settings.");
             var fake = new Fake();
-            var sgp = new TaggedHistoryFake { DelayMs = 30 };
+            var sgp = new TaggedHistoryFake { DelayMs = 30, RequireOverlap = true };
             var session = Session("parallel-tagged");
             var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
             using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
@@ -348,7 +348,10 @@ namespace FACM.League
                     snapshot.Players.All(p => p.History != null) && sgp.TaggedCalls == 2 &&
                     sgp.MaxConcurrent == 2 && fake.MaxConcurrent == 1 &&
                     !fake.Paths.Any(p => p.Contains("/matches?")),
-                    "Tagged SGP reads must overlap within the configured bound while LCU stays serialized.");
+                    "Tagged SGP reads must overlap within the configured bound while LCU stays serialized. " +
+                    "roster=" + (snapshot == null ? "null" : snapshot.Players.Count.ToString()) +
+                    " tagged=" + sgp.TaggedCalls + " sgpMax=" + sgp.MaxConcurrent +
+                    " lcuMax=" + fake.MaxConcurrent);
                 var sequential = new TaggedHistoryFake { DelayMs = 30 };
                 using (var serial = new LeagueDynamicMessageService(new Fake(),
                     new PerformanceBudgetProvider(), () => session, () => phase, sequential))
@@ -2342,7 +2345,11 @@ namespace FACM.League
             internal Action OnTagged;
             internal int DelayMs;
             internal int MaxConcurrent;
+            internal bool RequireOverlap;
             private int _concurrent;
+            private int _barrierArrivals;
+            private readonly TaskCompletionSource<bool> _parallelBarrier =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             public async Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex,
                 int count, CancellationToken token, string serverId, string tag)
@@ -2350,9 +2357,23 @@ namespace FACM.League
                 token.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref TaggedCalls);
                 var concurrent = Interlocked.Increment(ref _concurrent);
-                MaxConcurrent = Math.Max(MaxConcurrent, concurrent);
+                var previous = Volatile.Read(ref MaxConcurrent);
+                while (concurrent > previous)
+                {
+                    var observed = Interlocked.CompareExchange(ref MaxConcurrent, concurrent, previous);
+                    if (observed == previous) break;
+                    previous = observed;
+                }
                 try
                 {
+                    if (RequireOverlap)
+                    {
+                        if (Interlocked.Increment(ref _barrierArrivals) >= 2)
+                            _parallelBarrier.TrySetResult(true);
+                        await Task.WhenAny(_parallelBarrier.Task,
+                            Task.Delay(TimeSpan.FromSeconds(2), token)).ConfigureAwait(false);
+                        token.ThrowIfCancellationRequested();
+                    }
                     LastPuuid = targetPuuid;
                     LastTag = tag;
                     if (DelayMs > 0) await Task.Delay(DelayMs, token).ConfigureAwait(false);

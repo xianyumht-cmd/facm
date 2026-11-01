@@ -1,3 +1,7 @@
+### 2026-11-02 — Tagged SGP concurrency smoke determinism (Draft #357)
+
+The preceding Glass `83d67ba4` run failed the existing tagged SGP overlap assertion under `--performance-contract-test`; UI Text and Mayhem succeeded, Windows Build was still running at diagnosis. The fixture used a 30ms scheduling window and non-atomic max counter, so root cause is not established. New executable test candidate uses atomic peak tracking, a bounded async overlap barrier and richer failure diagnostics; it does not alter the production SGP owner or weaken the concurrency requirement. Four exact-HEAD Windows gates pending.
+
 ### 2026-11-02 — Mastery-first player cards for new accounts (Draft #357)
 
 The ongoing player-card context entry no longer requires existing recent match rows: a current, verified roster player can open the card and explicitly fetch mastery or jungle evidence even when the match-history owner has not populated the initial page. Manual/automatic card paging remains disabled when `History == null` because its source API requires an initial history owner and offset; the existing full 1000-game collector can still be reached from verified mastery champion selection. Synthetic regression confirms mastery projection with empty history. No additional background fetch, game write or network owner. Four Windows gates pending.
