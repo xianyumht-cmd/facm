@@ -138,12 +138,17 @@ namespace FACM.League
                     positions[position.SelectedIndex] == player.HistoricalOriginalPosition;
                 var selectedName = restoredOriginal ? player.HistoricalOriginalChampionName :
                     recentMatches.FirstOrDefault(m => m.ChampionId == (int)champion.Value)?.ChampionName;
-                if (!isCurrentSession() ||
-                    !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, player.Player.PuuId,
+                if (!isCurrentSession())
+                {
+                    apply.Enabled = false;
+                    return;
+                }
+                if (!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, player.Player.PuuId,
                         (int)champion.Value, positions[position.SelectedIndex], selectedName,
                         positions[primary.SelectedIndex], positions[secondary.SelectedIndex]))
                 {
-                    apply.Enabled = false;
+                    MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 DialogResult = DialogResult.OK;
