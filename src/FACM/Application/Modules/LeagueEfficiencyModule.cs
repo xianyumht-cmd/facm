@@ -267,7 +267,9 @@ namespace FACM.AppHost.Modules
             LeagueDynamicMessageSnapshot snapshot, string playerPuuid, CancellationToken token)
         {
             ThrowIfDisposed();
-            return _dynamicMessages.HydrateHistoryAsync(snapshot, playerPuuid, token);
+            var options = LeagueDynamicMessageOptions.Parse(DynamicMessageOptionsJson);
+            return _dynamicMessages.HydrateHistoryAsync(snapshot, playerPuuid, token,
+                options.GameDetailsLoadCount);
         }
 
         public Task<IReadOnlyList<LeaguePlayerMatchSummary>> LoadDynamicHistoryPageAsync(

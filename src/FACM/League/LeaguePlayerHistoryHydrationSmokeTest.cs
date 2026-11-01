@@ -29,9 +29,13 @@ namespace FACM.League
                 result.Matches[0].ParticipantRoster != null && result.Matches[0].PuuId == "target" &&
                 service.TryGetCachedPage() == null && service.TryGetCachedProfile() == null && sgp.Calls == 0,
                 "Analysis hydration must cap unique reads, preserve target, detach snapshots and leave self caches alone.");
+            var capped = await service.HydrateAnalysisAsync("self", "target", session,
+                rows, null, CancellationToken.None, 3).ConfigureAwait(false);
+            Require(capped.Attempted.Count == 3 && capped.Updated == 3 && api.Games == 23,
+                "Configurable detail prefetch must cap the exact number of source reads.");
             var next = await service.HydrateAnalysisAsync("self", "target", session, result.Matches,
                 result.Attempted, CancellationToken.None).ConfigureAwait(false);
-            Require(next.Attempted.Count == 2 && api.Games == 22,
+            Require(next.Attempted.Count == 2 && api.Games == 25,
                 "Continuing hydration must skip attempted duplicates and reach the remainder.");
             var complete = result.Matches[0];
             Require(!LeaguePlayerDataService.NeedsAnalysisDetail(complete) &&

@@ -65,6 +65,17 @@ namespace FACM.League
                 RefreshPreview();
             };
             choices.Controls.Add(historyCount);
+            choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingGameDetailsCount),
+                Padding = new Padding(4, 7, 0, 0) });
+            var detailsCount = new NumericUpDown { Width = 58, Minimum = 0, Maximum = 20,
+                Value = _options.GameDetailsLoadCount };
+            detailsCount.ValueChanged += delegate
+            {
+                if (_binding) return;
+                _options.GameDetailsLoadCount = (int)detailsCount.Value;
+            };
+            choices.Controls.Add(detailsCount);
             var historyTag = Choice(new[] { T(LeagueEfficiencyUiTextKeys.OngoingHistoryAllQueues),
                 T(LeagueEfficiencyUiTextKeys.OngoingHistoryCurrentQueue) });
             historyTag.SelectedIndex = _options.MatchHistoryTagPreference == "current" ? 1 : 0;
@@ -326,7 +337,8 @@ namespace FACM.League
                 championMastery.Enabled = !e.Cancel;
                 recentHistory.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.CardRecentMatches(choice.Player).Count > 0;
-                enrichHistory.Enabled = !e.Cancel && choice.Player.History != null &&
+                enrichHistory.Enabled = !e.Cancel && _options.GameDetailsLoadCount > 0 &&
+                    choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>
                         LeaguePlayerDataService.NeedsAnalysisDetail(m));
             };

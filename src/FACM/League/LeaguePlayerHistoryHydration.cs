@@ -36,11 +36,13 @@ namespace FACM.League
 
         internal async Task<LeagueHistoryHydrationResult> HydrateAnalysisAsync(
             string selfPuuid, string targetPuuid, LeagueClientSession expectedSession,
-            IList<LeaguePlayerMatchSummary> matches, ISet<string> alreadyAttempted, CancellationToken token)
+            IList<LeaguePlayerMatchSummary> matches, ISet<string> alreadyAttempted, CancellationToken token,
+            int maxCount = MaximumAnalysisHydrationCount)
         {
             token.ThrowIfCancellationRequested();
             var result = new LeagueHistoryHydrationResult { Matches = new List<LeaguePlayerMatchSummary>() };
-            if (!IsSafePuuid(selfPuuid) || !IsSafePuuid(targetPuuid) || matches == null || matches.Count > 1000)
+            if (!IsSafePuuid(selfPuuid) || !IsSafePuuid(targetPuuid) || matches == null ||
+                matches.Count > 1000 || maxCount < 0 || maxCount > MaximumAnalysisHydrationCount)
                 return result;
             var original = matches.Select(CloneMatch).ToList();
             result.Matches = original.Select(CloneMatch).ToList();
@@ -59,7 +61,7 @@ namespace FACM.League
                         var key = HistoryDetailKey(current);
                         if ((alreadyAttempted != null && alreadyAttempted.Contains(key)) ||
                             result.Attempted.Contains(key)) continue;
-                        if (result.Attempted.Count >= MaximumAnalysisHydrationCount) break;
+                        if (result.Attempted.Count >= maxCount) break;
                         // A regional row must retain its explicit source and server; never probe LCU for it.
                         if ((current.DataSource != LeaguePlayerHistorySource.Sgp &&
                             !string.IsNullOrEmpty(current.SgpServerId)) ||

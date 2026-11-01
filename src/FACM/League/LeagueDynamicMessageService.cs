@@ -18,6 +18,7 @@ namespace FACM.League
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
         public string OrderPlayerBy { get; set; } = "default";
+        public int GameDetailsLoadCount { get; set; } = 20;
         public string ChampionUsageMode { get; set; } = "recent";
         public bool ShowSelfTag { get; set; } = true;
         public bool ShowTaggedTag { get; set; } = true;
@@ -95,6 +96,7 @@ namespace FACM.League
                 options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
+                options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }
                     .Contains(options.OrderPlayerBy) ||
@@ -409,9 +411,11 @@ namespace FACM.League
         // Explicitly enrich the currently displayed player's sparse initial history.
         // This reuses the account-fenced detail hydration owner and never prefetches in the background.
         internal async Task<bool> HydrateHistoryAsync(
-            LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token)
+            LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token,
+            int detailLoadCount = 20)
         {
-            if (snapshot == null || !SafePuuid(puuid)) return false;
+            if (snapshot == null || !SafePuuid(puuid) || detailLoadCount < 1 || detailLoadCount > 20)
+                return false;
             var matches = snapshot.Players.Where(p => p?.Player != null &&
                 string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal)).Take(2).ToArray();
             if (matches.Length != 1 || matches[0].History == null ||
@@ -436,7 +440,7 @@ namespace FACM.League
                 var player = matches[0];
                 var result = await _players.HydrateAnalysisAsync(snapshot.SelfPuuid, puuid,
                     snapshot.Session, player.History.Matches, player.AnalysisDetailAttempted,
-                    active.Token).ConfigureAwait(false);
+                    active.Token, detailLoadCount).ConfigureAwait(false);
                 if (result == null || result.AccountChanged ||
                     result.Matches.Count != player.History.Matches.Count ||
                     !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;

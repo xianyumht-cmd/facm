@@ -182,6 +182,11 @@ namespace FACM.League
 
         private static async Task ValidateExplicitHistoryHydrationAsync()
         {
+            var settings = new LeagueDynamicMessageOptions { GameDetailsLoadCount = 3 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(settings))
+                    .GameDetailsLoadCount == 3 &&
+                LeagueDynamicMessageOptions.Parse("{\"GameDetailsLoadCount\":21}").GameDetailsLoadCount == 20,
+                "Bounded detail hydration settings must persist and reject invalid values.");
             var fake = new Fake { IncompleteHistory = true };
             var session = Session("history-details");
             var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
@@ -193,7 +198,11 @@ namespace FACM.League
                     !snapshot.Players[0].History.Matches[0].ParticipantResolved,
                     "Sparse source fixture must remain unresolved before explicit detail loading.");
                 var before = fake.Paths.Count(p => p == "/lol-match-history/v1/games/1");
-                Require(await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None, 0)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before,
+                    "Disabled detail hydration must not issue any LCU request.");
+                Require(await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None, 1)
                     .ConfigureAwait(false) && snapshot.Players[0].History.Matches[0].ParticipantResolved &&
                     fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before + 1 &&
                     fake.MaxConcurrent == 1,
