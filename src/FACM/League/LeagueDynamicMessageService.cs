@@ -17,6 +17,7 @@ namespace FACM.League
         public int MatchHistoryLoadCount { get; set; } = 20;
         public int HistoryConcurrency { get; set; } = 2;
         public int AutoHistoryPages { get; set; }
+        public int AutoRosterHistoryPages { get; set; }
         public int AutoRosterDetailPrefetchCount { get; set; }
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
@@ -101,6 +102,7 @@ namespace FACM.League
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 options.HistoryConcurrency < 1 || options.HistoryConcurrency > 4 ||
                 options.AutoHistoryPages < 0 || options.AutoHistoryPages > 10 ||
+                options.AutoRosterHistoryPages < 0 || options.AutoRosterHistoryPages > 10 ||
                 options.AutoRosterDetailPrefetchCount < 0 || options.AutoRosterDetailPrefetchCount > 20 ||
                 options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
@@ -145,6 +147,8 @@ namespace FACM.League
         internal bool PrivacyLoaded;
         internal LeaguePlayerMasteryDetails Mastery;
         internal readonly HashSet<string> AnalysisDetailAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        internal List<LeaguePlayerMatchSummary> RosterCardHistory;
+        internal int RosterCardNextIndex;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -182,6 +186,15 @@ namespace FACM.League
         private string _observedPhase;
         private string _selectionKey;
         private HashSet<string> _selected;
+
+        private sealed class RosterCardStage
+        {
+            internal LeagueDynamicMessagePlayer Player;
+            internal List<LeaguePlayerMatchSummary> Matches;
+            internal int NextIndex;
+            internal int Pages;
+            internal bool Done, Invalid;
+        }
 
         private sealed class JungleCacheEntry
         {
@@ -450,6 +463,74 @@ namespace FACM.League
                 if (entered) _gate.Release();
                 lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
                 active.Dispose();
+            }
+        }
+
+        // An opted-in roster-wide card preload never extends the 2-20 match
+        // analysis sample. It stages validated read-only card rows separately.
+        internal async Task<int> PrefetchRosterCardHistoryAsync(
+            LeagueDynamicMessageSnapshot snapshot, int pagesPerPlayer, CancellationToken token)
+        {
+            if (snapshot == null || pagesPerPlayer < 0 || pagesPerPlayer > 10) return -1;
+            if (pagesPerPlayer == 0) return 0;
+            var players = snapshot.Players.Where(p => p?.Player != null &&
+                    SafePuuid(p.Player.PuuId) && p.History != null)
+                .OrderByDescending(p => p.Friendly)
+                .ThenByDescending(p => p.Player.PuuId == snapshot.SelfPuuid).ToArray();
+            if (players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != players.Length)
+                return -1;
+            var stages = players.Select(player => new RosterCardStage
+            {
+                Player = player,
+                Matches = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList(),
+                NextIndex = snapshot.HistoryLoadCount
+            }).ToArray();
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(45));
+                try
+                {
+                    if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false)) return -1;
+                    var requests = 0;
+                    for (var round = 0; round < pagesPerPlayer && requests < 40; round++)
+                    {
+                        foreach (var stage in stages)
+                        {
+                            if (requests >= 40) break;
+                            if (stage.Done || stage.NextIndex >= 200) continue;
+                            var page = await LoadHistoryPageAsync(snapshot,
+                                stage.Player.Player.PuuId, stage.NextIndex, deadline.Token)
+                                .ConfigureAwait(false);
+                            if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false))
+                                return -1;
+                            requests++;
+                            if (page == null)
+                            {
+                                stage.Done = true; stage.Invalid = true; continue;
+                            }
+                            var additions = LeagueHistoricalMatchDryRun.CardPageAdditions(
+                                stage.Matches, page, stage.Player.Player.PuuId);
+                            if (additions == null)
+                            {
+                                stage.Done = true; stage.Invalid = true; continue;
+                            }
+                            stage.NextIndex += Math.Min(20, 200 - stage.NextIndex);
+                            stage.Pages++;
+                            stage.Matches.AddRange(additions);
+                            if (page.Count == 0 || additions.Count == 0 || stage.NextIndex >= 200)
+                                stage.Done = true;
+                        }
+                        if (stages.All(stage => stage.Done || stage.NextIndex >= 200)) break;
+                    }
+                    if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false)) return -1;
+                    foreach (var stage in stages.Where(stage => stage.Pages > 0 && !stage.Invalid))
+                    {
+                        stage.Player.RosterCardHistory = stage.Matches;
+                        stage.Player.RosterCardNextIndex = stage.NextIndex;
+                    }
+                    return requests;
+                }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { return -1; }
             }
         }
 

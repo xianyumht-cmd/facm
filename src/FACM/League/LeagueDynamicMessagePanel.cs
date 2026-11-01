@@ -76,6 +76,16 @@ namespace FACM.League
             };
             choices.Controls.Add(autoHistoryPages);
             choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingAutoRosterHistory),
+                Padding = new Padding(4, 7, 0, 0) });
+            var autoRosterHistory = new NumericUpDown { Width = 48, Minimum = 0,
+                Maximum = 10, Value = _options.AutoRosterHistoryPages };
+            autoRosterHistory.ValueChanged += delegate
+            {
+                if (!_binding) _options.AutoRosterHistoryPages = (int)autoRosterHistory.Value;
+            };
+            choices.Controls.Add(autoRosterHistory);
+            choices.Controls.Add(new Label { AutoSize = true,
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingHistoryConcurrency),
                 Padding = new Padding(4, 7, 0, 0) });
             var concurrency = new NumericUpDown { Width = 48, Minimum = 1,
@@ -678,6 +688,28 @@ namespace FACM.League
                         }
                         finally { _binding = false; }
                         RefreshPreview();
+                    }
+                    _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
+                        snapshot.Players.Any(row => row.History == null)
+                        ? LeagueEfficiencyUiTextKeys.DynamicPartial :
+                        snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint :
+                        LeagueEfficiencyUiTextKeys.DynamicReady);
+                }
+                var requestedRosterPages = _options.AutoRosterHistoryPages;
+                if (snapshot != null && requestedRosterPages > 0)
+                {
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                    var pages = await _module.PrefetchDynamicRosterCardHistoryAsync(snapshot,
+                        requestedRosterPages, _lifetime.Token);
+                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot) ||
+                        requestedRosterPages != _options.AutoRosterHistoryPages) return;
+                    if (pages < 0)
+                    {
+                        _snapshot = null; _binding = true;
+                        try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                        finally { _binding = false; }
+                        _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                        return;
                     }
                     _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
                         snapshot.Players.Any(row => row.History == null)

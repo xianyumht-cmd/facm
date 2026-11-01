@@ -27,6 +27,7 @@ namespace FACM.League
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
             ValidateRosterDetailPrefetchAsync().GetAwaiter().GetResult();
+            ValidateRosterCardPrefetchAsync().GetAwaiter().GetResult();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
@@ -426,6 +427,42 @@ namespace FACM.League
                         CancellationToken.None).ConfigureAwait(false) == -1 &&
                     snapshot.Players.All(player => !player.History.Matches[0].ParticipantResolved),
                     "A session change during detail fetching must discard unowned results.");
+            }
+        }
+
+        private static async Task ValidateRosterCardPrefetchAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoRosterHistoryPages = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoRosterHistoryPages == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoRosterHistoryPages == 0,
+                "Roster-wide card paging must be saved and default disabled.");
+            var fake = new Fake();
+            var session = Session("roster-card-pages");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                var firstCount = snapshot.Players[0].History.Matches.Count;
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 0,
+                        CancellationToken.None).ConfigureAwait(false) == 0 &&
+                    snapshot.Players.All(player => player.RosterCardHistory == null),
+                    "Disabled roster card paging must not populate a separate card cache.");
+                var fetched = await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(fetched == 2 && snapshot.Players.All(player =>
+                        player.RosterCardHistory != null &&
+                        player.RosterCardNextIndex == snapshot.HistoryLoadCount + 20) &&
+                    snapshot.Players[0].History.Matches.Count == firstCount &&
+                    fake.MaxConcurrent == 1,
+                    "Roster paging must keep the analysis sample small and isolate card-only history.");
+                var reads = fake.Paths.Count;
+                session = Session("roster-card-replaced");
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    fake.Paths.Count == reads,
+                    "Stale roster card prefetch cannot issue requests for a replaced session.");
             }
         }
 

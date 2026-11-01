@@ -41,7 +41,10 @@ namespace FACM.League
                 RowCount = 2, Padding = new Padding(12) };
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            var matches = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
+            var matches = player.RosterCardHistory != null &&
+                player.RosterCardNextIndex >= snapshot.HistoryLoadCount
+                ? player.RosterCardHistory.ToList()
+                : LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
             Func<string> summaryText = () => t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
                 .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
                 .Replace("{1}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
@@ -83,7 +86,9 @@ namespace FACM.League
             };
             foreach (var match in matches) appendMatch(match);
             var loading = false;
-            var nextIndex = snapshot.HistoryLoadCount;
+            var nextIndex = player.RosterCardHistory != null &&
+                player.RosterCardNextIndex >= snapshot.HistoryLoadCount
+                ? player.RosterCardNextIndex : snapshot.HistoryLoadCount;
             var hasMore = nextIndex < 200;
             var more = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
@@ -119,6 +124,8 @@ namespace FACM.League
                         appendMatch(match);
                     }
                     hasMore = additions.Count > 0 && nextIndex < 200;
+                    player.RosterCardHistory = matches.ToList();
+                    player.RosterCardNextIndex = nextIndex;
                     summary.Text = summaryText();
                     return page.Count > 0;
                 }
@@ -189,7 +196,7 @@ namespace FACM.League
                 {
                     deadline.CancelAfter(TimeSpan.FromSeconds(95));
                     foreach (var offset in LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(
-                        snapshot.HistoryLoadCount, autoPages))
+                        snapshot.HistoryLoadCount, autoPages).Where(offset => offset >= nextIndex))
                     {
                         if (!hasMore || deadline.IsCancellationRequested || nextIndex != offset ||
                             !await fetchNext(deadline.Token)) break;
