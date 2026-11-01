@@ -1,3 +1,11 @@
+### 2026-11-01 — Pinned roster-wide history/detail option audit (Draft #357)
+
+**Executable/test SHA:** [02fe047](https://github.com/xianyumht-cmd/facm/commit/02fe04770460b76ec7fd39cacbc32536ebe8b03f). **All four exact-SHA Windows gates passed:** [Build + executable history smoke](https://github.com/xianyumht-cmd/facm/actions/runs/41293383690), [Glass WebView2](https://github.com/xianyumht-cmd/facm/actions/runs/41293383670), [UI Text Contract](https://github.com/xianyumht-cmd/facm/actions/runs/41293383719), [Mayhem Source Probe](https://github.com/xianyumht-cmd/facm/actions/runs/41293383668). Synthetic CI does not establish Tencent CN, cloud round-trip or Win10/DPI acceptance.
+
+Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` uses `match-history-loader.ts` to request configured history for all current team PUUIDs and to select up to `gameDetailsLoadCount` **per player** for details. GGman's new native behavior is **partial**: opt-in 0–10 card-only pages per player (40 total requests, 45 seconds) and opt-in 0–20 **global** detail requests (45 seconds), with manual full-roster action. Existing LCU/SGP owners verify account, region, session, phase, roster and page source/identity. Initial 2–20-match analysis is not expanded. Duplicate-only pages are exhausted; older pages do not evict first-page cache. No new poller, game writer or dependency.
+
+**Still partial/missing:** automatic full 200 for every player, source per-player detail budget, all-source concurrency, complete card popovers, historical free-form draft and remaining gameflow options. Tencent/Riot, 256-row cloud and Win10/DPI remain unverified.
+
 ### 2026-11-01 — Opt-in automatic 200-game player-card paging (Draft #357)
 
 **Latest executable / synthetic-test candidate:** [5668f09](https://github.com/xianyumht-cmd/facm/commit/5668f09e087b8e4eb2f8107c542a1d9f210d1d63). **Four exact-SHA Windows gates pending** (Build + executable history smoke, Glass WebView2, UI Text Contract, Mayhem Source Probe); the last four-gate-verified executable remains [f10b0c4](https://github.com/xianyumht-cmd/facm/commit/f10b0c4b97d304eb322cfd3d60a88c983214cf93).

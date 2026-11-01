@@ -1,3 +1,16 @@
+### 2026-11-01 — Roster-wide card history and detail prefetch (Draft #357)
+
+**Executable/test SHA:** [02fe047](https://github.com/xianyumht-cmd/facm/commit/02fe04770460b76ec7fd39cacbc32536ebe8b03f). **All four exact-SHA Windows gates passed:** [Build + executable history smoke](https://github.com/xianyumht-cmd/facm/actions/runs/41293383690), [Glass WebView2](https://github.com/xianyumht-cmd/facm/actions/runs/41293383670), [UI Text Contract](https://github.com/xianyumht-cmd/facm/actions/runs/41293383719), [Mayhem Source Probe](https://github.com/xianyumht-cmd/facm/actions/runs/41293383668). Synthetic CI does not establish Tencent CN, cloud round-trip or Win10/DPI acceptance.
+
+| Source capability | Status | Native behavior and remaining gap |
+| --- | --- | --- |
+| Roster-wide 200-game card history | **PARTIAL (synthetic verified)** | Persisted opt-in 0–10 pages per player, 20 rows/page, with a shared 40-page request cap and 45-second deadline. Source/identity-validated pages are staged in a separate card-only cache; initial 2–20-match analysis stays lightweight. Reopened cards reuse pages and remember duplicate-only exhaustion. Full 200 for every roster member is not guaranteed under the global cap. |
+| Automatic game-detail prefetch | **PARTIAL (synthetic verified)** | Persisted default-off 0–20 **total roster** request budget, fair one-per-player rounds, plus explicit manual full-roster action. Existing authenticated, account/region/phase/roster-fenced detail owner and 45-second deadline. Akari's source count is per player; that parity remains missing. |
+| Initial history cache | **COMPLETE (source/test)** | Nonzero-offset forced pages and enrichment no longer replace the zero-offset quick-history cache; regression added. |
+| Other Akari scope | **PARTIAL / MISSING** | Complete player-card popovers, full roster 200-game loading, per-player detail count and all-source concurrency, historical free-form draft/queue/target editing, remaining ChampSelect/gameflow options and regional provider variants. Tencent/Riot live SGP, 256-row cloud sync and Win10/DPI remain unverified. |
+
+**Next:** source-complete roster history/detail options within performance limits, then historical free-form draft and remaining auto-gameflow strategies. PR #357 and #355 remain Draft; no merge, release, updater, deployment, paid infrastructure or production 3.5.78 changes.
+
 ### 2026-11-01 — Opt-in automatic 200-game player-card paging (Draft #357)
 
 **Latest executable / synthetic-test candidate:** [5668f09](https://github.com/xianyumht-cmd/facm/commit/5668f09e087b8e4eb2f8107c542a1d9f210d1d63). **Four exact-SHA Windows gates pending** (Build + executable history smoke, Glass WebView2, UI Text Contract, Mayhem Source Probe); the last four-gate-verified executable remains [f10b0c4](https://github.com/xianyumht-cmd/facm/commit/f10b0c4b97d304eb322cfd3d60a88c983214cf93).
