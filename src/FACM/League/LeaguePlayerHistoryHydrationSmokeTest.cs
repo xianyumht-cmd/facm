@@ -11,7 +11,35 @@ namespace FACM.League
 {
     internal static class LeaguePlayerHistoryHydrationSmokeTest
     {
-        internal static void Validate() { ValidateAsync().GetAwaiter().GetResult(); }
+        internal static void Validate()
+        {
+            ValidateCardFilters();
+            ValidateAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidateCardFilters()
+        {
+            var a = Sparse(301); a.ChampionId = 22; a.Position = "TOP";
+            var b = Sparse(302); b.ChampionId = 22; b.Position = "TOP"; b.WinResult = "loss";
+            var c = Sparse(303); c.ChampionId = 55; c.Position = "JUNGLE";
+            var foreign = Sparse(304); foreign.PuuId = "someone-else";
+            var matches = new List<LeaguePlayerMatchSummary> { a, b, c, foreign };
+            var all = LeagueOngoingHistoryFilter.Select(matches, "target", 0, "");
+            Require(all.Count == 3 &&
+                LeagueOngoingHistoryFilter.Champions(matches, "target").SequenceEqual(new[] { 22, 55 }) &&
+                LeagueOngoingHistoryFilter.Positions(matches, "target").SequenceEqual(new[] { "TOP", "JUNGLE" }),
+                "Card filter options must use only verified target rows.");
+            var selected = LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP");
+            Require(selected.Count == 2 && selected.All(m => m.ChampionId == 22 && m.Position == "TOP") &&
+                LeagueOngoingHistoryFilter.Select(matches, "target", 55, "TOP").Count == 0 &&
+                LeagueOngoingHistoryFilter.Select(matches, "target", 0, "MID").Count == 0,
+                "Champion and position selection must intersect without guessing missing roles.");
+            matches.Add(Sparse(301));
+            Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP").Count == 1,
+                "Ambiguous duplicate game IDs cannot enter filtered player analysis.");
+            Require(LeagueOngoingHistoryFilter.Select(matches, "target", 0, "").Count == 2,
+                "An invalid page cannot contaminate other verified card rows.");
+        }
 
         private static async Task ValidateAsync()
         {

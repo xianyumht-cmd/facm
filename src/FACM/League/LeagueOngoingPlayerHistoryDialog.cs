@@ -11,6 +11,55 @@ using FACM.Theming;
 
 namespace FACM.League
 {
+    // Filters only verified, already loaded player-card evidence; paging always keeps its source cursor.
+    internal static class LeagueOngoingHistoryFilter
+    {
+        private static readonly string[] Roles = { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+
+        internal static IReadOnlyList<LeaguePlayerMatchSummary> Select(
+            IList<LeaguePlayerMatchSummary> matches, string puuid, int championId, string position)
+        {
+            if (matches == null || matches.Count > 200 ||
+                !LeagueDynamicMessageService.SafePuuid(puuid) ||
+                championId < 0 || championId > 9999 ||
+                (!string.IsNullOrEmpty(position) && !Roles.Contains(position, StringComparer.Ordinal)))
+                return new LeaguePlayerMatchSummary[0];
+            return matches.Where(m => m != null && m.GameId > 0 && m.ChampionId > 0 &&
+                    (string.IsNullOrEmpty(m.PuuId) || string.Equals(m.PuuId, puuid, StringComparison.Ordinal)) &&
+                    (string.IsNullOrWhiteSpace(m.GameType) ||
+                     string.Equals(m.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) &&
+                    LeaguePlayerHistoryAnalysis.Outcome(m) != LeagueHistoryOutcome.Unknown)
+                .GroupBy(m => m.GameId).Where(g => g.Count() == 1).Select(g => g.First())
+                .Where(m => (championId == 0 || m.ChampionId == championId) &&
+                    (string.IsNullOrEmpty(position) ||
+                     string.Equals(m.Position, position, StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(m => m.GameCreationEpochMs).ThenByDescending(m => m.GameId)
+                .ToArray();
+        }
+
+        internal static int[] Champions(IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            return Select(matches, puuid, 0, "").GroupBy(m => m.ChampionId)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key)
+                .Select(g => g.Key).ToArray();
+        }
+
+        internal static string[] Positions(IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            var rows = Select(matches, puuid, 0, "");
+            return Roles.Where(role => rows.Any(m =>
+                string.Equals(m.Position, role, StringComparison.OrdinalIgnoreCase))).ToArray();
+        }
+    }
+
+    internal sealed class LeagueOngoingHistoryFilterOption
+    {
+        internal int ChampionId;
+        internal string Position;
+        internal string Label;
+        public override string ToString() { return Label ?? ""; }
+    }
+
     // Bounded, local player-card history; the existing dynamic-message owner supplies all data.
     internal sealed class LeagueOngoingPlayerHistoryDialog : Form
     {
@@ -38,7 +87,8 @@ namespace FACM.League
             StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
             BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
-                RowCount = 3, Padding = new Padding(12) };
+                RowCount = 4, Padding = new Padding(12) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -46,19 +96,28 @@ namespace FACM.League
                 player.RosterCardNextIndex >= snapshot.HistoryLoadCount
                 ? player.RosterCardHistory.ToList()
                 : LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
-            Func<string> summaryText = () => t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
-                .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
-                .Replace("{1}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
-                    LeagueHistoryOutcome.Win).ToString(CultureInfo.CurrentCulture))
-                .Replace("{2}", matches.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
-                    LeagueHistoryOutcome.Loss).ToString(CultureInfo.CurrentCulture));
+            var selectedChampion = 0;
+            var selectedPosition = "";
+            Func<IReadOnlyList<LeaguePlayerMatchSummary>> visibleMatches = () =>
+                LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId,
+                    selectedChampion, selectedPosition);
+            Func<string> summaryText = () =>
+            {
+                var visible = visibleMatches();
+                return t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
+                    .Replace("{0}", visible.Count.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{1}", visible.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                        LeagueHistoryOutcome.Win).ToString(CultureInfo.CurrentCulture))
+                    .Replace("{2}", visible.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                        LeagueHistoryOutcome.Loss).ToString(CultureInfo.CurrentCulture));
+            };
             var summary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = summaryText() };
             var stats = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
                 ForeColor = FacmDesignSystem.TextMuted };
             var statsTip = new ToolTip();
             Action refreshStats = () =>
             {
-                var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(matches, player.Player.PuuId);
+                var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(visibleMatches(), player.Player.PuuId);
                 if (analysis == null)
                 {
                     stats.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
@@ -116,7 +175,83 @@ namespace FACM.League
                 row.Tag = match;
                 rows.Items.Add(row);
             };
-            foreach (var match in matches) appendMatch(match);
+            var filters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 19));
+            filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 31));
+            var championLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) };
+            var positionLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition) };
+            var championChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            var positionChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            filters.Controls.Add(championLabel, 0, 0);
+            filters.Controls.Add(championChoice, 1, 0);
+            filters.Controls.Add(positionLabel, 2, 0);
+            filters.Controls.Add(positionChoice, 3, 0);
+            Action refreshRows = () =>
+            {
+                rows.BeginUpdate();
+                try
+                {
+                    rows.Items.Clear();
+                    foreach (var match in visibleMatches()) appendMatch(match);
+                }
+                finally { rows.EndUpdate(); }
+                summary.Text = summaryText();
+                refreshStats();
+            };
+            var updatingChoices = false;
+            Action rebuildChoices = () =>
+            {
+                updatingChoices = true;
+                try
+                {
+                    championChoice.Items.Clear();
+                    championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                    { ChampionId = 0, Label = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll) });
+                    foreach (var id in LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId))
+                    {
+                        var row = matches.First(m => m.ChampionId == id);
+                        championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                        {
+                            ChampionId = id,
+                            Label = string.IsNullOrWhiteSpace(row.ChampionName)
+                                ? "#" + id.ToString(CultureInfo.InvariantCulture) : row.ChampionName
+                        });
+                    }
+                    championChoice.SelectedIndex = 0;
+                    for (var i = 0; i < championChoice.Items.Count; i++)
+                        if (((LeagueOngoingHistoryFilterOption)championChoice.Items[i]).ChampionId == selectedChampion)
+                            championChoice.SelectedIndex = i;
+                    positionChoice.Items.Clear();
+                    positionChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                    { Position = "", Label = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll) });
+                    foreach (var role in LeagueOngoingHistoryFilter.Positions(matches, player.Player.PuuId))
+                        positionChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                        { Position = role, Label = LeaguePlayerHistoryAnalysis.PositionName(ui, role) });
+                    positionChoice.SelectedIndex = 0;
+                    for (var i = 0; i < positionChoice.Items.Count; i++)
+                        if (((LeagueOngoingHistoryFilterOption)positionChoice.Items[i]).Position == selectedPosition)
+                            positionChoice.SelectedIndex = i;
+                }
+                finally { updatingChoices = false; }
+            };
+            championChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedChampion = ((LeagueOngoingHistoryFilterOption)championChoice.SelectedItem).ChampionId;
+                refreshRows();
+            };
+            positionChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedPosition = ((LeagueOngoingHistoryFilterOption)positionChoice.SelectedItem).Position;
+                refreshRows();
+            };
+            rebuildChoices();
+            refreshRows();
             var loading = false;
             var nextIndex = player.RosterCardHistory != null &&
                 player.RosterCardNextIndex >= snapshot.HistoryLoadCount
@@ -150,17 +285,13 @@ namespace FACM.League
                         return false;
                     }
                     nextIndex += Math.Min(20, 200 - nextIndex);
-                    foreach (var match in additions)
-                    {
-                        matches.Add(match);
-                        appendMatch(match);
-                    }
+                    foreach (var match in additions) matches.Add(match);
                     hasMore = additions.Count > 0 && nextIndex < 200;
                     player.RosterCardHistory = matches.ToList();
                     player.RosterCardNextIndex = nextIndex;
                     player.RosterCardExhausted = !hasMore;
-                    summary.Text = summaryText();
-                    refreshStats();
+                    rebuildChoices();
+                    refreshRows();
                     return page.Count > 0;
                 }
                 catch (OperationCanceledException) { return false; }
@@ -219,8 +350,9 @@ namespace FACM.League
                 }
             };
             layout.Controls.Add(header, 0, 0);
-            layout.Controls.Add(stats, 0, 1);
-            layout.Controls.Add(rows, 0, 2);
+            layout.Controls.Add(filters, 0, 1);
+            layout.Controls.Add(stats, 0, 2);
+            layout.Controls.Add(rows, 0, 3);
             Controls.Add(layout);
             Shown += async (sender, args) =>
             {

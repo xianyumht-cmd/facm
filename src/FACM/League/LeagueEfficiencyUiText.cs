@@ -381,6 +381,9 @@ namespace FACM.League
         public const string HistoricalDryRunTeamStats = "LeagueEfficiencyHistoricalDryRunTeamStats";
         public const string HistoricalDraftEdit = "LeagueEfficiencyHistoricalDraftEdit";
         public const string HistoricalDraftTarget = "LeagueEfficiencyHistoricalDraftTarget";
+        public const string OngoingCardFilterAll = "LeagueEfficiencyOngoingCardFilterAll";
+        public const string OngoingCardFilterChampion = "LeagueEfficiencyOngoingCardFilterChampion";
+        public const string OngoingCardFilterPosition = "LeagueEfficiencyOngoingCardFilterPosition";
         public const string OngoingCardStats = "LeagueEfficiencyOngoingCardStats";
         public const string OngoingCardArenaFirst = "LeagueEfficiencyOngoingCardArenaFirst";
         public const string OngoingCardPositions = "LeagueEfficiencyOngoingCardPositions";
@@ -865,6 +868,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats, "组队近期表现" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftEdit, "编辑模拟英雄与位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftTarget, "模拟观察目标（只读）" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardFilterAll, "全部" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion, "英雄" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition, "位置" },
             { LeagueEfficiencyUiTextKeys.OngoingCardStats, "胜率 {0}（{1}胜/{2}负） · KDA {3}（{4}场有效统计）" },
             { LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst, "斗魂冠军 {0}/{1}" },
             { LeagueEfficiencyUiTextKeys.OngoingCardPositions, "常玩位置 {0}" },
