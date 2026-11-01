@@ -1,3 +1,16 @@
+### 2026-11-01 — Opt-in automatic 200-game player-card paging (Draft #357)
+
+**Latest executable / synthetic-test candidate:** [5668f09](https://github.com/xianyumht-cmd/facm/commit/5668f09e087b8e4eb2f8107c542a1d9f210d1d63). **Four exact-SHA Windows gates pending** (Build + executable history smoke, Glass WebView2, UI Text Contract, Mayhem Source Probe); the last four-gate-verified executable remains [f10b0c4](https://github.com/xianyumht-cmd/facm/commit/f10b0c4b97d304eb322cfd3d60a88c983214cf93).
+
+| Source capability | Status | Native behavior and remaining gap |
+| --- | --- | --- |
+| Player-card 200-game history | **PARTIAL** | New persisted opt-in 0–10 automatic 20-game page budget, triggered only when the user opens an individual player's recent-history card. The existing 2–20 initial roster request remains lightweight; page offsets and total 200 limit are deterministic. Each page reuses the existing account/region/phase/roster-fenced LCU/SGP owner, the 14-second per-page deadline, and a 95-second card lifetime budget. Manual loading remains available. No always-on polling or new HTTP owner. |
+| Cross-page source and identity validation | **COMPLETE (synthetic candidate)** | Overlapping pages deduplicate by game ID, reject conflicting champion, outcome, queue, creation timestamp, source or server and foreign player rows before display mutation. Empty or duplicate-only pages stop automatic loading. Synthetic tests cover 2/20 initial offsets, opt-in settings, foreign rows and contradictory duplicates. |
+| Akari roster-wide automatic history and details | **MISSING / PARTIAL** | This change is **not** Akari's roster-wide automatic 200-game load or automatic detail prefetch. All-source concurrent loading, complete card popovers and historical free-form draft remain incomplete. |
+| Real Tencent/Riot SGP, 256-row cloud sync, Win10/DPI | **UNVERIFIED** | Final single owner acceptance remains required. |
+
+**Next:** source-accurate optional roster-wide history/detail prefetch with explicit phase and performance limits, then remaining card/draft options. PR #357 and #355 stay Draft; no production 3.5.78, updater, merge, release or deployment change.
+
 ### 2026-11-01 — Bounded current-queue SGP roster concurrency (Draft #357)
 
 **Latest executable and synthetic-test SHA:** [f10b0c4](https://github.com/xianyumht-cmd/facm/commit/f10b0c4b97d304eb322cfd3d60a88c983214cf93). **All four exact-SHA Windows gates passed:** [Windows Build #41284981280](https://github.com/xianyumht-cmd/facm/actions/runs/41284981280), [Glass WebView2 #41284981225](https://github.com/xianyumht-cmd/facm/actions/runs/41284981225), [UI Text Contract #41284981213](https://github.com/xianyumht-cmd/facm/actions/runs/41284981213), [Mayhem Source Probe #41284981552](https://github.com/xianyumht-cmd/facm/actions/runs/41284981552). The earlier [229efd9](https://github.com/xianyumht-cmd/facm/commit/229efd96778740debfca3b1c8b614de0a9ae6597) also passed all four gates including its new executable history smoke. No live Tencent CN, 256-row cloud round-trip or Win10/DPI acceptance is implied.
