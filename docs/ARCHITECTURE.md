@@ -1,3 +1,9 @@
+### 2026-11-01 — Filtered player-card collection and phase-scoped Live Client owner
+
+`LeagueOngoingHistoryFilter` projects only identity-verified, deduplicated existing card rows into intersected champion/role views; `LeagueOngoingPlayerHistoryDialog` recalculates the card aggregate from that projection. A user-triggered collect action requests at most five more pages per invocation (60 seconds, 200-row cap) through the existing `LeagueDynamicMessageService.LoadHistoryPageAsync` account/region/phase/roster owner. The source cursor and unfiltered card cache remain authoritative, and filter choices survive accepted pages. This is not an additional polling or network owner and is not full Akari 1000-game player-tab collection parity.
+
+`LeagueRespawnReadScope` owns a cancellable token for each connected InProgress phase. `LeagueRespawnOverlayHost` cancels it on exit/disable/dispose, uses it for existing LCU identity and 2999 loopback reads, and resets previous death evidence when the game phase or foreground continuity is lost. Synthetic smoke exercises token cancellation and re-entry. Executable [68ed087](https://github.com/xianyumht-cmd/facm/commit/68ed087d790506a72938dba2ba6fcdf28e39a7f3) awaits four exact-SHA Windows gates; live Tencent/Windows 10 acceptance is still required.
+
 ### 2026-11-01 — Read-only historical perspective and card aggregate ownership
 
 `LeagueHistoricalMatchDryRun.TryApplyRosterDraft` now validates an optional existing historical target together with the entire source-bound roster before any in-memory mutation. `LeagueDynamicMessageSnapshot.HistoricalOriginalTargetPuuid` preserves the original target for complete reset. The native `LeagueHistoricalRosterEditorDialog` changes only the `HistoricalPreview` projection; no live session/account/gameflow write is introduced. Rift keeps exact 5v5 sides; Arena keeps 4/8 two-player subteams; a selected perspective must remain on its source-original side.
