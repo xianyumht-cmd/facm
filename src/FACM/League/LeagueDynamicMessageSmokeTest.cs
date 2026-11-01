@@ -786,7 +786,9 @@ namespace FACM.League
                     ChampionId = game <= 3 ? 11 : 22,
                     GameType = "MATCHED_GAME", WinResult = game <= 3 ? "win" : "loss",
                     ParticipantResolved = true, StatisticsAvailable = true,
-                    GameCreationEpochMs = 100000 + game });
+                    GameCreationEpochMs = 1700000000000L + game * 60000L,
+                    GameCreationLocal = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                        .AddMinutes(game) });
             var wins = LeagueOngoingPlayerTagProjection.Project(history, scope,
                 currentChampionId: 11);
             var losses = LeagueOngoingPlayerTagProjection.Project(history, scope,
