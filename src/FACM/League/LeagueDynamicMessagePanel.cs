@@ -123,7 +123,11 @@ namespace FACM.League
                 () => _options.ShowGreatPerformanceTag, value => _options.ShowGreatPerformanceTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingAkariScore,
                 () => _options.ShowAkariScoreTag, value => _options.ShowAkariScoreTag = value);
+            AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingEasyGankTag,
+                () => _options.ShowEasyGankTag, value => _options.ShowEasyGankTag = value);
             _exchangeMenu.Items.Add(new ToolStripSeparator());
+            _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingEasyGankAnalyze))
+                .Click += async (sender, e) => await AnalyzeEasyGankAsync();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagImport)).Click += (sender, e) => ImportTags();
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagExport)).Click += (sender, e) => ExportTags();
             tagTools.Click += (sender, e) => _exchangeMenu.Show(tagTools, new Point(0, tagTools.Height));
@@ -440,6 +444,42 @@ namespace FACM.League
             finally { if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
+        private async Task AnalyzeEasyGankAsync()
+        {
+            if (_busy || _snapshot == null || IsJungle || IsPremade) return;
+            var selected = _players.SelectedItem as PlayerChoice;
+            if (selected == null || selected.Player == null ||
+                selected.Player.EarlyGankLoaded) return;
+            var snapshot = _snapshot;
+            _busy = true;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.JungleLoading);
+            _load.Enabled = false; _send.Enabled = false;
+            try
+            {
+                var completed = await _module.LoadEarlyGankMessagesAsync(snapshot,
+                    selected.Player.Player.PuuId, _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                if (completed)
+                {
+                    foreach (var choice in _players.Items.Cast<PlayerChoice>()
+                        .Concat(_jungle.Items.Cast<PlayerChoice>())) choice.RefreshSourceTags();
+                    _players.Refresh();
+                    _jungle.Refresh();
+                }
+                _status.Text = T(completed ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                    LeagueEfficiencyUiTextKeys.DynamicPartial);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+            }
+            finally
+            {
+                if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+            }
+        }
+
         private void RefreshPreview()
         {
             if (_binding || IsDisposed || _preview == null) return;
@@ -714,7 +754,13 @@ namespace FACM.League
             }
             internal void RefreshSourceTags()
             {
-                _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History, _options);
+                var row = Player.Player;
+                var jungler = row != null &&
+                    (string.Equals(row.Position, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(row.Role, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                     row.Spell1Id == 11 || row.Spell2Id == 11);
+                _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History, _options,
+                    Player.EarlyGankAverage, jungler);
             }
             public override string ToString()
             {

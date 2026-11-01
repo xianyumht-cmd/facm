@@ -29,6 +29,7 @@ namespace FACM.League
         public bool ShowAverageCsPerMinuteTag { get; set; }
         public bool ShowAverageDamageGoldEfficiencyTag { get; set; }
         public bool ShowAverageKillDamageEfficiencyTag { get; set; }
+        public bool ShowEasyGankTag { get; set; } = true;
         public bool ShowAverageEnemyMissingPingsTag { get; set; }
         public bool ShowAverageVisionScoreTag { get; set; }
         public bool ShowGreatPerformanceTag { get; set; } = true;
@@ -111,6 +112,8 @@ namespace FACM.League
         internal bool Friendly;
         internal string ChampionName;
         internal IReadOnlyList<LeagueJungleTimelineSample> JungleSamples;
+        internal double? EarlyGankAverage;
+        internal bool EarlyGankLoaded;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -240,6 +243,86 @@ namespace FACM.League
             var me = await _players.LoadProfileAsync(true, token).ConfigureAwait(false);
             return Current(snapshot.Session, snapshot.Phase) && me != null && me.PuuId == snapshot.SelfPuuid &&
                 snapshot.RosterKey == RosterKey(roster);
+        }
+
+        // Explicit one-player, phase-bound analysis. No background or periodic timeline requests.
+        internal async Task<bool> LoadEarlyGankAsync(LeagueDynamicMessageSnapshot snapshot,
+            string puuid, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid)) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal));
+            if (player == null) return false;
+            if (player.EarlyGankLoaded) return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(55));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false) ||
+                    !await EnsureHistoryAsync(snapshot, player, active.Token).ConfigureAwait(false)) return false;
+                var row = player.Player;
+                if (string.Equals(row.Position, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(row.Role, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                    row.Spell1Id == 11 || row.Spell2Id == 11)
+                {
+                    player.EarlyGankLoaded = true;
+                    return await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false);
+                }
+                var samples = new List<int>();
+                var profile = new LeaguePlayerProfile { PuuId = puuid, SummonerId = row.SummonerId };
+                foreach (var item in player.History.Matches.Where(m => m != null && m.GameId > 0)
+                    .GroupBy(m => m.GameId).Select(g => g.First()).Take(6))
+                {
+                    active.Token.ThrowIfCancellationRequested();
+                    if (!Current(snapshot.Session, snapshot.Phase)) return false;
+                    LeaguePlayerMatchSummary match;
+                    using (var detailDeadline = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                    {
+                        detailDeadline.CancelAfter(TimeSpan.FromSeconds(4));
+                        try { match = await _players.LoadMatchDetailAsync(profile, item.GameId,
+                            detailDeadline.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) when (!active.IsCancellationRequested) { continue; }
+                    }
+                    if (match == null || match.GameId != item.GameId ||
+                        !string.Equals(match.PuuId, puuid, StringComparison.Ordinal) ||
+                        LeagueEarlyJungleDeathAnalysis.Candidates(new[] { match }, puuid).Count == 0)
+                        continue;
+                    using (var timelineDeadline = CancellationTokenSource.CreateLinkedTokenSource(active.Token))
+                    {
+                        timelineDeadline.CancelAfter(TimeSpan.FromSeconds(4));
+                        try
+                        {
+                            var timeline = await _players.LoadMatchTimelineAsync(snapshot.SelfPuuid,
+                                match, timelineDeadline.Token, snapshot.Session).ConfigureAwait(false);
+                            var deaths = LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match);
+                            if (deaths.HasValue) samples.Add(deaths.Value);
+                        }
+                        catch (OperationCanceledException) when (!active.IsCancellationRequested) { }
+                    }
+                }
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                active.Token.ThrowIfCancellationRequested();
+                player.EarlyGankAverage = samples.Count == 0 ? (double?)null : samples.Average();
+                player.EarlyGankLoaded = true;
+                return true;
+            }
+            catch (OperationCanceledException) { return false; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
         }
 
         internal async Task<bool> LoadJungleAsync(LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token)

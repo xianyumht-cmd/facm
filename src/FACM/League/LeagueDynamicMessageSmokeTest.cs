@@ -479,6 +479,21 @@ namespace FACM.League
             scored.Matches.Clear();
             Require(LeagueOngoingPlayerTagProjection.Project(scored, scoreOptions).Count == 0,
                 "Empty evidence must never retain a previous player's score.");
+            var gankOptions = new LeagueDynamicMessageOptions { ShowEasyGankTag = true };
+            var gankHistory = new LeaguePlayerMatchPage();
+            gankHistory.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" });
+            Require(LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)) &&
+                !LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1, true)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)),
+                "On-demand gank labels must use measured evidence and exclude current junglers.");
+            gankOptions.ShowEasyGankTag = false;
+            Require(!LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)) &&
+                !LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(gankOptions)).ShowEasyGankTag &&
+                LeagueDynamicMessageOptions.Parse("{}").ShowEasyGankTag,
+                "Gank visibility must be independently configurable with old settings defaults.");
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scoreOptions))
                 .ShowAkariScoreTag && !LeagueDynamicMessageOptions.Parse("{}").ShowAkariScoreTag,
                 "Source-default Akari score visibility must survive settings roundtrip.");

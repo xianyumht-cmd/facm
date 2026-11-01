@@ -365,7 +365,8 @@ namespace FACM.League
     {
         // Pinned v1.5.1 player-card thresholds, evaluated only from the loaded history owner.
         internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history,
-            LeagueDynamicMessageOptions options = null)
+            LeagueDynamicMessageOptions options = null, double? earlyGankAverage = null,
+            bool currentJungler = false)
         {
             var tags = new List<string>();
             if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
@@ -407,6 +408,11 @@ namespace FACM.League
             if (options.ShowAverageDamageGoldEfficiencyTag)
                 AddPercent(tags, LeagueEfficiencyUiTextKeys.DynamicEfficiency,
                     KnownMean(played.Select(m => m.DamageGoldEfficiency), 100), 100);
+            if (options.ShowEasyGankTag)
+            {
+                var gankLabel = LeagueEarlyJungleDeathAnalysis.Classify(earlyGankAverage, currentJungler);
+                if (gankLabel != null) tags.Add(LeagueEfficiencyText.Get(null, gankLabel));
+            }
             if (options.ShowAverageKillDamageEfficiencyTag)
             {
                 var efficiency = analysis.KillDamageEfficiency;
