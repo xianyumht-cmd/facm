@@ -1371,10 +1371,10 @@ namespace FACM.League
                     ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4,
                     Position = "JUNGLE" },
                 new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 24,
-                    PuuId = "target", WinResult = "remake" },
+                    PuuId = "target", WinResult = "remake", ParticipantResolved = true },
                 new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 25,
                     PuuId = "target", WinResult = "win", GameMode = "CHERRY",
-                    SubteamPlacement = 1 },
+                    SubteamPlacement = 1, ParticipantResolved = true, StatisticsAvailable = true },
                 new LeaguePlayerMatchSummary { GameId = 5, ChampionId = 26,
                     PuuId = "target", WinResult = "win", GameMode = "PRACTICETOOL",
                     Position = "BOTTOM", StatisticsAvailable = true,
@@ -1384,7 +1384,7 @@ namespace FACM.League
             Require(cardStats != null && cardStats.Games == 5 &&
                 cardStats.Wins == 2 && cardStats.Losses == 1 && cardStats.Remakes == 1 &&
                 Math.Abs(cardStats.WinRate.Value - 200d / 3d) < 0.001 &&
-                cardStats.StatisticsGames == 2 && cardStats.Kda == 10.5 &&
+                cardStats.StatisticsGames == 3 && cardStats.Kda == 10.5 &&
                 cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1 &&
                 cardStats.MostPlayedPositions.Count == 2 &&
                 cardStats.Positions["TOP"] == 1 && cardStats.Positions["JUNGLE"] == 1 &&
