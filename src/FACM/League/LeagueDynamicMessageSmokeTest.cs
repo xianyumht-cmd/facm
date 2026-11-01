@@ -463,7 +463,8 @@ namespace FACM.League
                 var firstCount = snapshot.Players[0].History.Matches.Count;
                 Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 0,
                         CancellationToken.None).ConfigureAwait(false) == 0 &&
-                    snapshot.Players.All(player => player.RosterCardHistory == null),
+                    snapshot.Players.All(player => player.RosterCardHistory == null) &&
+                    LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot),
                     "Disabled roster card paging must not populate a separate card cache.");
                 var fetched = await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
                     CancellationToken.None).ConfigureAwait(false);
@@ -472,6 +473,7 @@ namespace FACM.League
                         player.RosterCardNextIndex == snapshot.HistoryLoadCount + 20 &&
                         player.RosterCardExhausted) &&
                     snapshot.Players[0].History.Matches.Count == firstCount &&
+                    !LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot) &&
                     fake.MaxConcurrent == 1,
                     "Roster paging must keep the analysis sample small and isolate card-only history.");
                 var reads = fake.Paths.Count;
@@ -480,6 +482,32 @@ namespace FACM.League
                         CancellationToken.None).ConfigureAwait(false) == -1 &&
                     fake.Paths.Count == reads,
                     "Stale roster card prefetch cannot issue requests for a replaced session.");
+            }
+            var paged = new Fake { PagedHistory = true };
+            session = Session("roster-resume-pages");
+            using (var service = new LeagueDynamicMessageService(paged,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    snapshot.Players.All(player => player.RosterCardNextIndex == 40 &&
+                        !player.RosterCardExhausted && player.RosterCardHistory.Count == 3) &&
+                    LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot),
+                    "The first roster page must preserve a resumable offset for every player.");
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    snapshot.Players.All(player => player.RosterCardNextIndex == 60 &&
+                        player.RosterCardHistory.Count == 4) &&
+                    paged.Paths.Count(path => path.Contains("begIndex=20")) == 2 &&
+                    paged.Paths.Count(path => path.Contains("begIndex=40")) == 2,
+                    "Continuing roster paging must reuse prior cards without refetching earlier pages.");
+                session = Session("roster-resume-replaced");
+                var reads = paged.Paths.Count;
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    paged.Paths.Count == reads,
+                    "A replaced session must not continue previously staged roster pages.");
             }
         }
 
@@ -1923,6 +1951,7 @@ namespace FACM.League
             internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
             internal bool MultipleIncompleteHistory;
+            internal bool PagedHistory;
             internal string ChampionNamesJson = "[]";
             internal Action<string> OnRead;
             internal Action OnMastery;
@@ -1970,6 +1999,10 @@ namespace FACM.League
                         return Bytes("{\"phase\":\"InProgress\",\"gameData\":{\"gameId\":100,\"teamOne\":[" +
                             "{\"puuid\":\"self\",\"summonerId\":1,\"championId\":77}],\"teamTwo\":[" +
                             "{\"puuid\":\"enemy\",\"summonerId\":2,\"championId\":99}]}}");
+                    if (path.Contains("/matches?") && PagedHistory && path.Contains("begIndex=20"))
+                        return Bytes("{\"games\":{\"games\":[" + Match(3, 3, 5, 2, 300, 120, 10, true) + "]}}");
+                    if (path.Contains("/matches?") && PagedHistory && path.Contains("begIndex=40"))
+                        return Bytes("{\"games\":{\"games\":[" + Match(4, 3, 5, 2, 300, 120, 10, true) + "]}}");
                     if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
                         (MultipleIncompleteHistory
                             ? "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11},{\"gameId\":2,\"mapId\":11}]}}"

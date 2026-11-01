@@ -410,6 +410,7 @@ namespace FACM.League
         public const string OngoingHydrateHistory = "LeagueEfficiencyOngoingHydrateHistory";
         public const string OngoingGameDetailsCount = "LeagueEfficiencyOngoingGameDetailsCount";
         public const string OngoingAutoRosterDetails = "LeagueEfficiencyOngoingAutoRosterDetails";
+        public const string OngoingContinueRosterHistory = "LeagueEfficiencyOngoingContinueRosterHistory";
         public const string OngoingHydrateRoster = "LeagueEfficiencyOngoingHydrateRoster";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
@@ -889,6 +890,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingHydrateHistory, "按需补全近期战绩详情" },
             { LeagueEfficiencyUiTextKeys.OngoingGameDetailsCount, "详情补全上限" },
             { LeagueEfficiencyUiTextKeys.OngoingAutoRosterDetails, "每名玩家自动补全详情（全队最多40次，0关闭）" },
+            { LeagueEfficiencyUiTextKeys.OngoingContinueRosterHistory, "继续加载全队战绩" },
             { LeagueEfficiencyUiTextKeys.OngoingHydrateRoster, "按需补全全队详情" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },

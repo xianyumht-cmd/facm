@@ -24,7 +24,7 @@ namespace FACM.League
         private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
-        private readonly Button _load, _loadJungle, _loadRosterDetails, _send;
+        private readonly Button _load, _loadJungle, _loadRosterDetails, _loadRosterHistory, _send;
         private readonly Button[] _shortcutButtons = new Button[3];
         private LeagueDynamicMessageSnapshot _snapshot;
         private bool _binding;
@@ -206,6 +206,9 @@ namespace FACM.League
             _loadRosterDetails = new FacmActionButton { AutoSize = true,
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingHydrateRoster),
                 Enabled = false, Tone = FacmButtonTone.Secondary };
+            _loadRosterHistory = new FacmActionButton { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingContinueRosterHistory),
+                Enabled = false, Tone = FacmButtonTone.Secondary };
             _send = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicSend), Enabled = false, Tone = FacmButtonTone.Primary };
             var save = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave), Tone = FacmButtonTone.Secondary };
             var tagTools = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTools),
@@ -288,6 +291,7 @@ namespace FACM.League
             _load.Click += async delegate { await LoadAsync(); };
             _loadJungle.Click += async delegate { await LoadJungleAsync(); };
             _loadRosterDetails.Click += async delegate { await HydrateRosterDetailsAsync(); };
+            _loadRosterHistory.Click += async delegate { await ContinueRosterHistoryAsync(); };
             _send.Click += async delegate { await SendAsync(); };
             save.Click += delegate
             {
@@ -295,7 +299,8 @@ namespace FACM.League
                 _status.Text = _module.TrySaveDynamicMessageOptions(_options, out error) ? T(LeagueEfficiencyUiTextKeys.DynamicSaved) : error;
             };
             actions.Controls.Add(_load); actions.Controls.Add(_loadJungle);
-            actions.Controls.Add(_loadRosterDetails); actions.Controls.Add(save);
+            actions.Controls.Add(_loadRosterDetails); actions.Controls.Add(_loadRosterHistory);
+            actions.Controls.Add(save);
             actions.Controls.Add(tagTools); actions.Controls.Add(_send);
             root.Controls.Add(actions, 0, 1);
             var metrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
@@ -723,6 +728,40 @@ namespace FACM.League
             finally { if (!IsDisposed) { _busy = false; _binding = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
+        private async Task ContinueRosterHistoryAsync()
+        {
+            if (_busy || !LeagueDynamicMessageService.HasMoreRosterCardHistory(_snapshot)) return;
+            var snapshot = _snapshot;
+            _busy = true; _load.Enabled = false; _send.Enabled = false;
+            _loadRosterHistory.Enabled = false;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+            try
+            {
+                var pages = await _module.PrefetchDynamicRosterCardHistoryAsync(snapshot,
+                    Math.Max(1, _options.AutoRosterHistoryPages), _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                if (pages < 0)
+                {
+                    _snapshot = null; _binding = true;
+                    try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                    finally { _binding = false; }
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                    return;
+                }
+                _status.Text = T(pages > 0 ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                    LeagueEfficiencyUiTextKeys.DynamicPartial);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+            }
+            finally
+            {
+                if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+            }
+        }
+
         private async Task HydrateRosterDetailsAsync()
         {
             if (_busy || _snapshot == null || _options.GameDetailsLoadCount < 1) return;
@@ -952,6 +991,8 @@ namespace FACM.League
             _preview.Text = lines.Count == 0 && IsPremade && _snapshot != null ?
                 T(LeagueEfficiencyUiTextKeys.PremadeNoGroups).Replace("{0}", _options.PremadeMatchThreshold.ToString()) : lines.Count == 0 && IsJungle && _snapshot != null ?
                 T(LeagueEfficiencyUiTextKeys.JungleSelectHint) : string.Join(Environment.NewLine, lines);
+            _loadRosterHistory.Enabled = !_busy &&
+                LeagueDynamicMessageService.HasMoreRosterCardHistory(_snapshot);
             _loadRosterDetails.Enabled = !_busy && _snapshot != null &&
                 _options.GameDetailsLoadCount > 0 && _snapshot.Players.Any(player =>
                     player.History != null && player.History.Matches.Any(match =>

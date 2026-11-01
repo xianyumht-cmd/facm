@@ -469,6 +469,15 @@ namespace FACM.League
 
         // An opted-in roster-wide card preload never extends the 2-20 match
         // analysis sample. It stages validated read-only card rows separately.
+        internal static bool HasMoreRosterCardHistory(LeagueDynamicMessageSnapshot snapshot)
+        {
+            return snapshot != null && snapshot.Players.Any(player => player?.Player != null &&
+                SafePuuid(player.Player.PuuId) && player.History != null &&
+                !player.RosterCardExhausted &&
+                (player.RosterCardHistory == null ||
+                 player.RosterCardNextIndex < 200));
+        }
+
         internal async Task<int> PrefetchRosterCardHistoryAsync(
             LeagueDynamicMessageSnapshot snapshot, int pagesPerPlayer, CancellationToken token)
         {
@@ -483,8 +492,13 @@ namespace FACM.League
             var stages = players.Select(player => new RosterCardStage
             {
                 Player = player,
-                Matches = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList(),
-                NextIndex = snapshot.HistoryLoadCount
+                Matches = player.RosterCardHistory == null
+                    ? LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList()
+                    : player.RosterCardHistory.ToList(),
+                NextIndex = player.RosterCardHistory != null &&
+                    player.RosterCardNextIndex >= snapshot.HistoryLoadCount
+                    ? player.RosterCardNextIndex : snapshot.HistoryLoadCount,
+                Done = player.RosterCardExhausted
             }).ToArray();
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
