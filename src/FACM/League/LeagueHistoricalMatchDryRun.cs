@@ -252,7 +252,7 @@ namespace FACM.League
 
 
         // Atomically apply an entire verified historical lineup. No participant may be
-        // added, removed, or impersonated; the target remains on its original side.
+        // added, removed, or impersonated; the target may view either draft side.
         internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
             IEnumerable<LeagueHistoricalRosterSelection> selections)
         {
@@ -279,9 +279,7 @@ namespace FACM.League
                 requestedCounts.Count != originalCounts.Count ||
                 originalCounts.Any(g => !requestedCounts.ContainsKey(g.Key) ||
                     requestedCounts[g.Key] != g.Value) ||
-                !current.ContainsKey(targetPuuid) ||
-                requested.Single(p => p.PuuId == targetPuuid).TeamId !=
-                    current[targetPuuid].HistoricalOriginalTeamId)
+                !current.ContainsKey(targetPuuid))
                 return false;
 
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
@@ -320,7 +318,6 @@ namespace FACM.League
             string firstPuuid, string secondPuuid)
         {
             if (!ValidTeamDraft(snapshot) || firstPuuid == secondPuuid ||
-                firstPuuid == snapshot.SelfPuuid || secondPuuid == snapshot.SelfPuuid ||
                 !LeagueDynamicMessageService.SafePuuid(firstPuuid) ||
                 !LeagueDynamicMessageService.SafePuuid(secondPuuid)) return false;
             var first = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == firstPuuid);
@@ -392,8 +389,7 @@ namespace FACM.League
                 snapshot.Players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() !=
                     snapshot.Players.Count) return false;
             var self = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == snapshot.SelfPuuid);
-            if (self == null || self.HistoricalTeamId != self.HistoricalOriginalTeamId)
-                return false;
+            if (self == null) return false;
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
             Func<int, bool> validTeam = id => cherry ? LeagueCherryTeams.ValidSubteamId(id).HasValue :
                 id == 100 || id == 200;

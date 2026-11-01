@@ -87,7 +87,6 @@ namespace FACM.League
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftSwapTeam) }, 0, 4);
             var swapCandidates = snapshot.Players.Where(p => p?.Player != null &&
                 p.Player.PuuId != player.Player.PuuId &&
-                p.Player.PuuId != snapshot.SelfPuuid &&
                 p.HistoricalTeamId != player.HistoricalTeamId).ToArray();
             var swap = new ComboBox { Dock = DockStyle.Fill,
                 DropDownStyle = ComboBoxStyle.DropDownList };
@@ -96,7 +95,7 @@ namespace FACM.League
                 swap.Items.Add((candidate.Player.GameName ?? ("#" + candidate.Player.CellId)) +
                     " · #" + candidate.Player.CellId);
             swap.SelectedIndex = 0;
-            swap.Enabled = player.Player.PuuId != snapshot.SelfPuuid && swapCandidates.Length > 0;
+            swap.Enabled = swapCandidates.Length > 0;
             layout.Controls.Add(swap, 0, 5);
             var swapApply = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftSwapApply),

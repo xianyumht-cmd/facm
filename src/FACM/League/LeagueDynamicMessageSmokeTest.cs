@@ -1478,7 +1478,11 @@ namespace FACM.League
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot, 6).Count == 0,
                 "Historical premade stats require a validated shared-game threshold.");
             var swapped = snapshot.Players.Single(p => p.Player.PuuId == "player-6");
-            Require(!LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "target", "player-6") &&
+            Require(LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "target", "player-6") &&
+                target.HistoricalTeamId == 200 && target.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                target.HistoricalTeamId == 100 && target.Friendly &&
                 !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-3") &&
                 !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "missing") &&
                 LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
@@ -1528,9 +1532,15 @@ namespace FACM.League
                 "Duplicate or replaced target identity must reject the whole draft.");
             firstBatch.PuuId = "player-2";
             Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "missing") &&
-                !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-2") &&
                 snapshot.SelfPuuid == "target" && teammate.HistoricalTeamId == 200,
-                "Unknown or reassigned historical targets must reject the whole roster transaction.");
+                "Unknown historical targets must reject the whole roster transaction.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-2") &&
+                snapshot.SelfPuuid == "player-2" && teammate.Friendly &&
+                target.HistoricalTeamId == 100 && !target.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target") &&
+                snapshot.SelfPuuid == "target" && target.Friendly,
+                "An existing reassigned player must be selectable as the preview perspective.");
             Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-7") &&
                 snapshot.SelfPuuid == "player-7" &&
                 snapshot.Players.Count(p => p.Friendly) == 5 &&
@@ -1663,7 +1673,10 @@ namespace FACM.League
             Require(LeaguePremadeInference.Infer(arenaDraft).Count == 0 &&
                 LeagueHistoricalMatchDryRun.TeamAggregates(arenaDraft).Count == 0,
                 "Arena draft must never infer a premade across two enemy subteams.");
-            Require(!LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "target", "arena-3") &&
+            Require(LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "target", "arena-3") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "target").Friendly &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(arenaDraft) &&
                 !LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-4") &&
                 LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-5") &&
                 arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 3 &&
