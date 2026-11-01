@@ -157,12 +157,12 @@ namespace FACM.League
                     expanded += Environment.NewLine + "KDA CV: " +
                         analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture);
                 if (analysis.NormalWinRate.HasValue)
-                    expanded += Environment.NewLine + "Normal: " +
+                    expanded += Environment.NewLine + t(LeagueEfficiencyUiTextKeys.ProfileModeNormal) + ": " +
                         analysis.NormalWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
                         "% (" + (analysis.NormalWins + analysis.NormalLosses).ToString(
                             CultureInfo.CurrentCulture) + ")";
                 if (analysis.CherryWinRate.HasValue)
-                    expanded += Environment.NewLine + "CHERRY: " +
+                    expanded += Environment.NewLine + t(LeagueEfficiencyUiTextKeys.ProfileModeCherry) + ": " +
                         analysis.CherryWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
                         "% (" + (analysis.CherryWins + analysis.CherryLosses).ToString(
                             CultureInfo.CurrentCulture) + ")";
