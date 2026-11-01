@@ -1,11 +1,11 @@
 ### 2026-11-02 — Historical perspective reassignments and card KDA variability (Draft #357)
 
-**Executable/test candidate:** `01f75bdd6a1c9a0b1ffe610ff56b3d08f7da4d94` (historical target/team `147ae1e8167f05fbfc02a3a2d393266ff59702a9`). Four exact-candidate Windows gates **pending**; last confirmed four-gate executable: `66c4f1c7a09154c15643184f32323329144e4167`. CI build/synthetic coverage is not Tencent/Windows live acceptance.
+**Executable/test candidate:** `2eddf12f8f70fc105ab33a96d329d7a41b282faa` (historical target/team `147ae1e8167f05fbfc02a3a2d393266ff59702a9`). Four exact-candidate Windows gates **pending**; last confirmed four-gate executable: `66c4f1c7a09154c15643184f32323329144e4167`. CI build/synthetic coverage is not Tencent/Windows live acceptance.
 
 | Akari v1.5.1 scope | Status | Native capability and remaining gap |
 | --- | --- | --- |
 | Historical perspective and team editing | **PARTIAL (candidate)** | The verified read-only Rift/Arena roster editor now permits a selected historical participant to change teams and become the analysis perspective on either side; the individual swap action can also move the current perspective. All swaps retain exact 5v5 or two-player Arena team sizes, unique source identities and full source reset. Unknown players, invented teams, queue changes and new participants remain prohibited. |
-| Player-card analysis popover evidence | **PARTIAL (candidate)** | Adds pinned-source coefficient of variation (CV) for per-game KDA from verified eligible samples; zero-mean/unknown samples remain unavailable. The existing native card's expanded tooltip/accessibility description exposes the CV alongside win/loss, aggregate KDA, Arena placement and positions. Full Akari popovers/outlier comparisons remain missing. |
+| Player-card analysis popover evidence | **PARTIAL (candidate)** | Adds pinned-source coefficient of variation (CV) for per-game KDA and separate normal/Arena win-rate evidence from verified eligible samples; zero-mean/unknown samples remain unavailable. The existing native card's expanded tooltip/accessibility description exposes these alongside aggregate KDA, Arena placement and positions. Mode labels reuse existing translations. Full Akari popovers/outlier comparisons remain missing. |
 | Synthetic tests | **PENDING CI** | Existing executable historical smoke now covers target-side swaps, reassigned target selection, Arena reset, KDA CV and zero-mean handling. |
 | Other remaining source gaps | **PARTIAL / MISSING** | Historical free-form queue/new-player construction, complete player-card interactions, all-source concurrency and remaining ChampSelect/gameflow options. Real Riot/Tencent SGP, 256-row cloud round-trip and Windows 10/DPI acceptance unverified. |
 
