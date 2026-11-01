@@ -1,3 +1,8 @@
+### 2026-11-01 — Explicit bounded player-card detail hydration
+
+- `LeagueDynamicMessageOptions.GameDetailsLoadCount` stores a 0–20 explicit-detail budget (0 disables). The existing player context menu calls `LeagueEfficiencyModule.HydrateDynamicPlayerHistoryAsync` with the current UI budget, then `LeagueDynamicMessageService.HydrateHistoryAsync` under the current roster/account/session gate. It delegates to the existing `LeaguePlayerDataService.HydrateAnalysisAsync` with a bounded attempt count, never introduces a new request owner or background prefetch.
+- Successful source-consistent detail replacements update the current player's history and tags; failed/mismatched account or roster results are discarded. Attempted game IDs are remembered for the current snapshot to avoid repeat reads. Synthetic coverage includes source metrics, no-op reattempts and count caps. Latest executable [8148346](https://github.com/xianyumht-cmd/facm/commit/8148346274e93b82c75441d582e24a7173303831) awaits four Windows CI gates; last exact all-four green remains [dd4f7e2](https://github.com/xianyumht-cmd/facm/commit/dd4f7e2c19d01de824b3c42f15d96419ffe151ba).
+
 ### 2026-11-01 — Native player-card ordering ownership
 
 - `LeagueDynamicMessageOptions.OrderPlayerBy` persists six pinned Akari v1.5.1 sorting modes. `LeagueDynamicMessageService.OrderPlayers` sorts only within each friendly/enemy side using already verified local history, source-total KDA, evidence-backed win rate/Akari score, assigned position and existing premade inference. Unknown evidence is stable rather than fabricated.
