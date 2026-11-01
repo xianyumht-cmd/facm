@@ -51,6 +51,11 @@ namespace FACM.League
                     .Analysis.Games == 1 &&
                 LeagueOngoingCardBreakdown.Project(matches, "bad id!").Count == 0,
                 "Card drilldown must use only verified champion, role and mode evidence.");
+            Require(LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 0, "", 40, 0, "CHERRY") &&
+                LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 22, "TOP", 40, 0, "NORMAL") &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 0, "", 40, 0, "bad") &&
+                !LeagueOngoingHistoryFilter.NeedsCollection(matches, "target", 0, "", 200, 0, "CHERRY"),
+                "Mode-only collection must stay bounded and reject unknown mode requests.");
             matches.Add(Sparse(301));
             Require(LeagueOngoingHistoryFilter.Select(matches, "target", 22, "TOP").Count == 1,
                 "Ambiguous duplicate game IDs cannot enter filtered player analysis.");

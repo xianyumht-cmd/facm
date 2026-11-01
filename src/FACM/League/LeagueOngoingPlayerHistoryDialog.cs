@@ -42,15 +42,16 @@ namespace FACM.League
         }
 
         internal static bool NeedsCollection(IList<LeaguePlayerMatchSummary> matches, string puuid,
-            int championId, string position, int nextIndex, int requests)
+            int championId, string position, int nextIndex, int requests, string mode = "")
         {
-            return (championId > 0 || !string.IsNullOrEmpty(position)) &&
+            return (championId > 0 || !string.IsNullOrEmpty(position) || mode != "") &&
                 LeagueDynamicMessageService.SafePuuid(puuid) &&
                 championId >= 0 && championId <= 9999 &&
+                (mode == "" || mode == "NORMAL" || mode == "CHERRY") &&
                 (string.IsNullOrEmpty(position) || Roles.Contains(position, StringComparer.Ordinal)) &&
                 nextIndex >= 0 && nextIndex < 200 && requests >= 0 && requests < 5 &&
                 matches != null && matches.Count <= 200 &&
-                Select(matches, puuid, championId, position).Count < 20;
+                Select(matches, puuid, championId, position, mode).Count < 20;
         }
 
         internal static int[] Champions(IList<LeaguePlayerMatchSummary> matches, string puuid)
@@ -468,9 +469,10 @@ namespace FACM.League
             {
                 collect.Enabled = !collecting && !loading && hasMore && isCurrent() &&
                     LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
-                        selectedChampion, selectedPosition, nextIndex, 0);
+                        selectedChampion, selectedPosition, nextIndex, 0, selectedMode);
                 fullCollect.Enabled = !collecting && !loading && isCurrent() &&
                     openFullCollection != null &&
+                    selectedMode == "" &&
                     (selectedChampion > 0 || !string.IsNullOrEmpty(selectedPosition));
             };
             fullCollect.Click += (sender, args) =>
@@ -544,7 +546,8 @@ namespace FACM.League
                         {
                             if (deadline.IsCancellationRequested ||
                                 !LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
-                                    selectedChampion, selectedPosition, nextIndex, requests) ||
+                                    selectedChampion, selectedPosition, nextIndex, requests,
+                                    selectedMode) ||
                                 !hasMore || !await fetchNext(deadline.Token)) break;
                         }
                     }
