@@ -898,7 +898,7 @@ namespace FACM.League
             var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
             target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 106,
                 PuuId = "target", ChampionId = 99, ChampionName = "Lux",
-                WinResult = "remake", GameType = "MATCHED_GAME" });
+                WinResult = "remake", GameType = "MATCHED_GAME", ParticipantResolved = true });
             Require(LeagueHistoricalMatchDryRun.CardRecentMatches(target).Count == 3 &&
                 LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
                 "Player card history must preserve verified remakes without treating them as played wins.");
