@@ -891,6 +891,17 @@ namespace FACM.League
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 2 &&
                 roster[1].TeamId == 100 && roster[5].TeamId == 200,
                 "Restoring a historical team draft must restore inference without touching source records.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "BOTTOM",
+                    null, "TOP", "JUNGLE") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                teammate.HistoricalTeamId == 100 && teammate.Friendly &&
+                teammate.Player.ChampionId == 12 && teammate.ChampionName == "#12" &&
+                teammate.Player.Position == "TOP" &&
+                teammate.HistoricalPrimaryPosition == "" && teammate.HistoricalSecondaryPosition == "" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                roster[1].ChampionId == 12 && roster[1].TeamId == 100,
+                "Whole historical draft reset must restore every local selection and team without source writes.");
             target.History.Matches.Clear();
             target.History.Matches.AddRange(new[] {
                 new LeaguePlayerMatchSummary { GameId = 100, PuuId = "target", ChampionId = 22,
@@ -993,6 +1004,14 @@ namespace FACM.League
                 arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
                 arenaRoster[2].PlayerSubteamId == 2,
                 "Arena swaps must preserve two-player subteams and original source identity.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 98, "") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-5") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 23 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.Position == "" &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2),
+                "Whole Arena draft reset must restore source champions and two-player subteams.");
             var legacyArena = new LeaguePlayerMatchSummary { GameId = 502, MapId = 30,
                 GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
             var legacyDraft = LeagueHistoricalMatchDryRun.Build(legacyArena,

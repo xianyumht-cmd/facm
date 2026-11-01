@@ -167,10 +167,10 @@ namespace FACM.League
                 secondary.SelectedIndex = 0;
             };
             var restoreTeams = new Button { Width = 150, Height = 30,
-                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreTeams) };
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreAll) };
             restoreTeams.Click += (sender, args) =>
             {
-                if (!isCurrentSession() || !LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot))
+                if (!isCurrentSession() || !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot))
                 {
                     restoreTeams.Enabled = false;
                     return;

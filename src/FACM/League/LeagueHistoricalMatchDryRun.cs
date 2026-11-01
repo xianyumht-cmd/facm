@@ -124,6 +124,28 @@ namespace FACM.League
             return true;
         }
 
+        internal static bool TryRestoreOriginalDraft(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.Players.Any(p =>
+                p.HistoricalOriginalChampionId < 1 || p.HistoricalOriginalChampionId > 9999 ||
+                p.HistoricalOriginalChampionName == null ||
+                (p.HistoricalOriginalPosition != "" &&
+                 !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(p.HistoricalOriginalPosition, StringComparer.Ordinal))))
+                return false;
+            foreach (var player in snapshot.Players)
+            {
+                player.HistoricalTeamId = player.HistoricalOriginalTeamId;
+                player.Player.ChampionId = player.HistoricalOriginalChampionId;
+                player.ChampionName = player.HistoricalOriginalChampionName;
+                player.Player.Position = player.HistoricalOriginalPosition;
+                player.HistoricalPrimaryPosition = "";
+                player.HistoricalSecondaryPosition = "";
+            }
+            RefreshDraftSides(snapshot);
+            return true;
+        }
+
         private static void RefreshDraftSides(LeagueDynamicMessageSnapshot snapshot)
         {
             var selfTeam = snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid)
