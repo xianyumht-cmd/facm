@@ -385,6 +385,11 @@ namespace FACM.League
         public const string HistoricalDraftRecent = "LeagueEfficiencyHistoricalDraftRecent";
         public const string HistoricalDraftGame = "LeagueEfficiencyHistoricalDraftGame";
         public const string HistoricalDraftKda = "LeagueEfficiencyHistoricalDraftKda";
+        public const string OngoingRecentHistory = "LeagueEfficiencyOngoingRecentHistory";
+        public const string OngoingRecentSummary = "LeagueEfficiencyOngoingRecentSummary";
+        public const string OngoingRecentRemake = "LeagueEfficiencyOngoingRecentRemake";
+        public const string OngoingRecentAbort = "LeagueEfficiencyOngoingRecentAbort";
+        public const string OngoingRecentPlacement = "LeagueEfficiencyOngoingRecentPlacement";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
         public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
@@ -838,6 +843,11 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftRecent, "已验证的近期对局" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftGame, "对局编号" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftKda, "击杀 / 死亡 / 助攻" },
+            { LeagueEfficiencyUiTextKeys.OngoingRecentHistory, "玩家近期战绩" },
+            { LeagueEfficiencyUiTextKeys.OngoingRecentSummary, "已验证 {0} 场 · 胜利 {1} 场 · 失败 {2} 场" },
+            { LeagueEfficiencyUiTextKeys.OngoingRecentRemake, "重开" },
+            { LeagueEfficiencyUiTextKeys.OngoingRecentAbort, "中止" },
+            { LeagueEfficiencyUiTextKeys.OngoingRecentPlacement, "第 {0} 名" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },

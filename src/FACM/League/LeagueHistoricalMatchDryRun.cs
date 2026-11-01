@@ -72,6 +72,30 @@ namespace FACM.League
                 .Select(g => g.First()).ToArray();
         }
 
+        // Read-only card history includes source-classified remakes and aborts,
+        // but never uses ambiguous or contradictory duplicate games.
+        internal static IReadOnlyList<LeaguePlayerMatchSummary> CardRecentMatches(
+            LeagueDynamicMessagePlayer player)
+        {
+            if (player?.Player == null || player.History == null ||
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
+                return new LeaguePlayerMatchSummary[0];
+            return player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
+                .Where(m => m != null && m.GameId > 0)
+                .GroupBy(m => m.GameId)
+                .Where(g => g.All(m => m.ChampionId > 0 &&
+                    (string.IsNullOrEmpty(m.PuuId) ||
+                     string.Equals(m.PuuId, player.Player.PuuId, StringComparison.Ordinal)) &&
+                    (string.IsNullOrWhiteSpace(m.GameType) ||
+                     string.Equals(m.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) &&
+                    LeaguePlayerHistoryAnalysis.Outcome(m) != LeagueHistoryOutcome.Unknown) &&
+                    g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
+                    g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1 &&
+                    g.Select(m => m.SgpServerId ?? "").Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
+                .Select(g => g.First()).OrderByDescending(m => m.GameCreationEpochMs)
+                .ThenByDescending(m => m.GameId).ToArray();
+        }
+
         // Only changes an ephemeral historical preview, never a match record or LCU state.
         internal static bool TryEditSelection(LeagueDynamicMessageSnapshot snapshot,
             string puuid, int championId, string position, string championName = null)

@@ -235,6 +235,7 @@ namespace FACM.League
             var encountered = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterHistory));
             var recentChampions = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
+            var recentHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingRecentHistory));
             _players.ContextMenuStrip = tagMenu;
             _jungle.ContextMenuStrip = tagMenu;
             _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
@@ -254,6 +255,18 @@ namespace FACM.League
                 recentChampions.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player).Count > 0;
                 championMastery.Enabled = !e.Cancel;
+                recentHistory.Enabled = !e.Cancel &&
+                    LeagueHistoricalMatchDryRun.CardRecentMatches(choice.Player).Count > 0;
+            };
+            recentHistory.Click += (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                var snapshot = _snapshot;
+                if (_busy || snapshot == null || choice?.Player == null ||
+                    !snapshot.Players.Contains(choice.Player)) return;
+                using (var dialog = new LeagueOngoingPlayerHistoryDialog(_ui, snapshot,
+                    choice.Player, () => !IsDisposed && ReferenceEquals(_snapshot, snapshot)))
+                    dialog.ShowDialog(this);
             };
             editTag.Click += async (sender, e) =>
             {

@@ -869,6 +869,16 @@ namespace FACM.League
                     ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" }
             });
             var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
+            target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 106,
+                PuuId = "target", ChampionId = 99, ChampionName = "Lux",
+                WinResult = "remake", GameType = "MATCHED_GAME" });
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(target).Count == 3 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
+                "Player card history must preserve verified remakes without treating them as played wins.");
+            target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 106,
+                PuuId = "target", ChampionId = 98, WinResult = "remake" });
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(target).Count == 2,
+                "Contradictory duplicate remakes must be excluded from the player card.");
             Require(LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
                 "Historical player details must omit duplicate conflicts and wrong-owner evidence.");
             Require(usage.Count == 1 && usage[0].ChampionId == 22 &&
