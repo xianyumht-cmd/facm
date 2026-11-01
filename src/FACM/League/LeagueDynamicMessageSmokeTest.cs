@@ -18,6 +18,7 @@ namespace FACM.League
             LeagueEncounterHistorySmokeTest.Validate();
             ValidateAggregation();
             ValidateQueueTagPreference();
+            ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
             ValidateEncounterCardTags();
@@ -147,6 +148,33 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse("{\"MatchHistoryTagPreference\":\"invalid\"}")
                     .MatchHistoryTagPreference == "all",
                 "Queue-tag preferences must roundtrip and reject invalid persisted modes.");
+        }
+
+        private static async Task ValidateQueueTagRoutingAsync()
+        {
+            var local = new Fake();
+            var sgp = new TaggedHistoryFake();
+            var session = Session("tagged-owner");
+            var service = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(),
+                null, sgp, () => session);
+            var target = new LeaguePlayerProfile { PuuId = "enemy" };
+            var page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page != null && page.Matches.Count == 0 && sgp.TaggedCalls == 1 &&
+                sgp.LastPuuid == "enemy" && sgp.LastTag == "q_420" &&
+                !local.Paths.Any(p => p.Contains("/matches?")),
+                "SGP current-queue history must query the tagged opponent without an LCU fallback.");
+            local.ProfilePuuid = "other";
+            page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page == null && sgp.TaggedCalls == 1,
+                "An account mismatch must fail before issuing a tagged opponent request.");
+            local.ProfilePuuid = "self";
+            sgp.OnTagged = () => local.ProfilePuuid = "replacement";
+            page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page == null && sgp.TaggedCalls == 2,
+                "An account change during tagged SGP retrieval must discard the response.");
         }
 
         private static void ValidateAggregation()
@@ -1432,6 +1460,49 @@ namespace FACM.League
                 "{\"participantId\":2,\"teamId\":100,\"championId\":99,\"stats\":{\"kills\":" + (10 - kills) +
                 ",\"assists\":1,\"deaths\":1,\"win\":true,\"totalDamageDealtToChampions\":" + (1000 - damage) +
                 ",\"totalDamageTaken\":800,\"goldEarned\":10000}}]}";
+        }
+
+        private sealed class TaggedHistoryFake : ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi
+        {
+            internal int TaggedCalls;
+            internal string LastPuuid;
+            internal string LastTag;
+            internal Action OnTagged;
+
+            public Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, string serverId, string tag)
+            {
+                token.ThrowIfCancellationRequested();
+                TaggedCalls++;
+                LastPuuid = targetPuuid;
+                LastTag = tag;
+                OnTagged?.Invoke();
+                return Task.FromResult(Bytes("{\"games\":[]}"));
+            }
+
+            public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, string serverId = null)
+            {
+                throw new InvalidOperationException("Tagged history must not use unfiltered SGP.");
+            }
+
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
+            public Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
         }
 
         private sealed class Fake : ILeagueClientApi, ILeagueMasteryReadApi
