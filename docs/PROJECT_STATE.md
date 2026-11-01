@@ -1,15 +1,15 @@
-### 2026-11-01 — Atomic full-roster historical preview editing (Draft #357)
+### 2026-11-01 — Historical perspective and verified player-card analysis (Draft #357)
 
-**Latest executable/test candidate:** [ae74850](https://github.com/xianyumht-cmd/facm/commit/ae74850289c79c0116c0e5014defa42f95d12a3d). Four exact-SHA Windows gates are **pending**; do not treat this candidate as verified. The preceding [f855137](https://github.com/xianyumht-cmd/facm/commit/f855137c9650fba54427e838be20dd4011e0e67e) HEAD passed Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe, but is not this candidate.
+**Executable/test SHA:** [5680007](https://github.com/xianyumht-cmd/facm/commit/568000703e8844e815294de15d5d31ba6a7635f3). Four exact-SHA Windows gates are pending at this snapshot; a prior synthetic fixture failure was corrected before this candidate. Do not equate build/synthetic checks with real Tencent CN or Windows 10/DPI acceptance.
 
-| Akari v1.5.1 scope | Status | Native behavior / remaining work |
+| Pinned Akari v1.5.1 capability | Status | Native behavior / remaining gap |
 | --- | --- | --- |
-| Historical team-wide draft editing | **PARTIAL (candidate)** | Match-detail historical preview now exposes a native all-player grid. One validated, atomic transaction can change verified players' teams, champions, lane and primary/secondary preferences. Keeps the exact 5v5 or 4/8 two-player Arena group sizes, fixed target side, unique existing identities and immutable original match; rejects invalid or incomplete submissions before mutation. Existing per-player editor, team swap and full reset remain. |
-| Historical lane/source validation | **COMPLETE (synthetic candidate)** | Unrecognized source lane names normalize to blank; Arena never inherits Rift lanes. Synthetic regression covers whole-lineup swaps, champion changes, atomic rejection, Arena subteams, source immutability and reset. |
-| Card history evidence | **COMPLETE (synthetic candidate)** | Cross-page duplicate game IDs now also reject conflicting map and game mode, matching same-page evidence checks. |
-| Still missing | **PARTIAL / MISSING** | Free-form new-player/queue/target composition, full Akari popovers, remaining ChampSelect/gameflow strategies, all-source concurrency and live regional SGP variants. Real Tencent/Riot, 256-row cloud round-trip and Windows 10/DPI remain unverified. |
+| Historical perspective / lineup | **PARTIAL (candidate)** | The native full-roster editor can select any verified existing historical participant as the read-only perspective, atomically with team/champion/position edits. Unknown identities, invalid team sizes, duplicate players and a target moved off its original side fail closed. Full reset restores original target and lineup. New participants and free-form queue changes remain missing. |
+| Extended player-card sample | **PARTIAL (candidate)** | Up to 200 previously validated on-demand rows now show source-bounded decisive win rate, total KDA and contributing sample count, Arena first-place evidence, and up to three recent positions. Remakes/aborts and practice-tool rows stay visible but do not pollute decisive statistics; unknown/sparse evidence is not counted. Full source popovers and collect-by-champion/position actions remain incomplete. |
+| Source/test evidence | **PENDING CI** | Synthetic fixtures cover Rift/Arena perspective changes, atomic rejection/reset, 200-card analysis, unknown/foreign/duplicate rows, zero-death KDA, position and practice filtering. |
+| Live/remaining | **UNVERIFIED / PARTIAL** | All-source history concurrency, remaining ChampSelect/gameflow options, real Riot/Tencent SGP, 256-row cloud round-trip and final Windows 10/DPI acceptance. |
 
-PR #357 and stacked #355 remain Draft; no force push, merge, release, deployment, updater, paid infrastructure or production GGman 3.5.78 change.
+PR #357 and stacked #355 remain Draft; no merge, release, deployment, updater, paid infrastructure or production GGman 3.5.78 changes.
 
 ### 2026-11-01 — Source-bounded card details and duplicate evidence (Draft #357)
 

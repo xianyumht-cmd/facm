@@ -1,15 +1,16 @@
-### 2026-11-01 — Atomic full-roster historical preview editing (Draft #357)
+### 2026-11-01 — Source-backed historical perspective and card aggregate parity (Draft #357)
 
-**Latest executable/test candidate:** [ae74850](https://github.com/xianyumht-cmd/facm/commit/ae74850289c79c0116c0e5014defa42f95d12a3d). Four exact-SHA Windows gates are **pending**; do not treat this candidate as verified. The preceding [f855137](https://github.com/xianyumht-cmd/facm/commit/f855137c9650fba54427e838be20dd4011e0e67e) HEAD passed Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe, but is not this candidate.
+Pinned Akari v1.5.1 commit `14557723706ccc0e0a9d62c470141d4cb7190fcd`, especially `src/renderer-shared/components/ongoing-game-panel/widgets/player-info-card/PlayerInfoCardStats.vue` and `src/shared/data-adapter/analysis/player/{index.ts,aggregate/summary.ts,aggregate/win-loss.ts,aggregate/positions.ts}`.
 
-| Akari v1.5.1 scope | Status | Native behavior / remaining work |
+**Executable/test candidate:** [5680007](https://github.com/xianyumht-cmd/facm/commit/568000703e8844e815294de15d5d31ba6a7635f3). Four Windows gates pending at this documentation snapshot. A prior Glass dashboard smoke exposed incomplete synthetic outcome fixtures; they were corrected using the real `Outcome` contract before this candidate.
+
+| Source scope | Status | Exact native boundary |
 | --- | --- | --- |
-| Historical team-wide draft editing | **PARTIAL (candidate)** | Match-detail historical preview now exposes a native all-player grid. One validated, atomic transaction can change verified players' teams, champions, lane and primary/secondary preferences. Keeps the exact 5v5 or 4/8 two-player Arena group sizes, fixed target side, unique existing identities and immutable original match; rejects invalid or incomplete submissions before mutation. Existing per-player editor, team swap and full reset remain. |
-| Historical lane/source validation | **COMPLETE (synthetic candidate)** | Unrecognized source lane names normalize to blank; Arena never inherits Rift lanes. Synthetic regression covers whole-lineup swaps, champion changes, atomic rejection, Arena subteams, source immutability and reset. |
-| Card history evidence | **COMPLETE (synthetic candidate)** | Cross-page duplicate game IDs now also reject conflicting map and game mode, matching same-page evidence checks. |
-| Still missing | **PARTIAL / MISSING** | Free-form new-player/queue/target composition, full Akari popovers, remaining ChampSelect/gameflow strategies, all-source concurrency and live regional SGP variants. Real Tencent/Riot, 256-row cloud round-trip and Windows 10/DPI remain unverified. |
+| Historical target perspective | **PARTIAL (candidate)** | Source-bound, read-only participant perspective is now selectable in the native all-roster transaction for Rift and Arena; `HistoricalOriginalTargetPuuid` restores the original. No new participant identity, queue fabrication, live account change or LCU write. |
+| Player-card win/loss, KDA, Arena and position analysis | **PARTIAL (candidate)** | Derived from at most 200 verified existing card rows, not additional network reads. Decisive win rate excludes remake/abort and practice-tool matches; KDA is shown only with resolved statistics, using a zero-death denominator floor. Arena first-place evidence and top three confirmed positions are shown with sample counts. Unlike the full pinned analysis, PVE queue catalog filtering, all popovers, CV/outlier metrics and champion/position collection actions remain incomplete. |
+| Source/test acceptance | **PENDING CI / UNVERIFIED LIVE** | Synthetic tests added; real Tencent/Riot SGP, 256-row cloud round-trip and Windows 10/DPI final owner acceptance are not performed. |
 
-PR #357 and stacked #355 remain Draft; no force push, merge, release, deployment, updater, paid infrastructure or production GGman 3.5.78 change.
+**Next highest-value source gaps:** complete player-card collect-by-champion/position actions and ranked/detail popovers, then historical queue/new-player draft scope and remaining ChampSelect/gameflow option audit. Draft PRs remain unmerged and unpublished.
 
 ### 2026-11-01 — Source-bounded card details and duplicate evidence (Draft #357)
 

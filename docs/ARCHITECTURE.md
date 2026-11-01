@@ -1,6 +1,8 @@
-### 2026-11-01 — Historical preview lineup transaction
+### 2026-11-01 — Read-only historical perspective and card aggregate ownership
 
-`LeagueHistoricalMatchDryRun.TryApplyRosterDraft` accepts a complete, unique, source-bound roster selection and validates all team sizes, positions, champions and target membership before changing the in-memory `HistoricalPreview`. `LeagueHistoricalRosterEditorDialog` is the native WinForms grid exposed from match-detail historical simulation. The original participants and LCU state are never modified. Arena allows champion/team changes but no Rift lane choices. The scoreboard reprojects tags and team aggregates after a successful transaction; the per-player editor and source reset remain separate.
+`LeagueHistoricalMatchDryRun.TryApplyRosterDraft` now validates an optional existing historical target together with the entire source-bound roster before any in-memory mutation. `LeagueDynamicMessageSnapshot.HistoricalOriginalTargetPuuid` preserves the original target for complete reset. The native `LeagueHistoricalRosterEditorDialog` changes only the `HistoricalPreview` projection; no live session/account/gameflow write is introduced. Rift keeps exact 5v5 sides; Arena keeps 4/8 two-player subteams; a selected perspective must remain on its source-original side.
+
+`LeagueHistoricalMatchDryRun.CardAnalysis` derives bounded, validated win/loss, KDA, Arena placement and position evidence from at most 200 existing `LeagueOngoingPlayerHistoryDialog` rows. It excludes remake/abort/practice from decisive analysis, requires resolved statistics for KDA and rejects foreign, duplicate or unknown game evidence. The dialog refreshes this analysis only after successful on-demand paging; initial lightweight roster analysis, account/session/phase checks, request owners and caching are unchanged. Synthetic tests execute through the existing `--league-history-test` and dashboard smoke entry points.
 
 ### 2026-11-01 — Bounded roster card and detail prefetch ownership
 
