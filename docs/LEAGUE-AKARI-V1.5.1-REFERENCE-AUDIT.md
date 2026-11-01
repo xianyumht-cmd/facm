@@ -1,3 +1,7 @@
+### 2026-11-01 — Bounded pre-end-of-game mission recovery (Draft #357)
+
+The existing Akari-style `missions-celebration` completion now retries transient non-2xx responses on later ordinary phase observations rather than consuming its one-shot fence before the HTTP response. Every attempt re-reads the active event twice, obeys cancellation and the post-game/auto-return owner, and stops after three submissions per post-game episode. Synthetic Windows smoke covers 503→204 recovery, no repeated success and the three-attempt ceiling. No additional poller, network owner or endpoint. Real LCU/region compatibility remains unverified.
+
 ### 2026-11-01 — Phase-scoped planning intent retry (Draft #357)
 
 The native ChampSelect planner now treats a failed planning-stage intent PATCH like failed pick/ban writes: only a confirmed 2xx response consumes the per-action intent fence. Failed HTTP responses can retry on the existing two-second ChampSelect episode tick, after fresh action, teammate-intent, availability, account and phase checks. The Windows auto-pick/ban smoke exercises a 503 intent followed by a successful retry and verifies phase-exit cancellation. No new poller or writer. This is source parity reliability; live Tencent/Windows acceptance remains deferred.

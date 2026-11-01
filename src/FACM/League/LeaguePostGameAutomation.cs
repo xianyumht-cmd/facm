@@ -113,6 +113,7 @@ namespace FACM.League
         private CancellationTokenSource _honorCancellation;
         private CancellationTokenSource _missionCancellation;
         private bool _missionAttempted;
+        private int _missionAttempts;
         private LeagueHonorAttemptStatus _lastHonorStatus;
         private bool _autoHonor;
         private string _honorStrategy = LeagueHonorStrategy.PreferLobbyMember;
@@ -204,10 +205,14 @@ namespace FACM.League
                 if (!inPreEnd || !_autoReturn)
                 {
                     CancelMissionLocked();
-                    if (!inPostGame) _missionAttempted = false;
+                    if (!inPostGame)
+                    {
+                        _missionAttempted = false;
+                        _missionAttempts = 0;
+                    }
                     return null;
                 }
-                if (_missionAttempted || _missionCancellation != null) return null;
+                if (_missionAttempted || _missionAttempts >= 3 || _missionCancellation != null) return null;
                 request = new CancellationTokenSource();
                 _missionCancellation = request;
             }
@@ -228,11 +233,19 @@ namespace FACM.League
                 lock (_sync)
                 {
                     if (!IsCurrentMissionLocked(request)) return;
-                    _missionAttempted = true;
+                    _missionAttempts++;
                 }
                 token.ThrowIfCancellationRequested();
                 var response = await _write.TrySendAsync("POST",
                     LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath, null, token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                if (response != null && response.IsSuccessStatusCode)
+                {
+                    lock (_sync)
+                    {
+                        if (IsCurrentMissionLocked(request)) _missionAttempted = true;
+                    }
+                }
                 AppLog.Info("League pre-end-of-game sequence: " +
                     (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
             }

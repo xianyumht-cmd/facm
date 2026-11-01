@@ -31,6 +31,7 @@ namespace FACM.League
             ValidateExactlyOnceCycle();
             ValidateReturnOnly();
             ValidateMissionCelebration();
+            ValidateMissionRetryBudget();
             ValidateMissionChangedBeforeWrite();
             ValidatePhaseContract();
         }
@@ -496,6 +497,42 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateMissionRetryBudget()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\\"name\\":\\"missions-celebration\\"}");
+            var write = new FakePostGameWriteApi();
+            write.MissionStatuses.Enqueue(503);
+            write.MissionStatuses.Enqueue(204);
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path ==
+                    LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 2,
+                    "A transient mission completion failure must retry once, then stop after success.");
+            }
+            read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\\"name\\":\\"missions-celebration\\"}");
+            write = new FakePostGameWriteApi();
+            write.MissionStatuses.Enqueue(503);
+            write.MissionStatuses.Enqueue(503);
+            write.MissionStatuses.Enqueue(503);
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.Configure(false, true);
+                for (var i = 0; i < 5; i++)
+                    controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path ==
+                    LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 3,
+                    "Persistent mission failure must stop after the bounded phase budget.");
+            }
+        }
+
         private static void ValidateMissionChangedBeforeWrite()
         {
             var read = new FakeReadApi();
@@ -612,6 +649,7 @@ namespace FACM.League
 
             public readonly List<Call> Calls = new List<Call>();
             public readonly Queue<int?> V2Statuses = new Queue<int?>();
+            public readonly Queue<int> MissionStatuses = new Queue<int>();
             public Action<int> OnV2Call;
             public Action OnBallotSubmit;
             private int _v2Calls;
@@ -636,6 +674,8 @@ namespace FACM.League
                     }
                     return Task.FromResult(Response(204));
                 }
+                if (path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath && MissionStatuses.Count > 0)
+                    return Task.FromResult(Response(MissionStatuses.Dequeue()));
                 if (path == LeaguePostGameWriteApiClient.HonorBallotSubmitPath && OnBallotSubmit != null)
                     OnBallotSubmit();
                 return Task.FromResult(Response(204));
