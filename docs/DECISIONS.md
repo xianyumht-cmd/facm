@@ -1,3 +1,7 @@
+## 2026-11-01 — Keep Akari SGP queue-tag scope distinct from champion history
+
+Source `matchHistoryTagPreference` is an SGP history query tag (`all` or `q_{currentQueueId}`), not a filter for the currently selected champion. Preserve current native history retrieval without fabricating queue-specific samples from a 20-match all-mode page. The incorrect current-champion filter was removed; exact SGP tag wiring remains a documented parity gap requiring trusted queue/session/account evidence and the existing request owner. A configurable 2–20 per-player native fetch budget is retained to respect the lightweight client, while Akari's 200-match maximum remains a separate partial-parity limitation.
+
 ## 2026-10-30 — Preserve source jungle preference thresholds with evidence-aware unknown state
 
 Use the existing bounded jungle aggregate for the pinned `preference.ts` two-lane and single-lane classification, without another timeline request or view owner. Source thresholds and precedence are mandatory when position weights exist; absent/malformed weights are unknown rather than a fabricated balanced preference. Present the result in the existing native multi-game report, and keep the map legend aligned with actual lane-colored dot/X semantics. Executable [4e94053](https://github.com/xianyumht-cmd/facm/commit/4e9405309c98324992c9a14f9a321738b3306fa2) passed all four Windows workflows; final Tencent CN/Win10 DPI acceptance remains open.
