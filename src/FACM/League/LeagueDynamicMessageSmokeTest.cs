@@ -120,11 +120,13 @@ namespace FACM.League
             };
             var first = new LeaguePlayerMatchSummary {
                 PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true,
                 DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420, MapId = 11,
                 GameCreationEpochMs = 1000, GameMode = "CLASSIC"
             };
             var duplicate = new LeaguePlayerMatchSummary {
                 PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true,
                 DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 430, MapId = 11,
                 GameCreationEpochMs = 1000, GameMode = "CLASSIC"
             };
