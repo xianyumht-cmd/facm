@@ -1364,22 +1364,31 @@ namespace FACM.League
             var cardRows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
                     PuuId = "target", WinResult = "win", StatisticsAvailable = true,
-                    ParticipantResolved = true, Kills = 7, Deaths = 0, Assists = 8 },
+                    ParticipantResolved = true, Kills = 7, Deaths = 0, Assists = 8,
+                    Position = "TOP" },
                 new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 23,
                     PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
-                    ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4 },
+                    ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4,
+                    Position = "JUNGLE" },
                 new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 24,
                     PuuId = "target", WinResult = "remake" },
                 new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 25,
                     PuuId = "target", WinResult = "win", GameMode = "CHERRY",
-                    SubteamPlacement = 1 }
+                    SubteamPlacement = 1 },
+                new LeaguePlayerMatchSummary { GameId = 5, ChampionId = 26,
+                    PuuId = "target", WinResult = "win", GameMode = "PRACTICETOOL",
+                    Position = "BOTTOM", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 99, Deaths = 0, Assists = 99 }
             };
             var cardStats = LeagueHistoricalMatchDryRun.CardAnalysis(cardRows, "target");
-            Require(cardStats != null && cardStats.Games == 4 &&
+            Require(cardStats != null && cardStats.Games == 5 &&
                 cardStats.Wins == 2 && cardStats.Losses == 1 && cardStats.Remakes == 1 &&
                 Math.Abs(cardStats.WinRate.Value - 200d / 3d) < 0.001 &&
                 cardStats.StatisticsGames == 2 && cardStats.Kda == 10.5 &&
-                cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1,
+                cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1 &&
+                cardStats.MostPlayedPositions.Count == 2 &&
+                cardStats.Positions["TOP"] == 1 && cardStats.Positions["JUNGLE"] == 1 &&
+                !cardStats.Positions.ContainsKey("BOTTOM"),
                 "Card analysis must exclude remakes from win rate and missing stats from KDA.");
             Require(LeagueHistoricalMatchDryRun.CardAnalysis(cardRows.Concat(
                     new[] { cardRows[0] }).ToArray(), "target") == null &&

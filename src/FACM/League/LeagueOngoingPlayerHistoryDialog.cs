@@ -76,6 +76,10 @@ namespace FACM.League
                     detail += " · " + t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst)
                         .Replace("{0}", analysis.ArenaFirstPlaces.ToString(CultureInfo.CurrentCulture))
                         .Replace("{1}", analysis.ArenaPlacements.ToString(CultureInfo.CurrentCulture));
+                if (analysis.MostPlayedPositions.Count > 0)
+                    detail += " · " + t(LeagueEfficiencyUiTextKeys.OngoingCardPositions)
+                        .Replace("{0}", string.Join(" / ", analysis.MostPlayedPositions
+                            .Select(p => p.Key + " " + p.Value.ToString(CultureInfo.CurrentCulture))));
                 stats.Text = detail;
                 statsTip.SetToolTip(stats, detail);
             };

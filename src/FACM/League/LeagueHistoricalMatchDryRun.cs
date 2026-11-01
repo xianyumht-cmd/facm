@@ -20,6 +20,11 @@ namespace FACM.League
         internal int Games, Wins, Losses, Remakes, Aborts;
         internal int StatisticsGames, Kills, Deaths, Assists;
         internal int ArenaPlacements, ArenaFirstPlaces;
+        internal readonly Dictionary<string, int> Positions =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+        internal IReadOnlyList<KeyValuePair<string, int>> MostPlayedPositions =>
+            Positions.OrderByDescending(p => p.Value).ThenBy(p => p.Key, StringComparer.Ordinal)
+                .Take(3).ToArray();
         internal double? WinRate => Wins + Losses > 0
             ? (double?) (100d * Wins / (Wins + Losses)) : null;
         internal double? Kda => StatisticsGames > 0
@@ -49,12 +54,23 @@ namespace FACM.League
                 var outcome = LeaguePlayerHistoryAnalysis.Outcome(match);
                 if (outcome == LeagueHistoryOutcome.Unknown) return null;
                 result.Games++;
+                var eligible = (outcome == LeagueHistoryOutcome.Win ||
+                    outcome == LeagueHistoryOutcome.Loss) &&
+                    !string.Equals(match.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase);
                 switch (outcome)
                 {
-                    case LeagueHistoryOutcome.Win: result.Wins++; break;
-                    case LeagueHistoryOutcome.Loss: result.Losses++; break;
+                    case LeagueHistoryOutcome.Win: if (eligible) result.Wins++; break;
+                    case LeagueHistoryOutcome.Loss: if (eligible) result.Losses++; break;
                     case LeagueHistoryOutcome.Remake: result.Remakes++; break;
                     case LeagueHistoryOutcome.Abort: result.Aborts++; break;
+                }
+                if (!eligible) continue;
+                if (new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(match.Position, StringComparer.Ordinal))
+                {
+                    int count;
+                    result.Positions.TryGetValue(match.Position, out count);
+                    result.Positions[match.Position] = count + 1;
                 }
                 if (match.StatisticsAvailable && match.ParticipantResolved &&
                     match.Kills >= 0 && match.Kills <= 999 &&

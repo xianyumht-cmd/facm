@@ -383,6 +383,7 @@ namespace FACM.League
         public const string HistoricalDraftTarget = "LeagueEfficiencyHistoricalDraftTarget";
         public const string OngoingCardStats = "LeagueEfficiencyOngoingCardStats";
         public const string OngoingCardArenaFirst = "LeagueEfficiencyOngoingCardArenaFirst";
+        public const string OngoingCardPositions = "LeagueEfficiencyOngoingCardPositions";
         public const string HistoricalDraftApply = "LeagueEfficiencyHistoricalDraftApply";
         public const string HistoricalDraftReset = "LeagueEfficiencyHistoricalDraftReset";
         public const string HistoricalDraftPrimary = "LeagueEfficiencyHistoricalDraftPrimary";
@@ -866,6 +867,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftTarget, "模拟观察目标（只读）" },
             { LeagueEfficiencyUiTextKeys.OngoingCardStats, "胜率 {0}（{1}胜/{2}负） · KDA {3}（{4}场有效统计）" },
             { LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst, "斗魂冠军 {0}/{1}" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardPositions, "常玩位置 {0}" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftApply, "应用到本次模拟" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftReset, "恢复历史选择" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftPrimary, "模拟主选位置" },
