@@ -68,6 +68,12 @@ namespace FACM.League
                      LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Loss)) &&
                     g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
                     g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1 &&
+                    g.Select(m => m.DataSource).Distinct().Count() == 1 &&
+                    g.Select(m => m.QueueId).Where(id => id > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.MapId).Where(id => id > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.GameCreationEpochMs).Where(time => time > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.GameMode).Where(mode => !string.IsNullOrWhiteSpace(mode))
+                        .Distinct(StringComparer.OrdinalIgnoreCase).Count() <= 1 &&
                     g.Select(m => m.SgpServerId ?? "").Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
                 .Select(g => g.First()).ToArray();
         }
@@ -91,6 +97,12 @@ namespace FACM.League
                     LeaguePlayerHistoryAnalysis.Outcome(m) != LeagueHistoryOutcome.Unknown) &&
                     g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
                     g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1 &&
+                    g.Select(m => m.DataSource).Distinct().Count() == 1 &&
+                    g.Select(m => m.QueueId).Where(id => id > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.MapId).Where(id => id > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.GameCreationEpochMs).Where(time => time > 0).Distinct().Count() <= 1 &&
+                    g.Select(m => m.GameMode).Where(mode => !string.IsNullOrWhiteSpace(mode))
+                        .Distinct(StringComparer.OrdinalIgnoreCase).Count() <= 1 &&
                     g.Select(m => m.SgpServerId ?? "").Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
                 .Select(g => g.First()).OrderByDescending(m => m.GameCreationEpochMs)
                 .ThenByDescending(m => m.GameId).ToArray();

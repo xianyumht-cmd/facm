@@ -22,6 +22,7 @@ namespace FACM.League
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
             ValidateAutoHistoryPages();
             ValidateCardPageAdditions();
+            ValidateSamePageDuplicateEvidence();
             ValidateAutomaticCardOffsets();
             ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
@@ -109,6 +110,42 @@ namespace FACM.League
             Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
                     current, new[] { next }, "self")?.Count == 1,
                 "A new verified game may be appended after an overlapping page.");
+        }
+
+        private static void ValidateSamePageDuplicateEvidence()
+        {
+            var player = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "self" },
+                History = new LeaguePlayerMatchPage()
+            };
+            var first = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420, MapId = 11,
+                GameCreationEpochMs = 1000, GameMode = "CLASSIC"
+            };
+            var duplicate = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 430, MapId = 11,
+                GameCreationEpochMs = 1000, GameMode = "CLASSIC"
+            };
+            player.History.Matches.Add(first);
+            player.History.Matches.Add(duplicate);
+            Func<bool> rejected = () =>
+                LeagueHistoricalMatchDryRun.CardRecentMatches(player).Count == 0 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player).Count == 0;
+            Require(rejected(), "Conflicting same-page queue evidence must fail closed.");
+            duplicate.QueueId = 420; duplicate.GameCreationEpochMs = 2000;
+            Require(rejected(), "Conflicting same-page creation times must fail closed.");
+            duplicate.GameCreationEpochMs = 1000; duplicate.DataSource = LeaguePlayerHistorySource.Sgp;
+            Require(rejected(), "Conflicting same-page history sources must fail closed.");
+            duplicate.DataSource = LeaguePlayerHistorySource.Lcu; duplicate.MapId = 12;
+            Require(rejected(), "Conflicting same-page maps must fail closed.");
+            duplicate.MapId = 11; duplicate.GameMode = "CHERRY";
+            Require(rejected(), "Conflicting same-page game modes must fail closed.");
+            duplicate.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(player).Count == 1 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player).Count == 1,
+                "Identical overlapping rows must deduplicate without losing the verified match.");
         }
 
         private static void ValidatePlayerTags()
