@@ -66,6 +66,16 @@ namespace FACM.League
             };
             choices.Controls.Add(historyCount);
             choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingAutoHistoryPages),
+                Padding = new Padding(4, 7, 0, 0) });
+            var autoHistoryPages = new NumericUpDown { Width = 48, Minimum = 0,
+                Maximum = 9, Value = _options.AutoHistoryPages };
+            autoHistoryPages.ValueChanged += delegate
+            {
+                if (!_binding) _options.AutoHistoryPages = (int)autoHistoryPages.Value;
+            };
+            choices.Controls.Add(autoHistoryPages);
+            choices.Controls.Add(new Label { AutoSize = true,
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingHistoryConcurrency),
                 Padding = new Padding(4, 7, 0, 0) });
             var concurrency = new NumericUpDown { Width = 48, Minimum = 1,
@@ -372,7 +382,7 @@ namespace FACM.League
                         choice.Player.Player.PuuId, match, token),
                     (asset, token) => _module.LoadEncounterAssetAsync(asset, token),
                     (startIndex, token) => _module.LoadDynamicHistoryPageAsync(snapshot,
-                        choice.Player.Player.PuuId, startIndex, token)))
+                        choice.Player.Player.PuuId, startIndex, token), _options.AutoHistoryPages))
                     dialog.ShowDialog(this);
             };
             enrichHistory.Click += async (sender, e) =>

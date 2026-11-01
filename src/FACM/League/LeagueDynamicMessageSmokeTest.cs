@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
+            ValidateAutoHistoryPages();
             ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
             ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
@@ -40,6 +41,17 @@ namespace FACM.League
             ValidateMissingHistoryAsync().GetAwaiter().GetResult();
             ValidateJungleLoadingAsync().GetAwaiter().GetResult();
             ValidateBatchAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidateAutoHistoryPages()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoHistoryPages = 9 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoHistoryPages == 9 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\\"AutoHistoryPages\\":10}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\\"AutoHistoryPages\\":-1}").AutoHistoryPages == 0,
+                "Player-card automatic history pagination must be opt-in and bounded to nine pages.");
         }
 
         private static void ValidatePlayerTags()

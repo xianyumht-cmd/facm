@@ -398,6 +398,7 @@ namespace FACM.League
         public const string OngoingRecentAbort = "LeagueEfficiencyOngoingRecentAbort";
         public const string OngoingRecentPlacement = "LeagueEfficiencyOngoingRecentPlacement";
         public const string OngoingHistoryCount = "LeagueEfficiencyOngoingHistoryCount";
+        public const string OngoingAutoHistoryPages = "LeagueEfficiencyOngoingAutoHistoryPages";
         public const string OngoingHistoryConcurrency = "LeagueEfficiencyOngoingHistoryConcurrency";
         public const string OngoingHistoryAllQueues = "LeagueEfficiencyOngoingHistoryAllQueues";
         public const string OngoingHistoryCurrentQueue = "LeagueEfficiencyOngoingHistoryCurrentQueue";
@@ -873,6 +874,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingRecentAbort, "中止" },
             { LeagueEfficiencyUiTextKeys.OngoingRecentPlacement, "第 {0} 名" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryCount, "近期战绩局数" },
+            { LeagueEfficiencyUiTextKeys.OngoingAutoHistoryPages, "卡片自动补载页数（每页 20 场，0 关闭）" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryConcurrency, "SGP 并发（1–4）" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryAllQueues, "全部队列（LCU 优先）" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryCurrentQueue, "当前队列（SGP）" },

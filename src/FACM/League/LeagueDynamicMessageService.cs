@@ -16,6 +16,7 @@ namespace FACM.League
         public int PremadeMatchThreshold { get; set; } = 5;
         public int MatchHistoryLoadCount { get; set; } = 20;
         public int HistoryConcurrency { get; set; } = 2;
+        public int AutoHistoryPages { get; set; }
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
         public string OrderPlayerBy { get; set; } = "default";
@@ -98,6 +99,7 @@ namespace FACM.League
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 options.HistoryConcurrency < 1 || options.HistoryConcurrency > 4 ||
+                options.AutoHistoryPages < 0 || options.AutoHistoryPages > 9 ||
                 options.GameDetailsLoadCount < 0 || options.GameDetailsLoadCount > 20 ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
                 !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }

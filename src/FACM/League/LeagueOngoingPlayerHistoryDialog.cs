@@ -21,12 +21,14 @@ namespace FACM.League
             Func<bool> isCurrent,
             Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
-            Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore)
+            Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
+            int autoPages = 0)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
                 !snapshot.Players.Contains(player) ||
-                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
+                autoPages < 0 || autoPages > 9)
                 throw new ArgumentException("A current player-card snapshot is required.");
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · " +
@@ -90,18 +92,18 @@ namespace FACM.League
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 128));
             header.Controls.Add(summary, 0, 0);
             header.Controls.Add(more, 1, 0);
-            more.Click += async (sender, args) =>
+            Func<CancellationToken, Task<bool>> fetchNext = async requestToken =>
             {
-                if (loading || !hasMore || !isCurrent()) return;
+                if (loading || !hasMore || !isCurrent()) return false;
                 loading = true; more.Enabled = false;
                 try
                 {
-                    var page = await loadMore(nextIndex, _lifetime.Token);
-                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                    var page = await loadMore(nextIndex, requestToken);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return false;
                     if (page == null)
                     {
                         summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
-                        return;
+                        return false;
                     }
                     nextIndex += Math.Min(20, 200 - nextIndex);
                     var known = new HashSet<long>(matches.Select(m => m.GameId));
@@ -113,12 +115,14 @@ namespace FACM.League
                         }
                     hasMore = page.Count > 0 && nextIndex < 200;
                     summary.Text = summaryText();
+                    return page.Count > 0;
                 }
-                catch (OperationCanceledException) { }
+                catch (OperationCanceledException) { return false; }
                 catch (Exception)
                 {
                     if (!IsDisposed)
                         summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                    return false;
                 }
                 finally
                 {
@@ -126,6 +130,7 @@ namespace FACM.League
                     if (!IsDisposed) more.Enabled = hasMore && nextIndex < 200 && isCurrent();
                 }
             };
+            more.Click += async (sender, args) => await fetchNext(_lifetime.Token);
             rows.DoubleClick += async (sender, args) =>
             {
                 if (loading || !isCurrent() || rows.SelectedItems.Count != 1) return;
@@ -170,7 +175,18 @@ namespace FACM.League
             layout.Controls.Add(header, 0, 0);
             layout.Controls.Add(rows, 0, 1);
             Controls.Add(layout);
-            Shown += (sender, args) => { if (!isCurrent()) Close(); };
+            Shown += async (sender, args) =>
+            {
+                if (!isCurrent()) { Close(); return; }
+                if (autoPages == 0) return;
+                // Auto-load only after the user opens this card, never during roster polling.
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                {
+                    deadline.CancelAfter(TimeSpan.FromSeconds(95));
+                    for (var i = 0; i < autoPages && hasMore && !deadline.IsCancellationRequested; i++)
+                        if (!await fetchNext(deadline.Token)) break;
+                }
+            };
             Activated += (sender, args) => { if (!isCurrent()) Close(); };
         }
 
