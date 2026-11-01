@@ -250,7 +250,7 @@ namespace FACM.League
                         {
                             player.History = await _players.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = row.PuuId,
                                 SummonerId = row.SummonerId }, 0, historyLoadCount, false,
-                                playerTimeout.Token, historyQueueTag).ConfigureAwait(false);
+                                playerTimeout.Token, historyQueueTag, me.PuuId).ConfigureAwait(false);
                             if (player.History != null && player.History.Matches.Count > historyLoadCount)
                                 player.History.Matches.RemoveRange(historyLoadCount,
                                     player.History.Matches.Count - historyLoadCount);
@@ -603,7 +603,7 @@ namespace FACM.League
             var count = snapshot.HistoryLoadCount;
             if (count < 2 || count > LeaguePlayerDataService.MaximumMatchCount) return false;
             var history = await _players.LoadRecentMatchesAsync(profile, 0,
-                count, false, token, snapshot.HistoryQueueTag).ConfigureAwait(false);
+                count, false, token, snapshot.HistoryQueueTag, snapshot.SelfPuuid).ConfigureAwait(false);
             if (history == null || !Current(snapshot.Session, snapshot.Phase)) return false;
             if (history.Matches.Count > count)
                 history.Matches.RemoveRange(count, history.Matches.Count - count);

@@ -298,10 +298,11 @@ namespace FACM.League
 
         public async Task<LeaguePlayerMatchPage> LoadRecentMatchesAsync(
             LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken,
-            string queueTag = null)
+            string queueTag = null, string expectedOwnerPuuid = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (profile == null || !IsSafePuuid(profile.PuuId) ||
+                (expectedOwnerPuuid != null && !IsSafePuuid(expectedOwnerPuuid)) ||
                 (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag))) return null;
             startIndex = Math.Max(0, startIndex);
             count = Math.Max(1, Math.Min(MaximumMatchCount, count));
@@ -344,12 +345,15 @@ namespace FACM.League
                         {
                             var before = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
-                            if (before == null || !string.Equals(before.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
+                            if (before == null || !IsSafePuuid(before.PuuId) ||
+                                (expectedOwnerPuuid != null && !string.Equals(before.PuuId,
+                                    expectedOwnerPuuid, StringComparison.Ordinal))) return null;
                             page = await TryLoadSgpPageAsync(profile, startIndex, count,
                                 regionalDeadline.Token, null, queueTag).ConfigureAwait(false);
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
-                            if (after == null || !string.Equals(after.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
+                            if (after == null || !string.Equals(after.PuuId, before.PuuId,
+                                StringComparison.Ordinal)) return null;
                         }
                         catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); return null; }
                     }
