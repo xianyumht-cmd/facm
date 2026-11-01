@@ -1,3 +1,15 @@
+### 2026-11-01 — Historical draft editing and on-demand player-card match history (Draft #357)
+
+**Executable candidate:** [139dac1](https://github.com/xianyumht-cmd/facm/commit/139dac155c6f153dc8e9ac256992bbd172742833). Four exact-SHA Windows gates were **running when recorded**, not yet claimed as passed. Earlier [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6) remains the last four-gate-verified executable until new results are checked.
+
+| Akari v1.5.1 source capability | Status | Evidence / remaining work |
+| --- | --- | --- |
+| Historical match draft edits | **PARTIAL** | Native historical-preview rows now open a read-only-data draft editor: bounded champion ID and standard lane overrides (Arena champion only), local recent-match quick pick, no LCU/gameflow writes, no mutation of original match participant records. Full Akari draft options, free-form team composition and cross-view synchronization remain unimplemented. |
+| Per-player match history card | **PARTIAL** | On-demand current-roster context action opens a bounded player history table with verified deduplicated game IDs, champion, win/loss/remake/abort, KDA and Arena placement where known. Unknown/conflicting/foreign-player records are excluded; no new fetch owner or polling. Full Akari card layout, click-through match preview and option-by-option history controls remain missing. |
+| Tencent/Riot SGP, 256-preset real cloud sync, Win10/DPI | **UNVERIFIED** | Existing synthetic checks are not the user's final consolidated real-environment acceptance. |
+
+**Pinned source:** LeagueAkari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`, especially `PlayerInfoCardMatchHistory.vue`, `PlayerInfoCardChampionUsage.vue`, `MatchCardDetails.vue`, and `GameView.vue`. No new background poller, network owner, game writer, large dependency, merge, deployment, updater or production 3.5.78 change. PR #357 and stacked #355 remain Draft. **Next:** confirm all four exact-executable CI gates, then source-audit remaining ongoing-game history options and match-card navigation.
+
 ### 2026-11-01 — Arena historical draft, champion usage/mastery and replay readiness (Draft #357)
 
 **Exact executable/test candidate:** [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6); **four Windows CI gates succeeded for this exact SHA:** [Windows Build #41269747377](https://github.com/xianyumht-cmd/facm/actions/runs/41269747377), [Glass WebView2 #41269747429](https://github.com/xianyumht-cmd/facm/actions/runs/41269747429), [UI Text Contract #41269747345](https://github.com/xianyumht-cmd/facm/actions/runs/41269747345), [Mayhem Source Probe #41269747387](https://github.com/xianyumht-cmd/facm/actions/runs/41269747387). The first replay-readiness candidate failed a stale synthetic path-read-count assertion; [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6) corrected the test and passed all four gates.
