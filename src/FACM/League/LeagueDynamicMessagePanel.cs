@@ -290,7 +290,10 @@ namespace FACM.League
                 if (_busy || snapshot == null || choice?.Player == null ||
                     !snapshot.Players.Contains(choice.Player)) return;
                 using (var dialog = new LeagueOngoingPlayerHistoryDialog(_ui, snapshot,
-                    choice.Player, () => !IsDisposed && ReferenceEquals(_snapshot, snapshot)))
+                    choice.Player, () => !IsDisposed && ReferenceEquals(_snapshot, snapshot),
+                    (match, token) => _module.LoadDynamicPlayerMatchDetailAsync(snapshot,
+                        choice.Player.Player.PuuId, match, token),
+                    (asset, token) => _module.LoadEncounterAssetAsync(asset, token)))
                     dialog.ShowDialog(this);
             };
             editTag.Click += async (sender, e) =>

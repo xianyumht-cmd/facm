@@ -365,6 +365,27 @@ namespace FACM.AppHost.Modules
             return _encounterDetails.ReadAsync(record, token);
         }
 
+        public Task<LeagueEncounterMatchDetailResult> LoadDynamicPlayerMatchDetailAsync(
+            LeagueDynamicMessageSnapshot snapshot, string targetPuuid,
+            LeaguePlayerMatchSummary match, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            if (snapshot?.Session == null || match == null || match.GameId <= 0 ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
+                !snapshot.Players.Any(p => p?.Player != null &&
+                    string.Equals(p.Player.PuuId, targetPuuid, StringComparison.Ordinal)) ||
+                !string.IsNullOrEmpty(match.PuuId) &&
+                    !string.Equals(match.PuuId, targetPuuid, StringComparison.Ordinal) ||
+                !LeagueEncounterReplayService.SessionMatches(snapshot.Session,
+                    _leagueClient.CurrentSession))
+                return Task.FromResult(new LeagueEncounterMatchDetailResult {
+                    Status = LeagueEncounterMatchDetailStatus.Unavailable
+                });
+            return _encounterDetails.ReadHistoryAsync(snapshot.Session, snapshot.SelfPuuid,
+                targetPuuid, match, token);
+        }
+
         public Task<LeagueEncounterReplayResult> ExecuteEncounterReplayAsync(
             LeagueEncounterRecord record, LeaguePlayerMatchSummary match, CancellationToken token)
         {

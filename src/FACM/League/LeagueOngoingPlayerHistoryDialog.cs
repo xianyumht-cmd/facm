@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.Services;
 using FACM.Theming;
@@ -11,12 +13,17 @@ namespace FACM.League
     // Bounded, local player-card history; the existing dynamic-message owner supplies all data.
     internal sealed class LeagueOngoingPlayerHistoryDialog : Form
     {
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+
         internal LeagueOngoingPlayerHistoryDialog(UiTextCatalog ui,
             LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessagePlayer player,
-            Func<bool> isCurrent)
+            Func<bool> isCurrent,
+            Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
-                isCurrent == null || !snapshot.Players.Contains(player) ||
+                isCurrent == null || loadDetail == null || loadAsset == null ||
+                !snapshot.Players.Contains(player) ||
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
                 throw new ArgumentException("A current player-card snapshot is required.");
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
@@ -67,13 +74,65 @@ namespace FACM.League
                 row.SubItems.Add(match.StatisticsAvailable && match.ParticipantResolved
                     ? match.Kills + " / " + match.Deaths + " / " + match.Assists : "—");
                 row.SubItems.Add(string.IsNullOrWhiteSpace(match.Position) ? "—" : match.Position);
+                row.Tag = match;
                 rows.Items.Add(row);
             }
+            var loading = false;
+            rows.DoubleClick += async (sender, args) =>
+            {
+                if (loading || !isCurrent() || rows.SelectedItems.Count != 1) return;
+                var match = rows.SelectedItems[0].Tag as LeaguePlayerMatchSummary;
+                if (match == null) return;
+                loading = true;
+                summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLoading);
+                try
+                {
+                    var detail = await loadDetail(match, _lifetime.Token);
+                    if (IsDisposed || !isCurrent() || _lifetime.IsCancellationRequested) return;
+                    if (detail?.Status != LeagueEncounterMatchDetailStatus.Ready)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    if (detail.EogOnly != null)
+                    {
+                        using (var dialog = new LeagueSgpEogOnlyDialog(ui, detail))
+                            dialog.ShowDialog(this);
+                    }
+                    else if (detail.Participants != null && detail.Participants.Count > 0)
+                    {
+                        using (var dialog = new LeagueEncounterMatchScoreboardDialog(ui,
+                            detail, loadAsset))
+                            dialog.ShowDialog(this);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed && isCurrent())
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
+                            .Replace("{0}", matches.Count.ToString(CultureInfo.CurrentCulture))
+                            .Replace("{1}", wins.ToString(CultureInfo.CurrentCulture))
+                            .Replace("{2}", losses.ToString(CultureInfo.CurrentCulture));
+                }
+            };
             layout.Controls.Add(summary, 0, 0);
             layout.Controls.Add(rows, 0, 1);
             Controls.Add(layout);
             Shown += (sender, args) => { if (!isCurrent()) Close(); };
             Activated += (sender, args) => { if (!isCurrent()) Close(); };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            base.Dispose(disposing);
         }
     }
 }
