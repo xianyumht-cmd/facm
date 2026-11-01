@@ -589,8 +589,8 @@ namespace FACM.League
             }
         }
 
-        // Explicitly opted-in roster prefetch uses the same single-owner detail path as
-        // manual hydration. Each round gives every eligible player at most one request.
+        // Source per-player detail budgets share the existing single-owner path.
+        // A 40-request roster ceiling and 45-second deadline protect slower clients.
         internal async Task<int> PrefetchRosterDetailsAsync(
             LeagueDynamicMessageSnapshot snapshot, int requestBudget, CancellationToken token)
         {
@@ -610,7 +610,9 @@ namespace FACM.League
                 try
                 {
                     if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false)) return -1;
-                    var remaining = requestBudget;
+                    var remaining = Math.Min(40, requestBudget * players.Length);
+                    var perPlayerRemaining = players.ToDictionary(
+                        player => player.Player.PuuId, player => requestBudget, StringComparer.Ordinal);
                     var updatedPlayers = new HashSet<string>(StringComparer.Ordinal);
                     while (remaining > 0)
                     {
@@ -618,6 +620,7 @@ namespace FACM.League
                         foreach (var player in players)
                         {
                             if (remaining == 0) break;
+                            if (perPlayerRemaining[player.Player.PuuId] == 0) continue;
                             if (!player.History.Matches.Any(match =>
                                 LeaguePlayerDataService.NeedsAnalysisDetail(match) &&
                                 !player.AnalysisDetailAttempted.Contains(
@@ -632,6 +635,7 @@ namespace FACM.League
                             if (used == 0) continue;
                             attempted = true;
                             remaining -= used;
+                            perPlayerRemaining[player.Player.PuuId] -= used;
                             if (changed) updatedPlayers.Add(player.Player.PuuId);
                         }
                         if (!attempted) break;

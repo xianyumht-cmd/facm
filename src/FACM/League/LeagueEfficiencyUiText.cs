@@ -888,7 +888,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingOrderDefault, "默认顺序" },
             { LeagueEfficiencyUiTextKeys.OngoingHydrateHistory, "按需补全近期战绩详情" },
             { LeagueEfficiencyUiTextKeys.OngoingGameDetailsCount, "详情补全上限" },
-            { LeagueEfficiencyUiTextKeys.OngoingAutoRosterDetails, "全队自动补全详情（总请求数，0 关闭）" },
+            { LeagueEfficiencyUiTextKeys.OngoingAutoRosterDetails, "每名玩家自动补全详情（全队最多40次，0关闭）" },
             { LeagueEfficiencyUiTextKeys.OngoingHydrateRoster, "按需补全全队详情" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },

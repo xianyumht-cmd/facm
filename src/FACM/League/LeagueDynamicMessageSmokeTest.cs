@@ -388,10 +388,10 @@ namespace FACM.League
                     "Disabled prefetch must make no detail request.");
                 var changed = await service.PrefetchRosterDetailsAsync(snapshot, 1,
                     CancellationToken.None).ConfigureAwait(false);
-                Require(changed == 1 &&
-                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before + 1 &&
+                Require(changed == 2 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before + 2 &&
                     fake.MaxConcurrent == 1,
-                    "Roster detail prefetch must honor the global request budget and single LCU owner.");
+                    "One configured detail read must be available to each roster player through the single LCU owner.");
                 var reads = fake.Paths.Count(path => path == "/lol-match-history/v1/games/1");
                 session = Session("replaced");
                 Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
@@ -410,7 +410,23 @@ namespace FACM.League
                     all.Paths.Count(path => path == "/lol-match-history/v1/games/1") == 2 &&
                     snapshot.Players.All(player => player.History.Matches[0].ParticipantResolved) &&
                     all.MaxConcurrent == 1,
-                    "Global detail budget must be shared across the two roster players.");
+                    "Per-player detail budgets must serve both roster players without concurrent LCU reads.");
+            }
+            var multiple = new Fake { IncompleteHistory = true, MultipleIncompleteHistory = true };
+            session = Session("roster-per-player-detail");
+            using (var service = new LeagueDynamicMessageService(multiple,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.All(player => player.History.Matches.Count == 2),
+                    "Per-player detail fixture must expose two sparse matches per player.");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    multiple.Paths.Count(path => path == "/lol-match-history/v1/games/1") == 2 &&
+                    multiple.Paths.Count(path => path == "/lol-match-history/v1/games/2") == 2 &&
+                    snapshot.Players.All(player => player.History.Matches.All(match => match.ParticipantResolved)) &&
+                    multiple.MaxConcurrent == 1,
+                    "A two-detail setting must hydrate two games for each player, not two games globally.");
             }
             var replaced = new Fake { IncompleteHistory = true };
             session = Session("roster-switch-during-detail");
@@ -1906,6 +1922,7 @@ namespace FACM.League
             internal int LobbyReads;
             internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
+            internal bool MultipleIncompleteHistory;
             internal string ChampionNamesJson = "[]";
             internal Action<string> OnRead;
             internal Action OnMastery;
@@ -1954,9 +1971,13 @@ namespace FACM.League
                             "{\"puuid\":\"self\",\"summonerId\":1,\"championId\":77}],\"teamTwo\":[" +
                             "{\"puuid\":\"enemy\",\"summonerId\":2,\"championId\":99}]}}");
                     if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
-                        "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}" : ChangeHistory ?
+                        (MultipleIncompleteHistory
+                            ? "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11},{\"gameId\":2,\"mapId\":11}]}}"
+                            : "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}") : ChangeHistory ?
                         "{\"games\":{\"games\":[" + Match(3, 1, 4, 0, 200, 130, 15, false) + "]}}" : History());
                     if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
+                    if (path == "/lol-match-history/v1/games/2" && MultipleIncompleteHistory)
+                        return Bytes(Match(2, 7, 3, 0, 500, 120, 20, false));
                     if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
                         return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
                     if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes(ChampionNamesJson);
