@@ -24,6 +24,7 @@ namespace FACM.League
             ValidateHistoricalDryRun();
             ValidatePrivacyTag();
             ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
+            ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -731,6 +732,44 @@ namespace FACM.League
             }
         }
 
+        private static async Task ValidateMasteryLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("mastery");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && fake.MasteryReads == 0 &&
+                    !await service.LoadMasteryAsync(snapshot, "unknown", CancellationToken.None)
+                        .ConfigureAwait(false),
+                    "Mastery must be opt-in and restricted to an exact roster PUUID.");
+                fake.OnMastery = () => session = Session("replacement");
+                Require(!await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery == null,
+                    "Mastery must discard data if the active client changes mid-request.");
+                fake.OnMastery = null;
+                session = Session("mastery");
+                snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null &&
+                    await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                        .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Masteries.Count == 2 &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Score == 6000,
+                    "On-demand mastery must use the verified top-eight LCU envelope.");
+                var count = fake.MasteryReads;
+                Require(await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) && fake.MasteryReads == count,
+                    "Verified mastery should not be refetched within an unchanged roster.");
+                phase.Phase = "Lobby";
+                Require(!await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) && fake.MasteryReads == count,
+                    "Mastery must be unavailable after leaving the current game phase.");
+            }
+        }
+
         private static void ValidateHistoricalDryRun()
         {
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
@@ -1217,7 +1256,7 @@ namespace FACM.League
                 ",\"totalDamageTaken\":800,\"goldEarned\":10000}}]}";
         }
 
-        private sealed class Fake : ILeagueClientApi
+        private sealed class Fake : ILeagueClientApi, ILeagueMasteryReadApi
         {
             internal readonly List<string> Paths = new List<string>();
             internal int RosterReads, MaxConcurrent;
@@ -1227,6 +1266,18 @@ namespace FACM.League
             internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
             internal Action<string> OnRead;
+            internal Action OnMastery;
+            internal int MasteryReads;
+            public Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected,
+                string target, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                MasteryReads++;
+                OnMastery?.Invoke();
+                return Task.FromResult(Bytes("{\"puuid\":\"" + target +
+                    "\",\"score\":6000,\"masteries\":[{\"championId\":99,\"championPoints\":5000,\"championLevel\":7}," +
+                    "{\"championId\":22,\"championPoints\":3000,\"championLevel\":6}]}"));
+            }
             public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested(); Paths.Add(path);

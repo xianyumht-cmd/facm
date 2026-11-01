@@ -258,6 +258,13 @@ namespace FACM.AppHost.Modules
             return _dynamicMessages.LoadAsync(token);
         }
 
+        public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
+            string playerPuuid, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.LoadMasteryAsync(snapshot, playerPuuid, token);
+        }
+
         public Task<bool> CompleteDynamicHistoriesAsync(LeagueDynamicMessageSnapshot snapshot,
             ISet<string> selected, CancellationToken token)
         {

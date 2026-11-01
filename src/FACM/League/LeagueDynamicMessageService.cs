@@ -118,6 +118,7 @@ namespace FACM.League
         internal bool EarlyGankLoaded;
         internal bool? IsPrivate;
         internal bool PrivacyLoaded;
+        internal LeaguePlayerMasteryDetails Mastery;
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -248,6 +249,51 @@ namespace FACM.League
             var me = await _players.LoadProfileAsync(true, token).ConfigureAwait(false);
             return Current(snapshot.Session, snapshot.Phase) && me != null && me.PuuId == snapshot.SelfPuuid &&
                 snapshot.RosterKey == RosterKey(roster);
+        }
+
+        // Mastery is read only on a player's explicit request through the existing LCU owner.
+        internal async Task<bool> LoadMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
+            string puuid, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid)) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal));
+            if (player == null) return false;
+            if (player.Mastery != null)
+                return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(16));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                var result = await _players.LoadPlayerMasteriesAsync(snapshot.SelfPuuid,
+                    puuid, snapshot.Session, null, active.Token, true).ConfigureAwait(false);
+                if (result.Status != LeaguePlayerDetailsStatus.Ready ||
+                    result.Masteries == null || result.Masteries.Count > 8 ||
+                    !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false))
+                    return false;
+                active.Token.ThrowIfCancellationRequested();
+                player.Mastery = result;
+                return true;
+            }
+            catch (OperationCanceledException) { return false; }
+            catch (Exception) { return false; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
         }
 
         // Explicit one-player, phase-bound analysis. No background or periodic timeline requests.

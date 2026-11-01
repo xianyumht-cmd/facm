@@ -214,6 +214,7 @@ namespace FACM.League
             var removeTag = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagRemove));
             var encountered = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicEncounterHistory));
             var recentChampions = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
+            var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
             _players.ContextMenuStrip = tagMenu;
             _jungle.ContextMenuStrip = tagMenu;
             _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
@@ -230,6 +231,7 @@ namespace FACM.League
                 encountered.Enabled = !e.Cancel && !isSelf;
                 recentChampions.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player).Count > 0;
+                championMastery.Enabled = !e.Cancel;
             };
             editTag.Click += async (sender, e) =>
             {
@@ -252,6 +254,52 @@ namespace FACM.League
             {
                 var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
                 if (choice != null) ShowEncounterHistory(_snapshot, choice);
+            };
+            championMastery.Click += async (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                if (_busy || _snapshot == null || choice == null || choice.Player == null) return;
+                var snapshot = _snapshot;
+                _busy = true;
+                _load.Enabled = false; _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                try
+                {
+                    var ready = await _module.LoadDynamicMasteryAsync(snapshot,
+                        choice.Player.Player.PuuId, _lifetime.Token);
+                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                    if (!ready || choice.Player.Mastery == null)
+                    {
+                        _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                        return;
+                    }
+                    var names = LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player)
+                        .Where(c => !string.IsNullOrWhiteSpace(c.ChampionName))
+                        .ToDictionary(c => c.ChampionId, c => c.ChampionName);
+                    var rows = choice.Player.Mastery.Masteries.Select(row =>
+                    {
+                        var id = LeagueMatchTimelineParser.Number(row, "championId");
+                        var level = LeagueMatchTimelineParser.Number(row, "championLevel");
+                        var points = LeagueMatchTimelineParser.Number(row, "championPoints");
+                        string name;
+                        return (id.HasValue && id.Value > 0 && id.Value <= int.MaxValue &&
+                            names.TryGetValue((int)id.Value, out name) ? name :
+                            "#" + (id.HasValue ? id.Value.ToString() : "—")) +
+                            " · " + _ui.Get(UiTextKeys.LeagueProfileMasteryLevel) + " " +
+                            (level.HasValue ? level.Value.ToString() : "—") + " · " +
+                            (points.HasValue ? points.Value.ToString("N0") : "—");
+                    });
+                    MessageBox.Show(this, string.Join(Environment.NewLine, rows),
+                        _ui.Get(UiTextKeys.LeagueProfileMastery),
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicReady);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
+                finally
+                {
+                    if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+                }
             };
             recentChampions.Click += (sender, e) =>
             {
