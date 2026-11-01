@@ -4,6 +4,17 @@ using System.Linq;
 
 namespace FACM.League
 {
+
+    internal sealed class LeagueHistoricalRosterSelection
+    {
+        internal string PuuId;
+        internal int TeamId;
+        internal int ChampionId;
+        internal string Position;
+        internal string PrimaryPosition;
+        internal string SecondaryPosition;
+    }
+
     // Read-only draft from one verified historical match; never writes to LCU or a live game.
     internal static class LeagueHistoricalMatchDryRun
     {
@@ -151,6 +162,10 @@ namespace FACM.League
                         LeaguePlayerHistoryAnalysis.Outcome(prior) !=
                             LeaguePlayerHistoryAnalysis.Outcome(row) ||
                         (prior.QueueId > 0 && row.QueueId > 0 && prior.QueueId != row.QueueId) ||
+                        (prior.MapId > 0 && row.MapId > 0 && prior.MapId != row.MapId) ||
+                        (!string.IsNullOrWhiteSpace(prior.GameMode) &&
+                         !string.IsNullOrWhiteSpace(row.GameMode) &&
+                         !string.Equals(prior.GameMode, row.GameMode, StringComparison.OrdinalIgnoreCase)) ||
                         (prior.GameCreationEpochMs > 0 && row.GameCreationEpochMs > 0 &&
                          prior.GameCreationEpochMs != row.GameCreationEpochMs)) return null;
                     continue;
@@ -159,6 +174,62 @@ namespace FACM.League
                 additions.Add(row);
             }
             return current.Count + additions.Count <= 200 ? additions : null;
+        }
+
+
+        // Atomically apply an entire verified historical lineup. No participant may be
+        // added, removed, or impersonated; the target remains on its original side.
+        internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
+            IEnumerable<LeagueHistoricalRosterSelection> selections)
+        {
+            if (!ValidTeamDraft(snapshot) || selections == null) return false;
+            var requested = selections.ToArray();
+            if (requested.Length != snapshot.Players.Count ||
+                requested.Any(p => p == null || !LeagueDynamicMessageService.SafePuuid(p.PuuId)) ||
+                requested.Select(p => p.PuuId).Distinct(StringComparer.Ordinal).Count() != requested.Length)
+                return false;
+
+            var current = snapshot.Players.ToDictionary(p => p.Player.PuuId, StringComparer.Ordinal);
+            var originalCounts = snapshot.Players.GroupBy(p => p.HistoricalOriginalTeamId)
+                .ToDictionary(g => g.Key, g => g.Count());
+            var requestedCounts = requested.GroupBy(p => p.TeamId)
+                .ToDictionary(g => g.Key, g => g.Count());
+            if (requested.Any(p => !current.ContainsKey(p.PuuId)) ||
+                requestedCounts.Count != originalCounts.Count ||
+                originalCounts.Any(g => !requestedCounts.ContainsKey(g.Key) ||
+                    requestedCounts[g.Key] != g.Value) ||
+                requested.Single(p => p.PuuId == snapshot.SelfPuuid).TeamId !=
+                    current[snapshot.SelfPuuid].HistoricalOriginalTeamId)
+                return false;
+
+            var cherry = snapshot.HistoricalGameMode == "CHERRY";
+            var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            if (requested.Any(p => p.ChampionId < 1 || p.ChampionId > 9999 ||
+                p.Position == null || p.PrimaryPosition == null || p.SecondaryPosition == null ||
+                (cherry ? p.Position != "" || p.PrimaryPosition != "" ||
+                    p.SecondaryPosition != "" :
+                    !roles.Contains(p.Position, StringComparer.Ordinal) ||
+                    !roles.Contains(p.PrimaryPosition, StringComparer.Ordinal) ||
+                    !roles.Contains(p.SecondaryPosition, StringComparer.Ordinal) ||
+                    (p.PrimaryPosition != "" && p.PrimaryPosition == p.SecondaryPosition))))
+                return false;
+
+            foreach (var selection in requested)
+            {
+                var player = current[selection.PuuId];
+                if (player.Player.ChampionId != selection.ChampionId)
+                {
+                    player.ChampionName = selection.ChampionId == player.HistoricalOriginalChampionId
+                        ? player.HistoricalOriginalChampionName : "#" + selection.ChampionId;
+                }
+                player.Player.ChampionId = selection.ChampionId;
+                player.Player.Position = selection.Position;
+                player.HistoricalPrimaryPosition = selection.PrimaryPosition;
+                player.HistoricalSecondaryPosition = selection.SecondaryPosition;
+                player.HistoricalTeamId = selection.TeamId;
+            }
+            RefreshDraftSides(snapshot);
+            return true;
         }
 
         // A swap only changes the bounded preview; the source match is never modified.

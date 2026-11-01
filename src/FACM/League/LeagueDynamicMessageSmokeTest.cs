@@ -107,6 +107,18 @@ namespace FACM.League
             Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
                     current, new[] { same }, "self") == null,
                 "The same game cannot switch source between card pages.");
+
+            same.DataSource = LeaguePlayerHistorySource.Lcu;
+            original.MapId = 11; original.GameMode = "CLASSIC";
+            same.MapId = 30; same.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self") == null,
+                "Conflicting map evidence across pages must fail closed.");
+            same.MapId = 11; same.GameMode = "CHERRY";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self") == null,
+                "Conflicting mode evidence across pages must fail closed.");
+            same.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self")?.Count == 0,
+                "Consistent overlapping page evidence must remain deduplicated.");
             Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
                     current, new[] { next }, "self")?.Count == 1,
                 "A new verified game may be appended after an overlapping page.");
@@ -1440,6 +1452,41 @@ namespace FACM.League
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 2 &&
                 roster[1].TeamId == 100 && roster[5].TeamId == 200,
                 "Restoring a historical team draft must restore inference without touching source records.");
+
+            var batch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? ""
+            }).ToArray();
+            var firstBatch = batch.Single(p => p.PuuId == "player-2");
+            var secondBatch = batch.Single(p => p.PuuId == "player-6");
+            firstBatch.TeamId = 200; secondBatch.TeamId = 100;
+            firstBatch.ChampionId = 88; firstBatch.Position = "MIDDLE";
+            firstBatch.PrimaryPosition = "TOP"; firstBatch.SecondaryPosition = "JUNGLE";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.HistoricalTeamId == 200 && swapped.HistoricalTeamId == 100 &&
+                teammate.Player.ChampionId == 88 && teammate.Player.Position == "MIDDLE" &&
+                teammate.HistoricalPrimaryPosition == "TOP" && !teammate.Friendly &&
+                roster[1].ChampionId == 12 && roster[1].TeamId == 100,
+                "Atomic historical roster editing must update sides and selections without source writes.");
+            firstBatch.ChampionId = 10000;
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.Player.ChampionId == 88 && teammate.HistoricalTeamId == 200,
+                "Invalid bulk champion must reject the entire lineup without partial mutation.");
+            firstBatch.ChampionId = 88; secondBatch.TeamId = 200;
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                swapped.HistoricalTeamId == 100,
+                "Unbalanced bulk teams must fail closed.");
+            secondBatch.TeamId = 100;
+            firstBatch.PuuId = "target";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.HistoricalTeamId == 200,
+                "Duplicate or replaced target identity must reject the whole draft.");
+            firstBatch.PuuId = "player-2";
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                teammate.HistoricalTeamId == 100 && teammate.Player.ChampionId == 12,
+                "Bulk lineup reset must restore immutable historical source evidence.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "BOTTOM",
                     null, "TOP", "JUNGLE") &&
                 LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
@@ -1561,6 +1608,27 @@ namespace FACM.League
                 arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
                 arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2),
                 "Whole Arena draft reset must restore source champions and two-player subteams.");
+
+            var arenaBatch = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            var arenaA = arenaBatch.Single(p => p.PuuId == "arena-3");
+            var arenaB = arenaBatch.Single(p => p.PuuId == "arena-5");
+            arenaA.TeamId = 3; arenaB.TeamId = 2;
+            arenaA.ChampionId = 87;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaBatch) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 3 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 87 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2),
+                "Arena bulk draft must preserve exact two-player subteams.");
+            arenaA.Position = "TOP";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaBatch) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 87,
+                "Arena bulk draft must reject invented standard lanes atomically.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft),
+                "Arena bulk draft must restore source evidence.");
             var legacyArena = new LeaguePlayerMatchSummary { GameId = 502, MapId = 30,
                 GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
             var legacyDraft = LeagueHistoricalMatchDryRun.Build(legacyArena,
