@@ -56,7 +56,9 @@ namespace FACM.League
             foreach (var player in snapshot.Players)
             {
                 var id = player.Player.PuuId;
-                var matches = LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player);
+                var matches = player.RosterCardHistory == null
+                    ? LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player)
+                    : LeagueOngoingHistoryFilter.Select(player.RosterCardHistory, id, 0, "");
                 var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(matches, id);
                 averages[id] = analysis?.AverageGameKda;
             }

@@ -1404,6 +1404,17 @@ namespace FACM.League
             outliers = LeagueOngoingKdaOutliers.Project(snapshot);
             Require(outliers.Count == 1 && outliers["player-4"] == "over",
                 "Roster KDA comparison must use verified individual match histories.");
+            snapshot.Players[4].RosterCardHistory = new List<LeaguePlayerMatchSummary> {
+                new LeaguePlayerMatchSummary {
+                    GameId = 900, PuuId = "player-4", ChampionId = 22,
+                    WinResult = "win", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true,
+                    Kills = 1, Deaths = 1, Assists = 0
+                }
+            };
+            Require(LeagueOngoingKdaOutliers.Project(snapshot).Count == 0,
+                "Roster comparison must use verified expanded card history when available.");
+            snapshot.Players[4].RosterCardHistory = null;
             snapshot.Players[4].History.Matches[0].PuuId = "foreign";
             Require(LeagueOngoingKdaOutliers.Project(snapshot).Count == 0,
                 "Foreign player evidence must suppress roster outlier comparison.");
@@ -1435,7 +1446,7 @@ namespace FACM.League
                 cardStats.Wins == 2 && cardStats.Losses == 1 && cardStats.Remakes == 1 &&
                 Math.Abs(cardStats.WinRate.Value - 200d / 3d) < 0.001 &&
                 cardStats.StatisticsGames == 3 && cardStats.Kda == 10.5 &&
-                cardStats.KdaCv.HasValue &&
+                cardStats.KdaCv.HasValue && cardStats.AverageGameKda == 6d &&
                 Math.Abs(cardStats.KdaCv.Value - Math.Sqrt(42d) / 6d) < 0.00001 &&
                 cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1 &&
                 cardStats.NormalWins == 1 && cardStats.NormalLosses == 1 &&

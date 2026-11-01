@@ -686,6 +686,11 @@ namespace FACM.League
                         _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
                         return;
                     }
+                    if (pages > 0)
+                    {
+                        RefreshKdaOutlierLabels(snapshot);
+                        _players.Refresh(); _jungle.Refresh();
+                    }
                     _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
                         snapshot.Players.Any(row => row.History == null)
                         ? LeagueEfficiencyUiTextKeys.DynamicPartial :
@@ -752,6 +757,11 @@ namespace FACM.League
                     finally { _binding = false; }
                     _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
                     return;
+                }
+                if (pages > 0)
+                {
+                    RefreshKdaOutlierLabels(snapshot);
+                    _players.Refresh(); _jungle.Refresh();
                 }
                 _status.Text = T(pages > 0 ? LeagueEfficiencyUiTextKeys.DynamicReady :
                     LeagueEfficiencyUiTextKeys.DynamicPartial);
