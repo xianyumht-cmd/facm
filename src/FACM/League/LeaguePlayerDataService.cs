@@ -2329,7 +2329,8 @@ namespace FACM.League
         private Dictionary<string, object> ParseObject(byte[] bytes)
         {
             if (bytes == null || bytes.Length == 0) return null;
-            try { return _json.DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
+            try { return new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
             catch { return null; }
         }
 

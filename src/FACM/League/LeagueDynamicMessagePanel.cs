@@ -75,6 +75,9 @@ namespace FACM.League
                 if (_binding) return;
                 _options.HistoryConcurrency = (int)concurrency.Value;
                 _snapshot = null;
+                _binding = true;
+                try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                finally { _binding = false; }
                 _send.Enabled = false;
                 _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
                 RefreshPreview();

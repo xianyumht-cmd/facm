@@ -205,6 +205,16 @@ namespace FACM.League
                     sgp.MaxConcurrent == 2 && fake.MaxConcurrent == 1 &&
                     !fake.Paths.Any(p => p.Contains("/matches?")),
                     "Tagged SGP reads must overlap within the configured bound while LCU stays serialized.");
+                var sequential = new TaggedHistoryFake { DelayMs = 30 };
+                using (var serial = new LeagueDynamicMessageService(new Fake(),
+                    new PerformanceBudgetProvider(), () => session, () => phase, sequential))
+                {
+                    var one = await serial.LoadAsync(CancellationToken.None, 2, "current", true, 1)
+                        .ConfigureAwait(false);
+                    Require(one != null && one.Players.Count == 2 &&
+                        sequential.TaggedCalls == 2 && sequential.MaxConcurrent == 1,
+                        "Concurrency one must preserve serialized tagged SGP reads.");
+                }
                 sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
                 Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
                     .ConfigureAwait(false) == null,
