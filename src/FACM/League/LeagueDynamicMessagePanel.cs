@@ -304,6 +304,7 @@ namespace FACM.League
             var recentChampions = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
             var recentHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingRecentHistory));
+            var enrichHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingHydrateHistory));
             _players.ContextMenuStrip = tagMenu;
             _jungle.ContextMenuStrip = tagMenu;
             _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
@@ -325,6 +326,9 @@ namespace FACM.League
                 championMastery.Enabled = !e.Cancel;
                 recentHistory.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.CardRecentMatches(choice.Player).Count > 0;
+                enrichHistory.Enabled = !e.Cancel && choice.Player.History != null &&
+                    choice.Player.History.Matches.Any(m =>
+                        LeaguePlayerDataService.NeedsAnalysisDetail(m));
             };
             recentHistory.Click += (sender, e) =>
             {
@@ -340,6 +344,41 @@ namespace FACM.League
                     (startIndex, token) => _module.LoadDynamicHistoryPageAsync(snapshot,
                         choice.Player.Player.PuuId, startIndex, token)))
                     dialog.ShowDialog(this);
+            };
+            enrichHistory.Click += async (sender, e) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                var snapshot = _snapshot;
+                if (_busy || snapshot == null || choice?.Player?.Player == null ||
+                    !snapshot.Players.Contains(choice.Player)) return;
+                _busy = true; _load.Enabled = false; _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                try
+                {
+                    var updated = await _module.HydrateDynamicPlayerHistoryAsync(snapshot,
+                        choice.Player.Player.PuuId, _lifetime.Token);
+                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                    if (updated)
+                    {
+                        foreach (var row in _players.Items.Cast<PlayerChoice>()
+                            .Concat(_jungle.Items.Cast<PlayerChoice>())
+                            .Where(p => ReferenceEquals(p.Player, choice.Player)))
+                            row.RefreshSourceTags();
+                        _players.Refresh(); _jungle.Refresh();
+                        RefreshPreview();
+                    }
+                    _status.Text = T(updated ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                        LeagueEfficiencyUiTextKeys.DynamicPartial);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                }
+                finally
+                {
+                    if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+                }
             };
             editTag.Click += async (sender, e) =>
             {

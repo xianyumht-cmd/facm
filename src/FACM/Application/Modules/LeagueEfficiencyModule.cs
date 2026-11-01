@@ -263,6 +263,13 @@ namespace FACM.AppHost.Modules
                 queryInLobbyPhase ?? options.QueryInLobbyPhase);
         }
 
+        public Task<bool> HydrateDynamicPlayerHistoryAsync(
+            LeagueDynamicMessageSnapshot snapshot, string playerPuuid, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _dynamicMessages.HydrateHistoryAsync(snapshot, playerPuuid, token);
+        }
+
         public Task<IReadOnlyList<LeaguePlayerMatchSummary>> LoadDynamicHistoryPageAsync(
             LeagueDynamicMessageSnapshot snapshot, string playerPuuid, int startIndex,
             CancellationToken token)

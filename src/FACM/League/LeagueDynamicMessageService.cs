@@ -136,6 +136,7 @@ namespace FACM.League
         internal bool? IsPrivate;
         internal bool PrivacyLoaded;
         internal LeaguePlayerMasteryDetails Mastery;
+        internal readonly HashSet<string> AnalysisDetailAttempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     internal sealed class LeagueDynamicMessageSnapshot
@@ -397,6 +398,57 @@ namespace FACM.League
                 return rows;
             }
             catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+            finally
+            {
+                if (entered) _gate.Release();
+                lock (_sync) if (ReferenceEquals(_active, active)) _active = null;
+                active.Dispose();
+            }
+        }
+
+        // Explicitly enrich the currently displayed player's sparse initial history.
+        // This reuses the account-fenced detail hydration owner and never prefetches in the background.
+        internal async Task<bool> HydrateHistoryAsync(
+            LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token)
+        {
+            if (snapshot == null || !SafePuuid(puuid)) return false;
+            var matches = snapshot.Players.Where(p => p?.Player != null &&
+                string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal)).Take(2).ToArray();
+            if (matches.Length != 1 || matches[0].History == null ||
+                matches[0].History.Matches.Count == 0 ||
+                matches[0].History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
+                return false;
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (_disposed) return false;
+                _active?.Cancel();
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
+            }
+            var entered = false;
+            try
+            {
+                active.CancelAfter(TimeSpan.FromSeconds(29));
+                await _gate.WaitAsync(active.Token).ConfigureAwait(false);
+                entered = true;
+                if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                var player = matches[0];
+                var result = await _players.HydrateAnalysisAsync(snapshot.SelfPuuid, puuid,
+                    snapshot.Session, player.History.Matches, player.AnalysisDetailAttempted,
+                    active.Token).ConfigureAwait(false);
+                if (result == null || result.AccountChanged ||
+                    result.Matches.Count != player.History.Matches.Count ||
+                    !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                active.Token.ThrowIfCancellationRequested();
+                foreach (var key in result.Attempted) player.AnalysisDetailAttempted.Add(key);
+                if (result.Updated <= 0) return false;
+                player.History.Matches.Clear();
+                player.History.Matches.AddRange(result.Matches);
+                player.JungleSamples = null;
+                return true;
+            }
+            catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return false; }
             finally
             {
                 if (entered) _gate.Release();

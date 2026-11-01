@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidatePlayerOrdering();
+            ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
@@ -177,6 +178,34 @@ namespace FACM.League
                 CancellationToken.None, "q_420", "self").ConfigureAwait(false);
             Require(page == null && sgp.TaggedCalls == 2,
                 "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static async Task ValidateExplicitHistoryHydrationAsync()
+        {
+            var fake = new Fake { IncompleteHistory = true };
+            var session = Session("history-details");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].History.Matches.Count == 1 &&
+                    !snapshot.Players[0].History.Matches[0].ParticipantResolved,
+                    "Sparse source fixture must remain unresolved before explicit detail loading.");
+                var before = fake.Paths.Count(p => p == "/lol-match-history/v1/games/1");
+                Require(await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                    .ConfigureAwait(false) && snapshot.Players[0].History.Matches[0].ParticipantResolved &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before + 1 &&
+                    fake.MaxConcurrent == 1,
+                    "Explicit detail hydration must enrich only current-owner history through bounded LCU reads.");
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before + 1,
+                    "Already attempted detail records must not be fetched again.");
+                session = Session("changed");
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                    .ConfigureAwait(false), "Old account/session must not reuse hydrated player history.");
+            }
         }
 
         private static void ValidatePlayerOrdering()

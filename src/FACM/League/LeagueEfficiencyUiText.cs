@@ -404,6 +404,7 @@ namespace FACM.League
         public const string OngoingHistoryLoadMore = "LeagueEfficiencyOngoingHistoryLoadMore";
         public const string OngoingOrderPlayers = "LeagueEfficiencyOngoingOrderPlayers";
         public const string OngoingOrderDefault = "LeagueEfficiencyOngoingOrderDefault";
+        public const string OngoingHydrateHistory = "LeagueEfficiencyOngoingHydrateHistory";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
         public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
@@ -876,6 +877,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore, "加载更多（最多 200 场）" },
             { LeagueEfficiencyUiTextKeys.OngoingOrderPlayers, "玩家排序" },
             { LeagueEfficiencyUiTextKeys.OngoingOrderDefault, "默认顺序" },
+            { LeagueEfficiencyUiTextKeys.OngoingHydrateHistory, "按需补全近期战绩详情" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },
