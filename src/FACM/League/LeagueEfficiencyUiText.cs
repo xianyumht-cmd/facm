@@ -379,6 +379,12 @@ namespace FACM.League
         public const string HistoricalDryRunHint = "LeagueEfficiencyHistoricalDryRunHint";
         public const string HistoricalDryRunReady = "LeagueEfficiencyHistoricalDryRunReady";
         public const string HistoricalDryRunTeamStats = "LeagueEfficiencyHistoricalDryRunTeamStats";
+        public const string HistoricalDraftEdit = "LeagueEfficiencyHistoricalDraftEdit";
+        public const string HistoricalDraftApply = "LeagueEfficiencyHistoricalDraftApply";
+        public const string HistoricalDraftHint = "LeagueEfficiencyHistoricalDraftHint";
+        public const string HistoricalDraftRecent = "LeagueEfficiencyHistoricalDraftRecent";
+        public const string HistoricalDraftGame = "LeagueEfficiencyHistoricalDraftGame";
+        public const string HistoricalDraftKda = "LeagueEfficiencyHistoricalDraftKda";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
         public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
@@ -826,6 +832,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunHint, "仅分析历史阵容与当前可获取的近期战绩，不发送游戏操作" },
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunReady, "已分析 {0}/{1} 名玩家的近期战绩；其余数据不可用" },
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats, "组队近期表现" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftEdit, "编辑模拟英雄与位置" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftApply, "应用到本次模拟" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftHint, "双击玩家可查看近期战绩并编辑模拟选择" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftRecent, "已验证的近期对局" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftGame, "对局编号" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftKda, "击杀 / 死亡 / 助攻" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },

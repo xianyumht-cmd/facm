@@ -37,7 +37,26 @@ namespace FACM.League
             if (player?.Player == null || player.History == null ||
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
                 return new LeaguePlayerChampionStat[0];
-            var rows = player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
+            var rows = VerifiedRecentMatches(player);
+            return rows.GroupBy(m => m.ChampionId)
+                .Select(g => new LeaguePlayerChampionStat {
+                    ChampionId = g.Key,
+                    ChampionName = new string((g.Select(m => m.ChampionName)
+                        .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? string.Empty)
+                        .Where(c => !char.IsControl(c)).Take(48).ToArray()),
+                    Games = g.Count(),
+                    Wins = g.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win)
+                })
+                .OrderByDescending(c => c.Games).ThenBy(c => c.ChampionId).Take(9).ToArray();
+        }
+
+        internal static IReadOnlyList<LeaguePlayerMatchSummary> VerifiedRecentMatches(
+            LeagueDynamicMessagePlayer player)
+        {
+            if (player?.Player == null || player.History == null ||
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId))
+                return new LeaguePlayerMatchSummary[0];
+            return player.History.Matches.Take(LeaguePlayerDataService.MaximumMatchCount)
                 .Where(m => m != null && m.GameId > 0)
                 .GroupBy(m => m.GameId)
                 .Where(g => g.All(m => m.ChampionId > 0 &&
@@ -50,18 +69,38 @@ namespace FACM.League
                     g.Select(m => m.ChampionId).Distinct().Count() == 1 &&
                     g.Select(m => LeaguePlayerHistoryAnalysis.Outcome(m)).Distinct().Count() == 1 &&
                     g.Select(m => m.SgpServerId ?? "").Distinct(StringComparer.OrdinalIgnoreCase).Count() == 1)
-                .Select(g => g.First())
-                .ToArray();
-            return rows.GroupBy(m => m.ChampionId)
-                .Select(g => new LeaguePlayerChampionStat {
-                    ChampionId = g.Key,
-                    ChampionName = new string((g.Select(m => m.ChampionName)
-                        .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? string.Empty)
-                        .Where(c => !char.IsControl(c)).Take(48).ToArray()),
-                    Games = g.Count(),
-                    Wins = g.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) == LeagueHistoryOutcome.Win)
-                })
-                .OrderByDescending(c => c.Games).ThenBy(c => c.ChampionId).Take(9).ToArray();
+                .Select(g => g.First()).ToArray();
+        }
+
+        // Only changes an ephemeral historical preview, never a match record or LCU state.
+        internal static bool TryEditSelection(LeagueDynamicMessageSnapshot snapshot,
+            string puuid, int championId, string position)
+        {
+            if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
+                !LeagueDynamicMessageService.SafePuuid(puuid) ||
+                championId < 1 || championId > 9999 || position == null ||
+                (snapshot.HistoricalGameMode != "CLASSIC" &&
+                 snapshot.HistoricalGameMode != "CHERRY") ||
+                (snapshot.HistoricalGameMode == "CHERRY" && position.Length != 0) ||
+                (snapshot.HistoricalGameMode == "CLASSIC" && position.Length != 0 &&
+                 !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                     .Contains(position, StringComparer.Ordinal)) ||
+                snapshot.Players.Count != (snapshot.HistoricalGameMode == "CLASSIC" ? 10 :
+                    snapshot.Players.Count == 8 ? 8 : 16) ||
+                snapshot.Players.Any(p => p?.Player == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
+                snapshot.Players.Select(p => p.Player.PuuId)
+                    .Distinct(StringComparer.Ordinal).Count() != snapshot.Players.Count ||
+                !snapshot.Players.Any(p => p.Player.PuuId == snapshot.SelfPuuid))
+                return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == puuid);
+            if (player == null) return false;
+            if (player.Player.ChampionId != championId)
+                player.ChampionName = "#" + championId;
+            player.Player.ChampionId = championId;
+            player.Player.Position = position;
+            return true;
         }
 
         internal static LeagueDynamicMessageSnapshot Build(LeaguePlayerMatchSummary match,

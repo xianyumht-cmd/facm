@@ -643,6 +643,7 @@ namespace FACM.League
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 85);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 150);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 120);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 100);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingTagDisplay), 360);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam), 100);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats), 180);
@@ -652,6 +653,31 @@ namespace FACM.League
                 dryLayout.Controls.Add(dryRows, 0, 2);
                 dryTab.Controls.Add(dryLayout);
                 matchTabs.TabPages.Add(dryTab);
+                LeagueDynamicMessageSnapshot loadedDraft = null;
+                dryRows.DoubleClick += (sender, e) =>
+                {
+                    if (loadedDraft == null || dryRows.SelectedItems.Count != 1 ||
+                        detail.IsCurrentSession == null || !detail.IsCurrentSession()) return;
+                    var selectedRow = dryRows.SelectedItems[0];
+                    var selectedPlayer = selectedRow.Tag as LeagueDynamicMessagePlayer;
+                    if (selectedPlayer?.Player == null) return;
+                    using (var editor = new LeagueHistoricalDraftEditorDialog(
+                        ui, loadedDraft, selectedPlayer, detail.IsCurrentSession))
+                    {
+                        if (editor.ShowDialog(this) == DialogResult.OK && detail.IsCurrentSession())
+                        {
+                            selectedRow.SubItems[2].Text = selectedPlayer.ChampionName;
+                            selectedRow.SubItems[3].Text = string.IsNullOrEmpty(selectedPlayer.Player.Position)
+                                ? "—" : LeaguePlayerHistoryAnalysis.PositionName(ui, selectedPlayer.Player.Position);
+                        }
+                        else if (!detail.IsCurrentSession())
+                        {
+                            loadedDraft = null;
+                            dryRows.Items.Clear();
+                            dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                        }
+                    }
+                };
                 dryButton.Click += async (sender, e) =>
                 {
                     if (_lifetime.IsCancellationRequested || detail.IsCurrentSession == null ||
@@ -659,6 +685,7 @@ namespace FACM.League
                     dryButton.Enabled = false;
                     dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicLoading);
                     dryRows.Items.Clear();
+                    loadedDraft = null;
                     try
                     {
                         var snapshot = await detail.LoadDryRun(_lifetime.Token);
@@ -668,6 +695,7 @@ namespace FACM.League
                             dryStatus.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
                             return;
                         }
+                        loadedDraft = snapshot;
                         var options = new LeagueDynamicMessageOptions();
                         var groups = LeaguePremadePlayerTagProjection.Project(snapshot,
                             options.PremadeMatchThreshold);
@@ -681,6 +709,9 @@ namespace FACM.League
                                     LeagueEfficiencyUiTextKeys.DynamicEnemy));
                             row.SubItems.Add(player.Player.AccountName ?? ("#" + player.Player.CellId));
                             row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
+                            row.SubItems.Add(string.IsNullOrEmpty(player.Player.Position) ? "—" :
+                                LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position));
+                            row.Tag = player;
                             var tags = LeagueOngoingPlayerTagProjection.Project(player.History, options);
                             row.SubItems.Add(tags.Count == 0 ? "—" : string.Join(" · ", tags.Take(8)));
                             string group;
@@ -704,7 +735,8 @@ namespace FACM.League
                         }
                         dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)
                             .Replace("{0}", snapshot.Players.Count(p => p.History != null).ToString())
-                            .Replace("{1}", snapshot.Players.Count.ToString());
+                            .Replace("{1}", snapshot.Players.Count.ToString()) + " · " +
+                            t(LeagueEfficiencyUiTextKeys.HistoricalDraftHint);
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception)

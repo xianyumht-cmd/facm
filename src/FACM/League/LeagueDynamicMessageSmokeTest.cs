@@ -807,6 +807,19 @@ namespace FACM.League
                 snapshot.Players.All(p => p.History == null) &&
                 snapshot.Phase == "HistoricalPreview",
                 "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.ChampionId == 99 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.Position == "MIDDLE" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "#99",
+                "A local historical draft must allow bounded champion and lane overrides.");
+            Require(!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 0, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 10000, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "INVALID") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "other", 12, "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.ChampionId == 99,
+                "Invalid historical draft overrides must not mutate any player.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "TOP"),
+                "A historical draft override must support restoring its original selection.");
             var target = snapshot.Players.Single(p => p.Player.PuuId == "target");
             var teammate = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
             target.History = new LeaguePlayerMatchPage();
@@ -851,6 +864,8 @@ namespace FACM.League
                     ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" }
             });
             var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
+            Require(LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
+                "Historical player details must omit duplicate conflicts and wrong-owner evidence.");
             Require(usage.Count == 1 && usage[0].ChampionId == 22 &&
                 usage[0].Games == 2 && usage[0].Wins == 1 && usage[0].WinRate == 50 &&
                 LeagueHistoricalMatchDryRun.RecentChampionUsage(
@@ -887,6 +902,10 @@ namespace FACM.League
                 arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
                 arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
                 "Arena historical draft must preserve eight independent two-player subteams.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "TOP") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.Position == "",
+                "Arena draft edits must never invent standard lane assignments.");
             var enemyOne = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3");
             var enemyTwo = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-5");
             enemyOne.History = new LeaguePlayerMatchPage();
