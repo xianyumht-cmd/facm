@@ -16,6 +16,22 @@ namespace FACM.League
             var restored = new FACM.Services.AppSettings();
             cloud.ApplyTo(restored);
             Require(restored.LeagueRespawnOverlayEnabled, "Respawn overlay cloud setting failed to roundtrip.");
+            using (var scope = new LeagueRespawnReadScope())
+            {
+                scope.Transition(true, System.Threading.CancellationToken.None);
+                var activeRead = scope.Token;
+                Require(!activeRead.IsCancellationRequested,
+                    "Active gameplay must own a usable Live Client read token.");
+                scope.Transition(true, System.Threading.CancellationToken.None);
+                Require(!activeRead.IsCancellationRequested,
+                    "Repeated InProgress observations must not cancel the current read.");
+                scope.Transition(false, System.Threading.CancellationToken.None);
+                Require(activeRead.IsCancellationRequested && scope.Token.IsCancellationRequested,
+                    "Leaving gameplay must cancel outstanding Live Client reads.");
+                scope.Transition(true, System.Threading.CancellationToken.None);
+                Require(!scope.Token.IsCancellationRequested && activeRead.IsCancellationRequested,
+                    "A new gameplay phase needs a fresh read scope, not a revived old request.");
+            }
             var inGame = new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" };
             Require(LeagueRespawnOverlayHost.ShouldRun(true, inGame) &&
                 !LeagueRespawnOverlayHost.ShouldRun(false, inGame) &&

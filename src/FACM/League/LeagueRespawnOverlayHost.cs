@@ -37,6 +37,34 @@ namespace FACM.League
         }
     }
 
+    // Owns one bounded Live Client read lifetime per active gameflow phase.
+    internal sealed class LeagueRespawnReadScope : IDisposable
+    {
+        private CancellationTokenSource _source;
+        internal CancellationToken Token
+        {
+            get { return _source == null ? new CancellationToken(true) : _source.Token; }
+        }
+
+        internal void Transition(bool active, CancellationToken lifetime)
+        {
+            if (active)
+            {
+                if (_source == null) _source = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
+                return;
+            }
+            var previous = _source;
+            _source = null;
+            if (previous != null)
+            {
+                previous.Cancel();
+                previous.Dispose();
+            }
+        }
+
+        public void Dispose() { Transition(false, CancellationToken.None); }
+    }
+
     /// <summary>Optional UI-thread consumer of the existing Gameflow owner.</summary>
     internal sealed class LeagueRespawnOverlayHost : IDisposable
     {
@@ -44,6 +72,7 @@ namespace FACM.League
         private readonly Func<LeagueClientSession> _sessionProvider;
         private readonly object _sync = new object();
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        private readonly LeagueRespawnReadScope _readScope = new LeagueRespawnReadScope();
         private Control _owner;
         private System.Windows.Forms.Timer _timer;
         private LeagueRespawnOverlayForm _form;
@@ -58,6 +87,7 @@ namespace FACM.League
         private bool _refreshing;
         private bool _disposed;
         private int _generation;
+        private int _sampleGeneration = -1;
 
         internal LeagueRespawnOverlayHost(ILeagueClientApi client, Func<LeagueClientSession> sessionProvider)
         {
@@ -99,6 +129,7 @@ namespace FACM.League
             if (_inProgress == desired) return;
             _inProgress = desired;
             _generation++;
+            _readScope.Transition(desired, _lifetime.Token);
         }
 
         private void AttachWhenReady(object sender, EventArgs args)
@@ -151,16 +182,30 @@ namespace FACM.League
         {
             if (_refreshing || _lifetime.IsCancellationRequested) return;
             int generation;
+            CancellationToken readToken;
             lock (_sync)
             {
                 if (_disposed || !_inProgress) return;
                 generation = _generation;
+                readToken = _readScope.Token;
             }
             _refreshing = true;
             try
             {
+                if (_sampleGeneration != generation)
+                {
+                    _sampleGeneration = generation;
+                    _session = null;
+                    _account = null;
+                    _internalName = null;
+                    _sample = null;
+                    _nextIdentityReadUtc = DateTime.MinValue;
+                    HideOverlay();
+                }
                 if (!LeagueRespawnOverlayVisibility.IsGameForeground())
                 {
+                    // Without foreground samples, a later death cannot inherit the old timer.
+                    _sample = null;
                     HideOverlay();
                     return;
                 }
@@ -180,7 +225,7 @@ namespace FACM.League
                 {
                     _nextIdentityReadUtc = DateTime.UtcNow.AddSeconds(3);
                     var summoner = await _client.TryGetBytesAsync(
-                        LeagueDashboardDetailsService.SummonerPath, _lifetime.Token).ConfigureAwait(true);
+                        LeagueDashboardDetailsService.SummonerPath, readToken).ConfigureAwait(true);
                     if (!IsCurrent(generation, session)) return;
                     var identity = LeagueRespawnTimerProjection.ReadCurrentIdentity(summoner);
                     var account = identity?.AccountName;
@@ -197,7 +242,7 @@ namespace FACM.League
                 }
                 if (string.IsNullOrEmpty(_account) || !IsCurrent(generation, session)) return;
                 if (_reader == null) _reader = new LeagueRespawnTimerReader();
-                var bytes = await _reader.ReadAsync(_lifetime.Token).ConfigureAwait(true);
+                var bytes = await _reader.ReadAsync(readToken).ConfigureAwait(true);
                 if (!IsCurrent(generation, session)) return;
                 _sample = LeagueRespawnTimerProjection.Project(bytes, _account, _sample, _internalName);
                 if (_sample == null || !_sample.IsDead || !LeagueRespawnOverlayVisibility.IsGameForeground())
@@ -240,6 +285,7 @@ namespace FACM.League
                 if (_disposed) return;
                 _disposed = true;
                 _generation++;
+                _readScope.Dispose();
                 owner = _owner;
             }
             _lifetime.Cancel();
