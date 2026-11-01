@@ -645,6 +645,7 @@ namespace FACM.League
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 120);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingTagDisplay), 360);
                 dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam), 100);
+                dryRows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats), 180);
                 dryLayout.Controls.Add(dryButton, 0, 0);
                 dryLayout.Controls.Add(dryStatus, 0, 1);
                 dryLayout.Controls.Add(dryRows, 0, 2);
@@ -669,6 +670,8 @@ namespace FACM.League
                         var options = new LeagueDynamicMessageOptions();
                         var groups = LeaguePremadePlayerTagProjection.Project(snapshot,
                             options.PremadeMatchThreshold);
+                        var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(snapshot,
+                            options.PremadeMatchThreshold);
                         foreach (var player in snapshot.Players.OrderByDescending(p => p.Friendly))
                         {
                             var row = new ListViewItem(t(player.Friendly ?
@@ -680,6 +683,13 @@ namespace FACM.League
                             row.SubItems.Add(tags.Count == 0 ? "—" : string.Join(" · ", tags.Take(8)));
                             string group;
                             row.SubItems.Add(groups.TryGetValue(player.Player.PuuId, out group) ? group : "—");
+                            LeaguePremadeTeamAggregate aggregate;
+                            row.SubItems.Add(aggregates.TryGetValue(player.Player.PuuId, out aggregate)
+                                ? t(LeagueEfficiencyUiTextKeys.PremadeTeamStats)
+                                    .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
+                                    .Replace("{1}", aggregate.Kda.HasValue
+                                        ? aggregate.Kda.Value.ToString("0.00") : "—")
+                                : "—");
                             dryRows.Items.Add(row);
                         }
                         dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)

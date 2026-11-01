@@ -23,6 +23,7 @@ namespace FACM.League
             ValidateKillDamageEfficiencyTag();
             ValidateHistoricalDryRun();
             ValidatePrivacyTag();
+            ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -695,6 +696,41 @@ namespace FACM.League
                 "Privacy visibility must persist without breaking old settings.");
         }
 
+        private static async Task ValidatePrivacyLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("privacy");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && !fake.Paths.Any(p => p.Contains("/summoners/puuid/")),
+                    "Privacy lookup must never start in the background.");
+                fake.OnRead = path =>
+                {
+                    if (path.Contains("/summoners/puuid/")) session = Session("replacement");
+                };
+                Require(!await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    !snapshot.Players.Single(p => p.Player.PuuId == "enemy").IsPrivate.HasValue,
+                    "Session replacement during privacy lookup must discard the response.");
+                fake.OnRead = null;
+                session = Session("privacy");
+                snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null &&
+                    await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                        .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").IsPrivate == true,
+                    "An explicit same-account privacy lookup must populate a verified private tag.");
+                var count = fake.Paths.Count(p => p.Contains("/summoners/puuid/"));
+                Require(await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("/summoners/puuid/")) == count,
+                    "Verified privacy must not be fetched again within the same roster.");
+            }
+        }
+
         private static void ValidateHistoricalDryRun()
         {
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
@@ -713,6 +749,26 @@ namespace FACM.League
                 snapshot.Players.All(p => p.History == null) &&
                 snapshot.Phase == "HistoricalPreview",
                 "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            var target = snapshot.Players.Single(p => p.Player.PuuId == "target");
+            var teammate = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
+            target.History = new LeaguePlayerMatchPage();
+            teammate.History = new LeaguePlayerMatchPage();
+            for (var game = 1; game <= 5; game++)
+            {
+                target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "target", "player-2" },
+                    WinResult = "win", StatisticsAvailable = true, ParticipantResolved = true,
+                    Kills = 2, Deaths = 1, Assists = 3 });
+                teammate.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "target", "player-2" },
+                    WinResult = "win", StatisticsAvailable = true, ParticipantResolved = true,
+                    Kills = 2, Deaths = 1, Assists = 3 });
+            }
+            var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(snapshot);
+            Require(aggregates.Count == 2 && aggregates["target"].Games == 10 &&
+                aggregates["player-2"].Wins == 10 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot, 6).Count == 0,
+                "Historical premade stats require a validated shared-game threshold.");
             roster[9].PuuId = roster[8].PuuId;
             Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
                 "Duplicate historical player identities must fail closed.");
@@ -1111,6 +1167,8 @@ namespace FACM.League
                 {
                     await Task.Delay(1, token).ConfigureAwait(false);
                     OnRead?.Invoke(path); token.ThrowIfCancellationRequested();
+                    if (path.StartsWith("/lol-summoner/v2/summoners/puuid/", StringComparison.Ordinal))
+                        return Bytes("{\"puuid\":\"enemy\",\"privacy\":\"PRIVATE\"}");
                     if (path == LeagueDashboardDetailsService.SummonerPath)
                         return Bytes("{\"puuid\":\"" + ProfilePuuid + "\",\"summonerId\":1}");
                     if (path == LeagueLiveDataService.ChampSelectSessionPath)

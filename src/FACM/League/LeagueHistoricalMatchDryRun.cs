@@ -7,6 +7,27 @@ namespace FACM.League
     // Read-only draft from one verified historical match; never writes to LCU or a live game.
     internal static class LeagueHistoricalMatchDryRun
     {
+        internal static IReadOnlyDictionary<string, LeaguePremadeTeamAggregate> TeamAggregates(
+            LeagueDynamicMessageSnapshot snapshot, int threshold = 5)
+        {
+            var result = new Dictionary<string, LeaguePremadeTeamAggregate>(StringComparer.Ordinal);
+            if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
+                threshold < 2 || threshold > LeaguePlayerDataService.MaximumMatchCount) return result;
+            var players = snapshot.Players.Where(p => p != null && p.Player != null &&
+                LeagueDynamicMessageService.SafePuuid(p.Player.PuuId))
+                .GroupBy(p => p.Player.PuuId, StringComparer.Ordinal)
+                .Where(g => g.Count() == 1).ToDictionary(g => g.Key, g => g.First(),
+                    StringComparer.Ordinal);
+            foreach (var group in LeaguePremadeInference.Infer(snapshot, threshold))
+            {
+                if (group.Any(id => !players.ContainsKey(id))) continue;
+                var aggregate = LeaguePremadeTeamAggregate.Project(group.Select(id => players[id]).ToArray());
+                if (aggregate == null || aggregate.Games <= 0) continue;
+                foreach (var id in group) result[id] = aggregate;
+            }
+            return result;
+        }
+
         internal static LeagueDynamicMessageSnapshot Build(LeaguePlayerMatchSummary match,
             IEnumerable<LeaguePlayerMatchParticipant> participants, string targetPuuid)
         {

@@ -452,7 +452,8 @@ namespace FACM.League
         {
             if (_busy || _snapshot == null || IsJungle || IsPremade) return;
             var selected = _players.SelectedItem as PlayerChoice;
-            if (selected == null || selected.Player == null || selected.Player.PrivacyLoaded) return;
+            if (selected == null || selected.Player == null ||
+                (selected.Player.PrivacyLoaded && selected.Player.IsPrivate.HasValue)) return;
             var snapshot = _snapshot;
             _busy = true;
             _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);

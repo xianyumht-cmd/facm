@@ -257,7 +257,8 @@ namespace FACM.League
             var player = snapshot.Players.SingleOrDefault(p => p.Player != null &&
                 string.Equals(p.Player.PuuId, puuid, StringComparison.Ordinal));
             if (player == null) return false;
-            if (player.PrivacyLoaded) return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
+            if (player.PrivacyLoaded && player.IsPrivate.HasValue)
+                return await IsCurrentAsync(snapshot, token).ConfigureAwait(false);
             CancellationTokenSource active;
             lock (_sync)
             {
