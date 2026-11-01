@@ -398,6 +398,35 @@ namespace FACM.League
                     fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == reads,
                     "Stale account/session cannot issue automatic roster detail requests.");
             }
+            var all = new Fake { IncompleteHistory = true };
+            session = Session("roster-two-players");
+            using (var service = new LeagueDynamicMessageService(all, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    all.Paths.Count(path => path == "/lol-match-history/v1/games/1") == 2 &&
+                    snapshot.Players.All(player => player.History.Matches[0].ParticipantResolved) &&
+                    all.MaxConcurrent == 1,
+                    "Global detail budget must be shared across the two roster players.");
+            }
+            var replaced = new Fake { IncompleteHistory = true };
+            session = Session("roster-switch-during-detail");
+            using (var service = new LeagueDynamicMessageService(replaced,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                replaced.OnRead = path =>
+                {
+                    if (path == "/lol-match-history/v1/games/1")
+                        session = Session("roster-switched");
+                };
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    snapshot.Players.All(player => !player.History.Matches[0].ParticipantResolved),
+                    "A session change during detail fetching must discard unowned results.");
+            }
         }
 
         private static void ValidatePlayerOrdering()
