@@ -1922,6 +1922,8 @@ namespace FACM.League
                     new LeagueDynamicMessageOptions { Target = "friendly" }).Count == 16 &&
                 LeagueDynamicMessageFormatter.Build(arenaDraft,
                     new LeagueDynamicMessageOptions { Target = "enemy" }).Count == 0 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "invalid" }).Count == 0 &&
                 arenaDraft.Players.Count(p => p.Friendly) == 2,
                 "Source TEAM-ALL must include the entire Arena preview without losing two-player subteam evidence.");
             var arenaPerspective = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {

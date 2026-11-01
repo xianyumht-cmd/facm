@@ -11,7 +11,9 @@ namespace FACM.League
             ISet<string> selected = null)
         {
             var result = new List<string>();
-            if (snapshot == null || options == null) return result;
+            if (snapshot == null || options == null ||
+                (options.Target != "friendly" && options.Target != "enemy" &&
+                 options.Target != "all")) return result;
             var arenaAll = snapshot.Phase == "HistoricalPreview" &&
                 snapshot.HistoricalGameMode == "CHERRY";
             var players = snapshot.Players.Where(p => p?.Player != null &&
