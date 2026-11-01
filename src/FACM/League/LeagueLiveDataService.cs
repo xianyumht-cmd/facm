@@ -15,6 +15,7 @@ namespace FACM.League
         internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
         internal const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
         internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
+        internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
 
         private readonly ILeagueClientApi _client;
@@ -518,6 +519,29 @@ namespace FACM.League
                 break;
             }
             return state;
+        }
+
+        internal void ApplyLobby(LeagueLiveSnapshot snapshot, byte[] bytes)
+        {
+            if (snapshot == null) throw new ArgumentNullException(nameof(snapshot));
+            var data = ParseObject(bytes);
+            var config = ReadDictionary(data, "gameConfig");
+            if (config == null) return;
+            snapshot.QueueId = ReadInt(config, "queueId");
+            snapshot.GameMode = ReadString(config, "gameMode");
+            foreach (var member in EnumerateDictionaries(ReadValue(data, "members")))
+            {
+                if (ReadBool(member, "isBot") || ReadBool(member, "isSpectator")) continue;
+                snapshot.Players.Add(new LeagueLivePlayerRow
+                {
+                    Side = "ally",
+                    PuuId = ReadString(member, "puuid"),
+                    SummonerId = ReadLong(member, "summonerId"),
+                    DisplayName = ReadString(member, "summonerName"),
+                    Position = ReadString(member, "firstPositionPreference")
+                });
+                if (snapshot.Players.Count > 20) return;
+            }
         }
 
         internal void ApplyCurrentGame(LeagueLiveSnapshot snapshot, byte[] bytes)

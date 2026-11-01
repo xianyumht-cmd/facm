@@ -16,6 +16,7 @@ namespace FACM.League
         public int PremadeMatchThreshold { get; set; } = 5;
         public int MatchHistoryLoadCount { get; set; } = 20;
         public string MatchHistoryTagPreference { get; set; } = "all";
+        public bool QueryInLobbyPhase { get; set; }
         public string ChampionUsageMode { get; set; } = "recent";
         public bool ShowSelfTag { get; set; } = true;
         public bool ShowTaggedTag { get; set; } = true;
@@ -199,14 +200,16 @@ namespace FACM.League
 
         internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token,
             int historyLoadCount = LeaguePlayerDataService.MaximumMatchCount,
-            string historyTagPreference = "all")
+            string historyTagPreference = "all", bool queryInLobbyPhase = false)
         {
             if (historyLoadCount < 2 ||
                 historyLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 (historyTagPreference != "all" && historyTagPreference != "current")) return null;
             var phase = _phase();
             var session = _session();
-            if (phase == null || !phase.Connected || (phase.Phase != "ChampSelect" && phase.Phase != "InProgress") || session == null) return null;
+            if (phase == null || !phase.Connected || session == null ||
+                (phase.Phase != "ChampSelect" && phase.Phase != "InProgress" &&
+                 !(queryInLobbyPhase && phase.Phase == "Lobby"))) return null;
             CancellationTokenSource active;
             lock (_sync)
             {
@@ -687,8 +690,10 @@ namespace FACM.League
         {
             var roster = new LeagueLiveSnapshot();
             var bytes = await _client.TryGetBytesAsync(phase == "ChampSelect" ? LeagueLiveDataService.ChampSelectSessionPath :
-                LeagueLiveDataService.GameflowSessionPath, token).ConfigureAwait(false);
+                phase == "Lobby" ? LeagueLiveDataService.LobbyPath : LeagueLiveDataService.GameflowSessionPath,
+                token).ConfigureAwait(false);
             if (phase == "ChampSelect") _live.ApplyChampSelect(roster, bytes);
+            else if (phase == "Lobby") _live.ApplyLobby(roster, bytes);
             else _live.ApplyCurrentGame(roster, bytes);
             return roster;
         }
@@ -780,7 +785,8 @@ namespace FACM.League
         internal async Task<bool> SendAsync(LeagueDynamicMessageSnapshot snapshot, IReadOnlyList<string> lines, int interval,
             Func<string, CancellationToken, Task<bool>> sendLine, CancellationToken token)
         {
-            if (lines == null || lines.Count == 0 || lines.Count > 100 || interval < 0 || interval > 5000 ||
+            if (snapshot == null || snapshot.Phase == "Lobby" ||
+                lines == null || lines.Count == 0 || lines.Count > 100 || interval < 0 || interval > 5000 ||
                 lines.Any(line => string.IsNullOrEmpty(line) || line.Length > LeagueQuickMessagePresets.MaximumMessageLength || line.Any(char.IsControl))) return false;
             CancellationTokenSource active;
             lock (_sync)

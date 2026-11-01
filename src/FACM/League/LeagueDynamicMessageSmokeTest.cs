@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateAggregation();
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
+            ValidateLobbyQueryAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
             ValidateEncounterCardTags();
@@ -175,6 +176,45 @@ namespace FACM.League
                 CancellationToken.None, "q_420", "self").ConfigureAwait(false);
             Require(page == null && sgp.TaggedCalls == 2,
                 "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static async Task ValidateLobbyQueryAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { QueryInLobbyPhase = true };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).QueryInLobbyPhase &&
+                !LeagueDynamicMessageOptions.Parse("{}").QueryInLobbyPhase,
+                "Lobby querying must be opt-in and survive saved settings.");
+            var fake = new Fake();
+            var session = Session("lobby");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null &&
+                    fake.Paths.Count == 0, "Lobby analysis must not read anything until explicitly enabled.");
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Phase == "Lobby" && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.Friendly && p.History != null) &&
+                    snapshot.Players[0].Player.PuuId == "self" && snapshot.Players[1].Player.PuuId == "enemy" &&
+                    snapshot.HistoryLoadCount == 2 && fake.MaxConcurrent == 1,
+                    "Opt-in Lobby analysis must use only the current party with bounded shared history reads.");
+                var sends = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "test" }, 0,
+                    (line, token) => { sends++; return Task.FromResult(true); }, CancellationToken.None)
+                    .ConfigureAwait(false) && sends == 0,
+                    "Lobby analysis must never send ChampSelect or in-game chat messages.");
+                fake.ChangeLobbyRoster = true;
+                Require(!await service.IsCurrentAsync(snapshot, CancellationToken.None).ConfigureAwait(false),
+                    "Changed Lobby membership must invalidate the old player-card snapshot.");
+                fake.ChangeLobbyRoster = false;
+                fake.DuplicateLobbyPuuid = true;
+                Require(await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false) == null,
+                    "Duplicate Lobby identities must fail closed.");
+                fake.DuplicateLobbyPuuid = false;
+                fake.ProfilePuuid = "other";
+                Require(await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false) == null,
+                    "A Lobby without the authenticated player must not produce history.");
+            }
         }
 
         private static void ValidateAggregation()
@@ -1512,6 +1552,9 @@ namespace FACM.League
             private int _concurrent;
             internal bool ChangeRoster;
             internal bool ChangeHistory;
+            internal bool ChangeLobbyRoster;
+            internal bool DuplicateLobbyPuuid;
+            internal int LobbyReads;
             internal string ProfilePuuid = "self";
             internal bool IncompleteHistory;
             internal Action<string> OnRead;
@@ -1539,6 +1582,16 @@ namespace FACM.League
                         return Bytes("{\"puuid\":\"enemy\",\"privacy\":\"PRIVATE\"}");
                     if (path == LeagueDashboardDetailsService.SummonerPath)
                         return Bytes("{\"puuid\":\"" + ProfilePuuid + "\",\"summonerId\":1}");
+                    if (path == LeagueLiveDataService.LobbyPath)
+                    {
+                        LobbyReads++;
+                        return Bytes("{\"gameConfig\":{\"queueId\":420,\"gameMode\":\"CLASSIC\"},\"members\":[" +
+                            "{\"puuid\":\"self\",\"summonerId\":1,\"summonerName\":\"Self\"}," +
+                            "{\"puuid\":\"" + (DuplicateLobbyPuuid ? "self" :
+                                ChangeLobbyRoster && LobbyReads > 1 ? "replacement" : "enemy") +
+                            "\",\"summonerId\":2,\"summonerName\":\"Other\"}," +
+                            "{\"puuid\":\"bot\",\"isBot\":true}]}");
+                    }
                     if (path == LeagueLiveDataService.ChampSelectSessionPath)
                     {
                         RosterReads++;

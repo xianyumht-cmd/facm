@@ -81,6 +81,22 @@ namespace FACM.League
                 RefreshPreview();
             };
             choices.Controls.Add(historyTag);
+            var lobbyQuery = new CheckBox { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingQueryInLobby),
+                Checked = _options.QueryInLobbyPhase };
+            lobbyQuery.CheckedChanged += delegate
+            {
+                if (_binding) return;
+                _options.QueryInLobbyPhase = lobbyQuery.Checked;
+                _snapshot = null;
+                _binding = true;
+                try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                finally { _binding = false; }
+                _send.Enabled = false;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                RefreshPreview();
+            };
+            choices.Controls.Add(lobbyQuery);
             var thresholdLabel = new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.PremadeThreshold),
                 TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(4, 7, 0, 0), Visible = false };
             var threshold = new NumericUpDown { Width = 58, Minimum = 2,
@@ -482,10 +498,12 @@ namespace FACM.League
                 }
                 var requestedHistoryCount = _options.MatchHistoryLoadCount;
                 var requestedTagPreference = _options.MatchHistoryTagPreference;
+                var requestedLobbyQuery = _options.QueryInLobbyPhase;
                 var snapshot = await _module.LoadDynamicMessagesAsync(_lifetime.Token,
-                    requestedHistoryCount, requestedTagPreference);
+                    requestedHistoryCount, requestedTagPreference, requestedLobbyQuery);
                 if (IsDisposed || requestedHistoryCount != _options.MatchHistoryLoadCount ||
-                    requestedTagPreference != _options.MatchHistoryTagPreference) return;
+                    requestedTagPreference != _options.MatchHistoryTagPreference ||
+                    requestedLobbyQuery != _options.QueryInLobbyPhase) return;
                 _snapshot = snapshot; _binding = true; _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear();
                 var selected = _module.DynamicSelection(snapshot);
                 if (snapshot != null)
@@ -686,7 +704,7 @@ namespace FACM.League
                 LeagueDynamicMessageService.TargetNeedsHistory(_snapshot, _options.Target) : !IsJungle &&
                 LeagueDynamicMessageService.SelectedNeedsHistory(_snapshot, Selected()));
             _send.Enabled = !_busy && !incomplete && lines.Count > 0 && lines.Count <= 100 &&
-                _snapshot != null && _snapshot.Phase != "InProgress";
+                _snapshot != null && _snapshot.Phase != "InProgress" && _snapshot.Phase != "Lobby";
         }
 
         private async Task SendAsync()

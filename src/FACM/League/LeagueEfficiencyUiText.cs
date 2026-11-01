@@ -400,6 +400,7 @@ namespace FACM.League
         public const string OngoingHistoryCount = "LeagueEfficiencyOngoingHistoryCount";
         public const string OngoingHistoryAllQueues = "LeagueEfficiencyOngoingHistoryAllQueues";
         public const string OngoingHistoryCurrentQueue = "LeagueEfficiencyOngoingHistoryCurrentQueue";
+        public const string OngoingQueryInLobby = "LeagueEfficiencyOngoingQueryInLobby";
         public const string OngoingPrivacyTag = "LeagueEfficiencyOngoingPrivacyTag";
         public const string OngoingPrivacyAnalyze = "LeagueEfficiencyOngoingPrivacyAnalyze";
         public const string OngoingPrivacyPrivate = "LeagueEfficiencyOngoingPrivacyPrivate";
@@ -868,6 +869,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingHistoryCount, "近期战绩局数" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryAllQueues, "全部队列（LCU 优先）" },
             { LeagueEfficiencyUiTextKeys.OngoingHistoryCurrentQueue, "当前队列（SGP）" },
+            { LeagueEfficiencyUiTextKeys.OngoingQueryInLobby, "大厅阶段查询队友（只读）" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyTag, "隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyAnalyze, "查询选中玩家隐私状态" },
             { LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate, "战绩隐私" },
