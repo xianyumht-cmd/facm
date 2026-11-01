@@ -1,3 +1,16 @@
+### 2026-11-01 — Atomic full-roster historical preview editing (Draft #357)
+
+**Latest executable/test candidate:** [ae74850](https://github.com/xianyumht-cmd/facm/commit/ae74850289c79c0116c0e5014defa42f95d12a3d). Four exact-SHA Windows gates are **pending**; do not treat this candidate as verified. The preceding [f855137](https://github.com/xianyumht-cmd/facm/commit/f855137c9650fba54427e838be20dd4011e0e67e) HEAD passed Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe, but is not this candidate.
+
+| Akari v1.5.1 scope | Status | Native behavior / remaining work |
+| --- | --- | --- |
+| Historical team-wide draft editing | **PARTIAL (candidate)** | Match-detail historical preview now exposes a native all-player grid. One validated, atomic transaction can change verified players' teams, champions, lane and primary/secondary preferences. Keeps the exact 5v5 or 4/8 two-player Arena group sizes, fixed target side, unique existing identities and immutable original match; rejects invalid or incomplete submissions before mutation. Existing per-player editor, team swap and full reset remain. |
+| Historical lane/source validation | **COMPLETE (synthetic candidate)** | Unrecognized source lane names normalize to blank; Arena never inherits Rift lanes. Synthetic regression covers whole-lineup swaps, champion changes, atomic rejection, Arena subteams, source immutability and reset. |
+| Card history evidence | **COMPLETE (synthetic candidate)** | Cross-page duplicate game IDs now also reject conflicting map and game mode, matching same-page evidence checks. |
+| Still missing | **PARTIAL / MISSING** | Free-form new-player/queue/target composition, full Akari popovers, remaining ChampSelect/gameflow strategies, all-source concurrency and live regional SGP variants. Real Tencent/Riot, 256-row cloud round-trip and Windows 10/DPI remain unverified. |
+
+PR #357 and stacked #355 remain Draft; no force push, merge, release, deployment, updater, paid infrastructure or production GGman 3.5.78 change.
+
 ### 2026-11-01 — Source-bounded card details and duplicate evidence (Draft #357)
 
 **Latest executable/test candidate:** [82f8df6](https://github.com/xianyumht-cmd/facm/commit/82f8df60b5dcb81f5537ae0d9ba3ae9a9dbf19ae); exact-SHA Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe are **pending**. Last fully verified executable remains [02fe047](https://github.com/xianyumht-cmd/facm/commit/02fe04770460b76ec7fd39cacbc32536ebe8b03f).
