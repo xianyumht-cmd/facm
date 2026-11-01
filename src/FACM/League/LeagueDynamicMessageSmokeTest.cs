@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateAggregation();
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
+            ValidatePlayerOrdering();
             ValidateLobbyQueryAsync().GetAwaiter().GetResult();
             ValidatePremadeInference();
             ValidateOngoingPlayerTags();
@@ -176,6 +177,39 @@ namespace FACM.League
                 CancellationToken.None, "q_420", "self").ConfigureAwait(false);
             Require(page == null && sgp.TaggedCalls == 2,
                 "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static void ValidatePlayerOrdering()
+        {
+            var options = new LeagueDynamicMessageOptions { OrderPlayerBy = "win-rate" };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .OrderPlayerBy == "win-rate" &&
+                LeagueDynamicMessageOptions.Parse("{\"OrderPlayerBy\":\"bad\"}").OrderPlayerBy == "default",
+                "Source player-card sort modes must persist and reject unknown values.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = true, Player = new LeagueLivePlayerRow { PuuId = "jungle", Position = "JUNGLE" },
+                History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = true, Player = new LeagueLivePlayerRow { PuuId = "top", Position = "TOP" },
+                History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = false, Player = new LeagueLivePlayerRow { PuuId = "enemy", Position = "TOP" } });
+            snapshot.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "jungle", GameId = 1, ChampionId = 1, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "loss", Kills = 1, Deaths = 4, Assists = 1 });
+            snapshot.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "top", GameId = 2, ChampionId = 2, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "win", Kills = 9, Deaths = 1, Assists = 6 });
+            Func<string, string[]> order = mode => LeagueDynamicMessageService.OrderPlayers(snapshot, mode)
+                .Select(p => p.Player.PuuId).ToArray();
+            Require(order("default").SequenceEqual(new[] { "jungle", "top", "enemy" }) &&
+                order("position").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("win-rate").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("kda").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("akari-score").SequenceEqual(new[] { "jungle", "top", "enemy" }) &&
+                order("premade-team").SequenceEqual(new[] { "jungle", "top", "enemy" }),
+                "Native sorting must preserve teams, respect source order modes and keep unknown evidence stable.");
         }
 
         private static async Task ValidateLobbyQueryAsync()

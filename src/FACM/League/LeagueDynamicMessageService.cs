@@ -17,6 +17,7 @@ namespace FACM.League
         public int MatchHistoryLoadCount { get; set; } = 20;
         public string MatchHistoryTagPreference { get; set; } = "all";
         public bool QueryInLobbyPhase { get; set; }
+        public string OrderPlayerBy { get; set; } = "default";
         public string ChampionUsageMode { get; set; } = "recent";
         public bool ShowSelfTag { get; set; } = true;
         public bool ShowTaggedTag { get; set; } = true;
@@ -95,6 +96,8 @@ namespace FACM.League
                 options.MatchHistoryLoadCount < 2 ||
                 options.MatchHistoryLoadCount > LeaguePlayerDataService.MaximumMatchCount ||
                 !new[] { "all", "current" }.Contains(options.MatchHistoryTagPreference) ||
+                !new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }
+                    .Contains(options.OrderPlayerBy) ||
                 !new[] { "none", "recent", "mastery" }.Contains(options.ChampionUsageMode) ||
                 !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
@@ -187,6 +190,61 @@ namespace FACM.League
             _session = session;
             _phase = phase;
             _observedPhase = phase()?.Phase;
+        }
+
+        internal static IReadOnlyList<LeagueDynamicMessagePlayer> OrderPlayers(
+            LeagueDynamicMessageSnapshot snapshot, string mode, int premadeThreshold = 5)
+        {
+            if (snapshot == null) return Array.Empty<LeagueDynamicMessagePlayer>();
+            var players = snapshot.Players.Where(p => p?.Player != null).ToArray();
+            if (!new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" }
+                .Contains(mode)) return players;
+
+            var sizes = new Dictionary<string, int>(StringComparer.Ordinal);
+            var groups = new Dictionary<string, int>(StringComparer.Ordinal);
+            if (mode == "premade-team")
+            {
+                var inferred = LeaguePremadeInference.Infer(snapshot, premadeThreshold)
+                    .OrderByDescending(g => g.Length)
+                    .ThenBy(g => string.Join("|", g), StringComparer.Ordinal).ToArray();
+                for (var i = 0; i < inferred.Length; i++)
+                    foreach (var id in inferred[i])
+                    {
+                        sizes[id] = inferred[i].Length;
+                        groups[id] = i;
+                    }
+            }
+            Func<LeagueDynamicMessagePlayer, double?> metric = player =>
+            {
+                if (mode != "win-rate" && mode != "kda" && mode != "akari-score") return null;
+                var history = LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player);
+                if (history.Count == 0) return null;
+                var analysis = LeaguePlayerHistoryAnalysis.Calculate(history);
+                if (mode == "win-rate")
+                    return analysis.Wins + analysis.Losses > 0
+                        ? (double?)analysis.Wins / (analysis.Wins + analysis.Losses) : null;
+                if (mode == "kda")
+                    return analysis.Kills.HasValue && analysis.Assists.HasValue && analysis.Deaths.HasValue
+                        ? (double?)(analysis.Kills.Value + analysis.Assists.Value) /
+                            Math.Max(1d, analysis.Deaths.Value) : null;
+                return analysis.AkariScore?.Total;
+            };
+            return players.Select((p, i) => new {
+                    Player = p,
+                    Index = i,
+                    Position = Array.IndexOf(new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" },
+                        (p.Player.Position ?? "").ToUpperInvariant()),
+                    Metric = metric(p),
+                    GroupSize = sizes.ContainsKey(p.Player.PuuId ?? "") ? sizes[p.Player.PuuId] : 0,
+                    GroupOrder = groups.ContainsKey(p.Player.PuuId ?? "") ? groups[p.Player.PuuId] : int.MaxValue
+                })
+                .OrderByDescending(x => x.Player.Friendly)
+                .ThenBy(x => mode == "position" ? (x.Position < 0 ? 5 : x.Position) : 0)
+                .ThenByDescending(x => mode == "premade-team" ? x.GroupSize : 0)
+                .ThenBy(x => mode == "premade-team" ? x.GroupOrder : 0)
+                .ThenByDescending(x => x.Metric ?? double.NegativeInfinity)
+                .ThenBy(x => x.Index)
+                .Select(x => x.Player).ToArray();
         }
 
         internal static string ResolveHistoryQueueTag(string preference, int queueId)

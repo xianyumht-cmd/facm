@@ -81,6 +81,23 @@ namespace FACM.League
                 RefreshPreview();
             };
             choices.Controls.Add(historyTag);
+            var orderModes = new[] { "default", "win-rate", "kda", "akari-score", "position", "premade-team" };
+            var order = Choice(new[] { T(LeagueEfficiencyUiTextKeys.OngoingOrderDefault),
+                T(LeagueEfficiencyUiTextKeys.DynamicWinRate), T(LeagueEfficiencyUiTextKeys.DynamicKda),
+                T(LeagueEfficiencyUiTextKeys.OngoingAkariScore),
+                T(LeagueEfficiencyUiTextKeys.DynamicPositions),
+                T(LeagueEfficiencyUiTextKeys.OngoingPremadeTeam) });
+            order.SelectedIndex = Math.Max(0, Array.IndexOf(orderModes, _options.OrderPlayerBy));
+            order.SelectedIndexChanged += delegate
+            {
+                if (_binding) return;
+                _options.OrderPlayerBy = orderModes[Math.Max(0, order.SelectedIndex)];
+                ReorderPlayers();
+            };
+            choices.Controls.Add(new Label { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingOrderPlayers),
+                Padding = new Padding(4, 7, 0, 0) });
+            choices.Controls.Add(order);
             var lobbyQuery = new CheckBox { AutoSize = true,
                 Text = T(LeagueEfficiencyUiTextKeys.OngoingQueryInLobby),
                 Checked = _options.QueryInLobbyPhase };
@@ -520,7 +537,8 @@ namespace FACM.League
                     catch (System.IO.InvalidDataException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
                     catch (System.IO.IOException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
                     catch (System.UnauthorizedAccessException) { encounters = new Dictionary<string, int>(StringComparer.Ordinal); }
-                    foreach (var player in snapshot.Players)
+                    foreach (var player in LeagueDynamicMessageService.OrderPlayers(snapshot, _options.OrderPlayerBy,
+                        _options.PremadeMatchThreshold))
                     {
                         string tag;
                         int count;
@@ -541,6 +559,35 @@ namespace FACM.League
             catch (OperationCanceledException) { }
             catch (Exception) { if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable); }
             finally { if (!IsDisposed) { _busy = false; _binding = false; _load.Enabled = true; RefreshPreview(); } }
+        }
+
+        private void ReorderPlayers()
+        {
+            if (_snapshot == null || _players == null || _jungle == null) return;
+            var primary = _players.Items.Cast<PlayerChoice>().ToDictionary(
+                p => p.Player.Player.PuuId, StringComparer.Ordinal);
+            var jungle = _jungle.Items.Cast<PlayerChoice>().ToDictionary(
+                p => p.Player.Player.PuuId, StringComparer.Ordinal);
+            var selected = new HashSet<string>(_players.CheckedItems.Cast<PlayerChoice>()
+                .Select(p => p.Player.Player.PuuId), StringComparer.Ordinal);
+            var jungleSelected = new HashSet<string>(_jungle.CheckedItems.Cast<PlayerChoice>()
+                .Select(p => p.Player.Player.PuuId), StringComparer.Ordinal);
+            _binding = true;
+            try
+            {
+                _players.Items.Clear();
+                _jungle.Items.Clear();
+                foreach (var player in LeagueDynamicMessageService.OrderPlayers(_snapshot,
+                    _options.OrderPlayerBy, _options.PremadeMatchThreshold))
+                {
+                    var id = player.Player.PuuId;
+                    PlayerChoice choice;
+                    if (primary.TryGetValue(id, out choice)) _players.Items.Add(choice, selected.Contains(id));
+                    if (jungle.TryGetValue(id, out choice)) _jungle.Items.Add(choice, jungleSelected.Contains(id));
+                }
+            }
+            finally { _binding = false; }
+            RefreshPreview();
         }
 
         private void RebuildPremadeGroups(LeagueDynamicMessageSnapshot snapshot, bool preserveSelection)
