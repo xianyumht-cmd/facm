@@ -1,3 +1,17 @@
+### 2026-11-01 — Per-player detail budgets and resumable roster paging (Draft #357)
+
+**Latest executable/test candidate:** [16d5469](https://github.com/xianyumht-cmd/facm/commit/16d5469f8c6d534d6c12717994ecb50defabbeba); four exact-SHA Windows gates are **pending** at the time of this note. Previous fully verified executable: [02fe047](https://github.com/xianyumht-cmd/facm/commit/02fe04770460b76ec7fd39cacbc32536ebe8b03f) ([Build](https://github.com/xianyumht-cmd/facm/actions/runs/41293383690), [Glass](https://github.com/xianyumht-cmd/facm/actions/runs/41293383670), [UI Text](https://github.com/xianyumht-cmd/facm/actions/runs/41293383719), [Mayhem](https://github.com/xianyumht-cmd/facm/actions/runs/41293383668)).
+
+| Pinned Akari v1.5.1 capability | Status | Native behavior / remaining gap |
+| --- | --- | --- |
+| Per-player game-details count | **PARTIAL (candidate)** | Persisted opt-in 0–20 detail requests **per eligible player**, with fair one-per-player rounds, existing authenticated LCU/SGP owner, 45-second deadline and additional 40-request roster ceiling. This replaces the previous incorrect shared total count. Synthetic fixtures cover two sparse games for each of two players, 0 disabling, stale session and serial LCU ownership. Only the initial analysis sample is enriched; full 200-card detail prefetch is still missing. |
+| Resumable roster card history | **PARTIAL (candidate)** | Native “continue roster history” action reuses each player's verified card-only rows, next page offset and exhaustion marker instead of refetching from the initial page. Each invocation retains the 40-page request and 45-second limits; initial 2–20 analysis rows remain separate. Synthetic tests cover two successive pages, no duplicate refetch, exhausted pages and session replacement. Full 200 per player is possible through repeated bounded requests when source data exists, not guaranteed automatically for the whole roster. |
+| Remaining Akari source scope | **PARTIAL / MISSING** | Complete player-card popovers, 200-row detail analysis, all-source concurrency, historical free-form roster/queue/target editing, remaining ChampSelect/gameflow options and regional provider parity. Live Tencent/Riot SGP, 256-row cloud round-trip and Windows 10/DPI acceptance remain unverified. |
+
+**Safety:** PR #357 and stacked #355 remain Draft; no force push, merge, updater, release, deployment, paid infrastructure or production GGman 3.5.78 changes.
+
+Pinned upstream LeagueAkari v1.5.1 commit `14557723706ccc0e0a9d62c470141d4cb7190fcd`, especially `src/main/shards/ongoing-game/match-history-loader.ts` (per-player `gameDetailsLoadCount`) and `OngoingGameSettings.vue`. This note supersedes the earlier **global total detail budget** description below, which records the previous implementation.
+
 ### 2026-11-01 — Pinned roster-wide history/detail option audit (Draft #357)
 
 **Executable/test SHA:** [02fe047](https://github.com/xianyumht-cmd/facm/commit/02fe04770460b76ec7fd39cacbc32536ebe8b03f). **All four exact-SHA Windows gates passed:** [Build + executable history smoke](https://github.com/xianyumht-cmd/facm/actions/runs/41293383690), [Glass WebView2](https://github.com/xianyumht-cmd/facm/actions/runs/41293383670), [UI Text Contract](https://github.com/xianyumht-cmd/facm/actions/runs/41293383719), [Mayhem Source Probe](https://github.com/xianyumht-cmd/facm/actions/runs/41293383668). Synthetic CI does not establish Tencent CN, cloud round-trip or Win10/DPI acceptance.
