@@ -366,7 +366,7 @@ namespace FACM.League
         // Pinned v1.5.1 player-card thresholds, evaluated only from the loaded history owner.
         internal static IReadOnlyList<string> Project(LeaguePlayerMatchPage history,
             LeagueDynamicMessageOptions options = null, double? earlyGankAverage = null,
-            bool currentJungler = false, bool? isPrivate = null)
+            bool currentJungler = false, bool? isPrivate = null, int currentChampionId = 0)
         {
             var tags = new List<string>();
             options = options ?? new LeagueDynamicMessageOptions();
@@ -374,7 +374,9 @@ namespace FACM.League
                 tags.Add(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate));
             if (history == null || history.Matches == null || history.Matches.Count == 0) return tags;
             var source = history.Matches.Where(m => m != null && m.GameId > 0)
-                .Take(LeaguePlayerDataService.MaximumMatchCount).ToArray();
+                .Take(LeaguePlayerDataService.MaximumMatchCount)
+                .Where(m => options.MatchHistoryTagPreference != "current" ||
+                    currentChampionId > 0 && m.ChampionId == currentChampionId).ToArray();
             if (source.Length == 0) return tags;
             var analysis = LeaguePlayerHistoryAnalysis.Calculate(source);
             if (options.ShowWinningStreakTag && analysis.Streak >= 3 && analysis.StreakOutcome == LeagueHistoryOutcome.Win)
