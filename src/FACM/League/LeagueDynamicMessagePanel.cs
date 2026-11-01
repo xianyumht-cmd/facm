@@ -415,7 +415,9 @@ namespace FACM.League
                         choice.Player.Player.PuuId, startIndex, token), _options.AutoHistoryPages,
                     (championId, position, mode) => _module.CreateDynamicPlayerCollectionForm(_ui,
                         snapshot, choice.Player.Player.PuuId, choice.Player.Player.GameName,
-                        championId, position, mode)))
+                        championId, position, mode),
+                    token => _module.LoadDynamicMasteryAsync(snapshot,
+                        choice.Player.Player.PuuId, token)))
                     dialog.ShowDialog(this);
                 if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))
                 {

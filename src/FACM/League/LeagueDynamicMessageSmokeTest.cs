@@ -1506,6 +1506,33 @@ namespace FACM.League
                 unknownMode.NormalWins == 0 && unknownMode.NormalLosses == 0 &&
                 unknownMode.CherryLosses == 1 && !unknownMode.NormalWinRate.HasValue,
                 "Missing game-mode evidence must not fabricate a normal-mode win rate.");
+            var masteryPlayer = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "target" },
+                Mastery = new LeaguePlayerMasteryDetails {
+                    Masteries = new List<Dictionary<string, object>> {
+                        new Dictionary<string, object> {
+                            { "championId", 22 }, { "championLevel", 7 },
+                            { "championPoints", 13000L }, { "puuid", "target" }
+                        },
+                        new Dictionary<string, object> {
+                            { "championId", 23 }, { "championLevel", 4 },
+                            { "championPoints", 2000L }, { "puuid", "target" }
+                        }
+                    }
+                }
+            };
+            var masteryRows = LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows);
+            Require(masteryRows.Count == 2 && masteryRows[0].ChampionId == 22 &&
+                masteryRows[0].ChampionName == "#22" && masteryRows[0].Points == 13000 &&
+                masteryRows[1].Level == 4,
+                "On-demand card mastery must retain verified champion, level and point evidence.");
+            masteryPlayer.Mastery.Masteries[1]["puuid"] = "foreign";
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Foreign mastery evidence must not appear in another player's card.");
+            masteryPlayer.Mastery.Masteries[1]["puuid"] = "target";
+            masteryPlayer.Mastery.Masteries[1]["championId"] = 22;
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Conflicting duplicate champion mastery must fail closed.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
                 GameMode = "CLASSIC", QueueId = 420, TeamId = 100, PuuId = "target" };
             var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {

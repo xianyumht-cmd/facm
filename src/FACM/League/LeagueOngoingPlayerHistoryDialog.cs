@@ -312,6 +312,136 @@ namespace FACM.League
     }
 
     // Bounded, local player-card history; the existing dynamic-message owner supplies all data.
+
+    internal sealed class LeagueOngoingCardMasteryRow
+    {
+        internal int ChampionId;
+        internal string ChampionName;
+        internal long Level;
+        internal long Points;
+    }
+
+    // Project only the current player's explicitly fetched, source-verified mastery.
+    internal static class LeagueOngoingCardMasteryProjection
+    {
+        internal static IReadOnlyList<LeagueOngoingCardMasteryRow> Project(
+            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches)
+        {
+            if (player?.Player == null || player.Mastery?.Masteries == null ||
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
+                player.Mastery.Masteries.Count > 8)
+                return new LeagueOngoingCardMasteryRow[0];
+            var names = LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId, 0, "")
+                .GroupBy(match => match.ChampionId)
+                .ToDictionary(group => group.Key, group => group
+                    .Select(match => match.ChampionName)
+                    .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "");
+            var seen = new HashSet<long>();
+            var result = new List<LeagueOngoingCardMasteryRow>();
+            foreach (var raw in player.Mastery.Masteries)
+            {
+                var id = LeagueMatchTimelineParser.Number(raw, "championId");
+                var level = LeagueMatchTimelineParser.Number(raw, "championLevel");
+                var points = LeagueMatchTimelineParser.Number(raw, "championPoints");
+                var owner = LeagueMatchTimelineParser.Text(raw, "puuid");
+                if (!id.HasValue || id.Value < 1 || id.Value > int.MaxValue ||
+                    !seen.Add(id.Value) || !level.HasValue || level.Value < 0 ||
+                    !points.HasValue || points.Value < 0 ||
+                    (!string.IsNullOrEmpty(owner) &&
+                     !string.Equals(owner, player.Player.PuuId, StringComparison.OrdinalIgnoreCase)))
+                    return new LeagueOngoingCardMasteryRow[0];
+                string name;
+                names.TryGetValue((int)id.Value, out name);
+                name = new string((name ?? "").Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardMasteryRow {
+                    ChampionId = (int)id.Value,
+                    ChampionName = name.Length == 0 ? "#" + id.Value : name,
+                    Level = level.Value,
+                    Points = points.Value
+                });
+            }
+            return result.OrderByDescending(row => row.Points)
+                .ThenBy(row => row.ChampionId).ToArray();
+        }
+    }
+
+    // An on-demand native player-card detail: existing verified champion usage and
+    // explicitly requested mastery share one read-only, copyable surface.
+    internal sealed class LeagueOngoingCardInsightsDialog : Form
+    {
+        internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
+            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = ui.Get(UiTextKeys.LeagueProfileMastery) + " · " +
+                (player.Player.GameName ?? ("#" + player.Player.CellId));
+            Width = 640; Height = 450; MinimumSize = new Size(450, 310);
+            AutoScaleMode = AutoScaleMode.Font;
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var usagePage = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions)) {
+                BackColor = FacmDesignSystem.Canvas
+            };
+            var usage = MakeList();
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 190);
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll), 90);
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon), 90);
+            usage.Columns.Add("%", 80);
+            foreach (var entry in LeagueOngoingCardBreakdown.Project(matches, player.Player.PuuId)
+                .Where(entry => entry.Kind == "champion"))
+            {
+                var item = new ListViewItem(entry.Label);
+                item.SubItems.Add(entry.Analysis.Games.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Analysis.Wins.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Analysis.WinRate.HasValue
+                    ? entry.Analysis.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—");
+                usage.Items.Add(item);
+            }
+            usagePage.Controls.Add(usage);
+            var masteryPage = new TabPage(ui.Get(UiTextKeys.LeagueProfileMastery)) {
+                BackColor = FacmDesignSystem.Canvas
+            };
+            var mastery = MakeList();
+            mastery.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 190);
+            mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel), 110);
+            mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryPoints), 150);
+            foreach (var entry in LeagueOngoingCardMasteryProjection.Project(player, matches))
+            {
+                var item = new ListViewItem(entry.ChampionName);
+                item.SubItems.Add(entry.Level.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Points.ToString("N0", CultureInfo.CurrentCulture));
+                mastery.Items.Add(item);
+            }
+            if (mastery.Items.Count == 0)
+                mastery.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
+            masteryPage.Controls.Add(mastery);
+            tabs.TabPages.Add(usagePage); tabs.TabPages.Add(masteryPage);
+            tabs.SelectedTab = masteryPage;
+            Controls.Add(tabs);
+        }
+
+        private static ListView MakeList()
+        {
+            var list = new ListView {
+                Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                GridLines = true, MultiSelect = true,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text
+            };
+            list.KeyDown += (sender, args) =>
+            {
+                if (!args.Control || args.KeyCode != Keys.C || list.SelectedItems.Count == 0) return;
+                var lines = list.SelectedItems.Cast<ListViewItem>()
+                    .Select(item => string.Join("\t", item.SubItems.Cast<ListViewItem.ListViewSubItem>()
+                        .Select(cell => cell.Text)));
+                Clipboard.SetText(string.Join(Environment.NewLine, lines));
+                args.Handled = true;
+            };
+            return list;
+        }
+    }
+
     internal sealed class LeagueOngoingPlayerHistoryDialog : Form
     {
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -322,7 +452,8 @@ namespace FACM.League
             Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
             Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
-            int autoPages = 0, Func<int, string, string, Form> openFullCollection = null)
+            int autoPages = 0, Func<int, string, string, Form> openFullCollection = null,
+            Func<CancellationToken, Task<bool>> loadMastery = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -701,9 +832,12 @@ namespace FACM.League
             };
             layout.Controls.Add(header, 0, 0);
             layout.Controls.Add(filters, 0, 1);
-            var statsRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+            var statsRow = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = loadMastery == null ? 2 : 3 };
             statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            if (loadMastery != null)
+                statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             statsRow.Controls.Add(stats, 0, 0);
             var breakdownButton = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown) };
@@ -723,6 +857,30 @@ namespace FACM.League
                 }
             };
             statsRow.Controls.Add(breakdownButton, 1, 0);
+            if (loadMastery != null)
+            {
+                var masteryButton = new Button { Dock = DockStyle.Fill,
+                    Text = ui.Get(UiTextKeys.LeagueProfileMastery) };
+                masteryButton.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || loading || collecting || !masteryButton.Enabled) return;
+                    masteryButton.Enabled = false;
+                    try
+                    {
+                        await loadMastery(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                        using (var dialog = new LeagueOngoingCardInsightsDialog(ui, player, matches))
+                            dialog.ShowDialog(this);
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally
+                    {
+                        if (!IsDisposed) masteryButton.Enabled = true;
+                    }
+                };
+                statsRow.Controls.Add(masteryButton, 2, 0);
+            }
             layout.Controls.Add(statsRow, 0, 2);
             layout.Controls.Add(rows, 0, 3);
             Controls.Add(layout);
