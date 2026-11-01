@@ -24,7 +24,7 @@ namespace FACM.League
         private readonly TabControl _selectionTabs;
         private readonly TextBox _preview;
         private readonly Label _status;
-        private readonly Button _load, _loadJungle, _send;
+        private readonly Button _load, _loadJungle, _loadRosterDetails, _send;
         private readonly Button[] _shortcutButtons = new Button[3];
         private LeagueDynamicMessageSnapshot _snapshot;
         private bool _binding;
@@ -193,6 +193,9 @@ namespace FACM.League
             _load = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicLoad), Tone = FacmButtonTone.Secondary };
             _loadJungle = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.JungleLoad),
                 Enabled = false, Visible = false, Tone = FacmButtonTone.Secondary };
+            _loadRosterDetails = new FacmActionButton { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.OngoingHydrateRoster),
+                Enabled = false, Tone = FacmButtonTone.Secondary };
             _send = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicSend), Enabled = false, Tone = FacmButtonTone.Primary };
             var save = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave), Tone = FacmButtonTone.Secondary };
             var tagTools = new FacmActionButton { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.DynamicTagTools),
@@ -274,13 +277,15 @@ namespace FACM.League
             tagTools.Click += (sender, e) => _exchangeMenu.Show(tagTools, new Point(0, tagTools.Height));
             _load.Click += async delegate { await LoadAsync(); };
             _loadJungle.Click += async delegate { await LoadJungleAsync(); };
+            _loadRosterDetails.Click += async delegate { await HydrateRosterDetailsAsync(); };
             _send.Click += async delegate { await SendAsync(); };
             save.Click += delegate
             {
                 string error;
                 _status.Text = _module.TrySaveDynamicMessageOptions(_options, out error) ? T(LeagueEfficiencyUiTextKeys.DynamicSaved) : error;
             };
-            actions.Controls.Add(_load); actions.Controls.Add(_loadJungle); actions.Controls.Add(save);
+            actions.Controls.Add(_load); actions.Controls.Add(_loadJungle);
+            actions.Controls.Add(_loadRosterDetails); actions.Controls.Add(save);
             actions.Controls.Add(tagTools); actions.Controls.Add(_send);
             root.Controls.Add(actions, 0, 1);
             var metrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };
@@ -686,6 +691,52 @@ namespace FACM.League
             finally { if (!IsDisposed) { _busy = false; _binding = false; _load.Enabled = true; RefreshPreview(); } }
         }
 
+        private async Task HydrateRosterDetailsAsync()
+        {
+            if (_busy || _snapshot == null || _options.GameDetailsLoadCount < 1) return;
+            var snapshot = _snapshot;
+            _busy = true; _load.Enabled = false; _send.Enabled = false;
+            _loadRosterDetails.Enabled = false;
+            _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+            try
+            {
+                var enriched = await _module.PrefetchDynamicRosterDetailsAsync(snapshot,
+                    _options.GameDetailsLoadCount, _lifetime.Token);
+                if (IsDisposed || !ReferenceEquals(_snapshot, snapshot)) return;
+                if (enriched < 0)
+                {
+                    _snapshot = null; _binding = true;
+                    try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                    finally { _binding = false; }
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                    return;
+                }
+                if (enriched > 0)
+                {
+                    _binding = true;
+                    try
+                    {
+                        foreach (var row in _players.Items.Cast<PlayerChoice>()
+                            .Concat(_jungle.Items.Cast<PlayerChoice>())) row.RefreshSourceTags();
+                        RebuildPremadeGroups(snapshot, true);
+                        _players.Refresh(); _jungle.Refresh();
+                    }
+                    finally { _binding = false; }
+                }
+                _status.Text = T(enriched > 0 ? LeagueEfficiencyUiTextKeys.DynamicReady :
+                    LeagueEfficiencyUiTextKeys.DynamicPartial);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception)
+            {
+                if (!IsDisposed) _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+            }
+            finally
+            {
+                if (!IsDisposed) { _busy = false; _load.Enabled = true; RefreshPreview(); }
+            }
+        }
+
         private void ReorderPlayers()
         {
             if (_snapshot == null || _players == null || _jungle == null) return;
@@ -869,6 +920,12 @@ namespace FACM.League
             _preview.Text = lines.Count == 0 && IsPremade && _snapshot != null ?
                 T(LeagueEfficiencyUiTextKeys.PremadeNoGroups).Replace("{0}", _options.PremadeMatchThreshold.ToString()) : lines.Count == 0 && IsJungle && _snapshot != null ?
                 T(LeagueEfficiencyUiTextKeys.JungleSelectHint) : string.Join(Environment.NewLine, lines);
+            _loadRosterDetails.Enabled = !_busy && _snapshot != null &&
+                _options.GameDetailsLoadCount > 0 && _snapshot.Players.Any(player =>
+                    player.History != null && player.History.Matches.Any(match =>
+                        LeaguePlayerDataService.NeedsAnalysisDetail(match) &&
+                        !player.AnalysisDetailAttempted.Contains(
+                            LeaguePlayerDataService.HistoryDetailKey(match))));
             _loadJungle.Enabled = !_busy && IsJungle && _snapshot != null &&
                 _jungle.CheckedItems.Cast<PlayerChoice>().Any(p => p.Player.JungleSamples == null);
             _load.Text = _snapshot != null && DateTime.UtcNow - _snapshot.CreatedUtc < TimeSpan.FromMinutes(2) &&
