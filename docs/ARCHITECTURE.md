@@ -1,3 +1,8 @@
+### 2026-11-01 — Native player-card ordering ownership
+
+- `LeagueDynamicMessageOptions.OrderPlayerBy` persists six pinned Akari v1.5.1 sorting modes. `LeagueDynamicMessageService.OrderPlayers` sorts only within each friendly/enemy side using already verified local history, source-total KDA, evidence-backed win rate/Akari score, assigned position and existing premade inference. Unknown evidence is stable rather than fabricated.
+- `LeagueDynamicMessagePanel.ReorderPlayers` reuses the existing player choice instances and checked selection; it performs no new network request, polling or game write. Synthetic regression covers settings, source KDA with zero deaths, stable unknown scores and team preservation. Executable [48caae1](https://github.com/xianyumht-cmd/facm/commit/48caae100693fd228b64a66d969c7ffbbbe7860e) has Windows gates pending; last exact four-gate green executable remains [dd4f7e2](https://github.com/xianyumht-cmd/facm/commit/dd4f7e2c19d01de824b3c42f15d96419ffe151ba).
+
 ### 2026-11-01 — Lobby player-card and paged history ownership
 
 - `LeagueDynamicMessageOptions.QueryInLobbyPhase` is an explicit saved option, default off in GGman. `LeagueDynamicMessageService` accepts the Lobby phase only when enabled, reads `/lol-lobby/v2/lobby` through the existing LCU owner, and projects only non-bot/non-spectator party members. It verifies the signed-in PUUID, unique roster identities, current phase/session and roster key before and after history reads. The Lobby path cannot send chat or write to gameflow. Pinned Akari defaults this option on; the GGman default-off deviation is intentional until real client acceptance.
