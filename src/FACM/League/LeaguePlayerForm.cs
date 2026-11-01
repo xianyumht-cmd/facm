@@ -1085,9 +1085,45 @@ namespace FACM.League
                     result.ReplaysEnabled.Value && result.MatchHistoryEnabled.Value
                         ? _ui.Get(UiTextKeys.LeaguePlayerReplayFolderStatusEnabled) :
                             _ui.Get(UiTextKeys.LeaguePlayerReplayFolderStatusDisabled);
-                MessageBox.Show(this, result.Path + Environment.NewLine + Environment.NewLine + status,
-                    _ui.Get(UiTextKeys.LeaguePlayerReplayFolderTitle),
-                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                var statusLines = new List<string> { status };
+                if (result.EndOfGameEnabled.HasValue)
+                    statusLines.Add(_ui.Get(result.EndOfGameEnabled.Value ?
+                        UiTextKeys.LeaguePlayerReplayFolderEndOfGameEnabled :
+                        UiTextKeys.LeaguePlayerReplayFolderEndOfGameDisabled));
+                if (result.PlayingGame == true || result.PlayingReplay == true || result.Patching == true)
+                    statusLines.Add(_ui.Get(UiTextKeys.LeaguePlayerReplayFolderBusy));
+                using (var dialog = new Form {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerReplayFolderTitle),
+                    StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false,
+                    MinimizeBox = false, MaximizeBox = false,
+                    Width = 560, Height = 220, MinimumSize = new Size(400, 190),
+                    BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
+                })
+                {
+                    var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
+                        RowCount = 3, Padding = new Padding(12) };
+                    layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+                    layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                    layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+                    var path = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                        Text = result.Path, WordWrap = false,
+                        AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerReplayFolderTitle),
+                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
+                    var details = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                        Multiline = true, ScrollBars = ScrollBars.Vertical,
+                        Text = string.Join(Environment.NewLine, statusLines),
+                        BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
+                    var close = new Button { Text = _ui.Get(UiTextKeys.Close),
+                        DialogResult = DialogResult.OK, Dock = DockStyle.Right, Width = 90 };
+                    layout.Controls.Add(path, 0, 0);
+                    layout.Controls.Add(details, 0, 1);
+                    layout.Controls.Add(close, 0, 2);
+                    dialog.Controls.Add(layout);
+                    dialog.AcceptButton = close;
+                    dialog.CancelButton = close;
+                    dialog.Shown += (sender, e) => { path.Focus(); path.SelectAll(); };
+                    dialog.ShowDialog(this);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception)

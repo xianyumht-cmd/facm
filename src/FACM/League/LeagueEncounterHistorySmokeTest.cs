@@ -2239,8 +2239,17 @@ namespace FACM.League
             Require(directory.Status == LeagueEncounterReplayStatus.Ready &&
                 directory.Path == @"C:\Riot Games\League of Legends\Replays" &&
                 directory.ReplaysEnabled == true && directory.MatchHistoryEnabled == true &&
+                directory.EndOfGameEnabled == true && directory.PlayingGame == false &&
+                directory.PlayingReplay == false && directory.Patching == false &&
                 read.ReplayPathReads == 1 && write.Downloads == writesBefore,
                 "Replay-folder inspection must be read-only and expose source-known switches.");
+            read.ReplayBusy = true;
+            directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
+            Require(directory.Status == LeagueEncounterReplayStatus.Ready &&
+                directory.PlayingGame == true && directory.Patching == true &&
+                write.Downloads == writesBefore,
+                "Replay-folder inspection must report source busy states without starting playback.");
+            read.ReplayBusy = false;
             read.SelfPuuid = "another-player";
             directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
             Require(directory.Status == LeagueEncounterReplayStatus.WrongAccount &&
@@ -2266,6 +2275,7 @@ namespace FACM.League
             internal string SelfPuuid = "self";
             internal string State = "download";
             internal bool Enabled = true;
+            internal bool ReplayBusy;
             internal double Progress;
             internal long MetadataGameId = 123;
             internal Action AfterMetadata;
@@ -2288,7 +2298,11 @@ namespace FACM.League
                 {
                     AfterConfiguration?.Invoke();
                     json = "{\"gameVersion\":\"15.21.1\",\"isReplaysEnabled\":" +
-                        (Enabled ? "true" : "false") + ",\"isReplaysForMatchHistoryEnabled\":true}";
+                        (Enabled ? "true" : "false") +
+                        ",\"isReplaysForMatchHistoryEnabled\":true,\"isReplaysForEndOfGameEnabled\":true," +
+                        "\"isPlayingGame\":" + (ReplayBusy ? "true" : "false") +
+                        ",\"isPlayingReplay\":false,\"isPatching\":" +
+                        (ReplayBusy ? "true" : "false") + "}";
                 }
                 else if (path == LeagueEncounterReplayService.ReplayDirectoryPath)
                 {

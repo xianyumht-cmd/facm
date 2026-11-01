@@ -32,6 +32,10 @@ namespace FACM.League
         internal string Path;
         internal bool? ReplaysEnabled;
         internal bool? MatchHistoryEnabled;
+        internal bool? EndOfGameEnabled;
+        internal bool? PlayingGame;
+        internal bool? PlayingReplay;
+        internal bool? Patching;
     }
 
     // One explicit scoreboard action. Do not poll LCU replay events from a background service.
@@ -98,7 +102,11 @@ namespace FACM.League
                         Status = path == null ? LeagueEncounterReplayStatus.Unavailable : LeagueEncounterReplayStatus.Ready,
                         Path = path,
                         ReplaysEnabled = OptionalBoolean(configuration, "isReplaysEnabled"),
-                        MatchHistoryEnabled = OptionalBoolean(configuration, "isReplaysForMatchHistoryEnabled")
+                        MatchHistoryEnabled = OptionalBoolean(configuration, "isReplaysForMatchHistoryEnabled"),
+                        EndOfGameEnabled = OptionalBoolean(configuration, "isReplaysForEndOfGameEnabled"),
+                        PlayingGame = OptionalBoolean(configuration, "isPlayingGame"),
+                        PlayingReplay = OptionalBoolean(configuration, "isPlayingReplay"),
+                        Patching = OptionalBoolean(configuration, "isPatching")
                     };
                 }
                 catch (OperationCanceledException)
