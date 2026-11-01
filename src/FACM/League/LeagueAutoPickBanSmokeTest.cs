@@ -1034,6 +1034,27 @@ namespace FACM.League
             }
         }
 
+            // Planning-stage intent uses the same phase-scoped retry as a failed pick or ban.
+            var intentProfiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 22 }, ShowPickIntent = true }
+            });
+            read = new FakeRead { SessionJson = Planning(0, 0), Pickable = "[22]" };
+            writer = new FakeWrite { FailFirstIntentResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 0, false, 0, intentProfiles);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.IntentCalls.SequenceEqual(new[] { "10:22", "10:22" }),
+                    "A failed planning-stage intent must retry on the existing ChampSelect tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.IntentCalls.Count == 2,
+                    "Planning intent retry must stop when the ChampSelect episode ends.");
+            }
+
         private static async Task ValidateFailureAndCancellationAsync()
         {
             var idleClock = new FakeClock();
@@ -1318,6 +1339,7 @@ namespace FACM.League
             public readonly List<string> IntentCalls = new List<string>();
             public int FailFirstResponses;
             public int FailFirstCompletedResponses;
+            public int FailFirstIntentResponses;
 
             public Task<LeagueClientWriteResponse> TryApplyAsync(
                 string type, int id, int championId, bool completed, CancellationToken cancellationToken)
@@ -1339,7 +1361,9 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 IntentCalls.Add(actionId + ":" + championId);
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+                var fail = FailFirstIntentResponses > 0;
+                if (fail) FailFirstIntentResponses--;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
             }
         }
 

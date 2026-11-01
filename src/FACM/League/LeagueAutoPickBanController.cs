@@ -480,7 +480,7 @@ namespace FACM.League
                 RecordOnce(reported, trace, "intent_eligibility", "no_available_candidate");
                 return true;
             }
-            if (!attempted.Add("intent:" + intent.Id)) return true;
+            if (attempted.Contains("intent:" + intent.Id)) return true;
             var watch = Stopwatch.StartNew();
             var delay = LeagueAutoSelectContext.PhaseDelay(profile.PickDelayMs, false, intent.Timer, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
             if (delay > 0)
@@ -510,6 +510,7 @@ namespace FACM.League
                 if (!IsCurrent(episode) || !ParseAvailableIds(subset).Contains(desired)) return true;
             }
             var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
+            if (result != null && result.IsSuccessStatusCode) attempted.Add("intent:" + intent.Id);
             CompactTraceLog.Record(trace, "autoselect-intent", "write",
                 result == null ? "failed_unavailable" :
                 result.IsSuccessStatusCode ? "submitted" : "failed_http_" + result.StatusCode,

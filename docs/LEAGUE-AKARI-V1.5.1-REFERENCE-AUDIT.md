@@ -1,3 +1,7 @@
+### 2026-11-01 — Phase-scoped planning intent retry (Draft #357)
+
+The native ChampSelect planner now treats a failed planning-stage intent PATCH like failed pick/ban writes: only a confirmed 2xx response consumes the per-action intent fence. Failed HTTP responses can retry on the existing two-second ChampSelect episode tick, after fresh action, teammate-intent, availability, account and phase checks. The Windows auto-pick/ban smoke exercises a 503 intent followed by a successful retry and verifies phase-exit cancellation. No new poller or writer. This is source parity reliability; live Tencent/Windows acceptance remains deferred.
+
 ### 2026-11-01 — Source-backed full player-card collection and ChampSelect retry (Draft #357)
 
 **Executable/test candidate:** `f9e25d3f6e264c26cd696f33a133e9aa2e9c6eb5` (full-card navigation), plus the present history-smoke/docs HEAD. Four exact-HEAD Windows CI gates **pending** until all results are confirmed; previous four-gate verified `b990da35e25565eac2165d0712a0617ddfef2bdc`. Both PR #357 and stacked #355 remain Draft.
