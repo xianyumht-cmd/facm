@@ -501,7 +501,7 @@ namespace FACM.League
         {
             var read = new FakeReadApi();
             read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
-                "{\\"name\\":\\"missions-celebration\\"}");
+                "{\"name\":\"missions-celebration\"}");
             var write = new FakePostGameWriteApi();
             write.MissionStatuses.Enqueue(503);
             write.MissionStatuses.Enqueue(204);
@@ -517,7 +517,7 @@ namespace FACM.League
             }
             read = new FakeReadApi();
             read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
-                "{\\"name\\":\\"missions-celebration\\"}");
+                "{\"name\":\"missions-celebration\"}");
             write = new FakePostGameWriteApi();
             write.MissionStatuses.Enqueue(503);
             write.MissionStatuses.Enqueue(503);
