@@ -67,7 +67,7 @@ namespace FACM.League
                             attempts++;
                             cancellation.Cancel();
                             return Task.FromResult(Bytes(
-                                "{\\"updatedAt\\":\\"2026-08-01T00:00:00.000Z\\",\\"queues\\":[420,450]}"));
+                                @"{""updatedAt"":""2026-08-01T00:00:00.000Z"",""queues"":[420,450]}"));
                         }).GetAwaiter().GetResult();
                     }
                     catch (OperationCanceledException) { cancelled = true; }
