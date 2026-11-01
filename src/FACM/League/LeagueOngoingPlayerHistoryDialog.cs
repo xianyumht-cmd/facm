@@ -369,6 +369,8 @@ namespace FACM.League
     // explicitly requested mastery share one read-only, copyable surface.
     internal sealed class LeagueOngoingCardInsightsDialog : Form
     {
+        internal int SelectedChampionId { get; private set; }
+
         internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
             LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches)
         {
@@ -391,7 +393,7 @@ namespace FACM.League
             foreach (var entry in LeagueOngoingCardBreakdown.Project(matches, player.Player.PuuId)
                 .Where(entry => entry.Kind == "champion"))
             {
-                var item = new ListViewItem(entry.Label);
+                var item = new ListViewItem(entry.Label) { Tag = entry.ChampionId };
                 item.SubItems.Add(entry.Analysis.Games.ToString(CultureInfo.CurrentCulture));
                 item.SubItems.Add(entry.Analysis.Wins.ToString(CultureInfo.CurrentCulture));
                 item.SubItems.Add(entry.Analysis.WinRate.HasValue
@@ -408,7 +410,7 @@ namespace FACM.League
             mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryPoints), 150);
             foreach (var entry in LeagueOngoingCardMasteryProjection.Project(player, matches))
             {
-                var item = new ListViewItem(entry.ChampionName);
+                var item = new ListViewItem(entry.ChampionName) { Tag = entry.ChampionId };
                 item.SubItems.Add(entry.Level.ToString(CultureInfo.CurrentCulture));
                 item.SubItems.Add(entry.Points.ToString("N0", CultureInfo.CurrentCulture));
                 mastery.Items.Add(item);
@@ -416,6 +418,27 @@ namespace FACM.League
             if (mastery.Items.Count == 0)
                 mastery.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
             masteryPage.Controls.Add(mastery);
+            var verifiedChampions = new HashSet<int>(
+                LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId));
+            foreach (var list in new[] { usage, mastery })
+            {
+                Action select = () =>
+                {
+                    if (list.SelectedItems.Count != 1) return;
+                    var id = list.SelectedItems[0].Tag;
+                    if (!(id is int) || !verifiedChampions.Contains((int)id)) return;
+                    SelectedChampionId = (int)id;
+                    DialogResult = DialogResult.OK;
+                    Close();
+                };
+                list.DoubleClick += (sender, args) => select();
+                list.KeyDown += (sender, args) =>
+                {
+                    if (args.KeyCode != Keys.Enter) return;
+                    select();
+                    args.Handled = true;
+                };
+            }
             tabs.TabPages.Add(usagePage); tabs.TabPages.Add(masteryPage);
             tabs.SelectedTab = masteryPage;
             Controls.Add(tabs);
@@ -870,7 +893,17 @@ namespace FACM.League
                         await loadMastery(_lifetime.Token);
                         if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
                         using (var dialog = new LeagueOngoingCardInsightsDialog(ui, player, matches))
-                            dialog.ShowDialog(this);
+                        {
+                            if (dialog.ShowDialog(this) == DialogResult.OK &&
+                                dialog.SelectedChampionId > 0 && isCurrent())
+                            {
+                                selectedChampion = dialog.SelectedChampionId;
+                                selectedPosition = "";
+                                selectedMode = "";
+                                rebuildChoices();
+                                refreshRows();
+                            }
+                        }
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception) { }
