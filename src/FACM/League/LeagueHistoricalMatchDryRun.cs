@@ -462,6 +462,22 @@ namespace FACM.League
             return true;
         }
 
+        // Move one Rift preview player without touching source participants or the game client.
+        internal static bool TryMoveTeam(LeagueDynamicMessageSnapshot snapshot,
+            string puuid, int destinationTeamId)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CLASSIC" ||
+                !LeagueDynamicMessageService.SafePuuid(puuid) ||
+                (destinationTeamId != 100 && destinationTeamId != 200)) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == puuid);
+            if (player == null || player.HistoricalTeamId == destinationTeamId ||
+                snapshot.Players.Count(p => p.HistoricalTeamId == player.HistoricalTeamId) <= 1)
+                return false;
+            player.HistoricalTeamId = destinationTeamId;
+            RefreshDraftSides(snapshot);
+            return true;
+        }
+
         // A swap only changes the bounded preview; the source match is never modified.
         internal static bool TrySwapTeams(LeagueDynamicMessageSnapshot snapshot,
             string firstPuuid, string secondPuuid)

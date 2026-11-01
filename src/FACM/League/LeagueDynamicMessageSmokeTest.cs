@@ -1668,6 +1668,23 @@ namespace FACM.League
                 LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 2 &&
                 roster[1].TeamId == 100 && roster[5].TeamId == 200,
                 "Restoring a historical team draft must restore inference without touching source records.");
+            Require(LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 200) &&
+                teammate.HistoricalTeamId == 200 && !teammate.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 4 &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 200) &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "missing", 100) &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 300) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                teammate.HistoricalTeamId == 100 && teammate.Friendly &&
+                roster[1].TeamId == 100,
+                "Single-player Rift moves must be reversible, source-isolated and identity checked.");
+            foreach (var id in new[] { "player-2", "player-3", "player-4", "player-5" })
+                Require(LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, id, 200),
+                    "Rift free-form preview should permit any nonempty team size.");
+            Require(!LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "target", 200) &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 100) == 1 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot),
+                "Moving the final player out of a team must fail without mutation.");
 
             var batch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
                 PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,

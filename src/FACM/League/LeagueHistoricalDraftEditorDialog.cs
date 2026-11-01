@@ -117,7 +117,33 @@ namespace FACM.League
                 DialogResult = DialogResult.OK;
                 Close();
             };
-            layout.Controls.Add(swapApply, 1, 5);
+            var move = new Button { Width = 148, Height = 34,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftMoveTeam),
+                Enabled = snapshot.HistoricalGameMode == "CLASSIC" &&
+                    snapshot.Players.Count(p => p.HistoricalTeamId == player.HistoricalTeamId) > 1 };
+            move.Click += (sender, args) =>
+            {
+                if (!isCurrentSession())
+                {
+                    move.Enabled = false;
+                    return;
+                }
+                var destination = player.HistoricalTeamId == 100 ? 200 : 100;
+                if (!LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, player.Player.PuuId, destination))
+                {
+                    MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            swapApply.Width = 148;
+            var teamActions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                WrapContents = false, AutoScroll = true };
+            teamActions.Controls.Add(swapApply);
+            teamActions.Controls.Add(move);
+            layout.Controls.Add(teamActions, 1, 5);
 
             var recent = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,

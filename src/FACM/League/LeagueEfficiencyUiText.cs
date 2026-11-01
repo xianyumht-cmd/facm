@@ -402,6 +402,7 @@ namespace FACM.League
         public const string HistoricalDraftKda = "LeagueEfficiencyHistoricalDraftKda";
         public const string HistoricalDraftSwapTeam = "LeagueEfficiencyHistoricalDraftSwapTeam";
         public const string HistoricalDraftSwapApply = "LeagueEfficiencyHistoricalDraftSwapApply";
+        public const string HistoricalDraftMoveTeam = "LeagueEfficiencyHistoricalDraftMoveTeam";
         public const string HistoricalDraftRestoreTeams = "LeagueEfficiencyHistoricalDraftRestoreTeams";
         public const string HistoricalDraftRestoreAll = "LeagueEfficiencyHistoricalDraftRestoreAll";
         public const string OngoingRecentHistory = "LeagueEfficiencyOngoingRecentHistory";
@@ -895,6 +896,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftKda, "击杀 / 死亡 / 助攻" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapTeam, "与其他队伍的玩家交换位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapApply, "交换模拟队伍" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftMoveTeam, "移至另一队" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreTeams, "恢复原始队伍" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftRestoreAll, "恢复完整历史阵容" },
             { LeagueEfficiencyUiTextKeys.OngoingRecentHistory, "玩家近期战绩" },
