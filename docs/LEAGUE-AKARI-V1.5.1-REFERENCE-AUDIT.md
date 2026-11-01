@@ -1,3 +1,7 @@
+### 2026-11-01 — Cancel-safe auto-select regional group refresh (Draft #357)
+
+The existing Akari group catalog fetch now rechecks cancellation after server-directory resolution and after the public response. A canceled account/session request no longer consumes the two-hour on-demand refresh interval or publishes a stale group catalog. Synthetic tests inject a canceled response, verify immediate explicit retry and verify normal throttling; production continues using the existing trusted public-data transport and SGP directory. No new endpoint, poller, HTTP owner or dependency.
+
 ### 2026-11-01 — Bounded pre-end-of-game mission recovery (Draft #357)
 
 The existing Akari-style `missions-celebration` completion now retries transient non-2xx responses on later ordinary phase observations rather than consuming its one-shot fence before the HTTP response. Every attempt re-reads the active event twice, obeys cancellation and the post-game/auto-return owner, and stops after three submissions per post-game episode. Synthetic Windows smoke covers 503→204 recovery, no repeated success and the three-attempt ceiling. No additional poller, network owner or endpoint. Real LCU/region compatibility remains unverified.

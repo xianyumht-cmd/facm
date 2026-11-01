@@ -15,6 +15,7 @@ namespace FACM.League
         public static void Validate()
         {
             ValidateQueueGroupsAndTiming();
+            ValidateGroupRefreshCancellation();
             ValidateRemoteGroupCatalog();
             ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
@@ -55,6 +56,49 @@ namespace FACM.League
             ValidateAutoBenchAsync().GetAwaiter().GetResult();
             ValidateChampionTradesAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidateGroupRefreshCancellation()
+        {
+            LeagueAutoSelectGroupCatalog.ResetForSmokeTest();
+            try
+            {
+                var loads = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var canceled = false;
+                    try
+                    {
+                        LeagueAutoSelectGroupCatalog.TryRefreshAsync(cancellation.Token,
+                            token => Task.FromResult(0), token =>
+                            {
+                                loads++;
+                                cancellation.Cancel();
+                                return Task.FromResult<byte[]>(null);
+                            }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { canceled = true; }
+                    Require(canceled && loads == 1,
+                        "Cancelled auto-select catalog response must not publish or throttle.");
+                }
+                LeagueAutoSelectGroupCatalog.TryRefreshAsync(CancellationToken.None,
+                    token => Task.FromResult(0), token =>
+                    {
+                        loads++;
+                        return Task.FromResult<byte[]>(null);
+                    }).GetAwaiter().GetResult();
+                Require(loads == 2,
+                    "Cancelled group catalog must allow the next explicit refresh.");
+                LeagueAutoSelectGroupCatalog.TryRefreshAsync(CancellationToken.None,
+                    token => Task.FromResult(0), token =>
+                    {
+                        loads++;
+                        return Task.FromResult<byte[]>(null);
+                    }).GetAwaiter().GetResult();
+                Require(loads == 2,
+                    "Completed group catalog attempt must retain the two-hour throttle.");
+            }
+            finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
         }
 
         private static void ValidateActionParsing()

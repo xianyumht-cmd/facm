@@ -161,8 +161,20 @@ namespace FACM.League
                 ? assignedRole ?? "default" : "default";
         }
 
-        internal static async Task<bool> TryRefreshAsync(CancellationToken token)
+        internal static Task<bool> TryRefreshAsync(CancellationToken token)
         {
+            return TryRefreshAsync(token,
+                t => LeagueSgpServerCatalog.TryRefreshAsync(t),
+                t => LeaguePublicDataTransport.TryGetBytesAsync(
+                    CatalogUrl, TimeSpan.FromSeconds(4), t));
+        }
+
+        internal static async Task<bool> TryRefreshAsync(CancellationToken token,
+            Func<CancellationToken, Task> refreshServers,
+            Func<CancellationToken, Task<byte[]>> load)
+        {
+            if (refreshServers == null) throw new ArgumentNullException(nameof(refreshServers));
+            if (load == null) throw new ArgumentNullException(nameof(load));
             token.ThrowIfCancellationRequested();
             await Gate.WaitAsync(token).ConfigureAwait(false);
             try
@@ -170,10 +182,16 @@ namespace FACM.League
                 if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
                 _lastAttempt = DateTime.UtcNow;
                 // Resolve trusted new SGP platforms before validating server-scoped groups.
-                await LeagueSgpServerCatalog.TryRefreshAsync(token).ConfigureAwait(false);
-                var bytes = await LeaguePublicDataTransport.TryGetBytesAsync(
-                    CatalogUrl, TimeSpan.FromSeconds(4), token).ConfigureAwait(false);
+                await refreshServers(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
+                var bytes = await load(token).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
                 return TryApply(bytes);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                _lastAttempt = DateTime.MinValue;
+                throw;
             }
             catch (OperationCanceledException) when (!token.IsCancellationRequested) { return false; }
             finally { Gate.Release(); }
