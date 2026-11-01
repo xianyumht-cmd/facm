@@ -1158,8 +1158,12 @@ namespace FACM.League
         {
             if (snapshot == null || (target != "friendly" && target != "enemy" && target != "all"))
                 return new HashSet<string>(StringComparer.Ordinal);
+            var arenaAll = snapshot.Phase == "HistoricalPreview" &&
+                snapshot.HistoricalGameMode == "CHERRY";
             return new HashSet<string>(snapshot.Players.Where(p => p.Player != null &&
-                (target == "all" || target == "friendly" && p.Friendly || target == "enemy" && !p.Friendly))
+                (arenaAll ? target != "enemy" :
+                    target == "all" || target == "friendly" && p.Friendly ||
+                    target == "enemy" && !p.Friendly))
                 .Select(p => p.Player.PuuId).Where(SafePuuid), StringComparer.Ordinal);
         }
 

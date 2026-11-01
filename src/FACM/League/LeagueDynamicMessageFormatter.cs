@@ -12,10 +12,15 @@ namespace FACM.League
         {
             var result = new List<string>();
             if (snapshot == null || options == null) return result;
-            var players = snapshot.Players.Where(p => (selected == null || selected.Contains(p.Player.PuuId)) &&
-                (options.Target == "all" || options.Target == "friendly" && p.Friendly || options.Target == "enemy" && !p.Friendly)).ToList();
+            var arenaAll = snapshot.Phase == "HistoricalPreview" &&
+                snapshot.HistoricalGameMode == "CHERRY";
+            var players = snapshot.Players.Where(p => p?.Player != null &&
+                (selected == null || selected.Contains(p.Player.PuuId)) &&
+                (arenaAll ? options.Target != "enemy" :
+                    options.Target == "all" || options.Target == "friendly" && p.Friendly ||
+                    options.Target == "enemy" && !p.Friendly)).ToList();
             var counts = players.Where(p => p.Player.ChampionId > 0).GroupBy(p => p.Player.ChampionId).ToDictionary(g => g.Key, g => g.Count());
-            foreach (var player in players.OrderByDescending(p => p.Friendly))
+            foreach (var player in players.OrderByDescending(p => !arenaAll && p.Friendly))
             {
                 var name = DisplayName(player, options.NameStrategy, counts);
                 if (options.ShowCurrentChampion && player.Player.ChampionId <= 0)

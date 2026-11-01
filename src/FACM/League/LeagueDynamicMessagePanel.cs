@@ -670,9 +670,11 @@ namespace FACM.League
                         tags.TryGetValue(player.Player.PuuId, out tag);
                         encounters.TryGetValue(player.Player.PuuId, out count);
                         var self = string.Equals(player.Player.PuuId, snapshot.SelfPuuid, StringComparison.Ordinal);
-                        _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count },
+                        _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count,
+                            IsArenaAllGroup = snapshot.Phase == "HistoricalPreview" && snapshot.HistoricalGameMode == "CHERRY" },
                             selected == null || selected.Contains(player.Player.PuuId));
-                        _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count }, false);
+                        _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count,
+                            IsArenaAllGroup = snapshot.Phase == "HistoricalPreview" && snapshot.HistoricalGameMode == "CHERRY" }, false);
                     }
                     RefreshKdaOutlierLabels(snapshot);
                     RebuildPremadeGroups(snapshot, false);
@@ -1293,6 +1295,7 @@ namespace FACM.League
             internal string Tag;
             internal string PremadeGroup;
             internal bool IsSelf;
+            internal bool IsArenaAllGroup;
             internal int EncounterCount;
             internal string KdaOutlier;
             private IReadOnlyList<string> _sourceTags;
@@ -1314,7 +1317,9 @@ namespace FACM.League
             }
             public override string ToString()
             {
-                return LeagueEfficiencyText.Get(null, Player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy) +
+                return (IsArenaAllGroup ? "TEAM-ALL" :
+                    LeagueEfficiencyText.Get(null, Player.Friendly ?
+                        LeagueEfficiencyUiTextKeys.DynamicFriendly : LeagueEfficiencyUiTextKeys.DynamicEnemy)) +
                     " · " + (Player.Player.AccountName ?? Player.ChampionName ?? LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicPlayer)) +
                     (IsSelf && _options.ShowSelfTag ? " · " + LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingSelf) : string.Empty) +
                     (!_options.ShowTaggedTag || IsSelf || string.IsNullOrEmpty(Tag) ? string.Empty : " · [" + Tag + "]") +

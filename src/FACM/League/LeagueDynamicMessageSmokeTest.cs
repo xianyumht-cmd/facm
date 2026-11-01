@@ -1915,6 +1915,15 @@ namespace FACM.League
                 arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
                 arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
                 "Arena historical draft must preserve eight independent two-player subteams.");
+            Require(LeagueDynamicMessageService.TargetPlayers(arenaDraft, "friendly").Count == 16 &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 16 &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "enemy").Count == 0 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "friendly" }).Count == 16 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "enemy" }).Count == 0 &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2,
+                "Source TEAM-ALL must include the entire Arena preview without losing two-player subteam evidence.");
             var arenaPerspective = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
                 PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
                 ChampionId = p.Player.ChampionId, Position = "",
