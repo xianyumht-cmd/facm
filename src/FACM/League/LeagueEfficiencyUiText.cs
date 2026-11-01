@@ -388,6 +388,7 @@ namespace FACM.League
         public const string OngoingCardStats = "LeagueEfficiencyOngoingCardStats";
         public const string OngoingCardBreakdown = "LeagueEfficiencyOngoingCardBreakdown";
         public const string OngoingCardWinRate = "LeagueEfficiencyOngoingCardWinRate";
+        public const string OngoingCardArenaCount = "LeagueEfficiencyOngoingCardArenaCount";
         public const string OngoingCardArenaFirst = "LeagueEfficiencyOngoingCardArenaFirst";
         public const string OngoingCardPositions = "LeagueEfficiencyOngoingCardPositions";
         public const string HistoricalDraftApply = "LeagueEfficiencyHistoricalDraftApply";
@@ -878,6 +879,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.OngoingCardStats, "胜率 {0}（{1}胜/{2}负） · KDA {3}（{4}场有效统计）" },
             { LeagueEfficiencyUiTextKeys.OngoingCardBreakdown, "详细分析" },
             { LeagueEfficiencyUiTextKeys.OngoingCardWinRate, "胜率" },
+            { LeagueEfficiencyUiTextKeys.OngoingCardArenaCount, "斗魂冠军" },
             { LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst, "斗魂冠军 {0}/{1}" },
             { LeagueEfficiencyUiTextKeys.OngoingCardPositions, "常玩位置 {0}" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftApply, "应用到本次模拟" },

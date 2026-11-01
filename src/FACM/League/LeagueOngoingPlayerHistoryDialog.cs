@@ -156,7 +156,7 @@ namespace FACM.League
                 list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate), 95);
                 list.Columns.Add("KDA", 85);
                 list.Columns.Add("KDA CV", 85);
-                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst), 115);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaCount), 115);
                 foreach (var item in breakdown.Where(row => row.Kind == kind))
                 {
                     var a = item.Analysis;
@@ -180,7 +180,7 @@ namespace FACM.League
                     row.Tag = item;
                     list.Items.Add(row);
                 }
-                list.DoubleClick += (sender, args) =>
+                Action selectGroup = () =>
                 {
                     if (list.SelectedItems.Count != 1) return;
                     var selected = list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow;
@@ -191,6 +191,13 @@ namespace FACM.League
                     SelectedMode = selected.Kind == "mode" ? selected.Mode : "";
                     DialogResult = DialogResult.OK;
                     Close();
+                };
+                list.DoubleClick += (sender, args) => selectGroup();
+                list.KeyDown += (sender, args) =>
+                {
+                    if (args.KeyCode != Keys.Enter) return;
+                    selectGroup();
+                    args.Handled = true;
                 };
                 page.Controls.Add(list);
                 tabs.TabPages.Add(page);
