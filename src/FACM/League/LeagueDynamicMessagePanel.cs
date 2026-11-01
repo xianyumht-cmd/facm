@@ -105,31 +105,6 @@ namespace FACM.League
             _exchangeMenu.Items.Add(tagVisibility);
             var championUsage = new ToolStripMenuItem(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             _exchangeMenu.Items.Add(championUsage);
-            var tagScope = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.OngoingTagScope));
-            _exchangeMenu.Items.Add(tagScope);
-            foreach (var scope in new[] { "all", "current" })
-            {
-                var selectedScope = scope;
-                var item = new ToolStripMenuItem(T(scope == "all"
-                    ? LeagueEfficiencyUiTextKeys.OngoingTagAll
-                    : LeagueEfficiencyUiTextKeys.OngoingTagCurrent))
-                {
-                    Checked = _options.MatchHistoryTagPreference == scope
-                };
-                tagScope.DropDownItems.Add(item);
-                item.Click += (sender, e) =>
-                {
-                    _options.MatchHistoryTagPreference = selectedScope;
-                    foreach (ToolStripMenuItem choice in tagScope.DropDownItems)
-                        choice.Checked = ReferenceEquals(choice, item);
-                    foreach (var choice in _players.Items.Cast<PlayerChoice>()
-                        .Concat(_jungle.Items.Cast<PlayerChoice>()))
-                        choice.RefreshSourceTags();
-                    _players.Refresh();
-                    _jungle.Refresh();
-                    RefreshPreview();
-                };
-            }
             foreach (var mode in new[] { "none", "recent", "mastery" })
             {
                 var selectedMode = mode;
@@ -954,8 +929,7 @@ namespace FACM.League
                      string.Equals(row.Role, "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
                      row.Spell1Id == 11 || row.Spell2Id == 11);
                 _sourceTags = LeagueOngoingPlayerTagProjection.Project(Player.History, _options,
-                    Player.EarlyGankAverage, jungler, Player.IsPrivate,
-                    row?.ChampionId ?? 0);
+                    Player.EarlyGankAverage, jungler, Player.IsPrivate);
             }
             public override string ToString()
             {

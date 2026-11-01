@@ -782,33 +782,6 @@ namespace FACM.League
                 LeagueDynamicMessageOptions.Parse("{\"MatchHistoryLoadCount\":21}")
                     .MatchHistoryLoadCount == 20,
                 "Native history load budget must persist and reject out-of-range counts.");
-            var scope = new LeagueDynamicMessageOptions { MatchHistoryTagPreference = "current" };
-            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scope))
-                .MatchHistoryTagPreference == "current" &&
-                LeagueDynamicMessageOptions.Parse("{}").MatchHistoryTagPreference == "all" &&
-                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryTagPreference\":\"bad\"}")
-                    .MatchHistoryTagPreference == "all",
-                "Current-champion history scope must persist and reject invalid settings.");
-            var history = new LeaguePlayerMatchPage();
-            for (var game = 1; game <= 6; game++)
-                history.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
-                    ChampionId = game <= 3 ? 11 : 22,
-                    GameType = "MATCHED_GAME", WinResult = game <= 3 ? "win" : "loss",
-                    ParticipantResolved = true, StatisticsAvailable = true,
-                    GameCreationEpochMs = 1700000000000L + game * 60000L,
-                    GameCreationLocal = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
-                        .AddMinutes(game) });
-            var wins = LeagueOngoingPlayerTagProjection.Project(history, scope,
-                currentChampionId: 11);
-            var losses = LeagueOngoingPlayerTagProjection.Project(history, scope,
-                currentChampionId: 22);
-            Require(wins.Any(x => x.Contains(LeagueEfficiencyText.Get(null,
-                    LeagueEfficiencyUiTextKeys.OngoingWinStreak).Replace("{0}", "3"))) &&
-                losses.Any(x => x.Contains(LeagueEfficiencyText.Get(null,
-                    LeagueEfficiencyUiTextKeys.OngoingLossStreak).Replace("{0}", "3"))) &&
-                LeagueOngoingPlayerTagProjection.Project(history, scope,
-                    currentChampionId: 0).Count == 0,
-                "Current-champion tag scope must never leak other champions or unknown champion samples.");
             var options = LeagueDynamicMessageOptions.Parse("{}");
             Require(options.ChampionUsageMode == "recent",
                 "The source champion usage default must remain recent for existing settings.");
