@@ -76,40 +76,38 @@ namespace FACM.League
 
             var players = parsed as object[];
             if (players == null) return null;
+            Dictionary<string, object> selected = null;
             foreach (var entry in players)
             {
                 var player = entry as Dictionary<string, object>;
                 if (player == null) continue;
                 var riotId = ReadString(player, "riotId");
                 var summonerName = ReadString(player, "summonerName");
-                if (!string.IsNullOrWhiteSpace(riotId))
-                {
-                    if (!SameName(riotId, accountName)) continue;
-                }
-                else if (!SameName(summonerName, accountName) &&
-                         !SameName(summonerName, internalName)) continue;
-
-                object deadValue;
-                object timerValue;
-                if (!player.TryGetValue("isDead", out deadValue) || !(deadValue is bool) ||
-                    !player.TryGetValue("respawnTimer", out timerValue)) return null;
-                double seconds;
-                if (!double.TryParse(Convert.ToString(timerValue, CultureInfo.InvariantCulture),
-                    NumberStyles.Float, CultureInfo.InvariantCulture, out seconds) ||
-                    double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0 || seconds > 3600) return null;
-
-                var dead = (bool)deadValue;
-                if (!dead) return new LeagueRespawnTimerSample();
-                var total = previous != null && previous.IsDead
-                    ? Math.Max(previous.TotalTimeSeconds, seconds) : seconds;
-                return new LeagueRespawnTimerSample
-                {
-                    IsDead = true,
-                    TimeLeftSeconds = seconds,
-                    TotalTimeSeconds = total
-                };
+                var matches = !string.IsNullOrWhiteSpace(riotId)
+                    ? SameName(riotId, accountName)
+                    : SameName(summonerName, accountName) || SameName(summonerName, internalName);
+                if (!matches) continue;
+                if (selected != null) return null;
+                selected = player;
             }
-            return null;
+            if (selected == null) return null;
+            object deadValue;
+            object timerValue;
+            if (!selected.TryGetValue("isDead", out deadValue) || !(deadValue is bool) ||
+                !selected.TryGetValue("respawnTimer", out timerValue)) return null;
+            double seconds;
+            if (!double.TryParse(Convert.ToString(timerValue, CultureInfo.InvariantCulture),
+                NumberStyles.Float, CultureInfo.InvariantCulture, out seconds) ||
+                double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds < 0 || seconds > 3600) return null;
+            if (!(bool)deadValue) return new LeagueRespawnTimerSample();
+            var total = previous != null && previous.IsDead
+                ? Math.Max(previous.TotalTimeSeconds, seconds) : seconds;
+            return new LeagueRespawnTimerSample
+            {
+                IsDead = true,
+                TimeLeftSeconds = seconds,
+                TotalTimeSeconds = total
+            };
         }
 
         private static string ReadString(Dictionary<string, object> value, string name)

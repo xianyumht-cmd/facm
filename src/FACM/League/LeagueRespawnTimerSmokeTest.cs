@@ -59,6 +59,14 @@ namespace FACM.League
 
             Require(Sample("[{\"riotId\":\"其他人#CN1\",\"isDead\":true,\"respawnTimer\":10}]", "玩家#CN1", first) == null,
                 "Respawn projection reused a different summoner's state.");
+            Require(Sample("[{\"riotId\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":10}," +
+                "{\"riotId\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":25}]", "玩家#CN1", first) == null,
+                "Duplicate Riot IDs must fail closed rather than select a possibly foreign timer.");
+            Require(LeagueRespawnTimerProjection.Project(Encoding.UTF8.GetBytes(
+                "[{\"summonerName\":\"legacy123\",\"isDead\":true,\"respawnTimer\":10}," +
+                "{\"summonerName\":\"legacy123\",\"isDead\":false,\"respawnTimer\":0}]"),
+                "玩家#CN1", first, "legacy123") == null,
+                "Ambiguous legacy identities must not reuse another player's death state.");
             Require(Sample("[{\"summonerName\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":10}]", "玩家#CN1", null) != null,
                 "Legacy player name fallback was lost.");
             Require(Sample("[{\"riotId\":\"其他人#CN1\",\"summonerName\":\"玩家#CN1\",\"isDead\":true,\"respawnTimer\":10}]", "玩家#CN1", null) == null,
