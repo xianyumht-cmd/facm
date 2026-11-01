@@ -1,3 +1,16 @@
+### 2026-11-01 — Native player history, draft overrides and source history controls (Draft #357)
+
+**Latest executable/test candidate:** [c75e609](https://github.com/xianyumht-cmd/facm/commit/c75e6093260bf981bb2e5a4c8f211ec85b4f28ab). Four exact-SHA Windows CI gates are **pending/in progress at this documentation snapshot**; do not infer success from earlier candidates. Prior fully verified executable: [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6).
+
+| Akari v1.5.1 user capability | Native source status | Remaining gap |
+| --- | --- | --- |
+| Historical match simulation | **PARTIAL** | Source-bound normal/Arena rosters now support local champion/position overrides, recent-match quick pick and read-only match evidence. No historical record or LCU writes. Full editable draft composition and all Akari preview controls still missing. |
+| Ongoing player-card match history | **PARTIAL** | Explicit player context action shows bounded verified recent matches, outcomes including remake/abort, Arena placement, KDA and champion. Double-click reuses the existing account/session-fenced match-detail service and native scoreboard/EOG; no new network owner or polling. Full always-visible card/popover parity remains missing. |
+| Player-card history options | **PARTIAL** | Saved all-matches/current-champion tag scope and configurable 2–20 game load budget; the latter is enforced in initial fetch and missing-history recovery. Akari's up-to-200 history count, concurrency and game-detail prefetch options are not reproduced, intentionally recorded as missing rather than falsely claiming parity. |
+| Riot/Tencent SGP, 256-row real cloud, Win10/DPI | **UNVERIFIED** | Synthetic CI is not the user's final consolidated live acceptance. |
+
+**Pinned upstream:** LeagueAkari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd`, `PlayerInfoCardMatchHistory.vue`, `OngoingGameSettings.vue`, `GameView.vue`. Four end-to-end native functional clusters, bounded session/account/region ownership, no Electron, background polling, new network owner, paid infrastructure, merge, release, updater or production 3.5.78 change. PR #357 and stacked #355 remain Draft.
+
 ### 2026-11-01 — Historical draft editing and on-demand player-card match history (Draft #357)
 
 **Executable candidate:** [139dac1](https://github.com/xianyumht-cmd/facm/commit/139dac155c6f153dc8e9ac256992bbd172742833). Four exact-SHA Windows gates were **running when recorded**, not yet claimed as passed. Earlier [78ae405](https://github.com/xianyumht-cmd/facm/commit/78ae405935c00680c1a912b26d784e0cd6ea02a6) remains the last four-gate-verified executable until new results are checked.

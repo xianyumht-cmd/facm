@@ -1,3 +1,9 @@
+### 2026-11-01 — Ongoing card history and historical draft ownership
+
+- Historical draft editing is local to the verified `LeagueHistoricalMatchDryRun` snapshot. Champion and position changes never mutate `LeaguePlayerMatchParticipant`, remote data, live gameflow or LCU.
+- Ongoing player history uses `LeagueDynamicMessageSnapshot` -> `CardRecentMatches` (bounded identity/conflict filter) -> `LeagueOngoingPlayerHistoryDialog` -> `LeagueEfficiencyModule.LoadDynamicPlayerMatchDetailAsync` -> existing `LeagueEncounterMatchDetailService.ReadHistoryAsync` -> native scoreboard/EOG. Each read verifies account, region and session; dialogs cancel on disposal/context invalidation.
+- `MatchHistoryLoadCount` (2–20) is stored in existing dynamic-message settings, copied to the snapshot and enforced by both initial and recovery fetches. Tag history scope (`all/current`) filters the loaded local sample only; it never initiates a separate fetch or changes premade inference.
+
 ## 2026-11-01 — Explicit historical and player-card data ownership (Draft #357)
 
 `LeagueHistoricalMatchDryRun` projects only a verified ten-identity normal Rift match into a read-only `HistoricalPreview` snapshot. `LeagueEncounterMatchDetailService` rechecks the signed-in owner and session before/after sequential, bounded recent-history reads, with no game write path. The scoreboard exposes source-backed premade groups, win-rate/KDA and existing player tags. `LeagueDynamicMessageService` owns two additional explicit user actions: limited early enemy-jungler timeline analysis and one exact-PUUID summoner privacy lookup. Both reuse the existing authenticated LCU owner, cancel on context changes and never schedule background requests. Unknown evidence remains unknown; CHERRY/full draft simulation, automatic privacy/easy-gank loading and live Tencent/Riot acceptance remain outside this verified source-only scope.
