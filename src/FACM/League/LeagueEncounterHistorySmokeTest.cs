@@ -2250,10 +2250,11 @@ namespace FACM.League
                 write.Downloads == writesBefore,
                 "Replay-folder inspection must report source busy states without starting playback.");
             read.ReplayBusy = false;
+            var readsBeforeWrongAccount = read.ReplayPathReads;
             read.SelfPuuid = "another-player";
             directory = await service.ReadDirectoryAsync(session, "self", CancellationToken.None);
             Require(directory.Status == LeagueEncounterReplayStatus.WrongAccount &&
-                read.ReplayPathReads == 1 && write.Downloads == writesBefore,
+                read.ReplayPathReads == readsBeforeWrongAccount && write.Downloads == writesBefore,
                 "A changed account must be rejected before reading its replay folder.");
             read.SelfPuuid = "self";
             read.AfterReplayPath = () => active = new LeagueClientSession(
