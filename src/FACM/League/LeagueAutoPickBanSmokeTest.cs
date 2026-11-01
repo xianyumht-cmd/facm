@@ -58,7 +58,7 @@ namespace FACM.League
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
         }
 
-        private static void ValidateGroupRefreshCancellation()
+        internal static void ValidateGroupRefreshCancellation()
         {
             LeagueAutoSelectGroupCatalog.ResetForSmokeTest();
             try
@@ -602,7 +602,7 @@ namespace FACM.League
                 "Unbounded bench delays must be rejected before saving.");
         }
 
-        private static async Task ValidateAutoBenchAsync()
+        internal static async Task ValidateAutoBenchAsync()
         {
             Require(LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
                         new[] { 55 }, true) == 55 &&

@@ -1,3 +1,7 @@
+### 2026-11-01 — Executable history gate includes new retry regressions
+
+Windows `GGman.exe --league-history-test` now directly executes the existing synthetic ARAM bench tests, canceled regional group refresh test and bounded mission-completion retry test, in addition to ChampSelect pick/ban/intent retry. These checks were previously present in smoke classes but not invoked by the lightweight history gate. This is a candidate until all four exact-HEAD Windows gates succeed.
+
 ### 2026-11-01 — ARAM bench preflight recovery (Draft #357)
 
 The phase-scoped ARAM/Mayhem bench swap now fences an attempt only immediately before the POST, after fresh session/bench/held-champion checks. A transient stale preflight can recover on the existing two-second ChampSelect tick without retrying an ambiguous submitted POST. Synthetic test verifies a stale bench disappearing and returning, exactly one subsequent write, readback and phase-exit cancellation. No new polling, endpoint or owner. Real Tencent/Win10 acceptance remains deferred.

@@ -497,7 +497,7 @@ namespace FACM.League
             }
         }
 
-        private static void ValidateMissionRetryBudget()
+        internal static void ValidateMissionRetryBudget()
         {
             var read = new FakeReadApi();
             read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
