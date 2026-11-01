@@ -1533,6 +1533,23 @@ namespace FACM.League
             masteryPlayer.Mastery.Masteries[1]["championId"] = 22;
             Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
                 "Conflicting duplicate champion mastery must fail closed.");
+            var jungleRows = new[] {
+                new LeagueJungleTimelineSample { GameId = 1001, ChampionId = 22,
+                    TeamId = 100, TopWeight = 6, MidWeight = 4, TotalWeight = 10,
+                    Level3Gank = true, Dragons = 1 },
+                new LeagueJungleTimelineSample { GameId = 1002, ChampionId = 22,
+                    TeamId = 200, TopWeight = 2, BotWeight = 8, TotalWeight = 10,
+                    Level4Gank = true, Dragons = 2 }
+            };
+            var jungleCard = LeagueOngoingCardJungleProjection.Project(jungleRows);
+            Require(jungleCard != null && jungleCard.Games == 2 &&
+                Math.Abs(jungleCard.TopRate - 0.4) < 0.001 &&
+                jungleCard.Level3Rate == 0.5 && jungleCard.Level4Rate == 0.5 &&
+                !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5,
+                "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            jungleRows[1].GameId = 1001;
+            Require(LeagueOngoingCardJungleProjection.Project(jungleRows) == null,
+                "Duplicate jungle game IDs must not fabricate a player-card sample.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
                 GameMode = "CLASSIC", QueueId = 420, TeamId = 100, PuuId = "target" };
             var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {

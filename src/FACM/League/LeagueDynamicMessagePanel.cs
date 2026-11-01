@@ -417,6 +417,8 @@ namespace FACM.League
                         snapshot, choice.Player.Player.PuuId, choice.Player.Player.GameName,
                         championId, position, mode),
                     token => _module.LoadDynamicMasteryAsync(snapshot,
+                        choice.Player.Player.PuuId, token),
+                    token => _module.LoadJungleMessagesAsync(snapshot,
                         choice.Player.Player.PuuId, token)))
                     dialog.ShowDialog(this);
                 if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))

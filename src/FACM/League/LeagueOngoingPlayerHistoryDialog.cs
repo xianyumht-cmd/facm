@@ -367,14 +367,53 @@ namespace FACM.League
 
     // An on-demand native player-card detail: existing verified champion usage and
     // explicitly requested mastery share one read-only, copyable surface.
+    internal sealed class LeagueOngoingCardJungleSummary
+    {
+        internal int Games;
+        internal double TopRate, MidRate, BotRate, Level3Rate, Level4Rate;
+        internal double? FirstDragonRate;
+        internal double AverageDragons, AverageVoidgrubs, AverageHeralds, AverageBarons;
+    }
+
+    internal static class LeagueOngoingCardJungleProjection
+    {
+        internal static LeagueOngoingCardJungleSummary Project(
+            IReadOnlyList<LeagueJungleTimelineSample> samples)
+        {
+            if (samples == null || samples.Count == 0 ||
+                samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
+                samples.Any(row => row == null || row.GameId <= 0 ||
+                    row.ChampionId <= 0 || row.TeamId != 100 && row.TeamId != 200) ||
+                samples.Select(row => row.GameId).Distinct().Count() != samples.Count)
+                return null;
+            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(samples);
+            if (aggregate == null) return null;
+            return new LeagueOngoingCardJungleSummary {
+                Games = aggregate.Games,
+                TopRate = aggregate.TopRate, MidRate = aggregate.MidRate,
+                BotRate = aggregate.BotRate,
+                Level3Rate = aggregate.Level3GankRate,
+                Level4Rate = aggregate.Level4GankRate,
+                FirstDragonRate = samples.Any(row => row.FirstDragonWon.HasValue)
+                    ? (double?)aggregate.FirstDragonRate : null,
+                AverageDragons = aggregate.AverageDragons,
+                AverageVoidgrubs = aggregate.AverageVoidgrubs,
+                AverageHeralds = aggregate.AverageHeralds,
+                AverageBarons = aggregate.AverageBarons
+            };
+        }
+    }
+
     internal sealed class LeagueOngoingCardInsightsDialog : Form
     {
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         internal int SelectedChampionId { get; private set; }
         internal int CollectChampionId { get; private set; }
 
         internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
             LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches,
-            bool canCollect)
+            bool canCollect, Func<bool> isCurrent,
+            Func<CancellationToken, Task<bool>> loadJungle)
         {
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = ui.Get(UiTextKeys.LeagueProfileMastery) + " · " +
@@ -447,8 +486,81 @@ namespace FACM.League
                 };
             }
             tabs.TabPages.Add(usagePage); tabs.TabPages.Add(masteryPage);
+            if (loadJungle != null && isCurrent != null)
+            {
+                var junglePage = new TabPage(t(LeagueEfficiencyUiTextKeys.JungleTab)) {
+                    BackColor = FacmDesignSystem.Canvas
+                };
+                var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                    ColumnCount = 1, RowCount = 2 };
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                var load = new Button { Dock = DockStyle.Right, Width = 160,
+                    Text = t(LeagueEfficiencyUiTextKeys.JungleLoad) };
+                var jungle = MakeList();
+                jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
+                jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleActivity), 320);
+                Action refresh = () =>
+                {
+                    jungle.Items.Clear();
+                    var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples);
+                    if (data == null)
+                    {
+                        jungle.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
+                        return;
+                    }
+                    Action<string, string> add = (name, value) =>
+                    {
+                        var item = new ListViewItem(name);
+                        item.SubItems.Add(value);
+                        jungle.Items.Add(item);
+                    };
+                    Func<double, string> rate = value => value.ToString("P0", CultureInfo.CurrentCulture);
+                    Func<double, string> number = value => value.ToString("0.0", CultureInfo.CurrentCulture);
+                    add(t(LeagueEfficiencyUiTextKeys.JungleTab),
+                        data.Games.ToString(CultureInfo.CurrentCulture));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleActivity),
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, "TOP") + " " + rate(data.TopRate) +
+                        " / " + LeaguePlayerHistoryAnalysis.PositionName(ui, "MIDDLE") + " " +
+                        rate(data.MidRate) + " / " +
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, "BOTTOM") + " " + rate(data.BotRate));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleEarlyGank),
+                        "3: " + rate(data.Level3Rate) + " / 4: " + rate(data.Level4Rate));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleDragon),
+                        (data.FirstDragonRate.HasValue ? rate(data.FirstDragonRate.Value) : "—") +
+                        " / " + number(data.AverageDragons));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleMonsters),
+                        number(data.AverageVoidgrubs) + " / " + number(data.AverageHeralds) +
+                        " / " + number(data.AverageBarons));
+                };
+                refresh();
+                load.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || !load.Enabled) return;
+                    load.Enabled = false;
+                    try
+                    {
+                        if (await loadJungle(_lifetime.Token) && !IsDisposed &&
+                            !_lifetime.IsCancellationRequested && isCurrent())
+                            refresh();
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally { if (!IsDisposed) load.Enabled = true; }
+                };
+                jungleLayout.Controls.Add(load, 0, 0);
+                jungleLayout.Controls.Add(jungle, 0, 1);
+                junglePage.Controls.Add(jungleLayout);
+                tabs.TabPages.Add(junglePage);
+            }
             tabs.SelectedTab = masteryPage;
             Controls.Add(tabs);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            base.Dispose(disposing);
         }
 
         private static ListView MakeList()
@@ -465,7 +577,8 @@ namespace FACM.League
                 var lines = list.SelectedItems.Cast<ListViewItem>()
                     .Select(item => string.Join("\t", item.SubItems.Cast<ListViewItem.ListViewSubItem>()
                         .Select(cell => cell.Text)));
-                Clipboard.SetText(string.Join(Environment.NewLine, lines));
+                try { Clipboard.SetText(string.Join(Environment.NewLine, lines)); }
+                catch (System.Runtime.InteropServices.ExternalException) { }
                 args.Handled = true;
             };
             return list;
@@ -483,7 +596,8 @@ namespace FACM.League
             Func<string, CancellationToken, Task<Bitmap>> loadAsset,
             Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
             int autoPages = 0, Func<int, string, string, Form> openFullCollection = null,
-            Func<CancellationToken, Task<bool>> loadMastery = null)
+            Func<CancellationToken, Task<bool>> loadMastery = null,
+            Func<CancellationToken, Task<bool>> loadJungle = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -900,7 +1014,7 @@ namespace FACM.League
                         await loadMastery(_lifetime.Token);
                         if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
                         using (var dialog = new LeagueOngoingCardInsightsDialog(
-                            ui, player, matches, openFullCollection != null))
+                            ui, player, matches, openFullCollection != null, isCurrent, loadJungle))
                         {
                             if (dialog.ShowDialog(this) != DialogResult.OK || !isCurrent()) return;
                             if (dialog.CollectChampionId > 0 && openFullCollection != null)
