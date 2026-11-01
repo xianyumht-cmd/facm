@@ -455,6 +455,12 @@ namespace FACM.League
                         player.History.Matches.Count == 2) &&
                     card.MaxConcurrent == 1,
                     "Per-player detail prefetch must enrich the loaded card pages without enlarging initial analysis.");
+                session = Session("roster-card-detail-switched");
+                var before = card.Paths.Count;
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    card.Paths.Count == before,
+                    "A replaced account/session must not hydrate retained card-only history.");
             }
             var replaced = new Fake { IncompleteHistory = true };
             session = Session("roster-switch-during-detail");

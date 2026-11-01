@@ -565,10 +565,6 @@ namespace FACM.League
                 matches[0].History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
                 return false;
             var player = matches[0];
-            var source = preferCardHistory && player.RosterCardHistory != null
-                ? player.RosterCardHistory : player.History.Matches;
-            if (source.Count == 0 || source.Count > (preferCardHistory ? 200 :
-                LeaguePlayerDataService.MaximumMatchCount)) return false;
             CancellationTokenSource active;
             lock (_sync)
             {
@@ -584,6 +580,10 @@ namespace FACM.League
                 await _gate.WaitAsync(active.Token).ConfigureAwait(false);
                 entered = true;
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
+                var source = preferCardHistory && player.RosterCardHistory != null
+                    ? player.RosterCardHistory : player.History.Matches;
+                if (source.Count == 0 || source.Count > (preferCardHistory ? 200 :
+                    LeaguePlayerDataService.MaximumMatchCount)) return false;
                 var result = await _players.HydrateAnalysisAsync(snapshot.SelfPuuid, puuid,
                     snapshot.Session, source, player.AnalysisDetailAttempted,
                     active.Token, detailLoadCount).ConfigureAwait(false);
@@ -593,7 +593,7 @@ namespace FACM.League
                 active.Token.ThrowIfCancellationRequested();
                 foreach (var key in result.Attempted) player.AnalysisDetailAttempted.Add(key);
                 if (result.Updated <= 0) return false;
-                if (preferCardHistory && player.RosterCardHistory != null)
+                if (preferCardHistory && ReferenceEquals(source, player.RosterCardHistory))
                 {
                     player.RosterCardHistory = result.Matches;
                     var refreshedInitial = false;
