@@ -152,7 +152,12 @@ namespace FACM.League
                         .Replace("{0}", string.Join(" / ", analysis.MostPlayedPositions
                             .Select(p => p.Key + " " + p.Value.ToString(CultureInfo.CurrentCulture))));
                 stats.Text = detail;
-                statsTip.SetToolTip(stats, detail);
+                var expanded = detail;
+                if (analysis.KdaCv.HasValue)
+                    expanded += Environment.NewLine + "KDA CV: " +
+                        analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture);
+                stats.AccessibleDescription = expanded;
+                statsTip.SetToolTip(stats, expanded);
             };
             refreshStats();
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,

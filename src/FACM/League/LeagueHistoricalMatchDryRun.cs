@@ -19,6 +19,7 @@ namespace FACM.League
     {
         internal int Games, Wins, Losses, Remakes, Aborts;
         internal int StatisticsGames, Kills, Deaths, Assists;
+        internal double? KdaCv;
         internal int ArenaPlacements, ArenaFirstPlaces;
         internal readonly Dictionary<string, int> Positions =
             new Dictionary<string, int>(StringComparer.Ordinal);
@@ -41,6 +42,7 @@ namespace FACM.League
             if (matches == null || matches.Count > 200 ||
                 !LeagueDynamicMessageService.SafePuuid(puuid)) return null;
             var result = new LeagueHistoricalCardAnalysis();
+            var perGameKda = new List<double>();
             var seen = new HashSet<long>();
             foreach (var match in matches)
             {
@@ -81,6 +83,8 @@ namespace FACM.League
                     result.Kills += match.Kills;
                     result.Deaths += match.Deaths;
                     result.Assists += match.Assists;
+                    perGameKda.Add((match.Kills + match.Assists) /
+                        (double)Math.Max(1, match.Deaths));
                 }
                 if (string.Equals(match.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) &&
                     LeagueCherryTeams.ValidPlacement(match.SubteamPlacement).HasValue)
@@ -88,6 +92,13 @@ namespace FACM.League
                     result.ArenaPlacements++;
                     if (match.SubteamPlacement == 1) result.ArenaFirstPlaces++;
                 }
+            }
+            if (perGameKda.Count > 0)
+            {
+                var mean = perGameKda.Average();
+                if (mean > 0d)
+                    result.KdaCv = Math.Sqrt(perGameKda.Average(
+                        value => (value - mean) * (value - mean))) / mean;
             }
             return result;
         }
