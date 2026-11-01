@@ -161,6 +161,7 @@ namespace FACM.League
         internal string HistoryQueueTag;
         internal string RosterKey;
         internal string SelfPuuid;
+        internal string HistoricalOriginalTargetPuuid;
         internal LeagueClientSession Session;
         internal DateTime CreatedUtc;
         internal int UnavailableIdentityCount;

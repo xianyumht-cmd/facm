@@ -182,7 +182,14 @@ namespace FACM.League
         internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
             IEnumerable<LeagueHistoricalRosterSelection> selections)
         {
-            if (!ValidTeamDraft(snapshot) || selections == null) return false;
+            return TryApplyRosterDraft(snapshot, selections, snapshot?.SelfPuuid);
+        }
+
+        internal static bool TryApplyRosterDraft(LeagueDynamicMessageSnapshot snapshot,
+            IEnumerable<LeagueHistoricalRosterSelection> selections, string targetPuuid)
+        {
+            if (!ValidTeamDraft(snapshot) || selections == null ||
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid)) return false;
             var requested = selections.ToArray();
             if (requested.Length != snapshot.Players.Count ||
                 requested.Any(p => p == null || !LeagueDynamicMessageService.SafePuuid(p.PuuId)) ||
@@ -198,8 +205,9 @@ namespace FACM.League
                 requestedCounts.Count != originalCounts.Count ||
                 originalCounts.Any(g => !requestedCounts.ContainsKey(g.Key) ||
                     requestedCounts[g.Key] != g.Value) ||
-                requested.Single(p => p.PuuId == snapshot.SelfPuuid).TeamId !=
-                    current[snapshot.SelfPuuid].HistoricalOriginalTeamId)
+                !current.ContainsKey(targetPuuid) ||
+                requested.Single(p => p.PuuId == targetPuuid).TeamId !=
+                    current[targetPuuid].HistoricalOriginalTeamId)
                 return false;
 
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
@@ -228,6 +236,7 @@ namespace FACM.League
                 player.HistoricalSecondaryPosition = selection.SecondaryPosition;
                 player.HistoricalTeamId = selection.TeamId;
             }
+            snapshot.SelfPuuid = targetPuuid;
             RefreshDraftSides(snapshot);
             return true;
         }
@@ -262,7 +271,10 @@ namespace FACM.League
 
         internal static bool TryRestoreOriginalDraft(LeagueDynamicMessageSnapshot snapshot)
         {
-            if (!ValidTeamDraft(snapshot) || snapshot.Players.Any(p =>
+            if (!ValidTeamDraft(snapshot) ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.HistoricalOriginalTargetPuuid) ||
+                !snapshot.Players.Any(p => p.Player.PuuId == snapshot.HistoricalOriginalTargetPuuid) ||
+                snapshot.Players.Any(p =>
                 p.HistoricalOriginalChampionId < 1 || p.HistoricalOriginalChampionId > 9999 ||
                 p.HistoricalOriginalChampionName == null ||
                 (p.HistoricalOriginalPosition != "" &&
@@ -278,6 +290,7 @@ namespace FACM.League
                 player.HistoricalPrimaryPosition = "";
                 player.HistoricalSecondaryPosition = "";
             }
+            snapshot.SelfPuuid = snapshot.HistoricalOriginalTargetPuuid;
             RefreshDraftSides(snapshot);
             return true;
         }
@@ -412,6 +425,7 @@ namespace FACM.League
 
             var snapshot = new LeagueDynamicMessageSnapshot {
                 Phase = "HistoricalPreview", SelfPuuid = targetPuuid,
+                HistoricalOriginalTargetPuuid = targetPuuid,
                 HistoricalGameMode = cherry ? "CHERRY" : "CLASSIC",
                 RosterKey = "historical:" + match.GameId,
                 CreatedUtc = DateTime.UtcNow

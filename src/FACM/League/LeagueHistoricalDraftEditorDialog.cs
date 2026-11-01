@@ -231,8 +231,9 @@ namespace FACM.League
             ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
-                RowCount = 2, Padding = new Padding(12) };
+                RowCount = 3, Padding = new Padding(12) };
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
             var grid = new DataGridView {
                 Dock = DockStyle.Fill, AllowUserToAddRows = false,
@@ -275,6 +276,27 @@ namespace FACM.League
                 grid.Rows[index].Tag = player.Player.PuuId;
             }
             layout.Controls.Add(grid, 0, 0);
+            var targetRow = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                WrapContents = false, AutoScroll = true };
+            targetRow.Controls.Add(new Label {
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftTarget),
+                AutoSize = true, Margin = new Padding(4, 8, 12, 0)
+            });
+            var target = new ComboBox { Width = 410, DropDownStyle = ComboBoxStyle.DropDownList,
+                DisplayMember = "Value" };
+            var targetChoices = snapshot.Players.OrderBy(p => p.HistoricalTeamId)
+                .ThenBy(p => p.Player.CellId).ToArray();
+            for (var index = 0; index < targetChoices.Length; index++)
+            {
+                var choice = targetChoices[index];
+                target.Items.Add(new System.Collections.Generic.KeyValuePair<string, string>(
+                    choice.Player.PuuId,
+                    (choice.Player.GameName ?? ("#" + choice.Player.CellId)) +
+                    " (#" + choice.Player.CellId + ")"));
+                if (choice.Player.PuuId == snapshot.SelfPuuid) target.SelectedIndex = index;
+            }
+            targetRow.Controls.Add(target);
+            layout.Controls.Add(targetRow, 0, 1);
             var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
             var cancel = new Button { Width = 110, Height = 30, DialogResult = DialogResult.Cancel,
@@ -307,8 +329,11 @@ namespace FACM.League
                         SecondaryPosition = row.Cells["secondary"].Value as string
                     });
                 }
+                var targetChoice = target.SelectedItem;
+                var selectedTarget = targetChoice is System.Collections.Generic.KeyValuePair<string, string>
+                    ? ((System.Collections.Generic.KeyValuePair<string, string>)targetChoice).Key : null;
                 if (!isCurrentSession() ||
-                    !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, changes))
+                    !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, changes, selectedTarget))
                 {
                     MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable), Text,
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -317,7 +342,7 @@ namespace FACM.League
                 DialogResult = DialogResult.OK; Close();
             };
             actions.Controls.Add(cancel); actions.Controls.Add(apply);
-            layout.Controls.Add(actions, 0, 1);
+            layout.Controls.Add(actions, 0, 2);
             Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
             Activated += (sender, args) => { if (!isCurrentSession()) Close(); };
         }

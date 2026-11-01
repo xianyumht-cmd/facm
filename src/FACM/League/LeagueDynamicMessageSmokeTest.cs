@@ -1491,7 +1491,18 @@ namespace FACM.League
                 teammate.HistoricalTeamId == 200,
                 "Duplicate or replaced target identity must reject the whole draft.");
             firstBatch.PuuId = "player-2";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "missing") &&
+                !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-2") &&
+                snapshot.SelfPuuid == "target" && teammate.HistoricalTeamId == 200,
+                "Unknown or reassigned historical targets must reject the whole roster transaction.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-7") &&
+                snapshot.SelfPuuid == "player-7" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                !target.Friendly && teammate.Friendly && !swapped.Friendly &&
+                roster[6].PuuId == "player-7" && roster[6].TeamId == 200,
+                "Historical target switching must reproject only the preview perspective.");
             Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.SelfPuuid == "target" && target.Friendly && teammate.Friendly &&
                 teammate.HistoricalTeamId == 100 && teammate.Player.ChampionId == 12,
                 "Bulk lineup reset must restore immutable historical source evidence.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "BOTTOM",
@@ -1583,6 +1594,19 @@ namespace FACM.League
                 arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
                 arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
                 "Arena historical draft must preserve eight independent two-player subteams.");
+            var arenaPerspective = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaPerspective, "arena-3") &&
+                arenaDraft.SelfPuuid == "arena-3" &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                !arenaDraft.Players.Single(p => p.Player.PuuId == "target").Friendly &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.SelfPuuid == "target" &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2,
+                "Arena perspective editing must respect original two-player subteams and reset.");
             Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "") &&
                 !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "TOP") &&
                 !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "",

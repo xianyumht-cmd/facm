@@ -380,6 +380,7 @@ namespace FACM.League
         public const string HistoricalDryRunReady = "LeagueEfficiencyHistoricalDryRunReady";
         public const string HistoricalDryRunTeamStats = "LeagueEfficiencyHistoricalDryRunTeamStats";
         public const string HistoricalDraftEdit = "LeagueEfficiencyHistoricalDraftEdit";
+        public const string HistoricalDraftTarget = "LeagueEfficiencyHistoricalDraftTarget";
         public const string HistoricalDraftApply = "LeagueEfficiencyHistoricalDraftApply";
         public const string HistoricalDraftReset = "LeagueEfficiencyHistoricalDraftReset";
         public const string HistoricalDraftPrimary = "LeagueEfficiencyHistoricalDraftPrimary";
@@ -860,6 +861,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunReady, "已分析 {0}/{1} 名玩家的近期战绩；其余数据不可用" },
             { LeagueEfficiencyUiTextKeys.HistoricalDryRunTeamStats, "组队近期表现" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftEdit, "编辑模拟英雄与位置" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftTarget, "模拟观察目标（只读）" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftApply, "应用到本次模拟" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftReset, "恢复历史选择" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftPrimary, "模拟主选位置" },
