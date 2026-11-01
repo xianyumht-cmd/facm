@@ -428,6 +428,34 @@ namespace FACM.League
                     multiple.MaxConcurrent == 1,
                     "A two-detail setting must hydrate two games for each player, not two games globally.");
             }
+            var card = new Fake { PagedHistory = true };
+            session = Session("roster-card-detail");
+            using (var service = new LeagueDynamicMessageService(card,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2,
+                    "Card detail fixture must load a third source game for each player.");
+                foreach (var player in snapshot.Players)
+                {
+                    Require(player.RosterCardHistory.Count == 3, "Card-only history was not staged.");
+                    foreach (var match in player.RosterCardHistory.Where(match => match.GameId != 3))
+                        player.AnalysisDetailAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                    var sparse = player.RosterCardHistory.Single(match => match.GameId == 3);
+                    sparse.ParticipantResolved = false;
+                    sparse.StatisticsAvailable = false;
+                    sparse.ParticipantRoster = null;
+                }
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    card.Paths.Count(path => path == "/lol-match-history/v1/games/3") == 2 &&
+                    snapshot.Players.All(player =>
+                        player.RosterCardHistory.Single(match => match.GameId == 3).ParticipantResolved &&
+                        player.History.Matches.Count == 2) &&
+                    card.MaxConcurrent == 1,
+                    "Per-player detail prefetch must enrich the loaded card pages without enlarging initial analysis.");
+            }
             var replaced = new Fake { IncompleteHistory = true };
             session = Session("roster-switch-during-detail");
             using (var service = new LeagueDynamicMessageService(replaced,
@@ -2011,6 +2039,8 @@ namespace FACM.League
                     if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
                     if (path == "/lol-match-history/v1/games/2" && MultipleIncompleteHistory)
                         return Bytes(Match(2, 7, 3, 0, 500, 120, 20, false));
+                    if (path == "/lol-match-history/v1/games/3" && PagedHistory)
+                        return Bytes(Match(3, 3, 5, 2, 300, 120, 10, true));
                     if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
                         return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
                     if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes(ChampionNamesJson);

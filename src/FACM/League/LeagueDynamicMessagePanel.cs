@@ -666,6 +666,28 @@ namespace FACM.League
                 _status.Text = T(snapshot == null ? LeagueEfficiencyUiTextKeys.DynamicUnavailable :
                     snapshot.UnavailableIdentityCount > 0 || snapshot.Players.Any(p => p.History == null) ? LeagueEfficiencyUiTextKeys.DynamicPartial :
                     snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint : LeagueEfficiencyUiTextKeys.DynamicReady);
+                var requestedRosterPages = _options.AutoRosterHistoryPages;
+                if (snapshot != null && requestedRosterPages > 0)
+                {
+                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
+                    var pages = await _module.PrefetchDynamicRosterCardHistoryAsync(snapshot,
+                        requestedRosterPages, _lifetime.Token);
+                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot) ||
+                        requestedRosterPages != _options.AutoRosterHistoryPages) return;
+                    if (pages < 0)
+                    {
+                        _snapshot = null; _binding = true;
+                        try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
+                        finally { _binding = false; }
+                        _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
+                        return;
+                    }
+                    _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
+                        snapshot.Players.Any(row => row.History == null)
+                        ? LeagueEfficiencyUiTextKeys.DynamicPartial :
+                        snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint :
+                        LeagueEfficiencyUiTextKeys.DynamicReady);
+                }
                 var requestedAutoDetails = _options.AutoRosterDetailPrefetchCount;
                 if (snapshot != null && requestedAutoDetails > 0)
                 {
@@ -693,28 +715,6 @@ namespace FACM.League
                         }
                         finally { _binding = false; }
                         RefreshPreview();
-                    }
-                    _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
-                        snapshot.Players.Any(row => row.History == null)
-                        ? LeagueEfficiencyUiTextKeys.DynamicPartial :
-                        snapshot.Phase == "InProgress" ? LeagueEfficiencyUiTextKeys.DynamicGameHint :
-                        LeagueEfficiencyUiTextKeys.DynamicReady);
-                }
-                var requestedRosterPages = _options.AutoRosterHistoryPages;
-                if (snapshot != null && requestedRosterPages > 0)
-                {
-                    _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicLoading);
-                    var pages = await _module.PrefetchDynamicRosterCardHistoryAsync(snapshot,
-                        requestedRosterPages, _lifetime.Token);
-                    if (IsDisposed || !ReferenceEquals(_snapshot, snapshot) ||
-                        requestedRosterPages != _options.AutoRosterHistoryPages) return;
-                    if (pages < 0)
-                    {
-                        _snapshot = null; _binding = true;
-                        try { _players.Items.Clear(); _groups.Items.Clear(); _jungle.Items.Clear(); }
-                        finally { _binding = false; }
-                        _status.Text = T(LeagueEfficiencyUiTextKeys.DynamicRefreshNeeded);
-                        return;
                     }
                     _status.Text = T(snapshot.UnavailableIdentityCount > 0 ||
                         snapshot.Players.Any(row => row.History == null)
@@ -995,10 +995,10 @@ namespace FACM.League
                 LeagueDynamicMessageService.HasMoreRosterCardHistory(_snapshot);
             _loadRosterDetails.Enabled = !_busy && _snapshot != null &&
                 _options.GameDetailsLoadCount > 0 && _snapshot.Players.Any(player =>
-                    player.History != null && player.History.Matches.Any(match =>
+                    (player.RosterCardHistory ?? player.History?.Matches)?.Any(match =>
                         LeaguePlayerDataService.NeedsAnalysisDetail(match) &&
                         !player.AnalysisDetailAttempted.Contains(
-                            LeaguePlayerDataService.HistoryDetailKey(match))));
+                            LeaguePlayerDataService.HistoryDetailKey(match))) == true);
             _loadJungle.Enabled = !_busy && IsJungle && _snapshot != null &&
                 _jungle.CheckedItems.Cast<PlayerChoice>().Any(p => p.Player.JungleSamples == null);
             _load.Text = _snapshot != null && DateTime.UtcNow - _snapshot.CreatedUtc < TimeSpan.FromMinutes(2) &&

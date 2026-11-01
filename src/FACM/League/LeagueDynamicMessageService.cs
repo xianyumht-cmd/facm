@@ -550,11 +550,11 @@ namespace FACM.League
             }
         }
 
-        // Explicitly enrich the currently displayed player's sparse initial history.
-        // This reuses the account-fenced detail hydration owner and never prefetches in the background.
+        // Explicit player hydration can also enrich already-loaded card-only pages.
+        // Both paths retain the same authenticated and session-fenced detail owner.
         internal async Task<bool> HydrateHistoryAsync(
             LeagueDynamicMessageSnapshot snapshot, string puuid, CancellationToken token,
-            int detailLoadCount = 20)
+            int detailLoadCount = 20, bool preferCardHistory = false)
         {
             if (snapshot == null || !SafePuuid(puuid) || detailLoadCount < 1 || detailLoadCount > 20)
                 return false;
@@ -564,6 +564,11 @@ namespace FACM.League
                 matches[0].History.Matches.Count == 0 ||
                 matches[0].History.Matches.Count > LeaguePlayerDataService.MaximumMatchCount)
                 return false;
+            var player = matches[0];
+            var source = preferCardHistory && player.RosterCardHistory != null
+                ? player.RosterCardHistory : player.History.Matches;
+            if (source.Count == 0 || source.Count > (preferCardHistory ? 200 :
+                LeaguePlayerDataService.MaximumMatchCount)) return false;
             CancellationTokenSource active;
             lock (_sync)
             {
@@ -579,19 +584,40 @@ namespace FACM.League
                 await _gate.WaitAsync(active.Token).ConfigureAwait(false);
                 entered = true;
                 if (!await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
-                var player = matches[0];
                 var result = await _players.HydrateAnalysisAsync(snapshot.SelfPuuid, puuid,
-                    snapshot.Session, player.History.Matches, player.AnalysisDetailAttempted,
+                    snapshot.Session, source, player.AnalysisDetailAttempted,
                     active.Token, detailLoadCount).ConfigureAwait(false);
                 if (result == null || result.AccountChanged ||
-                    result.Matches.Count != player.History.Matches.Count ||
+                    result.Matches.Count != source.Count ||
                     !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false)) return false;
                 active.Token.ThrowIfCancellationRequested();
                 foreach (var key in result.Attempted) player.AnalysisDetailAttempted.Add(key);
                 if (result.Updated <= 0) return false;
-                player.History.Matches.Clear();
-                player.History.Matches.AddRange(result.Matches);
-                player.JungleSamples = null;
+                if (preferCardHistory && player.RosterCardHistory != null)
+                {
+                    player.RosterCardHistory = result.Matches;
+                    var refreshedInitial = false;
+                    for (var i = 0; i < player.History.Matches.Count; i++)
+                    {
+                        var original = player.History.Matches[i];
+                        var replacement = result.Matches.FirstOrDefault(row =>
+                            row.GameId == original.GameId &&
+                            LeaguePlayerDataService.HistoryDetailKey(row) ==
+                                LeaguePlayerDataService.HistoryDetailKey(original));
+                        if (replacement == null ||
+                            !LeaguePlayerDataService.CanReplaceAnalysisMatch(original, replacement, puuid))
+                            continue;
+                        player.History.Matches[i] = replacement;
+                        refreshedInitial = true;
+                    }
+                    if (refreshedInitial) player.JungleSamples = null;
+                }
+                else
+                {
+                    player.History.Matches.Clear();
+                    player.History.Matches.AddRange(result.Matches);
+                    player.JungleSamples = null;
+                }
                 return true;
             }
             catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return false; }
@@ -635,13 +661,14 @@ namespace FACM.League
                         {
                             if (remaining == 0) break;
                             if (perPlayerRemaining[player.Player.PuuId] == 0) continue;
-                            if (!player.History.Matches.Any(match =>
+                            var source = player.RosterCardHistory ?? player.History.Matches;
+                            if (!source.Any(match =>
                                 LeaguePlayerDataService.NeedsAnalysisDetail(match) &&
                                 !player.AnalysisDetailAttempted.Contains(
                                     LeaguePlayerDataService.HistoryDetailKey(match)))) continue;
                             var before = player.AnalysisDetailAttempted.Count;
                             var changed = await HydrateHistoryAsync(snapshot, player.Player.PuuId,
-                                deadline.Token, 1).ConfigureAwait(false);
+                                deadline.Token, 1, true).ConfigureAwait(false);
                             if (!await IsCurrentAsync(snapshot, deadline.Token).ConfigureAwait(false))
                                 return -1;
                             var used = player.AnalysisDetailAttempted.Count - before;
