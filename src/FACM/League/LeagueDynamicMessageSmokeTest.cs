@@ -1448,11 +1448,11 @@ namespace FACM.League
                 new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
                     PuuId = "target", WinResult = "win", StatisticsAvailable = true,
                     ParticipantResolved = true, Kills = 7, Deaths = 0, Assists = 8,
-                    Position = "TOP" },
+                    Position = "TOP", GameMode = "CLASSIC" },
                 new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 23,
                     PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
                     ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4,
-                    Position = "JUNGLE" },
+                    Position = "JUNGLE", GameMode = "CLASSIC" },
                 new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 24,
                     PuuId = "target", WinResult = "remake", ParticipantResolved = true },
                 new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 25,
@@ -1488,11 +1488,22 @@ namespace FACM.League
             var zeroKda = LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
                 new LeaguePlayerMatchSummary { GameId = 9, ChampionId = 22,
                     PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
-                    ParticipantResolved = true, Kills = 0, Deaths = 4, Assists = 0 }
+                    ParticipantResolved = true, Kills = 0, Deaths = 4, Assists = 0,
+                    GameMode = "CLASSIC" }
             }, "target");
             Require(zeroKda != null && zeroKda.Kda == 0 && !zeroKda.KdaCv.HasValue &&
                 zeroKda.NormalWinRate == 0 && !zeroKda.CherryWinRate.HasValue,
                 "Zero-mean KDA samples must not produce NaN or an invented variation.");
+            var unknownMode = LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
+                new LeaguePlayerMatchSummary { GameId = 10, ChampionId = 22,
+                    PuuId = "target", WinResult = "win", GameMode = "" },
+                new LeaguePlayerMatchSummary { GameId = 11, ChampionId = 23,
+                    PuuId = "target", WinResult = "loss", GameMode = "CHERRY" }
+            }, "target");
+            Require(unknownMode != null && unknownMode.Wins == 1 && unknownMode.Losses == 1 &&
+                unknownMode.NormalWins == 0 && unknownMode.NormalLosses == 0 &&
+                unknownMode.CherryLosses == 1 && !unknownMode.NormalWinRate.HasValue,
+                "Missing game-mode evidence must not fabricate a normal-mode win rate.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
                 GameMode = "CLASSIC", QueueId = 420, TeamId = 100, PuuId = "target" };
             var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {

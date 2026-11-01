@@ -139,7 +139,7 @@ namespace FACM.League
                     if (outcome == LeagueHistoryOutcome.Win) result.CherryWins++;
                     else result.CherryLosses++;
                 }
-                else
+                else if (!string.IsNullOrWhiteSpace(match.GameMode))
                 {
                     if (outcome == LeagueHistoryOutcome.Win) result.NormalWins++;
                     else result.NormalLosses++;
