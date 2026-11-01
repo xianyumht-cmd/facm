@@ -370,9 +370,11 @@ namespace FACM.League
     internal sealed class LeagueOngoingCardInsightsDialog : Form
     {
         internal int SelectedChampionId { get; private set; }
+        internal int CollectChampionId { get; private set; }
 
         internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
-            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches)
+            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches,
+            bool canCollect)
         {
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = ui.Get(UiTextKeys.LeagueProfileMastery) + " · " +
@@ -422,20 +424,25 @@ namespace FACM.League
                 LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId));
             foreach (var list in new[] { usage, mastery })
             {
-                Action select = () =>
+                Action<bool> select = collect =>
                 {
                     if (list.SelectedItems.Count != 1) return;
                     var id = list.SelectedItems[0].Tag;
-                    if (!(id is int) || !verifiedChampions.Contains((int)id)) return;
-                    SelectedChampionId = (int)id;
+                    if (!(id is int) || (int)id <= 0) return;
+                    if (collect && canCollect ||
+                        !verifiedChampions.Contains((int)id) && canCollect)
+                        CollectChampionId = (int)id;
+                    else if (verifiedChampions.Contains((int)id))
+                        SelectedChampionId = (int)id;
+                    else return;
                     DialogResult = DialogResult.OK;
                     Close();
                 };
-                list.DoubleClick += (sender, args) => select();
+                list.DoubleClick += (sender, args) => select(true);
                 list.KeyDown += (sender, args) =>
                 {
                     if (args.KeyCode != Keys.Enter) return;
-                    select();
+                    select(false);
                     args.Handled = true;
                 };
             }
@@ -892,10 +899,17 @@ namespace FACM.League
                     {
                         await loadMastery(_lifetime.Token);
                         if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
-                        using (var dialog = new LeagueOngoingCardInsightsDialog(ui, player, matches))
+                        using (var dialog = new LeagueOngoingCardInsightsDialog(
+                            ui, player, matches, openFullCollection != null))
                         {
-                            if (dialog.ShowDialog(this) == DialogResult.OK &&
-                                dialog.SelectedChampionId > 0 && isCurrent())
+                            if (dialog.ShowDialog(this) != DialogResult.OK || !isCurrent()) return;
+                            if (dialog.CollectChampionId > 0 && openFullCollection != null)
+                            {
+                                using (var collection = openFullCollection(
+                                    dialog.CollectChampionId, "", ""))
+                                    if (collection != null) collection.ShowDialog(this);
+                            }
+                            else if (dialog.SelectedChampionId > 0)
                             {
                                 selectedChampion = dialog.SelectedChampionId;
                                 selectedPosition = "";
