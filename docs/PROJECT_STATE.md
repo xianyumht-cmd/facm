@@ -1,3 +1,7 @@
+### 2026-11-01 — ARAM bench preflight recovery (Draft #357)
+
+The phase-scoped ARAM/Mayhem bench swap now fences an attempt only immediately before the POST, after fresh session/bench/held-champion checks. A transient stale preflight can recover on the existing two-second ChampSelect tick without retrying an ambiguous submitted POST. Synthetic test verifies a stale bench disappearing and returning, exactly one subsequent write, readback and phase-exit cancellation. No new polling, endpoint or owner. Real Tencent/Win10 acceptance remains deferred.
+
 ### 2026-11-01 — Planning intent, post-game mission and regional group retry (Draft #357)
 
 **Latest executable/test candidate:** `a5a89bb79f2bd33224ad7a7ae3aaf0b880afbd33`. Exact-HEAD Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe are **pending**; the last confirmed four-gate candidate is `51f9d958f5fc62ae8d86deb3be660fcf9cdd0d3f`. The earlier planning-intent smoke placement caused a Glass compile failure on `4539cbe`; the fixture was corrected before this candidate. Do not count that failed gate as verified.

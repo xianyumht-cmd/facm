@@ -1,3 +1,7 @@
+### 2026-11-01 — ARAM bench preflight recovery (Draft #357)
+
+The phase-scoped ARAM/Mayhem bench swap now fences an attempt only immediately before the POST, after fresh session/bench/held-champion checks. A transient stale preflight can recover on the existing two-second ChampSelect tick without retrying an ambiguous submitted POST. Synthetic test verifies a stale bench disappearing and returning, exactly one subsequent write, readback and phase-exit cancellation. No new polling, endpoint or owner. Real Tencent/Win10 acceptance remains deferred.
+
 ### 2026-11-01 — Cancel-safe auto-select regional group refresh (Draft #357)
 
 The existing Akari group catalog fetch now rechecks cancellation after server-directory resolution and after the public response. A canceled account/session request no longer consumes the two-hour on-demand refresh interval or publishes a stale group catalog. Synthetic tests inject a canceled response, verify immediate explicit retry and verify normal throttling; production continues using the existing trusted public-data transport and SGP directory. No new endpoint, poller, HTTP owner or dependency.

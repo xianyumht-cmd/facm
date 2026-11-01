@@ -652,6 +652,31 @@ namespace FACM.League
                     "Opt-in ARAM bench swap must preflight, submit once and read back on the same task.");
             }
 
+            // A transient stale bench read must not consume the only swap attempt.
+            var recoverRead = new FakeRead {
+                SessionJson = BenchSession(34, "[55]", 450, false),
+                NextSessionJson = BenchSession(34, "[]", 450, false),
+                ThirdSessionJson = BenchSession(34, "[55]", 450, false)
+            };
+            var recoverWrite = new FakeBenchWrite {
+                AfterWrite = id => recoverRead.ThirdSessionJson = BenchSession(id, "[34]", 450, false)
+            };
+            var recoverClock = new BenchRetryClock();
+            using (var controller = new LeagueAutoPickBanController(
+                recoverRead, new FakeWrite(), recoverWrite, recoverClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(recoverClock.PollDelays == 2 && recoverWrite.Calls == 1 &&
+                        recoverWrite.LastId == 55,
+                    "A stale bench preflight must recover on the next verified phase tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(recoverClock.Cancelled && recoverWrite.Calls == 1,
+                    "Bench preflight recovery must not repeat a submitted swap after phase exit.");
+            }
+
             var disabled = new FakeBenchWrite();
             using (var controller = new LeagueAutoPickBanController(
                 new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) },
@@ -1452,6 +1477,25 @@ namespace FACM.League
                     "Eligibility recovery must not create an extra polling cadence.");
                 Delays++;
                 if (Delays == 1) return Task.FromResult(0);
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
+                return pending.Task;
+            }
+        }
+
+        private sealed class BenchRetryClock : ILeagueMatchmakingClock
+        {
+            public int PollDelays;
+            public bool Cancelled;
+
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (delay == TimeSpan.FromMilliseconds(250)) return Task.FromResult(0);
+                Require(delay == LeagueAutoPickBanController.PollInterval,
+                    "Bench recovery must use only the existing ChampSelect tick.");
+                PollDelays++;
+                if (PollDelays == 1) return Task.FromResult(0);
                 var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
                 token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
                 return pending.Task;

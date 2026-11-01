@@ -716,7 +716,7 @@ namespace FACM.League
             if (desired <= 0) return;
 
             var key = "bench:" + state.LocalChampionId + ":" + desired;
-            if (!attempted.Add(key)) return;
+            if (attempted.Contains(key)) return;
             var watch = Stopwatch.StartNew();
             // The cooldown belongs to this bench appearance, not the current tick.
             // A returning champion begins a fresh cooldown; an existing one does not.
@@ -744,6 +744,8 @@ namespace FACM.League
                 return;
             }
             CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "ok", watch.ElapsedMilliseconds);
+            // A stale preflight may recover on the next phase tick. Fence only an actual POST.
+            attempted.Add(key);
             var response = await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token)
                 .ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect-bench", "write",
