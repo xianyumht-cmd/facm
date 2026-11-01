@@ -1422,6 +1422,28 @@ namespace FACM.League
 
         private static void ValidateHistoricalDryRun()
         {
+            var tripleRows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",
+                    GameMode = "CLASSIC", WinResult = "win", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 6, Deaths = 2, Assists = 8 },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",
+                    GameMode = "CHERRY", WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 2, Deaths = 4, Assists = 3 },
+                new LeaguePlayerMatchSummary { GameId = 103, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "TOP",
+                    GameMode = "CLASSIC", WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 3, Deaths = 5, Assists = 1 }
+            };
+            var tripleGroups = LeagueOngoingCardBreakdown.Project(tripleRows, "target")
+                .Where(row => row.Kind == "champion-position-mode").ToArray();
+            Require(tripleGroups.Length == 3 &&
+                tripleGroups.All(row => row.ChampionId == 22 && row.Analysis.Games == 1) &&
+                tripleGroups.Count(row => row.Position == "BOTTOM" && row.Mode == "CHERRY") == 1 &&
+                tripleGroups.Count(row => row.Position == "BOTTOM" && row.Mode == "NORMAL") == 1 &&
+                LeagueOngoingCardBreakdown.Project(tripleRows, "foreign").Count == 0,
+                "Three-way player-card drilldown must keep champion, role and mode distinct.");
             var cardRows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
                     PuuId = "target", WinResult = "win", StatisticsAvailable = true,
