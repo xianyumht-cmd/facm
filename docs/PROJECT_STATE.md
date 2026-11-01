@@ -1,3 +1,22 @@
+## 2026-11-01 — Ongoing player-card tag parity and live respawn identity hardening (Draft #357)
+
+**Latest executable/test candidate:** [71902b6](https://github.com/xianyumht-cmd/facm/commit/71902b6d8bdb908b50748561e616180b2603ad5b), after functional [465ee3e](https://github.com/xianyumht-cmd/facm/commit/465ee3e41cd3078226d194d2769c493a855b4975) and [5394d27](https://github.com/xianyumht-cmd/facm/commit/5394d27f570405804b782dfe0448a59067d60694). The native ongoing player list now has **15 independently configurable source-backed display tags**: premade, high win rate, win/loss streaks, mixed Flash, solo kills, seven optional sample metrics (team damage/taken/gold shares, CS/minute, damage/gold efficiency, missing-enemy pings, vision), plus exceptional performance and an opt-in numeric Akari score. All switches are in the existing player-tag menu, save through existing dynamic-message settings, retain Akari's default enabled/disabled choices and old-JSON defaults, and refresh the loaded rows without a new API or timer. Optional statistics preserve missing versus zero, reject nonfinite/out-of-range values, and missing-enemy pings require complete evidence across eligible games. Score badges reuse the existing nine-component, full-roster-gated native aggregate rather than inventing a new score. Deterministic regression covers switches, persistence, missing metrics, high-score thresholds and owner-data changes.
+
+The already implemented native respawn overlay now **rejects duplicate Riot-ID or ambiguous legacy-name entries** in the bounded Live Client player list instead of selecting an arbitrary timer. Existing connected InProgress/foreground/account/session ownership and 2999 loopback transport remain unchanged. Synthetic regression covers conflicting duplicate entries. No new network owner, game writer, polling loop, dependency, updater or production change.
+
+**Four Windows gates for executable 71902b6 (verify exact run results before claiming green):** [Windows Build #41257134543](https://github.com/xianyumht-cmd/facm/actions/runs/41257134543), [Glass WebView2 #41257134473](https://github.com/xianyumht-cmd/facm/actions/runs/41257134473), [UI Text Contract #41257134575](https://github.com/xianyumht-cmd/facm/actions/runs/41257134575), [Mayhem Source Probe #41257134486](https://github.com/xianyumht-cmd/facm/actions/runs/41257134486). **Pending when this documentation was written.** Earlier intermediate runs may be cancelled by branch concurrency; do not mistake those for the final executable gate.
+
+| Source scope | Status | Remaining |
+| --- | --- | --- |
+| Ongoing player-card tags and per-tag display options | 15 source-backed tags with native settings, UI and synthetic tests | Remaining self/privacy/met/easy-gank/kill-damage options, full card layout and detailed popovers; existing saved-player tag and encounter browser are separate |
+| Native respawn timer, phase-scoped live-client ownership | Implemented; duplicate-identity fail-closed regression added | Real Tencent/Windows 10 foreground, identity and game-phase acceptance |
+| Historical match preview and ongoing-game dry-run | Missing as integrated native toolkit flow | Source GameView/ConnectedMatchPreviewer draft simulation, strict same-account/region dry-run isolation |
+| Real Tencent/Riot SGP, 256-preset cloud sync, Windows 10/DPI | Not live verified | Final consolidated owner acceptance |
+
+PR #357 and stacked #355 remain Draft. No merge, publish, deployment, updater or GGman 3.5.78 modification.
+
+---
+
 ## 2026-11-01 — Native ongoing premade and player-card analysis (Draft #357)
 
 **Executable/test candidate:** [7edfdf8](https://github.com/xianyumht-cmd/facm/commit/7edfdf8f73f5e593d08a22e55ba8d37ced2ad96a), 10 code commits after the previously verified [885796a](https://github.com/xianyumht-cmd/facm/commit/885796ab674997c98b65e817e99a97dbd9537103). Check this candidate's [Windows Build](https://github.com/xianyumht-cmd/facm/actions/runs/41253043319), [Glass WebView2](https://github.com/xianyumht-cmd/facm/actions/runs/41253043322), [UI Text Contract](https://github.com/xianyumht-cmd/facm/actions/runs/41253043347) and [Mayhem Source Probe](https://github.com/xianyumht-cmd/facm/actions/runs/41253043361) individually before marking the executable head verified.
