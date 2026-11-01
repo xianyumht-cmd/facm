@@ -137,6 +137,14 @@ jobs:
             throw "Build output not found: $env:OUTPUT_EXE"
           }
 
+      - name: Run League history synthetic smoke
+        shell: pwsh
+        run: |
+          & (Resolve-Path $env:OUTPUT_EXE).Path --league-history-test
+          if ($LASTEXITCODE -ne 0) {
+            throw "League history synthetic smoke failed with exit code $LASTEXITCODE"
+          }
+
       - name: Verify lightweight GGman.exe
         id: verify
         shell: pwsh
