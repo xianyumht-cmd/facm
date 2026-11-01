@@ -14,6 +14,7 @@ namespace FACM.League
         public string NameStrategy { get; set; } = "preferChampionName";
         public string PremadeNameStrategy { get; set; } = "preferName";
         public int PremadeMatchThreshold { get; set; } = 5;
+        public string ChampionUsageMode { get; set; } = "recent";
         public bool ShowSelfTag { get; set; } = true;
         public bool ShowTaggedTag { get; set; } = true;
         public bool ShowMetTag { get; set; } = true;
@@ -88,6 +89,7 @@ namespace FACM.League
         {
             if (options == null || options.PremadeMatchThreshold < 2 ||
                 options.PremadeMatchThreshold > LeaguePlayerDataService.MaximumMatchCount ||
+                !new[] { "none", "recent", "mastery" }.Contains(options.ChampionUsageMode) ||
                 !new[] { "friendly", "enemy", "all" }.Contains(options.Target) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.NameStrategy) ||
                 !new[] { "preferName", "preferChampionName", "championNameWithName" }.Contains(options.PremadeNameStrategy) ||

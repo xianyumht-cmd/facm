@@ -25,6 +25,7 @@ namespace FACM.League
             ValidatePrivacyTag();
             ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
             ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
+            ValidateChampionUsageMode();
             ValidateJungleTimeline();
             ValidateJungleFormatter();
             ValidateJunglePrefetch();
@@ -768,6 +769,24 @@ namespace FACM.League
                     .ConfigureAwait(false) && fake.MasteryReads == count,
                     "Mastery must be unavailable after leaving the current game phase.");
             }
+        }
+
+        private static void ValidateChampionUsageMode()
+        {
+            var options = LeagueDynamicMessageOptions.Parse("{}");
+            Require(options.ChampionUsageMode == "recent",
+                "The source champion usage default must remain recent for existing settings.");
+            options.ChampionUsageMode = "mastery";
+            Require(LeagueDynamicMessageOptions.Parse(
+                    LeagueDynamicMessageOptions.Save(options)).ChampionUsageMode == "mastery",
+                "Mastery champion usage mode must survive settings serialization.");
+            options.ChampionUsageMode = "none";
+            Require(LeagueDynamicMessageOptions.Parse(
+                    LeagueDynamicMessageOptions.Save(options)).ChampionUsageMode == "none",
+                "Disabled champion usage mode must survive settings serialization.");
+            Require(LeagueDynamicMessageOptions.Parse(
+                    "{\"ChampionUsageMode\":\"invalid\"}").ChampionUsageMode == "recent",
+                "Unknown champion usage mode must fail closed to the source default.");
         }
 
         private static void ValidateHistoricalDryRun()

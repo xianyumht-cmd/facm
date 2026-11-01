@@ -84,6 +84,26 @@ namespace FACM.League
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse)).Click += (sender, e) => BrowseTags();
             var tagVisibility = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.OngoingTagDisplay));
             _exchangeMenu.Items.Add(tagVisibility);
+            var championUsage = new ToolStripMenuItem(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
+            _exchangeMenu.Items.Add(championUsage);
+            foreach (var mode in new[] { "none", "recent", "mastery" })
+            {
+                var selectedMode = mode;
+                var label = mode == "none" ? T(LeagueEfficiencyUiTextKeys.Disabled) :
+                    mode == "recent" ? _ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions) :
+                    _ui.Get(UiTextKeys.LeagueProfileMastery);
+                var item = new ToolStripMenuItem(label) {
+                    Checked = _options.ChampionUsageMode == selectedMode
+                };
+                championUsage.DropDownItems.Add(item);
+                item.Click += (sender, e) =>
+                {
+                    _options.ChampionUsageMode = selectedMode;
+                    foreach (ToolStripMenuItem option in championUsage.DropDownItems)
+                        option.Checked = ReferenceEquals(option, item);
+                    RefreshPreview();
+                };
+            }
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingSelf,
                 () => _options.ShowSelfTag, value => _options.ShowSelfTag = value);
             AddTagChoice(tagVisibility, LeagueEfficiencyUiTextKeys.OngoingTagged,
@@ -229,6 +249,8 @@ namespace FACM.League
                 editTag.Enabled = !e.Cancel && !isSelf;
                 removeTag.Enabled = !e.Cancel && !isSelf && !string.IsNullOrEmpty(choice.Tag);
                 encountered.Enabled = !e.Cancel && !isSelf;
+                recentChampions.Visible = _options.ChampionUsageMode == "recent";
+                championMastery.Visible = _options.ChampionUsageMode == "mastery";
                 recentChampions.Enabled = !e.Cancel &&
                     LeagueHistoricalMatchDryRun.RecentChampionUsage(choice.Player).Count > 0;
                 championMastery.Enabled = !e.Cancel;
