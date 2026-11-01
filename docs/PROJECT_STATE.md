@@ -1,3 +1,16 @@
+### 2026-11-01 — Planning intent, post-game mission and regional group retry (Draft #357)
+
+**Latest executable/test candidate:** `a5a89bb79f2bd33224ad7a7ae3aaf0b880afbd33`. Exact-HEAD Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe are **pending**; the last confirmed four-gate candidate is `51f9d958f5fc62ae8d86deb3be660fcf9cdd0d3f`. The earlier planning-intent smoke placement caused a Glass compile failure on `4539cbe`; the fixture was corrected before this candidate. Do not count that failed gate as verified.
+
+| Pinned Akari capability | Status | New native behavior / remaining gap |
+| --- | --- | --- |
+| ChampSelect planning intent | **PARTIAL (CI pending)** | Failed intent HTTP writes no longer consume the one-shot fence. Existing two-second episode retries only after fresh local action, availability, teammate intent, phase and account checks. Synthetic 503-to-success/phase-exit regression added. Remaining special strategy/source options still open. |
+| PreEndOfGame missions celebration | **PARTIAL (CI pending)** | Failed mission completion now retries on subsequent ordinary phase observations, capped at three submissions per post-game episode; successful response stops repeats. No new polling, write owner or API endpoint. |
+| Regional auto-select group catalog | **PARTIAL (CI pending)** | Canceled server-directory/public group refresh no longer consumes the two-hour explicit refresh throttle or publishes a stale response. Synthetic cancellation/retry/throttle coverage uses the existing trusted transport. Live provider variants unverified. |
+| Remaining Akari source scope | **PARTIAL / MISSING** | Complete player-card popovers, historical free-form queue/new-player editing, all-source concurrency and remaining ChampSelect/gameflow options. Riot/Tencent live SGP, 256-row cloud round-trip and Windows 10/DPI final acceptance remain unverified. |
+
+Both PR #357 and stacked #355 remain Draft. No merge, release, deployment, updater, paid infrastructure, live game testing or production GGman 3.5.78 change. Next priority: historical free-form draft and source option-by-option ChampSelect/gameflow parity.
+
 ### 2026-11-01 — Source-backed full player-card collection and ChampSelect retry (Draft #357)
 
 **Executable/test candidate:** `f9e25d3f6e264c26cd696f33a133e9aa2e9c6eb5` (full-card navigation), plus the present history-smoke/docs HEAD. Four exact-HEAD Windows CI gates **pending** until all results are confirmed; previous four-gate verified `b990da35e25565eac2165d0712a0617ddfef2bdc`. Both PR #357 and stacked #355 remain Draft.
