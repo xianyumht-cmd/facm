@@ -274,6 +274,8 @@ namespace FACM.League
                     player.Player.Position ?? "", player.HistoricalPrimaryPosition ?? "",
                     player.HistoricalSecondaryPosition ?? "");
                 grid.Rows[index].Tag = player.Player.PuuId;
+                grid.Rows[index].Cells["player"].Tag =
+                    player.Player.GameName ?? ("#" + player.Player.CellId);
             }
             layout.Controls.Add(grid, 0, 0);
             var targetRow = new FlowLayoutPanel { Dock = DockStyle.Fill,
@@ -334,8 +336,10 @@ namespace FACM.League
                     }
                     changes.Add(new LeagueHistoricalRosterSelection {
                         PuuId = row.Tag as string, TeamId = team, ChampionId = champion,
-                        DraftName = Convert.ToString(row.Cells["player"].Value,
-                            CultureInfo.InvariantCulture),
+                        DraftName = string.Equals(Convert.ToString(row.Cells["player"].Value,
+                            CultureInfo.InvariantCulture), row.Cells["player"].Tag as string,
+                            StringComparison.Ordinal) ? null : Convert.ToString(
+                            row.Cells["player"].Value, CultureInfo.InvariantCulture),
                         Position = row.Cells["position"].Value as string,
                         PrimaryPosition = row.Cells["primary"].Value as string,
                         SecondaryPosition = row.Cells["secondary"].Value as string
