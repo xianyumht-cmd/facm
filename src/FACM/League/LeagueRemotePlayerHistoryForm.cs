@@ -818,7 +818,7 @@ namespace FACM.League
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLookup),
                     Bounds = new Rectangle(364, 229, 98, 27),
-                    Enabled = _historyRegion.SelectedIndex == 0
+                    Enabled = true
                 };
                 var lookupStatus = new Label
                 {
@@ -833,10 +833,20 @@ namespace FACM.League
                         string name, tag;
                         if (!SessionMatches(expectedSession) ||
                             !ReferenceEquals(_activePage, page) ||
-                            _historyRegion.SelectedIndex != 0 ||
                             !LeaguePlayerDataService.TryParseRiotId(riotId.Text, out name, out tag))
                         {
                             lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteInvalid);
+                            return;
+                        }
+                        var source = (LeaguePlayerHistorySource)_historySource.SelectedIndex;
+                        var selectedServer = SelectedServerId();
+                        var sgpServer = source == LeaguePlayerHistorySource.Sgp
+                            ? selectedServer ?? LeagueSgpMatchHistoryApiClient.CurrentServerId(expectedSession)
+                            : null;
+                        if (source == LeaguePlayerHistorySource.Sgp &&
+                            LeagueSgpMatchHistoryApiClient.ResolveServer(expectedSession, sgpServer) == null)
+                        {
+                            lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteUnavailable);
                             return;
                         }
                         lookup.Enabled = false;
@@ -844,11 +854,12 @@ namespace FACM.League
                         try
                         {
                             var result = await _service.SearchRiotIdAsync(_expected,
-                                riotId.Text.Trim(), lookupLifetime.Token);
+                                riotId.Text.Trim(), lookupLifetime.Token, false, sgpServer);
                             if (dialog.IsDisposed || lookupLifetime.IsCancellationRequested ||
                                 !SessionMatches(expectedSession) ||
                                 !ReferenceEquals(_activePage, page) ||
-                                _historyRegion.SelectedIndex != 0) return;
+                                source != (LeaguePlayerHistorySource)_historySource.SelectedIndex ||
+                                !string.Equals(selectedServer, SelectedServerId(), StringComparison.Ordinal)) return;
                             string updated;
                             if (result.Status == LeagueRiotPlayerSearchStatus.Found &&
                                 result.Player != null &&

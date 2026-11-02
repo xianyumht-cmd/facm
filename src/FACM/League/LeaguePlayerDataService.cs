@@ -184,13 +184,18 @@ namespace FACM.League
         }
 
         internal async Task<LeagueRiotPlayerSearchResult> SearchRiotIdAsync(
-            LeaguePlayerProfile expected, string riotId, CancellationToken cancellationToken, bool allowRegionalLookup = false)
+            LeaguePlayerProfile expected, string riotId, CancellationToken cancellationToken,
+            bool allowRegionalLookup = false, string sgpServerId = null)
         {
             string gameName;
             string tagLine;
             if (!TryParseRiotId(riotId, out gameName, out tagLine))
                 return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.InvalidQuery };
             if (_riotAliases == null || expected == null || string.IsNullOrEmpty(expected.PuuId))
+                return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+            var regionalSession = sgpServerId == null ? null : _session?.Invoke();
+            if (sgpServerId != null && (_sgpHistory == null || regionalSession == null ||
+                LeagueSgpMatchHistoryApiClient.ResolveServer(regionalSession, sgpServerId) == null))
                 return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
 
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
@@ -217,17 +222,29 @@ namespace FACM.League
                         foundPuuid = ParseRiotAliasPuuid(aliases, gameName, tagLine);
                         if (foundPuuid == null)
                             return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
-                        var path = "/lol-summoner/v2/summoners/puuid/" + Uri.EscapeDataString(foundPuuid);
-                        resolved = ParseProfile(await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false));
-                        if (!allowRegionalLookup && (resolved == null ||
-                            !string.Equals(foundPuuid, resolved.PuuId, StringComparison.Ordinal)))
-                            return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                        if (sgpServerId != null)
+                        {
+                            resolved = ParseSgpSummoner(await _sgpHistory.TryGetSummonerAsync(
+                                foundPuuid, timeout.Token, sgpServerId).ConfigureAwait(false), foundPuuid);
+                            if (resolved == null)
+                                return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                        }
+                        else
+                        {
+                            var path = "/lol-summoner/v2/summoners/puuid/" + Uri.EscapeDataString(foundPuuid);
+                            resolved = ParseProfile(await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false));
+                            if (!allowRegionalLookup && (resolved == null ||
+                                !string.Equals(foundPuuid, resolved.PuuId, StringComparison.Ordinal)))
+                                return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                        }
                     }
                     finally { _requestGate.Release(); }
 
                     var after = ParseProfile(await _client.TryGetBytesAsync(
                         LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
-                    if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
+                    if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal) ||
+                        regionalSession != null && !LeagueSgpMatchHistoryApiClient.SameOwner(
+                            regionalSession, _session?.Invoke()))
                         return new LeagueRiotPlayerSearchResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
                     return new LeagueRiotPlayerSearchResult
                     {

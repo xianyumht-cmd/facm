@@ -1677,6 +1677,44 @@ namespace FACM.League
             Require(changed.SearchRiotIdAsync(expected, "Example Name#CN1", CancellationToken.None)
                 .GetAwaiter().GetResult().Status == LeagueRiotPlayerSearchStatus.AccountChanged,
                 "A completed Riot lookup must not publish data after account replacement.");
+
+            var originalSession = new LeagueClientSession("LeagueClientUx", 11, 12345,
+                "local-secret", "https", "fixture", "HN10", "TENCENT");
+            var session = originalSession;
+            var sgp = new FakeSgpHistory("{\"games\":[]}")
+            {
+                Summoner = "[{\"puuid\":\"target-puuid\",\"name\":\"Verified\"}]"
+            };
+            var regionalRiot = new FakeRiotAliases(alias);
+            var regional = new LeaguePlayerDataService(new FixtureApi(current, "{}", null, null, details),
+                new PerformanceBudgetProvider(), regionalRiot, sgp, () => session);
+            var cross = regional.SearchRiotIdAsync(expected, "Example Name#CN1",
+                CancellationToken.None, false, "TENCENT_BGP2").GetAwaiter().GetResult();
+            Require(cross.Status == LeagueRiotPlayerSearchStatus.Found &&
+                cross.Player.PuuId == "target-puuid" && sgp.LastServer == "TENCENT_BGP2" &&
+                regionalRiot.Calls == 1,
+                "Cross-region Riot ID lookup must verify the exact PUUID through its trusted SGP summoner provider.");
+            sgp.Summoner = "[{\"puuid\":\"foreign-puuid\"}]";
+            Require(regional.SearchRiotIdAsync(expected, "Example Name#CN1",
+                CancellationToken.None, false, "TENCENT_BGP2").GetAwaiter().GetResult()
+                .Status == LeagueRiotPlayerSearchStatus.NotFound,
+                "A regional SGP summoner for a different PUUID must never authorize an alias result.");
+            var invalidRiot = new FakeRiotAliases(alias);
+            var foreignSession = new LeagueClientSession("LeagueClientUx", 12, 12345,
+                "local-secret", "https", "fixture", "NA1", "NA");
+            var unavailable = new LeaguePlayerDataService(new FixtureApi(current, "{}", null, null, details),
+                new PerformanceBudgetProvider(), invalidRiot, sgp, () => foreignSession);
+            Require(unavailable.SearchRiotIdAsync(expected, "Example Name#CN1",
+                CancellationToken.None, false, "TENCENT_BGP2").GetAwaiter().GetResult()
+                .Status == LeagueRiotPlayerSearchStatus.Unavailable && invalidRiot.Calls == 0,
+                "Riot clients must not search an unauthorized Tencent SGP region.");
+            sgp.Summoner = "[{\"puuid\":\"target-puuid\"}]";
+            sgp.OnSummonerRead = () => session = new LeagueClientSession("LeagueClientUx", 99, 12345,
+                "local-secret", "https", "fixture", "HN10", "TENCENT");
+            Require(regional.SearchRiotIdAsync(expected, "Example Name#CN1",
+                CancellationToken.None, false, "TENCENT_BGP2").GetAwaiter().GetResult()
+                .Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A replaced LCU process must invalidate in-flight cross-region Riot ID search results.");
         }
 
         private static void ValidateSgpHistoryFallback()
@@ -1853,6 +1891,7 @@ namespace FACM.League
             internal string LastTarget;
             internal string LastServer;
             internal string Summoner;
+            internal Action OnSummonerRead;
 
             internal FakeSgpHistory(string source) { _source = Encoding.UTF8.GetBytes(source); }
 
@@ -1872,6 +1911,7 @@ namespace FACM.League
             public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token, string serverId = null)
             {
                 LastServer = serverId;
+                OnSummonerRead?.Invoke();
                 return Task.FromResult(Summoner == null ? null : Encoding.UTF8.GetBytes(Summoner));
             }
 
