@@ -396,6 +396,10 @@ namespace FACM.League
                 RecordOnce(reported, trace, "turn", "manual_choice");
                 return;
             }
+            // Akari's just-show strategy never rewrites an action already showing a champion.
+            // The sentinel values for empty ban and Arena bravery are also deliberate choices.
+            var strategy = isPick ? profile.PickStrategy : profile.BanStrategy;
+            if (strategy == "just-show" && action.ChampionId != 0) return;
 
             var key = action.Type + ":" + action.Id.ToString(CultureInfo.InvariantCulture);
             var staged = (isPick ? profile.PickStrategy : profile.BanStrategy) == "show-and-lock-in" &&
@@ -442,7 +446,6 @@ namespace FACM.League
                 return;
             }
 
-            var strategy = isPick ? profile.PickStrategy : profile.BanStrategy;
             // The source's subset-pick move always completes immediately; showing alone cannot finalize a draw.
             if (isPick && action.AllowSubsetPicks) strategy = "lock-in-immediately";
             var delayMs = isPick ? profile.PickDelayMs : profile.BanDelayMs;

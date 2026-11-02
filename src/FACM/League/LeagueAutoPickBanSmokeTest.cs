@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateRemoteGroupCatalog();
             ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
             ValidateBenchRoleSelection();
+            ValidateJustShowExistingChoiceAsync().GetAwaiter().GetResult();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
@@ -438,6 +439,47 @@ namespace FACM.League
                         LeagueAutoPickBanController.BenchAssignedRole(unknown), true, 0)
                         .SequenceEqual(new[] { 34 }),
                 "Source-imported role-specific bench priorities must not fall back to the default lane.");
+        }
+
+        private static async Task ValidateJustShowExistingChoiceAsync()
+        {
+            foreach (var type in new[] { "pick", "ban" })
+            {
+                var isPick = type == "pick";
+                var champion = isPick ? 22 : 67;
+                var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+                {
+                    new LeagueAutoSelectProfile
+                    {
+                        Mode = "default", Role = "default",
+                        Picks = new List<int> { 22 }, Bans = new List<int> { 67 },
+                        PickStrategy = "just-show", BanStrategy = "just-show"
+                    }
+                });
+                var read = new FakeRead { SessionJson = Session(type, 7, champion) };
+                var write = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(read, write, new InstantClock()))
+                {
+                    controller.Configure(isPick, isPick ? champion : 0,
+                        !isPick, isPick ? 0 : champion, profiles);
+                    await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                    Require(write.Calls.Count == 0 && read.ActionPaths.Count == 1,
+                        "Just-show must not rewrite an already shown " + type + " choice.");
+                }
+
+                var freshRead = new FakeRead { SessionJson = Session(type, 7, 0) };
+                var freshWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    freshRead, freshWrite, new InstantClock()))
+                {
+                    controller.Configure(isPick, isPick ? champion : 0,
+                        !isPick, isPick ? 0 : champion, profiles);
+                    await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                    Require(freshWrite.Calls.SequenceEqual(new[]
+                        { type + ":7:" + champion + ":False" }),
+                        "Just-show must still issue its initial nonlocking " + type + " write.");
+                }
+            }
         }
 
         private static void ValidateQueueGroupsAndTiming()
