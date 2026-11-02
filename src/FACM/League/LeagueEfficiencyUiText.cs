@@ -161,6 +161,12 @@ namespace FACM.League
         public const string AdvancedBenchUpgrade = "LeagueEfficiencyAdvancedBenchUpgrade";
         public const string AdvancedTrade = "LeagueEfficiencyAdvancedTrade";
         public const string AdvancedBenchDelay = "LeagueEfficiencyAdvancedBenchDelay";
+        public const string AdvancedImportAkari = "LeagueEfficiencyAdvancedImportAkari";
+        public const string AdvancedExportAkari = "LeagueEfficiencyAdvancedExportAkari";
+        public const string AdvancedImportConfirm = "LeagueEfficiencyAdvancedImportConfirm";
+        public const string AdvancedImportReady = "LeagueEfficiencyAdvancedImportReady";
+        public const string AdvancedExportReady = "LeagueEfficiencyAdvancedExportReady";
+        public const string AdvancedTransferFailed = "LeagueEfficiencyAdvancedTransferFailed";
         public const string AdvancedSave = "LeagueEfficiencyAdvancedSave";
         public const string AdvancedCancel = "LeagueEfficiencyAdvancedCancel";
         public const string ProfileModeRanked = "LeagueEfficiencyProfileModeRanked";
@@ -665,6 +671,12 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
             { LeagueEfficiencyUiTextKeys.AdvancedTrade, "按优先级自动接受或拒绝交换" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
+            { LeagueEfficiencyUiTextKeys.AdvancedImportAkari, "导入 Akari" },
+            { LeagueEfficiencyUiTextKeys.AdvancedExportAkari, "导出 Akari" },
+            { LeagueEfficiencyUiTextKeys.AdvancedImportConfirm, "确认导入 Akari v1.5.1 自动选禁配置？导入只修改当前编辑草稿，点击保存后才会替换本地配置；未提供的选/禁类别保持不变。" },
+            { LeagueEfficiencyUiTextKeys.AdvancedImportReady, "已导入编辑草稿；请检查后点击保存。" },
+            { LeagueEfficiencyUiTextKeys.AdvancedExportReady, "当前选禁配置已复制为 Akari JSON。" },
+            { LeagueEfficiencyUiTextKeys.AdvancedTransferFailed, "配置无效、无法无损转换或剪贴板不可用；未更改保存的配置。" },
             { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
             { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },
             { LeagueEfficiencyUiTextKeys.ProfileModeRanked, "排位模式" },

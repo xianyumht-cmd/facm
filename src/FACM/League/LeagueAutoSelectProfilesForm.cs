@@ -161,19 +161,35 @@ namespace FACM.League
 
             _status = new Label { Dock = DockStyle.Fill, ForeColor = FacmDesignSystem.TextMuted,
                 TextAlign = ContentAlignment.MiddleLeft, AutoEllipsis = true };
-            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 1 };
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             var save = new FacmActionButton { Text = T(LeagueEfficiencyUiTextKeys.AdvancedSave),
                 Tone = FacmButtonTone.Primary, Width = 112, Height = 34 };
             var cancel = new FacmActionButton { Text = T(LeagueEfficiencyUiTextKeys.AdvancedCancel),
                 Tone = FacmButtonTone.Secondary, Width = 100, Height = 34 };
+            var importButton = new FacmActionButton
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.AdvancedImportAkari),
+                Tone = FacmButtonTone.Secondary, Width = 104, Height = 34
+            };
+            var exportButton = new FacmActionButton
+            {
+                Text = T(LeagueEfficiencyUiTextKeys.AdvancedExportAkari),
+                Tone = FacmButtonTone.Secondary, Width = 104, Height = 34
+            };
+            importButton.Click += delegate { ImportAkari(); };
+            exportButton.Click += delegate { ExportAkari(); };
             save.Click += delegate { SaveProfiles(); };
             cancel.Click += delegate { Close(); };
             footer.Controls.Add(_status, 0, 0);
-            footer.Controls.Add(cancel, 1, 0);
-            footer.Controls.Add(save, 2, 0);
+            footer.Controls.Add(importButton, 1, 0);
+            footer.Controls.Add(exportButton, 2, 0);
+            footer.Controls.Add(cancel, 3, 0);
+            footer.Controls.Add(save, 4, 0);
             root.Controls.Add(footer, 0, 9);
             root.SetColumnSpan(footer, 2);
             Controls.Add(root);
@@ -487,6 +503,43 @@ namespace FACM.League
                     _status.Text = T(LeagueEfficiencyUiTextKeys.ChampionCatalogUnavailable);
                     AppLog.Info("Auto-select catalog unavailable: " + exception.GetType().Name);
                 }
+            }
+        }
+
+        private void ImportAkari()
+        {
+            try
+            {
+                var incoming = LeagueAkariAutoSelectTransfer.Import(Clipboard.GetText(), _profiles);
+                if (MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.AdvancedImportConfirm),
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+                _profiles.Clear();
+                _profiles.AddRange(incoming);
+                RefreshProfile();
+                _status.ForeColor = FacmDesignSystem.TextMuted;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedImportReady);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedTransferFailed);
+                AppLog.Info("Auto-select transfer rejected: " + exception.GetType().Name);
+            }
+        }
+
+        private void ExportAkari()
+        {
+            try
+            {
+                Clipboard.SetText(LeagueAkariAutoSelectTransfer.Export(_profiles));
+                _status.ForeColor = FacmDesignSystem.TextMuted;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedExportReady);
+            }
+            catch (Exception exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedTransferFailed);
+                AppLog.Info("Auto-select transfer rejected: " + exception.GetType().Name);
             }
         }
 
