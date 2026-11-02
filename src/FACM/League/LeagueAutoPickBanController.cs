@@ -661,7 +661,8 @@ namespace FACM.League
                 !string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase)) return false;
 
             var mode = state.AutoSelectGroup ?? LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
-            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
+            var role = BenchAssignedRole(state);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, role);
             if (!profile.PickEnabled || !profile.BenchHandleTradeEnabled) return false;
 
             // Only profiles with explicitly enabled trade handling generate this extra read;
@@ -689,7 +690,7 @@ namespace FACM.League
             var key = "trade:" + incoming.Id + ":" + incoming.RequestedChampionId;
             if (attempted.Contains(key)) return true;
             var priorities = LeagueAutoSelectGroupCatalog.FilterSpecials(
-                LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, role, true, pickId), mode,
                 _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
             var accept = SelectBenchTarget(priorities, state.LocalChampionId,
                 new[] { incoming.RequestedChampionId }, profile.BenchPreferHigherPriority) == incoming.RequestedChampionId;
@@ -795,7 +796,8 @@ namespace FACM.League
                 !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase)) return;
 
             var mode = state.AutoSelectGroup ?? LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
-            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, "default");
+            var role = BenchAssignedRole(state);
+            var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, role);
             if (!profile.PickEnabled || !profile.BenchAutoSwapEnabled) return;
             guard.ObserveBench(state.ChampionIds, Stopwatch.GetTimestamp());
             if (!guard.AcceptObservedChampion(state.LocalChampionId))
@@ -804,7 +806,7 @@ namespace FACM.League
                 return;
             }
             var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
-                LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
+                LeagueAutoSelectProfiles.Candidates(profiles, mode, role, true, pickId), mode,
                 _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
             var desired = SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds,
                 profile.BenchPreferHigherPriority);
@@ -888,10 +890,26 @@ namespace FACM.League
             fallback.GameMode = primary.GameMode;
             fallback.AutoSelectGroup = primary.AutoSelectGroup;
             fallback.AutoSelectContext = primary.AutoSelectContext;
+            if (!fallback.Players.Any(p => p.IsLocalPlayer))
+                fallback.Players.AddRange(primary.Players);
             fallback.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
             if (string.IsNullOrWhiteSpace(fallback.TimerPhase)) fallback.TimerPhase = primary.TimerPhase;
             if (fallback.TimerMillisecondsLeft <= 0) fallback.TimerMillisecondsLeft = primary.TimerMillisecondsLeft;
             return fallback;
+        }
+
+        internal static string BenchAssignedRole(LeagueBenchQuickPickState state)
+        {
+            var local = state == null ? null : state.Players.FirstOrDefault(p => p.IsLocalPlayer);
+            switch ((local?.Position ?? string.Empty).Trim().ToUpperInvariant())
+            {
+                case "TOP": return "top";
+                case "JUNGLE": case "JG": return "jungle";
+                case "MIDDLE": case "MID": return "middle";
+                case "BOTTOM": case "BOT": case "ADC": return "bottom";
+                case "UTILITY": case "SUPPORT": case "SUP": return "support";
+                default: return null;
+            }
         }
 
         internal static int SelectBenchTarget(IReadOnlyList<int> priorities, int held,
@@ -918,6 +936,7 @@ namespace FACM.League
                 expected.QueueId == fresh.QueueId && expected.GameMode == fresh.GameMode &&
                 expected.AutoSelectContext == fresh.AutoSelectContext &&
                 expected.LocalPlayerCellId == fresh.LocalPlayerCellId &&
+                string.Equals(BenchAssignedRole(expected), BenchAssignedRole(fresh), StringComparison.Ordinal) &&
                 expected.SwapRoute == fresh.SwapRoute &&
                 (string.Equals(fresh.TimerPhase, "BAN_PICK", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(fresh.TimerPhase, "FINALIZATION", StringComparison.OrdinalIgnoreCase));

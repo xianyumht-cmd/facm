@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateGroupRefreshCancellation();
             ValidateRemoteGroupCatalog();
             ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
+            ValidateBenchRoleSelection();
             ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
             ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
@@ -408,6 +409,35 @@ namespace FACM.League
                 Require(switchedWrite.Calls.Count == 0,
                     "A region switch during the two LCU reads must block the draft write.");
             }
+        }
+
+        private static void ValidateBenchRoleSelection()
+        {
+            var top = LeagueLiveDataService.ParseBenchPayload(Bytes(
+                BenchSession(34, "[55]", 450, false)
+                    .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"TOP\"}")));
+            var support = LeagueLiveDataService.ParseBenchPayload(Bytes(
+                BenchSession(34, "[55]", 450, false)
+                    .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"UTILITY\"}")));
+            var unknown = LeagueLiveDataService.ParseBenchPayload(Bytes(BenchSession(34, "[55]", 450, false)));
+            Require(LeagueAutoPickBanController.BenchAssignedRole(top) == "top" &&
+                    LeagueAutoPickBanController.BenchAssignedRole(support) == "support" &&
+                    LeagueAutoPickBanController.BenchAssignedRole(unknown) == null,
+                "Bench and trade priorities must use the verified local assigned position.");
+            var profiles = new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "default",
+                    AkariExactPickRoles = true, Picks = new List<int> { 34 } },
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 55 } }
+            };
+            Require(LeagueAutoSelectProfiles.Candidates(profiles, "rift",
+                        LeagueAutoPickBanController.BenchAssignedRole(top), true, 0)
+                        .SequenceEqual(new[] { 55 }) &&
+                    LeagueAutoSelectProfiles.Candidates(profiles, "rift",
+                        LeagueAutoPickBanController.BenchAssignedRole(unknown), true, 0)
+                        .SequenceEqual(new[] { 34 }),
+                "Source-imported role-specific bench priorities must not fall back to the default lane.");
         }
 
         private static void ValidateQueueGroupsAndTiming()
