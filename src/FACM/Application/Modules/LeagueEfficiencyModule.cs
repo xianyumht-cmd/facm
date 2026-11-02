@@ -838,8 +838,12 @@ namespace FACM.AppHost.Modules
                 if (!TryApplyBindings(ExitGameHotkey, CloseLobbyHotkey, quickKeys, false, out hotkeyError))
                     AppLog.Warning("League quick-message hotkey settings could not be applied: " + hotkeyError);
             }
-            // Cloud restore updates the same Settings object. Pick up restored preferences without
-            // requiring the user to close/reopen the game client or Quick Tools.
+            // Cloud restore updates the same Settings object. Reconfigure all opt-in
+            // gameflow owners, including post-game and reconnect, before observing the phase.
+            _postGame?.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled, AutoHonorStrategy);
+            _postGame?.Observe(_dashboard.CurrentGameflowState);
+            _reconnect?.Configure(AutoReconnectEnabled);
+            _reconnect?.Observe(_dashboard.CurrentGameflowState);
             _matchmaking?.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize,
                 AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees, AutoMatchmakingRoomNotices);
             _matchmaking?.Observe(_dashboard.CurrentGameflowState);
