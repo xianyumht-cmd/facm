@@ -382,6 +382,14 @@ namespace FACM.League
                           ? id != 100 && id != 200 : !originalCounts.ContainsKey(id))))
                 return false;
 
+            if (snapshot.HistoricalStandalone)
+            {
+                var names = requested.Select(p => p.DraftName == null
+                    ? current[p.PuuId].Player.GameName : p.DraftName.Trim()).ToArray();
+                if (names.Any(string.IsNullOrWhiteSpace) ||
+                    names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Length)
+                    return false;
+            }
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
             var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
             if (requested.Any(p => p.DraftName != null &&

@@ -670,7 +670,17 @@ namespace FACM.League
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) };
             var edit = new Button { AutoSize = true, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) };
+            var target = new ComboBox { Width = 120,
+                DropDownStyle = ComboBoxStyle.DropDownList };
+            target.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicFriendly));
+            target.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicEnemy));
+            target.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicAll));
+            target.SelectedIndex = 2;
             actions.Controls.Add(mode); actions.Controls.Add(create); actions.Controls.Add(edit);
+            actions.Controls.Add(new Label { AutoSize = true,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftTarget),
+                Margin = new Padding(8, 8, 4, 0) });
+            actions.Controls.Add(target);
             layout.Controls.Add(actions, 0, 0);
             var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true,
@@ -707,9 +717,13 @@ namespace FACM.League
                     }
                 }
                 finally { rows.EndUpdate(); }
-                preview.Text = string.Join(Environment.NewLine,
+                var selectedTarget = new[] { "friendly", "enemy", "all" }[
+                    Math.Max(0, target.SelectedIndex)];
+                preview.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterQueue) + " ID: " +
+                    _draft.HistoricalQueueId.ToString(CultureInfo.InvariantCulture) +
+                    Environment.NewLine + string.Join(Environment.NewLine,
                     LeagueDynamicMessageFormatter.Build(_draft,
-                        new LeagueDynamicMessageOptions { Target = "all",
+                        new LeagueDynamicMessageOptions { Target = selectedTarget,
                             NameStrategy = "championNameWithName" }));
             };
             Action createDraft = () =>
@@ -729,6 +743,10 @@ namespace FACM.League
                 refresh();
             };
             create.Click += (sender, args) => createDraft();
+            target.SelectedIndexChanged += (sender, args) =>
+            {
+                if (_draft != null) refresh();
+            };
             edit.Click += (sender, args) =>
             {
                 if (_draft == null) return;

@@ -1454,6 +1454,16 @@ namespace FACM.League
                 !LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(
                     standalone, standalone.SelfPuuid),
                 "Standalone Rift edits and additions must stay isolated and reversible.");
+            var duplicateNames = standalone.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = "",
+                DraftName = "Same Name"
+            }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(
+                    standalone, duplicateNames) &&
+                standalone.Players[0].Player.GameName == "Edited Blue",
+                "Standalone draft must reject duplicate names atomically.");
             Require(LeagueHistoricalMatchDryRun.BuildStandalone(
                     "INVALID", "Blue", "Red") == null &&
                 LeagueHistoricalMatchDryRun.BuildStandalone(
