@@ -939,9 +939,9 @@ namespace FACM.League
             }
 
             Require(LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{}")) &&
-                    LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\\"state\\":\\"DECLINED\\"}")) &&
+                    LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\"state\":\"DECLINED\"}")) &&
                     !LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("not-json")) &&
-                    !LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\\"state\\":\\"RECEIVED\\"}")),
+                    !LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\"state\":\"RECEIVED\"}")),
                 "Uncertain active trade payloads must not be treated as an empty trade.");
             var malformedTrade = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
                 TradeJson = "not-json" };
