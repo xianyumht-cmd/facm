@@ -37,6 +37,7 @@ namespace FACM.League
             ValidateKillDamageEfficiencyTag();
             ValidateHistoricalDryRun();
             ValidateOngoingKdaOutliers();
+            ValidateOngoingCardDetails();
             ValidatePrivacyTag();
             ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
             ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
@@ -1397,6 +1398,55 @@ namespace FACM.League
                 "Unknown champion usage mode must fail closed to the source default.");
         }
 
+
+        private static void ValidateOngoingCardDetails()
+        {
+            var snapshot = new LeagueDynamicMessageSnapshot { SelfPuuid = "self" };
+            var self = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "self" }
+            };
+            var other = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "other" }
+            };
+            snapshot.Players.Add(self);
+            snapshot.Players.Add(other);
+            Require(LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other) &&
+                !LeagueOngoingCardStatsProjection.CanEditTag(snapshot, self) &&
+                !LeagueOngoingCardStatsProjection.CanEditTag(snapshot,
+                    new LeagueDynamicMessagePlayer {
+                        Player = new LeagueLivePlayerRow { PuuId = "outside" }
+                    }), "Card tag actions must stay scoped to verified non-self roster players.");
+            snapshot.HistoricalStandalone = true;
+            Require(!LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other),
+                "Standalone synthetic drafts must not edit persistent player tags.");
+            var games = new List<LeaguePlayerMatchSummary> {
+                new LeaguePlayerMatchSummary {
+                    PuuId = "other", GameId = 101, ChampionId = 22,
+                    GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    WinResult = "win", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 4, Deaths = 2, Assists = 4
+                },
+                new LeaguePlayerMatchSummary {
+                    PuuId = "other", GameId = 102, ChampionId = 22,
+                    GameMode = "CHERRY", GameType = "MATCHED_GAME",
+                    WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 2, Deaths = 2, Assists = 0
+                }
+            };
+            var details = LeagueOngoingCardStatsProjection.Project(null, games, "other");
+            Require(details.Any(row => row.Key == "KDA" && row.Value == "2.50") &&
+                details.Any(row => row.Key == "KDA avg" && row.Value == "2.50") &&
+                details.Any(row => row.Key == "K / D / A" && row.Value == "3.00 / 2.00 / 2.00") &&
+                details.Any(row => row.Key == "KDA CV") &&
+                details.Count(row => row.Key ==
+                    LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.ProfileModeCherry)) == 1,
+                "Source card details must expose verified per-game averages and mode evidence.");
+            Require(LeagueOngoingCardStatsProjection.Project(null, games, "foreign").Count == 0,
+                "Card detail popovers must not project another player's history.");
+            games[1].GameId = 101;
+            Require(LeagueOngoingCardStatsProjection.Project(null, games, "other").Count == 0,
+                "Ambiguous duplicate game evidence must not generate card details.");
+        }
 
         private static void ValidateOngoingKdaOutliers()
         {

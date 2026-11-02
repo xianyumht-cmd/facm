@@ -430,7 +430,19 @@ namespace FACM.League
                     token => _module.LoadDynamicMasteryAsync(snapshot,
                         choice.Player.Player.PuuId, token),
                     token => _module.LoadJungleMessagesAsync(snapshot,
-                        choice.Player.Player.PuuId, token)))
+                        choice.Player.Player.PuuId, token),
+                    async owner =>
+                    {
+                        if (_busy || !ReferenceEquals(_snapshot, snapshot) ||
+                            !LeagueOngoingCardStatsProjection.CanEditTag(snapshot, choice.Player)) return;
+                        using (var editor = CreateTagDialog(choice.Tag))
+                        {
+                            if (editor.ShowDialog(owner) != DialogResult.OK ||
+                                !ReferenceEquals(_snapshot, snapshot)) return;
+                            await SetPlayerTagAsync(snapshot, choice,
+                                editor.Controls.OfType<TextBox>().First().Text);
+                        }
+                    }))
                     dialog.ShowDialog(this);
                 if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))
                 {

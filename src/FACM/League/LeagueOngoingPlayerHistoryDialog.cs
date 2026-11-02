@@ -72,6 +72,67 @@ namespace FACM.League
     }
 
 
+    // Source-aligned on-demand card details: use only the verified, bounded card sample.
+    internal static class LeagueOngoingCardStatsProjection
+    {
+        internal static bool CanEditTag(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return snapshot != null && !snapshot.HistoricalStandalone &&
+                player?.Player != null && snapshot.Players.Contains(player) &&
+                LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) &&
+                LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) &&
+                !string.Equals(snapshot.SelfPuuid, player.Player.PuuId, StringComparison.Ordinal);
+        }
+
+        internal static IReadOnlyList<KeyValuePair<string, string>> Project(
+            UiTextCatalog ui, IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            var selected = LeagueOngoingHistoryFilter.Select(matches, puuid, 0, "");
+            if (selected.Count == 0) return new KeyValuePair<string, string>[0];
+            var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(selected, puuid);
+            if (analysis == null) return new KeyValuePair<string, string>[0];
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Func<double?, string> percent = value => value.HasValue
+                ? value.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—";
+            var rows = new List<KeyValuePair<string, string>>();
+            Action<string, string> add = (label, value) =>
+                rows.Add(new KeyValuePair<string, string>(label, value));
+            add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame),
+                analysis.Games.ToString(CultureInfo.CurrentCulture));
+            add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate),
+                percent(analysis.WinRate) + " (" + analysis.Wins + " / " + analysis.Losses + ")");
+            if (analysis.Kda.HasValue)
+                add("KDA", analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.AverageGameKda.HasValue)
+                add("KDA avg", analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.KdaCv.HasValue)
+                add("KDA CV", analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.StatisticsGames > 0)
+                add("K / D / A", string.Join(" / ", new[] {
+                    analysis.Kills, analysis.Deaths, analysis.Assists
+                }.Select(value => (value / (double)analysis.StatisticsGames)
+                    .ToString("0.00", CultureInfo.CurrentCulture))));
+            if (analysis.NormalWins + analysis.NormalLosses > 0)
+                add(t(LeagueEfficiencyUiTextKeys.ProfileModeNormal),
+                    percent(analysis.NormalWinRate) + " (" +
+                    (analysis.NormalWins + analysis.NormalLosses) + ")");
+            if (analysis.CherryWins + analysis.CherryLosses > 0)
+                add(t(LeagueEfficiencyUiTextKeys.ProfileModeCherry),
+                    percent(analysis.CherryWinRate) + " (" +
+                    (analysis.CherryWins + analysis.CherryLosses) + ")");
+            if (analysis.ArenaPlacements > 0)
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst),
+                    analysis.ArenaFirstPlaces + " / " + analysis.ArenaPlacements);
+            if (analysis.MostPlayedPositions.Count > 0)
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardPositions),
+                    string.Join(" / ", analysis.MostPlayedPositions.Select(position =>
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, position.Key) +
+                        " " + position.Value.ToString(CultureInfo.CurrentCulture))));
+            return rows;
+        }
+    }
+
     internal sealed class LeagueOngoingCardBreakdownRow
     {
         internal string Kind, Label, Mode, Position;
@@ -830,7 +891,8 @@ namespace FACM.League
             Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
             int autoPages = 0, Func<int, string, string, Form> openFullCollection = null,
             Func<CancellationToken, Task<bool>> loadMastery = null,
-            Func<CancellationToken, Task<bool>> loadJungle = null)
+            Func<CancellationToken, Task<bool>> loadJungle = null,
+            Func<IWin32Window, Task> editTag = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -1211,12 +1273,45 @@ namespace FACM.League
             layout.Controls.Add(header, 0, 0);
             layout.Controls.Add(filters, 0, 1);
             var statsRow = new TableLayoutPanel { Dock = DockStyle.Fill,
-                ColumnCount = loadMastery == null ? 2 : 3 };
+                ColumnCount = 2 + (loadMastery == null ? 0 : 1) +
+                    (editTag != null && LeagueOngoingCardStatsProjection.CanEditTag(snapshot, player) ? 1 : 0) };
             statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             if (loadMastery != null)
                 statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
             statsRow.Controls.Add(stats, 0, 0);
+            stats.Cursor = Cursors.Hand;
+            stats.Click += (sender, args) =>
+            {
+                if (!isCurrent() || loading || collecting) return;
+                var details = LeagueOngoingCardStatsProjection.Project(
+                    ui, visibleMatches().ToList(), player.Player.PuuId);
+                if (details.Count == 0) return;
+                using (var dialog = new Form {
+                    Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · KDA",
+                    Width = 450, Height = 400, MinimumSize = new Size(340, 280),
+                    StartPosition = FormStartPosition.CenterParent,
+                    AutoScaleMode = AutoScaleMode.Font, ShowInTaskbar = false,
+                    BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
+                })
+                {
+                    var list = new ListView {
+                        Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                        GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
+                        ForeColor = FacmDesignSystem.Text
+                    };
+                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown), 190);
+                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardStats), 205);
+                    foreach (var detail in details)
+                    {
+                        var row = new ListViewItem(detail.Key);
+                        row.SubItems.Add(detail.Value);
+                        list.Items.Add(row);
+                    }
+                    dialog.Controls.Add(list);
+                    dialog.ShowDialog(this);
+                }
+            };
             var breakdownButton = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown) };
             breakdownButton.Click += (sender, args) =>
@@ -1275,6 +1370,25 @@ namespace FACM.League
                     }
                 };
                 statsRow.Controls.Add(masteryButton, 2, 0);
+            }
+            if (editTag != null && LeagueOngoingCardStatsProjection.CanEditTag(snapshot, player))
+            {
+                var tagButton = new Button { Dock = DockStyle.Fill,
+                    Text = t(LeagueEfficiencyUiTextKeys.DynamicTagEdit) };
+                statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+                tagButton.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || loading || collecting || !tagButton.Enabled) return;
+                    tagButton.Enabled = false;
+                    try { await editTag(this); }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally
+                    {
+                        if (!IsDisposed) tagButton.Enabled = isCurrent();
+                    }
+                };
+                statsRow.Controls.Add(tagButton, loadMastery == null ? 2 : 3, 0);
             }
             layout.Controls.Add(statsRow, 0, 2);
             layout.Controls.Add(rows, 0, 3);
