@@ -92,6 +92,7 @@ namespace FACM.League
         private readonly ILeagueClientApi _readApi;
         private readonly ILeagueMatchmakingWriteApi _writeApi;
         private readonly Func<LeagueClientSession> _sessionProvider;
+        private readonly ILeagueMatchmakingClock _clock;
         private readonly object _sync = new object();
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private CancellationTokenSource _episode;
@@ -106,10 +107,17 @@ namespace FACM.League
 
         public LeagueMatchmakingStopController(ILeagueClientApi readApi, ILeagueMatchmakingWriteApi writeApi,
             Func<LeagueClientSession> sessionProvider)
+            : this(readApi, writeApi, sessionProvider, new LeagueMatchmakingSystemClock())
+        {
+        }
+
+        internal LeagueMatchmakingStopController(ILeagueClientApi readApi, ILeagueMatchmakingWriteApi writeApi,
+            Func<LeagueClientSession> sessionProvider, ILeagueMatchmakingClock clock)
         {
             _readApi = readApi ?? throw new ArgumentNullException(nameof(readApi));
             _writeApi = writeApi ?? throw new ArgumentNullException(nameof(writeApi));
             _sessionProvider = sessionProvider ?? throw new ArgumentNullException(nameof(sessionProvider));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
         public void Configure(string policy, int fixedStopAfterMs)
@@ -222,24 +230,24 @@ namespace FACM.League
                     var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
                     if (state == null)
                     {
-                        await Task.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
                         continue;
                     }
                     if (!state.IsCurrentlyInQueue || !state.IsSearching) return;
                     var remaining = FixedStopRemaining(state, delayMs);
                     if (!remaining.HasValue)
                     {
-                        await Task.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
                         continue;
                     }
                     missingReads = 0;
                     if (remaining.Value > TimeSpan.Zero)
                     {
-                        await Task.Delay(remaining.Value, cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(remaining.Value, cancellationToken).ConfigureAwait(false);
                         continue;
                     }
                     if (await TryStopAsync(generation, cancellationToken).ConfigureAwait(false)) return;
-                    await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                    await _clock.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) { }
@@ -259,7 +267,7 @@ namespace FACM.League
                     var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
                     if (state == null)
                     {
-                        await Task.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
                         continue;
                     }
                     if (!state.IsCurrentlyInQueue || !state.IsSearching) return;
@@ -268,11 +276,11 @@ namespace FACM.League
                     {
                         var stopped = await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
                         if (stopped) return;
-                        await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        await Task.Delay(EstimatedPollInterval, cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(EstimatedPollInterval, cancellationToken).ConfigureAwait(false);
                     }
                 }
             }

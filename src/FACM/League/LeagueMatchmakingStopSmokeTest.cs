@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using FACM.Performance;
 using FACM.Services;
 
@@ -15,6 +18,7 @@ namespace FACM.League
             ValidateReadyCheckFence();
             ValidateWriteFence();
             ValidateTransientRecoveryAndSessionFence();
+            ValidateTransientRecoveryFlow();
             AppSettings.ValidateMatchmakingStopPreferencesForSmokeTest();
         }
 
@@ -138,6 +142,103 @@ namespace FACM.League
                 !LeagueMatchmakingStopController.SameEpisodeSession(original, replacement) &&
                 !LeagueMatchmakingStopController.SameEpisodeSession(original, null),
                 "Matchmaking stop must abandon a previous LCU session before a DELETE.");
+        }
+
+        private static void ValidateTransientRecoveryFlow()
+        {
+            var session = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test");
+            var active = Bytes("{\"isCurrentlyInQueue\":true,\"searchState\":\"Searching\",\"timeInQueue\":120}");
+            var stopped = Bytes("{\"isCurrentlyInQueue\":false,\"searchState\":\"Idle\"}");
+            var reader = new StopSequenceReader(null, null, active, active,
+                Bytes("{\"searchState\":\"Searching\"}"), active, active, stopped);
+            var writer = new StopCountingWriter();
+            var clock = new StopImmediateClock();
+            using (var controller = new LeagueMatchmakingStopController(reader, writer, () => session, clock))
+            {
+                controller.Configure(LeagueMatchmakingStopPolicy.FixedTime, 60000);
+                controller.Observe(new LeagueDashboardPhaseState
+                {
+                    Connected = true, Phase = "Matchmaking", Activity = LeagueActivityLevel.Queueing
+                });
+                Require(writer.Calls == 2 && reader.Calls == 7 &&
+                    clock.Delays.Count == 2 && clock.Delays[0] == TimeSpan.FromSeconds(2) &&
+                    clock.Delays[1] == LeagueMatchmakingStopController.RetryDelay,
+                    "Missing LCU data or unknown post-write membership abandoned or falsely confirmed queue stop.");
+            }
+
+            var replacement = new LeagueClientSession("LeagueClientUx", 2, 2999, "two", "https", "test");
+            var current = session;
+            var switchedReader = new StopSequenceReader(() => current = replacement, active);
+            var switchedWriter = new StopCountingWriter();
+            using (var controller = new LeagueMatchmakingStopController(switchedReader, switchedWriter,
+                () => current, new StopImmediateClock()))
+            {
+                controller.Configure(LeagueMatchmakingStopPolicy.FixedTime, 60000);
+                controller.Observe(new LeagueDashboardPhaseState
+                {
+                    Connected = true, Phase = "Matchmaking", Activity = LeagueActivityLevel.Queueing
+                });
+                Require(switchedWriter.Calls == 0,
+                    "Previous LCU matchmaking episode issued DELETE after session replacement.");
+            }
+
+            var disconnectedReader = new StopSequenceReader(null, active);
+            using (var controller = new LeagueMatchmakingStopController(disconnectedReader,
+                new StopCountingWriter(), () => session, new StopImmediateClock()))
+            {
+                controller.Configure(LeagueMatchmakingStopPolicy.FixedTime, 60000);
+                controller.Observe(new LeagueDashboardPhaseState
+                {
+                    Connected = false, Phase = "Matchmaking", Activity = LeagueActivityLevel.Queueing
+                });
+                Require(disconnectedReader.Calls == 0,
+                    "Disconnected Gameflow must not start a queue cancellation episode.");
+            }
+        }
+
+        private sealed class StopSequenceReader : ILeagueClientApi
+        {
+            private readonly Queue<byte[]> _responses;
+            private readonly Action _firstRead;
+            internal int Calls;
+
+            internal StopSequenceReader(Action firstRead, params byte[][] responses)
+            {
+                _firstRead = firstRead;
+                _responses = new Queue<byte[]>(responses);
+            }
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                if (path != LeagueMatchmakingStopController.SearchStatePath)
+                    throw new InvalidOperationException("Unexpected matchmaking read route.");
+                if (++Calls == 1) _firstRead?.Invoke();
+                return Task.FromResult(_responses.Count > 0 ? _responses.Dequeue() : null);
+            }
+        }
+
+        private sealed class StopCountingWriter : ILeagueMatchmakingWriteApi
+        {
+            internal int Calls;
+            public Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, CancellationToken token)
+            {
+                if (method != "DELETE" || path != LeagueMatchmakingWriteApiClient.SearchPath)
+                    throw new InvalidOperationException("Unexpected matchmaking write route.");
+                Calls++;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 200 });
+            }
+        }
+
+        private sealed class StopImmediateClock : ILeagueMatchmakingClock
+        {
+            internal readonly List<TimeSpan> Delays = new List<TimeSpan>();
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                Delays.Add(delay);
+                if (Delays.Count > 8)
+                    throw new InvalidOperationException("Matchmaking recovery exceeded its bounded test sequence.");
+                return Task.CompletedTask;
+            }
         }
 
         private static void ValidateWriteFence()
