@@ -806,7 +806,7 @@ namespace FACM.League
                 !LeagueSimpleMatchHistoryFilter.ShouldApplySgpPositions(
                     LeaguePlayerHistorySource.Lcu, roles) &&
                 !LeagueSimpleMatchHistoryFilter.ShouldApplySgpPositions(
-                    LeaguePlayerHistorySource.Auto, roles),
+                    LeaguePlayerHistorySource.Automatic, roles),
                 "Only the explicit SGP source may apply source-backed position predicates.");
             var now = DateTime.UtcNow;
             var rows = new[]
