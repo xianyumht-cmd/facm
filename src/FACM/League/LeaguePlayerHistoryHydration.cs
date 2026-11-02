@@ -47,6 +47,7 @@ namespace FACM.League
             var original = matches.Select(CloneMatch).ToList();
             result.Matches = original.Select(CloneMatch).ToList();
             var target = new LeaguePlayerProfile { PuuId = targetPuuid };
+            var regional = new List<Tuple<int, LeaguePlayerMatchSummary>>();
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 deadline.CancelAfter(TimeSpan.FromSeconds(24));
@@ -67,6 +68,14 @@ namespace FACM.League
                             !string.IsNullOrEmpty(current.SgpServerId)) ||
                             (current.DataSource == LeaguePlayerHistorySource.Sgp &&
                             string.IsNullOrEmpty(current.SgpServerId))) continue;
+                        // SGP HTTP may overlap; LCU remains serialized by the shared gate.
+                        if (current.DataSource == LeaguePlayerHistorySource.Sgp &&
+                            _sgpHistory != null && _budgets.Current.NetworkConcurrency > 1)
+                        {
+                            result.Attempted.Add(key);
+                            regional.Add(Tuple.Create(i, current));
+                            continue;
+                        }
                         try
                         {
                             using (var attempt = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token))
@@ -101,6 +110,33 @@ namespace FACM.League
                             result.TimedOut = true;
                         }
                     }
+                    if (!result.AccountChanged && regional.Count > 0)
+                    {
+                        await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                        try
+                        {
+                            result.AccountChanged = !await VerifyDetailsOwnerAsync(
+                                selfPuuid, expectedSession, deadline.Token).ConfigureAwait(false);
+                        }
+                        finally { _requestGate.Release(); }
+                        if (!result.AccountChanged)
+                        {
+                            using (var sgpGate = new SemaphoreSlim(Math.Min(4, _budgets.Current.NetworkConcurrency)))
+                            {
+                                var pending = regional.Select(row => HydrateRegionalAnalysisMatchAsync(
+                                    row.Item1, row.Item2, target, targetPuuid, sgpGate,
+                                    token, deadline.Token)).ToArray();
+                                var completed = await Task.WhenAll(pending).ConfigureAwait(false);
+                                foreach (var row in completed)
+                                {
+                                    if (row.Item3) result.TimedOut = true;
+                                    if (row.Item2 == null) continue;
+                                    result.Matches[row.Item1] = row.Item2;
+                                    result.Updated++;
+                                }
+                            }
+                        }
+                    }
                     if (!result.AccountChanged)
                     {
                         await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
@@ -123,6 +159,52 @@ namespace FACM.League
             if (!SessionStillCurrent(expectedSession)) result.AccountChanged = true;
             if (result.AccountChanged) { result.Matches.Clear(); result.Updated = 0; }
             return result;
+        }
+
+        private async Task<Tuple<int, LeaguePlayerMatchSummary, bool>> HydrateRegionalAnalysisMatchAsync(
+            int index, LeaguePlayerMatchSummary current, LeaguePlayerProfile target,
+            string targetPuuid, SemaphoreSlim sgpGate, CancellationToken userToken,
+            CancellationToken deadlineToken)
+        {
+            try
+            {
+                using (var attempt = CancellationTokenSource.CreateLinkedTokenSource(deadlineToken))
+                {
+                    attempt.CancelAfter(TimeSpan.FromSeconds(4));
+                    await sgpGate.WaitAsync(attempt.Token).ConfigureAwait(false);
+                    try
+                    {
+                        var bytes = await _sgpHistory.TryGetGameSummaryAsync(
+                            current.GameId, attempt.Token, current.SgpServerId).ConfigureAwait(false);
+                        // Parse under the existing short CPU/LCU gate, not across SGP HTTP.
+                        await _requestGate.WaitAsync(attempt.Token).ConfigureAwait(false);
+                        try
+                        {
+                            var game = NormalizeSgpGame(ParseObject(bytes));
+                            if (game != null) MarkSgpSource(game, current.SgpServerId);
+                            var hydrated = ParseMatch(game, target);
+                            if (!CanReplaceAnalysisMatch(current, hydrated, targetPuuid))
+                                return Tuple.Create(index, (LeaguePlayerMatchSummary)null, false);
+                            hydrated.PreferredSource = current.PreferredSource;
+                            hydrated.ChampionName = current.ChampionId == hydrated.ChampionId
+                                ? current.ChampionName : hydrated.ChampionName;
+                            return Tuple.Create(index, hydrated, false);
+                        }
+                        finally { _requestGate.Release(); }
+                    }
+                    finally { sgpGate.Release(); }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                userToken.ThrowIfCancellationRequested();
+                if (deadlineToken.IsCancellationRequested) throw;
+                return Tuple.Create(index, (LeaguePlayerMatchSummary)null, true);
+            }
+            catch (System.Net.Http.HttpRequestException)
+            {
+                return Tuple.Create(index, (LeaguePlayerMatchSummary)null, false);
+            }
         }
 
         internal static bool CanReplaceAnalysisMatch(LeaguePlayerMatchSummary old,
