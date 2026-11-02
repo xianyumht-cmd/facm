@@ -130,6 +130,7 @@ namespace FACM.League
         private readonly Func<LeagueClientSession> _session;
         private readonly ILeagueClientApi _local;
         private readonly HttpClient _http;
+        private readonly SemaphoreSlim _localTokenGate = new SemaphoreSlim(1, 1);
 
         internal LeagueSgpMatchHistoryApiClient(LeagueClientSessionProvider sessions, ILeagueClientApi local)
             : this(() => sessions.GetSession(), local, new HttpClientHandler
@@ -358,8 +359,15 @@ namespace FACM.League
                     for (var attempt = 0; attempt < 2; attempt++)
                     {
                         if (!SameSession(session)) return null;
-                        var credentials = await _local.TryGetBytesAsync(
-                            leagueToken ? LeagueSessionTokenPath : EntitlementsPath, deadline.Token).ConfigureAwait(false);
+                        byte[] credentials;
+                        await _localTokenGate.WaitAsync(deadline.Token).ConfigureAwait(false);
+                        try
+                        {
+                            credentials = await _local.TryGetBytesAsync(
+                                leagueToken ? LeagueSessionTokenPath : EntitlementsPath, deadline.Token)
+                                .ConfigureAwait(false);
+                        }
+                        finally { _localTokenGate.Release(); }
                         var token = leagueToken ? ReadLeagueSessionToken(credentials) : ReadEntitlementsToken(credentials);
                         if (token == null || !SameSession(session) ||
                             (rejectedToken != null && string.Equals(token, rejectedToken, StringComparison.Ordinal)))
