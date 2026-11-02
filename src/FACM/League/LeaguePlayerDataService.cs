@@ -25,6 +25,7 @@ namespace FACM.League
         private readonly PerformanceBudgetProvider _budgets;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
         private readonly ILeagueSgpMatchHistoryApi _sgpHistory;
+        internal bool HasRegionalHistoryOwner { get { return _sgpHistory != null; } }
         private readonly Func<LeagueClientSession> _session;
         private readonly SemaphoreSlim _requestGate = new SemaphoreSlim(1, 1);
         private LeaguePlayerProfile _cachedProfile;

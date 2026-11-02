@@ -340,6 +340,10 @@ namespace FACM.League
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
                     snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
                 var effectiveConcurrency = Math.Min(historyConcurrency, _budgets.Current.NetworkConcurrency);
+                // Without a regional provider, retain the established serialized LCU/cache
+                // order; parallel tasks cannot improve a single-owner local request gate.
+                if (historyQueueTag == null && !_players.HasRegionalHistoryOwner)
+                    effectiveConcurrency = 1;
                 Func<LeagueDynamicMessagePlayer, CancellationToken, Task> loadOne = async (player, ct) =>
                 {
                     var row = player.Player;
