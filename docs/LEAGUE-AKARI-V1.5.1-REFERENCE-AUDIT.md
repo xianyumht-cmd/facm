@@ -1,3 +1,7 @@
+## 2026-11-03 — Source match-history creation-time filters (Draft #357)
+
+Pinned Akari v1.5.1 `src/shared/data-adapter/predicates/combinators.ts#gameCreationInTimeRange` defines six relative windows (3/12/24 hours and 3/7/30 days). The existing native advanced history editor now offers the six exact source options in a selector; the local predicate reads only verified match creation epochs, rejects future/missing timestamps under NOT, and combines with existing AND/OR, player, queue and stat predicates without new network requests. Executable smoke checks all windows, old/future/unknown evidence and invalid tokens. **Candidate: exact-HEAD Windows gates pending.** This closes one source filter condition, not full Akari filter/popup parity or live Tencent/Windows 10 acceptance.
+
 ### 2026-11-03 — International SGP region directory parity (Draft #357)
 
 Native Riot region selection now uses the pinned Akari v1.5.1 Chinese display names for Taiwan, Singapore, Philippines, Vietnam, Japan, Russia, Brazil, Oceania, Turkey, Latin America North/South, North America, Thailand and Korea. The PBE/EUW identifiers remain unchanged. The same executable SGP smoke checks all sixteen international labels and confirms each authenticated Riot region exposes only its own provider; Tencent remains the only cross-region selector. No endpoint, credential, refresh, polling or game-write behavior changes. **Candidate; four exact-HEAD Windows CI gates pending, live Riot/Tencent and Windows 10 acceptance still deferred.**

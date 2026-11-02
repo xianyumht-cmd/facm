@@ -30,6 +30,7 @@ namespace FACM.League
             ValidateAdvancedRelativeMetricFilters();
             ValidateAdvancedParticipantScopes();
             ValidateAdvancedSourcePresets();
+            ValidateAdvancedTimeRangeFilters();
             ValidateCherryAnalysisTeams();
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
@@ -1198,6 +1199,51 @@ namespace FACM.League
             Require(Math.Abs(match.ChampionDamageShare.Value - 100d / 4400d) < .000001 &&
                 match.SameTeamPuuids.Length == 4 && allies.Matches(match) && !enemies.Matches(match),
                 "Ordinary modes must retain teamId grouping even when optional subteam fields are present.");
+        }
+
+        private static void ValidateAdvancedTimeRangeFilters()
+        {
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var windows = new[]
+            {
+                Tuple.Create("last3Hours", 3L), Tuple.Create("last12Hours", 12L),
+                Tuple.Create("last24Hours", 24L), Tuple.Create("last3Days", 72L),
+                Tuple.Create("last7Days", 168L), Tuple.Create("last30Days", 720L)
+            };
+            foreach (var window in windows)
+            {
+                LeagueAdvancedMatchHistoryFilter filter;
+                string error;
+                var condition = Predicate(LeagueAdvancedMatchKind.GameCreationInTimeRange, window.Item1);
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(
+                    Group(LeagueAdvancedMatchKind.And, condition), out filter, out error),
+                    "Akari source creation-time filter must compile: " + window.Item1);
+                var match = new LeaguePlayerMatchSummary {
+                    GameCreationEpochMs = now - window.Item2 * 30L * 60 * 1000
+                };
+                Require(filter.Matches(match), "Recent verified match must pass time range: " + window.Item1);
+                match.GameCreationEpochMs = now - window.Item2 * 2L * 60 * 60 * 1000;
+                Require(!filter.Matches(match), "Old match must fail time range: " + window.Item1);
+                match.GameCreationEpochMs = 0;
+                Require(!filter.Matches(match), "Missing creation time must fail closed.");
+                Require(LeagueAdvancedMatchHistoryFilter.TryCreate(
+                    Group(LeagueAdvancedMatchKind.And,
+                        Group(LeagueAdvancedMatchKind.Not,
+                            Predicate(LeagueAdvancedMatchKind.GameCreationInTimeRange, window.Item1))),
+                    out filter, out error) && !filter.Matches(match),
+                    "Negation must not turn missing creation time into verified old history.");
+                match.GameCreationEpochMs = now + 60 * 60 * 1000L;
+                Require(!filter.Matches(match), "Future timestamps must stay unknown under negation.");
+            }
+            foreach (var invalid in new[] { "all", "last1Hour", "last3hours", "last30Days ", "", null })
+            {
+                LeagueAdvancedMatchHistoryFilter filter;
+                string error;
+                Require(!LeagueAdvancedMatchHistoryFilter.TryCreate(
+                    Group(LeagueAdvancedMatchKind.And,
+                        Predicate(LeagueAdvancedMatchKind.GameCreationInTimeRange, invalid)), out filter, out error),
+                    "Unsupported creation-time ranges must be rejected before applying.");
+            }
         }
 
         private static void ValidateAdvancedSourcePresets()

@@ -315,6 +315,8 @@ namespace FACM.Services
             Pair(UiTextKeys.LeaguePlayerAdvancedQueue, "队列 ID"),
             Pair(UiTextKeys.LeaguePlayerAdvancedMap, "地图 ID"),
             Pair(UiTextKeys.LeaguePlayerAdvancedDuration, "时长范围（秒）"),
+            Pair(UiTextKeys.LeaguePlayerAdvancedTimeRange, "创建时间范围"),
+            Pair(UiTextKeys.LeaguePlayerAdvancedTimeRangeHint, "选择近 3/12/24 小时或近 3/7/30 天；仅筛选已有可信创建时间的对局。"),
             Pair(UiTextKeys.LeaguePlayerAdvancedWin, "本人胜利"),
             Pair(UiTextKeys.LeaguePlayerAdvancedLoss, "本人失败"),
             Pair(UiTextKeys.LeaguePlayerAdvancedNormalLoss, "普通失败（非投降）"),

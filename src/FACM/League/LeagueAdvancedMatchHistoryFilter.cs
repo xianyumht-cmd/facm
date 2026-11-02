@@ -15,6 +15,7 @@ namespace FACM.League
         IsQueue,
         IsMap,
         DurationBetween,
+        GameCreationInTimeRange,
         IsWin,
         IsLoss,
         IsNormalLoss,
@@ -99,6 +100,16 @@ namespace FACM.League
             90, 91, 92, 950, 951, 960, 961, 981, 982, 990,
             1030, 1031, 1032, 1040, 1041, 1050, 1051, 1060, 1061, 1070, 1071,
             1800, 1810, 1820, 1830, 1840, 1850, 1860, 1870, 1880, 1890
+        };
+
+        private static readonly Dictionary<string, long> CreationWindows = new Dictionary<string, long>(StringComparer.Ordinal)
+        {
+            { "last3Hours", 3L * 60 * 60 * 1000 },
+            { "last12Hours", 12L * 60 * 60 * 1000 },
+            { "last24Hours", 24L * 60 * 60 * 1000 },
+            { "last3Days", 3L * 24 * 60 * 60 * 1000 },
+            { "last7Days", 7L * 24 * 60 * 60 * 1000 },
+            { "last30Days", 30L * 24 * 60 * 60 * 1000 }
         };
 
         private const int MaximumNodes = 40;
@@ -252,6 +263,14 @@ namespace FACM.League
                             return false;
                         }
                         copy.Value = number.ToString(CultureInfo.InvariantCulture);
+                        break;
+                    case LeagueAdvancedMatchKind.GameCreationInTimeRange:
+                        if (source.Value == null || !CreationWindows.ContainsKey(source.Value))
+                        {
+                            error = UiTextKeys.LeaguePlayerAdvancedErrorUnsupported;
+                            return false;
+                        }
+                        copy.Value = source.Value;
                         break;
                     case LeagueAdvancedMatchKind.DurationBetween:
                         if (!TryRange(source.Value, out minimum, out maximum))
@@ -492,6 +511,13 @@ namespace FACM.League
                     return match.MapId <= 0 ? Evidence.Unknown : Match(match.MapId == ParseId(node.Value));
                 case LeagueAdvancedMatchKind.DurationBetween:
                     return match.GameDurationSeconds <= 0 ? Evidence.Unknown : InRange(node.Value, match.GameDurationSeconds);
+                case LeagueAdvancedMatchKind.GameCreationInTimeRange:
+                {
+                    var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                    var createdMs = root.GameCreationEpochMs;
+                    if (createdMs < 1262304000000L || createdMs > nowMs) return Evidence.Unknown;
+                    return Match(createdMs >= nowMs - CreationWindows[node.Value]);
+                }
                 case LeagueAdvancedMatchKind.IsWin:
                     return ResultEvidence(match, "win");
                 case LeagueAdvancedMatchKind.IsLoss:

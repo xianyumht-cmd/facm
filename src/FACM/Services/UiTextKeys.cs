@@ -309,6 +309,8 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedQueue = "LeaguePlayerAdvancedQueue";
         public const string LeaguePlayerAdvancedMap = "LeaguePlayerAdvancedMap";
         public const string LeaguePlayerAdvancedDuration = "LeaguePlayerAdvancedDuration";
+        public const string LeaguePlayerAdvancedTimeRange = "LeaguePlayerAdvancedTimeRange";
+        public const string LeaguePlayerAdvancedTimeRangeHint = "LeaguePlayerAdvancedTimeRangeHint";
         public const string LeaguePlayerAdvancedWin = "LeaguePlayerAdvancedWin";
         public const string LeaguePlayerAdvancedLoss = "LeaguePlayerAdvancedLoss";
         public const string LeaguePlayerAdvancedNormalLoss = "LeaguePlayerAdvancedNormalLoss";

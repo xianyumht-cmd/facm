@@ -26,6 +26,7 @@ namespace FACM.League
             LeagueAdvancedMatchKind.IsQueue,
             LeagueAdvancedMatchKind.IsMap,
             LeagueAdvancedMatchKind.DurationBetween,
+            LeagueAdvancedMatchKind.GameCreationInTimeRange,
             LeagueAdvancedMatchKind.IsWin,
             LeagueAdvancedMatchKind.IsLoss,
             LeagueAdvancedMatchKind.IsNormalLoss,
@@ -80,6 +81,7 @@ namespace FACM.League
         private readonly ComboBox _conditionType;
         private readonly TextBox _conditionValue;
         private readonly ComboBox _queueChoice;
+        private readonly ComboBox _timeRangeChoice;
         private readonly Label _inputHint;
         private bool _changingSelection;
         private readonly string _targetPuuid;
@@ -185,6 +187,24 @@ namespace FACM.League
                 _conditionValue.Text = ((QueueChoice)_queueChoice.SelectedItem).Id
                     .ToString(System.Globalization.CultureInfo.InvariantCulture);
             };
+            _timeRangeChoice = new ComboBox
+            {
+                Bounds = new Rectangle(556, 429, 162, 27),
+                Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTimeRange),
+                Visible = false
+            };
+            _timeRangeChoice.Items.AddRange(new object[]
+            {
+                "last3Hours", "last12Hours", "last24Hours", "last3Days", "last7Days", "last30Days"
+            });
+            _timeRangeChoice.SelectedIndexChanged += (s, e) =>
+            {
+                if (!_changingSelection && _timeRangeChoice.SelectedItem != null)
+                    _conditionValue.Text = (string)_timeRangeChoice.SelectedItem;
+            };
             _inputHint = new Label
             {
                 Bounds = new Rectangle(18, 463, 700, 38),
@@ -224,7 +244,7 @@ namespace FACM.League
             CancelButton = cancel;
 
             Controls.AddRange(new Control[] { instruction, _rootMode, _tree, addCondition, addAnd, addOr,
-                addNot, remove, addScope, _conditionType, _conditionValue, _queueChoice, _inputHint, clear, presetButton, cancel, apply });
+                addNot, remove, addScope, _conditionType, _conditionValue, _queueChoice, _timeRangeChoice, _inputHint, clear, presetButton, cancel, apply });
             _tree.AfterSelect += (s, e) => ShowSelectedCondition();
             _rootMode.SelectedIndexChanged += (s, e) =>
             {
@@ -272,6 +292,7 @@ namespace FACM.League
                 case LeagueAdvancedMatchKind.IsQueue: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedQueue);
                 case LeagueAdvancedMatchKind.IsMap: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedMap);
                 case LeagueAdvancedMatchKind.DurationBetween: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedDuration);
+                case LeagueAdvancedMatchKind.GameCreationInTimeRange: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTimeRange);
                 case LeagueAdvancedMatchKind.IsWin: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedWin);
                 case LeagueAdvancedMatchKind.IsLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedLoss);
                 case LeagueAdvancedMatchKind.IsNormalLoss: return UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedNormalLoss);
@@ -419,6 +440,9 @@ namespace FACM.League
                 _conditionValue.Text = condition || scopedIdentity ? node.Value ?? string.Empty : string.Empty;
                 _queueChoice.Visible = condition && node.Kind == LeagueAdvancedMatchKind.IsQueue;
                 _queueChoice.SelectedIndex = -1;
+                _timeRangeChoice.Visible = condition && node.Kind == LeagueAdvancedMatchKind.GameCreationInTimeRange;
+                _timeRangeChoice.SelectedIndex = _timeRangeChoice.Visible ?
+                    _timeRangeChoice.Items.IndexOf(node.Value) : -1;
                 if (_queueChoice.Visible)
                 {
                     int selected;
@@ -433,6 +457,7 @@ namespace FACM.League
                 _inputHint.Text = scopedIdentity ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedScopeHint) :
                     !condition ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedSelectHint) :
                     node.Kind == LeagueAdvancedMatchKind.IsGameMode ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedModeHint) :
+                    node.Kind == LeagueAdvancedMatchKind.GameCreationInTimeRange ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTimeRangeHint) :
                     node.Kind == LeagueAdvancedMatchKind.HasPlayer ? UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPlayerHint) :
                     IsResultCondition(node.Kind) ?
                         UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedResultHint) :
