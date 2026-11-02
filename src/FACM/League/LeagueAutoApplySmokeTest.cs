@@ -28,9 +28,9 @@ namespace FACM.League
 
         private static void ValidateAkariChampionPresetTransfer()
         {
-            const string akari = "{\\"runesV2\\":{\\"157\\":{\\"ranked-top\\":{\\"primaryStyleId\\":8000," +
-                "\\"subStyleId\\":8100,\\"selectedPerkIds\\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]}}}," +
-                "\\"summonerSpells\\":{\\"157\\":{\\"ranked-top\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}";
+            const string akari = "{\"runesV2\":{\"157\":{\"ranked-top\":{\"primaryStyleId\":8000," +
+                "\"subStyleId\":8100,\"selectedPerkIds\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]}}}," +
+                "\"summonerSpells\":{\"157\":{\"ranked-top\":{\"spell1Id\":4,\"spell2Id\":14}}}}";
             var parsed = LeagueAkariChampionPresetTransfer.Import(akari);
             Require(parsed.HasRunes && parsed.HasSpells && parsed.RuneCount == 1 && parsed.SpellCount == 1 &&
                 LeagueChampionRunePresets.Resolve(parsed.Runes, 157, "ranked-top") != null &&
@@ -43,16 +43,16 @@ namespace FACM.League
                 LeagueChampionRunePresets.Resolve(roundtrip.Runes, 157, "ranked-top").SelectedPerkIds.Count == 9,
                 "Akari clipboard export must round-trip source fields.");
             var spellsOnly = LeagueAkariChampionPresetTransfer.Import(
-                "{\\"summonerSpells\\":{\\"157\\":{\\"normal\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}");
+                "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":14}}}}");
             Require(!spellsOnly.HasRunes && spellsOnly.HasSpells && spellsOnly.SpellCount == 1,
                 "Importing one Akari catalog must preserve the other local catalog.");
             var invalid = new[]
             {
-                "{\\"runesV2\\":{\\"157\\":{\\"ranked-top\\":{\\"primaryStyleId\\":8000}}}}",
-                "{\\"summonerSpells\\":{\\"157\\":{\\"unknown\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}",
-                "{\\"summonerSpells\\":{\\"157\\":{\\"normal\\":{\\"spell1Id\\":4,\\"spell2Id\\":4}}}}",
-                "{\\"summonerSpells\\":{\\"abc\\":{}}}",
-                "{\\"unrelated\\":{}}"
+                "{\"runesV2\":{\"157\":{\"ranked-top\":{\"primaryStyleId\":8000}}}}",
+                "{\"summonerSpells\":{\"157\":{\"unknown\":{\"spell1Id\":4,\"spell2Id\":14}}}}",
+                "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":4}}}}",
+                "{\"summonerSpells\":{\"abc\":{}}}",
+                "{\"unrelated\":{}}"
             };
             foreach (var input in invalid)
             {
