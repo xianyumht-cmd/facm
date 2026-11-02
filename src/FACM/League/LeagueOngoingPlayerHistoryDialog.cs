@@ -249,15 +249,43 @@ namespace FACM.League
         }
     }
 
+    internal static class LeagueOngoingCardActionSelection
+    {
+        internal static bool TrySelect(LeagueOngoingCardBreakdownRow row,
+            out int championId, out string position, out string mode)
+        {
+            championId = 0; position = ""; mode = "";
+            if (row == null || !new[] { "champion", "position", "mode",
+                "champion-position", "champion-mode", "position-mode",
+                "champion-position-mode" }.Contains(row.Kind, StringComparer.Ordinal))
+                return false;
+            var champion = row.Kind.StartsWith("champion", StringComparison.Ordinal);
+            var role = row.Kind == "position" || row.Kind == "champion-position" ||
+                row.Kind == "position-mode" || row.Kind == "champion-position-mode";
+            var gameMode = row.Kind == "mode" || row.Kind == "champion-mode" ||
+                row.Kind == "position-mode" || row.Kind == "champion-position-mode";
+            if (champion && (row.ChampionId < 1 || row.ChampionId > 9999) ||
+                role && !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(row.Position, StringComparer.Ordinal) ||
+                gameMode && row.Mode != "NORMAL" && row.Mode != "CHERRY")
+                return false;
+            championId = champion ? row.ChampionId : 0;
+            position = role ? row.Position : "";
+            mode = gameMode ? row.Mode : "";
+            return true;
+        }
+    }
+
     internal sealed class LeagueOngoingCardBreakdownDialog : Form
     {
         internal bool HasSelection { get; private set; }
+        internal bool CollectFull { get; private set; }
         internal int SelectedChampionId { get; private set; }
         internal string SelectedPosition { get; private set; }
         internal string SelectedMode { get; private set; }
 
         internal LeagueOngoingCardBreakdownDialog(UiTextCatalog ui,
-            IList<LeaguePlayerMatchSummary> matches, string puuid)
+            IList<LeaguePlayerMatchSummary> matches, string puuid, bool canCollect = false)
         {
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown);
@@ -267,6 +295,19 @@ namespace FACM.League
             ForeColor = FacmDesignSystem.Text;
             var tabs = new TabControl { Dock = DockStyle.Fill };
             var breakdown = LeagueOngoingCardBreakdown.Project(matches, puuid);
+            Action<LeagueOngoingCardBreakdownRow, bool> applySelection = (selected, collect) =>
+            {
+                int champion; string position, mode;
+                if (!LeagueOngoingCardActionSelection.TrySelect(selected,
+                    out champion, out position, out mode)) return;
+                HasSelection = true;
+                CollectFull = collect;
+                SelectedChampionId = champion;
+                SelectedPosition = position;
+                SelectedMode = mode;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
             foreach (var kind in new[] { "champion", "position", "mode",
                 "champion-position", "champion-mode", "position-mode",
                 "champion-position-mode" })
@@ -324,22 +365,8 @@ namespace FACM.League
                 }
                 Action selectGroup = () =>
                 {
-                    if (list.SelectedItems.Count != 1) return;
-                    var selected = list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow;
-                    if (selected == null) return;
-                    HasSelection = true;
-                    SelectedChampionId = selected.Kind.StartsWith("champion", StringComparison.Ordinal)
-                        ? selected.ChampionId : 0;
-                    SelectedPosition = selected.Kind == "position" ||
-                        selected.Kind == "champion-position" || selected.Kind == "position-mode" ||
-                        selected.Kind == "champion-position-mode"
-                        ? selected.Position : "";
-                    SelectedMode = selected.Kind == "mode" ||
-                        selected.Kind == "champion-mode" || selected.Kind == "position-mode" ||
-                        selected.Kind == "champion-position-mode"
-                        ? selected.Mode : "";
-                    DialogResult = DialogResult.OK;
-                    Close();
+                    if (list.SelectedItems.Count == 1)
+                        applySelection(list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow, false);
                 };
                 list.DoubleClick += (sender, args) => selectGroup();
                 list.KeyDown += (sender, args) =>
@@ -359,7 +386,23 @@ namespace FACM.League
             var close = new Button { Dock = DockStyle.Right, Width = 100,
                 Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
                 DialogResult = DialogResult.Cancel };
-            root.Controls.Add(close, 0, 1);
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
+            actions.Controls.Add(close);
+            if (canCollect)
+            {
+                var collect = new Button { Width = 140, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+                collect.Click += (sender, args) =>
+                {
+                    var selected = tabs.SelectedTab?.Controls.OfType<ListView>()
+                        .FirstOrDefault()?.SelectedItems;
+                    if (selected != null && selected.Count == 1)
+                        applySelection(selected[0].Tag as LeagueOngoingCardBreakdownRow, true);
+                };
+                actions.Controls.Add(collect);
+            }
+            root.Controls.Add(actions, 0, 1);
             Controls.Add(root); CancelButton = close;
         }
     }
@@ -1318,10 +1361,18 @@ namespace FACM.League
             {
                 if (!isCurrent() || loading || collecting) return;
                 using (var dialog = new LeagueOngoingCardBreakdownDialog(ui,
-                    matches, player.Player.PuuId))
+                    matches, player.Player.PuuId, openFullCollection != null))
                 {
                     if (dialog.ShowDialog(this) != DialogResult.OK || !dialog.HasSelection ||
                         !isCurrent()) return;
+                    if (dialog.CollectFull && openFullCollection != null)
+                    {
+                        using (var collection = openFullCollection(
+                            dialog.SelectedChampionId, dialog.SelectedPosition, dialog.SelectedMode))
+                            if (collection != null) collection.ShowDialog(this);
+                        if (!IsDisposed) updateCollect();
+                        return;
+                    }
                     selectedChampion = dialog.SelectedChampionId;
                     selectedPosition = dialog.SelectedPosition;
                     selectedMode = dialog.SelectedMode;

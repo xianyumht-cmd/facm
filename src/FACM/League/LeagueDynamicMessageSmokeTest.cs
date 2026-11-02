@@ -38,6 +38,7 @@ namespace FACM.League
             ValidateHistoricalDryRun();
             ValidateOngoingKdaOutliers();
             ValidateOngoingCardDetails();
+            ValidateOngoingCardCollectionActions();
             ValidatePrivacyTag();
             ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
             ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
@@ -1446,6 +1447,38 @@ namespace FACM.League
             games[1].GameId = 101;
             Require(LeagueOngoingCardStatsProjection.Project(null, games, "other").Count == 0,
                 "Ambiguous duplicate game evidence must not generate card details.");
+        }
+
+        private static void ValidateOngoingCardCollectionActions()
+        {
+            var row = new LeagueOngoingCardBreakdownRow {
+                Kind = "champion-position-mode", ChampionId = 22,
+                Position = "JUNGLE", Mode = "CHERRY"
+            };
+            int champion; string position, mode;
+            Require(LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode) &&
+                champion == 22 && position == "JUNGLE" && mode == "CHERRY",
+                "Source player-card collection must retain intersected champion/role/mode.");
+            row.Kind = "position";
+            Require(LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode) &&
+                champion == 0 && position == "JUNGLE" && mode == "",
+                "Position-only collection must not inherit an unrelated champion or mode.");
+            row.Kind = "champion-mode";
+            row.Mode = "UNKNOWN";
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Unsupported mode must fail closed before full player collection.");
+            row.Mode = "CHERRY";
+            row.ChampionId = 0;
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Missing champion identity must block champion-specific collection.");
+            row.Kind = "unsupported";
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Unknown source card action cannot create a collection request.");
         }
 
         private static void ValidateOngoingKdaOutliers()
