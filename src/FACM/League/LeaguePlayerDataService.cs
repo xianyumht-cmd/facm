@@ -700,6 +700,8 @@ namespace FACM.League
                 queue = LeagueSgpSupportedQueues.ParseGameflowQueueId(gameflow);
             }
             if (!queue.HasValue) return null;
+            if (LeagueSgpSupportedQueues.IsValidTag("q_" +
+                queue.Value.ToString(CultureInfo.InvariantCulture))) return queue;
             var names = LeagueSgpSupportedQueues.ParseQueueNames(
                 await _client.TryGetBytesAsync("/lol-game-data/assets/v1/queues.json", token)
                     .ConfigureAwait(false));
@@ -716,7 +718,8 @@ namespace FACM.League
         private async Task<int?> VerifyCurrentQueueTagAsync(string tag, string serverId,
             LeagueClientSession session, CancellationToken token)
         {
-            if (tag == null || LeagueSgpSupportedQueues.IsValidTag(tag) ||
+            if (_session == null || session == null || tag == null ||
+                LeagueSgpSupportedQueues.IsValidTag(tag) ||
                 !LeagueSgpSupportedQueues.IsQueueTagCandidate(tag) ||
                 !string.IsNullOrEmpty(serverId) || !SessionStillCurrent(session)) return null;
             var queue = await ReadVerifiedCurrentQueueIdAsync(token).ConfigureAwait(false);

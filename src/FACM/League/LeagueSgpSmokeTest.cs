@@ -268,6 +268,16 @@ namespace FACM.League
             Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
                     .GetAwaiter().GetResult() == null,
                 "A changed region/session after the lobby read must discard the queue suggestion.");
+            active = session;
+            local.AfterLobby = null;
+            local.NoLobby = true;
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == 999,
+                "A gameflow queue confirmed by local metadata must be available without a lobby.");
+            local.MissingMetadata = true;
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "Unlisted gameflow queues without local metadata must fail closed.");
         }
 
         private sealed class LobbyApi : ILeagueClientApi
@@ -275,6 +285,8 @@ namespace FACM.League
             internal string Owner = "self";
             internal int Calls;
             internal Action AfterLobby;
+            internal bool NoLobby;
+            internal bool MissingMetadata;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -282,10 +294,14 @@ namespace FACM.League
                 if (path == "/lol-lobby/v2/lobby")
                 {
                     AfterLobby?.Invoke();
-                    return Task.FromResult(Bytes(@"{""gameConfig"":{""queueId"":420}}"));
+                    return Task.FromResult(Bytes(NoLobby ? @"{}" :
+                        @"{""gameConfig"":{""queueId"":420}}"));
                 }
+                if (path == "/lol-gameflow/v1/session")
+                    return Task.FromResult(Bytes(@"{""gameData"":{""queue"":{""id"":999}}}"));
                 if (path == "/lol-game-data/assets/v1/queues.json")
-                    return Task.FromResult(Bytes(@"[{""id"":420,""name"":""Ranked""}]"));
+                    return Task.FromResult(Bytes(MissingMetadata ? @"[]" :
+                        @"[{""id"":420,""name"":""Ranked""},{""id"":999,""name"":""Custom""}]"));
                 return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
             }
         }
