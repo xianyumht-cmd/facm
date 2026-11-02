@@ -928,6 +928,46 @@ namespace FACM.League
                 using (var lookupLifetime = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
                 {
                     dialog.FormClosed += (sender, args) => lookupLifetime.Cancel();
+                    dialog.Shown += async (sender, args) =>
+                    {
+                        if (championPicker.Items.Count >= 100) return;
+                        try
+                        {
+                            var allChampions = await _service.LoadChampionOptionsAsync(
+                                lookupLifetime.Token);
+                            if (dialog.IsDisposed || lookupLifetime.IsCancellationRequested ||
+                                !SessionMatches(expectedSession) ||
+                                !ReferenceEquals(_activePage, page) || allChampions == null) return;
+                            var previous = (championPicker.SelectedItem as ChampionOption)?.Id ?? 0;
+                            var known = new HashSet<int>(championPicker.Items
+                                .Cast<ChampionOption>().Select(option => option.Id));
+                            var options = championPicker.Items.Cast<ChampionOption>().ToList();
+                            foreach (var entry in allChampions)
+                                if (entry.Key > 0 && entry.Key <= 10000 &&
+                                    LeagueSimpleMatchHistoryFilter.SafePlayerLabel(entry.Value) &&
+                                    known.Add(entry.Key))
+                                    options.Add(new ChampionOption
+                                    {
+                                        Id = entry.Key,
+                                        Name = entry.Value + " · #" + entry.Key
+                                    });
+                            championPicker.BeginUpdate();
+                            try
+                            {
+                                championPicker.Items.Clear();
+                                foreach (var option in options.OrderBy(item => item.Name,
+                                    StringComparer.CurrentCulture))
+                                    championPicker.Items.Add(option);
+                                var selectedIndex = options.FindIndex(item => item.Id == previous);
+                                championPicker.SelectedIndex = selectedIndex >= 0
+                                    ? championPicker.Items.IndexOf(options[selectedIndex])
+                                    : championPicker.Items.Count > 0 ? 0 : -1;
+                                addChampion.Enabled = championPicker.Items.Count > 0;
+                            }
+                            finally { championPicker.EndUpdate(); }
+                        }
+                        catch (OperationCanceledException) { }
+                    };
                     lookup.Click += async (sender, args) =>
                     {
                         string name, tag;
