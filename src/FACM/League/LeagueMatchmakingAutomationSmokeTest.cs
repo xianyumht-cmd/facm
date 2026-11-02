@@ -187,7 +187,7 @@ namespace FACM.League
                 if (path != LeagueMatchmakingAutomationController.LobbyPath ||
                     Interlocked.Increment(ref lobbyReads) != 2) return;
                 read.Set(LeagueMatchmakingAutomationController.LobbyPath,
-                    LobbyJson(420, true, false, true, new[] { "self", "ally" }, false));
+                    LobbyJson(420, true, true, false, new[] { "self", "ally" }, false));
             };
             var write = new FakeWriteApi();
             using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
