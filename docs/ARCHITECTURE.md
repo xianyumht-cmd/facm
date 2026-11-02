@@ -2,7 +2,7 @@
 
 Historical previews now retain `LeagueDynamicMessageSnapshot.HistoricalOriginalRoster` as the source-participant restoration anchor independently of the editable `Players` list. Local Rift add/remove operations can grow or shrink the preview within 2–20 verified/synthetic identities without mutating match history or live gameflow. Synthetic players carry no inherited match evidence. Full restore reconstructs the source roster, team, champion, position, queue and target. Arena preview still requires real two-player subteams.
 
-The on-demand native Jungle card renders a bounded coordinate view from the existing phase/account/session-owned timeline service. Each game's first-14-minute positions and gank markers are kept separate; malformed, duplicate and out-of-bounds evidence is not drawn. No new transport, polling loop or Electron dependency.
+The on-demand native Jungle card renders a bounded coordinate view from the existing phase/account/session-owned timeline service. Each game's first-14-minute positions and gank markers are kept separate; only adjacent verified minute frames are connected. Malformed, duplicate, out-of-bounds and nonmonotonic evidence is not drawn. No new transport, polling loop or Electron dependency.
 
 For verified CHERRY ChampSelect/InProgress roster snapshots with no unresolved identities, `LiveArenaAll` drives source-style TEAM-ALL presentation and message targeting. Original side evidence remains available for premade subteam inference; non-CHERRY snapshots keep ally/enemy behavior. The roster ownership key includes game mode.
 

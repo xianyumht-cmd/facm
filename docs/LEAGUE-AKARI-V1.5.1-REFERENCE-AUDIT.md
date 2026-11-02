@@ -1,10 +1,10 @@
 ### 2026-11-02 — Source parity: native jungle coordinates, free-form Rift preview and live Arena TEAM-ALL (Draft #357)
 
-Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` references: `src/renderer-shared/components/ongoing-game-panel/widgets/player-info-card/PlayerInfoCardJunglePathing.vue`, `jungle-pathing-info/JunglePathingInfo.vue`, `src/main/shards/ongoing-game/computed-state.ts` (CHERRY `TEAM-ALL` in ChampSelect and Gameflow), and `src/shared/shards/ongoing-game/index.ts` (`DraftOptions.teams` arrays). GGman candidate `95414989cf61dce4d531257d199d82f6b2ecb848` includes:
+Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` references: `src/renderer-shared/components/ongoing-game-panel/widgets/player-info-card/PlayerInfoCardJunglePathing.vue`, `jungle-pathing-info/JunglePathingInfo.vue`, `src/main/shards/ongoing-game/computed-state.ts` (CHERRY `TEAM-ALL` in ChampSelect and Gameflow), and `src/shared/shards/ongoing-game/index.ts` (`DraftOptions.teams` arrays). GGman candidate `81b66b77990178d9458d521b681635a0d214f4a8` includes:
 
 | Source capability | Status | Native parity and remaining gap |
 | --- | --- | --- |
-| Jungle location/path popover | **PARTIAL (candidate)** | Bounded per-game first-14-minute location lines and gank markers in a native card map, with champion/all filter and strict sample validation. Source's full map artwork/aggregated heatmap remains missing. |
+| Jungle location/path popover | **PARTIAL (candidate)** | Bounded per-game first-14-minute location lines and gank markers in a native card map, with champion/all filter and strict sample validation. Only adjacent verified minute frames are connected; gaps remain disconnected. Source's full map artwork/aggregated heatmap remains missing. |
 | Free-form historical draft | **PARTIAL (candidate)** | Existing Rift historical preview now supports 2–20 players through add/remove with synthetic isolated identities and exact original-roster restoration; no independent draft-from-empty, and Arena still preserves paired subteams. |
 | Live Arena `TEAM-ALL` | **PARTIAL (candidate)** | Verified, complete-identity CHERRY ChampSelect/InProgress roster projects all known players under TEAM-ALL in normal/jungle targets and list. Unresolved identity cases fail closed; premade two-player evidence is not conflated with display grouping. |
 | All-source history concurrency, full player popovers, remaining automation strategies | **PARTIAL / MISSING** | No claim of source-complete parity; next implementation priorities. |
