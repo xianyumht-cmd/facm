@@ -1,3 +1,16 @@
+## 2026-11-03 — SGP source catalog revocation and bounded owner follow-up
+
+Pinned Akari v1.5.1 `AkariSupportedQueuesConfigSchema` permits an empty `queues` array; native GGman now accepts a newer empty list as an explicit revocation, rejects stale queue tags before entitlement-token reads, and preserves the already verified current-queue exception. Likewise, a newer explicitly empty `league-servers` catalog shuts down all SGP destinations instead of retaining obsolete credential targets; unknown or stale provider updates remain rejected. The current partial-catalog policy still preserves pinned builtins and is **not** full source parity.
+
+Respawn Live Client discovery also handles transient LCU owner lookup exceptions without allowing a WinForms timer-tick crash or reusing a stale sample. **Latest executable candidate: `9f826ece13f453be0ccf6802c9c370babe25de74`. Exact final-HEAD Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe are pending.** No live Tencent/Riot, Windows 10/DPI or cloud sync validation was performed.
+
+| Source-functional area | State | Remaining |
+| --- | --- | --- |
+| SGP supported-queue and full-provider revocation | **Implemented (CI pending)** | Partial provider catalogs and live regional compatibility |
+| Respawn Live Client discovery/rearm | **Implemented (CI pending)** | Real game and DPI acceptance |
+| Champion trade-only, reconnect and queue-stop owner fencing | **Implemented (CI pending)** | Real Gameflow/ChampSelect acceptance |
+| Akari 1.5.1 overall source scope | **Partial** | Player-card popovers, remaining ChampSelect/gameflow options and provider behavior |
+
 ## 2026-11-03 — Akari trade-only / Live Client and auto-gameflow owner recovery (Draft #357)
 
 Pinned Akari v1.5.1 `auto-select/trade-controller.ts` checks explicit `benchHandleTradeEnabled` independently of automatic pick `enabled`. Native GGman now honors a trade-only source-imported group under the existing global master switch, including no-pick-priority decline, with the same ChampSelect task and phase/session preflight. No new network owner or polling cadence.
