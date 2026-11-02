@@ -175,7 +175,7 @@ namespace FACM.League
         private static void ValidateSessionReplacement()
         {
             var first = new LeagueClientSession("LeagueClientUx", 1, 2999, "first", "https", "test");
-            var second = new LeagueClientSession("LeagueClientUx", 2, 2999, "second", "https", "test");
+            var second = new LeagueClientSession("LeagueClientUx", 2, 2999, "first", "https", "test");
             var current = first;
             var clock = new FakeClock();
             var read = new FakeRead { OnRead = () => current = second };
@@ -187,11 +187,11 @@ namespace FACM.League
                 clock.Release(0);
                 controller.PendingForSmokeTest.GetAwaiter().GetResult();
                 Require(read.Count == 1 && write.Count == 0,
-                    "A reconnect preflight from the previous LCU session issued a write.");
+                    "A same-port LCU process replacement must cancel the previous reconnect write.");
                 read.OnRead = null;
                 controller.Observe(Reconnecting());
                 Require(clock.Pending.Count == 2,
-                    "A verified new LCU session did not rearm its own reconnect episode.");
+                    "A same-phase LCU process replacement did not rearm its own reconnect episode.");
                 clock.Release(1);
                 controller.PendingForSmokeTest.GetAwaiter().GetResult();
                 Require(write.Count == 1,

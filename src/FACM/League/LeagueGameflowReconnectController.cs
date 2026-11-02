@@ -92,7 +92,7 @@ namespace FACM.League
             {
                 if (_disposed) return;
                 var sessionChanged = reconnect && _episode != null && _sessionProvider != null &&
-                    (_episodeSession == null || !_episodeSession.Matches(_sessionProvider()));
+                    !LeagueMatchmakingAutomationController.SameOwner(_episodeSession, _sessionProvider());
                 if (!reconnect || sessionChanged)
                 {
                     previous = _episode;
@@ -201,7 +201,7 @@ namespace FACM.League
         private bool SameEpisodeSession()
         {
             return _sessionProvider == null ||
-                (_episodeSession != null && _episodeSession.Matches(_sessionProvider()));
+                LeagueMatchmakingAutomationController.SameOwner(_episodeSession, _sessionProvider());
         }
 
         internal static bool IsReconnectPhase(byte[] payload)
