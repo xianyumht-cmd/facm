@@ -280,9 +280,10 @@ namespace FACM.League
         }
 
         internal static bool CanOpenJungle(LeagueDynamicMessageSnapshot snapshot,
-            LeagueDynamicMessagePlayer player)
+            LeagueDynamicMessagePlayer player, bool enabled = true, bool showForAll = false)
         {
-            if (!IsLiveRosterPlayer(snapshot, player)) return false;
+            if (!enabled || !IsLiveRosterPlayer(snapshot, player)) return false;
+            if (showForAll) return true;
             var position = player.Player.Position;
             return string.Equals(position?.Trim(), "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
                 player.Player.Spell1Id == 11 || player.Player.Spell2Id == 11;

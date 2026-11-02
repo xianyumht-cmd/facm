@@ -53,6 +53,8 @@ namespace FACM.League
         public bool JungleDragonControl { get; set; } = true;
         public bool JungleMonsterControl { get; set; } = true;
         public bool JungleMainChampions { get; set; } = true;
+        public bool ShowJunglePathing { get; set; } = true;
+        public bool ShowJunglePathingForAllPlayers { get; set; }
         public bool ShowCurrentChampion { get; set; }
         public bool WinRate { get; set; } = true;
         public bool Kda { get; set; } = true;

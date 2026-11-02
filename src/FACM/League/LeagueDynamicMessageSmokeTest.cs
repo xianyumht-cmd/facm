@@ -1496,8 +1496,9 @@ namespace FACM.League
             snapshot.Players.Add(player);
             Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
                 "Verified current-roster players must expose the existing profile detail owner.");
-            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
-                "Current junglers must have a direct, user-triggered pathing card entry.");
+            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player, false, true),
+                "Current junglers must have a direct pathing entry unless the feature is disabled.");
             Require(LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) && champion == 99 &&
                 LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1510,6 +1511,7 @@ namespace FACM.League
             };
             Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, foreign) &&
                 !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, foreign) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, foreign, true, true) &&
                 !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, foreign, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1517,12 +1519,19 @@ namespace FACM.League
                 "Unverified roster identities must not open profile or collection actions.");
             player.Player.ChampionId = 0;
             player.Player.Position = "NONE";
-            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
-                "Non-junglers without Smite must not expose the default pathing entry.");
+            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player, true, true),
+                "All-player opt-in must include verified nonjunglers, never foreign roster identities.");
             player.Player.Spell2Id = 11;
             Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
                 "Smite must identify a current jungler even before lane assignment.");
             player.Player.Spell2Id = 0;
+            var jungleOptions = new LeagueDynamicMessageOptions {
+                ShowJunglePathing = false, ShowJunglePathingForAllPlayers = true };
+            var restoredJungle = LeagueDynamicMessageOptions.Parse(
+                LeagueDynamicMessageOptions.Save(jungleOptions));
+            Require(!restoredJungle.ShowJunglePathing && restoredJungle.ShowJunglePathingForAllPlayers,
+                "Akari jungle visibility choices must survive the native settings round-trip.");
             Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
                 "Current player profile details must remain available without champion or lane.");
             Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(

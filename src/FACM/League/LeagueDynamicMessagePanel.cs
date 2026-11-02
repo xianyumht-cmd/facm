@@ -217,6 +217,17 @@ namespace FACM.League
             _exchangeMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.DynamicTagBrowse)).Click += (sender, e) => BrowseTags();
             var tagVisibility = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.OngoingTagDisplay));
             _exchangeMenu.Items.Add(tagVisibility);
+            var jungleVisibility = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.JungleTab));
+            _exchangeMenu.Items.Add(jungleVisibility);
+            var showJungle = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.JungleCardShow)) {
+                CheckOnClick = true, Checked = _options.ShowJunglePathing };
+            showJungle.CheckedChanged += (sender, args) => _options.ShowJunglePathing = showJungle.Checked;
+            jungleVisibility.DropDownItems.Add(showJungle);
+            var showAllJungle = new ToolStripMenuItem(T(LeagueEfficiencyUiTextKeys.JungleCardShowAll)) {
+                CheckOnClick = true, Checked = _options.ShowJunglePathingForAllPlayers };
+            showAllJungle.CheckedChanged += (sender, args) =>
+                _options.ShowJunglePathingForAllPlayers = showAllJungle.Checked;
+            jungleVisibility.DropDownItems.Add(showAllJungle);
             var championUsage = new ToolStripMenuItem(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             _exchangeMenu.Items.Add(championUsage);
             foreach (var mode in new[] { "none", "recent", "mastery" })
@@ -417,7 +428,8 @@ namespace FACM.League
                 playerProfile.Enabled = !e.Cancel &&
                     LeagueOngoingCardActionSelection.CanOpenProfile(_snapshot, choice.Player);
                 junglePathing.Enabled = !e.Cancel &&
-                    LeagueOngoingCardActionSelection.CanOpenJungle(_snapshot, choice.Player);
+                    LeagueOngoingCardActionSelection.CanOpenJungle(_snapshot, choice.Player,
+                        _options.ShowJunglePathing, _options.ShowJunglePathingForAllPlayers);
                 enrichHistory.Enabled = !e.Cancel && _options.GameDetailsLoadCount > 0 &&
                     choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>
@@ -474,10 +486,12 @@ namespace FACM.League
                 var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
                 var snapshot = _snapshot;
                 if (_busy || !LeagueOngoingCardActionSelection.CanOpenJungle(
-                    snapshot, choice?.Player)) return;
+                    snapshot, choice?.Player, _options.ShowJunglePathing,
+                    _options.ShowJunglePathingForAllPlayers)) return;
                 Func<bool> isCurrent = () => !IsDisposed && !_lifetime.IsCancellationRequested &&
                     !_busy && ReferenceEquals(_snapshot, snapshot) &&
-                    LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, choice.Player);
+                    LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, choice.Player,
+                        _options.ShowJunglePathing, _options.ShowJunglePathingForAllPlayers);
                 var matches = choice.Player.History?.Matches ?? new List<LeaguePlayerMatchSummary>();
                 using (var dialog = new LeagueOngoingCardInsightsDialog(_ui, choice.Player,
                     matches, false, isCurrent,
@@ -491,6 +505,12 @@ namespace FACM.League
                 var snapshot = _snapshot;
                 if (_busy || snapshot == null || choice?.Player == null ||
                     !snapshot.Players.Contains(choice.Player)) return;
+                Func<CancellationToken, Task<bool>> loadJungle =
+                    LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, choice.Player,
+                        _options.ShowJunglePathing, _options.ShowJunglePathingForAllPlayers)
+                    ? (Func<CancellationToken, Task<bool>>)(token =>
+                        _module.LoadJungleMessagesAsync(snapshot, choice.Player.Player.PuuId, token))
+                    : null;
                 using (var dialog = new LeagueOngoingPlayerHistoryDialog(_ui, snapshot,
                     choice.Player, () => !IsDisposed && ReferenceEquals(_snapshot, snapshot),
                     (match, token) => _module.LoadDynamicPlayerMatchDetailAsync(snapshot,
@@ -503,8 +523,7 @@ namespace FACM.League
                         championId, position, mode),
                     token => _module.LoadDynamicMasteryAsync(snapshot,
                         choice.Player.Player.PuuId, token),
-                    token => _module.LoadJungleMessagesAsync(snapshot,
-                        choice.Player.Player.PuuId, token),
+                    loadJungle,
                     async owner =>
                     {
                         if (_busy || !ReferenceEquals(_snapshot, snapshot) ||

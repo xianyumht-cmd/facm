@@ -473,6 +473,8 @@ namespace FACM.League
         public const string PremadeNoGroups = "LeagueEfficiencyPremadeNoGroups";
         public const string PremadeMessageTitle = "LeagueEfficiencyPremadeMessageTitle";
         public const string JungleTab = "LeagueEfficiencyJungleTab";
+        public const string JungleCardShow = "LeagueEfficiencyJungleCardShow";
+        public const string JungleCardShowAll = "LeagueEfficiencyJungleCardShowAll";
         public const string JungleLoad = "LeagueEfficiencyJungleLoad";
         public const string JungleLoading = "LeagueEfficiencyJungleLoading";
         public const string JungleSelectHint = "LeagueEfficiencyJungleSelectHint";
@@ -987,6 +989,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.PremadeNoGroups, "当前历史未发现足够的重复同队证据（至少 {0} 局），不能判定无人组队。" },
             { LeagueEfficiencyUiTextKeys.PremadeMessageTitle, "疑似组队" },
             { LeagueEfficiencyUiTextKeys.JungleTab, "打野分析" },
+            { LeagueEfficiencyUiTextKeys.JungleCardShow, "显示打野路径分析" },
+            { LeagueEfficiencyUiTextKeys.JungleCardShowAll, "为所有玩家显示打野分析" },
             { LeagueEfficiencyUiTextKeys.JungleLoad, "读取所选打野" },
             { LeagueEfficiencyUiTextKeys.JungleLoading, "正在读取所选玩家的打野时间线…" },
             { LeagueEfficiencyUiTextKeys.JungleSelectHint, "勾选玩家后点击读取所选打野，可逐个读取；数据加载完毕后生成预览。" },
