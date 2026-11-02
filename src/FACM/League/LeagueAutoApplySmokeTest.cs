@@ -42,6 +42,37 @@ namespace FACM.League
             Require(roundtrip.RuneCount == 1 && roundtrip.SpellCount == 1 &&
                 LeagueChampionRunePresets.Resolve(roundtrip.Runes, 157, "ranked-top").SelectedPerkIds.Count == 9,
                 "Akari clipboard export must round-trip source fields.");
+            var fullRunes = Enumerable.Range(1, 256).Select(id => new LeagueChampionRunePreset
+            {
+                ChampionId = id, Group = "normal", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            }).ToArray();
+            var fullSpells = Enumerable.Range(1, 256).Select(id => new LeagueChampionSpellPreset
+            {
+                ChampionId = id, Group = "normal", Spell1Id = 4, Spell2Id = 14
+            }).ToArray();
+            var fullImport = LeagueAkariChampionPresetTransfer.Import(
+                LeagueAkariChampionPresetTransfer.Export(fullRunes, fullSpells));
+            Require(fullImport.RuneCount == 256 && fullImport.SpellCount == 256 &&
+                LeagueChampionRunePresets.Parse(fullImport.Runes).Count == 256 &&
+                LeagueChampionSpellPresets.Parse(fullImport.Spells).Count == 256,
+                "Akari clipboard transfer must retain full 256-entry local catalogs.");
+            var tooMany = false;
+            try
+            {
+                LeagueAkariChampionPresetTransfer.Export(fullRunes.Concat(new[]
+                {
+                    new LeagueChampionRunePreset
+                    {
+                        ChampionId = 257, Group = "normal", PrimaryStyleId = 8000,
+                        SecondaryStyleId = 8100,
+                        SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+                    }
+                }), fullSpells);
+            }
+            catch (ArgumentException) { tooMany = true; }
+            Require(tooMany, "Akari clipboard transfer must reject oversized catalogs.");
             var spellsOnly = LeagueAkariChampionPresetTransfer.Import(
                 "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":14}}}}");
             Require(!spellsOnly.HasRunes && spellsOnly.HasSpells && spellsOnly.SpellCount == 1,
