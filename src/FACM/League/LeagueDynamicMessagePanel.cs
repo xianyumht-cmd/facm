@@ -671,10 +671,10 @@ namespace FACM.League
                         encounters.TryGetValue(player.Player.PuuId, out count);
                         var self = string.Equals(player.Player.PuuId, snapshot.SelfPuuid, StringComparison.Ordinal);
                         _players.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count,
-                            IsArenaAllGroup = snapshot.Phase == "HistoricalPreview" && snapshot.HistoricalGameMode == "CHERRY" },
+                            IsArenaAllGroup = LeagueDynamicMessageService.ArenaAllGroup(snapshot) },
                             selected == null || selected.Contains(player.Player.PuuId));
                         _jungle.Items.Add(new PlayerChoice(player, _options) { Tag = tag, IsSelf = self, EncounterCount = count,
-                            IsArenaAllGroup = snapshot.Phase == "HistoricalPreview" && snapshot.HistoricalGameMode == "CHERRY" }, false);
+                            IsArenaAllGroup = LeagueDynamicMessageService.ArenaAllGroup(snapshot) }, false);
                     }
                     RefreshKdaOutlierLabels(snapshot);
                     RebuildPremadeGroups(snapshot, false);

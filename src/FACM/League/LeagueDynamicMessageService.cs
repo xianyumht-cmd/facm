@@ -161,6 +161,7 @@ namespace FACM.League
             new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
         internal string HistoricalGameMode;
+        internal bool LiveArenaAll;
         internal int HistoricalQueueId;
         internal int HistoricalOriginalQueueId;
         internal int HistoryLoadCount = LeaguePlayerDataService.MaximumMatchCount;
@@ -331,7 +332,10 @@ namespace FACM.League
                     HistoryQueueTag = historyQueueTag,
                     SelfPuuid = me.PuuId, RosterKey = RosterKey(roster),
                     HistoryLoadCount = historyLoadCount, CreatedUtc = DateTime.UtcNow,
-                    UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)) };
+                    UnavailableIdentityCount = roster.Players.Count(p => !SafePuuid(p.PuuId)),
+                    LiveArenaAll = ShouldUseArenaAll(phase.Phase, roster.GameMode,
+                        roster.Players.Count(p => SafePuuid(p.PuuId)),
+                        roster.Players.Count(p => !SafePuuid(p.PuuId))) };
                 foreach (var row in roster.Players.Where(p => SafePuuid(p.PuuId)).GroupBy(p => p.PuuId).Select(g => g.First()).Take(20))
                     snapshot.Players.Add(new LeagueDynamicMessagePlayer { Player = row, Friendly = row.Side == own.Side });
                 var effectiveConcurrency = Math.Min(historyConcurrency, _budgets.Current.NetworkConcurrency);
@@ -1111,7 +1115,8 @@ namespace FACM.League
 
         internal static string RosterKey(LeagueLiveSnapshot roster)
         {
-            return roster.GameId + ":" + roster.QueueId + "|" + string.Join("|", roster.Players.OrderBy(p => p.PuuId, StringComparer.Ordinal)
+            return roster.GameId + ":" + roster.QueueId + ":" + (roster.GameMode ?? "") + "|" +
+                string.Join("|", roster.Players.OrderBy(p => p.PuuId, StringComparer.Ordinal)
                 .Select(p => p.PuuId + ":" + p.Side + ":" + p.ChampionId));
         }
 
@@ -1157,12 +1162,28 @@ namespace FACM.League
                     ? new HashSet<string>(_selected, StringComparer.Ordinal) : null;
         }
 
+        internal static bool ShouldUseArenaAll(string phase, string gameMode,
+            int verifiedPlayers, int unavailablePlayers)
+        {
+            return (phase == "ChampSelect" || phase == "InProgress") &&
+                string.Equals(gameMode, "CHERRY", StringComparison.OrdinalIgnoreCase) &&
+                verifiedPlayers >= 2 && verifiedPlayers <= 20 && unavailablePlayers == 0;
+        }
+
+        internal static bool ArenaAllGroup(LeagueDynamicMessageSnapshot snapshot)
+        {
+            return snapshot != null &&
+                (snapshot.Phase == "HistoricalPreview" &&
+                    snapshot.HistoricalGameMode == "CHERRY" ||
+                 (snapshot.Phase == "ChampSelect" || snapshot.Phase == "InProgress") &&
+                    snapshot.LiveArenaAll);
+        }
+
         internal static ISet<string> TargetPlayers(LeagueDynamicMessageSnapshot snapshot, string target)
         {
             if (snapshot == null || (target != "friendly" && target != "enemy" && target != "all"))
                 return new HashSet<string>(StringComparer.Ordinal);
-            var arenaAll = snapshot.Phase == "HistoricalPreview" &&
-                snapshot.HistoricalGameMode == "CHERRY";
+            var arenaAll = ArenaAllGroup(snapshot);
             return new HashSet<string>(snapshot.Players.Where(p => p.Player != null &&
                 (arenaAll ? target != "enemy" :
                     target == "all" || target == "friendly" && p.Friendly ||

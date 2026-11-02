@@ -14,8 +14,7 @@ namespace FACM.League
             if (snapshot == null || options == null ||
                 (options.Target != "friendly" && options.Target != "enemy" &&
                  options.Target != "all")) return result;
-            var arenaAll = snapshot.Phase == "HistoricalPreview" &&
-                snapshot.HistoricalGameMode == "CHERRY";
+            var arenaAll = LeagueDynamicMessageService.ArenaAllGroup(snapshot);
             var players = snapshot.Players.Where(p => p?.Player != null &&
                 (selected == null || selected.Contains(p.Player.PuuId)) &&
                 (arenaAll ? options.Target != "enemy" :

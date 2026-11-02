@@ -2173,6 +2173,30 @@ namespace FACM.League
                 LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "all").Count == 2 &&
                 LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "invalid").Count == 0,
                 "Shortcut target selection must respect the current roster and side.");
+
+            Require(LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CHERRY", 8, 0) &&
+                LeagueDynamicMessageService.ShouldUseArenaAll("ChampSelect", "CHERRY", 2, 0) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CLASSIC", 8, 0) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CHERRY", 8, 1) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("Lobby", "CHERRY", 8, 0),
+                "Live Arena TEAM-ALL must require verified CHERRY roster ownership.");
+            targetSnapshot.Phase = "InProgress";
+            targetSnapshot.LiveArenaAll = true;
+            Require(LeagueDynamicMessageService.ArenaAllGroup(targetSnapshot) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "friendly")
+                    .SetEquals(new[] { "ally", "enemy" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy").Count == 0,
+                "Live Arena grouping must include all verified participants, not an invented enemy team.");
+            var arenaOptions = new LeagueDynamicMessageOptions { Target = "friendly" };
+            Require(LeagueDynamicMessageFormatter.Build(targetSnapshot, arenaOptions).Count == 2,
+                "Live Arena formatter must include both visible players under TEAM-ALL.");
+            arenaOptions.Target = "enemy";
+            Require(LeagueDynamicMessageFormatter.Build(targetSnapshot, arenaOptions).Count == 0,
+                "Live Arena must not manufacture an enemy-only message target.");
+            targetSnapshot.LiveArenaAll = false;
+            Require(LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy")
+                .SetEquals(new[] { "enemy" }),
+                "Ordinary live matches must retain their real ally/enemy target split.");
         }
 
         private static void ValidateJunglePrefetch()

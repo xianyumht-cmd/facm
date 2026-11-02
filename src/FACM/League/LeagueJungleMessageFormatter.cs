@@ -12,8 +12,11 @@ namespace FACM.League
         {
             var lines = new List<string>();
             if (snapshot == null || options == null || selected == null || selected.Count == 0) return lines;
+            var arenaAll = LeagueDynamicMessageService.ArenaAllGroup(snapshot);
             var players = snapshot.Players.Where(p => p.Player != null && selected.Contains(p.Player.PuuId) &&
-                (options.Target == "all" || options.Target == "friendly" && p.Friendly || options.Target == "enemy" && !p.Friendly))
+                (arenaAll ? options.Target != "enemy" :
+                    options.Target == "all" || options.Target == "friendly" && p.Friendly ||
+                    options.Target == "enemy" && !p.Friendly))
                 .OrderByDescending(p => p.Friendly).ToArray();
             if (players.Length == 0 || players.Any(p => p.JungleSamples == null)) return lines;
             var counts = players.Where(p => p.Player.ChampionId > 0).GroupBy(p => p.Player.ChampionId)
