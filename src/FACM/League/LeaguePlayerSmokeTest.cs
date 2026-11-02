@@ -1212,18 +1212,22 @@ namespace FACM.League
                 "All three source examples must validate and reject invalid player scopes.");
 
             var subject = new LeaguePlayerMatchSummary {
-                PuuId = "self", TeamId = 100, ChampionId = 22,
+                PuuId = "self", ParticipantId = 1, TeamId = 100, ChampionId = 22,
                 ParticipantResolved = true, StatisticsAvailable = true,
                 Kills = 8, Deaths = 2, Assists = 12, WinResult = "win"
             };
             var match = new LeaguePlayerMatchSummary {
                 GameType = "MATCHED_GAME", QueueId = 420, GameDurationSeconds = 1800,
-                ParticipantResolved = true, StatisticsAvailable = true,
+                ParticipantId = 1, ParticipantResolved = true, StatisticsAvailable = true,
                 WinResult = "win", RosterIdentitiesComplete = true,
                 ParticipantRoster = new[] { subject }
             };
             Require(clean.Matches(match) && strong.Matches(match),
                 "Clean and strong presets must accept a verified long high-performance win.");
+            match.ParticipantId = 0;
+            Require(clean.Matches(match) && !strong.Matches(match),
+                "A self-scoped preset must not invent a participant identity when the selected ID is absent.");
+            match.ParticipantId = 1;
             subject.Deaths = 5;
             Require(!strong.Matches(match) && clean.Matches(match),
                 "Strong-performance preset must enforce the selected player's death limit.");
@@ -1237,8 +1241,8 @@ namespace FACM.League
                 "Unknown matched-game evidence must fail closed.");
 
             var enemy = new LeaguePlayerMatchSummary {
-                PuuId = "enemy", TeamId = 200, ChampionId = 126,
-                AugmentIds = new[] { 1250 }, ParticipantResolved = true
+                PuuId = "enemy", ParticipantId = 2, TeamId = 200, ChampionId = 126,
+                AugmentIds = new[] { 1250, 0, 0, 0, 0, 0 }, ParticipantResolved = true
             };
             match.GameType = "MATCHED_GAME";
             match.QueueId = 2400;
@@ -1246,7 +1250,7 @@ namespace FACM.League
             match.ParticipantRoster = new[] { subject, enemy };
             Require(kiwi.Matches(match),
                 "The KIWI source example must match an enemy Jayce with augment 1250.");
-            enemy.AugmentIds = new[] { 1251 };
+            enemy.AugmentIds = new[] { 1251, 0, 0, 0, 0, 0 };
             Require(!kiwi.Matches(match),
                 "The KIWI preset must reject an enemy missing the requested augment.");
         }
