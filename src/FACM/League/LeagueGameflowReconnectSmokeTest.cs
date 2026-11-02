@@ -32,6 +32,7 @@ namespace FACM.League
             ValidateDisableAndFreshEpisode();
             ValidatePreflightAndFailureNoRetry();
             ValidateMissingPhaseRecovery();
+            ValidateSessionReplacement();
             ValidateDisposal();
         }
 
@@ -171,6 +172,33 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateSessionReplacement()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 1, 2999, "first", "https", "test");
+            var second = new LeagueClientSession("LeagueClientUx", 2, 2999, "second", "https", "test");
+            var current = first;
+            var clock = new FakeClock();
+            var read = new FakeRead { OnRead = () => current = second };
+            var write = new FakeWrite();
+            using (var controller = new LeagueGameflowReconnectController(read, write, clock, () => current))
+            {
+                controller.Configure(true);
+                controller.Observe(Reconnecting());
+                clock.Release(0);
+                controller.PendingForSmokeTest.GetAwaiter().GetResult();
+                Require(read.Count == 1 && write.Count == 0,
+                    "A reconnect preflight from the previous LCU session issued a write.");
+                read.OnRead = null;
+                controller.Observe(Reconnecting());
+                Require(clock.Pending.Count == 2,
+                    "A verified new LCU session did not rearm its own reconnect episode.");
+                clock.Release(1);
+                controller.PendingForSmokeTest.GetAwaiter().GetResult();
+                Require(write.Count == 1,
+                    "The new LCU session did not receive its one eligible reconnect write.");
+            }
+        }
+
         private static void ValidateDisposal()
         {
             var clock = new FakeClock();
@@ -206,12 +234,14 @@ namespace FACM.League
             public string Phase = "\"Reconnect\"";
             public int Count;
             public int MissingReads;
+            public Action OnRead;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 Require(path == LeagueGameflowReconnectController.PhasePath, "Unexpected reconnect preflight path.");
                 cancellationToken.ThrowIfCancellationRequested();
                 Count++;
+                OnRead?.Invoke();
                 if (MissingReads-- > 0) return Task.FromResult<byte[]>(null);
                 return Task.FromResult(Bytes(Phase));
             }

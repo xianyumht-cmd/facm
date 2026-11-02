@@ -22,8 +22,10 @@ namespace FACM.League
         private readonly ILeagueClientApi _read;
         private readonly ILeagueGameflowReconnectWriteApi _write;
         private readonly ILeagueMatchmakingClock _clock;
+        private readonly Func<LeagueClientSession> _sessionProvider;
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
+        private LeagueClientSession _episodeSession;
         private Task _pending;
         private bool _enabled;
         private bool _inReconnect;
@@ -32,7 +34,13 @@ namespace FACM.League
         private string _trace;
 
         public LeagueGameflowReconnectController(ILeagueClientApi read, ILeagueGameflowReconnectWriteApi write)
-            : this(read, write, new LeagueMatchmakingSystemClock())
+            : this(read, write, new LeagueMatchmakingSystemClock(), null)
+        {
+        }
+
+        public LeagueGameflowReconnectController(ILeagueClientApi read, ILeagueGameflowReconnectWriteApi write,
+            Func<LeagueClientSession> sessionProvider)
+            : this(read, write, new LeagueMatchmakingSystemClock(), sessionProvider)
         {
         }
 
@@ -40,10 +48,20 @@ namespace FACM.League
             ILeagueClientApi read,
             ILeagueGameflowReconnectWriteApi write,
             ILeagueMatchmakingClock clock)
+            : this(read, write, clock, null)
+        {
+        }
+
+        internal LeagueGameflowReconnectController(
+            ILeagueClientApi read,
+            ILeagueGameflowReconnectWriteApi write,
+            ILeagueMatchmakingClock clock,
+            Func<LeagueClientSession> sessionProvider)
         {
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+            _sessionProvider = sessionProvider;
         }
 
         public void Configure(bool enabled)
@@ -57,6 +75,7 @@ namespace FACM.League
                 {
                     previous = _episode;
                     _episode = null;
+                    _episodeSession = null;
                 }
             }
             Cancel(previous);
@@ -72,11 +91,14 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
-                if (!reconnect)
+                var sessionChanged = reconnect && _episode != null && _sessionProvider != null &&
+                    (_episodeSession == null || !_episodeSession.Matches(_sessionProvider()));
+                if (!reconnect || sessionChanged)
                 {
                     previous = _episode;
                     _episode = null;
-                    if (_inReconnect && _writeAttemptedThisPhase) previousTrace = _trace;
+                    _episodeSession = null;
+                    if (!reconnect && _inReconnect && _writeAttemptedThisPhase) previousTrace = _trace;
                     _writeAttemptedThisPhase = false;
                 }
                 else if (!_inReconnect)
@@ -93,6 +115,8 @@ namespace FACM.League
 
         private void StartIfEligible()
         {
+            var session = _sessionProvider == null ? null : _sessionProvider();
+            if (_sessionProvider != null && session == null) return;
             CancellationTokenSource episode;
             string trace;
             lock (_sync)
@@ -100,6 +124,7 @@ namespace FACM.League
                 if (_disposed || !_enabled || !_inReconnect || _episode != null || _writeAttemptedThisPhase)
                     return;
                 _episode = new CancellationTokenSource();
+                _episodeSession = session;
                 _trace = CompactTraceLog.NewId();
                 episode = _episode;
                 trace = _trace;
@@ -139,7 +164,8 @@ namespace FACM.League
 
                 lock (_sync)
                 {
-                    if (_disposed || !_enabled || !_inReconnect || !ReferenceEquals(_episode, episode)) return;
+                    if (_disposed || !_enabled || !_inReconnect || !ReferenceEquals(_episode, episode) ||
+                        !SameEpisodeSession()) return;
                     if (_writeAttemptedThisPhase) return;
                     _writeAttemptedThisPhase = true;
                 }
@@ -169,7 +195,13 @@ namespace FACM.League
         {
             lock (_sync)
                 return !_disposed && _enabled && _inReconnect && ReferenceEquals(_episode, episode) &&
-                    !episode.IsCancellationRequested;
+                    !episode.IsCancellationRequested && SameEpisodeSession();
+        }
+
+        private bool SameEpisodeSession()
+        {
+            return _sessionProvider == null ||
+                (_episodeSession != null && _episodeSession.Matches(_sessionProvider()));
         }
 
         internal static bool IsReconnectPhase(byte[] payload)
@@ -201,6 +233,7 @@ namespace FACM.League
                 _disposed = true;
                 previous = _episode;
                 _episode = null;
+                _episodeSession = null;
             }
             Cancel(previous);
         }
