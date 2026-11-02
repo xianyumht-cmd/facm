@@ -577,6 +577,7 @@ namespace FACM.League
         internal double? FirstDragonRate;
         internal double AverageDragons, AverageVoidgrubs, AverageHeralds, AverageBarons;
         internal double? AverageFirstDragonSeconds;
+        internal int FirstCampGames;
         internal IReadOnlyDictionary<string, int> FirstCamps;
     }
 
@@ -606,6 +607,8 @@ namespace FACM.League
                     ? (double?)aggregate.FirstDragonRate : null,
                 AverageFirstDragonSeconds = aggregate.AverageFirstDragonSeconds,
                 FirstCamps = aggregate.FirstCamps,
+                FirstCampGames = selected.Count(row => row.FirstCamp != null &&
+                    (row.FirstCampSide == "blue" || row.FirstCampSide == "red")),
                 AverageDragons = aggregate.AverageDragons,
                 AverageVoidgrubs = aggregate.AverageVoidgrubs,
                 AverageHeralds = aggregate.AverageHeralds,
@@ -1010,11 +1013,13 @@ namespace FACM.League
                             ? TimeSpan.FromSeconds(data.AverageFirstDragonSeconds.Value).ToString(@"m\:ss")
                             : "—"));
                     add(t(LeagueEfficiencyUiTextKeys.JungleFirstClear),
-                        data.FirstCamps.Count == 0 ? "—" :
+                        data.FirstCampGames == 0 ? "—" :
+                        data.FirstCampGames.ToString(CultureInfo.CurrentCulture) + "/" +
+                        data.Games.ToString(CultureInfo.CurrentCulture) + " · " +
                         string.Join(" / ", data.FirstCamps.OrderByDescending(entry => entry.Value)
                             .ThenBy(entry => entry.Key, StringComparer.Ordinal).Take(3)
                             .Select(entry => entry.Key.Replace("/", " · ") + " " +
-                                rate(entry.Value / (double)data.Games))));
+                                rate(entry.Value / (double)data.FirstCampGames))));
                     add(t(LeagueEfficiencyUiTextKeys.JungleMonsters),
                         number(data.AverageVoidgrubs) + " / " + number(data.AverageHeralds) +
                         " / " + number(data.AverageBarons));

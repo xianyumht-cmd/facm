@@ -171,7 +171,8 @@ namespace FACM.League
             result.AverageBarons = games.Average(g => g.Barons);
             var times = games.Where(g => g.FirstDragonSeconds.HasValue).Select(g => g.FirstDragonSeconds.Value).ToArray();
             result.AverageFirstDragonSeconds = times.Length == 0 ? (double?)null : times.Average();
-            foreach (var game in games.Where(g => g.FirstCamp != null))
+            foreach (var game in games.Where(g => g.FirstCamp != null &&
+                (g.FirstCampSide == "blue" || g.FirstCampSide == "red")))
             {
                 var side = game.TeamId == 100 ? "blue" : "red";
                 var key = side + "/" + (game.FirstCampSide == side ? "normal" : "invade") + "/" + game.FirstCamp;

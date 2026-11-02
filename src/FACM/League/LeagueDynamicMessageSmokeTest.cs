@@ -1860,8 +1860,17 @@ namespace FACM.League
                 Math.Abs(jungleCard.TopRate - 0.4) < 0.001 &&
                 jungleCard.Level3Rate == 0.5 && jungleCard.Level4Rate == 0.5 &&
                 !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5 &&
-                jungleCard.FirstCamps.Count == 2,
+                jungleCard.FirstCamps.Count == 2 && jungleCard.FirstCampGames == 2,
                 "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            var unknownCampSide = new LeagueJungleTimelineSample { GameId = 1003,
+                ChampionId = 22, TeamId = 100, FirstCamp = "blue" };
+            var partialCamp = LeagueOngoingCardJungleProjection.Project(new[] {
+                jungleRows[0], unknownCampSide });
+            Require(partialCamp != null && partialCamp.Games == 2 &&
+                partialCamp.FirstCampGames == 1 && partialCamp.FirstCamps.Count == 1 &&
+                partialCamp.FirstCamps["blue/normal/blue"] == 1 &&
+                LeagueJungleTimelineAnalysis.Aggregate(new[] { unknownCampSide }).FirstCamps.Count == 0,
+                "Unknown camp-side evidence must not invent an invade or dilute known first-clear rates.");
             var blueCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 100);
             var redCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 200);
             Require(blueCard != null && redCard != null && blueCard.Games == 1 &&
