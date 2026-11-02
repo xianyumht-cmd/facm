@@ -730,6 +730,17 @@ namespace FACM.League
                     Require(!LeagueSgpServerCatalog.TryApply(Bytes(
                         unsafeAlias.Replace("2026-08-06T12", "2026-08-06T13"))),
                         "Riot alias enrollment must reject foreign paths and unpinned token destinations.");
+                var bothRiot = @"{""updatedAt"":""2026-08-06T15:00:00.000Z"",""servers"":{
+                    ""ME"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me-red.lol.sgp.pvp.net"",""isTencent"":false,
+                    ""regionPathParam"":""ME1""},
+                    ""ME1"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me1-red.lol.sgp.pvp.net"",""isTencent"":false}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(bothRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(Session("ME1", "ME")) == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"), "ME1") == null,
+                    "Known Riot region identity must override numeric platform fallback.");
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(
                     newRiot.Replace("2026-08-06T00", "2026-08-06T18"))),
                     "Exact-ID Riot servers must remain supported after an alias catalog refresh.");

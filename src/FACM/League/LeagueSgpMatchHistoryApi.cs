@@ -174,6 +174,9 @@ namespace FACM.League
                 case "EUW1": return "EUW";
                 case "JP1": return "JP";
                 default:
+                    // Prefer a known source region over a different numeric platform ID.
+                    if (Servers.Any(server => !server.IsTencent && server.Id == region))
+                        return region;
                     // A newly trusted Riot platform may report a short region alias
                     // (for example ME for ME1). Require an exact catalog entry and
                     // a matching numeric platform suffix before resolving it.
