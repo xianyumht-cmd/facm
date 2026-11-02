@@ -849,6 +849,14 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,
                     "Dynamic catalog must not widen cross-region permissions.");
+                var disabledCatalog = @"{""updatedAt"":""2026-08-09T00:00:00.000Z"",""servers"":{},""serverNames"":{}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(disabledCatalog)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1")) == null &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(owner).Length == 0 &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-08-08"))),
+                    "A newer source catalog explicitly disabling all providers must revoke stale SGP destinations.");
+
             }
             finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
             Require(LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory == baseline,

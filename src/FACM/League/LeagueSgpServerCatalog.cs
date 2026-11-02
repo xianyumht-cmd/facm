@@ -78,7 +78,19 @@ namespace FACM.League
                     DateTimeStyles.AssumeUniversal, out updated) ||
                     updated.UtcDateTime > DateTime.UtcNow.AddDays(1)) return false;
                 var remote = serversValue as Dictionary<string, object>;
-                if (remote == null || remote.Count == 0 || remote.Count > 128) return false;
+                if (remote == null || remote.Count > 128) return false;
+                // An explicitly empty, newer source catalog disables all SGP destinations.
+                // Do not retain old credential destinations after a full provider revocation.
+                if (remote.Count == 0)
+                {
+                    lock (Sync)
+                    {
+                        if (updated.UtcDateTime <= _updatedAt) return false;
+                        LeagueSgpMatchHistoryApiClient.Servers = Array.Empty<LeagueSgpServer>();
+                        _updatedAt = updated.UtcDateTime;
+                    }
+                    return true;
+                }
                 // Rebuild from the pinned baseline so a later trusted catalog can revoke
                 // an added platform rather than keeping its old credential destination.
                 var existing = LeagueSgpMatchHistoryApiClient.BuiltinServers;
