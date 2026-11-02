@@ -658,11 +658,68 @@ namespace FACM.League
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 timeout.CancelAfter(TimeSpan.FromSeconds(5));
+                var regional = new List<int>();
+                if (_sgpHistory != null && budget.NetworkConcurrency > 1)
+                {
+                    for (var index = 0; index < limit; index++)
+                    {
+                        var row = result.Matches[index];
+                        if (row != null && row.GameId > 0 &&
+                            (!row.ParticipantResolved || !row.StatisticsAvailable) &&
+                            row.DataSource == LeaguePlayerHistorySource.Sgp &&
+                            !string.IsNullOrEmpty(row.SgpServerId))
+                            regional.Add(index);
+                    }
+                }
+                if (regional.Count > 0)
+                {
+                    try
+                    {
+                        string owner;
+                        await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                        try
+                        {
+                            var before = ParseProfile(await _client.TryGetBytesAsync(
+                                LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                            owner = before?.PuuId;
+                        }
+                        finally { _requestGate.Release(); }
+                        if (!IsSafePuuid(owner) || !SessionStillCurrent(session)) return null;
+                        using (var sgpGate = new SemaphoreSlim(Math.Min(4, budget.NetworkConcurrency)))
+                        {
+                            var pending = regional.Select(index => HydrateRegionalAnalysisMatchAsync(
+                                index, result.Matches[index], profile, profile.PuuId,
+                                sgpGate, cancellationToken, timeout.Token)).ToArray();
+                            var completed = await Task.WhenAll(pending).ConfigureAwait(false);
+                            await _requestGate.WaitAsync(timeout.Token).ConfigureAwait(false);
+                            try
+                            {
+                                var after = ParseProfile(await _client.TryGetBytesAsync(
+                                    LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
+                                if (!SgpOwnerMatches(owner, after?.PuuId, owner) ||
+                                    !SessionStillCurrent(session)) return null;
+                            }
+                            finally { _requestGate.Release(); }
+                            foreach (var item in completed)
+                            {
+                                if (item.Item2 == null) continue;
+                                result.Matches[item.Item1] = item.Item2;
+                                changed = true;
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        return page;
+                    }
+                }
                 for (var index = 0; index < limit; index++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var current = result.Matches[index];
-                    if (current == null || (current.ParticipantResolved && current.StatisticsAvailable) || current.GameId <= 0) continue;
+                    if (regional.Contains(index) || current == null ||
+                        (current.ParticipantResolved && current.StatisticsAvailable) || current.GameId <= 0) continue;
 
                     Dictionary<string, object> fullGame;
                     try
