@@ -135,6 +135,7 @@ namespace FACM.League
         internal int HistoricalTeamId;
         internal int HistoricalOriginalTeamId;
         internal LeagueDynamicMessagePlayer HistoricalOriginalPlayer;
+        internal bool HistoricalSyntheticAdded;
         internal int HistoricalOriginalChampionId;
         internal string HistoricalOriginalChampionName;
         internal string HistoricalOriginalPosition;
@@ -156,6 +157,8 @@ namespace FACM.League
     internal sealed class LeagueDynamicMessageSnapshot
     {
         internal readonly List<LeagueDynamicMessagePlayer> Players = new List<LeagueDynamicMessagePlayer>();
+        internal readonly List<LeagueDynamicMessagePlayer> HistoricalOriginalRoster =
+            new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
         internal string HistoricalGameMode;
         internal int HistoricalQueueId;

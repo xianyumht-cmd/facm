@@ -1837,6 +1837,37 @@ namespace FACM.League
                 snapshot.Players.Count(p => p.Friendly) == 5 &&
                 roster[1].ChampionId == 12 && roster[1].TeamId == 100,
                 "Whole historical draft reset must restore every local selection and team without source writes.");
+
+            var originalPlayer = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Custom Eleventh", 100, 99, "JUNGLE") &&
+                snapshot.Players.Count == 11 &&
+                snapshot.Players.Single(p => p.Player.GameName == "Custom Eleventh")
+                    .HistoricalSyntheticAdded &&
+                snapshot.Players.Single(p => p.Player.GameName == "Custom Eleventh")
+                    .History == null &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Custom Eleventh", 200, 99) &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Bad\nName", 200, 99),
+                "Added preview players must have fresh identities without inherited source history.");
+            Require(!LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, "target") &&
+                LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, "player-2") &&
+                snapshot.Players.Count == 10 &&
+                snapshot.Players.All(p => p.Player.PuuId != "player-2") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, originalPlayer)) &&
+                snapshot.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Removing a source preview row must preserve exact original roster restoration.");
+            for (var index = 0; index < 10; index++)
+                Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Extra " + index, 100, 100 + index), "Bounded free-form draft rejected a valid player.");
+            Require(snapshot.Players.Count == 20 &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot, "Overflow", 200, 1) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 && snapshot.SelfPuuid == "target",
+                "A free-form historical preview must stop at 20 players and fully reset.");
             target.History.Matches.Clear();
             target.History.Matches.AddRange(new[] {
                 new LeaguePlayerMatchSummary { GameId = 100, PuuId = "target", ChampionId = 22,

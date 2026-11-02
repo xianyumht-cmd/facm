@@ -368,7 +368,7 @@ namespace FACM.League
                 return false;
 
             var current = snapshot.Players.ToDictionary(p => p.Player.PuuId, StringComparer.Ordinal);
-            var originalCounts = snapshot.Players.GroupBy(p => p.HistoricalOriginalTeamId)
+            var originalCounts = snapshot.HistoricalOriginalRoster.GroupBy(p => p.HistoricalOriginalTeamId)
                 .ToDictionary(g => g.Key, g => g.Count());
             var requestedCounts = requested.GroupBy(p => p.TeamId)
                 .ToDictionary(g => g.Key, g => g.Count());
@@ -462,6 +462,59 @@ namespace FACM.League
             return true;
         }
 
+
+        // Only the local preview may grow or shrink. Original match participants
+        // stay in HistoricalOriginalRoster for an exact, reversible reset.
+        internal static bool TryAddSyntheticPlayer(LeagueDynamicMessageSnapshot snapshot,
+            string name, int teamId, int championId, string position = "")
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CLASSIC" ||
+                snapshot.Players.Count >= 20 || (teamId != 100 && teamId != 200) ||
+                championId < 1 || championId > 9999 || position == null ||
+                !new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(position, StringComparer.Ordinal) ||
+                string.IsNullOrWhiteSpace(name) || name.Trim().Length > 48 ||
+                name.Any(char.IsControl) ||
+                snapshot.Players.Any(p => string.Equals(p.Player.GameName,
+                    name.Trim(), StringComparison.OrdinalIgnoreCase))) return false;
+            var cellId = Enumerable.Range(1, 20).FirstOrDefault(id =>
+                snapshot.Players.All(p => p.Player.CellId != id));
+            if (cellId == 0) return false;
+            string draftId;
+            do { draftId = "draft-" + Guid.NewGuid().ToString("N"); }
+            while (snapshot.Players.Any(p => p.Player.PuuId == draftId) ||
+                snapshot.HistoricalOriginalRoster.Any(p => p.Player.PuuId == draftId));
+            var friendly = snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid)
+                .HistoricalTeamId == teamId;
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                HistoricalSyntheticAdded = true,
+                HistoricalTeamId = teamId, HistoricalOriginalTeamId = teamId,
+                HistoricalOriginalChampionId = championId,
+                HistoricalOriginalChampionName = "#" + championId,
+                HistoricalOriginalPosition = position,
+                ChampionName = "#" + championId, Friendly = friendly,
+                Player = new LeagueLivePlayerRow {
+                    PuuId = draftId, CellId = cellId, GameName = name.Trim(),
+                    ChampionId = championId, Position = position,
+                    Side = friendly ? "ally" : "enemy"
+                }
+            });
+            return true;
+        }
+
+        internal static bool TryRemoveDraftPlayer(LeagueDynamicMessageSnapshot snapshot,
+            string puuid)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CLASSIC" ||
+                !LeagueDynamicMessageService.SafePuuid(puuid) ||
+                puuid == snapshot.SelfPuuid || snapshot.Players.Count <= 2) return false;
+            var player = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == puuid);
+            if (player == null || snapshot.Players.Count(p =>
+                p.HistoricalTeamId == player.HistoricalTeamId) <= 1) return false;
+            snapshot.Players.Remove(player);
+            return true;
+        }
+
         // Move one Rift preview player without touching source participants or the game client.
         internal static bool TryMoveTeam(LeagueDynamicMessageSnapshot snapshot,
             string puuid, int destinationTeamId)
@@ -510,7 +563,7 @@ namespace FACM.League
             if (!ValidTeamDraft(snapshot) ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.HistoricalOriginalTargetPuuid))
                 return false;
-            var originals = snapshot.Players.Select(p => p.HistoricalOriginalPlayer ?? p).ToArray();
+            var originals = snapshot.HistoricalOriginalRoster.ToArray();
             if (!originals.Any(p => p.Player.PuuId == snapshot.HistoricalOriginalTargetPuuid) ||
                 originals.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() != originals.Length ||
                 originals.Any(p => p.HistoricalOriginalChampionId < 1 ||
@@ -520,8 +573,8 @@ namespace FACM.League
                      !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
                         .Contains(p.HistoricalOriginalPosition, StringComparer.Ordinal))))
                 return false;
-            for (var index = 0; index < originals.Length; index++)
-                snapshot.Players[index] = originals[index];
+            snapshot.Players.Clear();
+            snapshot.Players.AddRange(originals);
             foreach (var player in snapshot.Players)
             {
                 player.HistoricalTeamId = player.HistoricalOriginalTeamId;
@@ -556,8 +609,18 @@ namespace FACM.League
                 snapshot.HistoricalOriginalQueueId > 100000 ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
                 (snapshot.HistoricalGameMode != "CLASSIC" && snapshot.HistoricalGameMode != "CHERRY") ||
-                (snapshot.HistoricalGameMode == "CLASSIC" ? snapshot.Players.Count != 10 :
-                    snapshot.Players.Count != 8 && snapshot.Players.Count != 16) ||
+                snapshot.Players.Count < 2 || snapshot.Players.Count > 20 ||
+                (snapshot.HistoricalGameMode == "CHERRY" && snapshot.Players.Count % 2 != 0) ||
+                (snapshot.HistoricalGameMode == "CLASSIC" ?
+                    snapshot.HistoricalOriginalRoster.Count != 10 :
+                    snapshot.HistoricalOriginalRoster.Count != 8 &&
+                    snapshot.HistoricalOriginalRoster.Count != 16) ||
+                snapshot.HistoricalOriginalRoster.Any(p => p?.Player == null ||
+                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId) ||
+                    p.HistoricalSyntheticAdded) ||
+                snapshot.HistoricalOriginalRoster.Select(p => p.Player.PuuId)
+                    .Distinct(StringComparer.Ordinal).Count() !=
+                    snapshot.HistoricalOriginalRoster.Count ||
                 snapshot.Players.Any(p => p?.Player == null ||
                     !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
                 snapshot.Players.Select(p => p.Player.PuuId).Distinct(StringComparer.Ordinal).Count() !=
@@ -573,7 +636,8 @@ namespace FACM.League
                 p.Player.Side != (p.Friendly ? "ally" : "enemy"))) return false;
             foreach (var original in new[] { false, true })
             {
-                var groups = snapshot.Players.GroupBy(p => original ?
+                var source = original ? snapshot.HistoricalOriginalRoster : snapshot.Players;
+                var groups = source.GroupBy(p => original ?
                     p.HistoricalOriginalTeamId : p.HistoricalTeamId).ToArray();
                 if (cherry ? groups.Length != snapshot.Players.Count / 2 ||
                     groups.Any(g => g.Count() != 2) :
@@ -605,13 +669,7 @@ namespace FACM.League
                  !roles.Contains(secondaryPosition, StringComparer.Ordinal)) ||
                 (primaryPosition != null && secondaryPosition != null &&
                  primaryPosition.Length != 0 && primaryPosition == secondaryPosition) ||
-                snapshot.Players.Count != (snapshot.HistoricalGameMode == "CLASSIC" ? 10 :
-                    snapshot.Players.Count == 8 ? 8 : 16) ||
-                snapshot.Players.Any(p => p?.Player == null ||
-                    !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId)) ||
-                snapshot.Players.Select(p => p.Player.PuuId)
-                    .Distinct(StringComparer.Ordinal).Count() != snapshot.Players.Count ||
-                !snapshot.Players.Any(p => p.Player.PuuId == snapshot.SelfPuuid))
+                !ValidTeamDraft(snapshot))
                 return false;
             var player = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == puuid);
             if (player == null) return false;
@@ -715,6 +773,7 @@ namespace FACM.League
                     }
                 });
             }
+            snapshot.HistoricalOriginalRoster.AddRange(snapshot.Players);
             return snapshot;
         }
     }

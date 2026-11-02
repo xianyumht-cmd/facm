@@ -240,6 +240,67 @@ namespace FACM.League
             Controls.Add(layout);
         }
     }
+
+    internal sealed class LeagueHistoricalAddPlayerDialog : Form
+    {
+        internal string PlayerName { get; private set; }
+        internal int TeamId { get; private set; }
+        internal int ChampionId { get; private set; }
+
+        internal LeagueHistoricalAddPlayerDialog(UiTextCatalog ui, int defaultTeam)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) + " · + " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer);
+            Width = 390; Height = 260; MinimumSize = new Size(330, 235);
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 4, Padding = new Padding(12) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            for (var i = 0; i < 3; i++)
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
+            var name = new TextBox { Dock = DockStyle.Fill, MaxLength = 48 };
+            var team = new ComboBox { Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList };
+            team.Items.Add(100); team.Items.Add(200);
+            team.SelectedItem = defaultTeam == 200 ? 200 : 100;
+            var champion = new NumericUpDown { Dock = DockStyle.Fill,
+                Minimum = 1, Maximum = 9999, Value = 1 };
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) }, 0, 0);
+            layout.Controls.Add(name, 1, 0);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam) }, 0, 1);
+            layout.Controls.Add(team, 1, 1);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion) }, 0, 2);
+            layout.Controls.Add(champion, 1, 2);
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft };
+            var cancel = new Button { Width = 90, DialogResult = DialogResult.Cancel,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
+            var apply = new Button { Width = 110,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
+            apply.Click += (sender, args) =>
+            {
+                if (string.IsNullOrWhiteSpace(name.Text)) return;
+                PlayerName = name.Text.Trim();
+                TeamId = (int)team.SelectedItem;
+                ChampionId = (int)champion.Value;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            buttons.Controls.Add(cancel); buttons.Controls.Add(apply);
+            layout.Controls.Add(buttons, 0, 3);
+            layout.SetColumnSpan(buttons, 2);
+            Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
+        }
+    }
+
     internal sealed class LeagueHistoricalRosterEditorDialog : Form
     {
         internal LeagueHistoricalRosterEditorDialog(UiTextCatalog ui,
@@ -396,6 +457,47 @@ namespace FACM.League
                 DialogResult = DialogResult.OK; Close();
             };
             actions.Controls.Add(cancel); actions.Controls.Add(apply); actions.Controls.Add(restore);
+
+            if (snapshot.HistoricalGameMode == "CLASSIC")
+            {
+                var addPlayer = new Button { Width = 118, Height = 30,
+                    Text = "+ " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
+                addPlayer.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    var teamId = snapshot.Players.Count(p => p.HistoricalTeamId == 100) <=
+                        snapshot.Players.Count(p => p.HistoricalTeamId == 200) ? 100 : 200;
+                    using (var dialog = new LeagueHistoricalAddPlayerDialog(ui, teamId))
+                    {
+                        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                        if (!isCurrentSession() ||
+                            !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                                dialog.PlayerName, dialog.TeamId, dialog.ChampionId))
+                        {
+                            MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                                Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                var removePlayer = new Button { Width = 118, Height = 30,
+                    Text = "− " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
+                removePlayer.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    var id = grid.CurrentRow?.Tag as string;
+                    if (!LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, id))
+                    {
+                        MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                            Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                actions.Controls.Add(removePlayer);
+                actions.Controls.Add(addPlayer);
+            }
             layout.Controls.Add(actions, 0, 2);
             Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
             Activated += (sender, args) => { if (!isCurrentSession()) Close(); };
