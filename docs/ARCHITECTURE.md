@@ -2,7 +2,7 @@
 
 `LeagueAkariChampionPresetTransfer` is a pure bounded adapter between pinned Akari v1.5.1 `auto-champ-config/state.ts` JSON and the existing `LeagueChampionRunePresets` / `LeagueChampionSpellPresets` compressed catalogs. `LeagueRunePresetManagerForm` is the sole clipboard/confirmation UI; `LeagueAutoApplyController.ImportAkariChampionPresets` saves present categories in one settings transaction, restores in-memory values on save failure and cancels stale auto-apply work. No account identity, LCU writer or new transport crosses this boundary. Both native categories retain 256-entry limits, source group validation and cloud settings keys.
 
-`LeagueSgpServerCatalog` and `LeagueAutoSelectGroupCatalog` retain their existing explicit public-data transport and cancellation scopes. A successful accepted snapshot sets a two-hour success gate; a failed fetch has a five-minute minimum retry interval. This is not an always-on polling owner, and a cancelled account/session refresh clears the attempt gate.
+`LeagueSgpServerCatalog`, `LeagueSgpSupportedQueues` and `LeagueAutoSelectGroupCatalog` retain their existing explicit public-data transport and cancellation scopes. A successful accepted snapshot sets a two-hour success gate; a failed fetch has a five-minute minimum retry interval. This is not an always-on polling owner, and a cancelled account/session refresh clears the attempt gate.
 
 ### 2026-11-02 — Akari native historical and player-card boundaries
 

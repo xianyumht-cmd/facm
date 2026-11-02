@@ -62,6 +62,12 @@ namespace FACM.League
             LeagueSgpSupportedQueues.ResetForSmokeTest();
             try
             {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "Supported queue catalog must retry failures after five minutes but cache accepted lists for two hours.");
                 var attempts = 0;
                 using (var cancellation = new CancellationTokenSource())
                 {
@@ -93,7 +99,7 @@ namespace FACM.League
                     return Task.FromResult<byte[]>(null);
                 }).GetAwaiter().GetResult();
                 Require(attempts == 2,
-                    "An ordinary supported-queue refresh must retain its two-hour throttle.");
+                    "A failed supported-queue refresh must retain its five-minute retry throttle.");
             }
             finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
         }
