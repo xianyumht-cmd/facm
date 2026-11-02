@@ -166,6 +166,9 @@ namespace FACM.League
         public const string AdvancedImportConfirm = "LeagueEfficiencyAdvancedImportConfirm";
         public const string AdvancedImportReady = "LeagueEfficiencyAdvancedImportReady";
         public const string AdvancedExportReady = "LeagueEfficiencyAdvancedExportReady";
+        public const string GameflowImportConfirm = "LeagueEfficiencyGameflowImportConfirm";
+        public const string GameflowImportReady = "LeagueEfficiencyGameflowImportReady";
+        public const string GameflowExportReady = "LeagueEfficiencyGameflowExportReady";
         public const string AdvancedTransferFailed = "LeagueEfficiencyAdvancedTransferFailed";
         public const string AdvancedSave = "LeagueEfficiencyAdvancedSave";
         public const string AdvancedCancel = "LeagueEfficiencyAdvancedCancel";
@@ -676,6 +679,9 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedImportConfirm, "确认导入 Akari v1.5.1 自动选禁配置？导入只修改当前编辑草稿，点击保存后才会替换本地配置；未提供的选/禁类别保持不变。" },
             { LeagueEfficiencyUiTextKeys.AdvancedImportReady, "已导入编辑草稿；请检查后点击保存。" },
             { LeagueEfficiencyUiTextKeys.AdvancedExportReady, "当前选禁配置已复制为 Akari JSON。" },
+            { LeagueEfficiencyUiTextKeys.GameflowImportConfirm, "确认导入 Akari v1.5.1 自动游戏流程设置？将立即保存提供的选项，可能启用自动匹配、接受对局、选后操作和邀请策略。未提供的选项保持不变；不支持的设置会拒绝导入。" },
+            { LeagueEfficiencyUiTextKeys.GameflowImportReady, "自动游戏流程设置已导入并保存。" },
+            { LeagueEfficiencyUiTextKeys.GameflowExportReady, "自动游戏流程设置已复制为 Akari JSON。" },
             { LeagueEfficiencyUiTextKeys.AdvancedTransferFailed, "配置无效、无法无损转换或剪贴板不可用；未更改保存的配置。" },
             { LeagueEfficiencyUiTextKeys.AdvancedSave, "保存" },
             { LeagueEfficiencyUiTextKeys.AdvancedCancel, "取消" },

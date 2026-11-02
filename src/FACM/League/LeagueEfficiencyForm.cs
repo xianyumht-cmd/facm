@@ -468,10 +468,19 @@ namespace FACM.League
                 BackColor = FacmDesignSystem.Canvas,
                 Margin = Padding.Empty
             };
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            panel.ColumnCount = 4;
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
+            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
             panel.Controls.Add(SectionLabel(T(LeagueEfficiencyUiTextKeys.PostGameSection)), 0, 0);
             panel.Controls.Add(_honorStatus, 1, 0);
+            var import = CreateButton(T(LeagueEfficiencyUiTextKeys.AdvancedImportAkari), 104, FacmButtonTone.Secondary);
+            var export = CreateButton(T(LeagueEfficiencyUiTextKeys.AdvancedExportAkari), 104, FacmButtonTone.Secondary);
+            import.Click += delegate { ImportAkariGameflow(); };
+            export.Click += delegate { ExportAkariGameflow(); };
+            panel.Controls.Add(import, 2, 0);
+            panel.Controls.Add(export, 3, 0);
             return panel;
         }
 
@@ -763,6 +772,50 @@ namespace FACM.League
             }
         }
 
+        private void ImportAkariGameflow()
+        {
+            try
+            {
+                var json = Clipboard.GetText();
+                Dictionary<string, object> parsed;
+                string error;
+                if (!LeagueAkariGameflowTransfer.TryParse(json, out parsed, out error))
+                    throw new InvalidOperationException(error);
+                if (MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.GameflowImportConfirm),
+                        Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                    return;
+                if (!_module.TryImportAkariGameflowSettings(json, out error))
+                    throw new InvalidOperationException(error);
+                RefreshPostGameSettingsFromModule();
+                RefreshMatchmakingSettingsFromModule();
+                RefreshReconnectSettingsFromModule();
+                RefreshInvitationSettingsFromModule();
+                RefreshAramTeamSideSettingsFromModule();
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.GameflowImportReady);
+            }
+            catch (Exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedTransferFailed);
+            }
+        }
+
+        private void ExportAkariGameflow()
+        {
+            try
+            {
+                Clipboard.SetText(_module.ExportAkariGameflowSettings());
+                _status.ForeColor = FacmDesignSystem.Success;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.GameflowExportReady);
+            }
+            catch (Exception)
+            {
+                _status.ForeColor = FacmDesignSystem.Warning;
+                _status.Text = T(LeagueEfficiencyUiTextKeys.AdvancedTransferFailed);
+            }
+        }
+
         private void PostGameSettingChanged(object sender, EventArgs e)
         {
             if (_loading) return;
@@ -937,7 +990,9 @@ namespace FACM.League
                 // actual settings object on the UI thread instead of retaining stale strategies.
                 BeginInvoke(new Action(delegate
                 {
+                    RefreshPostGameSettingsFromModule();
                     RefreshMatchmakingSettingsFromModule();
+                    RefreshReconnectSettingsFromModule();
                     RefreshInvitationSettingsFromModule();
                     RefreshAramTeamSideSettingsFromModule();
                     RefreshLoginSignatureSettingsFromModule();
@@ -949,6 +1004,28 @@ namespace FACM.League
             }
             catch (ObjectDisposedException) { }
             catch (InvalidOperationException) { }
+        }
+
+        private void RefreshPostGameSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoHonor.Checked = _module.AutoHonorEnabled;
+                _autoReturn.Checked = _module.AutoReturnLobbyEnabled;
+                _honorStrategy.SelectedIndex = Math.Max(0,
+                    Array.IndexOf(LeagueHonorStrategy.Choices, _module.AutoHonorStrategy));
+            }
+            finally { _loading = false; }
+        }
+
+        private void RefreshReconnectSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try { _autoReconnect.Checked = _module.AutoReconnectEnabled; }
+            finally { _loading = false; }
         }
 
         private void RefreshMatchmakingSettingsFromModule()

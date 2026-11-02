@@ -13,6 +13,7 @@ namespace FACM.League
         {
             ValidateHotkeys();
             ValidateSettings();
+            ValidateAkariGameflowTransfer();
             ValidateProcessActions();
             ValidateUiContract();
             ValidateScrollContract();
@@ -93,6 +94,52 @@ namespace FACM.League
                     serialized.IndexOf("password", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("account=", StringComparison.OrdinalIgnoreCase) < 0,
                 "Formal settings must not contain the abandoned credential-input feature.");
+        }
+
+        private static void ValidateAkariGameflowTransfer()
+        {
+            var settings = AppSettings.ParseLines(new string[0]);
+            var before = LeagueAkariGameflowTransfer.Export(settings);
+            Dictionary<string, object> parsed;
+            string error;
+            Require(LeagueAkariGameflowTransfer.TryParse(before, out parsed, out error) &&
+                    parsed.Count == 19 && (double)parsed["autoMatchmakingMaximumMatchDuration"] == 0,
+                "Default native gameflow must round-trip through source-shaped JSON.");
+            var input = "{\\"autoHonorEnabled\\":true,\\"autoHonorStrategy\\":\\"only-lobby-member\\"," +
+                "\\"autoAcceptDelaySeconds\\":1.5,\\"autoMatchmakingMinimumMembers\\":3," +
+                "\\"autoMatchmakingRematchStrategy\\":\\"fixed-duration\\"," +
+                "\\"autoMatchmakingRematchFixedDuration\\":42," +
+                "\\"invitationHandlingStrategies\\":{\\"<DEFAULT>\\":\\"ignore\\",\\"NORMAL\\":\\"accept\\"}}";
+            Require(LeagueAkariGameflowTransfer.TryParse(input, out parsed, out error),
+                "Supported source gameflow settings must parse.");
+            LeagueAkariGameflowTransfer.ApplyValidated(settings, parsed);
+            Require(settings.LeagueAutoHonorTeammateEnabled &&
+                    settings.LeagueAutoHonorStrategy == "only-lobby-member" &&
+                    settings.LeagueAutoAcceptDelayMs == 1500 &&
+                    settings.LeagueAutoMatchmakingMinPartySize == 3 &&
+                    settings.LeagueAutoMatchmakingStopAfterMs == 42000 &&
+                    settings.LeagueAutoMatchmakingStopPolicy == "fixed-duration" &&
+                    LeagueInvitationPolicies.Parse(settings.LeagueInvitationStrategies)["NORMAL"] == "accept" &&
+                    !settings.LeagueAutoMatchmakingEnabled,
+                "Partial import must apply only supplied fields without activating unrelated actions.");
+            Require(LeagueAkariGameflowTransfer.TryParse(LeagueAkariGameflowTransfer.Export(settings),
+                    out parsed, out error) && parsed.Count == 19,
+                "Imported source settings must export as a valid full source object.");
+            foreach (var invalid in new[] {
+                "{\\"autoAcceptEnabled\\":\\"true\\"}",
+                "{\\"autoMatchmakingMaximumMatchDuration\\":120}",
+                "{\\"autoMatchmakingMinimumMembers\\":6}",
+                "{\\"autoAcceptDelaySeconds\\":0.3}",
+                "{\\"autoHonorStrategy\\":\\"unsafe\\"}",
+                "{\\"invitationHandlingStrategies\\":{\\"UNKNOWN\\":\\"accept\\"}}",
+                "{\\"autoMatchmakingRoomNotices\\":true}",
+                "{\\"autoAcceptEnabled\\":true,\\"autoReconnectEnabled\\":null}"
+            })
+                Require(!LeagueAkariGameflowTransfer.TryParse(invalid, out parsed, out error),
+                    "Invalid or unrepresentable source options must fail atomically.");
+            Require(!settings.LeagueAutoAcceptEnabled &&
+                    settings.LeagueAutoAcceptDelayMs == 1500,
+                "Rejected imports must not mutate previously validated settings.");
         }
 
         private static void ValidateProcessActions()

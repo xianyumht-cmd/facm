@@ -704,6 +704,22 @@ namespace FACM.AppHost.Modules
             return TryApplyBindings(exitGame, closeLobby, true, out error);
         }
 
+        public string ExportAkariGameflowSettings()
+        {
+            ThrowIfDisposed();
+            return LeagueAkariGameflowTransfer.Export(_settingsModule.Settings);
+        }
+
+        public bool TryImportAkariGameflowSettings(string json, out string error)
+        {
+            ThrowIfDisposed();
+            Dictionary<string, object> values;
+            if (!LeagueAkariGameflowTransfer.TryParse(json, out values, out error)) return false;
+            LeagueAkariGameflowTransfer.ApplyValidated(_settingsModule.Settings, values);
+            _settingsModule.Settings.Save();
+            return true;
+        }
+
         public void UpdatePostGameSettings(bool autoHonor, bool autoReturn, string honorStrategy)
         {
             ThrowIfDisposed();
