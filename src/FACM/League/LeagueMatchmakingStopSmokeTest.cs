@@ -14,6 +14,7 @@ namespace FACM.League
             ValidateFixedDurationThreshold();
             ValidateReadyCheckFence();
             ValidateWriteFence();
+            ValidateTransientRecoveryAndSessionFence();
             AppSettings.ValidateMatchmakingStopPreferencesForSmokeTest();
         }
 
@@ -77,6 +78,11 @@ namespace FACM.League
 
             Require(LeagueMatchmakingStopController.ParseSearchState(Bytes("not-json")) == null,
                 "Malformed matchmaking search payload did not fail closed.");
+            Require(LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"searchState\":\"Searching\",\"timeInQueue\":999}")) == null &&
+                LeagueMatchmakingStopController.ParseSearchState(Bytes(
+                "{\"isCurrentlyInQueue\":\"false\",\"searchState\":\"Searching\"}")) == null,
+                "Unknown queue membership must never confirm a successful DELETE.");
         }
 
         private static void ValidateReadyCheckFence()
@@ -116,6 +122,22 @@ namespace FACM.League
             normal.TimeInQueueSeconds = null;
             Require(!LeagueMatchmakingStopController.ShouldStopForFixed(normal, 120000),
                 "Fixed stop guessed a queue duration when time data was unavailable.");
+        }
+
+        private static void ValidateTransientRecoveryAndSessionFence()
+        {
+            Require(LeagueMatchmakingStopController.MissingSearchRetryDelay(1) == TimeSpan.FromSeconds(2) &&
+                LeagueMatchmakingStopController.MissingSearchRetryDelay(2) == TimeSpan.FromSeconds(4) &&
+                LeagueMatchmakingStopController.MissingSearchRetryDelay(5) == TimeSpan.FromSeconds(30) &&
+                LeagueMatchmakingStopController.MissingSearchRetryDelay(100) == TimeSpan.FromSeconds(30),
+                "Missing matchmaking reads must back off without permanently abandoning the active phase.");
+            var original = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test");
+            var same = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test");
+            var replacement = new LeagueClientSession("LeagueClientUx", 2, 2999, "two", "https", "test");
+            Require(LeagueMatchmakingStopController.SameEpisodeSession(original, same) &&
+                !LeagueMatchmakingStopController.SameEpisodeSession(original, replacement) &&
+                !LeagueMatchmakingStopController.SameEpisodeSession(original, null),
+                "Matchmaking stop must abandon a previous LCU session before a DELETE.");
         }
 
         private static void ValidateWriteFence()
