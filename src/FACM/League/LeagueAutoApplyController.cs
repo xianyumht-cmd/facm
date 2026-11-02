@@ -521,8 +521,12 @@ namespace FACM.League
         {
             if (bundle == null || !bundle.HasRunes && !bundle.HasSpells)
                 throw new ArgumentException("Invalid champion preset import.");
-            if (bundle.HasRunes && LeagueChampionRunePresets.Parse(bundle.Runes).Count != bundle.RuneCount ||
-                bundle.HasSpells && LeagueChampionSpellPresets.Parse(bundle.Spells).Count != bundle.SpellCount)
+            var runes = bundle.HasRunes ? LeagueChampionRunePresets.Parse(bundle.Runes) : null;
+            var spells = bundle.HasSpells ? LeagueChampionSpellPresets.Parse(bundle.Spells) : null;
+            if (bundle.HasRunes && (runes.Count != bundle.RuneCount ||
+                    !string.Equals(LeagueChampionRunePresets.Serialize(runes), bundle.Runes, StringComparison.Ordinal)) ||
+                bundle.HasSpells && (spells.Count != bundle.SpellCount ||
+                    !string.Equals(LeagueChampionSpellPresets.Serialize(spells), bundle.Spells, StringComparison.Ordinal)))
                 throw new ArgumentException("Invalid champion preset catalog.");
             var oldRunes = _settings.LeagueChampionRunePresets;
             var oldSpells = _settings.LeagueChampionSpellPresets;
