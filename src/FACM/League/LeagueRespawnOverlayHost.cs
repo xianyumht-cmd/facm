@@ -133,6 +133,12 @@ namespace FACM.League
                 string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static bool ShouldRearmSamePhaseOwner(bool inProgress,
+            LeagueClientSession expected, LeagueClientSession current)
+        {
+            return inProgress && current != null && !SameOwner(expected, current);
+        }
+
         private void SetInProgressLocked(bool desired)
         {
             var session = desired ? _sessionProvider() : null;
@@ -199,6 +205,10 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || !_inProgress) return;
+                // The shared Gameflow observer may not emit a new phase when LCU is
+                // replaced during InProgress. Rearm this phase's existing read scope.
+                if (ShouldRearmSamePhaseOwner(_inProgress, _scopeSession, _sessionProvider()))
+                    SetInProgressLocked(true);
                 generation = _generation;
                 readToken = _readScope.Token;
             }

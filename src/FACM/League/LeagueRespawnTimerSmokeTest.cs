@@ -43,6 +43,14 @@ namespace FACM.League
                 !LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
                     "LeagueClientUx", 100, 12345, "fixture", "https", "fixture", "HN10", "NA")),
                 "Respawn read scope must reject a replaced process, platform or region with reused credentials.");
+            var replacementOwner = new LeagueClientSession(
+                "LeagueClientUx", 101, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
+            Require(LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(true, owner, replacementOwner) &&
+                    LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(true, null, owner) &&
+                    !LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(true, owner, owner) &&
+                    !LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(true, owner, null) &&
+                    !LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(false, owner, replacementOwner),
+                "An InProgress process replacement must rearm its read scope without reviving an inactive phase.");
             var inGame = new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" };
             Require(LeagueRespawnOverlayHost.ShouldRun(true, inGame) &&
                 !LeagueRespawnOverlayHost.ShouldRun(false, inGame) &&
