@@ -954,6 +954,25 @@ namespace FACM.League
                     "A manual hero change between initial bench scan and POST must cancel the swap.");
             }
 
+            var originalRoleBench = BenchSession(34, "[55]", 450, false)
+                .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"TOP\"}");
+            var changedRoleBench = BenchSession(34, "[55]", 450, false)
+                .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"UTILITY\"}");
+            var roleChangedRead = new FakeRead
+            {
+                SessionJson = originalRoleBench,
+                NextSessionJson = changedRoleBench
+            };
+            var roleChangedWrite = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                roleChangedRead, new FakeWrite(), roleChangedWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(roleChangedWrite.Calls == 0,
+                    "A changed assigned position must cancel a pending automatic bench swap.");
+            }
+
             var pendingProfile = LeagueAutoSelectProfiles.Serialize(new[]
             {
                 new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
