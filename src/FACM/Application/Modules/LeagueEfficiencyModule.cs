@@ -159,7 +159,8 @@ namespace FACM.AppHost.Modules
                 matchmakingWriter, (ILeagueLobbyNoticeWriteApi)_leagueClient);
             ConfigureLobbyInvitations();
             _friendInvitations = new LeagueFriendInvitationController(_leagueClient,
-                (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient);
+                (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient,
+                () => _leagueClient.CurrentSession);
             _aramSide = new LeagueAramTeamSideController(_leagueClient, (ILeagueChampSelectSideWriteApi)_leagueClient);
             ConfigureAramTeamSide();
             _loginSignature = new LeagueLoginStatusRestoreController(

@@ -23,6 +23,7 @@ namespace FACM.League
             ValidateCancelBeforeWrite();
             ValidateOptionalCustomGameNotice();
             ValidateNoticeGuards();
+            ValidateOwnerScopedInvitations();
         }
 
         private static void ValidateWriteShapeAndFence()
@@ -272,6 +273,64 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateOwnerScopedInvitations()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 55, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var second = new LeagueClientSession("LeagueClientUx", 56, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var current = first;
+            var read = new Read();
+            var write = new Write();
+            read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-owner", true));
+            read.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            using (var controller = new LeagueFriendInvitationController(read, write, write, () => current))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                Require(catalog != null && controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true),
+                    "Initial owner could not schedule a friend.");
+                read.BeforeRead = (path, count) =>
+                {
+                    if (path == LeagueFriendInvitationController.FriendsPath && count == 3)
+                        current = second;
+                };
+                Run(controller);
+                Require(write.Calls.Count == 0,
+                    "Reused LCU credentials after process replacement must block an old friend invitation.");
+                controller.Observe(Phase("Lobby"));
+                Require(controller.PendingCount == 0 && !controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true),
+                    "A new LCU owner must not inherit old scheduled friends or catalog.");
+                read.BeforeRead = null;
+                catalog = Load(controller);
+                Require(catalog != null && controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true),
+                    "The replacement owner could not schedule its own friend.");
+                Run(controller);
+                Require(write.Calls.Count == 1,
+                    "A fresh owner must be allowed one newly authorized invitation.");
+            }
+
+            current = first;
+            read = new Read();
+            write = new Write();
+            read.Set(LeagueFriendInvitationController.LobbyPath, Lobby("party-owner-notice", true));
+            read.Set(LeagueFriendInvitationController.FriendsPath, Friends("chat", "offline"));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"id\":\"room-12@group\",\"type\":\"customGame\"}]");
+            write.OnInvite = () => current = second;
+            using (var controller = new LeagueFriendInvitationController(read, write, write, () => current))
+            {
+                controller.Observe(Phase("Lobby"));
+                var catalog = Load(controller);
+                Require(catalog != null && controller.SetAnnounce(catalog.LobbyKey, true) &&
+                    controller.SetScheduled(catalog.LobbyKey, FriendPuuid, true),
+                    "Owner-scoped notice fixture could not schedule the friend.");
+                Run(controller);
+                Require(write.Calls.Count == 1 && write.Notices.Count == 0,
+                    "A late invitation response from the old owner must not send a room notice to the new owner.");
+            }
+        }
+
         private static LeagueFriendInvitationCatalog Load(LeagueFriendInvitationController controller)
         {
             return controller.LoadCatalogAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -340,10 +399,12 @@ namespace FACM.League
             internal readonly List<long> Calls = new List<long>();
             internal readonly List<string> Notices = new List<string>();
             internal int InviteStatus = 204;
+            internal Action OnInvite;
             public Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(summonerId);
+                if (OnInvite != null) OnInvite();
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = InviteStatus, Body = new byte[0] });
             }
 

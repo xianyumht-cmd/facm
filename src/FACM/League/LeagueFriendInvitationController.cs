@@ -38,6 +38,8 @@ namespace FACM.League
         private readonly ILeagueClientApi _read;
         private readonly ILeagueLobbyInviteWriteApi _write;
         private readonly ILeagueLobbyNoticeWriteApi _notices;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _owner;
         private readonly HashSet<string> _pending = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _attempted = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _catalogPuuids = new HashSet<string>(StringComparer.Ordinal);
@@ -55,7 +57,13 @@ namespace FACM.League
 
         internal LeagueFriendInvitationController(
             ILeagueClientApi read, ILeagueLobbyInviteWriteApi write, ILeagueLobbyNoticeWriteApi notices)
+            : this(read, write, notices, null) { }
+
+        internal LeagueFriendInvitationController(
+            ILeagueClientApi read, ILeagueLobbyInviteWriteApi write, ILeagueLobbyNoticeWriteApi notices,
+            Func<LeagueClientSession> sessionProvider)
         {
+            _sessionProvider = sessionProvider;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _notices = notices;
@@ -67,10 +75,19 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
+                if (_sessionProvider != null)
+                {
+                    var next = state != null && state.Connected ? _sessionProvider() : null;
+                    if (!SameOwner(_owner, next))
+                    {
+                        ClearLocked();
+                        _owner = next;
+                    }
+                }
                 // The LCU lobby remains alive while matchmaking or a ready check is underway.
                 _inLobby = state != null && state.Connected &&
                     (state.Phase == "Lobby" || state.Phase == "Matchmaking" || state.Phase == "ReadyCheck");
-                if (!_inLobby)
+                if (!_inLobby || !OwnerCurrentLocked())
                 {
                     ClearLocked();
                     return;
@@ -87,19 +104,23 @@ namespace FACM.League
 
         internal async Task<LeagueFriendInvitationCatalog> LoadCatalogAsync(CancellationToken cancellationToken)
         {
+            LeagueClientSession expected;
             lock (_sync)
-                if (_disposed || !_inLobby) return null;
+            {
+                if (_disposed || !_inLobby || !OwnerCurrentLocked()) return null;
+                expected = _owner;
+            }
             var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             if (lobby == null) return null;
             var friends = ParseFriends(await _read.TryGetBytesAsync(FriendsPath, cancellationToken).ConfigureAwait(false));
             if (friends == null) return null;
             var fresh = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (fresh == null || fresh.Key != lobby.Key) return null;
+            if (fresh == null || fresh.Key != lobby.Key || !IsExpectedOwner(expected)) return null;
 
             lock (_sync)
             {
-                if (_disposed || !_inLobby) return null;
+                if (_disposed || !_inLobby || !IsExpectedOwner(expected)) return null;
                 if (_lobbyKey != null && _lobbyKey != lobby.Key) ClearLocked();
                 if (_catalogLobbyKey != lobby.Key)
                 {
@@ -122,7 +143,8 @@ namespace FACM.League
         {
             lock (_sync)
             {
-                if (_disposed || !_inLobby || lobbyKey != _catalogLobbyKey || !IsSafePuuid(puuid) ||
+                if (_disposed || !_inLobby || !OwnerCurrentLocked() ||
+                    lobbyKey != _catalogLobbyKey || !IsSafePuuid(puuid) ||
                     !_catalogPuuids.Contains(puuid)) return false;
                 if (_lobbyKey != null && _lobbyKey != lobbyKey) return false;
                 if (!selected)
@@ -154,7 +176,7 @@ namespace FACM.League
         {
             lock (_sync)
             {
-                if (_disposed || !_inLobby || string.IsNullOrEmpty(lobbyKey) ||
+                if (_disposed || !_inLobby || !OwnerCurrentLocked() || string.IsNullOrEmpty(lobbyKey) ||
                     _catalogLobbyKey != lobbyKey || (_lobbyKey != null && _lobbyKey != lobbyKey)) return false;
                 _noticeLobbyKey = lobbyKey;
                 _noticeEnabled = enabled;
@@ -187,14 +209,16 @@ namespace FACM.League
         private async Task EvaluateAsync(CancellationToken cancellationToken)
         {
             string key;
+            LeagueClientSession expected;
             lock (_sync)
             {
-                if (_disposed || !_inLobby || _pending.Count == 0) return;
+                if (_disposed || !_inLobby || !OwnerCurrentLocked() || _pending.Count == 0) return;
                 key = _lobbyKey;
+                expected = _owner;
             }
             var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (lobby == null) return;
+            if (lobby == null || !IsExpectedOwner(expected)) return;
             if (lobby.Key != key)
             {
                 lock (_sync) if (_lobbyKey == key) ClearLocked();
@@ -207,7 +231,7 @@ namespace FACM.League
             LeagueFriendInvitationChoice candidate = null;
             lock (_sync)
             {
-                if (_disposed || !_inLobby || _lobbyKey != key) return;
+                if (_disposed || !_inLobby || _lobbyKey != key || !IsExpectedOwner(expected)) return;
                 var found = new HashSet<string>(friends.Select(friend => friend.Puuid), StringComparer.Ordinal);
                 _pending.IntersectWith(found);
                 candidate = friends.FirstOrDefault(friend => _pending.Contains(friend.Puuid) &&
@@ -219,24 +243,29 @@ namespace FACM.League
             var latestLobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             var latestFriends = ParseFriends(await _read.TryGetBytesAsync(FriendsPath, cancellationToken).ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (latestLobby == null || latestFriends == null || latestLobby.Key != key || !latestLobby.CanInvite ||
+            if (!IsExpectedOwner(expected) || latestLobby == null || latestFriends == null ||
+                latestLobby.Key != key || !latestLobby.CanInvite ||
                 latestLobby.MemberPuuids.Contains(candidate.Puuid) ||
                 !latestFriends.Any(friend => friend.Puuid == candidate.Puuid &&
                     friend.SummonerId == candidate.SummonerId && friend.Availability == "chat")) return;
 
             lock (_sync)
             {
-                if (_disposed || !_inLobby || _lobbyKey != key || !_pending.Remove(candidate.Puuid)) return;
+                if (_disposed || !_inLobby || _lobbyKey != key || !IsExpectedOwner(expected) ||
+                    !_pending.Remove(candidate.Puuid)) return;
                 _attempted.Add(candidate.Puuid);
             }
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             var response = await _write.TryInviteAsync(candidate.SummonerId, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             AppLog.Info("League scheduled friend invitation: " +
                 (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
             if (response == null || !response.IsSuccessStatusCode || _notices == null) return;
             lock (_sync)
-                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled || _noticeLobbyKey != key) return;
+                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled ||
+                    _noticeLobbyKey != key || !IsExpectedOwner(expected)) return;
 
             var conversationId = ParseCustomGameConversation(
                 await _read.TryGetBytesAsync(ConversationsPath, cancellationToken).ConfigureAwait(false));
@@ -244,9 +273,11 @@ namespace FACM.League
             if (conversationId == null) return;
             var verifiedLobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (verifiedLobby == null || verifiedLobby.Key != key) return;
+            if (verifiedLobby == null || verifiedLobby.Key != key || !IsExpectedOwner(expected)) return;
             lock (_sync)
-                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled || _noticeLobbyKey != key) return;
+                if (_disposed || !_inLobby || _lobbyKey != key || !_noticeEnabled ||
+                    _noticeLobbyKey != key || !IsExpectedOwner(expected)) return;
+            if (!IsExpectedOwner(expected)) return;
             var notice = await _notices.TrySendNoticeAsync(
                 conversationId, "已邀请 " + candidate.Name + " 加入房间", cancellationToken).ConfigureAwait(false);
             AppLog.Info("League scheduled friend room notice: " +
@@ -390,6 +421,25 @@ namespace FACM.League
                 var row = item as Dictionary<string, object>;
                 if (row != null) yield return row;
             }
+        }
+
+        private static bool SameOwner(LeagueClientSession first, LeagueClientSession second)
+        {
+            return first == null ? second == null :
+                LeagueEncounterReplayService.SessionMatches(first, second);
+        }
+
+        private bool OwnerCurrentLocked()
+        {
+            return _sessionProvider == null ||
+                (_owner != null && LeagueEncounterReplayService.SessionMatches(_owner, _sessionProvider()));
+        }
+
+        private bool IsExpectedOwner(LeagueClientSession expected)
+        {
+            return _sessionProvider == null ||
+                (expected != null && SameOwner(expected, _owner) &&
+                 LeagueEncounterReplayService.SessionMatches(expected, _sessionProvider()));
         }
 
         private void ClearLocked()
