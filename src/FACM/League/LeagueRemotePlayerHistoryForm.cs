@@ -36,6 +36,7 @@ namespace FACM.League
         private readonly ListView _matches;
         private readonly Button _replayButton;
         private readonly ComboBox _winFilter;
+        private readonly ComboBox _timeFilter;
         private readonly ComboBox _modeFilter;
         private readonly Button _advancedFilterButton;
         private readonly Button _collectButton;
@@ -256,6 +257,25 @@ namespace FACM.League
                 RenderRows();
                 UpdatePageButtons();
             };
+            _timeFilter = new ComboBox
+            {
+                Width = 112, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterTimeRange)
+            };
+            foreach (var key in new[]
+            {
+                UiTextKeys.LeaguePlayerFilterAll, UiTextKeys.LeaguePlayerTimeLast3Hours,
+                UiTextKeys.LeaguePlayerTimeLast12Hours, UiTextKeys.LeaguePlayerTimeLast24Hours,
+                UiTextKeys.LeaguePlayerTimeLast3Days, UiTextKeys.LeaguePlayerTimeLast7Days,
+                UiTextKeys.LeaguePlayerTimeLast30Days
+            }) _timeFilter.Items.Add(_ui.Get(key));
+            _timeFilter.SelectedIndex = 0;
+            _timeFilter.SelectedIndexChanged += (sender, args) =>
+            {
+                RenderRows();
+                UpdatePageButtons();
+            };
             _modeFilter = new ComboBox {
                 Width = 116, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
                 BackColor = FacmDesignSystem.SurfaceRaised, ForeColor = FacmDesignSystem.Text,
@@ -308,6 +328,7 @@ namespace FACM.League
                 ForeColor = FacmDesignSystem.TextMuted, TextAlign = ContentAlignment.MiddleLeft
             });
             filterRow.Controls.Add(_winFilter);
+            filterRow.Controls.Add(_timeFilter);
             filterRow.Controls.Add(_modeFilter);
             filterRow.Controls.Add(_advancedFilterButton);
             var analysisButton = PageButton(UiTextKeys.LeaguePlayerAnalysisAction, 90);
@@ -581,6 +602,7 @@ namespace FACM.League
                 : _ui.Get(UiTextKeys.LeaguePlayerCollectTitle);
             if (number <= _pageNumber.Maximum) _pageNumber.Value = number;
             _winFilter.Enabled = _loaded && !_loading && !_replayRunning;
+            _timeFilter.Enabled = _loaded && !_loading && !_replayRunning;
             _modeFilter.Enabled = _loaded && !_loading && !_replayRunning &&
                 _collectionCancellation == null;
             _advancedFilterButton.Enabled = _loaded && !_loading && !_replayRunning;
@@ -591,9 +613,15 @@ namespace FACM.League
             UpdateReplayButton();
         }
 
+        internal static LeagueMatchTimeRangeFilter TimeFilterFromSelection(int index)
+        {
+            return index >= 0 && index <= (int)LeagueMatchTimeRangeFilter.Last30Days
+                ? (LeagueMatchTimeRangeFilter)index : LeagueMatchTimeRangeFilter.All;
+        }
+
         private bool HasCollectionFilter()
         {
-            return _winFilter.SelectedIndex > 0 || SelectedQueueTag() != null ||
+            return _winFilter.SelectedIndex > 0 || _timeFilter.SelectedIndex > 0 || SelectedQueueTag() != null ||
                 _cardChampionId > 0 || _cardPosition.Length > 0 || _cardMode.Length > 0 ||
                 (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
         }
@@ -619,6 +647,7 @@ namespace FACM.League
             var rows = LeagueSimpleMatchHistoryFilter.Apply(_activePage.Matches,
                 new LeagueSimpleMatchHistoryFilter {
                     WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
+                    TimeRange = TimeFilterFromSelection(_timeFilter.SelectedIndex),
                     SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition,
                     SubjectMode = _cardMode
                 }, DateTime.UtcNow);
@@ -689,6 +718,7 @@ namespace FACM.League
             var simple = new LeagueSimpleMatchHistoryFilter
             {
                 WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
+                    TimeRange = TimeFilterFromSelection(_timeFilter.SelectedIndex),
                 SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition,
                 SubjectMode = _cardMode
             };

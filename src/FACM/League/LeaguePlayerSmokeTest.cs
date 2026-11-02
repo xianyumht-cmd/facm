@@ -1203,6 +1203,11 @@ namespace FACM.League
 
         private static void ValidateAdvancedTimeRangeFilters()
         {
+            Require(LeagueRemotePlayerHistoryForm.TimeFilterFromSelection(0) == LeagueMatchTimeRangeFilter.All &&
+                LeagueRemotePlayerHistoryForm.TimeFilterFromSelection(1) == LeagueMatchTimeRangeFilter.Last3Hours &&
+                LeagueRemotePlayerHistoryForm.TimeFilterFromSelection(6) == LeagueMatchTimeRangeFilter.Last30Days &&
+                LeagueRemotePlayerHistoryForm.TimeFilterFromSelection(99) == LeagueMatchTimeRangeFilter.All,
+                "Native history time selector must preserve the six source windows and reject invalid indexes.");
             var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var windows = new[]
             {

@@ -283,6 +283,12 @@ namespace FACM.Services
         public const string LeaguePlayerFilterAll = "LeaguePlayerFilterAll";
         public const string LeaguePlayerFilterWinLoss = "LeaguePlayerFilterWinLoss";
         public const string LeaguePlayerFilterTimeRange = "LeaguePlayerFilterTimeRange";
+        public const string LeaguePlayerTimeLast3Hours = "LeaguePlayerTimeLast3Hours";
+        public const string LeaguePlayerTimeLast12Hours = "LeaguePlayerTimeLast12Hours";
+        public const string LeaguePlayerTimeLast24Hours = "LeaguePlayerTimeLast24Hours";
+        public const string LeaguePlayerTimeLast3Days = "LeaguePlayerTimeLast3Days";
+        public const string LeaguePlayerTimeLast7Days = "LeaguePlayerTimeLast7Days";
+        public const string LeaguePlayerTimeLast30Days = "LeaguePlayerTimeLast30Days";
         public const string LeaguePlayerFilterChampion = "LeaguePlayerFilterChampion";
         public const string LeaguePlayerFilterPlayer = "LeaguePlayerFilterPlayer";
         public const string LeaguePlayerAdvancedFilter = "LeaguePlayerAdvancedFilter";
