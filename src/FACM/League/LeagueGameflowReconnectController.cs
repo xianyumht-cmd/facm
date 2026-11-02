@@ -16,6 +16,8 @@ namespace FACM.League
     {
         internal const string PhasePath = "/lol-gameflow/v1/gameflow-phase";
         internal static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(10);
+        internal static readonly TimeSpan MissingPhaseRetryDelay = TimeSpan.FromSeconds(2);
+        internal const int MaxPhasePreflightAttempts = 3;
 
         private readonly ILeagueClientApi _read;
         private readonly ILeagueGameflowReconnectWriteApi _write;
@@ -117,7 +119,15 @@ namespace FACM.League
 
                 // The shared Gameflow observer may be on an in-game power-saving cadence.
                 // Check the current LCU phase before issuing an irreversible write.
-                var phase = await _read.TryGetBytesAsync(PhasePath, episode.Token).ConfigureAwait(false);
+                byte[] phase = null;
+                for (var attempt = 0; attempt < MaxPhasePreflightAttempts; attempt++)
+                {
+                    phase = await _read.TryGetBytesAsync(PhasePath, episode.Token).ConfigureAwait(false);
+                    if (!IsCurrent(episode)) return;
+                    if (phase != null) break;
+                    if (attempt + 1 < MaxPhasePreflightAttempts)
+                        await _clock.Delay(MissingPhaseRetryDelay, episode.Token).ConfigureAwait(false);
+                }
                 if (!IsCurrent(episode)) return;
                 if (!IsReconnectPhase(phase))
                 {

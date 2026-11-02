@@ -31,6 +31,7 @@ namespace FACM.League
             ValidatePhaseCancellation();
             ValidateDisableAndFreshEpisode();
             ValidatePreflightAndFailureNoRetry();
+            ValidateMissingPhaseRecovery();
             ValidateDisposal();
         }
 
@@ -122,6 +123,54 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateMissingPhaseRecovery()
+        {
+            var clock = new FakeClock { AutoReleaseShortDelays = true };
+            var read = new FakeRead { MissingReads = 1 };
+            var write = new FakeWrite();
+            using (var controller = new LeagueGameflowReconnectController(read, write, clock))
+            {
+                controller.Configure(true);
+                controller.Observe(Reconnecting());
+                clock.Release(0);
+                controller.PendingForSmokeTest.GetAwaiter().GetResult();
+                Require(read.Count == 2 && write.Count == 1 && clock.ShortDelayCount == 1,
+                    "A single missing LCU phase snapshot permanently disabled automatic reconnect.");
+            }
+
+            clock = new FakeClock { AutoReleaseShortDelays = true };
+            read = new FakeRead { MissingReads = 10 };
+            write = new FakeWrite();
+            using (var controller = new LeagueGameflowReconnectController(read, write, clock))
+            {
+                controller.Configure(true);
+                controller.Observe(Reconnecting());
+                clock.Release(0);
+                controller.PendingForSmokeTest.GetAwaiter().GetResult();
+                controller.Observe(Reconnecting());
+                Require(read.Count == LeagueGameflowReconnectController.MaxPhasePreflightAttempts &&
+                    write.Count == 0 && clock.ShortDelayCount == 2 && clock.Pending.Count == 1,
+                    "Missing phase preflight retried without a bound or submitted an unverified reconnect.");
+            }
+
+            clock = new FakeClock();
+            read = new FakeRead { MissingReads = 1 };
+            write = new FakeWrite();
+            using (var controller = new LeagueGameflowReconnectController(read, write, clock))
+            {
+                controller.Configure(true);
+                controller.Observe(Reconnecting());
+                clock.Release(0);
+                Require(System.Threading.SpinWait.SpinUntil(() => clock.Pending.Count >= 2, 2000),
+                    "Missing phase did not schedule its bounded retry.");
+                var task = controller.PendingForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = false, Phase = "Reconnect" });
+                task.GetAwaiter().GetResult();
+                Require(clock.Pending[1].Cancelled && write.Count == 0,
+                    "Disconnect did not cancel a pending reconnect phase retry.");
+            }
+        }
+
         private static void ValidateDisposal()
         {
             var clock = new FakeClock();
@@ -156,12 +205,14 @@ namespace FACM.League
         {
             public string Phase = "\"Reconnect\"";
             public int Count;
+            public int MissingReads;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 Require(path == LeagueGameflowReconnectController.PhasePath, "Unexpected reconnect preflight path.");
                 cancellationToken.ThrowIfCancellationRequested();
                 Count++;
+                if (MissingReads-- > 0) return Task.FromResult<byte[]>(null);
                 return Task.FromResult(Bytes(Phase));
             }
         }
@@ -190,9 +241,16 @@ namespace FACM.League
             }
 
             public readonly List<PendingDelay> Pending = new List<PendingDelay>();
+            public bool AutoReleaseShortDelays;
+            public int ShortDelayCount;
 
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
+                if (AutoReleaseShortDelays && delay == LeagueGameflowReconnectController.MissingPhaseRetryDelay)
+                {
+                    ShortDelayCount++;
+                    return Task.CompletedTask;
+                }
                 var item = new PendingDelay { Delay = delay };
                 Pending.Add(item);
                 cancellationToken.Register(() =>
