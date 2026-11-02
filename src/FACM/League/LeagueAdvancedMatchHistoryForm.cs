@@ -82,11 +82,13 @@ namespace FACM.League
         private readonly ComboBox _queueChoice;
         private readonly Label _inputHint;
         private bool _changingSelection;
+        private readonly string _targetPuuid;
 
         internal LeagueAdvancedMatchHistoryFilter Result { get; private set; }
 
-        internal LeagueAdvancedMatchHistoryForm(LeagueAdvancedMatchHistoryFilter existing)
+        internal LeagueAdvancedMatchHistoryForm(LeagueAdvancedMatchHistoryFilter existing, string targetPuuid = null)
         {
+            _targetPuuid = targetPuuid;
             Text = UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedTitle);
             StartPosition = FormStartPosition.CenterParent;
             AutoScaleMode = AutoScaleMode.Font;
@@ -191,6 +193,26 @@ namespace FACM.League
             };
 
             var clear = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedClear), 18, 516, 104, (s, e) => Clear());
+            var presetMenu = new ContextMenuStrip();
+            foreach (var choice in new[]
+            {
+                Tuple.Create("clean-match-samples", UiTextKeys.LeaguePlayerAdvancedPresetClean),
+                Tuple.Create("strong-self-performance", UiTextKeys.LeaguePlayerAdvancedPresetStrong),
+                Tuple.Create("kiwi-jayce-slow-and-steady", UiTextKeys.LeaguePlayerAdvancedPresetKiwi)
+            })
+            {
+                var id = choice.Item1;
+                var item = presetMenu.Items.Add(UiTextRuntime.Text(choice.Item2));
+                item.Enabled = id == "clean-match-samples" ||
+                    LeagueSgpMatchHistoryApiClient.SafePuuid(_targetPuuid);
+                item.Click += (s, e) => ApplyPreset(id);
+            }
+            Button presetButton = null;
+            presetButton = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPreset),
+                132, 516, 172, (s, e) =>
+                    presetMenu.Show(presetButton, new Point(0, presetButton.Height)));
+            presetButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            Disposed += (s, e) => presetMenu.Dispose();
             var cancel = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedCancel), 516, 516, 94,
                 (s, e) => { DialogResult = DialogResult.Cancel; Close(); });
             var apply = Action(UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedApply), 616, 516, 102,
@@ -202,7 +224,7 @@ namespace FACM.League
             CancelButton = cancel;
 
             Controls.AddRange(new Control[] { instruction, _rootMode, _tree, addCondition, addAnd, addOr,
-                addNot, remove, addScope, _conditionType, _conditionValue, _queueChoice, _inputHint, clear, cancel, apply });
+                addNot, remove, addScope, _conditionType, _conditionValue, _queueChoice, _inputHint, clear, presetButton, cancel, apply });
             _tree.AfterSelect += (s, e) => ShowSelectedCondition();
             _rootMode.SelectedIndexChanged += (s, e) =>
             {
@@ -481,6 +503,25 @@ namespace FACM.League
                 }
             }
             _tree.SelectedNode.Text = Display(node);
+        }
+
+        private void ApplyPreset(string id)
+        {
+            var preset = LeagueAdvancedMatchHistoryFilter.SourcePreset(id, _targetPuuid);
+            if (preset == null) return;
+            if (_root.Children.Count > 0 &&
+                MessageBox.Show(this, UiTextRuntime.Text(UiTextKeys.LeaguePlayerAdvancedPresetReplace),
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                return;
+            _root.Kind = preset.Root.Kind;
+            _root.Children.Clear();
+            foreach (var child in preset.Root.Children) _root.Children.Add(Copy(child));
+            _rootMode.SelectedIndex = _root.Kind == LeagueAdvancedMatchKind.Or ? 1 : 0;
+            _tree.Nodes.Clear();
+            var view = BuildTreeNode(_root);
+            _tree.Nodes.Add(view);
+            view.ExpandAll();
+            _tree.SelectedNode = view;
         }
 
         private void Apply()

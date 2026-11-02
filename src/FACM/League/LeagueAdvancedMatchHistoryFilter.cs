@@ -128,6 +128,56 @@ namespace FACM.League
             return true;
         }
 
+
+        // Source-pinned Akari v1.5.1 examples evaluated only over loaded history.
+        internal static LeagueAdvancedMatchHistoryFilter SourcePreset(string id, string targetPuuid)
+        {
+            if (id != "clean-match-samples" &&
+                !LeagueSgpMatchHistoryApiClient.SafePuuid(targetPuuid)) return null;
+            LeagueAdvancedMatchNode root;
+            if (id == "clean-match-samples" || id == "strong-self-performance")
+            {
+                root = PresetNode(LeagueAdvancedMatchKind.And, null,
+                    PresetNode(LeagueAdvancedMatchKind.IsMatchedGame, null),
+                    PresetNode(LeagueAdvancedMatchKind.DurationBetween, "600,999999"),
+                    PresetNode(LeagueAdvancedMatchKind.Not, null,
+                        PresetNode(LeagueAdvancedMatchKind.Or, null,
+                            PresetNode(LeagueAdvancedMatchKind.IsAbort, null),
+                            PresetNode(LeagueAdvancedMatchKind.IsRemake, null),
+                            PresetNode(LeagueAdvancedMatchKind.IsPveGame, null))));
+                if (id == "strong-self-performance")
+                    root.Children.Add(PresetNode(LeagueAdvancedMatchKind.Player, targetPuuid,
+                        PresetNode(LeagueAdvancedMatchKind.And, null,
+                            PresetNode(LeagueAdvancedMatchKind.KdaBetween, "4,999"),
+                            PresetNode(LeagueAdvancedMatchKind.DeathsBetween, "0,4"),
+                            PresetNode(LeagueAdvancedMatchKind.Or, null,
+                                PresetNode(LeagueAdvancedMatchKind.IsWin, null),
+                                PresetNode(LeagueAdvancedMatchKind.KillsBetween, "8,999"),
+                                PresetNode(LeagueAdvancedMatchKind.AssistsBetween, "12,999"),
+                                PresetNode(LeagueAdvancedMatchKind.GoldBetween, "12000,999999")))));
+            }
+            else if (id == "kiwi-jayce-slow-and-steady")
+                root = PresetNode(LeagueAdvancedMatchKind.And, null,
+                    PresetNode(LeagueAdvancedMatchKind.IsQueue, "2400"),
+                    PresetNode(LeagueAdvancedMatchKind.Enemies, targetPuuid,
+                        PresetNode(LeagueAdvancedMatchKind.Anyone, null,
+                            PresetNode(LeagueAdvancedMatchKind.And, null,
+                                PresetNode(LeagueAdvancedMatchKind.HasChampion, "126"),
+                                PresetNode(LeagueAdvancedMatchKind.HasAugment, "1250")))));
+            else return null;
+            LeagueAdvancedMatchHistoryFilter result;
+            string error;
+            return TryCreate(root, out result, out error) ? result : null;
+        }
+
+        private static LeagueAdvancedMatchNode PresetNode(LeagueAdvancedMatchKind kind,
+            string value, params LeagueAdvancedMatchNode[] children)
+        {
+            var node = new LeagueAdvancedMatchNode { Kind = kind, Value = value };
+            node.Children.AddRange(children);
+            return node;
+        }
+
         private static bool TryCopy(LeagueAdvancedMatchNode source, int depth,
             HashSet<LeagueAdvancedMatchNode> visited, ref int count,
             out LeagueAdvancedMatchNode result, out string error)

@@ -298,6 +298,11 @@ namespace FACM.Services
         public const string LeaguePlayerAdvancedAddNot = "LeaguePlayerAdvancedAddNot";
         public const string LeaguePlayerAdvancedRemove = "LeaguePlayerAdvancedRemove";
         public const string LeaguePlayerAdvancedClear = "LeaguePlayerAdvancedClear";
+        public const string LeaguePlayerAdvancedPreset = "LeaguePlayerAdvancedPreset";
+        public const string LeaguePlayerAdvancedPresetClean = "LeaguePlayerAdvancedPresetClean";
+        public const string LeaguePlayerAdvancedPresetStrong = "LeaguePlayerAdvancedPresetStrong";
+        public const string LeaguePlayerAdvancedPresetKiwi = "LeaguePlayerAdvancedPresetKiwi";
+        public const string LeaguePlayerAdvancedPresetReplace = "LeaguePlayerAdvancedPresetReplace";
         public const string LeaguePlayerAdvancedCancel = "LeaguePlayerAdvancedCancel";
         public const string LeaguePlayerAdvancedApply = "LeaguePlayerAdvancedApply";
         public const string LeaguePlayerAdvancedMode = "LeaguePlayerAdvancedMode";

@@ -29,6 +29,7 @@ namespace FACM.League
             ValidateAdvancedParticipantEquipmentFilters();
             ValidateAdvancedRelativeMetricFilters();
             ValidateAdvancedParticipantScopes();
+            ValidateAdvancedSourcePresets();
             ValidateCherryAnalysisTeams();
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
@@ -1197,6 +1198,57 @@ namespace FACM.League
             Require(Math.Abs(match.ChampionDamageShare.Value - 100d / 4400d) < .000001 &&
                 match.SameTeamPuuids.Length == 4 && allies.Matches(match) && !enemies.Matches(match),
                 "Ordinary modes must retain teamId grouping even when optional subteam fields are present.");
+        }
+
+        private static void ValidateAdvancedSourcePresets()
+        {
+            var clean = LeagueAdvancedMatchHistoryFilter.SourcePreset("clean-match-samples", null);
+            var strong = LeagueAdvancedMatchHistoryFilter.SourcePreset("strong-self-performance", "self");
+            var kiwi = LeagueAdvancedMatchHistoryFilter.SourcePreset("kiwi-jayce-slow-and-steady", "self");
+            Require(clean != null && strong != null && kiwi != null &&
+                LeagueAdvancedMatchHistoryFilter.SourcePreset("strong-self-performance", "") == null &&
+                LeagueAdvancedMatchHistoryFilter.SourcePreset("kiwi-jayce-slow-and-steady", "bad puuid") == null &&
+                LeagueAdvancedMatchHistoryFilter.SourcePreset("unknown", "self") == null,
+                "All three source examples must validate and reject invalid player scopes.");
+
+            var subject = new LeaguePlayerMatchSummary {
+                PuuId = "self", TeamId = 100, ChampionId = 22,
+                ParticipantResolved = true, StatisticsAvailable = true,
+                Kills = 8, Deaths = 2, Assists = 12, WinResult = "win"
+            };
+            var match = new LeaguePlayerMatchSummary {
+                GameType = "MATCHED_GAME", QueueId = 420, GameDurationSeconds = 1800,
+                ParticipantResolved = true, StatisticsAvailable = true,
+                WinResult = "win", RosterIdentitiesComplete = true,
+                ParticipantRoster = new[] { subject }
+            };
+            Require(clean.Matches(match) && strong.Matches(match),
+                "Clean and strong presets must accept a verified long high-performance win.");
+            subject.Deaths = 5;
+            Require(!strong.Matches(match) && clean.Matches(match),
+                "Strong-performance preset must enforce the selected player's death limit.");
+            subject.Deaths = 2;
+            match.WinResult = "remake";
+            Require(!clean.Matches(match) && !strong.Matches(match),
+                "Source clean-sample presets must reject remakes under NOT.");
+            match.WinResult = "win";
+            match.GameType = null;
+            Require(!clean.Matches(match) && !strong.Matches(match),
+                "Unknown matched-game evidence must fail closed.");
+
+            var enemy = new LeaguePlayerMatchSummary {
+                PuuId = "enemy", TeamId = 200, ChampionId = 126,
+                AugmentIds = new[] { 1250 }, ParticipantResolved = true
+            };
+            match.GameType = "MATCHED_GAME";
+            match.QueueId = 2400;
+            match.GameMode = "KIWI";
+            match.ParticipantRoster = new[] { subject, enemy };
+            Require(kiwi.Matches(match),
+                "The KIWI source example must match an enemy Jayce with augment 1250.");
+            enemy.AugmentIds = new[] { 1251 };
+            Require(!kiwi.Matches(match),
+                "The KIWI preset must reject an enemy missing the requested augment.");
         }
 
         private static void ValidateAdvancedParticipantScopes()

@@ -602,7 +602,7 @@ namespace FACM.League
         {
             if (_loading || !_loaded) return;
             var expectedSession = _pageSession;
-            using (var dialog = new LeagueAdvancedMatchHistoryForm(_advancedFilter))
+            using (var dialog = new LeagueAdvancedMatchHistoryForm(_advancedFilter, _puuid))
             {
                 if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession)) return;
                 _advancedFilter = dialog.Result;
