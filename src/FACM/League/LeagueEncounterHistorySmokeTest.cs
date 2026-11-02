@@ -2126,6 +2126,9 @@ namespace FACM.League
                 "Replay writer must only accept positive game IDs and exact replay POST routes.");
             var session = new LeagueClientSession("LeagueClientUx", 55, 2999, "test", "https", "fixture", "HN1", "HN1");
             var active = session;
+            Require(!LeagueEncounterReplayService.SessionMatches(session, new LeagueClientSession(
+                    "LeagueClientUx", 56, 2999, "test", "https", "fixture", "HN1", "HN1")),
+                "A replay owner must reject a replacement LCU process even when port/password match.");
             var record = new LeagueEncounterRecord { GameId = 123, SelfPuuid = "self", Puuid = "enemy",
                 PlatformId = "HN1", Region = "HN1" };
             var match = new LeaguePlayerMatchSummary { GameId = 123, QueueId = 450,
@@ -2174,6 +2177,12 @@ namespace FACM.League
                 LeagueEncounterReplayStatus.Unavailable && write.Downloads == writesBefore,
                 "Mismatched replay metadata must not trigger an action.");
             read.MetadataGameId = 123;
+            read.AfterMetadata = () => active = new LeagueClientSession("LeagueClientUx", 56, 2999,
+                "test", "https", "fixture", "HN1", "HN1");
+            Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==
+                LeagueEncounterReplayStatus.NoClient && write.Downloads == writesBefore,
+                "A same-credentials process replacement must stop an in-flight replay action.");
+            active = session;
             read.AfterMetadata = () => active = new LeagueClientSession("LeagueClientUx", 55, 3000,
                 "other", "https", "fixture", "HN1", "HN1");
             Require((await service.ExecuteAsync(record, match, CancellationToken.None)).Status ==

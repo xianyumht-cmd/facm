@@ -74,7 +74,7 @@ namespace FACM.League
         {
             token.ThrowIfCancellationRequested();
             if (_disposed || !IsAllowedPathForSmokeTest(path) || expected == null ||
-                !expected.Matches(_sessions.GetSession())) return null;
+                !LeagueEncounterReplayService.SessionMatches(expected, _sessions.GetSession())) return null;
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(expected); }
             catch (ObjectDisposedException) { return null; }
@@ -82,7 +82,7 @@ namespace FACM.League
             {
                 try
                 {
-                    if (!expected.Matches(_sessions.GetSession())) return null;
+                    if (!LeagueEncounterReplayService.SessionMatches(expected, _sessions.GetSession())) return null;
                     using (var request = new HttpRequestMessage(HttpMethod.Post, path))
                     {
                         request.Content = new StringContent(body, Encoding.UTF8, "application/json");

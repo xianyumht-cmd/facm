@@ -302,6 +302,7 @@ namespace FACM.League
         internal static bool SessionMatches(LeagueClientSession expected, LeagueClientSession current)
         {
             return expected != null && expected.Matches(current) &&
+                expected.ProcessId == current.ProcessId &&
                 Same(expected.Region, current.Region) && Same(expected.PlatformId, current.PlatformId);
         }
 
