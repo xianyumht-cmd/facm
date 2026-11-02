@@ -81,14 +81,43 @@ namespace FACM.League
             catch (InvalidOperationException) { return null; }
         }
 
-        internal static bool IsValidTag(string tag)
+        internal static bool IsQueueTagCandidate(string tag)
         {
             if (tag == null || tag == "ranked" || tag == "normal") return true;
             if (!tag.StartsWith("q_", StringComparison.Ordinal)) return false;
             int id;
-            if (!int.TryParse(tag.Substring(2), NumberStyles.None, CultureInfo.InvariantCulture, out id) ||
-                id <= 0 || tag != "q_" + id.ToString(CultureInfo.InvariantCulture)) return false;
+            return int.TryParse(tag.Substring(2), NumberStyles.None, CultureInfo.InvariantCulture, out id) &&
+                id > 0 && id <= 100000 &&
+                tag == "q_" + id.ToString(CultureInfo.InvariantCulture);
+        }
+
+        internal static bool IsValidTag(string tag, int? verifiedCurrentQueueId = null)
+        {
+            if (!IsQueueTagCandidate(tag)) return false;
+            if (tag == null || tag == "ranked" || tag == "normal") return true;
+            var id = int.Parse(tag.Substring(2), CultureInfo.InvariantCulture);
+            if (verifiedCurrentQueueId == id) return true;
             lock (Sync) return Array.IndexOf(_queues, id) >= 0;
+        }
+
+        internal static int? ParseGameflowQueueId(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 64 * 1024) return null;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 64 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                object rawGameData, rawQueue, rawId;
+                if (root == null || !root.TryGetValue("gameData", out rawGameData)) return null;
+                var gameData = rawGameData as Dictionary<string, object>;
+                if (gameData == null || !gameData.TryGetValue("queue", out rawQueue)) return null;
+                var queue = rawQueue as Dictionary<string, object>;
+                if (queue == null || !queue.TryGetValue("id", out rawId) || !(rawId is int)) return null;
+                var id = (int)rawId;
+                return id > 0 && id <= 100000 ? (int?)id : null;
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
         }
 
         internal static Task<bool> TryRefreshAsync(CancellationToken token)

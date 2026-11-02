@@ -463,7 +463,7 @@ namespace FACM.League
                 var index = 0;
                 var supported = LeagueSgpSupportedQueues.Snapshot();
                 if (_historyRegion.SelectedIndex == 0 && _currentLobbyQueueId.HasValue &&
-                    Array.IndexOf(supported, _currentLobbyQueueId.Value) >= 0)
+                    _queueNames.ContainsKey(_currentLobbyQueueId.Value))
                 {
                     var id = _currentLobbyQueueId.Value;
                     string name;

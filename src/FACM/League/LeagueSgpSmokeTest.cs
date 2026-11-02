@@ -245,7 +245,11 @@ namespace FACM.League
                     @"{""gameConfig"":{""queueId"":-1}}")) == null &&
                 LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
                     @"{""gameConfig"":{""queueId"":420.5}}")) == null &&
-                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(@"{}")) == null,
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(@"{}")) == null &&
+                LeagueSgpSupportedQueues.ParseGameflowQueueId(Bytes(
+                    @"{""gameData"":{""queue"":{""id"":999}}}")) == 999 &&
+                LeagueSgpSupportedQueues.ParseGameflowQueueId(Bytes(
+                    @"{""gameData"":{""queue"":{""id"":""999""}}}")) == null,
                 "Lobby queue suggestions require an exact bounded numeric LCU gameConfig.queueId.");
             var session = Session("HN1", "TENCENT");
             var active = session;
@@ -253,7 +257,7 @@ namespace FACM.League
             var service = new LeaguePlayerDataService(local,
                 new FACM.Performance.PerformanceBudgetProvider(), null, null, () => active);
             Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
-                    .GetAwaiter().GetResult() == 420 && local.Calls == 3,
+                    .GetAwaiter().GetResult() == 420 && local.Calls == 4,
                 "Current lobby queue must be read once between two verified local account reads.");
             local.AfterLobby = () => local.Owner = "other";
             Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
@@ -280,6 +284,8 @@ namespace FACM.League
                     AfterLobby?.Invoke();
                     return Task.FromResult(Bytes(@"{""gameConfig"":{""queueId"":420}}"));
                 }
+                if (path == "/lol-game-data/assets/v1/queues.json")
+                    return Task.FromResult(Bytes(@"[{""id"":420,""name"":""Ranked""}]"));
                 return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
             }
         }
@@ -464,8 +470,24 @@ namespace FACM.League
                     .GetAwaiter().GetResult();
                 api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "ranked&count=999")
                     .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_999", 999) &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_998", 999) &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_999&count=999", 999) &&
+                    LeaguePlayerDataService.CanUseCurrentQueueTag("q_999", null, 999) &&
+                    !LeaguePlayerDataService.CanUseCurrentQueueTag("q_999", "TENCENT_HN10", 999),
+                    "Only an exact verified current-region queue may bypass the public catalog.");
+                api.TryGetCurrentQueueSummaryAsync("target", 0, 10, CancellationToken.None, 999)
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/SUMMARY?startIndex=0&count=10&tag=q_999",
+                    StringComparison.Ordinal) && handler.Authorization == "Bearer history-token",
+                    "Current queue reads must use the existing authenticated SGP owner.");
+                calls = handler.Calls;
+                reads = local.Paths.Count;
+                api.TryGetCurrentQueueSummaryAsync("target", 0, 10, CancellationToken.None, -1)
+                    .GetAwaiter().GetResult();
                 Require(handler.Calls == calls && local.Paths.Count == reads,
-                    "Unlisted and injected queue tags must fail before token reads.");
+                    "Invalid current queue IDs must fail before credentials are requested.");
                 var valid = Bytes("{\"updatedAt\":\"2026-08-01T00:00:00.000Z\",\"queues\":[420,450,9999]}");
                 Require(LeagueSgpSupportedQueues.TryApply(valid) &&
                     LeagueSgpSupportedQueues.IsValidTag("q_9999") &&

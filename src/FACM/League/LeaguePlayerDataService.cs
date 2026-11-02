@@ -110,7 +110,7 @@ namespace FACM.League
             string queueTag = null)
         {
             if (queueTag != null && (source == LeaguePlayerHistorySource.Lcu ||
-                !LeagueSgpSupportedQueues.IsValidTag(queueTag)))
+                !LeagueSgpSupportedQueues.IsQueueTagCandidate(queueTag)))
                 return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
             if (expected == null || !IsSafePuuid(expected.PuuId) || !IsSafePuuid(targetPuuid) ||
                 startIndex < 0 || count < 1 || count > MaximumRemoteMatchPageCount ||
@@ -133,12 +133,22 @@ namespace FACM.League
                         if (!string.Equals(before.PuuId, expected.PuuId, StringComparison.Ordinal))
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
 
+                        var verifiedQueueId = await VerifyCurrentQueueTagAsync(queueTag, serverId,
+                            _session?.Invoke(), timeout.Token).ConfigureAwait(false);
+                        if (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag) &&
+                            !verifiedQueueId.HasValue)
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
+
                         var profile = await LoadTargetProfileAsync(targetPuuid, source, serverId, timeout.Token)
                             .ConfigureAwait(false);
                         if (profile == null)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
-                        var page = await ReadHistoryPageAsync(profile, startIndex, count, source, serverId, timeout.Token, queueTag)
+                        var page = await ReadHistoryPageAsync(profile, startIndex, count, source, serverId, timeout.Token, queueTag,
+                            verifiedQueueId)
                             .ConfigureAwait(false);
+                        if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
+                            .ConfigureAwait(false) != verifiedQueueId)
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, timeout.Token).ConfigureAwait(false));
                         if (after == null || !string.Equals(after.PuuId, expected.PuuId, StringComparison.Ordinal))
@@ -458,7 +468,7 @@ namespace FACM.League
             var session = _session?.Invoke();
             var result = new LeagueMatchCollectionResult();
             if (queueTag != null && (source == LeaguePlayerHistorySource.Lcu ||
-                !LeagueSgpSupportedQueues.IsValidTag(queueTag)))
+                !LeagueSgpSupportedQueues.IsQueueTagCandidate(queueTag)))
             {
                 result.Status = LeagueMatchCollectionStatus.Unavailable;
                 return result;
@@ -502,9 +512,24 @@ namespace FACM.League
                                 return result;
                             }
 
+                            var verifiedQueueId = await VerifyCurrentQueueTagAsync(queueTag, serverId,
+                                session, timeout.Token).ConfigureAwait(false);
+                            if (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag) &&
+                                !verifiedQueueId.HasValue)
+                            {
+                                result.Status = LeagueMatchCollectionStatus.Unavailable;
+                                return result;
+                            }
                             var startIndex = iteration * settings.CountPerIteration;
                             var page = await ReadHistoryPageAsync(target, startIndex, settings.CountPerIteration,
-                                source, serverId, timeout.Token, queueTag).ConfigureAwait(false);
+                                source, serverId, timeout.Token, queueTag, verifiedQueueId).ConfigureAwait(false);
+                            if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
+                                .ConfigureAwait(false) != verifiedQueueId)
+                            {
+                                result.Status = LeagueMatchCollectionStatus.Unavailable;
+                                result.Page.Matches.Clear();
+                                return result;
+                            }
                             if (page == null)
                             {
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
@@ -664,6 +689,41 @@ namespace FACM.League
             }
         }
 
+        private async Task<int?> ReadVerifiedCurrentQueueIdAsync(CancellationToken token)
+        {
+            var lobby = await _client.TryGetBytesAsync("/lol-lobby/v2/lobby", token).ConfigureAwait(false);
+            var queue = LeagueSgpSupportedQueues.ParseLobbyQueueId(lobby);
+            if (!queue.HasValue)
+            {
+                var gameflow = await _client.TryGetBytesAsync("/lol-gameflow/v1/session", token)
+                    .ConfigureAwait(false);
+                queue = LeagueSgpSupportedQueues.ParseGameflowQueueId(gameflow);
+            }
+            if (!queue.HasValue) return null;
+            var names = LeagueSgpSupportedQueues.ParseQueueNames(
+                await _client.TryGetBytesAsync("/lol-game-data/assets/v1/queues.json", token)
+                    .ConfigureAwait(false));
+            return names.ContainsKey(queue.Value) ? queue : null;
+        }
+
+        internal static bool CanUseCurrentQueueTag(string tag, string serverId, int? verifiedQueueId)
+        {
+            return string.IsNullOrEmpty(serverId) && verifiedQueueId.HasValue &&
+                LeagueSgpSupportedQueues.IsValidTag(tag, verifiedQueueId) &&
+                !LeagueSgpSupportedQueues.IsValidTag(tag);
+        }
+
+        private async Task<int?> VerifyCurrentQueueTagAsync(string tag, string serverId,
+            LeagueClientSession session, CancellationToken token)
+        {
+            if (tag == null || LeagueSgpSupportedQueues.IsValidTag(tag) ||
+                !LeagueSgpSupportedQueues.IsQueueTagCandidate(tag) ||
+                !string.IsNullOrEmpty(serverId) || !SessionStillCurrent(session)) return null;
+            var queue = await ReadVerifiedCurrentQueueIdAsync(token).ConfigureAwait(false);
+            return SessionStillCurrent(session) && CanUseCurrentQueueTag(tag, serverId, queue)
+                ? queue : null;
+        }
+
         internal async Task<int?> LoadCurrentLobbyQueueIdAsync(string ownerPuuid,
             LeagueClientSession expected, CancellationToken token)
         {
@@ -682,9 +742,8 @@ namespace FACM.League
                             LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
                         if (before == null || !string.Equals(before.PuuId, ownerPuuid,
                             StringComparison.OrdinalIgnoreCase)) return null;
-                        var bytes = await _client.TryGetBytesAsync(
-                            "/lol-lobby/v2/lobby", deadline.Token).ConfigureAwait(false);
-                        var queue = LeagueSgpSupportedQueues.ParseLobbyQueueId(bytes);
+                        var queue = await ReadVerifiedCurrentQueueIdAsync(deadline.Token)
+                            .ConfigureAwait(false);
                         var after = ParseProfile(await _client.TryGetBytesAsync(
                             LeagueDashboardDetailsService.SummonerPath, deadline.Token).ConfigureAwait(false));
                         return SessionStillCurrent(expected) && after != null &&
@@ -1516,7 +1575,7 @@ namespace FACM.League
 
         private async Task<LeaguePlayerMatchPage> ReadHistoryPageAsync(LeaguePlayerProfile target,
             int startIndex, int count, LeaguePlayerHistorySource source, string serverId, CancellationToken token,
-            string queueTag = null)
+            string queueTag = null, int? verifiedCurrentQueueId = null)
         {
             var session = _session?.Invoke();
             if (!SessionStillCurrent(session)) return null;
@@ -1536,7 +1595,8 @@ namespace FACM.League
                 if (source == LeaguePlayerHistorySource.Lcu) return null;
             }
             if (source == LeaguePlayerHistorySource.Lcu) return null;
-            var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId, queueTag).ConfigureAwait(false);
+            var regional = await TryLoadSgpPageAsync(target, startIndex, count, token, serverId,
+                queueTag, verifiedCurrentQueueId).ConfigureAwait(false);
             if (regional != null) regional.ClientSession = session;
             regional = await HydrateSparsePageAsync(target, regional, token, source).ConfigureAwait(false);
             return SessionStillCurrent(session) ? regional : null;
@@ -1609,16 +1669,27 @@ namespace FACM.League
 
         private async Task<LeaguePlayerMatchPage> TryLoadSgpPageAsync(
             LeaguePlayerProfile target, int startIndex, int count, CancellationToken token, string serverId = null,
-            string queueTag = null)
+            string queueTag = null, int? verifiedCurrentQueueId = null)
         {
             if (_sgpHistory == null || target == null || !IsSafePuuid(target.PuuId)) return null;
             byte[] bytes;
             if (queueTag != null)
             {
-                var tagged = _sgpHistory as ILeagueSgpTaggedHistoryApi;
-                if (tagged == null || !LeagueSgpSupportedQueues.IsValidTag(queueTag)) return null;
-                bytes = await tagged.TryGetTaggedSummaryAsync(target.PuuId, startIndex, count,
-                    token, serverId, queueTag).ConfigureAwait(false);
+                if (LeagueSgpSupportedQueues.IsValidTag(queueTag))
+                {
+                    var tagged = _sgpHistory as ILeagueSgpTaggedHistoryApi;
+                    if (tagged == null) return null;
+                    bytes = await tagged.TryGetTaggedSummaryAsync(target.PuuId, startIndex, count,
+                        token, serverId, queueTag).ConfigureAwait(false);
+                }
+                else
+                {
+                    var current = _sgpHistory as ILeagueSgpCurrentQueueHistoryApi;
+                    if (current == null || !CanUseCurrentQueueTag(queueTag, serverId, verifiedCurrentQueueId))
+                        return null;
+                    bytes = await current.TryGetCurrentQueueSummaryAsync(target.PuuId, startIndex, count,
+                        token, verifiedCurrentQueueId.Value).ConfigureAwait(false);
+                }
             }
             else bytes = await _sgpHistory.TryGetSummaryAsync(target.PuuId, startIndex, count, token, serverId)
                 .ConfigureAwait(false);

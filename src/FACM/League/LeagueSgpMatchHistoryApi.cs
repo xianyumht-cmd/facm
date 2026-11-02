@@ -27,6 +27,12 @@ namespace FACM.League
             CancellationToken token, string serverId, string tag);
     }
 
+    internal interface ILeagueSgpCurrentQueueHistoryApi
+    {
+        Task<byte[]> TryGetCurrentQueueSummaryAsync(string targetPuuid, int startIndex, int count,
+            CancellationToken token, int verifiedCurrentQueueId);
+    }
+
     internal interface ILeagueSgpRankedStatsApi
     {
         Task<byte[]> TryGetRankedStatsAsync(string targetPuuid, CancellationToken token, string serverId = null);
@@ -59,7 +65,7 @@ namespace FACM.League
         public override string ToString() { return Name; }
     }
 
-    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, IDisposable
+    internal sealed class LeagueSgpMatchHistoryApiClient : ILeagueSgpMatchHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpRankedStatsApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpCurrentQueueHistoryApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, IDisposable
     {
         internal const string EntitlementsPath = "/entitlements/v1/token";
         internal const string LeagueSessionTokenPath = "/lol-league-session/v1/league-session-token";
@@ -208,10 +214,12 @@ namespace FACM.League
             return endpoint != null;
         }
 
-        internal static Uri SummaryEndpoint(LeagueSgpServer server, string targetPuuid, int startIndex, int count, string tag = null)
+        internal static Uri SummaryEndpoint(LeagueSgpServer server, string targetPuuid, int startIndex, int count,
+            string tag = null, int? verifiedCurrentQueueId = null)
         {
             if (server == null || !SafePuuid(targetPuuid) || startIndex < 0 || count < 1 || count > 200 ||
-                startIndex > int.MaxValue - count || !LeagueSgpSupportedQueues.IsValidTag(tag)) return null;
+                startIndex > int.MaxValue - count ||
+                !LeagueSgpSupportedQueues.IsValidTag(tag, verifiedCurrentQueueId)) return null;
             return new Uri(server.MatchHistory + "/match-history-query/v1/products/lol/player/" +
                 Uri.EscapeDataString(targetPuuid) + "/SUMMARY?startIndex=" +
                 startIndex.ToString(CultureInfo.InvariantCulture) + "&count=" + count.ToString(CultureInfo.InvariantCulture) +
@@ -232,6 +240,17 @@ namespace FACM.League
             var session = _session();
             return SendAsync(session, SummaryEndpoint(ResolveServer(session, serverId),
                 targetPuuid, startIndex, count, tag), null, false, token);
+        }
+
+        public Task<byte[]> TryGetCurrentQueueSummaryAsync(string targetPuuid, int startIndex, int count,
+            CancellationToken token, int verifiedCurrentQueueId)
+        {
+            var session = _session();
+            var tag = verifiedCurrentQueueId > 0 && verifiedCurrentQueueId <= 100000
+                ? "q_" + verifiedCurrentQueueId.ToString(CultureInfo.InvariantCulture) : null;
+            var endpoint = tag == null ? null : SummaryEndpoint(ResolveServer(session),
+                targetPuuid, startIndex, count, tag, verifiedCurrentQueueId);
+            return SendAsync(session, endpoint, null, false, token);
         }
 
         public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken cancellationToken,
