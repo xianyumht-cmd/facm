@@ -421,6 +421,8 @@ namespace FACM.League
                 BenchSession(34, "[55]", 450, false)
                     .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"UTILITY\"}")));
             var unknown = LeagueLiveDataService.ParseBenchPayload(Bytes(BenchSession(34, "[55]", 450, false)));
+            var untouchedDefault = LeagueLiveDataService.ParseBenchPayload(
+                Bytes(BenchSession(34, "[55]", 450, false)));
             Require(LeagueAutoPickBanController.BenchAssignedRole(top) == "top" &&
                     LeagueAutoPickBanController.BenchAssignedRole(support) == "support" &&
                     LeagueAutoPickBanController.BenchAssignedRole(unknown) == null,
@@ -440,7 +442,7 @@ namespace FACM.League
                         LeagueAutoPickBanController.BenchAssignedRole(top), true, 0)
                         .SequenceEqual(new[] { 55 }) &&
                     LeagueAutoSelectProfiles.Candidates(profiles, "rift",
-                        LeagueAutoPickBanController.BenchAssignedRole(unknown), true, 0)
+                        LeagueAutoPickBanController.BenchAssignedRole(untouchedDefault), true, 0)
                         .SequenceEqual(new[] { 34 }),
                 "Source-imported role-specific bench priorities must not fall back to the default lane.");
         }
