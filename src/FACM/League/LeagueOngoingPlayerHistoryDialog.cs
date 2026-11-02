@@ -133,10 +133,11 @@ namespace FACM.League
                     percent(analysis.CherryWinRate) + " (" +
                     (analysis.CherryWins + analysis.CherryLosses) + ")");
             if (analysis.ArenaPlacements > 0)
-                add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst),
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaCount),
                     analysis.ArenaFirstPlaces + " / " + analysis.ArenaPlacements);
             if (analysis.MostPlayedPositions.Count > 0)
-                add(t(LeagueEfficiencyUiTextKeys.OngoingCardPositions),
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardPositions)
+                    .Replace("{0}", "").Trim(),
                     string.Join(" / ", analysis.MostPlayedPositions.Select(position =>
                         LeaguePlayerHistoryAnalysis.PositionName(ui, position.Key) +
                         " " + position.Value.ToString(CultureInfo.CurrentCulture))));
