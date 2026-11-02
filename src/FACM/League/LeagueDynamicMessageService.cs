@@ -344,10 +344,19 @@ namespace FACM.League
                 {
                     var row = player.Player;
                     var profile = new LeaguePlayerProfile { PuuId = row.PuuId, SummonerId = row.SummonerId };
-                    player.History = historyQueueTag != null && effectiveConcurrency > 1
-                        ? await _players.LoadTaggedRosterHistoryAsync(profile, 0, historyLoadCount,
-                            historyQueueTag, me.PuuId, ct).ConfigureAwait(false)
-                        : await _players.LoadRecentMatchesAsync(profile, 0, historyLoadCount,
+                    if (effectiveConcurrency > 1)
+                    {
+                        player.History = historyQueueTag != null
+                            ? await _players.LoadTaggedRosterHistoryAsync(profile, 0, historyLoadCount,
+                                historyQueueTag, me.PuuId, ct).ConfigureAwait(false)
+                            : await _players.LoadRecentMatchesAsync(profile, 0, historyLoadCount,
+                                false, ct, null, me.PuuId, true).ConfigureAwait(false);
+                        if (player.History == null && historyQueueTag == null)
+                            player.History = await _players.LoadRosterSgpHistoryAsync(
+                                profile, 0, historyLoadCount, null, me.PuuId, ct).ConfigureAwait(false);
+                    }
+                    else
+                        player.History = await _players.LoadRecentMatchesAsync(profile, 0, historyLoadCount,
                             false, ct, historyQueueTag, me.PuuId).ConfigureAwait(false);
                     if (player.History != null && player.History.Matches.Count > historyLoadCount)
                         player.History.Matches.RemoveRange(historyLoadCount,
@@ -359,7 +368,7 @@ namespace FACM.League
                         m => m.ChampionId == row.ChampionId)?.ChampionName;
                     player.JungleSamples = CachedJungle(row.PuuId, player.History);
                 };
-                if (historyQueueTag != null && effectiveConcurrency > 1)
+                if (effectiveConcurrency > 1)
                 {
                     using (var slots = new SemaphoreSlim(effectiveConcurrency, effectiveConcurrency))
                     {

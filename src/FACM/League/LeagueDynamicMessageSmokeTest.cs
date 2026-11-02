@@ -20,6 +20,7 @@ namespace FACM.League
             ValidateQueueTagPreference();
             ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
             ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
+            ValidateUntaggedConcurrencyAsync().GetAwaiter().GetResult();
             ValidateAutoHistoryPages();
             ValidateCardPageAdditions();
             ValidateSamePageDuplicateEvidence();
@@ -323,6 +324,39 @@ namespace FACM.League
             Require(untagged != null && untagged.Matches.All(m => m.GameId != 999) &&
                 fake.Paths.Any(p => p.Contains("/matches?")),
                 "Tagged SGP enrichment must not pollute the untagged LCU history cache.");
+        }
+
+        private static async Task ValidateUntaggedConcurrencyAsync()
+        {
+            var fake = new Fake { NoLocalHistory = true };
+            var sgp = new TaggedHistoryFake {
+                AllowUntagged = true, RequireOverlap = true, DelayMs = 30
+            };
+            var session = Session("parallel-all-source");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase, sgp))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "all", true, 2)
+                    .ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.History != null) &&
+                    sgp.UntaggedCalls == 2 && sgp.MaxConcurrent == 2 &&
+                    fake.MaxConcurrent == 1 &&
+                    fake.Paths.Count(p => p.Contains("/matches?")) == 2,
+                    "Untagged local-first misses must overlap only the authenticated SGP fallback.");
+            }
+            fake = new Fake { NoLocalHistory = true };
+            sgp = new TaggedHistoryFake { AllowUntagged = true };
+            sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase, sgp))
+            {
+                var changed = await service.LoadAsync(CancellationToken.None, 2, "all", true, 2)
+                    .ConfigureAwait(false);
+                Require(changed == null && sgp.UntaggedCalls > 0,
+                    "Untagged regional fallback must reject a replaced signed-in owner.");
+            }
         }
 
         private static async Task ValidateTaggedConcurrencyAsync()
@@ -2659,6 +2693,8 @@ namespace FACM.League
         private sealed class TaggedHistoryFake : ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi
         {
             internal int TaggedCalls;
+            internal int UntaggedCalls;
+            internal bool AllowUntagged;
             internal string LastPuuid;
             internal string LastTag;
             internal Action OnTagged;
@@ -2674,7 +2710,8 @@ namespace FACM.League
                 int count, CancellationToken token, string serverId, string tag)
             {
                 token.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref TaggedCalls);
+                if (tag == null) Interlocked.Increment(ref UntaggedCalls);
+                else Interlocked.Increment(ref TaggedCalls);
                 var concurrent = Interlocked.Increment(ref _concurrent);
                 var previous = Volatile.Read(ref MaxConcurrent);
                 while (concurrent > previous)
@@ -2705,7 +2742,10 @@ namespace FACM.League
             public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex,
                 int count, CancellationToken token, string serverId = null)
             {
-                throw new InvalidOperationException("Tagged history must not use unfiltered SGP.");
+                if (!AllowUntagged)
+                    throw new InvalidOperationException("Tagged history must not use unfiltered SGP.");
+                return TryGetTaggedSummaryAsync(targetPuuid, startIndex, count,
+                    token, serverId, null);
             }
 
             public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
@@ -2741,6 +2781,7 @@ namespace FACM.League
             internal bool IncompleteHistory;
             internal bool MultipleIncompleteHistory;
             internal bool PagedHistory;
+            internal bool NoLocalHistory;
             internal string ChampionNamesJson = "[]";
             internal Action<string> OnRead;
             internal Action OnMastery;
@@ -2792,6 +2833,7 @@ namespace FACM.League
                         return Bytes("{\"games\":{\"games\":[" + Match(3, 3, 5, 2, 300, 120, 10, true) + "]}}");
                     if (path.Contains("/matches?") && PagedHistory && path.Contains("begIndex=40"))
                         return Bytes("{\"games\":{\"games\":[" + Match(4, 3, 5, 2, 300, 120, 10, true) + "]}}");
+                    if (path.Contains("/matches?") && NoLocalHistory) return null;
                     if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
                         (MultipleIncompleteHistory
                             ? "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11},{\"gameId\":2,\"mapId\":11}]}}"

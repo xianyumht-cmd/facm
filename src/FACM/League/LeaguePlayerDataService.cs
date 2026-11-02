@@ -306,7 +306,8 @@ namespace FACM.League
 
         public async Task<LeaguePlayerMatchPage> LoadRecentMatchesAsync(
             LeaguePlayerProfile profile, int startIndex, int count, bool force, CancellationToken cancellationToken,
-            string queueTag = null, string expectedOwnerPuuid = null)
+            string queueTag = null, string expectedOwnerPuuid = null,
+            bool localOnly = false)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (profile == null || !IsSafePuuid(profile.PuuId) ||
@@ -344,7 +345,7 @@ namespace FACM.League
                     catch (OperationCanceledException) { cancellationToken.ThrowIfCancellationRequested(); }
                 }
                 if (!SessionStillCurrent(session)) return null;
-                if (page == null && _sgpHistory != null)
+                if (page == null && _sgpHistory != null && !localOnly)
                 {
                     using (var regionalDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                     {
@@ -378,12 +379,23 @@ namespace FACM.League
         }
 
         // Only authenticated owner reads hold the shared LCU gate; SGP may overlap.
-        internal async Task<LeaguePlayerMatchPage> LoadTaggedRosterHistoryAsync(
+        internal Task<LeaguePlayerMatchPage> LoadTaggedRosterHistoryAsync(
+            LeaguePlayerProfile target, int startIndex, int count, string tag,
+            string ownerPuuid, CancellationToken token)
+        {
+            return tag == null || !LeagueSgpSupportedQueues.IsValidTag(tag)
+                ? Task.FromResult<LeaguePlayerMatchPage>(null)
+                : LoadRosterSgpHistoryAsync(target, startIndex, count, tag, ownerPuuid, token);
+        }
+
+        // The untagged path is used only after a local-first roster read missed.
+        // Preserve the same before/after signed-in account fence as tagged SGP.
+        internal async Task<LeaguePlayerMatchPage> LoadRosterSgpHistoryAsync(
             LeaguePlayerProfile target, int startIndex, int count, string tag,
             string ownerPuuid, CancellationToken token)
         {
             if (target == null || !IsSafePuuid(target.PuuId) || !IsSafePuuid(ownerPuuid) ||
-                !LeagueSgpSupportedQueues.IsValidTag(tag) || startIndex < 0 ||
+                (tag != null && !LeagueSgpSupportedQueues.IsValidTag(tag)) || startIndex < 0 ||
                 count < 1 || count > MaximumMatchCount || startIndex > int.MaxValue - count ||
                 _sgpHistory == null) return null;
             var session = _session?.Invoke();
