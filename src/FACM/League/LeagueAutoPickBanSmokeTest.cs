@@ -1077,6 +1077,28 @@ namespace FACM.League
                     Picks = new List<int> { 55, 34 }, BenchHandleTradeEnabled = true,
                     BenchPreferHigherPriority = true, PickDelayMs = 0 }
             });
+            var importedTradeOnly = LeagueAkariAutoSelectTransfer.Import(
+                new JavaScriptSerializer().Serialize(new
+                {
+                    pickConfig = new Dictionary<string, object>
+                    {
+                        { "aram", new {
+                            enabled = false,
+                            champions = new { @default = new[] { 55, 34 }, top = new int[0],
+                                jungle = new int[0], middle = new int[0], bottom = new int[0],
+                                utility = new int[0] },
+                            delaySeconds = 0, ignoreIntent = false, strategy = "show-and-lock-in",
+                            showIntent = false, benchSelectFirstAvailableChampion = true,
+                            benchSwapAccumulatedDelaySeconds = 2.9, benchHandleTradeEnabled = true
+                        } }
+                    }
+                }), new LeagueAutoSelectProfile[0]);
+            Require(importedTradeOnly.Count == 1 && !importedTradeOnly[0].PickEnabled &&
+                    importedTradeOnly[0].BenchHandleTradeEnabled &&
+                    LeagueAkariAutoSelectTransfer.Import(
+                        LeagueAkariAutoSelectTransfer.Export(importedTradeOnly),
+                        new LeagueAutoSelectProfile[0])[0].BenchHandleTradeEnabled,
+                "Source-imported trade-only groups must survive native persistence and Akari export.");
             var tradeOnlyRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
                 TradeJson = Trade(80, 55) };
             var tradeOnlyWrite = new FakeTradeWrite();
