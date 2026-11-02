@@ -746,7 +746,7 @@ namespace FACM.League
                 var result = await _players.LoadPlayerMasteriesAsync(snapshot.SelfPuuid,
                     puuid, snapshot.Session, null, active.Token, true).ConfigureAwait(false);
                 if (result.Status != LeaguePlayerDetailsStatus.Ready ||
-                    result.Masteries == null || result.Masteries.Count > 8 ||
+                    result.Masteries == null || result.Masteries.Count > 9 ||
                     !await IsCurrentAsync(snapshot, active.Token).ConfigureAwait(false))
                     return false;
                 active.Token.ThrowIfCancellationRequested();

@@ -445,7 +445,7 @@ namespace FACM.League
         {
             if (player?.Player == null || player.Mastery?.Masteries == null ||
                 !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
-                player.Mastery.Masteries.Count > 8)
+                player.Mastery.Masteries.Count > 9)
                 return new LeagueOngoingCardMasteryRow[0];
             var names = LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId, 0, "")
                 .GroupBy(match => match.ChampionId)
@@ -478,6 +478,44 @@ namespace FACM.League
             }
             return result.OrderByDescending(row => row.Points)
                 .ThenBy(row => row.ChampionId).ToArray();
+        }
+    }
+
+
+    // Source-style per-champion detail uses only already verified card rows and mastery.
+    internal sealed class LeagueOngoingCardChampionPreview
+    {
+        internal int ChampionId, Games, Wins, Losses;
+        internal double? WinRate, Kda, KdaCv;
+        internal long? MasteryLevel, MasteryPoints;
+
+        internal static LeagueOngoingCardChampionPreview Project(
+            IReadOnlyList<LeagueOngoingCardBreakdownRow> analyses,
+            IReadOnlyList<LeagueOngoingCardMasteryRow> masteries, int championId)
+        {
+            if (championId < 1 || championId > 9999 || analyses == null || masteries == null)
+                return null;
+            var found = analyses.Where(row => row != null && row.Kind == "champion" &&
+                row.ChampionId == championId).Take(2).ToArray();
+            var mastery = masteries.Where(row => row != null &&
+                row.ChampionId == championId).Take(2).ToArray();
+            if (found.Length > 1 || mastery.Length > 1 ||
+                found.Length == 0 && mastery.Length == 0 ||
+                found.Length == 1 && found[0].Analysis == null)
+                return null;
+            var a = found.Length == 1 ? found[0].Analysis : null;
+            var m = mastery.Length == 1 ? mastery[0] : null;
+            return new LeagueOngoingCardChampionPreview {
+                ChampionId = championId,
+                Games = a == null ? 0 : a.Games,
+                Wins = a == null ? 0 : a.Wins,
+                Losses = a == null ? 0 : a.Losses,
+                WinRate = a?.WinRate,
+                Kda = a?.Kda,
+                KdaCv = a?.KdaCv,
+                MasteryLevel = m == null ? (long?)null : m.Level,
+                MasteryPoints = m == null ? (long?)null : m.Points
+            };
         }
     }
 
@@ -709,8 +747,10 @@ namespace FACM.League
             usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll), 90);
             usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon), 90);
             usage.Columns.Add("%", 80);
-            foreach (var entry in LeagueOngoingCardBreakdown.Project(matches, player.Player.PuuId)
-                .Where(entry => entry.Kind == "champion"))
+            var championAnalyses = LeagueOngoingCardBreakdown.Project(matches, player.Player.PuuId)
+                .Where(entry => entry.Kind == "champion").ToArray();
+            var masteryRows = LeagueOngoingCardMasteryProjection.Project(player, matches);
+            foreach (var entry in championAnalyses)
             {
                 var item = new ListViewItem(entry.Label) { Tag = entry.ChampionId };
                 item.SubItems.Add(entry.Analysis.Games.ToString(CultureInfo.CurrentCulture));
@@ -727,7 +767,7 @@ namespace FACM.League
             mastery.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 190);
             mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel), 110);
             mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryPoints), 150);
-            foreach (var entry in LeagueOngoingCardMasteryProjection.Project(player, matches))
+            foreach (var entry in masteryRows)
             {
                 var item = new ListViewItem(entry.ChampionName) { Tag = entry.ChampionId };
                 item.SubItems.Add(entry.Level.ToString(CultureInfo.CurrentCulture));
@@ -739,30 +779,81 @@ namespace FACM.League
             masteryPage.Controls.Add(mastery);
             var verifiedChampions = new HashSet<int>(
                 LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId));
+            Action<ListView, bool> select = (list, collect) =>
+            {
+                if (isCurrent != null && !isCurrent() || list == null ||
+                    list.SelectedItems.Count != 1) return;
+                var id = list.SelectedItems[0].Tag;
+                if (!(id is int) || (int)id <= 0) return;
+                if (canCollect && (collect || !verifiedChampions.Contains((int)id)))
+                    CollectChampionId = (int)id;
+                else if (verifiedChampions.Contains((int)id))
+                    SelectedChampionId = (int)id;
+                else return;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 3, RowCount = 1, Padding = new Padding(8, 4, 8, 4) };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+            var preview = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleLeft };
+            var filterChampion = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) };
+            var collectChampion = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+            Func<ListView> activeList = () => tabs.SelectedTab == usagePage ? usage :
+                tabs.SelectedTab == masteryPage ? mastery : null;
+            Action updatePreview = () =>
+            {
+                var list = activeList();
+                var id = list != null && list.SelectedItems.Count == 1
+                    ? list.SelectedItems[0].Tag : null;
+                var current = isCurrent == null || isCurrent();
+                var selectedId = id is int ? (int)id : 0;
+                var details = LeagueOngoingCardChampionPreview.Project(
+                    championAnalyses, masteryRows, selectedId);
+                filterChampion.Enabled = current && details != null &&
+                    verifiedChampions.Contains(selectedId);
+                collectChampion.Enabled = current && canCollect && details != null;
+                if (details == null) { preview.Text = ""; return; }
+                var parts = new List<string>();
+                if (details.Games > 0)
+                {
+                    parts.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate) + " " +
+                        (details.WinRate.HasValue
+                            ? details.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%"
+                            : "—") + " (" + details.Wins + "/" + details.Losses + ")");
+                    parts.Add("KDA " + (details.Kda.HasValue
+                        ? details.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—"));
+                    if (details.KdaCv.HasValue)
+                        parts.Add("CV " + details.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
+                }
+                if (details.MasteryLevel.HasValue)
+                    parts.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel) + " " +
+                        details.MasteryLevel.Value.ToString(CultureInfo.CurrentCulture) + " · " +
+                        details.MasteryPoints.Value.ToString("N0", CultureInfo.CurrentCulture));
+                preview.Text = string.Join("  ·  ", parts);
+            };
             foreach (var list in new[] { usage, mastery })
             {
-                Action<bool> select = collect =>
-                {
-                    if (list.SelectedItems.Count != 1) return;
-                    var id = list.SelectedItems[0].Tag;
-                    if (!(id is int) || (int)id <= 0) return;
-                    if (collect && canCollect ||
-                        !verifiedChampions.Contains((int)id) && canCollect)
-                        CollectChampionId = (int)id;
-                    else if (verifiedChampions.Contains((int)id))
-                        SelectedChampionId = (int)id;
-                    else return;
-                    DialogResult = DialogResult.OK;
-                    Close();
-                };
-                list.DoubleClick += (sender, args) => select(true);
+                list.DoubleClick += (sender, args) => select(list, true);
                 list.KeyDown += (sender, args) =>
                 {
                     if (args.KeyCode != Keys.Enter) return;
-                    select(false);
+                    select(list, false);
                     args.Handled = true;
                 };
+                list.SelectedIndexChanged += (sender, args) => updatePreview();
             }
+            tabs.SelectedIndexChanged += (sender, args) => updatePreview();
+            filterChampion.Click += (sender, args) => select(activeList(), false);
+            collectChampion.Click += (sender, args) => select(activeList(), true);
+            footer.Controls.Add(preview, 0, 0);
+            footer.Controls.Add(filterChampion, 1, 0);
+            footer.Controls.Add(collectChampion, 2, 0);
             tabs.TabPages.Add(usagePage); tabs.TabPages.Add(masteryPage);
             if (loadJungle != null && isCurrent != null)
             {
@@ -895,7 +986,13 @@ namespace FACM.League
                 tabs.TabPages.Add(junglePage);
             }
             tabs.SelectedTab = masteryPage;
-            Controls.Add(tabs);
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.Controls.Add(tabs, 0, 0);
+            root.Controls.Add(footer, 0, 1);
+            Controls.Add(root);
+            updatePreview();
             Activated += (sender, args) =>
             {
                 if (isCurrent != null && !isCurrent()) Close();

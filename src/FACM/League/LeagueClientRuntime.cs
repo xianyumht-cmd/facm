@@ -482,7 +482,7 @@ namespace FACM.League
         {
             token.ThrowIfCancellationRequested();
             if (expected == null || !LeagueSgpMatchHistoryApiClient.SafePuuid(targetPuuid)) return Task.FromResult<byte[]>(null);
-            return SendReadAsync("/lol-champion-mastery/v1/" + targetPuuid + "/champion-mastery/top?count=8",
+            return SendReadAsync("/lol-champion-mastery/v1/" + targetPuuid + "/champion-mastery/top?count=9",
                 "{\"skipCache\":true}", expected, token);
         }
 

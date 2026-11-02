@@ -196,7 +196,7 @@ namespace FACM.League
                             object rows;
                             if (data.TryGetValue("masteries", out rows))
                                 result.Masteries = ParsePlayerMasteries(Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(rows)), targetPuuid);
-                            if (result.Masteries != null && result.Masteries.Count > 8) result.Masteries = null;
+                            if (result.Masteries != null && result.Masteries.Count > 9) result.Masteries = null;
                             result.Score = LeagueMatchTimelineParser.Number(data, "score");
                         }
                     }

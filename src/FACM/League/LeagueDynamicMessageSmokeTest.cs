@@ -1360,7 +1360,7 @@ namespace FACM.League
                         .ConfigureAwait(false) &&
                     snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Masteries.Count == 2 &&
                     snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Score == 6000,
-                    "On-demand mastery must use the verified top-eight LCU envelope.");
+                    "On-demand mastery must use the verified top-nine LCU envelope.");
                 var count = fake.MasteryReads;
                 Require(await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
                     .ConfigureAwait(false) && fake.MasteryReads == count,
@@ -1739,6 +1739,39 @@ namespace FACM.League
                 masteryRows[0].ChampionName == "#22" && masteryRows[0].Points == 13000 &&
                 masteryRows[1].Level == 4,
                 "On-demand card mastery must retain verified champion, level and point evidence.");
+            var championAnalyses = LeagueOngoingCardBreakdown.Project(cardRows, "target")
+                .Where(row => row.Kind == "champion").ToArray();
+            var preview = LeagueOngoingCardChampionPreview.Project(
+                championAnalyses, masteryRows, 22);
+            Require(preview != null && preview.Games > 0 &&
+                preview.MasteryLevel == 7 && preview.MasteryPoints == 13000 &&
+                LeagueOngoingCardChampionPreview.Project(
+                    championAnalyses, masteryRows, 9999) == null,
+                "Selected champion detail must combine verified history and mastery only.");
+            var masteryOnly = LeagueOngoingCardChampionPreview.Project(
+                new LeagueOngoingCardBreakdownRow[0], masteryRows, 23);
+            Require(masteryOnly != null && masteryOnly.Games == 0 &&
+                masteryOnly.MasteryLevel == 4,
+                "A mastery-only champion must remain available before history exists.");
+            Require(LeagueOngoingCardChampionPreview.Project(
+                new[] { championAnalyses[0], championAnalyses[0] }, masteryRows,
+                championAnalyses[0].ChampionId) == null,
+                "Ambiguous duplicate champion analysis must fail closed.");
+            var originalMasteries = masteryPlayer.Mastery.Masteries.ToList();
+            for (var i = 0; i < 7; i++)
+                masteryPlayer.Mastery.Masteries.Add(new Dictionary<string, object> {
+                    { "championId", 100 + i }, { "championLevel", 1 },
+                    { "championPoints", (long)(100 + i) }, { "puuid", "target" }
+                });
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 9,
+                "Pinned source displays nine champion masteries, not eight.");
+            masteryPlayer.Mastery.Masteries.Add(new Dictionary<string, object> {
+                { "championId", 107 }, { "championLevel", 1 },
+                { "championPoints", 107L }, { "puuid", "target" }
+            });
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Unexpected tenth top-mastery row must fail closed.");
+            masteryPlayer.Mastery.Masteries = originalMasteries;
             masteryPlayer.Mastery.Masteries[1]["puuid"] = "foreign";
             Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
                 "Foreign mastery evidence must not appear in another player's card.");
