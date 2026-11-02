@@ -2072,7 +2072,9 @@ namespace FACM.League
                 sample.TopGanks == 1 && sample.MidGanks == 1 && sample.TopWeight > sample.MidWeight &&
                 sample.Level3Gank && sample.Level4Gank && sample.FirstDragonWon == true &&
                 sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d &&
-                sample.MinutePositions.Count == 3 && sample.GankPositions.Count == 2 &&
+                sample.MinutePositions.Count == 3 &&
+                sample.MinuteIndices.SequenceEqual(new[] { 1, 2, 3 }) &&
+                sample.GankPositions.Count == 2 &&
                 sample.MinutePositions[0].Item1 == 3830 && sample.GankPositions[1].Item2 == 8000,
                 "Pinned Akari jungle timeline calculations diverged on camp, lanes, early ganks or objectives.");
             Require(LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 12, true) == null &&
@@ -2087,14 +2089,20 @@ namespace FACM.League
                 "Malformed timeline unexpectedly produced a game result.");
             var other = new LeagueJungleTimelineSample { GameId = 8, ChampionId = 99, TeamId = 200 };
             other.MinutePositions.Add(Tuple.Create(1000, 1000));
+            other.MinuteIndices.Add(1);
             Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 64)
                     .Single().GameId == 7 &&
                 LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 2 &&
                 LeagueOngoingJungleMapProjection.Select(new[] { sample, sample }, 0).Count == 0,
                 "Jungle map must isolate champion evidence and reject duplicate games.");
             other.MinutePositions.Add(Tuple.Create(16001, 1));
+            other.MinuteIndices.Add(2);
             Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
                 "Invalid map coordinates must not be rendered.");
+            other.MinutePositions[1] = Tuple.Create(2000, 2000);
+            other.MinuteIndices[1] = 1;
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
+                "Duplicate or nonmonotonic timeline minutes must not form invented map routes.");
         }
 
         private static void ValidateJungleFormatter()

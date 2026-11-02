@@ -20,6 +20,7 @@ namespace FACM.League
         internal bool? FirstDragonWon;
         internal int Dragons, SoloDragons, Voidgrubs, Heralds, Barons;
         internal readonly List<Tuple<int, int>> MinutePositions = new List<Tuple<int, int>>();
+        internal readonly List<int> MinuteIndices = new List<int>();
         internal readonly List<Tuple<int, int>> GankPositions = new List<Tuple<int, int>>();
         internal double? FirstDragonSeconds, FirstVoidgrubSeconds, FirstHeraldSeconds, FirstBaronSeconds;
     }
@@ -66,6 +67,7 @@ namespace FACM.League
                 var position = Position(ParticipantFrame(frames[minute], participantId));
                 if (position == null) continue;
                 sample.MinutePositions.Add(position);
+                sample.MinuteIndices.Add(minute);
                 CountZone(sample, position.Item1, position.Item2, 1);
             }
             var first = frames.Length > 1 ? Position(ParticipantFrame(frames[1], participantId)) : null;

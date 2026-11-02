@@ -424,6 +424,9 @@ namespace FACM.League
                 samples.Any(s => s == null || s.GameId <= 0 || s.ChampionId <= 0 ||
                     s.TeamId != 100 && s.TeamId != 200 ||
                     s.MinutePositions.Count > 14 || s.GankPositions.Count > 20 ||
+                    s.MinuteIndices.Count != s.MinutePositions.Count ||
+                    s.MinuteIndices.Where((minute, i) => minute < 1 || minute > 14 ||
+                        i > 0 && minute <= s.MinuteIndices[i - 1]).Any() ||
                     s.MinutePositions.Concat(s.GankPositions).Any(p =>
                         p == null || p.Item1 < 0 || p.Item1 > 16000 ||
                         p.Item2 < 0 || p.Item2 > 16000)) ||
@@ -481,7 +484,9 @@ namespace FACM.League
                 foreach (var sample in _samples)
                 {
                     var positions = sample.MinutePositions.Select(point).ToArray();
-                    if (positions.Length > 1) g.DrawLines(route, positions);
+                    for (var i = 1; i < positions.Length; i++)
+                        if (sample.MinuteIndices[i] == sample.MinuteIndices[i - 1] + 1)
+                            g.DrawLine(route, positions[i - 1], positions[i]);
                     foreach (var p in positions)
                         g.FillEllipse(minute, p.X - 3, p.Y - 3, 6, 6);
                     foreach (var p in sample.GankPositions.Select(point))
