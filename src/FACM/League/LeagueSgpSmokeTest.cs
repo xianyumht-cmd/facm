@@ -214,6 +214,7 @@ namespace FACM.League
             ValidateEogOnlyFallback();
             ValidateQueueNames();
             ValidateCurrentLobbyQueue();
+            ValidateCurrentQueueHistory();
             Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
                 LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
@@ -280,6 +281,74 @@ namespace FACM.League
                 "Unlisted gameflow queues without local metadata must fail closed.");
         }
 
+        private static void ValidateCurrentQueueHistory()
+        {
+            var session = Session("HN1", "TENCENT");
+            var active = session;
+            var local = new LobbyApi { NoLobby = true };
+            var regional = new CurrentQueueHistoryApi();
+            var service = new LeaguePlayerDataService(local,
+                new FACM.Performance.PerformanceBudgetProvider(), null, regional, () => active);
+            var expected = new LeaguePlayerProfile { PuuId = "self" };
+            var result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 1 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
+                "A metadata-confirmed current queue must reach the existing SGP owner.");
+            local.MissingMetadata = true;
+            service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 1,
+                "An unlisted queue without local metadata must not read SGP.");
+            local.MissingMetadata = false;
+            service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp,
+                serverId: "TENCENT_HN10", queueTag: "q_999").GetAwaiter().GetResult();
+            Require(regional.Calls == 1,
+                "A locally verified queue must never authorize another region.");
+            regional.AfterRequest = () => local.GameflowQueueId = 998;
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 2 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
+                "A queue changed during an SGP request must discard its response.");
+            local.GameflowQueueId = 999;
+            regional.AfterRequest = () => local.Owner = "other";
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 3 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A replaced signed-in account must discard the current-queue SGP response.");
+        }
+
+        private sealed class CurrentQueueHistoryApi : ILeagueSgpMatchHistoryApi, ILeagueSgpCurrentQueueHistoryApi
+        {
+            internal int Calls;
+            internal Action AfterRequest;
+            public Task<byte[]> TryGetCurrentQueueSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, int verifiedCurrentQueueId)
+            {
+                token.ThrowIfCancellationRequested();
+                if (targetPuuid != "target" || verifiedCurrentQueueId != 999)
+                    throw new InvalidOperationException("Unverified current queue request.");
+                Calls++;
+                AfterRequest?.Invoke();
+                return Task.FromResult<byte[]>(null);
+            }
+            public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
+                CancellationToken token, string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult(Bytes(@"[{""puuid"":""target""}]"));
+            }
+        }
+
         private sealed class LobbyApi : ILeagueClientApi
         {
             internal string Owner = "self";
@@ -287,6 +356,7 @@ namespace FACM.League
             internal Action AfterLobby;
             internal bool NoLobby;
             internal bool MissingMetadata;
+            internal int GameflowQueueId = 999;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -298,10 +368,12 @@ namespace FACM.League
                         @"{""gameConfig"":{""queueId"":420}}"));
                 }
                 if (path == "/lol-gameflow/v1/session")
-                    return Task.FromResult(Bytes(@"{""gameData"":{""queue"":{""id"":999}}}"));
+                    return Task.FromResult(Bytes("{\"gameData\":{\"queue\":{\"id\":" +
+                        GameflowQueueId.ToString() + "}}}"));
                 if (path == "/lol-game-data/assets/v1/queues.json")
                     return Task.FromResult(Bytes(MissingMetadata ? @"[]" :
-                        @"[{""id"":420,""name"":""Ranked""},{""id"":999,""name"":""Custom""}]"));
+                        @"[{""id"":420,""name"":""Ranked""},{""id"":999,""name"":""Custom""}," +
+                        @"{""id"":998,""name"":""Other""}]"));
                 return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
             }
         }
