@@ -263,6 +263,40 @@ namespace FACM.League
 
     internal static class LeagueOngoingCardActionSelection
     {
+        private static bool IsLiveRosterPlayer(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return snapshot != null && player?.Player != null &&
+                !snapshot.HistoricalStandalone && snapshot.HistoricalOriginalRoster.Count == 0 &&
+                snapshot.Players.Contains(player) &&
+                LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) &&
+                LeagueDynamicMessageService.SafePuuid(player.Player.PuuId);
+        }
+
+        internal static bool TryCurrentChampion(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player, out int championId)
+        {
+            championId = 0;
+            if (!IsLiveRosterPlayer(snapshot, player) ||
+                player.Player.ChampionId <= 0 || player.Player.ChampionId > 9999) return false;
+            championId = player.Player.ChampionId;
+            return true;
+        }
+
+        internal static bool TryCurrentPosition(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player, out string position)
+        {
+            position = "";
+            if (!IsLiveRosterPlayer(snapshot, player) ||
+                string.IsNullOrWhiteSpace(player.Player.Position) ||
+                player.Player.Position.Length > 16) return false;
+            var role = player.Player.Position.Trim().ToUpperInvariant();
+            if (!new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                .Contains(role, StringComparer.Ordinal)) return false;
+            position = role;
+            return true;
+        }
+
         internal static bool TrySelect(LeagueOngoingCardBreakdownRow row,
             out int championId, out string position, out string mode)
         {
@@ -1278,6 +1312,8 @@ namespace FACM.League
             var collecting = false;
             var fullCollect = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+            var fullCollectMenu = new ContextMenuStrip();
+            fullCollect.Disposed += (sender, args) => fullCollectMenu.Dispose();
             var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
@@ -1292,17 +1328,66 @@ namespace FACM.League
                 collect.Enabled = !collecting && !loading && hasMore && isCurrent() &&
                     LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
                         selectedChampion, selectedPosition, nextIndex, 0, selectedMode);
+                int currentChampion; string currentPosition;
                 fullCollect.Enabled = !collecting && !loading && isCurrent() &&
                     openFullCollection != null &&
                     (selectedMode != "" || selectedChampion > 0 ||
-                     !string.IsNullOrEmpty(selectedPosition));
+                     !string.IsNullOrEmpty(selectedPosition) ||
+                     LeagueOngoingCardActionSelection.TryCurrentChampion(
+                         snapshot, player, out currentChampion) ||
+                     LeagueOngoingCardActionSelection.TryCurrentPosition(
+                         snapshot, player, out currentPosition));
+            };
+            Action<int, string, string> openCollection = (championId, position, mode) =>
+            {
+                if (!isCurrent() || collecting || loading || openFullCollection == null) return;
+                using (var dialog = openFullCollection(championId, position, mode))
+                    if (dialog != null) dialog.ShowDialog(this);
+                if (!IsDisposed) updateCollect();
             };
             fullCollect.Click += (sender, args) =>
             {
                 if (!fullCollect.Enabled || !isCurrent()) return;
-                using (var dialog = openFullCollection(selectedChampion, selectedPosition, selectedMode))
-                    if (dialog != null) dialog.ShowDialog(this);
-                if (!IsDisposed) updateCollect();
+                fullCollectMenu.Items.Clear();
+                if (selectedChampion > 0 || selectedPosition != "" || selectedMode != "")
+                {
+                    var selected = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown));
+                    selected.Click += (source, e) =>
+                        openCollection(selectedChampion, selectedPosition, selectedMode);
+                }
+                int currentChampion;
+                if (LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out currentChampion))
+                {
+                    var item = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) + " · #" +
+                        currentChampion.ToString(CultureInfo.InvariantCulture));
+                    item.Click += (source, e) =>
+                    {
+                        int freshChampion;
+                        if (LeagueOngoingCardActionSelection.TryCurrentChampion(
+                            snapshot, player, out freshChampion) && freshChampion == currentChampion)
+                            openCollection(currentChampion, "", "");
+                    };
+                }
+                string currentPosition;
+                if (LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out currentPosition))
+                {
+                    var item = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition) + " · " +
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, currentPosition));
+                    item.Click += (source, e) =>
+                    {
+                        string freshPosition;
+                        if (LeagueOngoingCardActionSelection.TryCurrentPosition(
+                            snapshot, player, out freshPosition) && freshPosition == currentPosition)
+                            openCollection(0, currentPosition, "");
+                    };
+                }
+                if (fullCollectMenu.Items.Count > 0)
+                    fullCollectMenu.Show(fullCollect, new Point(0, fullCollect.Height));
             };
             updateCollect();
             Func<CancellationToken, Task<bool>> fetchNext = async requestToken =>

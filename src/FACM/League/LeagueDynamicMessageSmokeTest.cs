@@ -1486,6 +1486,51 @@ namespace FACM.League
             Require(!LeagueOngoingCardActionSelection.TrySelect(row,
                     out champion, out position, out mode),
                 "Unknown source card action cannot create a collection request.");
+
+            var snapshot = new LeagueDynamicMessageSnapshot { SelfPuuid = "self" };
+            var player = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow {
+                    PuuId = "target", ChampionId = 99, Position = "jungle"
+                }
+            };
+            snapshot.Players.Add(player);
+            Require(LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) && champion == 99 &&
+                LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position) && position == "JUNGLE",
+                "Current-card hero and lane actions must work without historical match rows.");
+            var foreign = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow {
+                    PuuId = "foreign", ChampionId = 99, Position = "TOP"
+                }
+            };
+            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, foreign, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, foreign, out position),
+                "Unverified roster identities must not start a current-card collection.");
+            player.Player.ChampionId = 0;
+            player.Player.Position = "NONE";
+            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Missing champion and unsupported lane must disable source card actions.");
+            player.Player.ChampionId = 99;
+            player.Player.Position = "TOP";
+            snapshot.HistoricalStandalone = true;
+            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Standalone historical previews must not start current-roster collection.");
+            snapshot.HistoricalStandalone = false;
+            snapshot.HistoricalOriginalRoster.Add(player);
+            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Edited historical drafts must not masquerade as live collection targets.");
         }
 
         private static void ValidateOngoingKdaOutliers()

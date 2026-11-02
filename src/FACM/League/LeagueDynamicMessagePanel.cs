@@ -385,6 +385,12 @@ namespace FACM.League
             var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
             var recentHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingRecentHistory));
             var enrichHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingHydrateHistory));
+            var collectCurrentChampion = tagMenu.Items.Add(
+                T(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · " +
+                T(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion));
+            var collectCurrentPosition = tagMenu.Items.Add(
+                T(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · " +
+                T(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition));
             _players.ContextMenuStrip = tagMenu;
             _jungle.ContextMenuStrip = tagMenu;
             _players.MouseDown += (sender, e) => SelectContextPlayer(_players, e);
@@ -410,6 +416,41 @@ namespace FACM.League
                     choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>
                         LeaguePlayerDataService.NeedsAnalysisDetail(m));
+                int championId; string position;
+                collectCurrentChampion.Enabled = !e.Cancel &&
+                    LeagueOngoingCardActionSelection.TryCurrentChampion(
+                        _snapshot, choice.Player, out championId);
+                collectCurrentPosition.Enabled = !e.Cancel &&
+                    LeagueOngoingCardActionSelection.TryCurrentPosition(
+                        _snapshot, choice.Player, out position);
+            };
+            Action<int, string> collectCurrent = (championId, position) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                var snapshot = _snapshot;
+                if (_busy || snapshot == null || choice?.Player?.Player == null ||
+                    !snapshot.Players.Contains(choice.Player)) return;
+                using (var dialog = _module.CreateDynamicPlayerCollectionForm(_ui, snapshot,
+                    choice.Player.Player.PuuId, choice.Player.Player.GameName,
+                    championId, position))
+                    if (dialog != null && ReferenceEquals(_snapshot, snapshot))
+                        dialog.ShowDialog(this);
+            };
+            collectCurrentChampion.Click += (sender, args) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                int championId;
+                if (LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    _snapshot, choice?.Player, out championId))
+                    collectCurrent(championId, "");
+            };
+            collectCurrentPosition.Click += (sender, args) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                string position;
+                if (LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    _snapshot, choice?.Player, out position))
+                    collectCurrent(0, position);
             };
             recentHistory.Click += (sender, e) =>
             {
