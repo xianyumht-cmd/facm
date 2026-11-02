@@ -1,3 +1,7 @@
+### 2026-11-03 — International SGP region directory parity (Draft #357)
+
+Native Riot region selection now uses the pinned Akari v1.5.1 Chinese display names for Taiwan, Singapore, Philippines, Vietnam, Japan, Russia, Brazil, Oceania, Turkey, Latin America North/South, North America, Thailand and Korea. The PBE/EUW identifiers remain unchanged. The same executable SGP smoke checks all sixteen international labels and confirms each authenticated Riot region exposes only its own provider; Tencent remains the only cross-region selector. No endpoint, credential, refresh, polling or game-write behavior changes. **Candidate; four exact-HEAD Windows CI gates pending, live Riot/Tencent and Windows 10 acceptance still deferred.**
+
 ### 2026-11-03 — Tencent SGP region identity and source labels (Draft #357)
 
 The pinned Akari v1.5.1 built-in server directory identifies TJ100/TJ101 as 联盟四区/联盟五区, NJ100/GZ100/CQ100 as 联盟一区/联盟二区/联盟三区 and BGP2 as 峡谷之巅. Native GGman previously assigned incorrect labels to all six, risking users selecting a different SGP region even when the endpoint itself was correctly scoped. The native region chooser now uses the pinned names without changing server IDs, URLs, credentials, refresh policy or account isolation. The executable SGP smoke asserts all ten Tencent names and their exact platform selection. **Candidate, exact-HEAD four Windows gates pending; no live Tencent/Win10 acceptance.**

@@ -157,6 +157,33 @@ namespace FACM.League
                     selected.PathRegion == platform && selected.Name == sourceTencentNames[server.Id],
                     "A Tencent region name must select its own platform, never another numbered region.");
             }
+            var sourceRiotNames = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "TW2", "台湾" }, { "SG2", "新加坡" },
+                { "PH2", "菲律宾" }, { "VN2", "越南" },
+                { "PBE", "PBE" }, { "EUW", "EUW" },
+                { "JP", "日本" }, { "RU", "俄罗斯" },
+                { "BR1", "巴西" }, { "OC1", "大洋洲" },
+                { "TR1", "土耳其" }, { "LA1", "拉丁美洲北部" },
+                { "LA2", "拉丁美洲南部" }, { "NA1", "北美" },
+                { "TH2", "泰国" }, { "KR", "韩国" }
+            };
+            var builtinRiot = LeagueSgpMatchHistoryApiClient.BuiltinServers
+                .Where(server => !server.IsTencent).ToArray();
+            Require(builtinRiot.Length == sourceRiotNames.Count &&
+                builtinRiot.All(server => sourceRiotNames.ContainsKey(server.Id) &&
+                    server.Name == sourceRiotNames[server.Id]),
+                "International region chooser labels must match the pinned Akari v1.5.1 Chinese directory.");
+            foreach (var server in builtinRiot)
+            {
+                var selected = LeagueSgpMatchHistoryApiClient.ResolveServer(
+                    Session(server.PathRegion, server.Id));
+                Require(selected != null && selected.Id == server.Id &&
+                    selected.Name == sourceRiotNames[server.Id] &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(
+                        Session(server.PathRegion, server.Id)).Length == 1,
+                    "An international region must resolve only its own authenticated SGP provider.");
+            }
             var current = Session("HN10", "TENCENT");
             var local = new TokenApi();
             var handler = new CaptureHandler();
