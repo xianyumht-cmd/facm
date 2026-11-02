@@ -709,6 +709,30 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession, "NA1") == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "ME1") == null,
                     "New Riot regions must use exact provider hosts without widening cross-region access.");
+                // Source schema supports an ID with a numeric platform path (EUW/EUW1).
+                var aliasedRiot = @"{""updatedAt"":""2026-08-06T12:00:00.000Z"",""servers"":{
+                    ""ME"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me-red.lol.sgp.pvp.net"",""isTencent"":false,
+                    ""regionPathParam"":""ME1""}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(aliasedRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.PathRegion == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA"))?.Id == "NA1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA"), "ME") == null,
+                    "Source-announced Riot aliases must retain exact region and account scope.");
+                foreach (var unsafeAlias in new[] {
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""NA1"""),
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""ME_X"""),
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""ME1234"""),
+                    aliasedRiot.Replace("me-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net"),
+                    aliasedRiot.Replace("euc1-red.pp.sgp.pvp.net", "me-red.pp.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeAlias.Replace("2026-08-06T12", "2026-08-06T13"))),
+                        "Riot alias enrollment must reject foreign paths and unpinned token destinations.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                    newRiot.Replace("2026-08-06T00", "2026-08-06T18"))),
+                    "Exact-ID Riot servers must remain supported after an alias catalog refresh.");
                 var riotHandler = new CaptureHandler();
                 using (var riotApi = new LeagueSgpMatchHistoryApiClient(
                     () => newRiotSession, new TokenApi(), riotHandler))

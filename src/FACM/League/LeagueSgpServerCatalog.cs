@@ -192,15 +192,16 @@ namespace FACM.League
                 !entry.TryGetValue("isTencent", out tencent) ||
                 !(tencent is bool) || (bool)tencent ||
                 entry.TryGetValue("regionPathParam", out region) &&
-                !string.Equals(region as string, id, StringComparison.Ordinal))
+                !SafeRiotRegionPath(id, region as string))
                 return null;
+            var pathRegion = region as string ?? id;
             var server = new LeagueSgpServer
             {
-                Id = id, Name = id, PathRegion = id, IsTencent = false,
+                Id = id, Name = id, PathRegion = pathRegion, IsTencent = false,
                 MatchHistory = history as string, Common = common as string
             };
-            if (!SafeEndpoint(server.MatchHistory, server) ||
-                !SafeEndpoint(server.Common, server)) return null;
+            if (!SafeEndpointShape(server.MatchHistory, false) ||
+                !SafeEndpointShape(server.Common, false)) return null;
             var historyHost = new Uri(server.MatchHistory).Host;
             var commonHost = new Uri(server.Common).Host;
             if (!string.Equals(commonHost, id.ToLowerInvariant() + "-red.lol.sgp.pvp.net",
@@ -211,6 +212,18 @@ namespace FACM.League
                         StringComparison.OrdinalIgnoreCase)))
                 return null;
             return server;
+        }
+
+        // Source regionPathParam may differ from a new Riot server ID (e.g. ME -> ME1).
+        // Accept only the exact ID or a bounded numeric platform suffix.
+        private static bool SafeRiotRegionPath(string id, string region)
+        {
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(region) ||
+                region.Length > 12 || !region.StartsWith(id, StringComparison.Ordinal))
+                return false;
+            var suffix = region.Substring(id.Length);
+            return suffix.Length == 0 || suffix.Length <= 3 &&
+                suffix.All(c => c >= '0' && c <= '9');
         }
 
         // Riot platform IDs may use different pinned common-host aliases (NA1/na, OC1/oce).
