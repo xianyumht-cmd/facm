@@ -1723,10 +1723,37 @@ namespace FACM.League
                 deadline.CancelAfter(TimeSpan.FromSeconds(4));
                 try
                 {
+                    // Only regional SUMMARY HTTP overlaps; the caller retains the serial
+                    // LCU gate and checks account/session ownership around the page.
+                    var regional = new List<int>();
+                    if (_sgpHistory != null && _budgets.Current.NetworkConcurrency > 1)
+                    {
+                        for (var index = 0; index < page.Matches.Count; index++)
+                        {
+                            var row = page.Matches[index];
+                            if (row != null && row.GameId > 0 &&
+                                (!row.ParticipantResolved || !row.StatisticsAvailable) &&
+                                row.DataSource == LeaguePlayerHistorySource.Sgp &&
+                                !string.IsNullOrEmpty(row.SgpServerId) &&
+                                string.Equals(row.PuuId, target.PuuId, StringComparison.Ordinal))
+                                regional.Add(index);
+                        }
+                    }
+                    if (regional.Count > 0)
+                    {
+                        using (var gate = new SemaphoreSlim(Math.Min(4, _budgets.Current.NetworkConcurrency)))
+                        {
+                            var pending = regional.Select(index => HydrateCollectionRegionalMatchAsync(
+                                index, page.Matches[index], target, source, gate, deadline.Token)).ToArray();
+                            var completed = await Task.WhenAll(pending).ConfigureAwait(false);
+                            foreach (var item in completed)
+                                if (item.Item2 != null) page.Matches[item.Item1] = item.Item2;
+                        }
+                    }
                     for (var index = 0; index < page.Matches.Count; index++)
                     {
                         var current = page.Matches[index];
-                        if (current == null || current.GameId <= 0 ||
+                        if (regional.Contains(index) || current == null || current.GameId <= 0 ||
                             (current.ParticipantResolved && current.StatisticsAvailable)) continue;
                         var game = await LoadGameAsync(target, current.GameId, deadline.Token,
                             current.SgpServerId, current.DataSource == LeaguePlayerHistorySource.Sgp,
@@ -1743,6 +1770,36 @@ namespace FACM.League
                 catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); }
             }
             return page;
+        }
+
+        private async Task<Tuple<int, LeaguePlayerMatchSummary>> HydrateCollectionRegionalMatchAsync(
+            int index, LeaguePlayerMatchSummary current, LeaguePlayerProfile target,
+            LeaguePlayerHistorySource source, SemaphoreSlim gate, CancellationToken token)
+        {
+            await gate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                var bytes = await _sgpHistory.TryGetGameSummaryAsync(
+                    current.GameId, token, current.SgpServerId).ConfigureAwait(false);
+                LeaguePlayerMatchSummary hydrated;
+                lock (_cacheSync)
+                {
+                    var game = NormalizeSgpGame(ParseObject(bytes));
+                    if (game != null) MarkSgpSource(game, current.SgpServerId);
+                    hydrated = ParseMatch(game, target);
+                }
+                if (!CanReplaceAnalysisMatch(current, hydrated, target.PuuId))
+                    return Tuple.Create(index, (LeaguePlayerMatchSummary)null);
+                hydrated.PreferredSource = source;
+                hydrated.ChampionName = current.ChampionId == hydrated.ChampionId
+                    ? current.ChampionName : hydrated.ChampionName;
+                return Tuple.Create(index, hydrated);
+            }
+            catch (System.Net.Http.HttpRequestException)
+            {
+                return Tuple.Create(index, (LeaguePlayerMatchSummary)null);
+            }
+            finally { gate.Release(); }
         }
 
         private async Task<LeaguePlayerProfile> LoadTargetProfileAsync(string targetPuuid,

@@ -234,6 +234,44 @@ namespace FACM.League
                 "A changed local account must discard the whole regional prefetched page.");
             pageSgp.OnRead = null;
             api.Changed = false;
+
+            var collectionSgp = new Sgp
+            {
+                RequireOverlap = true,
+                SummaryPage = SparseRegionalCollectionPage(140, 141, 142)
+            };
+            var collectionService = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(),
+                null, collectionSgp, () => active);
+            var collectionSettings = new LeagueMatchCollectionSettings
+            {
+                CountPerIteration = 3, ExpectedCount = 3, MaxIterations = 1
+            };
+            reads = api.Games;
+            var collected = await collectionService.CollectMatchesAsync(
+                new LeaguePlayerProfile { PuuId = "self" },
+                new LeaguePlayerProfile { PuuId = "target" },
+                collectionSettings, null, null, null, CancellationToken.None,
+                LeaguePlayerHistorySource.Sgp, "HN10").ConfigureAwait(false);
+            Require(collected.Status == LeagueMatchCollectionStatus.Completed &&
+                collected.Page.Matches.Count == 3 &&
+                collected.Page.Matches.All(m => m.StatisticsAvailable &&
+                    m.DataSource == LeaguePlayerHistorySource.Sgp && m.SgpServerId == "HN10") &&
+                collectionSgp.Calls == 3 && collectionSgp.Peak >= 2 && collectionSgp.Peak <= 4 &&
+                api.Games == reads && collectionService.TryGetCachedPage() == null,
+                "1000-game collection must overlap sparse regional SUMMARY reads without LCU game calls or cache writes.");
+            collectionSgp.RequireOverlap = false;
+            collectionSgp.OnRead = () => api.Changed = true;
+            var replacedCollection = await collectionService.CollectMatchesAsync(
+                new LeaguePlayerProfile { PuuId = "self" },
+                new LeaguePlayerProfile { PuuId = "target" },
+                collectionSettings, null, null, null, CancellationToken.None,
+                LeaguePlayerHistorySource.Sgp, "HN10").ConfigureAwait(false);
+            Require(replacedCollection.Status == LeagueMatchCollectionStatus.AccountChanged &&
+                replacedCollection.Page.Matches.Count == 0,
+                "An account change during parallel collector detail reads must discard the entire page.");
+            collectionSgp.OnRead = null;
+            api.Changed = false;
+
             api.Changed = true;
             Require(!await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
                 "A same-process account switch invalidates all staged timeline results.");
@@ -246,6 +284,23 @@ namespace FACM.League
                 new[] { complete }, null, CancellationToken.None).ConfigureAwait(false);
             Require(noWork.Attempted.Count == 0 && api.Games == reads,
                 "Complete records must not trigger game-detail traffic.");
+        }
+
+        private static byte[] SparseRegionalCollectionPage(params long[] ids)
+        {
+            var games = ids.Select(id => new
+            {
+                json = new
+                {
+                    gameId = id, gameType = "MATCHED_GAME", gameMode = "CLASSIC",
+                    gameDuration = 1200, queueId = 420,
+                    participants = new[] { new
+                    {
+                        participantId = 1, puuid = "target", teamId = 100, championId = 22
+                    } }
+                }
+            }).ToArray();
+            return Encoding.UTF8.GetBytes(new JavaScriptSerializer().Serialize(new { games }));
         }
 
         private static LeaguePlayerMatchSummary Sparse(long id)
@@ -305,6 +360,7 @@ namespace FACM.League
             internal int Peak;
             internal bool RequireOverlap;
             internal Action OnRead;
+            internal byte[] SummaryPage;
             internal string Server;
             private int _active;
             private readonly TaskCompletionSource<bool> _overlap =
@@ -334,7 +390,10 @@ namespace FACM.League
                 finally { Interlocked.Decrement(ref _active); }
             }
             public Task<byte[]> TryGetSummaryAsync(string puuid, int start, int count, CancellationToken token, string serverId = null)
-            { return Task.FromResult<byte[]>(null); }
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(SummaryPage);
+            }
             public Task<byte[]> TryGetGameDetailsAsync(long id, CancellationToken token, string serverId = null)
             { throw new InvalidOperationException("SUMMARY hydration must not request timeline DETAILS."); }
             public Task<byte[]> TryGetSummonerAsync(string puuid, CancellationToken token, string serverId = null)
