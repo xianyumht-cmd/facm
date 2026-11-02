@@ -425,6 +425,10 @@ namespace FACM.League
                     LeagueAutoPickBanController.BenchAssignedRole(support) == "support" &&
                     LeagueAutoPickBanController.BenchAssignedRole(unknown) == null,
                 "Bench and trade priorities must use the verified local assigned position.");
+            Require(LeagueAutoPickBanController.PreservePrimaryBenchRole(top, unknown) &&
+                    LeagueAutoPickBanController.BenchAssignedRole(unknown) == "top" &&
+                    !LeagueAutoPickBanController.PreservePrimaryBenchRole(top, support),
+                "Team Builder fallback must retain the primary assigned role and reject conflicts.");
             var profiles = new[]
             {
                 new LeagueAutoSelectProfile { Mode = "rift", Role = "default",

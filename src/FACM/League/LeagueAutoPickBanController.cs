@@ -893,12 +893,30 @@ namespace FACM.League
             fallback.GameMode = primary.GameMode;
             fallback.AutoSelectGroup = primary.AutoSelectGroup;
             fallback.AutoSelectContext = primary.AutoSelectContext;
-            if (!fallback.Players.Any(p => p.IsLocalPlayer))
-                fallback.Players.AddRange(primary.Players);
+            if (!PreservePrimaryBenchRole(primary, fallback)) return primary;
             fallback.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
             if (string.IsNullOrWhiteSpace(fallback.TimerPhase)) fallback.TimerPhase = primary.TimerPhase;
             if (fallback.TimerMillisecondsLeft <= 0) fallback.TimerMillisecondsLeft = primary.TimerMillisecondsLeft;
             return fallback;
+        }
+
+        internal static bool PreservePrimaryBenchRole(LeagueBenchQuickPickState primary,
+            LeagueBenchQuickPickState fallback)
+        {
+            var local = primary == null ? null : primary.Players.FirstOrDefault(p => p.IsLocalPlayer);
+            if (local == null || fallback == null) return false;
+            var other = fallback.Players.FirstOrDefault(p => p.IsLocalPlayer);
+            if (other == null)
+            {
+                fallback.Players.AddRange(primary.Players);
+                return true;
+            }
+            var originalRole = BenchAssignedRole(primary);
+            var fallbackRole = BenchAssignedRole(fallback);
+            if (originalRole != null && fallbackRole != null && originalRole != fallbackRole)
+                return false;
+            other.Position = local.Position;
+            return true;
         }
 
         internal static string BenchAssignedRole(LeagueBenchQuickPickState state)
