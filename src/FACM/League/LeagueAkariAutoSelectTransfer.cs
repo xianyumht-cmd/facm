@@ -128,7 +128,7 @@ namespace FACM.League
                         Ids(Field(positions, role));
                 if (lists.Any(x => x.Key != "default" && x.Value.Count > 0) &&
                     group.Key != "rift" && group.Key != "ranked" && group.Key != "custom" &&
-                    !LeagueAutoSelectGroupCatalog.IsDynamicGroupId(group.Key))
+                    !LeagueAutoSelectGroupCatalog.SupportsRoles(group.Key))
                     throw new ArgumentException("Akari group positions cannot be represented natively.");
 
                 var enabled = Boolean(fields, "enabled");

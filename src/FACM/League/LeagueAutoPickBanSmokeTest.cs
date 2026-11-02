@@ -156,6 +156,24 @@ namespace FACM.League
                 Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
                     !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
                     "Equal or stale auto-select group catalog must not replace the active snapshot.");
+                var normalProfiles = new[]
+                {
+                    new LeagueAutoSelectProfile { Mode = "normal", Role = "default",
+                        Picks = new List<int> { 67 } },
+                    new LeagueAutoSelectProfile { Mode = "normal", Role = "top",
+                        Picks = new List<int> { 22 } }
+                };
+                Require(LeagueAutoSelectProfiles.Candidates(normalProfiles, "normal", "top", true, 0)
+                        .SequenceEqual(new[] { 67 }),
+                    "A default-only source group must not apply a hidden lane-specific profile.");
+                var normalRoles = valid.Replace("2026-08-02T00", "2026-08-02T12")
+                    .Replace("\"positions\":[\"default\"]",
+                        "\"positions\":[\"default\",\"top\",\"utility\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(normalRoles)) &&
+                    LeagueAutoSelectGroupCatalog.SupportsRoles("normal") &&
+                    LeagueAutoSelectProfiles.Candidates(normalProfiles, "normal", "top", true, 0)
+                        .SequenceEqual(new[] { 22, 67 }),
+                    "Catalog-enabled normal lane priorities must reach the actual pick resolver.");
                 var scoped = valid.Replace("2026-08-02", "2026-08-03")
                     .Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_HN1\"]");
                 Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(scoped)) &&

@@ -153,7 +153,8 @@ namespace FACM.League
             mode = mode ?? "default";
             role = role ?? "default";
             var dynamic = LeagueAutoSelectGroupCatalog.IsDynamicGroupId(mode);
-            if (mode != "rift" && mode != "ranked" && mode != "custom" && !dynamic) role = "default";
+            if (mode != "rift" && mode != "ranked" && mode != "custom" &&
+                !LeagueAutoSelectGroupCatalog.SupportsRoles(mode)) role = "default";
             yield return mode + ":" + role;
             yield return mode + ":default";
             if (dynamic) yield break;
