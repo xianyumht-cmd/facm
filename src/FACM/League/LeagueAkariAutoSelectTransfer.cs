@@ -141,7 +141,7 @@ namespace FACM.League
                 var benchUpgrade = pick && Boolean(fields, "benchSelectFirstAvailableChampion");
                 var benchTrade = pick && Boolean(fields, "benchHandleTradeEnabled");
                 var benchDelay = pick ? Milliseconds(fields, "benchSwapAccumulatedDelaySeconds") : 0;
-                object rawBench;
+                object rawBench = null;
                 var benchEnabled = pick && (fields.TryGetValue("ggmanBenchSwapEnabled", out rawBench)
                     ? rawBench is bool && (bool)rawBench
                     : enabled && (group.Key == "aram" || group.Key == "mayhem" ||
