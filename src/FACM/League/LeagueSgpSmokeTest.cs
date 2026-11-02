@@ -119,8 +119,8 @@ namespace FACM.League
                 }
                 finally { local.Release(); }
                 var results = await Task.WhenAll(first, second).ConfigureAwait(false);
-                Require(results.All(bytes => bytes != null) && local.Calls == 2 && local.Peak == 1,
-                    "Both SGP requests must complete after serial local-token preflight.");
+                Require(results.All(bytes => bytes != null) && local.Calls == 1 && local.Peak == 1,
+                    "Concurrent SGP requests must share a short-lived session-scoped token preflight.");
             }
         }
 
@@ -230,6 +230,7 @@ namespace FACM.League
                 }
             }
             ValidateRecovery();
+            ValidateTokenReuseOwnership();
             ValidateCatalogRefresh();
             ValidateEogProjection();
             ValidateEogOnlyFallback();
@@ -721,6 +722,31 @@ namespace FACM.League
             finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
             Require(LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory == baseline,
                 "Synthetic catalog must restore original endpoints.");
+        }
+
+        private static void ValidateTokenReuseOwnership()
+        {
+            var session = Session("HN10", "TENCENT");
+            var local = new TokenApi();
+            var handler = new CaptureHandler();
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => session, local, handler))
+            {
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    api.TryGetGameSummaryAsync(602, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 1,
+                    "Sequential SGP details failed to reuse a bounded same-session entitlement token.");
+
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 2 &&
+                    local.Paths[1] == LeagueSgpMatchHistoryApiClient.LeagueSessionTokenPath,
+                    "Common SGP credentials must never reuse the match-history token.");
+
+                session = Session("HN1", "TENCENT");
+                Require(api.TryGetGameSummaryAsync(603, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 3 &&
+                    handler.Url.Contains("/HN1_603/SUMMARY"),
+                    "Changing the authenticated region must invalidate the previous SGP token snapshot.");
+            }
         }
 
         private static void ValidateRecovery()

@@ -131,6 +131,13 @@ namespace FACM.League
         private readonly ILeagueClientApi _local;
         private readonly HttpClient _http;
         private readonly SemaphoreSlim _localTokenGate = new SemaphoreSlim(1, 1);
+        private const int TokenReuseSeconds = 2;
+        private LeagueClientSession _tokenOwner;
+        private string _tokenRegion;
+        private string _historyToken;
+        private string _commonToken;
+        private DateTime _historyTokenAtUtc;
+        private DateTime _commonTokenAtUtc;
 
         internal LeagueSgpMatchHistoryApiClient(LeagueClientSessionProvider sessions, ILeagueClientApi local)
             : this(() => sessions.GetSession(), local, new HttpClientHandler
@@ -345,6 +352,51 @@ namespace FACM.League
                 string.Equals(CurrentServerId(expected), CurrentServerId(current), StringComparison.Ordinal);
         }
 
+        private async Task<string> ReadScopedTokenAsync(LeagueClientSession session, bool leagueToken,
+            string rejectedToken, CancellationToken cancellationToken)
+        {
+            await _localTokenGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (!SameSession(session)) return null;
+                var region = CurrentServerId(session);
+                if (_tokenOwner == null || !_tokenOwner.Matches(session) ||
+                    !string.Equals(_tokenRegion, region, StringComparison.Ordinal))
+                {
+                    _tokenOwner = session;
+                    _tokenRegion = region;
+                    _historyToken = null;
+                    _commonToken = null;
+                    _historyTokenAtUtc = DateTime.MinValue;
+                    _commonTokenAtUtc = DateTime.MinValue;
+                }
+
+                var cached = leagueToken ? _commonToken : _historyToken;
+                var cachedAt = leagueToken ? _commonTokenAtUtc : _historyTokenAtUtc;
+                if (cached != null && !string.Equals(cached, rejectedToken, StringComparison.Ordinal) &&
+                    DateTime.UtcNow - cachedAt < TimeSpan.FromSeconds(TokenReuseSeconds))
+                    return cached;
+
+                var credentials = await _local.TryGetBytesAsync(
+                    leagueToken ? LeagueSessionTokenPath : EntitlementsPath, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!SameSession(session)) return null;
+                var token = leagueToken ? ReadLeagueSessionToken(credentials) : ReadEntitlementsToken(credentials);
+                if (leagueToken)
+                {
+                    _commonToken = token;
+                    _commonTokenAtUtc = DateTime.UtcNow;
+                }
+                else
+                {
+                    _historyToken = token;
+                    _historyTokenAtUtc = DateTime.UtcNow;
+                }
+                return token;
+            }
+            finally { _localTokenGate.Release(); }
+        }
+
         private async Task<byte[]> SendAsync(LeagueClientSession session, Uri endpoint, string body,
             bool leagueToken, CancellationToken cancellationToken)
         {
@@ -359,16 +411,8 @@ namespace FACM.League
                     for (var attempt = 0; attempt < 2; attempt++)
                     {
                         if (!SameSession(session)) return null;
-                        byte[] credentials;
-                        await _localTokenGate.WaitAsync(deadline.Token).ConfigureAwait(false);
-                        try
-                        {
-                            credentials = await _local.TryGetBytesAsync(
-                                leagueToken ? LeagueSessionTokenPath : EntitlementsPath, deadline.Token)
-                                .ConfigureAwait(false);
-                        }
-                        finally { _localTokenGate.Release(); }
-                        var token = leagueToken ? ReadLeagueSessionToken(credentials) : ReadEntitlementsToken(credentials);
+                        var token = await ReadScopedTokenAsync(session, leagueToken, rejectedToken,
+                            deadline.Token).ConfigureAwait(false);
                         if (token == null || !SameSession(session) ||
                             (rejectedToken != null && string.Equals(token, rejectedToken, StringComparison.Ordinal)))
                             return null;
