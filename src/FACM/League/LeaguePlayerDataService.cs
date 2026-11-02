@@ -151,7 +151,7 @@ namespace FACM.League
                             .ConfigureAwait(false);
                         if (verifiedQueueId.HasValue && !SessionStillCurrent(queueSession))
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
-                        if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
+                        if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token, false)
                             .ConfigureAwait(false) != verifiedQueueId)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
                         var after = ParseProfile(await _client.TryGetBytesAsync(
@@ -540,7 +540,7 @@ namespace FACM.League
                                 result.Page.Matches.Clear();
                                 return result;
                             }
-                            if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
+                            if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token, false)
                                 .ConfigureAwait(false) != verifiedQueueId)
                             {
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
@@ -706,7 +706,8 @@ namespace FACM.League
             }
         }
 
-        private async Task<int?> ReadVerifiedCurrentQueueIdAsync(CancellationToken token)
+        private async Task<int?> ReadVerifiedCurrentQueueIdAsync(CancellationToken token,
+            bool requireMetadata = true)
         {
             var lobby = await _client.TryGetBytesAsync("/lol-lobby/v2/lobby", token).ConfigureAwait(false);
             var queue = LeagueSgpSupportedQueues.ParseLobbyQueueId(lobby);
@@ -717,7 +718,7 @@ namespace FACM.League
                 queue = LeagueSgpSupportedQueues.ParseGameflowQueueId(gameflow);
             }
             if (!queue.HasValue) return null;
-            if (LeagueSgpSupportedQueues.IsValidTag("q_" +
+            if (!requireMetadata || LeagueSgpSupportedQueues.IsValidTag("q_" +
                 queue.Value.ToString(CultureInfo.InvariantCulture))) return queue;
             var names = LeagueSgpSupportedQueues.ParseQueueNames(
                 await _client.TryGetBytesAsync("/lol-game-data/assets/v1/queues.json", token)

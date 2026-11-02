@@ -293,8 +293,9 @@ namespace FACM.League
             var result = service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
                 .GetAwaiter().GetResult();
-            Require(regional.Calls == 1 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
-                "A metadata-confirmed current queue must reach the existing SGP owner.");
+            Require(regional.Calls == 1 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable &&
+                local.MetadataCalls == 1,
+                "A metadata-confirmed current queue must use one catalog read and the existing SGP owner.");
             local.MissingMetadata = true;
             service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
@@ -364,6 +365,7 @@ namespace FACM.League
             internal bool NoLobby;
             internal bool MissingMetadata;
             internal int GameflowQueueId = 999;
+            internal int MetadataCalls;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -378,9 +380,12 @@ namespace FACM.League
                     return Task.FromResult(Bytes("{\"gameData\":{\"queue\":{\"id\":" +
                         GameflowQueueId.ToString() + "}}}"));
                 if (path == "/lol-game-data/assets/v1/queues.json")
+                {
+                    MetadataCalls++;
                     return Task.FromResult(Bytes(MissingMetadata ? @"[]" :
                         @"[{""id"":420,""name"":""Ranked""},{""id"":999,""name"":""Custom""}," +
                         @"{""id"":998,""name"":""Other""}]"));
+                }
                 return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
             }
         }
