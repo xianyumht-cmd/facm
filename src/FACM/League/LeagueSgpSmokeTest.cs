@@ -128,6 +128,35 @@ namespace FACM.League
         {
             ValidateTokenReadSerializationAsync().GetAwaiter().GetResult();
             ValidateSupportedQueueRefreshCancellation();
+            // The server chooser must identify the actual Tencent region before any SGP request.
+            // A wrong label can direct a cross-region lookup to the wrong platform.
+            var sourceTencentNames = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "TENCENT_HN1", "艾欧尼亚" },
+                { "TENCENT_HN10", "黑色玫瑰" },
+                { "TENCENT_TJ100", "联盟四区" },
+                { "TENCENT_TJ101", "联盟五区" },
+                { "TENCENT_NJ100", "联盟一区" },
+                { "TENCENT_GZ100", "联盟二区" },
+                { "TENCENT_CQ100", "联盟三区" },
+                { "TENCENT_BGP2", "峡谷之巅" },
+                { "TENCENT_PBE", "体验服" },
+                { "TENCENT_PREPBE", "预备体验服" }
+            };
+            var builtinTencent = LeagueSgpMatchHistoryApiClient.BuiltinServers
+                .Where(server => server.IsTencent).ToArray();
+            Require(builtinTencent.Length == sourceTencentNames.Count &&
+                builtinTencent.All(server => sourceTencentNames.ContainsKey(server.Id) &&
+                    server.Name == sourceTencentNames[server.Id]),
+                "Tencent regional selector labels must match the pinned Akari v1.5.1 server catalog.");
+            foreach (var server in builtinTencent)
+            {
+                var platform = server.Id.Substring("TENCENT_".Length);
+                var selected = LeagueSgpMatchHistoryApiClient.ResolveServer(Session(platform, "TENCENT"));
+                Require(selected != null && selected.Id == server.Id &&
+                    selected.PathRegion == platform && selected.Name == sourceTencentNames[server.Id],
+                    "A Tencent region name must select its own platform, never another numbered region.");
+            }
             var current = Session("HN10", "TENCENT");
             var local = new TokenApi();
             var handler = new CaptureHandler();

@@ -1,3 +1,7 @@
+### 2026-11-03 — Tencent SGP region identity and source labels (Draft #357)
+
+The pinned Akari v1.5.1 built-in server directory identifies TJ100/TJ101 as 联盟四区/联盟五区, NJ100/GZ100/CQ100 as 联盟一区/联盟二区/联盟三区 and BGP2 as 峡谷之巅. Native GGman previously assigned incorrect labels to all six, risking users selecting a different SGP region even when the endpoint itself was correctly scoped. The native region chooser now uses the pinned names without changing server IDs, URLs, credentials, refresh policy or account isolation. The executable SGP smoke asserts all ten Tencent names and their exact platform selection. **Candidate, exact-HEAD four Windows gates pending; no live Tencent/Win10 acceptance.**
+
 ### 2026-11-02 — PlayerInfoCardHeader direct profile navigation
 
 Pinned `PlayerInfoCardHeader.vue` navigates by the selected card PUUID. GGman's native roster context menu now exposes the existing `LeaguePlayerProfileDialog` directly (ranked queues, mastery, challenges), without requiring a nested history-page detour. The module reuses the existing `LeagueDynamicMessageService.PlayerHistoryService` and current LCU session owner, refusing foreign PUUIDs, synthetic historical previews, account/process replacement and unavailable sessions. The action does not require a known champion or lane. Source hover/header visual parity and real Tencent/Riot/Win10/cloud remain unverified. **Executable candidate `621dd14285a1eb426df6cc7faf75e7b015f20e23`; four final-HEAD Windows gates pending.**
