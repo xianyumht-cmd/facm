@@ -105,11 +105,11 @@ namespace FACM.League
             Require(LeagueAkariGameflowTransfer.TryParse(before, out parsed, out error) &&
                     parsed.Count == 19 && (double)parsed["autoMatchmakingMaximumMatchDuration"] == 0,
                 "Default native gameflow must round-trip through source-shaped JSON.");
-            var input = "{\\"autoHonorEnabled\\":true,\\"autoHonorStrategy\\":\\"only-lobby-member\\"," +
-                "\\"autoAcceptDelaySeconds\\":1.5,\\"autoMatchmakingMinimumMembers\\":3," +
-                "\\"autoMatchmakingRematchStrategy\\":\\"fixed-duration\\"," +
-                "\\"autoMatchmakingRematchFixedDuration\\":42," +
-                "\\"invitationHandlingStrategies\\":{\\"<DEFAULT>\\":\\"ignore\\",\\"NORMAL\\":\\"accept\\"}}";
+            var input = "{\"autoHonorEnabled\":true,\"autoHonorStrategy\":\"only-lobby-member\"," +
+                "\"autoAcceptDelaySeconds\":1.5,\"autoMatchmakingMinimumMembers\":3," +
+                "\"autoMatchmakingRematchStrategy\":\"fixed-duration\"," +
+                "\"autoMatchmakingRematchFixedDuration\":42," +
+                "\"invitationHandlingStrategies\":{\"<DEFAULT>\":\"ignore\",\"NORMAL\":\"accept\"}}";
             Require(LeagueAkariGameflowTransfer.TryParse(input, out parsed, out error),
                 "Supported source gameflow settings must parse.");
             LeagueAkariGameflowTransfer.ApplyValidated(settings, parsed);
@@ -126,14 +126,14 @@ namespace FACM.League
                     out parsed, out error) && parsed.Count == 19,
                 "Imported source settings must export as a valid full source object.");
             foreach (var invalid in new[] {
-                "{\\"autoAcceptEnabled\\":\\"true\\"}",
-                "{\\"autoMatchmakingMaximumMatchDuration\\":120}",
-                "{\\"autoMatchmakingMinimumMembers\\":6}",
-                "{\\"autoAcceptDelaySeconds\\":0.3}",
-                "{\\"autoHonorStrategy\\":\\"unsafe\\"}",
-                "{\\"invitationHandlingStrategies\\":{\\"UNKNOWN\\":\\"accept\\"}}",
-                "{\\"autoMatchmakingRoomNotices\\":true}",
-                "{\\"autoAcceptEnabled\\":true,\\"autoReconnectEnabled\\":null}"
+                "{\"autoAcceptEnabled\":\"true\"}",
+                "{\"autoMatchmakingMaximumMatchDuration\":120}",
+                "{\"autoMatchmakingMinimumMembers\":6}",
+                "{\"autoAcceptDelaySeconds\":0.3}",
+                "{\"autoHonorStrategy\":\"unsafe\"}",
+                "{\"invitationHandlingStrategies\":{\"UNKNOWN\":\"accept\"}}",
+                "{\"autoMatchmakingRoomNotices\":true}",
+                "{\"autoAcceptEnabled\":true,\"autoReconnectEnabled\":null}"
             })
                 Require(!LeagueAkariGameflowTransfer.TryParse(invalid, out parsed, out error),
                     "Invalid or unrepresentable source options must fail atomically.");
