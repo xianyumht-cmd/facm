@@ -403,6 +403,10 @@ namespace FACM.League
         public const string HistoricalDraftSwapTeam = "LeagueEfficiencyHistoricalDraftSwapTeam";
         public const string HistoricalDraftSwapApply = "LeagueEfficiencyHistoricalDraftSwapApply";
         public const string HistoricalDraftMoveTeam = "LeagueEfficiencyHistoricalDraftMoveTeam";
+        public const string HistoricalDraftAddArenaPair = "LeagueEfficiencyHistoricalDraftAddArenaPair";
+        public const string HistoricalDraftRemoveArenaPair = "LeagueEfficiencyHistoricalDraftRemoveArenaPair";
+        public const string HistoricalDraftPairFirst = "LeagueEfficiencyHistoricalDraftPairFirst";
+        public const string HistoricalDraftPairSecond = "LeagueEfficiencyHistoricalDraftPairSecond";
         public const string HistoricalDraftStartBlank = "LeagueEfficiencyHistoricalDraftStartBlank";
         public const string HistoricalDraftBlankBlue = "LeagueEfficiencyHistoricalDraftBlankBlue";
         public const string HistoricalDraftBlankRed = "LeagueEfficiencyHistoricalDraftBlankRed";
@@ -902,6 +906,10 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapTeam, "与其他队伍的玩家交换位置" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftSwapApply, "交换模拟队伍" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftMoveTeam, "移至另一队" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftAddArenaPair, "新增斗魂双人小队" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftRemoveArenaPair, "移除选中双人小队" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftPairFirst, "小队玩家一" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftPairSecond, "小队玩家二" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank, "从空白双队模板编队" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankBlue, "蓝方模拟玩家" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankRed, "红方模拟玩家" },

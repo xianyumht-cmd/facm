@@ -373,11 +373,12 @@ namespace FACM.League
             var requestedCounts = requested.GroupBy(p => p.TeamId)
                 .ToDictionary(g => g.Key, g => g.Count());
             if (requested.Any(p => !current.ContainsKey(p.PuuId)) ||
-                requestedCounts.Count != originalCounts.Count ||
-                requestedCounts.Keys.Any(id => !originalCounts.ContainsKey(id)) ||
-                (snapshot.HistoricalGameMode == "CHERRY" &&
-                 originalCounts.Any(g => requestedCounts[g.Key] != g.Value)) ||
-                !current.ContainsKey(targetPuuid))
+                !current.ContainsKey(targetPuuid) ||
+                (snapshot.HistoricalGameMode == "CHERRY"
+                    ? requestedCounts.Any(g => g.Value != 2 ||
+                        !LeagueCherryTeams.ValidSubteamId(g.Key).HasValue)
+                    : requestedCounts.Count != originalCounts.Count ||
+                      requestedCounts.Keys.Any(id => !originalCounts.ContainsKey(id))))
                 return false;
 
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
@@ -538,6 +539,58 @@ namespace FACM.League
             snapshot.SelfPuuid = blue.Player.PuuId;
             snapshot.HistoricalQueueId = 0;
             RefreshDraftSides(snapshot);
+            return true;
+        }
+
+        // Arena draft editing is always paired: no orphan subteam or inherited
+        // match evidence can be introduced by the synthetic preview.
+        internal static bool TryAddSyntheticArenaPair(LeagueDynamicMessageSnapshot snapshot,
+            string firstName, int firstChampion, string secondName, int secondChampion)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CHERRY" ||
+                snapshot.Players.Count > 18 || firstChampion < 1 || firstChampion > 9999 ||
+                secondChampion < 1 || secondChampion > 9999 ||
+                string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(secondName) ||
+                firstName.Trim().Length > 48 || secondName.Trim().Length > 48 ||
+                firstName.Any(char.IsControl) || secondName.Any(char.IsControl) ||
+                string.Equals(firstName.Trim(), secondName.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                snapshot.Players.Any(p =>
+                    string.Equals(p.Player.GameName, firstName.Trim(), StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(p.Player.GameName, secondName.Trim(), StringComparison.OrdinalIgnoreCase)))
+                return false;
+            var teamId = Enumerable.Range(1, 20).FirstOrDefault(id =>
+                snapshot.Players.All(p => p.HistoricalTeamId != id));
+            var cells = Enumerable.Range(1, 20).Where(id =>
+                snapshot.Players.All(p => p.Player.CellId != id)).Take(2).ToArray();
+            if (teamId == 0 || cells.Length != 2) return false;
+            Func<string, int, int, LeagueDynamicMessagePlayer> create = (name, champion, cell) =>
+                new LeagueDynamicMessagePlayer {
+                    HistoricalSyntheticAdded = true,
+                    HistoricalTeamId = teamId, HistoricalOriginalTeamId = teamId,
+                    HistoricalOriginalChampionId = champion,
+                    HistoricalOriginalChampionName = "#" + champion,
+                    HistoricalOriginalPosition = "", ChampionName = "#" + champion,
+                    Friendly = false,
+                    Player = new LeagueLivePlayerRow {
+                        PuuId = "draft-" + Guid.NewGuid().ToString("N"),
+                        CellId = cell, GameName = name.Trim(), ChampionId = champion,
+                        Position = "", Side = "enemy"
+                    }
+                };
+            snapshot.Players.Add(create(firstName, firstChampion, cells[0]));
+            snapshot.Players.Add(create(secondName, secondChampion, cells[1]));
+            return true;
+        }
+
+        internal static bool TryRemoveArenaPair(LeagueDynamicMessageSnapshot snapshot, int teamId)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CHERRY" ||
+                snapshot.Players.Count <= 4 ||
+                !LeagueCherryTeams.ValidSubteamId(teamId).HasValue) return false;
+            var pair = snapshot.Players.Where(p => p.HistoricalTeamId == teamId).ToArray();
+            if (pair.Length != 2 || pair.Any(p => p.Player.PuuId == snapshot.SelfPuuid))
+                return false;
+            foreach (var player in pair) snapshot.Players.Remove(player);
             return true;
         }
 

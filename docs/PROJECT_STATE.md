@@ -1,3 +1,7 @@
+## 2026-11-02 — Arena historical subteam editing candidate
+
+Draft #357 extends read-only historical Arena preview with atomic synthetic two-player subteam creation/removal, up to 20 players, TEAM-ALL display and reversible source roster. Invalid names, unpaired teams and selected perspective removal fail closed. Synthetic tests added; exact-SHA Windows gates pending. The source-complete standalone no-match draft remains missing.
+
 ## 2026-11-02 — Clean historical draft template candidate
 
 Draft #357 historical roster editor adds a two-sided synthetic blank template, editable and expandable up to 20 participants with source identity isolation and full original-roster reset. It is still launched from a verified historical preview, not an independent no-match entry. Synthetic regression added; exact-SHA Windows CI pending, live Tencent/Win10 final acceptance deferred.

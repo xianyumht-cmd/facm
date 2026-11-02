@@ -1999,6 +1999,34 @@ namespace FACM.League
                 ChampionId = p.Player.ChampionId, Position = "",
                 PrimaryPosition = "", SecondaryPosition = ""
             }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Same", 22, "Same", 23) &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena3", 22, "New", 23) &&
+                arenaDraft.Players.Count == 16,
+                "Arena pair input must reject duplicate names without modifying a roster.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena new one", 22, "Arena new two", 23) &&
+                arenaDraft.Players.Count == 18 &&
+                arenaDraft.Players.Count(p => p.HistoricalSyntheticAdded) == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 18,
+                "Arena preview must add a history-free subteam without losing TEAM-ALL display.");
+            var newArenaTeam = arenaDraft.Players.Single(p =>
+                p.Player.GameName == "Arena new one").HistoricalTeamId;
+            var expandedArena = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, expandedArena) &&
+                !LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft, 1) &&
+                LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft, newArenaTeam) &&
+                arenaDraft.Players.Count == 16 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Count == 16 &&
+                arenaDraft.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Arena pair removal and full reset must preserve immutable source identities.");
             Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaPerspective, "arena-3") &&
                 arenaDraft.SelfPuuid == "arena-3" &&
                 arenaDraft.Players.Count(p => p.Friendly) == 2 &&

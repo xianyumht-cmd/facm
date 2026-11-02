@@ -301,6 +301,67 @@ namespace FACM.League
         }
     }
 
+    internal sealed class LeagueHistoricalArenaPairDialog : Form
+    {
+        internal string FirstName { get; private set; }
+        internal string SecondName { get; private set; }
+        internal int FirstChampion { get; private set; }
+        internal int SecondChampion { get; private set; }
+
+        internal LeagueHistoricalArenaPairDialog(UiTextCatalog ui)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftAddArenaPair);
+            Width = 430; Height = 285; MinimumSize = new Size(370, 250);
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            AutoScaleMode = AutoScaleMode.Font;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2, RowCount = 5, Padding = new Padding(12) };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            for (var i = 0; i < 5; i++)
+                layout.RowStyles.Add(new RowStyle(SizeType.Percent, 20));
+            var first = new TextBox { Dock = DockStyle.Fill, MaxLength = 48 };
+            var second = new TextBox { Dock = DockStyle.Fill, MaxLength = 48 };
+            var firstChampion = new NumericUpDown { Dock = DockStyle.Fill,
+                Minimum = 1, Maximum = 9999, Value = 1 };
+            var secondChampion = new NumericUpDown { Dock = DockStyle.Fill,
+                Minimum = 1, Maximum = 9999, Value = 1 };
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftPairFirst) }, 0, 0);
+            layout.Controls.Add(first, 1, 0);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion) }, 0, 1);
+            layout.Controls.Add(firstChampion, 1, 1);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftPairSecond) }, 0, 2);
+            layout.Controls.Add(second, 1, 2);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion) }, 0, 3);
+            layout.Controls.Add(secondChampion, 1, 3);
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft };
+            var cancel = new Button { Width = 90, DialogResult = DialogResult.Cancel,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel) };
+            var apply = new Button { Width = 110,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftApply) };
+            apply.Click += (sender, args) =>
+            {
+                if (string.IsNullOrWhiteSpace(first.Text) ||
+                    string.IsNullOrWhiteSpace(second.Text)) return;
+                FirstName = first.Text.Trim(); SecondName = second.Text.Trim();
+                FirstChampion = (int)firstChampion.Value;
+                SecondChampion = (int)secondChampion.Value;
+                DialogResult = DialogResult.OK; Close();
+            };
+            buttons.Controls.Add(cancel); buttons.Controls.Add(apply);
+            layout.Controls.Add(buttons, 0, 4);
+            layout.SetColumnSpan(buttons, 2);
+            Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
+        }
+    }
+
     internal sealed class LeagueHistoricalRosterEditorDialog : Form
     {
         internal LeagueHistoricalRosterEditorDialog(UiTextCatalog ui,
@@ -513,6 +574,47 @@ namespace FACM.League
                 };
                 actions.Controls.Add(removePlayer);
                 actions.Controls.Add(addPlayer);
+            }
+            else if (snapshot.HistoricalGameMode == "CHERRY")
+            {
+                var addPair = new Button { Width = 148, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftAddArenaPair) };
+                addPair.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    using (var dialog = new LeagueHistoricalArenaPairDialog(ui))
+                    {
+                        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+                        if (!isCurrentSession() ||
+                            !LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(snapshot,
+                                dialog.FirstName, dialog.FirstChampion,
+                                dialog.SecondName, dialog.SecondChampion))
+                        {
+                            MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                                Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                var removePair = new Button { Width = 158, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRemoveArenaPair) };
+                removePair.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    var id = grid.CurrentRow?.Tag as string;
+                    var row = snapshot.Players.SingleOrDefault(p => p.Player.PuuId == id);
+                    if (row == null ||
+                        !LeagueHistoricalMatchDryRun.TryRemoveArenaPair(snapshot, row.HistoricalTeamId))
+                    {
+                        MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                            Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                actions.Controls.Add(removePair);
+                actions.Controls.Add(addPair);
             }
             layout.Controls.Add(actions, 0, 2);
             Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
