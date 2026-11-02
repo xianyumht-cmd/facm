@@ -133,8 +133,9 @@ namespace FACM.League
                         if (!string.Equals(before.PuuId, expected.PuuId, StringComparison.Ordinal))
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
 
+                        var queueSession = _session?.Invoke();
                         var verifiedQueueId = await VerifyCurrentQueueTagAsync(queueTag, serverId,
-                            _session?.Invoke(), timeout.Token).ConfigureAwait(false);
+                            queueSession, timeout.Token).ConfigureAwait(false);
                         if (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag) &&
                             !verifiedQueueId.HasValue)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
@@ -143,9 +144,13 @@ namespace FACM.League
                             .ConfigureAwait(false);
                         if (profile == null)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.NotFound };
+                        if (verifiedQueueId.HasValue && !SessionStillCurrent(queueSession))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
                         var page = await ReadHistoryPageAsync(profile, startIndex, count, source, serverId, timeout.Token, queueTag,
                             verifiedQueueId)
                             .ConfigureAwait(false);
+                        if (verifiedQueueId.HasValue && !SessionStillCurrent(queueSession))
+                            return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.AccountChanged };
                         if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
                             .ConfigureAwait(false) != verifiedQueueId)
                             return new LeagueRemotePlayerHistoryResult { Status = LeagueRiotPlayerSearchStatus.Unavailable };
@@ -520,9 +525,21 @@ namespace FACM.League
                                 result.Status = LeagueMatchCollectionStatus.Unavailable;
                                 return result;
                             }
+                            if (verifiedQueueId.HasValue && !SessionStillCurrent(session))
+                            {
+                                result.Status = LeagueMatchCollectionStatus.AccountChanged;
+                                result.Page.Matches.Clear();
+                                return result;
+                            }
                             var startIndex = iteration * settings.CountPerIteration;
                             var page = await ReadHistoryPageAsync(target, startIndex, settings.CountPerIteration,
                                 source, serverId, timeout.Token, queueTag, verifiedQueueId).ConfigureAwait(false);
+                            if (verifiedQueueId.HasValue && !SessionStillCurrent(session))
+                            {
+                                result.Status = LeagueMatchCollectionStatus.AccountChanged;
+                                result.Page.Matches.Clear();
+                                return result;
+                            }
                             if (verifiedQueueId.HasValue && await ReadVerifiedCurrentQueueIdAsync(timeout.Token)
                                 .ConfigureAwait(false) != verifiedQueueId)
                             {

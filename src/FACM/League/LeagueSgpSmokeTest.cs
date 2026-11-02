@@ -320,6 +320,13 @@ namespace FACM.League
                 .GetAwaiter().GetResult();
             Require(regional.Calls == 3 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
                 "A replaced signed-in account must discard the current-queue SGP response.");
+            local.Owner = "self";
+            regional.AfterRequest = () => active = Session("HN10", "TENCENT");
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 4 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A changed SGP region during the request must not publish the old-region response.");
         }
 
         private sealed class CurrentQueueHistoryApi : ILeagueSgpMatchHistoryApi, ILeagueSgpCurrentQueueHistoryApi
