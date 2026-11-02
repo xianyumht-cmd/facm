@@ -60,6 +60,17 @@ namespace FACM.League
 
         internal static void ValidateCardCollectionSubjectFilters()
         {
+            Require(LeagueRemotePlayerHistoryForm.ShouldAutoStartCardCollection(
+                    true, 22, "", "") &&
+                LeagueRemotePlayerHistoryForm.ShouldAutoStartCardCollection(
+                    true, 0, "JUNGLE", "") &&
+                LeagueRemotePlayerHistoryForm.ShouldAutoStartCardCollection(
+                    true, 0, "", "CHERRY") &&
+                !LeagueRemotePlayerHistoryForm.ShouldAutoStartCardCollection(
+                    true, 0, "", "") &&
+                !LeagueRemotePlayerHistoryForm.ShouldAutoStartCardCollection(
+                    false, 22, "", ""),
+                "Only explicit filtered player-card collection may prompt after a verified page load.");
             var rows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
                     Position = "TOP", MatchChampionIds = new[] { 22, 67 } },

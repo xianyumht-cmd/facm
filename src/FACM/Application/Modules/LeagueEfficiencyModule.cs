@@ -327,7 +327,7 @@ namespace FACM.AppHost.Modules
                     _encounterReplay.ExecuteForHistoryAsync(expected, self, target, match, token),
                 (expected, self, target, match, token) =>
                     _encounterDetails.ReadHistoryAsync(expected, self, target, match, token),
-                LoadEncounterAssetAsync, championId, position, mode);
+                LoadEncounterAssetAsync, championId, position, mode, true);
         }
 
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,

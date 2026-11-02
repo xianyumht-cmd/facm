@@ -69,6 +69,14 @@ namespace FACM.League
         private int _cardChampionId;
         private string _cardPosition;
         private string _cardMode;
+        private readonly bool _autoStartCardCollection;
+
+        internal static bool ShouldAutoStartCardCollection(bool requested,
+            int championId, string position, string mode)
+        {
+            return requested && (championId > 0 || !string.IsNullOrEmpty(position) ||
+                !string.IsNullOrEmpty(mode));
+        }
 
         internal LeagueRemotePlayerHistoryForm(LeaguePlayerDataService service, UiTextCatalog ui,
             LeaguePlayerProfile current, string targetPuuid, string targetName,
@@ -78,7 +86,8 @@ namespace FACM.League
             Func<LeagueClientSession, string, string, LeaguePlayerMatchSummary,
                 CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail = null,
             Func<string, CancellationToken, Task<Bitmap>> loadAsset = null,
-            int cardChampionId = 0, string cardPosition = null, string cardMode = "")
+            int cardChampionId = 0, string cardPosition = null, string cardMode = "",
+            bool autoStartCardCollection = false)
         {
             if (cardChampionId < 0 || cardChampionId > 9999 ||
                 !string.IsNullOrEmpty(cardPosition) &&
@@ -89,6 +98,8 @@ namespace FACM.League
             _cardChampionId = cardChampionId;
             _cardPosition = cardPosition ?? "";
             _cardMode = cardMode ?? "";
+            _autoStartCardCollection = ShouldAutoStartCardCollection(
+                autoStartCardCollection, _cardChampionId, _cardPosition, _cardMode);
             _service = service ?? throw new ArgumentNullException(nameof(service));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
             _expected = new LeaguePlayerProfile { PuuId = current == null ? null : current.PuuId };
@@ -395,6 +406,9 @@ namespace FACM.League
                 FitMatchColumns();
                 await RefreshRegionCatalogAsync();
                 await LoadPageAsync(0, _count);
+                if (_autoStartCardCollection && !IsDisposed && _loaded &&
+                    !_lifetime.IsCancellationRequested && SessionMatches(_pageSession))
+                    await StartCollectionAsync();
             };
             FormClosing += (sender, args) =>
             {
