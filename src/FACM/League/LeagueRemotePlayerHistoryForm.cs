@@ -245,6 +245,11 @@ namespace FACM.League
                 Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
                 BackColor = FacmDesignSystem.Canvas, Padding = Padding.Empty
             };
+            var filterActionsRow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, WrapContents = false, AutoScroll = true,
+                BackColor = FacmDesignSystem.Canvas, Padding = Padding.Empty
+            };
             _winFilter = new ComboBox
             {
                 Width = 100, Height = 27, DropDownStyle = ComboBoxStyle.DropDownList,
@@ -315,7 +320,7 @@ namespace FACM.League
                 RenderRows();
                 UpdatePageButtons();
             };
-            filterRow.Controls.Add(cardFilter);
+            filterActionsRow.Controls.Add(cardFilter);
             _collectButton = PageButton(UiTextKeys.LeaguePlayerCollectAction, 122);
             _collectButton.Click += async (sender, args) => await StartCollectionAsync();
             _stopCollectButton = PageButton(UiTextKeys.LeaguePlayerCollectStop, 64);
@@ -345,9 +350,9 @@ namespace FACM.League
                 await LeaguePlayerHistoryAnalysis.ShowAsync(this, _ui, CurrentFilteredRows(), _service,
                     _expected.PuuId, _puuid, _pageSession, _lifetime.Token);
             };
-            filterRow.Controls.Add(analysisButton);
-            filterRow.Controls.Add(_collectButton);
-            filterRow.Controls.Add(_stopCollectButton);
+            filterActionsRow.Controls.Add(analysisButton);
+            filterActionsRow.Controls.Add(_collectButton);
+            filterActionsRow.Controls.Add(_stopCollectButton);
 
             var footer = new FlowLayoutPanel
             {
@@ -402,11 +407,12 @@ namespace FACM.League
             var layout = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, Padding = new Padding(20, 14, 20, 20),
-                ColumnCount = 1, RowCount = 6, BackColor = FacmDesignSystem.Canvas
+                ColumnCount = 1, RowCount = 7, BackColor = FacmDesignSystem.Canvas
             };
             layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32F));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36F));
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
@@ -423,8 +429,9 @@ namespace FACM.League
             layout.Controls.Add(_statusLabel, 0, 1);
             layout.Controls.Add(sourceRow, 0, 2);
             layout.Controls.Add(filterRow, 0, 3);
-            layout.Controls.Add(_matches, 0, 4);
-            layout.Controls.Add(footer, 0, 5);
+            layout.Controls.Add(filterActionsRow, 0, 4);
+            layout.Controls.Add(_matches, 0, 5);
+            layout.Controls.Add(footer, 0, 6);
             Controls.Add(layout);
 
             UpdatePageButtons();
