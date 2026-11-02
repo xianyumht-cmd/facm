@@ -268,9 +268,9 @@ namespace FACM.League
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("all", 420) == null &&
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 420) == "q_420" &&
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 0) == "" &&
-                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 99999) == "" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 99999) == "q_99999" &&
                 LeagueDynamicMessageService.ResolveHistoryQueueTag("unknown", 420) == "",
-                "Current-queue history must use an allowlisted SGP tag and fail closed on unknown queues.");
+                "Current-queue history may offer a bounded tag; the data owner must verify local LCU metadata before SGP.");
             defaults.MatchHistoryTagPreference = "current";
             Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(defaults))
                     .MatchHistoryTagPreference == "current" &&

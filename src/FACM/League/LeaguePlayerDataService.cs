@@ -328,7 +328,7 @@ namespace FACM.League
             cancellationToken.ThrowIfCancellationRequested();
             if (profile == null || !IsSafePuuid(profile.PuuId) ||
                 (expectedOwnerPuuid != null && !IsSafePuuid(expectedOwnerPuuid)) ||
-                (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag))) return null;
+                (queueTag != null && !LeagueSgpSupportedQueues.IsQueueTagCandidate(queueTag))) return null;
             startIndex = Math.Max(0, startIndex);
             count = Math.Max(1, Math.Min(MaximumMatchCount, count));
             if (startIndex > int.MaxValue - count) return null;
@@ -372,8 +372,15 @@ namespace FACM.League
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
                             if (before == null || !SgpOwnerMatches(before.PuuId, before.PuuId,
                                 expectedOwnerPuuid)) return null;
+                            var verifiedQueueId = await VerifyCurrentQueueTagAsync(queueTag, null,
+                                session, regionalDeadline.Token).ConfigureAwait(false);
+                            if (queueTag != null && !LeagueSgpSupportedQueues.IsValidTag(queueTag) &&
+                                !verifiedQueueId.HasValue) return null;
                             page = await TryLoadSgpPageAsync(profile, startIndex, count,
-                                regionalDeadline.Token, null, queueTag).ConfigureAwait(false);
+                                regionalDeadline.Token, null, queueTag, verifiedQueueId).ConfigureAwait(false);
+                            if (verifiedQueueId.HasValue && (!SessionStillCurrent(session) ||
+                                await ReadVerifiedCurrentQueueIdAsync(regionalDeadline.Token, false)
+                                    .ConfigureAwait(false) != verifiedQueueId)) return null;
                             var after = ParseProfile(await _client.TryGetBytesAsync(
                                 LeagueDashboardDetailsService.SummonerPath, regionalDeadline.Token).ConfigureAwait(false));
                             if (after == null || !SgpOwnerMatches(before.PuuId, after.PuuId,
@@ -399,7 +406,7 @@ namespace FACM.League
             LeaguePlayerProfile target, int startIndex, int count, string tag,
             string ownerPuuid, CancellationToken token)
         {
-            return tag == null || !LeagueSgpSupportedQueues.IsValidTag(tag)
+            return tag == null || !LeagueSgpSupportedQueues.IsQueueTagCandidate(tag)
                 ? Task.FromResult<LeaguePlayerMatchPage>(null)
                 : LoadRosterSgpHistoryAsync(target, startIndex, count, tag, ownerPuuid, token);
         }
@@ -411,7 +418,7 @@ namespace FACM.League
             string ownerPuuid, CancellationToken token)
         {
             if (target == null || !IsSafePuuid(target.PuuId) || !IsSafePuuid(ownerPuuid) ||
-                (tag != null && !LeagueSgpSupportedQueues.IsValidTag(tag)) || startIndex < 0 ||
+                (tag != null && !LeagueSgpSupportedQueues.IsQueueTagCandidate(tag)) || startIndex < 0 ||
                 count < 1 || count > MaximumMatchCount || startIndex > int.MaxValue - count ||
                 _sgpHistory == null) return null;
             var session = _session?.Invoke();
@@ -424,9 +431,16 @@ namespace FACM.League
                     var before = await ReadRosterOwnerAsync(deadline.Token).ConfigureAwait(false);
                     if (!SgpOwnerMatches(before, before, ownerPuuid) ||
                         !SessionStillCurrent(session)) return null;
+                    var verifiedQueueId = await VerifyRosterCurrentQueueTagAsync(tag, session,
+                        deadline.Token).ConfigureAwait(false);
+                    if (tag != null && !LeagueSgpSupportedQueues.IsValidTag(tag) &&
+                        !verifiedQueueId.HasValue) return null;
                     var page = await TryLoadSgpPageAsync(target, startIndex, count,
-                        deadline.Token, null, tag).ConfigureAwait(false);
+                        deadline.Token, null, tag, verifiedQueueId).ConfigureAwait(false);
                     if (!SessionStillCurrent(session)) return null;
+                    if (verifiedQueueId.HasValue &&
+                        await ReadRosterCurrentQueueIdAsync(deadline.Token, false).ConfigureAwait(false)
+                            != verifiedQueueId) return null;
                     var after = await ReadRosterOwnerAsync(deadline.Token).ConfigureAwait(false);
                     if (!SgpOwnerMatches(before, after, ownerPuuid) ||
                         !SessionStillCurrent(session)) return null;
@@ -439,6 +453,25 @@ namespace FACM.League
                     return null;
                 }
             }
+        }
+
+        private async Task<int?> ReadRosterCurrentQueueIdAsync(CancellationToken token,
+            bool requireMetadata)
+        {
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try { return await ReadVerifiedCurrentQueueIdAsync(token, requireMetadata).ConfigureAwait(false); }
+            finally { _requestGate.Release(); }
+        }
+
+        private async Task<int?> VerifyRosterCurrentQueueTagAsync(string tag,
+            LeagueClientSession session, CancellationToken token)
+        {
+            if (tag == null || LeagueSgpSupportedQueues.IsValidTag(tag) ||
+                _session == null || session == null || !SessionStillCurrent(session) ||
+                !LeagueSgpSupportedQueues.IsQueueTagCandidate(tag)) return null;
+            var queue = await ReadRosterCurrentQueueIdAsync(token, true).ConfigureAwait(false);
+            return SessionStillCurrent(session) && CanUseCurrentQueueTag(tag, null, queue)
+                ? queue : null;
         }
 
         private async Task<string> ReadRosterOwnerAsync(CancellationToken token)

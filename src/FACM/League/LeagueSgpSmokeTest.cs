@@ -296,37 +296,45 @@ namespace FACM.League
             Require(regional.Calls == 1 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable &&
                 local.MetadataCalls == 1,
                 "A metadata-confirmed current queue must use one catalog read and the existing SGP owner.");
+            var roster = service.LoadTaggedRosterHistoryAsync(new LeaguePlayerProfile { PuuId = "target" },
+                0, 2, "q_999", "self", CancellationToken.None).GetAwaiter().GetResult();
+            Require(roster == null && regional.Calls == 2 && local.MetadataCalls == 2,
+                "Current-queue roster history must use the same LCU metadata and SGP owner.");
+            var recent = service.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = "target" },
+                0, 2, false, CancellationToken.None, "q_999", "self").GetAwaiter().GetResult();
+            Require(recent == null && regional.Calls == 3 && local.MetadataCalls == 3,
+                "Current-queue player-card pagination must use verified regional SGP.");
             local.MissingMetadata = true;
             service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
                 .GetAwaiter().GetResult();
-            Require(regional.Calls == 1,
+            Require(regional.Calls == 3,
                 "An unlisted queue without local metadata must not read SGP.");
             local.MissingMetadata = false;
             service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp,
                 serverId: "TENCENT_HN10", queueTag: "q_999").GetAwaiter().GetResult();
-            Require(regional.Calls == 1,
+            Require(regional.Calls == 3,
                 "A locally verified queue must never authorize another region.");
             regional.AfterRequest = () => local.GameflowQueueId = 998;
             result = service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
                 .GetAwaiter().GetResult();
-            Require(regional.Calls == 2 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
+            Require(regional.Calls == 4 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
                 "A queue changed during an SGP request must discard its response.");
             local.GameflowQueueId = 999;
             regional.AfterRequest = () => local.Owner = "other";
             result = service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
                 .GetAwaiter().GetResult();
-            Require(regional.Calls == 3 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+            Require(regional.Calls == 5 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
                 "A replaced signed-in account must discard the current-queue SGP response.");
             local.Owner = "self";
             regional.AfterRequest = () => active = Session("HN10", "TENCENT");
             result = service.LoadRemotePlayerHistoryAsync(expected, "target",
                 CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
                 .GetAwaiter().GetResult();
-            Require(regional.Calls == 4 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+            Require(regional.Calls == 6 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
                 "A changed SGP region during the request must not publish the old-region response.");
         }
 

@@ -289,7 +289,7 @@ namespace FACM.League
             if (preference != "current" || queueId <= 0 || queueId > 100000)
                 return string.Empty;
             var tag = "q_" + queueId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            return LeagueSgpSupportedQueues.IsValidTag(tag) ? tag : string.Empty;
+            return LeagueSgpSupportedQueues.IsQueueTagCandidate(tag) ? tag : string.Empty;
         }
 
         internal async Task<LeagueDynamicMessageSnapshot> LoadAsync(CancellationToken token,
