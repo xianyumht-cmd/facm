@@ -35,6 +35,15 @@ namespace FACM.League
         private static Group[] _groups;
         private static DateTime _updatedAt = BuiltinTimestamp;
         private static DateTime _lastAttempt = DateTime.MinValue;
+        private static DateTime _lastSuccess = DateTime.MinValue;
+
+        // Explicit refresh only: failed remote catalogs can retry after five minutes;
+        // accepted catalogs retain their two-hour budget. No background polling.
+        internal static bool ShouldRefresh(DateTime now, DateTime lastAttempt, DateTime lastSuccess)
+        {
+            return now - lastAttempt >= TimeSpan.FromMinutes(5) &&
+                now - lastSuccess >= TimeSpan.FromHours(2);
+        }
 
         internal static string Revision
         {
@@ -179,14 +188,17 @@ namespace FACM.League
             await Gate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
-                _lastAttempt = DateTime.UtcNow;
+                var now = DateTime.UtcNow;
+                if (!ShouldRefresh(now, _lastAttempt, _lastSuccess)) return false;
+                _lastAttempt = now;
                 // Resolve trusted new SGP platforms before validating server-scoped groups.
                 await refreshServers(token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 var bytes = await load(token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
-                return TryApply(bytes);
+                var applied = TryApply(bytes);
+                if (applied) _lastSuccess = DateTime.UtcNow;
+                return applied;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -361,6 +373,7 @@ namespace FACM.League
                 _groups = null;
                 _updatedAt = BuiltinTimestamp;
                 _lastAttempt = DateTime.MinValue;
+                _lastSuccess = DateTime.MinValue;
             }
         }
     }

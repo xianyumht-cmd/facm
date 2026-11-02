@@ -19,6 +19,15 @@ namespace FACM.League
         private static readonly object Sync = new object();
         private static DateTime _updatedAt = BuiltinTimestamp;
         private static DateTime _lastAttempt = DateTime.MinValue;
+        private static DateTime _lastSuccess = DateTime.MinValue;
+
+        // Explicit refresh only: failed remote catalogs can retry after five minutes;
+        // accepted catalogs retain their two-hour budget. No background polling.
+        internal static bool ShouldRefresh(DateTime now, DateTime lastAttempt, DateTime lastSuccess)
+        {
+            return now - lastAttempt >= TimeSpan.FromMinutes(5) &&
+                now - lastSuccess >= TimeSpan.FromHours(2);
+        }
 
         internal static Task<bool> TryRefreshAsync(CancellationToken token)
         {
@@ -34,11 +43,14 @@ namespace FACM.League
             await RefreshGate.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                if (DateTime.UtcNow - _lastAttempt < TimeSpan.FromHours(2)) return false;
-                _lastAttempt = DateTime.UtcNow;
+                var now = DateTime.UtcNow;
+                if (!ShouldRefresh(now, _lastAttempt, _lastSuccess)) return false;
+                _lastAttempt = now;
                 var data = await load(token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
-                return TryApply(data);
+                var applied = TryApply(data);
+                if (applied) _lastSuccess = DateTime.UtcNow;
+                return applied;
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -240,6 +252,7 @@ namespace FACM.League
                 LeagueSgpMatchHistoryApiClient.Servers = LeagueSgpMatchHistoryApiClient.BuiltinServers;
                 _updatedAt = BuiltinTimestamp;
                 _lastAttempt = DateTime.MinValue;
+                _lastSuccess = DateTime.MinValue;
             }
         }
     }

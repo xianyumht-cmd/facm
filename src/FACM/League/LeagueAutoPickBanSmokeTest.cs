@@ -63,6 +63,12 @@ namespace FACM.League
             LeagueAutoSelectGroupCatalog.ResetForSmokeTest();
             try
             {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "Auto-select group catalog must distinguish transient failure from successful refresh.");
                 var loads = 0;
                 using (var cancellation = new CancellationTokenSource())
                 {
@@ -96,7 +102,7 @@ namespace FACM.League
                         return Task.FromResult<byte[]>(null);
                     }).GetAwaiter().GetResult();
                 Require(loads == 2,
-                    "Completed group catalog attempt must retain the two-hour throttle.");
+                    "Failed group catalog attempt must retain the five-minute retry throttle.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
         }

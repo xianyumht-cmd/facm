@@ -16,6 +16,12 @@ namespace FACM.League
             LeagueSgpServerCatalog.ResetForSmokeTest();
             try
             {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueSgpServerCatalog.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueSgpServerCatalog.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueSgpServerCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueSgpServerCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "SGP catalog must use five-minute failure retry and two-hour successful refresh bounds.");
                 var attempts = 0;
                 using (var cancellation = new CancellationTokenSource())
                 {
@@ -46,7 +52,7 @@ namespace FACM.League
                     return Task.FromResult<byte[]>(null);
                 }).GetAwaiter().GetResult();
                 Require(attempts == 2,
-                    "An ordinary completed catalog attempt retains the two-hour on-demand throttle.");
+                    "A failed catalog attempt must retain its five-minute on-demand retry throttle.");
             }
             finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
         }
