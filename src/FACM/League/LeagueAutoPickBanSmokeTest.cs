@@ -486,6 +486,19 @@ namespace FACM.League
                 Require(writer.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
                     "Arena bravery must be available without a normal champion grid ID.");
             }
+            var stagedCherry = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 },
+                    PickStrategy = "show-and-lock-in" } });
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = selection, GameflowJson = arenaFlow, Pickable = "[22]" },
+                writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, stagedCherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:-3:False", "pick:12:-3:True" }),
+                    "Source Arena bravery show-and-lock must preserve its negative champion ID.");
+            }
             reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"), Pickable = "[22]" };
             writer = new FakeWrite();
             using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
@@ -510,6 +523,20 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.Calls.SequenceEqual(new[] { "ban:12:-1:True" }),
                     "Explicit empty ban was not submitted in an eligible turn.");
+            }
+            var stagedNoBan = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top",
+                    Bans = new List<int> { -1 }, BanStrategy = "show-and-lock-in" } });
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                    GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[-1,22]" },
+                writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, stagedNoBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "ban:12:-1:False", "ban:12:-1:True" }),
+                    "Source empty-ban show-and-lock must preserve its negative champion ID.");
             }
             reader = new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
                 GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[22]" };

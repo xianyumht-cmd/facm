@@ -392,7 +392,7 @@ namespace FACM.League
             {
                 shownChampionId = candidates.FirstOrDefault(id =>
                     attempted.Contains(shownKey + ":" + id.ToString(CultureInfo.InvariantCulture)));
-                if (shownChampionId <= 0 ||
+                if (shownChampionId == 0 ||
                     action.ChampionId > 0 && action.ChampionId != shownChampionId)
                 {
                     // A manual choice or changed profile cannot be locked as our old intent.
@@ -413,7 +413,7 @@ namespace FACM.League
                 if (!IsCurrent(episode)) return;
                 availableIds.IntersectWith(ParseAvailableIds(subset));
             }
-            var desired = shownChampionId > 0
+            var desired = shownChampionId != 0
                 ? (CandidateAvailable(availableIds, shownChampionId, action.Type, mode)
                     ? shownChampionId : 0)
                 : action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
