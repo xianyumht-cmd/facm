@@ -467,7 +467,7 @@ namespace FACM.League
 
         internal static bool SameEpisodeSession(LeagueClientSession expected, LeagueClientSession current)
         {
-            return expected != null && expected.Matches(current);
+            return LeagueMatchmakingAutomationController.SameOwner(expected, current);
         }
 
         private bool IsCurrentMatchmakingEpisode(int generation)

@@ -138,6 +138,14 @@ namespace FACM.League
             var original = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test");
             var same = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test");
             var replacement = new LeagueClientSession("LeagueClientUx", 2, 2999, "two", "https", "test");
+            var sameTokenNewProcess = new LeagueClientSession("LeagueClientUx", 2, 2999, "one", "https", "test");
+            var sameTokenNewRegion = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test",
+                "HN1", "TENCENT");
+            var originalRegion = new LeagueClientSession("LeagueClientUx", 1, 2999, "one", "https", "test",
+                "HN10", "TENCENT");
+            Require(!LeagueMatchmakingStopController.SameEpisodeSession(original, sameTokenNewProcess) &&
+                    !LeagueMatchmakingStopController.SameEpisodeSession(originalRegion, sameTokenNewRegion),
+                "Queue DELETE ownership must include LCU process and region, not only reused port/token.");
             Require(LeagueMatchmakingStopController.SameEpisodeSession(original, same) &&
                 !LeagueMatchmakingStopController.SameEpisodeSession(original, replacement) &&
                 !LeagueMatchmakingStopController.SameEpisodeSession(original, null),
