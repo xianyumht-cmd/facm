@@ -377,8 +377,9 @@ namespace FACM.League
                 (snapshot.HistoricalGameMode == "CHERRY"
                     ? requestedCounts.Any(g => g.Value != 2 ||
                         !LeagueCherryTeams.ValidSubteamId(g.Key).HasValue)
-                    : requestedCounts.Count != originalCounts.Count ||
-                      requestedCounts.Keys.Any(id => !originalCounts.ContainsKey(id))))
+                    : requestedCounts.Count != (snapshot.HistoricalStandalone ? 2 : originalCounts.Count) ||
+                      requestedCounts.Keys.Any(id => snapshot.HistoricalStandalone
+                          ? id != 100 && id != 200 : !originalCounts.ContainsKey(id))))
                 return false;
 
             var cherry = snapshot.HistoricalGameMode == "CHERRY";
@@ -417,6 +418,8 @@ namespace FACM.League
                         if (targetPuuid == selection.PuuId) targetPuuid = original.Player.PuuId;
                         player = original;
                     }
+                    else if (player.HistoricalSyntheticAdded)
+                        player.Player.GameName = draftName;
                     else if (player.HistoricalOriginalPlayer == null)
                     {
                         string draftId;
@@ -518,10 +521,30 @@ namespace FACM.League
         // Start a clean two-sided template inside an existing read-only historical
         // preview. No original player, identity, match or analysis data is reused.
         // The source roster remains immutable for an exact full reset.
+        internal static LeagueDynamicMessageSnapshot BuildStandalone(
+            string mode, string blueName, string redName)
+        {
+            if (mode != "CLASSIC" && mode != "CHERRY") return null;
+            var snapshot = new LeagueDynamicMessageSnapshot {
+                Phase = "HistoricalPreview", HistoricalStandalone = true,
+                HistoricalGameMode = mode, RosterKey = "draft:" + Guid.NewGuid().ToString("N"),
+                CreatedUtc = DateTime.UtcNow
+            };
+            return TryStartBlankRoster(snapshot, blueName, redName) ? snapshot : null;
+        }
+
         internal static bool TryStartBlankRoster(LeagueDynamicMessageSnapshot snapshot,
             string blueName, string redName)
         {
-            if (!ValidTeamDraft(snapshot) ||
+            var newStandalone = snapshot != null && snapshot.HistoricalStandalone &&
+                snapshot.Phase == "HistoricalPreview" &&
+                snapshot.Players.Count == 0 && snapshot.HistoricalOriginalRoster.Count == 0 &&
+                snapshot.HistoricalOriginalTargetPuuid == null &&
+                snapshot.HistoricalOriginalQueueId == 0 &&
+                snapshot.HistoricalQueueId == 0 &&
+                snapshot.RosterKey != null &&
+                snapshot.RosterKey.StartsWith("draft:", StringComparison.Ordinal);
+            if (!(newStandalone || ValidTeamDraft(snapshot)) ||
                 (snapshot.HistoricalGameMode != "CLASSIC" &&
                  snapshot.HistoricalGameMode != "CHERRY") ||
                 string.IsNullOrWhiteSpace(blueName) || string.IsNullOrWhiteSpace(redName) ||
@@ -673,7 +696,7 @@ namespace FACM.League
 
         internal static bool TryRestoreOriginalDraft(LeagueDynamicMessageSnapshot snapshot)
         {
-            if (!ValidTeamDraft(snapshot) ||
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalStandalone ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.HistoricalOriginalTargetPuuid))
                 return false;
             var originals = snapshot.HistoricalOriginalRoster.ToArray();
@@ -716,6 +739,12 @@ namespace FACM.League
 
         private static bool ValidTeamDraft(LeagueDynamicMessageSnapshot snapshot)
         {
+            var standalone = snapshot != null && snapshot.HistoricalStandalone &&
+                snapshot.HistoricalOriginalRoster.Count == 0 &&
+                snapshot.HistoricalOriginalTargetPuuid == null &&
+                snapshot.HistoricalOriginalQueueId == 0 &&
+                snapshot.RosterKey != null &&
+                snapshot.RosterKey.StartsWith("draft:", StringComparison.Ordinal);
             if (snapshot == null || snapshot.Phase != "HistoricalPreview" ||
                 snapshot.HistoricalQueueId < 0 || snapshot.HistoricalQueueId > 100000 ||
                 snapshot.HistoricalOriginalQueueId < 0 ||
@@ -724,10 +753,10 @@ namespace FACM.League
                 (snapshot.HistoricalGameMode != "CLASSIC" && snapshot.HistoricalGameMode != "CHERRY") ||
                 snapshot.Players.Count < 2 || snapshot.Players.Count > 20 ||
                 (snapshot.HistoricalGameMode == "CHERRY" && snapshot.Players.Count % 2 != 0) ||
-                (snapshot.HistoricalGameMode == "CLASSIC" ?
+                (!standalone && (snapshot.HistoricalGameMode == "CLASSIC" ?
                     snapshot.HistoricalOriginalRoster.Count != 10 :
                     snapshot.HistoricalOriginalRoster.Count != 8 &&
-                    snapshot.HistoricalOriginalRoster.Count != 16) ||
+                    snapshot.HistoricalOriginalRoster.Count != 16)) ||
                 snapshot.HistoricalOriginalRoster.Any(p => p?.Player == null ||
                     !LeagueDynamicMessageService.SafePuuid(p.Player.PuuId) ||
                     p.HistoricalSyntheticAdded) ||
@@ -749,6 +778,7 @@ namespace FACM.League
                 p.Player.Side != (p.Friendly ? "ally" : "enemy"))) return false;
             foreach (var original in new[] { false, true })
             {
+                if (original && standalone) continue;
                 var source = original ? snapshot.HistoricalOriginalRoster : snapshot.Players;
                 var groups = source.GroupBy(p => original ?
                     p.HistoricalOriginalTeamId : p.HistoricalTeamId).ToArray();

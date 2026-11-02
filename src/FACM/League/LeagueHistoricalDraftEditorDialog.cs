@@ -517,6 +517,7 @@ namespace FACM.League
                 }
                 DialogResult = DialogResult.OK; Close();
             };
+            restore.Enabled = !snapshot.HistoricalStandalone;
             actions.Controls.Add(cancel); actions.Controls.Add(apply); actions.Controls.Add(restore);
 
             if (snapshot.HistoricalGameMode == "CLASSIC")
@@ -635,6 +636,108 @@ namespace FACM.League
             layout.Controls.Add(actions, 0, 2);
             Controls.Add(layout); AcceptButton = apply; CancelButton = cancel;
             Activated += (sender, args) => { if (!isCurrentSession()) Close(); };
+        }
+    }
+
+    // Standalone, memory-only draft workbench. Never binds a client session or sends a message.
+    internal sealed class LeagueStandaloneDraftDialog : Form
+    {
+        private LeagueDynamicMessageSnapshot _draft;
+
+        internal LeagueStandaloneDraftDialog(UiTextCatalog ui)
+        {
+            if (ui == null) throw new ArgumentNullException(nameof(ui));
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle);
+            Width = 920; Height = 640; MinimumSize = new Size(600, 420);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 1, RowCount = 4, Padding = new Padding(12) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                WrapContents = false, AutoScroll = true };
+            var mode = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
+            mode.Items.Add("CLASSIC");
+            mode.Items.Add("CHERRY");
+            mode.SelectedIndex = 0;
+            var create = new Button { AutoSize = true, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) };
+            var edit = new Button { AutoSize = true, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) };
+            actions.Controls.Add(mode); actions.Controls.Add(create); actions.Controls.Add(edit);
+            layout.Controls.Add(actions, 0, 0);
+            var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                FullRowSelect = true, GridLines = true,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardTeam), 120);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer), 260);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 130);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 160);
+            layout.Controls.Add(rows, 0, 1);
+            var preview = new TextBox { Dock = DockStyle.Fill, ReadOnly = true,
+                Multiline = true, ScrollBars = ScrollBars.Vertical,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text };
+            layout.Controls.Add(preview, 0, 2);
+            layout.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftHint),
+                AutoEllipsis = true }, 0, 3);
+            Action refresh = () =>
+            {
+                rows.BeginUpdate();
+                try
+                {
+                    rows.Items.Clear();
+                    foreach (var player in LeagueHistoricalMatchDryRun.DraftDisplayPlayers(_draft))
+                    {
+                        rows.Items.Add(new ListViewItem(new[] {
+                            _draft.HistoricalGameMode == "CHERRY"
+                                ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
+                                : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                                    LeagueEfficiencyUiTextKeys.DynamicEnemy),
+                            player.Player.GameName ?? "",
+                            player.ChampionName ?? ("#" + player.Player.ChampionId),
+                            player.Player.Position ?? ""
+                        }));
+                    }
+                }
+                finally { rows.EndUpdate(); }
+                preview.Text = string.Join(Environment.NewLine,
+                    LeagueDynamicMessageFormatter.Build(_draft,
+                        new LeagueDynamicMessageOptions { Target = "all",
+                            NameStrategy = "championNameWithName" }));
+            };
+            Action createDraft = () =>
+            {
+                var cherry = mode.SelectedIndex == 1;
+                _draft = LeagueHistoricalMatchDryRun.BuildStandalone(
+                    cherry ? "CHERRY" : "CLASSIC",
+                    t(cherry ? LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaOne :
+                        LeagueEfficiencyUiTextKeys.HistoricalDraftBlankBlue),
+                    t(cherry ? LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaTwo :
+                        LeagueEfficiencyUiTextKeys.HistoricalDraftBlankRed));
+                if (_draft == null)
+                {
+                    preview.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                    return;
+                }
+                refresh();
+            };
+            create.Click += (sender, args) => createDraft();
+            edit.Click += (sender, args) =>
+            {
+                if (_draft == null) return;
+                using (var editor = new LeagueHistoricalRosterEditorDialog(
+                    ui, _draft, () => !IsDisposed && !Disposing))
+                    if (editor.ShowDialog(this) == DialogResult.OK) refresh();
+            };
+            Controls.Add(layout);
+            createDraft();
         }
     }
 

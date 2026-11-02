@@ -301,6 +301,17 @@ namespace FACM.League
             actions.Controls.Add(_load); actions.Controls.Add(_loadJungle);
             actions.Controls.Add(_loadRosterDetails); actions.Controls.Add(_loadRosterHistory);
             actions.Controls.Add(save);
+            var standaloneDraft = new FacmActionButton { AutoSize = true,
+                Text = T(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) + " · " +
+                    T(LeagueEfficiencyUiTextKeys.HistoricalDryRunTitle),
+                Tone = FacmButtonTone.Secondary };
+            standaloneDraft.Click += (sender, args) =>
+            {
+                if (_busy || IsDisposed) return;
+                using (var dialog = new LeagueStandaloneDraftDialog(_ui))
+                    dialog.ShowDialog(this);
+            };
+            actions.Controls.Add(standaloneDraft);
             actions.Controls.Add(tagTools); actions.Controls.Add(_send);
             root.Controls.Add(actions, 0, 1);
             var metrics = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true };

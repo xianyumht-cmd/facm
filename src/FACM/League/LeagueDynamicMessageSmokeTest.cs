@@ -1425,6 +1425,51 @@ namespace FACM.League
 
         private static void ValidateHistoricalDryRun()
         {
+            var standalone = LeagueHistoricalMatchDryRun.BuildStandalone(
+                "CLASSIC", "Blue", "Red");
+            Require(standalone != null && standalone.HistoricalStandalone &&
+                standalone.HistoricalOriginalRoster.Count == 0 &&
+                standalone.Players.Count == 2 && standalone.Players.All(p =>
+                    p.HistoricalSyntheticAdded && p.History == null &&
+                    p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(standalone).Count == 2 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(standalone),
+                "Standalone Rift draft must have no source match or restorable identity.");
+            var standaloneFirst = standalone.Players[0];
+            var standaloneBatch = standalone.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            standaloneBatch[0].DraftName = "Edited Blue";
+            standaloneBatch[0].ChampionId = 22;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(standalone,
+                    standaloneBatch, standalone.SelfPuuid, 420) &&
+                object.ReferenceEquals(standaloneFirst, standalone.Players[0]) &&
+                standalone.Players[0].Player.GameName == "Edited Blue" &&
+                standalone.Players[0].History == null && standalone.HistoricalQueueId == 420 &&
+                LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(standalone,
+                    "Third", 100, 99) && standalone.Players.Count == 3 &&
+                !LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(
+                    standalone, standalone.SelfPuuid),
+                "Standalone Rift edits and additions must stay isolated and reversible.");
+            Require(LeagueHistoricalMatchDryRun.BuildStandalone(
+                    "INVALID", "Blue", "Red") == null &&
+                LeagueHistoricalMatchDryRun.BuildStandalone(
+                    "CLASSIC", "Same", "Same") == null,
+                "Standalone draft must reject unsupported modes and duplicate names.");
+            var standaloneArena = LeagueHistoricalMatchDryRun.BuildStandalone(
+                "CHERRY", "Arena Blue", "Arena Red");
+            Require(standaloneArena != null && standaloneArena.HistoricalStandalone &&
+                standaloneArena.HistoricalOriginalRoster.Count == 0 &&
+                standaloneArena.Players.Count == 4 &&
+                LeagueDynamicMessageService.TargetPlayers(standaloneArena, "all").Count == 4 &&
+                LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(
+                    standaloneArena, "New One", 22, "New Two", 23) &&
+                standaloneArena.Players.Count == 6 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(standaloneArena),
+                "Standalone Arena draft must keep paired TEAM-ALL without source evidence.");
             var tripleRows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target",
                     ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",

@@ -161,6 +161,7 @@ namespace FACM.League
             new List<LeagueDynamicMessagePlayer>();
         internal string Phase;
         internal string HistoricalGameMode;
+        internal bool HistoricalStandalone;
         internal bool LiveArenaAll;
         internal int HistoricalQueueId;
         internal int HistoricalOriginalQueueId;
