@@ -168,6 +168,7 @@ namespace FACM.League
                     }
                     if (pick)
                     {
+                        if (role == "default") row.AkariExactPickRoles = true;
                         row.Picks = lists[role].ToList();
                         row.PickEnabled = enabled;
                         row.PickStrategy = strategy;
@@ -181,6 +182,7 @@ namespace FACM.League
                     }
                     else
                     {
+                        if (role == "default") row.AkariExactBanRoles = true;
                         row.Bans = lists[role].ToList();
                         row.BanEnabled = enabled;
                         row.BanStrategy = strategy;
@@ -203,6 +205,8 @@ namespace FACM.League
                 BenchAutoSwapEnabled = row.BenchAutoSwapEnabled,
                 BenchPreferHigherPriority = row.BenchPreferHigherPriority,
                 BenchHandleTradeEnabled = row.BenchHandleTradeEnabled,
+                AkariExactPickRoles = row.AkariExactPickRoles,
+                AkariExactBanRoles = row.AkariExactBanRoles,
                 BenchSwapDelayMs = row.BenchSwapDelayMs
             };
         }

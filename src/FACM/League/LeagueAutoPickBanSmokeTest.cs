@@ -671,10 +671,26 @@ namespace FACM.League
                 ranked.ShowPickIntent && ranked.IgnoreTeammateIntent &&
                 original.Count == 1 && original[0].Picks.SequenceEqual(new[] { 157 }),
                 "Akari pick/ban import must map utility roles, settings and preserve the editor until commit.");
+            Require(ranked.AkariExactPickRoles && ranked.AkariExactBanRoles &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "support", true, 22)
+                    .SequenceEqual(new[] { 40, 16 }) &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "top", true, 22).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "top", false, 67).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", null, true, 22)
+                    .SequenceEqual(new[] { 22 }) &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", null, false, 67)
+                    .SequenceEqual(new[] { 67 }),
+                "Akari imported lanes must not silently inherit default or legacy champions.");
+            var persisted = LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles.Serialize(imported));
+            Require(LeagueAutoSelectProfiles.Candidates(persisted, "ranked", "top", true, 22).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(persisted, "ranked", "support", true, 22)
+                    .SequenceEqual(new[] { 40, 16 }),
+                "Akari lane isolation must survive native settings persistence.");
             var roundTrip = LeagueAkariAutoSelectTransfer.Import(
                 LeagueAkariAutoSelectTransfer.Export(imported), new LeagueAutoSelectProfile[0]);
             Require(roundTrip.Count == imported.Count &&
-                roundTrip.Single(p => p.Role == "support").Picks.SequenceEqual(new[] { 40, 16 }),
+                roundTrip.Single(p => p.Role == "support").Picks.SequenceEqual(new[] { 40, 16 }) &&
+                LeagueAutoSelectProfiles.Candidates(roundTrip, "ranked", "top", true, 22).Count == 0,
                 "Akari auto-select export/import must retain group and role priorities.");
             var onlyBan = new JavaScriptSerializer().Serialize(new
             {

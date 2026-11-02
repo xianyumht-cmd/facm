@@ -22,6 +22,9 @@ namespace FACM.League
         public bool BenchAutoSwapEnabled { get; set; }
         public bool BenchPreferHigherPriority { get; set; }
         public bool BenchHandleTradeEnabled { get; set; }
+        // Source-imported groups use exactly the assigned role list; native profiles retain fallbacks.
+        public bool AkariExactPickRoles { get; set; }
+        public bool AkariExactBanRoles { get; set; }
         public int BenchSwapDelayMs { get; set; } = 2900;
     }
 
@@ -119,6 +122,19 @@ namespace FACM.League
             string mode, string role, bool pick, int legacyDefault)
         {
             var ordered = new List<int>();
+            var sourceGroup = profiles == null ? null : profiles.FirstOrDefault(p =>
+                p.Mode == mode && p.Role == "default");
+            if (sourceGroup != null && (pick ? sourceGroup.AkariExactPickRoles : sourceGroup.AkariExactBanRoles))
+            {
+                // Akari 1.5.1 getExpectedPicks/Bans reads champions[assignedPosition || 'default']
+                // without merging default priorities or a GGman legacy champion ID.
+                var selectedRole = role ?? "default";
+                if (mode != "rift" && mode != "ranked" && mode != "custom" &&
+                    !LeagueAutoSelectGroupCatalog.SupportsRoles(mode))
+                    selectedRole = "default";
+                var exact = profiles.FirstOrDefault(p => p.Mode == mode && p.Role == selectedRole);
+                return exact == null ? ordered : new List<int>(pick ? exact.Picks : exact.Bans);
+            }
             var keys = ProfileKeys(mode, role);
             foreach (var key in keys.Distinct(StringComparer.Ordinal))
             {
