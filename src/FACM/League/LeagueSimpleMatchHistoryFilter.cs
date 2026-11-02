@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 
 namespace FACM.League
@@ -33,6 +34,39 @@ namespace FACM.League
         internal string SubjectPosition;
         // Empty = all; NORMAL = known non-Arena match; CHERRY = Arena.
         internal string SubjectMode;
+
+        internal static bool TryParseParticipantFilters(string championCsv, string puuidCsv,
+            out int[] championIds, out string[] playerPuuids)
+        {
+            championIds = null;
+            playerPuuids = null;
+            if ((championCsv ?? string.Empty).Length > 512 || (puuidCsv ?? string.Empty).Length > 2048)
+                return false;
+            var champions = string.IsNullOrWhiteSpace(championCsv) ? new string[0] : championCsv.Split(',');
+            var players = string.IsNullOrWhiteSpace(puuidCsv) ? new string[0] : puuidCsv.Split(',');
+            if (champions.Length > 10 || players.Length > 10) return false;
+            var parsedChampions = new List<int>();
+            var parsedPlayers = new List<string>();
+            foreach (var raw in champions)
+            {
+                var token = raw.Trim();
+                int id;
+                if (token.Length == 0 || !int.TryParse(token, NumberStyles.None,
+                    CultureInfo.InvariantCulture, out id) || id <= 0 || id > 10000 ||
+                    parsedChampions.Contains(id)) return false;
+                parsedChampions.Add(id);
+            }
+            foreach (var raw in players)
+            {
+                var token = raw.Trim();
+                if (!LeagueSgpMatchHistoryApiClient.SafePuuid(token) ||
+                    parsedPlayers.Contains(token, StringComparer.Ordinal)) return false;
+                parsedPlayers.Add(token);
+            }
+            championIds = parsedChampions.ToArray();
+            playerPuuids = parsedPlayers.ToArray();
+            return true;
+        }
 
         internal bool Matches(LeaguePlayerMatchSummary match, DateTime nowUtc)
         {

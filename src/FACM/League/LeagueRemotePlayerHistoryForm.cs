@@ -38,6 +38,9 @@ namespace FACM.League
         private readonly ComboBox _winFilter;
         private readonly ComboBox _timeFilter;
         private readonly ComboBox _modeFilter;
+        private readonly Button _participantsFilterButton;
+        private int[] _matchChampionIds = new int[0];
+        private string[] _matchPuuids = new string[0];
         private readonly Button _advancedFilterButton;
         private readonly Button _collectButton;
         private readonly Button _stopCollectButton;
@@ -294,6 +297,8 @@ namespace FACM.League
                 RenderRows();
                 UpdatePageButtons();
             };
+            _participantsFilterButton = PageButton(UiTextKeys.LeaguePlayerParticipantsFilter, 120);
+            _participantsFilterButton.Click += (sender, args) => EditParticipantFilters();
             _advancedFilterButton = PageButton(UiTextKeys.LeaguePlayerAdvancedFilter, 154);
             _advancedFilterButton.Click += (sender, args) => EditAdvancedFilter();
             var cardFilter = new Button {
@@ -330,6 +335,7 @@ namespace FACM.League
             filterRow.Controls.Add(_winFilter);
             filterRow.Controls.Add(_timeFilter);
             filterRow.Controls.Add(_modeFilter);
+            filterRow.Controls.Add(_participantsFilterButton);
             filterRow.Controls.Add(_advancedFilterButton);
             var analysisButton = PageButton(UiTextKeys.LeaguePlayerAnalysisAction, 90);
             analysisButton.Click += async (sender, args) =>
@@ -605,6 +611,8 @@ namespace FACM.League
             _timeFilter.Enabled = _loaded && !_loading && !_replayRunning;
             _modeFilter.Enabled = _loaded && !_loading && !_replayRunning &&
                 _collectionCancellation == null;
+            _participantsFilterButton.Enabled = _loaded && !_loading && !_replayRunning &&
+                _collectionCancellation == null;
             _advancedFilterButton.Enabled = _loaded && !_loading && !_replayRunning;
             _collectButton.Enabled = _loaded && !_loading && !_replayRunning &&
                 _targetProfile != null && HasCollectionFilter() && SessionMatches(_pageSession);
@@ -621,9 +629,93 @@ namespace FACM.League
 
         private bool HasCollectionFilter()
         {
-            return _winFilter.SelectedIndex > 0 || _timeFilter.SelectedIndex > 0 || SelectedQueueTag() != null ||
+            return _winFilter.SelectedIndex > 0 || _timeFilter.SelectedIndex > 0 ||
+                _matchChampionIds.Length > 0 || _matchPuuids.Length > 0 || SelectedQueueTag() != null ||
                 _cardChampionId > 0 || _cardPosition.Length > 0 || _cardMode.Length > 0 ||
                 (_advancedFilter != null && _advancedFilter.Root.Children.Count > 0);
+        }
+
+        private void EditParticipantFilters()
+        {
+            if (_loading || !_loaded || _collectionCancellation != null) return;
+            var expectedSession = _pageSession;
+            using (var dialog = new Form
+            {
+                Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsFilter),
+                StartPosition = FormStartPosition.CenterParent,
+                AutoScaleMode = AutoScaleMode.Font,
+                ClientSize = new Size(480, 254),
+                MinimumSize = new Size(480, 254),
+                BackColor = FacmDesignSystem.Canvas,
+                ForeColor = FacmDesignSystem.Text,
+                Font = Font
+            })
+            {
+                var hint = new Label
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsHint),
+                    Bounds = new Rectangle(18, 12, 444, 48),
+                    ForeColor = FacmDesignSystem.TextMuted
+                };
+                var championLabel = new Label
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsChampions),
+                    Bounds = new Rectangle(18, 68, 444, 20)
+                };
+                var championInput = new TextBox
+                {
+                    Bounds = new Rectangle(18, 90, 444, 26),
+                    Text = string.Join(",", _matchChampionIds.Select(id => id.ToString()))
+                };
+                var playerLabel = new Label
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsPlayers),
+                    Bounds = new Rectangle(18, 124, 444, 20)
+                };
+                var playerInput = new TextBox
+                {
+                    Bounds = new Rectangle(18, 146, 444, 26),
+                    Text = string.Join(",", _matchPuuids)
+                };
+                var cancel = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
+                    Bounds = new Rectangle(264, 204, 94, 30),
+                    DialogResult = DialogResult.Cancel
+                };
+                var apply = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
+                    Bounds = new Rectangle(368, 204, 94, 30)
+                };
+                int[] nextChampions = null;
+                string[] nextPlayers = null;
+                apply.Click += (sender, args) =>
+                {
+                    if (!LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                        championInput.Text, playerInput.Text, out nextChampions, out nextPlayers))
+                    {
+                        MessageBox.Show(dialog, _ui.Get(UiTextKeys.LeaguePlayerParticipantsInvalid),
+                            dialog.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    dialog.DialogResult = DialogResult.OK;
+                    dialog.Close();
+                };
+                dialog.Controls.AddRange(new Control[] {
+                    hint, championLabel, championInput, playerLabel, playerInput, cancel, apply
+                });
+                dialog.AcceptButton = apply;
+                dialog.CancelButton = cancel;
+                if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession))
+                    return;
+                _matchChampionIds = nextChampions;
+                _matchPuuids = nextPlayers;
+            }
+            _participantsFilterButton.Text = _ui.Get(_matchChampionIds.Length + _matchPuuids.Length > 0
+                ? UiTextKeys.LeaguePlayerParticipantsActive : UiTextKeys.LeaguePlayerParticipantsFilter);
+            RenderRows();
+            UpdatePageButtons();
         }
 
         private void EditAdvancedFilter()
@@ -648,6 +740,7 @@ namespace FACM.League
                 new LeagueSimpleMatchHistoryFilter {
                     WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
                     TimeRange = TimeFilterFromSelection(_timeFilter.SelectedIndex),
+                    ChampionIds = _matchChampionIds.ToArray(), PlayerPuuids = _matchPuuids.ToArray(),
                     SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition,
                     SubjectMode = _cardMode
                 }, DateTime.UtcNow);
@@ -719,7 +812,8 @@ namespace FACM.League
             {
                 WinLoss = (LeagueMatchWinLossFilter)Math.Max(0, _winFilter.SelectedIndex),
                     TimeRange = TimeFilterFromSelection(_timeFilter.SelectedIndex),
-                SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition,
+                ChampionIds = _matchChampionIds.ToArray(), PlayerPuuids = _matchPuuids.ToArray(),
+                    SubjectChampionId = _cardChampionId, SubjectPosition = _cardPosition,
                 SubjectMode = _cardMode
             };
             var advanced = _advancedFilter;

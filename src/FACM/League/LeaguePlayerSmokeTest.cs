@@ -31,6 +31,7 @@ namespace FACM.League
             ValidateAdvancedParticipantScopes();
             ValidateAdvancedSourcePresets();
             ValidateAdvancedTimeRangeFilters();
+            ValidateSimpleParticipantFilterInput();
             ValidateCherryAnalysisTeams();
             ValidateAdvancedGameResults();
             ValidateRiotPlayerSearch();
@@ -1199,6 +1200,46 @@ namespace FACM.League
             Require(Math.Abs(match.ChampionDamageShare.Value - 100d / 4400d) < .000001 &&
                 match.SameTeamPuuids.Length == 4 && allies.Matches(match) && !enemies.Matches(match),
                 "Ordinary modes must retain teamId grouping even when optional subteam fields are present.");
+        }
+
+        private static void ValidateSimpleParticipantFilterInput()
+        {
+            int[] champions;
+            string[] players;
+            Require(LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                "22, 145", "player-one,player_two", out champions, out players) &&
+                champions.SequenceEqual(new[] { 22, 145 }) &&
+                players.SequenceEqual(new[] { "player-one", "player_two" }),
+                "Source simple participant filters must preserve exact multi-champion and PUUID targets.");
+            var match = new LeaguePlayerMatchSummary {
+                MatchChampionIds = new[] { 22, 145, 99 },
+                MatchPlayers = new[] {
+                    new LeaguePlayerMatchIdentity { PuuId = "player-one" },
+                    new LeaguePlayerMatchIdentity { PuuId = "player_two" }
+                }
+            };
+            var filter = new LeagueSimpleMatchHistoryFilter {
+                ChampionIds = champions, PlayerPuuids = players
+            };
+            Require(filter.Matches(match, DateTime.UtcNow),
+                "All verified champion and player targets must match in the same game.");
+            match.MatchPlayers[1].PuuId = "PLAYER_TWO";
+            Require(!filter.Matches(match, DateTime.UtcNow),
+                "Source PUUID matching must remain case-sensitive.");
+            match.MatchPlayers = null;
+            Require(!filter.Matches(match, DateTime.UtcNow),
+                "Missing roster identities must not satisfy a participant filter.");
+            foreach (var invalid in new[] { "22,22", "0", "-1", "22,", "abc", "10001" })
+                Require(!LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                    invalid, "", out champions, out players),
+                    "Invalid or duplicate champion IDs must be rejected atomically.");
+            foreach (var invalid in new[] { "bad name", "abc,abc", "abc,", new string('x', 129) })
+                Require(!LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                    "", invalid, out champions, out players),
+                    "Invalid, duplicate or overlong PUUIDs must be rejected atomically.");
+            Require(LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                "", "", out champions, out players) && champions.Length == 0 && players.Length == 0,
+                "Clearing both participant categories must remain possible.");
         }
 
         private static void ValidateAdvancedTimeRangeFilters()
