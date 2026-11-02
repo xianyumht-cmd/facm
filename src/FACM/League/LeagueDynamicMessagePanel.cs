@@ -442,7 +442,11 @@ namespace FACM.League
                             await SetPlayerTagAsync(snapshot, choice,
                                 editor.Controls.OfType<TextBox>().First().Text);
                         }
-                    }))
+                    },
+                    token => _module.CompleteDynamicHistoriesAsync(snapshot,
+                        new HashSet<string>(StringComparer.Ordinal) {
+                            choice.Player.Player.PuuId
+                        }, token)))
                     dialog.ShowDialog(this);
                 if (!IsDisposed && ReferenceEquals(_snapshot, snapshot))
                 {

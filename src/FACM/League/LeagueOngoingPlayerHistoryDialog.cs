@@ -1044,7 +1044,8 @@ namespace FACM.League
             int autoPages = 0, Func<int, string, string, Form> openFullCollection = null,
             Func<CancellationToken, Task<bool>> loadMastery = null,
             Func<CancellationToken, Task<bool>> loadJungle = null,
-            Func<IWin32Window, Task> editTag = null)
+            Func<IWin32Window, Task> editTag = null,
+            Func<CancellationToken, Task<bool>> reloadHistory = null)
         {
             if (ui == null || snapshot == null || player?.Player == null ||
                 isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
@@ -1268,7 +1269,10 @@ namespace FACM.League
             var hasMore = player.History != null &&
                 nextIndex < 200 && !player.RosterCardExhausted;
             var more = new Button { Dock = DockStyle.Fill,
-                Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore), Enabled = hasMore };
+                Text = player.History == null && reloadHistory != null
+                    ? ui.Get(UiTextKeys.LeaguePlayerRemoteRetry)
+                    : t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore),
+                Enabled = hasMore || player.History == null && reloadHistory != null };
             var collect = new Button { Dock = DockStyle.Fill,
                 Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect), Enabled = false };
             var collecting = false;
@@ -1348,7 +1352,59 @@ namespace FACM.League
                     }
                 }
             };
-            more.Click += async (sender, args) => await fetchNext(_lifetime.Token);
+            more.Click += async (sender, args) =>
+            {
+                if (player.History != null)
+                {
+                    await fetchNext(_lifetime.Token);
+                    return;
+                }
+                if (reloadHistory == null || loading || collecting || !isCurrent()) return;
+                loading = true; more.Enabled = false; collect.Enabled = false;
+                fullCollect.Enabled = false;
+                try
+                {
+                    var recovered = await reloadHistory(_lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                    if (!recovered || player.History == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    var restored = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
+                    if (restored.Count > snapshot.HistoryLoadCount)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    matches.Clear();
+                    matches.AddRange(restored);
+                    nextIndex = snapshot.HistoryLoadCount;
+                    hasMore = restored.Count > 0 && nextIndex < 200;
+                    player.RosterCardHistory = null;
+                    player.RosterCardNextIndex = 0;
+                    player.RosterCardExhausted = !hasMore;
+                    more.Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore);
+                    rebuildChoices();
+                    refreshRows();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = !collecting && isCurrent() &&
+                            (hasMore || player.History == null && reloadHistory != null);
+                        updateCollect();
+                    }
+                }
+            };
             collect.Click += async (sender, args) =>
             {
                 if (collecting || loading || !isCurrent()) return;
