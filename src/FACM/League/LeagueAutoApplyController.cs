@@ -512,6 +512,36 @@ namespace FACM.League
                    string.Equals(saved, "ranked-default", StringComparison.Ordinal);
         }
 
+        internal string ExportAkariChampionPresets()
+        {
+            return LeagueAkariChampionPresetTransfer.Export(ListRunePresets(), ListSpellPresets());
+        }
+
+        internal void ImportAkariChampionPresets(LeagueAkariChampionPresetBundle bundle)
+        {
+            if (bundle == null || !bundle.HasRunes && !bundle.HasSpells)
+                throw new ArgumentException("Invalid champion preset import.");
+            if (bundle.HasRunes && LeagueChampionRunePresets.Parse(bundle.Runes).Count != bundle.RuneCount ||
+                bundle.HasSpells && LeagueChampionSpellPresets.Parse(bundle.Spells).Count != bundle.SpellCount)
+                throw new ArgumentException("Invalid champion preset catalog.");
+            var oldRunes = _settings.LeagueChampionRunePresets;
+            var oldSpells = _settings.LeagueChampionSpellPresets;
+            try
+            {
+                if (bundle.HasRunes) _settings.LeagueChampionRunePresets = bundle.Runes;
+                if (bundle.HasSpells) _settings.LeagueChampionSpellPresets = bundle.Spells;
+                _settings.Save();
+            }
+            catch
+            {
+                _settings.LeagueChampionRunePresets = oldRunes;
+                _settings.LeagueChampionSpellPresets = oldSpells;
+                throw;
+            }
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+        }
+
         internal IReadOnlyList<LeagueChampionSpellPreset> ListSpellPresets()
         {
             return LeagueChampionSpellPresets.Parse(_settings.LeagueChampionSpellPresets);

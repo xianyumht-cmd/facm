@@ -22,6 +22,8 @@ namespace FACM.League
         private readonly Button _delete = new Button();
         private readonly Button _editSpells = new Button();
         private readonly Button _deleteSpells = new Button();
+        private readonly Button _importAkari = new Button();
+        private readonly Button _exportAkari = new Button();
         private readonly IReadOnlyList<LeagueRuneOption> _spellOptions;
         private readonly IReadOnlyList<LeagueRuneOption> _championOptions;
 
@@ -73,7 +75,7 @@ namespace FACM.League
 
             var buttons = new FlowLayoutPanel
             {
-                Dock = DockStyle.Bottom, Height = 54,
+                Dock = DockStyle.Bottom, Height = 90,
                 FlowDirection = FlowDirection.RightToLeft,
                 Padding = new Padding(10), BackColor = FacmDesignSystem.Surface
             };
@@ -98,7 +100,17 @@ namespace FACM.League
             _deleteSpells.Width = 115;
             _deleteSpells.Height = 32;
             _deleteSpells.Click += delegate { DeleteSpells(); };
+            _importAkari.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerImportAkari);
+            _importAkari.Width = 105;
+            _importAkari.Height = 32;
+            _importAkari.Click += delegate { ImportAkari(); };
+            _exportAkari.Text = T(LeagueChampionSpellPresetUiTextKeys.ManagerExportAkari);
+            _exportAkari.Width = 105;
+            _exportAkari.Height = 32;
+            _exportAkari.Click += delegate { ExportAkari(); };
             buttons.Controls.Add(close);
+            buttons.Controls.Add(_exportAkari);
+            buttons.Controls.Add(_importAkari);
             buttons.Controls.Add(_deleteSpells);
             buttons.Controls.Add(_delete);
             buttons.Controls.Add(_editSpells);
@@ -287,6 +299,46 @@ namespace FACM.League
             {
                 AppLog.Error("League rune preset removal failed", error);
                 MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.SaveFailed),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void ImportAkari()
+        {
+            try
+            {
+                if (!Clipboard.ContainsText(TextDataFormat.UnicodeText)) return;
+                var bundle = LeagueAkariChampionPresetTransfer.Import(
+                    Clipboard.GetText(TextDataFormat.UnicodeText));
+                if (MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerImportConfirm) +
+                    " (" + bundle.RuneCount + " / " + bundle.SpellCount + ")",
+                    Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                _controller.ImportAkariChampionPresets(bundle);
+                RefreshSaved();
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerImportSuccess),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception error)
+            {
+                AppLog.Error("League champion preset clipboard import failed", error);
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerTransferFailed),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void ExportAkari()
+        {
+            try
+            {
+                Clipboard.SetText(_controller.ExportAkariChampionPresets(), TextDataFormat.UnicodeText);
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerExportSuccess),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception error)
+            {
+                AppLog.Error("League champion preset clipboard export failed", error);
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerTransferFailed),
                     Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }

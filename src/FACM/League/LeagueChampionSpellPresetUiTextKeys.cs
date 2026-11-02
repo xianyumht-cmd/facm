@@ -43,6 +43,12 @@ namespace FACM.League
         public const string ManagerEditSpells = "LeagueChampionSpellPresetManagerEditSpells";
         public const string ManagerDeleteSpells = "LeagueChampionSpellPresetManagerDeleteSpells";
         public const string ManagerDeleteSpellsConfirm = "LeagueChampionSpellPresetManagerDeleteSpellsConfirm";
+        public const string ManagerImportAkari = "LeagueChampionSpellPresetManagerImportAkari";
+        public const string ManagerExportAkari = "LeagueChampionSpellPresetManagerExportAkari";
+        public const string ManagerImportConfirm = "LeagueChampionSpellPresetManagerImportConfirm";
+        public const string ManagerImportSuccess = "LeagueChampionSpellPresetManagerImportSuccess";
+        public const string ManagerExportSuccess = "LeagueChampionSpellPresetManagerExportSuccess";
+        public const string ManagerTransferFailed = "LeagueChampionSpellPresetManagerTransferFailed";
         public const string SpellEditorTitle = "LeagueChampionSpellPresetSpellEditorTitle";
         public const string SpellSlot1 = "LeagueChampionSpellPresetSpellSlot1";
         public const string SpellSlot2 = "LeagueChampionSpellPresetSpellSlot2";
@@ -81,6 +87,12 @@ namespace FACM.League
             { ManagerEditSpells, "编辑技能" },
             { ManagerDeleteSpells, "删除技能" },
             { ManagerDeleteSpellsConfirm, "确认删除所选英雄和模式的召唤师技能预设？符文预设不受影响。" },
+            { ManagerImportAkari, "导入 Akari" },
+            { ManagerExportAkari, "导出 Akari" },
+            { ManagerImportConfirm, "从剪贴板导入 Akari v1.5.1 英雄配置并替换对应类别的全部本地预设？符文 / 技能条目数：" },
+            { ManagerImportSuccess, "Akari 英雄配置已导入本地预设。" },
+            { ManagerExportSuccess, "符文和召唤师技能预设已复制为 Akari JSON。" },
+            { ManagerTransferFailed, "配置数据无效、过大或剪贴板不可用；未执行导入。" },
             { SpellEditorTitle, "编辑召唤师技能 · " },
             { SpellSlot1, "召唤师技能一" },
             { SpellSlot2, "召唤师技能二" },

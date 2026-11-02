@@ -17,12 +17,50 @@ namespace FACM.League
             ValidateChampionSpellPresetContracts();
             ValidateRuneEditorCatalog();
             ValidateExpandedChampionPresetCatalogs();
+            ValidateAkariChampionPresetTransfer();
             ValidateStableExactlyOnceContract();
             ValidateDisableAndPhaseContract();
             ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
             ValidateStatusObserverIsolation();
             ValidateUiTextDefaults();
+        }
+
+        private static void ValidateAkariChampionPresetTransfer()
+        {
+            const string akari = "{\\"runesV2\\":{\\"157\\":{\\"ranked-top\\":{\\"primaryStyleId\\":8000," +
+                "\\"subStyleId\\":8100,\\"selectedPerkIds\\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]}}}," +
+                "\\"summonerSpells\\":{\\"157\\":{\\"ranked-top\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}";
+            var parsed = LeagueAkariChampionPresetTransfer.Import(akari);
+            Require(parsed.HasRunes && parsed.HasSpells && parsed.RuneCount == 1 && parsed.SpellCount == 1 &&
+                LeagueChampionRunePresets.Resolve(parsed.Runes, 157, "ranked-top") != null &&
+                LeagueChampionSpellPresets.Resolve(parsed.Spells, 157, "ranked-top").Spell2Id == 14,
+                "Pinned Akari rune and spell settings must import together.");
+            var exported = LeagueAkariChampionPresetTransfer.Export(
+                LeagueChampionRunePresets.Parse(parsed.Runes), LeagueChampionSpellPresets.Parse(parsed.Spells));
+            var roundtrip = LeagueAkariChampionPresetTransfer.Import(exported);
+            Require(roundtrip.RuneCount == 1 && roundtrip.SpellCount == 1 &&
+                LeagueChampionRunePresets.Resolve(roundtrip.Runes, 157, "ranked-top").SelectedPerkIds.Count == 9,
+                "Akari clipboard export must round-trip source fields.");
+            var spellsOnly = LeagueAkariChampionPresetTransfer.Import(
+                "{\\"summonerSpells\\":{\\"157\\":{\\"normal\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}");
+            Require(!spellsOnly.HasRunes && spellsOnly.HasSpells && spellsOnly.SpellCount == 1,
+                "Importing one Akari catalog must preserve the other local catalog.");
+            var invalid = new[]
+            {
+                "{\\"runesV2\\":{\\"157\\":{\\"ranked-top\\":{\\"primaryStyleId\\":8000}}}}",
+                "{\\"summonerSpells\\":{\\"157\\":{\\"unknown\\":{\\"spell1Id\\":4,\\"spell2Id\\":14}}}}",
+                "{\\"summonerSpells\\":{\\"157\\":{\\"normal\\":{\\"spell1Id\\":4,\\"spell2Id\\":4}}}}",
+                "{\\"summonerSpells\\":{\\"abc\\":{}}}",
+                "{\\"unrelated\\":{}}"
+            };
+            foreach (var input in invalid)
+            {
+                var rejected = false;
+                try { LeagueAkariChampionPresetTransfer.Import(input); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Malformed or unsupported Akari data must reject the entire import.");
+            }
         }
 
         private static void ValidateExpandedChampionPresetCatalogs()
