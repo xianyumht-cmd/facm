@@ -96,8 +96,8 @@ namespace FACM.League
                             !entry.TryGetValue("common", out common) ||
                             !entry.TryGetValue("isTencent", out tencent) ||
                             !(tencent is bool) || (bool)tencent != server.IsTencent ||
-                            !SafeEndpoint(history as string, server) ||
-                            !SafeEndpoint(common as string, server) ||
+                            !SafeKnownEndpoint(history as string, server, true) ||
+                            !SafeKnownEndpoint(common as string, server, false) ||
                             entry.TryGetValue("regionPathParam", out region) &&
                             !string.Equals(region as string, server.PathRegion, StringComparison.Ordinal))
                             return false;
@@ -213,6 +213,36 @@ namespace FACM.League
             return server;
         }
 
+        // Riot platform IDs may use different pinned common-host aliases (NA1/na, OC1/oce).
+        // Never route League-session credentials to a history gateway or another region.
+        private static bool SafeKnownEndpoint(string value, LeagueSgpServer server, bool history)
+        {
+            if (!SafeEndpointShape(value, server.IsTencent)) return false;
+            if (server.IsTencent) return SafeEndpoint(value, server);
+            var baseline = LeagueSgpMatchHistoryApiClient.BuiltinServers
+                .FirstOrDefault(item => !item.IsTencent && item.Id == server.Id);
+            if (baseline == null) return false;
+            var host = new Uri(value).Host;
+            return history
+                ? LeagueSgpMatchHistoryApiClient.BuiltinServers.Any(item =>
+                    !item.IsTencent && string.Equals(new Uri(item.MatchHistory).Host,
+                        host, StringComparison.OrdinalIgnoreCase))
+                : string.Equals(new Uri(baseline.Common).Host, host,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool SafeEndpointShape(string value, bool tencent)
+        {
+            Uri uri;
+            return !string.IsNullOrWhiteSpace(value) && value.Length <= 256 &&
+                Uri.TryCreate(value, UriKind.Absolute, out uri) &&
+                uri.Scheme == Uri.UriSchemeHttps && uri.UserInfo.Length == 0 &&
+                uri.Query.Length == 0 && uri.Fragment.Length == 0 &&
+                uri.AbsolutePath == "/" && uri.Port == (tencent ? 21019 : 443) &&
+                uri.Host.EndsWith(tencent ? ".lol.qq.com" : ".sgp.pvp.net",
+                    StringComparison.OrdinalIgnoreCase);
+        }
+
         private static bool SafeNewTencentEndpoint(string value, LeagueSgpServer server)
         {
             if (!SafeEndpoint(value, server)) return false;
@@ -225,15 +255,8 @@ namespace FACM.League
         private static bool SafeEndpoint(string value, LeagueSgpServer server)
         {
             var tencent = server.IsTencent;
-            Uri uri;
-            if (string.IsNullOrWhiteSpace(value) || value.Length > 256 ||
-                !Uri.TryCreate(value, UriKind.Absolute, out uri) ||
-                uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length != 0 ||
-                uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
-                uri.AbsolutePath != "/" || uri.Port != (tencent ? 21019 : 443))
-                return false;
-            if (!uri.Host.EndsWith(tencent ? ".lol.qq.com" : ".sgp.pvp.net",
-                StringComparison.OrdinalIgnoreCase)) return false;
+            if (!SafeEndpointShape(value, tencent)) return false;
+            var uri = new Uri(value);
             return !tencent || uri.Host.StartsWith(
                 server.PathRegion.ToLowerInvariant() + "-", StringComparison.OrdinalIgnoreCase);
         }

@@ -676,6 +676,27 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT")) == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
                     "A newer catalog must revoke an omitted dynamic platform and retain its own known entries.");
+                // Pinned Riot common hosts use aliases, not regionPathParam for several platforms.
+                var existingRiot = @"{""updatedAt"":""2026-08-05T12:00:00.000Z"",""servers"":{
+                    ""NA1"":{""matchHistory"":""https://usw2-red.pp.sgp.pvp.net"",""common"":""https://na-red.lol.sgp.pvp.net"",""isTencent"":false},
+                    ""EUW"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",""common"":""https://euw-red.lol.sgp.pvp.net"",""isTencent"":false},
+                    ""OC1"":{""matchHistory"":""https://apse1-red.pp.sgp.pvp.net"",""common"":""https://oce-red.lol.sgp.pvp.net"",""isTencent"":false}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(existingRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"))?.Common ==
+                        "https://na-red.lol.sgp.pvp.net" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("OC1", "OCE"))?.Common ==
+                        "https://oce-red.lol.sgp.pvp.net",
+                    "Pinned Riot region aliases must accept their actual source common hosts.");
+                foreach (var unsafeKnown in new[] {
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "br-red.lol.sgp.pvp.net"),
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "usw2-red.pp.sgp.pvp.net"),
+                    existingRiot.Replace("usw2-red.pp.sgp.pvp.net", "attacker.sgp.pvp.net"),
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net.evil.example"),
+                    existingRiot.Replace("https://na-red.lol.sgp.pvp.net", "http://na-red.lol.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeKnown.Replace("2026-08-05T12", "2026-08-05T13"))),
+                        "Riot history and profile tokens must remain on pinned provider-specific hosts.");
                 var newRiot = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""servers"":{""ME1"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",""common"":""https://me1-red.lol.sgp.pvp.net"",""isTencent"":false}},""serverNames"":{""zh-CN"":{""ME1"":""合成国际区""}}}";
                 var newRiotSession = Session("ME1", "ME1");
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(newRiot)) &&
