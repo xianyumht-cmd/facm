@@ -135,7 +135,8 @@ namespace FACM.AppHost.Modules
                     out error))
                 AppLog.Warning("League efficiency saved hotkeys were not registered: " + error);
 
-            _postGame = new LeaguePostGameAutomationController(_leagueClient, (ILeaguePostGameWriteApi)_leagueClient);
+            _postGame = new LeaguePostGameAutomationController(_leagueClient,
+                (ILeaguePostGameWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
             _postGame.HonorAttemptCompleted += HandleHonorAttemptCompleted;
             _postGame.Configure(AutoHonorEnabled, AutoReturnLobbyEnabled, AutoHonorStrategy);
 

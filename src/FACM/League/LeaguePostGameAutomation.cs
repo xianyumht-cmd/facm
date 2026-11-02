@@ -108,6 +108,8 @@ namespace FACM.League
         private readonly ILeaguePostGameWriteApi _write;
         private readonly ILeaguePostGameClock _clock;
         private readonly Func<int, int> _chooseIndex;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _episodeOwner;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _cycleCancellation;
         private CancellationTokenSource _honorCancellation;
@@ -127,12 +129,21 @@ namespace FACM.League
         {
         }
 
+        internal LeaguePostGameAutomationController(ILeagueClientApi read, ILeaguePostGameWriteApi write,
+            Func<LeagueClientSession> sessionProvider)
+            : this(read, write, new LeaguePostGameSystemClock(), CreateRandomIndex, sessionProvider) { }
+
         internal LeaguePostGameAutomationController(
-            ILeagueClientApi read,
-            ILeaguePostGameWriteApi write,
-            ILeaguePostGameClock clock,
-            Func<int, int> chooseIndex)
+            ILeagueClientApi read, ILeaguePostGameWriteApi write,
+            ILeaguePostGameClock clock, Func<int, int> chooseIndex)
+            : this(read, write, clock, chooseIndex, null) { }
+
+        internal LeaguePostGameAutomationController(
+            ILeagueClientApi read, ILeaguePostGameWriteApi write,
+            ILeaguePostGameClock clock, Func<int, int> chooseIndex,
+            Func<LeagueClientSession> sessionProvider)
         {
+            _sessionProvider = sessionProvider;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
@@ -175,6 +186,7 @@ namespace FACM.League
 
         public void Observe(LeagueDashboardPhaseState state)
         {
+            RefreshOwner(state);
             var mission = TryObserveMission(state);
             if (mission != null) mission.Forget("League pre-end-of-game sequence");
             string phase;
@@ -185,12 +197,43 @@ namespace FACM.League
 
         internal async Task ObserveForSmokeTestAsync(LeagueDashboardPhaseState state)
         {
+            RefreshOwner(state);
             var mission = TryObserveMission(state);
             if (mission != null) await mission.ConfigureAwait(false);
             string phase;
             CancellationToken token;
             if (!TryBeginCycle(state, out phase, out token)) return;
             await RunCycleAsync(phase, token).ConfigureAwait(false);
+        }
+
+        private void RefreshOwner(LeagueDashboardPhaseState state)
+        {
+            if (_sessionProvider == null) return;
+            var next = state != null && state.Connected ? _sessionProvider() : null;
+            lock (_sync)
+            {
+                if (_disposed || SameOwner(_episodeOwner, next)) return;
+                CancelCycleLocked();
+                CancelMissionLocked();
+                _insidePostGame = false;
+                _cycleStarted = false;
+                _missionAttempted = false;
+                _missionAttempts = 0;
+                _episodeOwner = next;
+            }
+        }
+
+        private static bool SameOwner(LeagueClientSession first, LeagueClientSession second)
+        {
+            return first == null ? second == null :
+                LeagueEncounterReplayService.SessionMatches(first, second);
+        }
+
+        private bool IsOwnerCurrentLocked()
+        {
+            return _sessionProvider == null ||
+                (_episodeOwner != null &&
+                 LeagueEncounterReplayService.SessionMatches(_episodeOwner, _sessionProvider()));
         }
 
         private Task TryObserveMission(LeagueDashboardPhaseState state)
@@ -201,7 +244,7 @@ namespace FACM.League
             CancellationTokenSource request;
             lock (_sync)
             {
-                if (_disposed) return null;
+                if (_disposed || !IsOwnerCurrentLocked()) return null;
                 if (!inPreEnd || !_autoReturn)
                 {
                     CancelMissionLocked();
@@ -236,7 +279,7 @@ namespace FACM.League
                     _missionAttempts++;
                 }
                 token.ThrowIfCancellationRequested();
-                var response = await _write.TrySendAsync("POST",
+                var response = await SendScopedAsync("POST",
                     LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath, null, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 if (response != null && response.IsSuccessStatusCode)
@@ -266,7 +309,7 @@ namespace FACM.League
 
         private bool IsCurrentMissionLocked(CancellationTokenSource request)
         {
-            return !_disposed && _autoReturn && !_missionAttempted &&
+            return !_disposed && _autoReturn && !_missionAttempted && IsOwnerCurrentLocked() &&
                    ReferenceEquals(_missionCancellation, request) && !request.IsCancellationRequested;
         }
 
@@ -293,6 +336,7 @@ namespace FACM.League
                 _autoHonor = autoHonor;
                 _autoReturn = autoReturn;
                 _insidePostGame = true;
+                if (_sessionProvider != null) _episodeOwner = _sessionProvider();
             }
             await RunCycleAsync(phase, cancellationToken).ConfigureAwait(false);
         }
@@ -304,7 +348,7 @@ namespace FACM.League
             var postGame = state != null && state.Connected && IsPostGamePhase(phase);
             lock (_sync)
             {
-                if (_disposed) return false;
+                if (_disposed || !IsOwnerCurrentLocked()) return false;
                 if (!postGame)
                 {
                     _insidePostGame = false;
@@ -348,7 +392,7 @@ namespace FACM.League
 
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsStillEnabledForReturn()) return;
-            var response = await _write.TrySendAsync(
+            var response = await SendScopedAsync(
                 "POST",
                 LeaguePostGameWriteApiClient.PlayAgainPath,
                 null,
@@ -374,15 +418,15 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 if (ballot == null)
                 {
-                    PublishHonorStatus(Status(0, "skipped", "none", "ballot-timeout", 0, 0, null, false));
+                    PublishHonorStatus(Status(0, "skipped", "none", "ballot-timeout", 0, 0, null, false), cancellationToken);
                 }
                 else if (ballot.GameId <= 0)
                 {
-                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "invalid-game", 0, 0, null, false));
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "invalid-game", 0, 0, null, false), cancellationToken);
                 }
                 else if (ballot.Votes <= 0)
                 {
-                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-votes", 0, 0, null, false));
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-votes", 0, 0, null, false), cancellationToken);
                 }
                 else
                 {
@@ -432,7 +476,7 @@ namespace FACM.League
             lock (_sync) strategy = _honorStrategy;
             if (strategy == LeagueHonorStrategy.OptOut)
             {
-                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "strategy-opt-out", 0, 0, null, false));
+                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "strategy-opt-out", 0, 0, null, false), cancellationToken);
                 return;
             }
             var selfPuuid = await TryReadSelfPuuidAsync(cancellationToken).ConfigureAwait(false);
@@ -459,7 +503,7 @@ namespace FACM.League
                 }
                 else if (strategy == LeagueHonorStrategy.OnlyLobbyMember)
                 {
-                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "party-unavailable", 0, 0, null, false));
+                    PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "party-unavailable", 0, 0, null, false), cancellationToken);
                     return;
                 }
             }
@@ -473,7 +517,7 @@ namespace FACM.League
             }
             if (candidates.Count == 0)
             {
-                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-eligible-target", 0, 0, null, false));
+                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "no-eligible-target", 0, 0, null, false), cancellationToken);
                 return;
             }
 
@@ -492,11 +536,11 @@ namespace FACM.League
                     var v2 = await TryHonorV2Async(ballot, selected, cancellationToken).ConfigureAwait(false);
                     if (v2 != null)
                     {
-                        PublishHonorStatus(v2);
+                        PublishHonorStatus(v2, cancellationToken);
                         return;
                     }
                 }
-                PublishHonorStatus(await TryHonorLegacyAsync(ballot, selected, cancellationToken).ConfigureAwait(false));
+                PublishHonorStatus(await TryHonorLegacyAsync(ballot, selected, cancellationToken).ConfigureAwait(false), cancellationToken);
                 return;
             }
 
@@ -519,7 +563,7 @@ namespace FACM.League
                         {
                             PublishHonorStatus(Status(ballot.GameId, "unknown", "v2",
                                 "votes-confirmed=" + confirmed + "/" + targets.Count + ";ballot-changed",
-                                lastHttpStatus, attempts, null, false));
+                                lastHttpStatus, attempts, null, false), cancellationToken);
                             return;
                         }
                     }
@@ -529,7 +573,7 @@ namespace FACM.League
                         if (confirmed == 0) break;
                         PublishHonorStatus(Status(ballot.GameId, "unknown", "v2",
                             "votes-confirmed=" + confirmed + "/" + targets.Count + ";route-unavailable", 404,
-                            attempts + 1, null, false));
+                            attempts + 1, null, false), cancellationToken);
                         return;
                     }
 
@@ -539,7 +583,7 @@ namespace FACM.League
                     {
                         PublishHonorStatus(Status(ballot.GameId, result.State, "v2",
                             "votes-confirmed=" + confirmed + "/" + targets.Count + ";" + result.Detail,
-                            result.HttpStatus, attempts, null, false));
+                            result.HttpStatus, attempts, null, false), cancellationToken);
                         return;
                     }
                     confirmed++;
@@ -548,13 +592,13 @@ namespace FACM.League
                 {
                     PublishHonorStatus(Status(ballot.GameId, "success", "v2",
                         "votes-confirmed=" + confirmed + "/" + targets.Count,
-                        lastHttpStatus, attempts, null, false));
+                        lastHttpStatus, attempts, null, false), cancellationToken);
                     return;
                 }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            PublishHonorStatus(await TryHonorLegacyBallotAsync(ballot, targets, cancellationToken).ConfigureAwait(false));
+            PublishHonorStatus(await TryHonorLegacyBallotAsync(ballot, targets, cancellationToken).ConfigureAwait(false), cancellationToken);
         }
 
         private void TakeRandomTargets(
@@ -587,7 +631,7 @@ namespace FACM.League
                     { "puuid", selected.Puuid },
                     { "honorType", "HEART" }
                 });
-                var response = await _write.TrySendAsync("POST", LeaguePostGameWriteApiClient.HonorPath,
+                var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.HonorPath,
                     body, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (!IsSuccess(response))
@@ -603,7 +647,7 @@ namespace FACM.League
                     "votes-sent=0/" + targets.Count + ";honor-submit-failed", failedStatus, 1, null, false);
 
             cancellationToken.ThrowIfCancellationRequested();
-            var completed = await _write.TrySendAsync("POST", LeaguePostGameWriteApiClient.HonorBallotSubmitPath,
+            var completed = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.HonorBallotSubmitPath,
                 null, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsSuccess(completed))
@@ -680,7 +724,7 @@ namespace FACM.League
 
             cancellationToken.ThrowIfCancellationRequested();
             var attempts = 1;
-            var response = await _write.TrySendAsync(
+            var response = await SendScopedAsync(
                 "POST",
                 LeaguePostGameWriteApiClient.HonorV2Path,
                 body,
@@ -703,7 +747,7 @@ namespace FACM.League
                 await _clock.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 attempts++;
-                response = await _write.TrySendAsync(
+                response = await SendScopedAsync(
                     "POST",
                     LeaguePostGameWriteApiClient.HonorV2Path,
                     body,
@@ -731,7 +775,7 @@ namespace FACM.League
                 { "honorType", "HEART" }
             });
             cancellationToken.ThrowIfCancellationRequested();
-            var honorResponse = await _write.TrySendAsync(
+            var honorResponse = await SendScopedAsync(
                 "POST",
                 LeaguePostGameWriteApiClient.HonorPath,
                 body,
@@ -740,7 +784,7 @@ namespace FACM.League
             if (!IsSuccess(honorResponse))
                 return Status(ballot.GameId, "failed", "legacy", "honor-submit-failed", StatusCode(honorResponse), 1, selected, true);
 
-            var ballotResponse = await _write.TrySendAsync(
+            var ballotResponse = await SendScopedAsync(
                 "POST",
                 LeaguePostGameWriteApiClient.HonorBallotSubmitPath,
                 null,
@@ -909,20 +953,33 @@ namespace FACM.League
 
         private bool IsStillEnabledForHonor()
         {
-            lock (_sync) return !_disposed && _insidePostGame && _autoHonor;
+            lock (_sync) return !_disposed && _insidePostGame && _autoHonor && IsOwnerCurrentLocked();
         }
 
         private bool IsStillEnabledForReturn()
         {
-            lock (_sync) return !_disposed && _insidePostGame && _autoReturn;
+            lock (_sync) return !_disposed && _insidePostGame && _autoReturn && IsOwnerCurrentLocked();
         }
 
-        private void PublishHonorStatus(LeagueHonorAttemptStatus status)
+        private async Task<LeagueClientWriteResponse> SendScopedAsync(
+            string method, string path, string body, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+            lock (_sync) { if (_disposed || !IsOwnerCurrentLocked()) return null; }
+            var response = await _write.TrySendAsync(method, path, body, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            lock (_sync) return !_disposed && IsOwnerCurrentLocked() ? response : null;
+        }
+
+        private void PublishHonorStatus(LeagueHonorAttemptStatus status, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
             if (status == null) return;
             Action<LeagueHonorAttemptStatus> handler;
             lock (_sync)
             {
+                if (_disposed || !IsOwnerCurrentLocked()) return;
+                token.ThrowIfCancellationRequested();
                 _lastHonorStatus = status.Clone();
                 handler = HonorAttemptCompleted;
             }

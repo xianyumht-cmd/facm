@@ -34,6 +34,7 @@ namespace FACM.League
             ValidateMissionRetryBudget();
             ValidateMissionChangedBeforeWrite();
             ValidatePhaseContract();
+            ValidateSessionOwnerRotation();
         }
 
         private static void ValidateTransportFence()
@@ -456,6 +457,72 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateSessionOwnerRotation()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 55, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var second = new LeagueClientSession("LeagueClientUx", 56, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var current = first;
+            var read = new FakeReadApi();
+            var write = new FakePostGameWriteApi();
+            var clock = new FakeClock { OnDelay = delay => current = second };
+            using (var controller = new LeaguePostGameAutomationController(
+                read, write, clock, count => 0, () => current))
+            {
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0,
+                    "A replaced LCU process with reused credentials must not receive old play-again.");
+                clock.OnDelay = null;
+                controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.PlayAgainPath) == 1,
+                    "A new same-phase LCU owner must start its own post-game cycle.");
+            }
+
+            current = first;
+            read = StandardRead();
+            write = new FakePostGameWriteApi();
+            read.OnRead = (path, count) =>
+            {
+                if (path == LeaguePostGameAutomationController.BallotPath) current = second;
+                return null;
+            };
+            using (var controller = new LeaguePostGameAutomationController(
+                read, write, new FakeClock(), count => 0, () => current))
+            {
+                controller.Configure(true, false);
+                controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0 && controller.LastHonorStatus == null,
+                    "Old account honor ballot must not write or publish after an LCU owner replacement.");
+            }
+
+            current = first;
+            read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath,
+                "{\"name\":\"missions-celebration\"}");
+            read.OnRead = (path, count) =>
+            {
+                if (path == LeaguePostGameAutomationController.CurrentSequenceEventPath && count == 2)
+                    current = second;
+                return null;
+            };
+            write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(
+                read, write, new FakeClock(), count => 0, () => current))
+            {
+                controller.Configure(false, true);
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0,
+                    "Pre-end mission completion must not write after a replaced LCU owner.");
+                read.OnRead = null;
+                controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path ==
+                    LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
+                    "A new LCU owner must independently complete its verified pre-end mission.");
+            }
+        }
+
         private static void ValidateReturnOnly()
         {
             var read = new FakeReadApi();
@@ -726,10 +793,12 @@ namespace FACM.League
         private sealed class FakeClock : ILeaguePostGameClock
         {
             public readonly List<TimeSpan> Delays = new List<TimeSpan>();
+            public Action<TimeSpan> OnDelay;
             public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Delays.Add(delay);
+                if (OnDelay != null) OnDelay(delay);
                 return Task.CompletedTask;
             }
         }
