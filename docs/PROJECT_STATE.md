@@ -1,3 +1,7 @@
+## 2026-11-02 — Clean historical draft template candidate
+
+Draft #357 historical roster editor adds a two-sided synthetic blank template, editable and expandable up to 20 participants with source identity isolation and full original-roster reset. It is still launched from a verified historical preview, not an independent no-match entry. Synthetic regression added; exact-SHA Windows CI pending, live Tencent/Win10 final acceptance deferred.
+
 ## 2026-11-02 — Native player-card jungle map candidate
 
 Draft #357 adds a source-weighted, localized heatmap toggle and the already-bundled licensed Rift map to the player-card jungle tab. The existing route view remains available with corrected source-coordinate mapping. Synthetic tests cover weighting, champion separation and duplicate rejection; four exact-HEAD Windows CI gates pending. No production, release or live game testing.

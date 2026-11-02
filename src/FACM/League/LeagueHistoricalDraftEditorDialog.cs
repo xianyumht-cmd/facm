@@ -460,6 +460,22 @@ namespace FACM.League
 
             if (snapshot.HistoricalGameMode == "CLASSIC")
             {
+                var blank = new Button { Width = 150, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) };
+                blank.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    if (!LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot,
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDraftBlankBlue),
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDraftBlankRed)))
+                    {
+                        MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                            Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                actions.Controls.Add(blank);
                 var addPlayer = new Button { Width = 118, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftAddPlayer) };
                 addPlayer.Click += (sender, args) =>

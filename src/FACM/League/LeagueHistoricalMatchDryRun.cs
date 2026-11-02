@@ -502,6 +502,45 @@ namespace FACM.League
             return true;
         }
 
+        // Start a clean two-sided template inside an existing read-only historical
+        // preview. No original player, identity, match or analysis data is reused.
+        // The source roster remains immutable for an exact full reset.
+        internal static bool TryStartBlankRoster(LeagueDynamicMessageSnapshot snapshot,
+            string blueName, string redName)
+        {
+            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CLASSIC" ||
+                string.IsNullOrWhiteSpace(blueName) || string.IsNullOrWhiteSpace(redName) ||
+                blueName.Trim().Length > 48 || redName.Trim().Length > 48 ||
+                blueName.Any(char.IsControl) || redName.Any(char.IsControl) ||
+                string.Equals(blueName.Trim(), redName.Trim(), StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            Func<string, int, int, LeagueDynamicMessagePlayer> create = (name, team, cell) =>
+                new LeagueDynamicMessagePlayer {
+                    HistoricalSyntheticAdded = true,
+                    HistoricalTeamId = team, HistoricalOriginalTeamId = team,
+                    HistoricalOriginalChampionId = 1,
+                    HistoricalOriginalChampionName = "#1",
+                    HistoricalOriginalPosition = "",
+                    ChampionName = "#1",
+                    Friendly = team == 100,
+                    Player = new LeagueLivePlayerRow {
+                        PuuId = "draft-" + Guid.NewGuid().ToString("N"),
+                        CellId = cell, GameName = name.Trim(), ChampionId = 1,
+                        Position = "", Side = team == 100 ? "ally" : "enemy"
+                    }
+                };
+            var blue = create(blueName, 100, 1);
+            var red = create(redName, 200, 2);
+            snapshot.Players.Clear();
+            snapshot.Players.Add(blue);
+            snapshot.Players.Add(red);
+            snapshot.SelfPuuid = blue.Player.PuuId;
+            snapshot.HistoricalQueueId = 0;
+            RefreshDraftSides(snapshot);
+            return true;
+        }
+
         internal static bool TryRemoveDraftPlayer(LeagueDynamicMessageSnapshot snapshot,
             string puuid)
         {

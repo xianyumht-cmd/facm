@@ -1,3 +1,7 @@
+### 2026-11-02 — Clean two-sided historical draft template (Draft #357)
+
+The historical native roster editor can now reset its editable working lineup to two **synthetic**, history-free blue/red player slots, then add or edit 2–20 players using the existing team, champion, role, queue and perspective controls. The original verified match roster remains untouched and exactly restorable. Invalid template names fail before mutation; no real account identity or source match evidence is assigned to new slots. This is **partial** independent-draft parity: the entry still requires an existing historical preview rather than a standalone from-empty entry point. Executable synthetic regression covers isolation, expansion, invalid input and exact reset; four exact-SHA Windows gates pending.
+
 ### 2026-11-02 — Player-card Rift heatmap and licensed map background (Draft #357)
 
 The native on-demand jungle card now draws the bundled Akari MIT-licensed Summoner's Rift map instead of a placeholder square. A localized heatmap toggle switches between source-aligned first-14-minute routes/gank markers and the existing pinned 7x7 zone-weighted heatmap algorithm (minute position +1, confirmed gank +5). Both views use already-fetched, bounded, champion-filtered samples; invalid or duplicate games fail closed and no network owner or poller is added. Synthetic history smoke checks weights, champion isolation, empty selections and duplicate rejection. This is **partial source visual parity** pending four exact-SHA Windows gates and final Tencent/Win10 acceptance.

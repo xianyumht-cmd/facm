@@ -1876,6 +1876,27 @@ namespace FACM.League
                 snapshot.Players.Any(p => object.ReferenceEquals(p, originalPlayer)) &&
                 snapshot.Players.All(p => !p.HistoricalSyntheticAdded),
                 "Removing a source preview row must preserve exact original roster restoration.");
+            Require(!LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Same", "Same") &&
+                !LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Bad\nName", "Red") &&
+                snapshot.Players.Count == 10,
+                "Invalid blank roster templates must not alter source or current players.");
+            Require(LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Blue draft", "Red draft") &&
+                snapshot.Players.Count == 2 && snapshot.HistoricalQueueId == 0 &&
+                snapshot.Players.All(p => p.HistoricalSyntheticAdded && p.History == null &&
+                    p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                snapshot.Players.Count(p => p.Friendly) == 1 &&
+                snapshot.Players.Single(p => p.Friendly).Player.PuuId == snapshot.SelfPuuid &&
+                snapshot.HistoricalOriginalRoster.Count == 10,
+                "Blank two-sided draft must isolate source identities and keep immutable reset evidence.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Third draft", 200, 22, "JUNGLE") &&
+                snapshot.Players.Count == 3 &&
+                !LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, snapshot.SelfPuuid) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 && snapshot.SelfPuuid == "target" &&
+                snapshot.HistoricalQueueId == 420 &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, originalPlayer)),
+                "Blank draft additions and full reset must restore original verified players and queue.");
             for (var index = 0; index < 10; index++)
                 Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
                     "Extra " + index, 100, 100 + index), "Bounded free-form draft rejected a valid player.");
