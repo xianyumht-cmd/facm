@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web.Script.Serialization;
 
 namespace FACM.League
 {
@@ -100,8 +101,127 @@ namespace FACM.League
     }
 
     // Read-only draft from one verified historical match; never writes to LCU or a live game.
+    internal sealed class LeagueStandaloneDraftRecord
+    {
+        public string Name { get; set; }
+        public int TeamId { get; set; }
+        public int ChampionId { get; set; }
+        public string Position { get; set; }
+        public string Primary { get; set; }
+        public string Secondary { get; set; }
+    }
+
+    internal sealed class LeagueStandaloneDraftDocument
+    {
+        public int Version { get; set; }
+        public string Mode { get; set; }
+        public int QueueId { get; set; }
+        public int TargetIndex { get; set; }
+        public List<LeagueStandaloneDraftRecord> Players { get; set; }
+    }
+
     internal static class LeagueHistoricalMatchDryRun
     {
+        internal const int MaximumStandaloneDraftJsonLength = 8192;
+
+        internal static string ExportStandalone(LeagueDynamicMessageSnapshot snapshot)
+        {
+            if (snapshot == null || !snapshot.HistoricalStandalone ||
+                snapshot.HistoricalOriginalRoster.Count != 0 ||
+                !ValidTeamDraft(snapshot) ||
+                snapshot.Players.Any(p => !p.HistoricalSyntheticAdded ||
+                    p.HistoricalOriginalPlayer != null || p.History != null ||
+                    !p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)))
+                return null;
+            var index = snapshot.Players.FindIndex(p => p.Player.PuuId == snapshot.SelfPuuid);
+            if (index < 0) return null;
+            var document = new LeagueStandaloneDraftDocument {
+                Version = 1, Mode = snapshot.HistoricalGameMode,
+                QueueId = snapshot.HistoricalQueueId, TargetIndex = index,
+                Players = snapshot.Players.Select(p => new LeagueStandaloneDraftRecord {
+                    Name = p.Player.GameName, TeamId = p.HistoricalTeamId,
+                    ChampionId = p.Player.ChampionId, Position = p.Player.Position,
+                    Primary = p.HistoricalPrimaryPosition,
+                    Secondary = p.HistoricalSecondaryPosition
+                }).ToList()
+            };
+            var json = new JavaScriptSerializer { MaxJsonLength = MaximumStandaloneDraftJsonLength }
+                .Serialize(document);
+            return json.Length <= MaximumStandaloneDraftJsonLength ? json : null;
+        }
+
+        internal static LeagueDynamicMessageSnapshot ImportStandalone(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json) ||
+                json.Length > MaximumStandaloneDraftJsonLength) return null;
+            LeagueStandaloneDraftDocument document;
+            try
+            {
+                document = new JavaScriptSerializer {
+                    MaxJsonLength = MaximumStandaloneDraftJsonLength
+                }.Deserialize<LeagueStandaloneDraftDocument>(json);
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+            catch (InvalidCastException) { return null; }
+            if (document == null || document.Version != 1 ||
+                (document.Mode != "CLASSIC" && document.Mode != "CHERRY") ||
+                document.QueueId < 0 || document.QueueId > 100000 ||
+                document.Players == null || document.Players.Count < 2 ||
+                document.Players.Count > 20 ||
+                document.TargetIndex < 0 || document.TargetIndex >= document.Players.Count ||
+                (document.Mode == "CHERRY" && document.Players.Count % 2 != 0))
+                return null;
+            var roles = new[] { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            var cherry = document.Mode == "CHERRY";
+            if (document.Players.Any(p => p == null ||
+                string.IsNullOrWhiteSpace(p.Name) || p.Name.Trim() != p.Name ||
+                p.Name.Length > 48 || p.Name.Any(char.IsControl) ||
+                p.ChampionId < 1 || p.ChampionId > 9999 ||
+                p.Position == null || p.Primary == null || p.Secondary == null ||
+                (cherry ? p.Position != "" || p.Primary != "" || p.Secondary != "" ||
+                    !LeagueCherryTeams.ValidSubteamId(p.TeamId).HasValue :
+                    (p.TeamId != 100 && p.TeamId != 200) ||
+                    !roles.Contains(p.Position, StringComparer.Ordinal) ||
+                    !roles.Contains(p.Primary, StringComparer.Ordinal) ||
+                    !roles.Contains(p.Secondary, StringComparer.Ordinal) ||
+                    (p.Primary != "" && p.Primary == p.Secondary))) ||
+                document.Players.Select(p => p.Name)
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count() != document.Players.Count)
+                return null;
+            var targetTeam = document.Players[document.TargetIndex].TeamId;
+            var snapshot = new LeagueDynamicMessageSnapshot {
+                Phase = "HistoricalPreview", HistoricalStandalone = true,
+                HistoricalGameMode = document.Mode, HistoricalQueueId = document.QueueId,
+                RosterKey = "draft:" + Guid.NewGuid().ToString("N"),
+                CreatedUtc = DateTime.UtcNow
+            };
+            for (var i = 0; i < document.Players.Count; i++)
+            {
+                var record = document.Players[i];
+                var friendly = record.TeamId == targetTeam;
+                var puuid = "draft-" + Guid.NewGuid().ToString("N");
+                snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                    HistoricalSyntheticAdded = true,
+                    HistoricalTeamId = record.TeamId,
+                    HistoricalOriginalTeamId = record.TeamId,
+                    HistoricalOriginalChampionId = record.ChampionId,
+                    HistoricalOriginalChampionName = "#" + record.ChampionId,
+                    HistoricalOriginalPosition = record.Position,
+                    HistoricalPrimaryPosition = record.Primary,
+                    HistoricalSecondaryPosition = record.Secondary,
+                    ChampionName = "#" + record.ChampionId, Friendly = friendly,
+                    Player = new LeagueLivePlayerRow {
+                        PuuId = puuid, CellId = i + 1, GameName = record.Name,
+                        ChampionId = record.ChampionId, Position = record.Position,
+                        Side = friendly ? "ally" : "enemy"
+                    }
+                });
+            }
+            snapshot.SelfPuuid = snapshot.Players[document.TargetIndex].Player.PuuId;
+            return ValidTeamDraft(snapshot) ? snapshot : null;
+        }
+
         // Derived only from the verified card sample, never from unbounded live-client reads.
         internal static LeagueHistoricalCardAnalysis CardAnalysis(
             IReadOnlyList<LeaguePlayerMatchSummary> matches, string puuid)

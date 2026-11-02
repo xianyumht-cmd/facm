@@ -670,6 +670,10 @@ namespace FACM.League
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) };
             var edit = new Button { AutoSize = true, Height = 30,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftEdit) };
+            var export = new Button { AutoSize = true, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagExport) + " JSON" };
+            var import = new Button { AutoSize = true, Height = 30,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagImport) + " JSON" };
             var target = new ComboBox { Width = 120,
                 DropDownStyle = ComboBoxStyle.DropDownList };
             target.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicFriendly));
@@ -677,6 +681,7 @@ namespace FACM.League
             target.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicAll));
             target.SelectedIndex = 2;
             actions.Controls.Add(mode); actions.Controls.Add(create); actions.Controls.Add(edit);
+            actions.Controls.Add(export); actions.Controls.Add(import);
             actions.Controls.Add(new Label { AutoSize = true,
                 Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftTarget),
                 Margin = new Padding(8, 8, 4, 0) });
@@ -743,6 +748,36 @@ namespace FACM.League
                 refresh();
             };
             create.Click += (sender, args) => createDraft();
+            export.Click += (sender, args) =>
+            {
+                var json = LeagueHistoricalMatchDryRun.ExportStandalone(_draft);
+                if (json == null) return;
+                try { Clipboard.SetText(json); }
+                catch (System.Runtime.InteropServices.ExternalException)
+                {
+                    preview.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                }
+            };
+            import.Click += (sender, args) =>
+            {
+                try
+                {
+                    if (!Clipboard.ContainsText()) return;
+                    var restored = LeagueHistoricalMatchDryRun.ImportStandalone(Clipboard.GetText());
+                    if (restored == null)
+                    {
+                        preview.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                        return;
+                    }
+                    _draft = restored;
+                    mode.SelectedIndex = restored.HistoricalGameMode == "CHERRY" ? 1 : 0;
+                    refresh();
+                }
+                catch (System.Runtime.InteropServices.ExternalException)
+                {
+                    preview.Text = t(LeagueEfficiencyUiTextKeys.DynamicUnavailable);
+                }
+            };
             target.SelectedIndexChanged += (sender, args) =>
             {
                 if (_draft != null) refresh();

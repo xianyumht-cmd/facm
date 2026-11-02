@@ -1464,6 +1464,30 @@ namespace FACM.League
                     standalone, duplicateNames) &&
                 standalone.Players[0].Player.GameName == "Edited Blue",
                 "Standalone draft must reject duplicate names atomically.");
+            var exportedDraft = LeagueHistoricalMatchDryRun.ExportStandalone(standalone);
+            var restoredDraft = LeagueHistoricalMatchDryRun.ImportStandalone(exportedDraft);
+            Require(!string.IsNullOrEmpty(exportedDraft) && restoredDraft != null &&
+                restoredDraft.HistoricalStandalone &&
+                restoredDraft.HistoricalOriginalRoster.Count == 0 &&
+                restoredDraft.Players.Count == 3 &&
+                restoredDraft.HistoricalQueueId == 420 &&
+                restoredDraft.Players[0].Player.GameName == "Edited Blue" &&
+                restoredDraft.Players[0].Player.ChampionId == 22 &&
+                restoredDraft.Players.All(p => p.History == null &&
+                    p.HistoricalSyntheticAdded && p.HistoricalOriginalPlayer == null) &&
+                restoredDraft.Players.Select(p => p.Player.PuuId).Intersect(
+                    standalone.Players.Select(p => p.Player.PuuId)).Count() == 0 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(restoredDraft),
+                "Standalone draft JSON must round-trip without reusing source or local identities.");
+            Require(LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("\"QueueId\":420", "\"QueueId\":100001")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("\"Mode\":\"CLASSIC\"", "\"Mode\":\"UNKNOWN\"")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("Edited Blue", "Red")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(new string('X',
+                    LeagueHistoricalMatchDryRun.MaximumStandaloneDraftJsonLength + 1)) == null,
+                "Imported draft presets must reject invalid queue, mode, duplicate names and size.");
             Require(LeagueHistoricalMatchDryRun.BuildStandalone(
                     "INVALID", "Blue", "Red") == null &&
                 LeagueHistoricalMatchDryRun.BuildStandalone(
@@ -1480,6 +1504,13 @@ namespace FACM.League
                 standaloneArena.Players.Count == 6 &&
                 !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(standaloneArena),
                 "Standalone Arena draft must keep paired TEAM-ALL without source evidence.");
+            var restoredArena = LeagueHistoricalMatchDryRun.ImportStandalone(
+                LeagueHistoricalMatchDryRun.ExportStandalone(standaloneArena));
+            Require(restoredArena != null && restoredArena.Players.Count == 6 &&
+                restoredArena.Players.GroupBy(p => p.HistoricalTeamId)
+                    .All(group => group.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(restoredArena, "all").Count == 6,
+                "Arena draft preset must restore paired teams and TEAM-ALL selection.");
             var tripleRows = new[] {
                 new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target",
                     ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",
