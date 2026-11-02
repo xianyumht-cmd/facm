@@ -342,6 +342,8 @@ namespace FACM.League
 
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
+            LeagueClientSession originatingOwner;
+            lock (_sync) originatingOwner = _episodeOwner;
             var initialDelay = GetSearchStartDelay();
             string announcedFingerprint = null;
             try
@@ -363,7 +365,8 @@ namespace FACM.League
             }
             catch (OperationCanceledException)
             {
-                if (announcedFingerprint != null && RoomNoticesEnabled())
+                if (announcedFingerprint != null && RoomNoticesEnabled() &&
+                    SameEpisodeOwner(originatingOwner))
                 {
                     using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
                     {
@@ -377,6 +380,8 @@ namespace FACM.League
 
         private async Task<string> RunRoomCountdownAsync(TimeSpan duration, CancellationToken token)
         {
+            LeagueClientSession originatingOwner;
+            lock (_sync) originatingOwner = _episodeOwner;
             var remaining = (int)Math.Ceiling(duration.TotalMilliseconds);
             string announcedFingerprint = null;
             try
@@ -406,7 +411,8 @@ namespace FACM.League
             }
             catch (OperationCanceledException)
             {
-                if (announcedFingerprint != null && RoomNoticesEnabled())
+                if (announcedFingerprint != null && RoomNoticesEnabled() &&
+                    SameEpisodeOwner(originatingOwner))
                 {
                     using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
                     {
@@ -779,6 +785,14 @@ namespace FACM.League
         private bool IsOwnerCurrentLocked()
         {
             return _sessionProvider == null || SameOwner(_episodeOwner, _sessionProvider());
+        }
+
+        private bool SameEpisodeOwner(LeagueClientSession originatingOwner)
+        {
+            lock (_sync)
+                return _sessionProvider == null ||
+                    (SameOwner(originatingOwner, _episodeOwner) &&
+                     SameOwner(originatingOwner, _sessionProvider()));
         }
 
         private bool IsPhase(string expected)

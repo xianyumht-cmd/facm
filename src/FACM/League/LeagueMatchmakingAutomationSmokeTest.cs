@@ -23,6 +23,7 @@ namespace FACM.League
             ValidateZeroDelayRoomNotice();
             ValidateRoomCountdownNotices();
             ValidateRoomCountdownCancellation();
+            ValidateRoomCountdownSessionReplacement();
             ValidateTencentLobbyWithoutOptionalFields();
             ValidateEligibleLobbyExactlyOnce();
             ValidateAutoSearchToggleKeepsSameLobbyExactlyOnce();
@@ -442,6 +443,35 @@ namespace FACM.League
                     "Cancelling an announced countdown must send one room notification.");
                 Require(notices.Messages.Last().Contains("已取消") && write.Calls.Count == 0,
                     "Cancellation must suppress the matchmaking POST and avoid duplicate chat writes.");
+            }
+        }
+
+        private static void ValidateRoomCountdownSessionReplacement()
+        {
+            var owner = new LeagueClientSession("LeagueClientUx", 10, 12345, "fixture",
+                "https", "fixture", "HN10", "TENCENT");
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-1\"}]");
+            var notices = new FakeRoomNoticeApi();
+            var clock = new FakeClock { BlockFirstDelay = true };
+            using (var controller = new LeagueMatchmakingAutomationController(
+                read, new FakeWriteApi(), notices, clock, () => owner))
+            {
+                controller.Configure(true, false, 1, 4000, 0, true, true);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count >= 1, 1000),
+                    "Original session did not start its room countdown.");
+                owner = new LeagueClientSession("LeagueClientUx", 11, 12345, "fixture",
+                    "https", "fixture", "HN10", "TENCENT");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(SpinWait.SpinUntil(() => notices.Messages.Count >= 2, 1000),
+                    "Replacement session did not start its own room countdown.");
+                Thread.Sleep(30);
+                Require(!notices.Messages.Any(message => message.Contains("已取消")),
+                    "Old-session cancellation must not send a room notice to the replacement account.");
             }
         }
 
