@@ -461,7 +461,7 @@ namespace FACM.League
             if (snapshot.HistoricalGameMode == "CLASSIC")
             {
                 var addPlayer = new Button { Width = 118, Height = 30,
-                    Text = "+ " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftAddPlayer) };
                 addPlayer.Click += (sender, args) =>
                 {
                     if (!isCurrentSession()) { Close(); return; }
@@ -482,7 +482,7 @@ namespace FACM.League
                     DialogResult = DialogResult.OK; Close();
                 };
                 var removePlayer = new Button { Width = 118, Height = 30,
-                    Text = "− " + t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardPlayer) };
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftRemovePlayer) };
                 removePlayer.Click += (sender, args) =>
                 {
                     if (!isCurrentSession()) { Close(); return; }
