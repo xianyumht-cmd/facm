@@ -16,6 +16,14 @@ namespace FACM.League
         {
             internal string Puuid;
             internal string Name;
+            internal string DisplayName;
+            public override string ToString() { return Name; }
+        }
+
+        private sealed class ChampionOption
+        {
+            internal int Id;
+            internal string Name;
             public override string ToString() { return Name; }
         }
 
@@ -50,6 +58,11 @@ namespace FACM.League
         private string[] _matchPositions = new string[0];
         private int[] _matchChampionIds = new int[0];
         private string[] _matchPuuids = new string[0];
+        private Dictionary<string, string> _selectedSummonerNames =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+        private LeagueClientSession _nameCacheSession;
+        private LeaguePlayerHistorySource _nameCacheSource;
+        private string _nameCacheServer;
         private readonly Button _advancedFilterButton;
         private readonly Button _collectButton;
         private readonly Button _stopCollectButton;
@@ -643,6 +656,15 @@ namespace FACM.League
             UpdateReplayButton();
         }
 
+        internal static bool SameHistorySelection(LeaguePlayerHistorySource expectedSource,
+            string expectedServer, string expectedQueueTag, LeaguePlayerHistorySource currentSource,
+            string currentServer, string currentQueueTag)
+        {
+            return expectedSource == currentSource &&
+                string.Equals(expectedServer, currentServer, StringComparison.Ordinal) &&
+                string.Equals(expectedQueueTag, currentQueueTag, StringComparison.Ordinal);
+        }
+
         internal static LeagueMatchTimeRangeFilter TimeFilterFromSelection(int index)
         {
             return index >= 0 && index <= (int)LeagueMatchTimeRangeFilter.Last30Days
@@ -726,8 +748,8 @@ namespace FACM.League
                 Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsFilter),
                 StartPosition = FormStartPosition.CenterParent,
                 AutoScaleMode = AutoScaleMode.Font,
-                ClientSize = new Size(480, 362),
-                MinimumSize = new Size(480, 362),
+                ClientSize = new Size(480, 430),
+                MinimumSize = new Size(480, 430),
                 BackColor = FacmDesignSystem.Canvas,
                 ForeColor = FacmDesignSystem.Text,
                 Font = Font
@@ -760,9 +782,58 @@ namespace FACM.League
                     Text = string.Join(",", _matchPuuids)
                 };
                 var page = _activePage;
-                var picker = new ComboBox
+                var selectedNames = LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                    page?.Matches, _matchPuuids, _selectedSummonerNames);
+                var championPicker = new ComboBox
                 {
                     Bounds = new Rectangle(18, 188, 338, 27),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    AutoCompleteMode = AutoCompleteMode.SuggestAppend,
+                    AutoCompleteSource = AutoCompleteSource.ListItems,
+                    BackColor = FacmDesignSystem.SurfaceRaised,
+                    ForeColor = FacmDesignSystem.Text
+                };
+                var championNames = _service.TryGetCachedChampionNames() ??
+                    new Dictionary<int, string>();
+                if (page != null)
+                    foreach (var match in page.Matches.Where(m => m != null &&
+                        m.ChampionId > 0 && m.ChampionId <= 10000 &&
+                        LeagueSimpleMatchHistoryFilter.SafePlayerLabel(m.ChampionName)))
+                        if (!championNames.ContainsKey(match.ChampionId))
+                            championNames[match.ChampionId] = match.ChampionName;
+                foreach (var option in championNames.Where(pair => pair.Key > 0 &&
+                    pair.Key <= 10000 && LeagueSimpleMatchHistoryFilter.SafePlayerLabel(pair.Value))
+                    .OrderBy(pair => pair.Value, StringComparer.CurrentCulture))
+                    championPicker.Items.Add(new ChampionOption
+                    {
+                        Id = option.Key,
+                        Name = option.Value + " · #" + option.Key
+                    });
+                if (championPicker.Items.Count > 0) championPicker.SelectedIndex = 0;
+                var addChampion = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedAddCondition),
+                    Bounds = new Rectangle(364, 188, 98, 27),
+                    Enabled = championPicker.Items.Count > 0
+                };
+                addChampion.Click += (sender, args) =>
+                {
+                    var selected = championPicker.SelectedItem as ChampionOption;
+                    string updated;
+                    if (selected == null || !SessionMatches(expectedSession) ||
+                        !ReferenceEquals(_activePage, page) ||
+                        !LeagueSimpleMatchHistoryFilter.TryAppendChampionId(
+                            championInput.Text, selected.Id, out updated))
+                    {
+                        MessageBox.Show(dialog, _ui.Get(UiTextKeys.LeaguePlayerParticipantsInvalid),
+                            dialog.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    championInput.Text = updated;
+                };
+                var picker = new ComboBox
+                {
+                    Bounds = new Rectangle(18, 232, 260, 27),
                     DropDownStyle = ComboBoxStyle.DropDownList,
                     BackColor = FacmDesignSystem.SurfaceRaised,
                     ForeColor = FacmDesignSystem.Text
@@ -782,16 +853,26 @@ namespace FACM.League
                         picker.Items.Add(new ParticipantOption
                         {
                             Puuid = candidate.PuuId,
+                            DisplayName = candidate.PlayerName,
                             Name = string.IsNullOrWhiteSpace(candidate.PlayerName)
                                 ? candidate.PuuId : candidate.PlayerName + " · " + candidate.PuuId
                         });
                     }
                 }
+                foreach (var entry in selectedNames)
+                    if (!picker.Items.Cast<ParticipantOption>().Any(option =>
+                        string.Equals(option.Puuid, entry.Key, StringComparison.Ordinal)))
+                        picker.Items.Add(new ParticipantOption
+                        {
+                            Puuid = entry.Key,
+                            DisplayName = entry.Value,
+                            Name = entry.Value + " · " + entry.Key
+                        });
                 if (picker.Items.Count > 0) picker.SelectedIndex = 0;
                 var addPlayer = new Button
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedAddCondition),
-                    Bounds = new Rectangle(364, 188, 98, 27),
+                    Bounds = new Rectangle(286, 232, 82, 27),
                     Enabled = picker.Items.Count > 0
                 };
                 addPlayer.Click += (sender, args) =>
@@ -808,21 +889,40 @@ namespace FACM.League
                         return;
                     }
                     playerInput.Text = updated;
+                    if (LeagueSimpleMatchHistoryFilter.SafePlayerLabel(selected.DisplayName))
+                        selectedNames[selected.Puuid] = selected.DisplayName.Trim();
+                };
+                var removePlayer = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedRemove),
+                    Bounds = new Rectangle(376, 232, 86, 27),
+                    Enabled = picker.Items.Count > 0
+                };
+                removePlayer.Click += (sender, args) =>
+                {
+                    var selected = picker.SelectedItem as ParticipantOption;
+                    string updated;
+                    if (selected == null || !SessionMatches(expectedSession) ||
+                        !ReferenceEquals(_activePage, page) ||
+                        !LeagueSimpleMatchHistoryFilter.TryRemoveParticipantPuuid(
+                            playerInput.Text, selected.Puuid, out updated)) return;
+                    playerInput.Text = updated;
+                    selectedNames.Remove(selected.Puuid);
                 };
                 var riotId = new TextBox
                 {
-                    Bounds = new Rectangle(18, 229, 338, 26), MaxLength = 50,
+                    Bounds = new Rectangle(18, 275, 338, 26), MaxLength = 50,
                     AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterSearchPlayer)
                 };
                 var lookup = new Button
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLookup),
-                    Bounds = new Rectangle(364, 229, 98, 27),
+                    Bounds = new Rectangle(364, 275, 98, 27),
                     Enabled = true
                 };
                 var lookupStatus = new Label
                 {
-                    Bounds = new Rectangle(18, 262, 444, 34), AutoEllipsis = true,
+                    Bounds = new Rectangle(18, 312, 444, 34), AutoEllipsis = true,
                     ForeColor = FacmDesignSystem.TextMuted
                 };
                 using (var lookupLifetime = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
@@ -867,6 +967,9 @@ namespace FACM.League
                                     playerInput.Text, result.Player.PuuId, out updated))
                             {
                                 playerInput.Text = updated;
+                                if (LeagueSimpleMatchHistoryFilter.SafePlayerLabel(
+                                    result.Player.AccountName))
+                                    selectedNames[result.Player.PuuId] = result.Player.AccountName.Trim();
                                 lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteFound);
                             }
                             else lookupStatus.Text = _ui.Get(result.Status == LeagueRiotPlayerSearchStatus.NotFound
@@ -881,13 +984,13 @@ namespace FACM.League
                     var cancel = new Button
                     {
                         Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
-                        Bounds = new Rectangle(264, 310, 94, 30),
+                        Bounds = new Rectangle(264, 373, 94, 30),
                         DialogResult = DialogResult.Cancel
                     };
                     var apply = new Button
                     {
                         Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
-                        Bounds = new Rectangle(368, 310, 94, 30)
+                        Bounds = new Rectangle(368, 373, 94, 30)
                     };
                     int[] nextChampions = null;
                     string[] nextPlayers = null;
@@ -905,7 +1008,8 @@ namespace FACM.League
                     };
                     dialog.Controls.AddRange(new Control[] {
                         hint, championLabel, championInput, playerLabel, playerInput,
-                        picker, addPlayer, riotId, lookup, lookupStatus, cancel, apply
+                        championPicker, addChampion, picker, addPlayer, removePlayer,
+                        riotId, lookup, lookupStatus, cancel, apply
                     });
                     dialog.AcceptButton = apply;
                     dialog.CancelButton = cancel;
@@ -913,6 +1017,9 @@ namespace FACM.League
                         return;
                     _matchChampionIds = nextChampions;
                     _matchPuuids = nextPlayers;
+                    _selectedSummonerNames =
+                        LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                            page?.Matches, _matchPuuids, selectedNames);
                 }
             }
             _participantsFilterButton.Text = _ui.Get(_matchChampionIds.Length + _matchPuuids.Length > 0
@@ -1193,6 +1300,18 @@ namespace FACM.League
             if (_loading || _replayRunning || IsDisposed || _lifetime.IsCancellationRequested) return;
             var expectedSession = _currentSession == null ? null : _currentSession();
             if (_currentSession != null && expectedSession == null) return;
+            var requestedSource = (LeaguePlayerHistorySource)_historySource.SelectedIndex;
+            var requestedServer = SelectedServerId();
+            var requestedTag = SelectedQueueTag();
+            if (!LeagueSgpMatchHistoryApiClient.SameOwner(_nameCacheSession, expectedSession) ||
+                !SameHistorySelection(_nameCacheSource, _nameCacheServer, null,
+                    requestedSource, requestedServer, null))
+            {
+                _selectedSummonerNames.Clear();
+                _nameCacheSession = expectedSession;
+                _nameCacheSource = requestedSource;
+                _nameCacheServer = requestedServer;
+            }
             _pageSession = null;
             _activePage = null;
             _collectionResult = null;
@@ -1206,11 +1325,14 @@ namespace FACM.League
             {
                 var result = await _service.LoadRemotePlayerHistoryAsync(_expected, _puuid,
                     _lifetime.Token, startIndex, count,
-                    (LeaguePlayerHistorySource)_historySource.SelectedIndex, SelectedServerId(),
-                    SelectedQueueTag());
+                    requestedSource, requestedServer, requestedTag);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                if (!SessionMatches(expectedSession))
+                if (!SessionMatches(expectedSession) ||
+                    !SameHistorySelection(requestedSource, requestedServer, requestedTag,
+                        (LeaguePlayerHistorySource)_historySource.SelectedIndex,
+                        SelectedServerId(), SelectedQueueTag()))
                 {
+                    _selectedSummonerNames.Clear();
                     _playerLabel.Text = string.Empty;
                     _statusLabel.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteAccountChanged);
                     return;
@@ -1250,6 +1372,9 @@ namespace FACM.League
                 _hasMore = page.HasMore;
                 _loaded = true;
                 _pageSession = SessionMatches(expectedSession) ? expectedSession : null;
+                _selectedSummonerNames =
+                    LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                        page.Matches, _matchPuuids, _selectedSummonerNames);
                 RenderRows();
             }
             catch (OperationCanceledException) { }

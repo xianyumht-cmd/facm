@@ -107,6 +107,60 @@ namespace FACM.League
             return true;
         }
 
+        internal static bool TryAppendChampionId(string csv, int championId, out string updatedCsv)
+        {
+            updatedCsv = null;
+            int[] existing;
+            string[] unusedPlayers;
+            if (championId <= 0 || championId > 10000 ||
+                !TryParseParticipantFilters(csv, "", out existing, out unusedPlayers) ||
+                existing.Length >= 10 || existing.Contains(championId)) return false;
+            updatedCsv = string.Join(",", existing.Concat(new[] { championId })
+                .Select(id => id.ToString(CultureInfo.InvariantCulture)));
+            return updatedCsv.Length <= 512;
+        }
+
+        internal static bool TryRemoveParticipantPuuid(string csv, string selectedPuuid,
+            out string updatedCsv)
+        {
+            updatedCsv = null;
+            int[] unusedChampions;
+            string[] existing;
+            if (!LeagueSgpMatchHistoryApiClient.SafePuuid(selectedPuuid) ||
+                !TryParseParticipantFilters("", csv, out unusedChampions, out existing) ||
+                !existing.Contains(selectedPuuid, StringComparer.Ordinal)) return false;
+            updatedCsv = string.Join(",", existing.Where(id =>
+                !string.Equals(id, selectedPuuid, StringComparison.Ordinal)));
+            return true;
+        }
+
+        internal static Dictionary<string, string> RememberSelectedParticipantNames(
+            IEnumerable<LeaguePlayerMatchSummary> matches, IEnumerable<string> selectedPuuids,
+            IDictionary<string, string> previous)
+        {
+            var selected = new HashSet<string>((selectedPuuids ?? Enumerable.Empty<string>())
+                .Where(LeagueSgpMatchHistoryApiClient.SafePuuid).Take(10), StringComparer.Ordinal);
+            var names = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (previous != null)
+                foreach (var entry in previous)
+                    if (selected.Contains(entry.Key) && SafePlayerLabel(entry.Value))
+                        names[entry.Key] = entry.Value.Trim();
+            if (matches != null)
+                foreach (var match in matches.Take(200))
+                    foreach (var player in (match?.MatchPlayers ??
+                        new LeaguePlayerMatchIdentity[0]).Take(20))
+                        if (player != null && selected.Contains(player.PuuId) &&
+                            SafePlayerLabel(player.PlayerName))
+                            names[player.PuuId] = player.PlayerName.Trim();
+            return names;
+        }
+
+        internal static bool SafePlayerLabel(string name)
+        {
+            return !string.IsNullOrWhiteSpace(name) && name.Trim().Length <= 80 &&
+                !name.Any(char.IsControl);
+        }
+
         internal bool Matches(LeaguePlayerMatchSummary match, DateTime nowUtc)
         {
             if (match == null) return false;

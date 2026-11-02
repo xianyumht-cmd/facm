@@ -1308,6 +1308,55 @@ namespace FACM.League
             Require(LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
                 "", "", out champions, out players) && champions.Length == 0 && players.Length == 0,
                 "Clearing both participant categories must remain possible.");
+            string updated;
+            Require(LeagueSimpleMatchHistoryFilter.TryAppendChampionId("22", 145, out updated) &&
+                updated == "22,145" &&
+                !LeagueSimpleMatchHistoryFilter.TryAppendChampionId(updated, 145, out updated) &&
+                !LeagueSimpleMatchHistoryFilter.TryAppendChampionId("22", 0, out updated) &&
+                !LeagueSimpleMatchHistoryFilter.TryAppendChampionId(
+                    "1,2,3,4,5,6,7,8,9,10", 11, out updated),
+                "Champion-name selection must obey the exact source filter's bounds.");
+            Require(LeagueSimpleMatchHistoryFilter.TryRemoveParticipantPuuid(
+                "player-one,player_two", "player-one", out updated) &&
+                updated == "player_two" &&
+                !LeagueSimpleMatchHistoryFilter.TryRemoveParticipantPuuid(
+                    updated, "player-one", out updated),
+                "Selected participant removal must not remove a different exact identity.");
+            var cached = LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                new[] { new LeaguePlayerMatchSummary {
+                    MatchPlayers = new[] { new LeaguePlayerMatchIdentity {
+                        PuuId = "player-one", PlayerName = "Verified#NA1"
+                    }, new LeaguePlayerMatchIdentity {
+                        PuuId = "player_two", PlayerName = "Unselected#NA1"
+                    } }
+                } }, new[] { "player-one" }, null);
+            Require(cached.Count == 1 && cached["player-one"] == "Verified#NA1",
+                "Only selected verified page identities may enter the label cache.");
+            cached = LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                new LeaguePlayerMatchSummary[0], new[] { "player-one" }, cached);
+            Require(cached.Count == 1 && cached["player-one"] == "Verified#NA1",
+                "Selected player labels must survive paging without a second lookup.");
+            cached = LeagueSimpleMatchHistoryFilter.RememberSelectedParticipantNames(
+                new[] { new LeaguePlayerMatchSummary {
+                    MatchPlayers = new[] { new LeaguePlayerMatchIdentity {
+                        PuuId = "player-one", PlayerName = "Untrusted\nLabel"
+                    } }
+                } }, new[] { "player_two" }, cached);
+            Require(cached.Count == 0,
+                "Removed or changed identities must not inherit cached player names.");
+            Require(LeagueRemotePlayerHistoryForm.SameHistorySelection(
+                LeaguePlayerHistorySource.Sgp, "HN10", "ranked",
+                LeaguePlayerHistorySource.Sgp, "HN10", "ranked") &&
+                !LeagueRemotePlayerHistoryForm.SameHistorySelection(
+                    LeaguePlayerHistorySource.Sgp, "HN10", "ranked",
+                    LeaguePlayerHistorySource.Sgp, "HN11", "ranked") &&
+                !LeagueRemotePlayerHistoryForm.SameHistorySelection(
+                    LeaguePlayerHistorySource.Sgp, "HN10", "ranked",
+                    LeaguePlayerHistorySource.Lcu, "HN10", "ranked") &&
+                !LeagueRemotePlayerHistoryForm.SameHistorySelection(
+                    LeaguePlayerHistorySource.Sgp, "HN10", "ranked",
+                    LeaguePlayerHistorySource.Sgp, "HN10", "other"),
+                "History requests must reject changed source, region or queue during a load.");
         }
 
         private static void ValidateAdvancedTimeRangeFilters()
