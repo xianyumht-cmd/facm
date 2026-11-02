@@ -2040,7 +2040,9 @@ namespace FACM.League
             Require(sample != null && sample.FirstCamp == "blue" && sample.FirstCampSide == "blue" &&
                 sample.TopGanks == 1 && sample.MidGanks == 1 && sample.TopWeight > sample.MidWeight &&
                 sample.Level3Gank && sample.Level4Gank && sample.FirstDragonWon == true &&
-                sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d,
+                sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d &&
+                sample.MinutePositions.Count == 3 && sample.GankPositions.Count == 2 &&
+                sample.MinutePositions[0].Item1 == 3830 && sample.GankPositions[1].Item2 == 8000,
                 "Pinned Akari jungle timeline calculations diverged on camp, lanes, early ganks or objectives.");
             Require(LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 12, true) == null &&
                 LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 11, false) == null,
@@ -2052,6 +2054,16 @@ namespace FACM.League
                 "Jungle aggregation must deduplicate games and retain source-rate denominators.");
             Require(LeagueJungleTimelineAnalysis.Parse(Bytes("{"), 9, 64, 1, 100, 11, true) == null,
                 "Malformed timeline unexpectedly produced a game result.");
+            var other = new LeagueJungleTimelineSample { GameId = 8, ChampionId = 99, TeamId = 200 };
+            other.MinutePositions.Add(Tuple.Create(1000, 1000));
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 64)
+                    .Single().GameId == 7 &&
+                LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 2 &&
+                LeagueOngoingJungleMapProjection.Select(new[] { sample, sample }, 0).Count == 0,
+                "Jungle map must isolate champion evidence and reject duplicate games.");
+            other.MinutePositions.Add(Tuple.Create(16001, 1));
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
+                "Invalid map coordinates must not be rendered.");
         }
 
         private static void ValidateJungleFormatter()

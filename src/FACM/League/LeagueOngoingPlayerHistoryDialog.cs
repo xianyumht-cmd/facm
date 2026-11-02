@@ -411,6 +411,86 @@ namespace FACM.League
         }
     }
 
+
+    // The map uses only already-loaded timeline evidence. A game is never spliced
+    // into another game's route, and invalid or duplicate games are rejected.
+    internal static class LeagueOngoingJungleMapProjection
+    {
+        internal static IReadOnlyList<LeagueJungleTimelineSample> Select(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId)
+        {
+            if (samples == null || championId < 0 || championId > 9999 ||
+                samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
+                samples.Any(s => s == null || s.GameId <= 0 || s.ChampionId <= 0 ||
+                    s.TeamId != 100 && s.TeamId != 200 ||
+                    s.MinutePositions.Count > 14 || s.GankPositions.Count > 20 ||
+                    s.MinutePositions.Concat(s.GankPositions).Any(p =>
+                        p == null || p.Item1 < 0 || p.Item1 > 16000 ||
+                        p.Item2 < 0 || p.Item2 > 16000)) ||
+                samples.Select(s => s.GameId).Distinct().Count() != samples.Count)
+                return new LeagueJungleTimelineSample[0];
+            return samples.Where(s => (championId == 0 || s.ChampionId == championId) &&
+                s.MinutePositions.Count > 0).Take(20).ToArray();
+        }
+    }
+
+    internal sealed class LeagueOngoingJungleMapPanel : Panel
+    {
+        private IReadOnlyList<LeagueJungleTimelineSample> _samples =
+            new LeagueJungleTimelineSample[0];
+
+        internal LeagueOngoingJungleMapPanel()
+        {
+            DoubleBuffered = true;
+            Dock = DockStyle.Fill;
+            BackColor = FacmDesignSystem.CanvasRaised;
+            AccessibleName = "Jungle first 14 minutes position map";
+        }
+
+        internal void SetSamples(IReadOnlyList<LeagueJungleTimelineSample> samples)
+        {
+            _samples = samples ?? new LeagueJungleTimelineSample[0];
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var size = Math.Min(Width - 24, Height - 20);
+            if (size < 40) return;
+            var left = (Width - size) / 2f;
+            var top = (Height - size) / 2f;
+            var bounds = new RectangleF(left, top, size, size);
+            using (var fill = new SolidBrush(Color.FromArgb(20, 116, 155, 142)))
+                g.FillRectangle(fill, bounds);
+            using (var outline = new Pen(Color.FromArgb(95, 125, 153, 149), 1f))
+            {
+                g.DrawRectangle(outline, left, top, size, size);
+                g.DrawLine(outline, left, top + size, left + size, top);
+                g.DrawLine(outline, left, top, left + size, top + size);
+            }
+            Func<Tuple<int, int>, PointF> point = p => new PointF(
+                left + p.Item1 * size / 16000f,
+                top + size - p.Item2 * size / 16000f);
+            using (var route = new Pen(Color.FromArgb(75, 66, 170, 169), 1.8f))
+            using (var minute = new SolidBrush(Color.FromArgb(95, 66, 170, 169)))
+            using (var gank = new SolidBrush(Color.FromArgb(170, 224, 144, 75)))
+            {
+                foreach (var sample in _samples)
+                {
+                    var positions = sample.MinutePositions.Select(point).ToArray();
+                    if (positions.Length > 1) g.DrawLines(route, positions);
+                    foreach (var p in positions)
+                        g.FillEllipse(minute, p.X - 3, p.Y - 3, 6, 6);
+                    foreach (var p in sample.GankPositions.Select(point))
+                        g.FillEllipse(gank, p.X - 4, p.Y - 4, 8, 8);
+                }
+            }
+        }
+    }
+
     internal sealed class LeagueOngoingCardInsightsDialog : Form
     {
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
@@ -499,9 +579,10 @@ namespace FACM.League
                     BackColor = FacmDesignSystem.Canvas
                 };
                 var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
-                    ColumnCount = 1, RowCount = 2 };
+                    ColumnCount = 1, RowCount = 3 };
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
-                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
                 var jungleHeader = new FlowLayoutPanel { Dock = DockStyle.Fill,
                     FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
                 var load = new Button { Width = 160, Height = 30,
@@ -512,12 +593,15 @@ namespace FACM.League
                     Enabled = player.Player.ChampionId > 0 };
                 jungleHeader.Controls.Add(load);
                 jungleHeader.Controls.Add(currentChampion);
+                var jungleMap = new LeagueOngoingJungleMapPanel();
                 var jungle = MakeList();
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleActivity), 320);
                 Action refresh = () =>
                 {
                     jungle.Items.Clear();
+                    jungleMap.SetSamples(LeagueOngoingJungleMapProjection.Select(player.JungleSamples,
+                        currentChampion.Checked ? player.Player.ChampionId : 0));
                     var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples,
                         currentChampion.Checked ? player.Player.ChampionId : 0);
                     if (data == null)
@@ -575,7 +659,8 @@ namespace FACM.League
                     finally { if (!IsDisposed) load.Enabled = true; }
                 };
                 jungleLayout.Controls.Add(jungleHeader, 0, 0);
-                jungleLayout.Controls.Add(jungle, 0, 1);
+                jungleLayout.Controls.Add(jungleMap, 0, 1);
+                jungleLayout.Controls.Add(jungle, 0, 2);
                 junglePage.Controls.Add(jungleLayout);
                 tabs.TabPages.Add(junglePage);
             }
