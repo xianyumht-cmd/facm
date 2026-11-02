@@ -960,6 +960,34 @@ namespace FACM.League
                     "Unreadable incoming-trade status must block an automatic bench swap.");
             }
 
+            var noTrade = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
+                TradeJson = "{}" };
+            var normalBench = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                noTrade, new FakeWrite(), normalBench, new FakeTradeWrite(), new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, benchAndTrade);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(normalBench.Calls == 1 && normalBench.LastId == 55,
+                    "A verified empty trade response must not suppress an otherwise valid bench upgrade.");
+            }
+
+            var ambiguousTrade = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(80, 55) };
+            var ambiguousWriter = new FakeTradeWrite { NullFirstResponses = 1 };
+            var ambiguousClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                ambiguousTrade, new FakeWrite(), null, ambiguousWriter, ambiguousClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(ambiguousClock.Delays == 2 && ambiguousWriter.Calls == 1,
+                    "Ambiguous trade transport failure must remain one-shot, unlike explicit HTTP 503.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
             var defaultOff = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
                 TradeJson = Trade(77, 55) };
             using (var controller = new LeagueAutoPickBanController(
@@ -1570,6 +1598,7 @@ namespace FACM.League
             public int Id;
             public bool Accept;
             public int FailFirstResponses;
+            public int NullFirstResponses;
 
             public Task<LeagueClientWriteResponse> TryAnswerAsync(
                 int tradeId, bool accept, CancellationToken cancellationToken)
@@ -1578,6 +1607,11 @@ namespace FACM.League
                 Calls++;
                 Id = tradeId;
                 Accept = accept;
+                if (NullFirstResponses > 0)
+                {
+                    NullFirstResponses--;
+                    return Task.FromResult<LeagueClientWriteResponse>(null);
+                }
                 var fail = FailFirstResponses > 0;
                 if (fail) FailFirstResponses--;
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
