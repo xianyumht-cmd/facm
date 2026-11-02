@@ -35,6 +35,27 @@ namespace FACM.League
         private int _heldChampion;
         private bool _blocked;
         private readonly Dictionary<int, long> _benchFirstSeen = new Dictionary<int, long>();
+        private readonly Dictionary<string, long> _tradeFirstSeen = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        internal int RemainingTradeDelayMs(string tradeKey, int configuredMs, int phaseTimeLeftMs, long timestamp)
+        {
+            if (string.IsNullOrEmpty(tradeKey)) return 0;
+            long firstSeen;
+            if (!_tradeFirstSeen.TryGetValue(tradeKey, out firstSeen))
+            {
+                if (_tradeFirstSeen.Count >= 32) _tradeFirstSeen.Clear();
+                firstSeen = timestamp;
+                _tradeFirstSeen.Add(tradeKey, firstSeen);
+            }
+            var elapsed = timestamp >= firstSeen
+                ? (timestamp - firstSeen) * 1000d / Stopwatch.Frequency : 0d;
+            var remaining = (int)Math.Max(0d, Math.Ceiling(
+                Math.Max(0, Math.Min(15000, configuredMs)) - elapsed));
+            return phaseTimeLeftMs > 0
+                ? Math.Min(remaining, Math.Max(0, phaseTimeLeftMs - 1000)) : remaining;
+        }
+
+        internal void ClearTradeTiming() { _tradeFirstSeen.Clear(); }
 
         internal void ObserveBench(IReadOnlyList<int> championIds, long timestamp)
         {
@@ -336,7 +357,7 @@ namespace FACM.League
                         attempted, reported, trace).ConfigureAwait(false)) return;
                 if (pick && _tradeWrite != null && profiles.Any(p => p.BenchHandleTradeEnabled) &&
                     await TryTradeAsync(episode, session, profiles, pickId,
-                        attempted, reported, trace).ConfigureAwait(false)) return;
+                        attempted, reported, trace, benchGuard).ConfigureAwait(false)) return;
                 // Bench swaps happen after the draft's pick action is over. Reuse this same
                 // already-read ChampSelect response and phase-scoped task, never another poller.
                 if (pick && _benchWrite != null && profiles.Any(p => p.BenchAutoSwapEnabled))
@@ -613,7 +634,8 @@ namespace FACM.League
 
         private async Task<bool> TryTradeAsync(CancellationTokenSource episode, byte[] session,
             IReadOnlyList<LeagueAutoSelectProfile> profiles, int pickId,
-            HashSet<string> attempted, HashSet<string> reported, string trace)
+            HashSet<string> attempted, HashSet<string> reported, string trace,
+            LeagueAutoBenchEpisodeGuard guard)
         {
             var state = LeagueLiveDataService.ParseBenchPayload(session);
             if (!state.SessionAvailable || !state.BenchEnabled || state.LocalChampionId <= 0 ||
@@ -645,9 +667,10 @@ namespace FACM.League
                     RecordOnce(reported, trace, "trade", "unknown_state");
                     return true;
                 }
+                guard.ClearTradeTiming();
                 return false;
             }
-            var key = "trade:" + incoming.Id;
+            var key = "trade:" + incoming.Id + ":" + incoming.RequestedChampionId;
             if (attempted.Contains(key)) return true;
             var priorities = LeagueAutoSelectGroupCatalog.FilterSpecials(
                 LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
@@ -655,7 +678,10 @@ namespace FACM.League
             var accept = SelectBenchTarget(priorities, state.LocalChampionId,
                 new[] { incoming.RequestedChampionId }, profile.BenchPreferHigherPriority) == incoming.RequestedChampionId;
             var watch = Stopwatch.StartNew();
-            var delay = LimitDelay(profile.PickDelayMs, state.TimerMillisecondsLeft);
+            // The source counts from the first observed trade, not from each retry.
+            // A transient 5xx must not restart the full delay on every phase tick.
+            var delay = guard.RemainingTradeDelayMs(key, profile.PickDelayMs,
+                state.TimerMillisecondsLeft, Stopwatch.GetTimestamp());
             if (delay > 0)
             {
                 CompactTraceLog.Record(trace, "autoselect-trade", "delay", "scheduled", 0);

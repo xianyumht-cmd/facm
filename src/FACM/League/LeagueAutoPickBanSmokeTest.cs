@@ -846,6 +846,20 @@ namespace FACM.League
 
         private static async Task ValidateChampionTradesAsync()
         {
+            var tradeTiming = new LeagueAutoBenchEpisodeGuard();
+            var origin = System.Diagnostics.Stopwatch.Frequency * 100L;
+            Require(tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000, origin) == 5000 &&
+                    tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                        origin + System.Diagnostics.Stopwatch.Frequency * 2L) == 3000 &&
+                    tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                        origin + System.Diagnostics.Stopwatch.Frequency * 6L) == 0 &&
+                    tradeTiming.RemainingTradeDelayMs("74:55", 5000, 1200, origin) == 200,
+                "Trade delay must use the first observation, not reset on each guarded retry.");
+            tradeTiming.ClearTradeTiming();
+            Require(tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                    origin + System.Diagnostics.Stopwatch.Frequency * 6L) == 5000,
+                "A new trade episode must start a fresh bounded delay.");
+
             Require(LeagueBenchSwapWriteApiClient.BuildTradePathForSmokeTest(73, true) ==
                     "/lol-champ-select/v1/session/champion-swaps/73/accept" &&
                     LeagueBenchSwapWriteApiClient.BuildTradePathForSmokeTest(73, false) ==
