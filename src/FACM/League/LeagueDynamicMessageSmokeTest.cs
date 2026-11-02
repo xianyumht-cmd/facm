@@ -1496,6 +1496,8 @@ namespace FACM.League
             snapshot.Players.Add(player);
             Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
                 "Verified current-roster players must expose the existing profile detail owner.");
+            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
+                "Current junglers must have a direct, user-triggered pathing card entry.");
             Require(LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) && champion == 99 &&
                 LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1507,6 +1509,7 @@ namespace FACM.League
                 }
             };
             Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, foreign) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, foreign) &&
                 !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, foreign, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1514,6 +1517,12 @@ namespace FACM.League
                 "Unverified roster identities must not open profile or collection actions.");
             player.Player.ChampionId = 0;
             player.Player.Position = "NONE";
+            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
+                "Non-junglers without Smite must not expose the default pathing entry.");
+            player.Player.Spell2Id = 11;
+            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
+                "Smite must identify a current jungler even before lane assignment.");
+            player.Player.Spell2Id = 0;
             Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
                 "Current player profile details must remain available without champion or lane.");
             Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
@@ -1524,7 +1533,8 @@ namespace FACM.League
             player.Player.ChampionId = 99;
             player.Player.Position = "TOP";
             snapshot.HistoricalStandalone = true;
-            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
+            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
                 !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(

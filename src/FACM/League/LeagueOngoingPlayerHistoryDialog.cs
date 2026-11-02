@@ -279,6 +279,15 @@ namespace FACM.League
             return IsLiveRosterPlayer(snapshot, player);
         }
 
+        internal static bool CanOpenJungle(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            if (!IsLiveRosterPlayer(snapshot, player)) return false;
+            var position = player.Player.Position;
+            return string.Equals(position?.Trim(), "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                player.Player.Spell1Id == 11 || player.Player.Spell2Id == 11;
+        }
+
         internal static bool TryCurrentChampion(LeagueDynamicMessageSnapshot snapshot,
             LeagueDynamicMessagePlayer player, out int championId)
         {
@@ -771,7 +780,7 @@ namespace FACM.League
         internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
             LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches,
             bool canCollect, Func<bool> isCurrent,
-            Func<CancellationToken, Task<bool>> loadJungle)
+            Func<CancellationToken, Task<bool>> loadJungle, bool openJungle = false)
         {
             Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
             Text = ui.Get(UiTextKeys.LeagueProfileMastery) + " · " +
@@ -1036,8 +1045,15 @@ namespace FACM.League
                 jungleLayout.Controls.Add(jungle, 0, 2);
                 junglePage.Controls.Add(jungleLayout);
                 tabs.TabPages.Add(junglePage);
+                if (openJungle)
+                    Shown += (sender, args) =>
+                    {
+                        if (!IsDisposed && isCurrent() && player.JungleSamples == null)
+                            load.PerformClick();
+                    };
             }
-            tabs.SelectedTab = masteryPage;
+            tabs.SelectedTab = openJungle && tabs.TabPages.Count > 2
+                ? tabs.TabPages[2] : masteryPage;
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));

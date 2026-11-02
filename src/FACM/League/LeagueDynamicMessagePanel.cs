@@ -385,6 +385,7 @@ namespace FACM.League
             var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
             var recentHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingRecentHistory));
             var playerProfile = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileDetailsTitle));
+            var junglePathing = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.JungleTab));
             var enrichHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingHydrateHistory));
             var collectCurrentChampion = tagMenu.Items.Add(
                 T(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · " +
@@ -415,6 +416,8 @@ namespace FACM.League
                 recentHistory.Enabled = !e.Cancel;
                 playerProfile.Enabled = !e.Cancel &&
                     LeagueOngoingCardActionSelection.CanOpenProfile(_snapshot, choice.Player);
+                junglePathing.Enabled = !e.Cancel &&
+                    LeagueOngoingCardActionSelection.CanOpenJungle(_snapshot, choice.Player);
                 enrichHistory.Enabled = !e.Cancel && _options.GameDetailsLoadCount > 0 &&
                     choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>
@@ -465,6 +468,22 @@ namespace FACM.League
                     choice.Player.Player.PuuId, choice.Player.Player.GameName))
                     if (dialog != null && ReferenceEquals(_snapshot, snapshot))
                         dialog.ShowDialog(this);
+            };
+            junglePathing.Click += (sender, args) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                var snapshot = _snapshot;
+                if (_busy || !LeagueOngoingCardActionSelection.CanOpenJungle(
+                    snapshot, choice?.Player)) return;
+                Func<bool> isCurrent = () => !IsDisposed && !_lifetime.IsCancellationRequested &&
+                    !_busy && ReferenceEquals(_snapshot, snapshot) &&
+                    LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, choice.Player);
+                var matches = choice.Player.History?.Matches ?? new List<LeaguePlayerMatchSummary>();
+                using (var dialog = new LeagueOngoingCardInsightsDialog(_ui, choice.Player,
+                    matches, false, isCurrent,
+                    token => _module.LoadJungleMessagesAsync(snapshot,
+                        choice.Player.Player.PuuId, token), true))
+                    if (isCurrent()) dialog.ShowDialog(this);
             };
             recentHistory.Click += (sender, e) =>
             {
