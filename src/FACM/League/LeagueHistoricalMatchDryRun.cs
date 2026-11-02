@@ -140,9 +140,9 @@ namespace FACM.League
                 QueueId = snapshot.HistoricalQueueId, TargetIndex = index,
                 Players = snapshot.Players.Select(p => new LeagueStandaloneDraftRecord {
                     Name = p.Player.GameName, TeamId = p.HistoricalTeamId,
-                    ChampionId = p.Player.ChampionId, Position = p.Player.Position,
-                    Primary = p.HistoricalPrimaryPosition,
-                    Secondary = p.HistoricalSecondaryPosition
+                    ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                    Primary = p.HistoricalPrimaryPosition ?? "",
+                    Secondary = p.HistoricalSecondaryPosition ?? ""
                 }).ToList()
             };
             var json = new JavaScriptSerializer { MaxJsonLength = MaximumStandaloneDraftJsonLength }
