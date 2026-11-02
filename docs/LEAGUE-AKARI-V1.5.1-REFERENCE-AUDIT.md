@@ -1,3 +1,7 @@
+### 2026-11-02 — Clean Arena preview template (Draft #357)
+
+The same history-scoped clean-template action now supports Arena: two synthetic two-player subteams, each with no inherited source account/history, can be expanded through paired additions up to 20 participants, edited, and fully reset to the immutable verified original match. TEAM-ALL display is preserved while actual subteam membership stays paired. Synthetic smoke checks four-player start, expansion and exact 16-player restore. **Partial** Akari free-form draft parity: still no standalone no-match entry; four exact-SHA Windows gates pending.
+
 ### 2026-11-02 — Arena paired free-form preview edits (Draft #357)
 
 The native historical Arena editor can add a synthetic two-player subteam and remove a selected non-target subteam, preserving paired subteam invariants, source TEAM-ALL message grouping, verified original participants and exact full reset. Champion/name input is validated atomically, no source history or account identity is copied, and the 20-player cap is enforced. The roster edit validator now permits distinct valid Arena subteam IDs while requiring exactly two players in every subteam. Synthetic smoke covers 16→18→16, invalid duplicates, team grouping and restore. This remains **partial** independent draft parity, with no standalone no-match entry or live Tencent acceptance; four exact-HEAD Windows gates pending.

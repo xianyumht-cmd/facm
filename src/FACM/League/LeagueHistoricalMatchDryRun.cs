@@ -509,13 +509,18 @@ namespace FACM.League
         internal static bool TryStartBlankRoster(LeagueDynamicMessageSnapshot snapshot,
             string blueName, string redName)
         {
-            if (!ValidTeamDraft(snapshot) || snapshot.HistoricalGameMode != "CLASSIC" ||
+            if (!ValidTeamDraft(snapshot) ||
+                (snapshot.HistoricalGameMode != "CLASSIC" &&
+                 snapshot.HistoricalGameMode != "CHERRY") ||
                 string.IsNullOrWhiteSpace(blueName) || string.IsNullOrWhiteSpace(redName) ||
-                blueName.Trim().Length > 48 || redName.Trim().Length > 48 ||
+                blueName.Trim().Length > 45 || redName.Trim().Length > 45 ||
                 blueName.Any(char.IsControl) || redName.Any(char.IsControl) ||
                 string.Equals(blueName.Trim(), redName.Trim(), StringComparison.OrdinalIgnoreCase))
                 return false;
 
+            var cherry = snapshot.HistoricalGameMode == "CHERRY";
+            var firstTeam = cherry ? 1 : 100;
+            var secondTeam = cherry ? 2 : 200;
             Func<string, int, int, LeagueDynamicMessagePlayer> create = (name, team, cell) =>
                 new LeagueDynamicMessagePlayer {
                     HistoricalSyntheticAdded = true,
@@ -524,19 +529,23 @@ namespace FACM.League
                     HistoricalOriginalChampionName = "#1",
                     HistoricalOriginalPosition = "",
                     ChampionName = "#1",
-                    Friendly = team == 100,
+                    Friendly = team == firstTeam,
                     Player = new LeagueLivePlayerRow {
                         PuuId = "draft-" + Guid.NewGuid().ToString("N"),
                         CellId = cell, GameName = name.Trim(), ChampionId = 1,
-                        Position = "", Side = team == 100 ? "ally" : "enemy"
+                        Position = "", Side = team == firstTeam ? "ally" : "enemy"
                     }
                 };
-            var blue = create(blueName, 100, 1);
-            var red = create(redName, 200, 2);
+            var first = create(blueName + (cherry ? " 1" : ""), firstTeam, 1);
+            var second = create(redName + (cherry ? " 1" : ""), secondTeam, cherry ? 3 : 2);
             snapshot.Players.Clear();
-            snapshot.Players.Add(blue);
-            snapshot.Players.Add(red);
-            snapshot.SelfPuuid = blue.Player.PuuId;
+            snapshot.Players.Add(first);
+            if (cherry)
+                snapshot.Players.Add(create(blueName + " 2", firstTeam, 2));
+            snapshot.Players.Add(second);
+            if (cherry)
+                snapshot.Players.Add(create(redName + " 2", secondTeam, 4));
+            snapshot.SelfPuuid = first.Player.PuuId;
             snapshot.HistoricalQueueId = 0;
             RefreshDraftSides(snapshot);
             return true;

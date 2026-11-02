@@ -577,6 +577,22 @@ namespace FACM.League
             }
             else if (snapshot.HistoricalGameMode == "CHERRY")
             {
+                var blankArena = new Button { Width = 150, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank) };
+                blankArena.Click += (sender, args) =>
+                {
+                    if (!isCurrentSession()) { Close(); return; }
+                    if (!LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot,
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaOne),
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaTwo)))
+                    {
+                        MessageBox.Show(this, t(LeagueEfficiencyUiTextKeys.DynamicUnavailable),
+                            Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    DialogResult = DialogResult.OK; Close();
+                };
+                actions.Controls.Add(blankArena);
                 var addPair = new Button { Width = 148, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.HistoricalDraftAddArenaPair) };
                 addPair.Click += (sender, args) =>

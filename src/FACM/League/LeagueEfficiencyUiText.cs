@@ -408,6 +408,8 @@ namespace FACM.League
         public const string HistoricalDraftPairFirst = "LeagueEfficiencyHistoricalDraftPairFirst";
         public const string HistoricalDraftPairSecond = "LeagueEfficiencyHistoricalDraftPairSecond";
         public const string HistoricalDraftStartBlank = "LeagueEfficiencyHistoricalDraftStartBlank";
+        public const string HistoricalDraftBlankArenaOne = "LeagueEfficiencyHistoricalDraftBlankArenaOne";
+        public const string HistoricalDraftBlankArenaTwo = "LeagueEfficiencyHistoricalDraftBlankArenaTwo";
         public const string HistoricalDraftBlankBlue = "LeagueEfficiencyHistoricalDraftBlankBlue";
         public const string HistoricalDraftBlankRed = "LeagueEfficiencyHistoricalDraftBlankRed";
         public const string HistoricalDraftAddPlayer = "LeagueEfficiencyHistoricalDraftAddPlayer";
@@ -911,6 +913,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HistoricalDraftPairFirst, "小队玩家一" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftPairSecond, "小队玩家二" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftStartBlank, "从空白双队模板编队" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaOne, "斗魂模拟小队一" },
+            { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankArenaTwo, "斗魂模拟小队二" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankBlue, "蓝方模拟玩家" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftBlankRed, "红方模拟玩家" },
             { LeagueEfficiencyUiTextKeys.HistoricalDraftAddPlayer, "新增模拟玩家" },

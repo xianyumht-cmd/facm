@@ -2027,6 +2027,21 @@ namespace FACM.League
                 arenaDraft.Players.Count == 16 &&
                 arenaDraft.Players.All(p => !p.HistoricalSyntheticAdded),
                 "Arena pair removal and full reset must preserve immutable source identities.");
+            Require(LeagueHistoricalMatchDryRun.TryStartBlankRoster(arenaDraft,
+                    "Arena alpha", "Arena beta") &&
+                arenaDraft.Players.Count == 4 &&
+                arenaDraft.Players.All(p => p.HistoricalSyntheticAdded && p.History == null) &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).Count() == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 4,
+                "Arena clean template must create only synthetic two-person subteams.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena gamma", 22, "Arena delta", 23) &&
+                arenaDraft.Players.Count == 6 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Count == 16 && arenaDraft.SelfPuuid == "target" &&
+                arenaDraft.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Arena clean template must grow and restore verified original participants.");
             Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaPerspective, "arena-3") &&
                 arenaDraft.SelfPuuid == "arena-3" &&
                 arenaDraft.Players.Count(p => p.Friendly) == 2 &&

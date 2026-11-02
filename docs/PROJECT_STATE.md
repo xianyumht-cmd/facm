@@ -1,3 +1,7 @@
+## 2026-11-02 — Arena clean-template extension candidate
+
+Historical Arena preview can start with two synthetic pairs, add more paired subteams, preserve TEAM-ALL display and restore the immutable verified source match. The entry still requires a historical preview, not a standalone editor. Synthetic tests added; exact-SHA Windows CI pending, final Tencent/Win10 acceptance deferred.
+
 ## 2026-11-02 — Arena historical subteam editing candidate
 
 Draft #357 extends read-only historical Arena preview with atomic synthetic two-player subteam creation/removal, up to 20 players, TEAM-ALL display and reversible source roster. Invalid names, unpaired teams and selected perspective removal fail closed. Synthetic tests added; exact-SHA Windows gates pending. The source-complete standalone no-match draft remains missing.
