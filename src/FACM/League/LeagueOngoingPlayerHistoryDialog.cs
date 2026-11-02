@@ -446,6 +446,20 @@ namespace FACM.League
             return samples.Where(s => (championId == 0 || s.ChampionId == championId) &&
                 s.MinutePositions.Count > 0).Take(20).ToArray();
         }
+
+        // Reuse the source-weighted 7x7 Rift projection: one weight per minute
+        // position, five per confirmed takedown. Selection is bounded and verified.
+        internal static LeagueEventMap.HeatmapCell[] Heatmap(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId)
+        {
+            var selected = Select(samples, championId);
+            if (selected.Count == 0) return new LeagueEventMap.HeatmapCell[0];
+            return LeagueEventMap.BuildHeatmap(
+                selected.SelectMany(s => s.MinutePositions)
+                    .Select(p => new PointF(p.Item1, p.Item2)),
+                selected.SelectMany(s => s.GankPositions)
+                    .Select(p => new PointF(p.Item1, p.Item2)), 11);
+        }
     }
 
     internal sealed class LeagueOngoingJungleChampionChoice
@@ -459,6 +473,9 @@ namespace FACM.League
     {
         private IReadOnlyList<LeagueJungleTimelineSample> _samples =
             new LeagueJungleTimelineSample[0];
+        private LeagueEventMap.HeatmapCell[] _heatmap = new LeagueEventMap.HeatmapCell[0];
+        private readonly Bitmap _map;
+        private bool _showHeatmap;
 
         internal LeagueOngoingJungleMapPanel()
         {
@@ -466,11 +483,25 @@ namespace FACM.League
             Dock = DockStyle.Fill;
             BackColor = FacmDesignSystem.CanvasRaised;
             AccessibleName = "Jungle first 14 minutes position map";
+            using (var stream = typeof(LeagueEventMap).Assembly.GetManifestResourceStream(
+                "FACM.Resources.LeagueMaps.11.png"))
+            {
+                if (stream != null)
+                    using (var image = Image.FromStream(stream)) _map = new Bitmap(image);
+            }
         }
 
         internal void SetSamples(IReadOnlyList<LeagueJungleTimelineSample> samples)
         {
             _samples = samples ?? new LeagueJungleTimelineSample[0];
+            _heatmap = LeagueOngoingJungleMapProjection.Heatmap(_samples, 0);
+            Invalidate();
+        }
+
+        internal void SetHeatmapMode(bool enabled)
+        {
+            if (_showHeatmap == enabled) return;
+            _showHeatmap = enabled;
             Invalidate();
         }
 
@@ -484,20 +515,35 @@ namespace FACM.League
             var left = (Width - size) / 2f;
             var top = (Height - size) / 2f;
             var bounds = new RectangleF(left, top, size, size);
-            using (var fill = new SolidBrush(Color.FromArgb(20, 116, 155, 142)))
-                g.FillRectangle(fill, bounds);
-            using (var outline = new Pen(Color.FromArgb(95, 125, 153, 149), 1f))
+            if (_map != null)
+                g.DrawImage(_map, bounds);
+            else
+                using (var fill = new SolidBrush(Color.FromArgb(20, 116, 155, 142)))
+                    g.FillRectangle(fill, bounds);
+            LeagueEventMap.DrawJungleSideOverlay(g, Rectangle.Round(bounds));
+            if (_showHeatmap)
             {
-                g.DrawRectangle(outline, left, top, size, size);
-                g.DrawLine(outline, left, top + size, left + size, top);
-                g.DrawLine(outline, left, top, left + size, top + size);
+                var laneColors = new[] { Color.FromArgb(220, 38, 38),
+                    Color.FromArgb(245, 158, 11), Color.FromArgb(37, 99, 235) };
+                foreach (var cell in _heatmap.OrderBy(c => c.Intensity))
+                {
+                    var radius = Math.Max(5f, size / 7f * (0.3f + cell.Intensity * 0.4f));
+                    var x = left + cell.Center.X * size;
+                    var y = top + cell.Center.Y * size;
+                    using (var brush = new SolidBrush(Color.FromArgb(
+                        (int)(255f * (0.22f + cell.Intensity * 0.52f)), laneColors[cell.Lane])))
+                        g.FillEllipse(brush, x - radius, y - radius, radius * 2, radius * 2);
+                }
+                return;
             }
-            Func<Tuple<int, int>, PointF> point = p => new PointF(
-                left + p.Item1 * size / 16000f,
-                top + size - p.Item2 * size / 16000f);
-            using (var route = new Pen(Color.FromArgb(75, 66, 170, 169), 1.8f))
-            using (var minute = new SolidBrush(Color.FromArgb(95, 66, 170, 169)))
-            using (var gank = new SolidBrush(Color.FromArgb(170, 224, 144, 75)))
+            Func<Tuple<int, int>, PointF> point = p =>
+            {
+                var normalized = LeagueEventMap.Normalize(p.Item1, p.Item2, 11).Value;
+                return new PointF(left + normalized.X * size, top + normalized.Y * size);
+            };
+            using (var route = new Pen(Color.FromArgb(160, 66, 170, 169), 1.8f))
+            using (var minute = new SolidBrush(Color.FromArgb(180, 66, 170, 169)))
+            using (var gank = new SolidBrush(Color.FromArgb(220, 224, 144, 75)))
             {
                 foreach (var sample in _samples)
                 {
@@ -511,6 +557,12 @@ namespace FACM.League
                         g.FillEllipse(gank, p.X - 4, p.Y - 4, 8, 8);
                 }
             }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _map?.Dispose();
+            base.Dispose(disposing);
         }
     }
 
@@ -644,7 +696,12 @@ namespace FACM.League
                 };
                 jungleHeader.Controls.Add(load);
                 jungleHeader.Controls.Add(championChoice);
+                var heatmapToggle = new CheckBox { AutoSize = true, Height = 30,
+                    Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
+                jungleHeader.Controls.Add(heatmapToggle);
                 var jungleMap = new LeagueOngoingJungleMapPanel();
+                heatmapToggle.CheckedChanged += (sender, args) =>
+                    jungleMap.SetHeatmapMode(heatmapToggle.Checked);
                 var jungle = MakeList();
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleActivity), 320);

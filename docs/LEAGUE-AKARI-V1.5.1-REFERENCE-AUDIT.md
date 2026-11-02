@@ -1,3 +1,7 @@
+### 2026-11-02 — Player-card Rift heatmap and licensed map background (Draft #357)
+
+The native on-demand jungle card now draws the bundled Akari MIT-licensed Summoner's Rift map instead of a placeholder square. A localized heatmap toggle switches between source-aligned first-14-minute routes/gank markers and the existing pinned 7x7 zone-weighted heatmap algorithm (minute position +1, confirmed gank +5). Both views use already-fetched, bounded, champion-filtered samples; invalid or duplicate games fail closed and no network owner or poller is added. Synthetic history smoke checks weights, champion isolation, empty selections and duplicate rejection. This is **partial source visual parity** pending four exact-SHA Windows gates and final Tencent/Win10 acceptance.
+
 ### 2026-11-02 — Source parity: native jungle coordinates, free-form Rift preview and live Arena TEAM-ALL (Draft #357)
 
 Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` references: `src/renderer-shared/components/ongoing-game-panel/widgets/player-info-card/PlayerInfoCardJunglePathing.vue`, `jungle-pathing-info/JunglePathingInfo.vue`, `src/main/shards/ongoing-game/computed-state.ts` (CHERRY `TEAM-ALL` in ChampSelect and Gameflow), and `src/shared/shards/ongoing-game/index.ts` (`DraftOptions.teams` arrays). GGman candidate `e6848494b08bcc6890b26e7ae97dabe2463e7b6d` includes:

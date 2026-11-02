@@ -1557,11 +1557,27 @@ namespace FACM.League
                 !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5 &&
                 jungleCard.FirstCamps.Count == 2,
                 "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            jungleRows[0].MinutePositions.Add(Tuple.Create(7000, 7000));
+            jungleRows[0].MinuteIndices.Add(1);
+            jungleRows[0].GankPositions.Add(Tuple.Create(7000, 7000));
+            jungleRows[1].MinutePositions.Add(Tuple.Create(12000, 12000));
+            jungleRows[1].MinuteIndices.Add(1);
+            var heatmap = LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22);
+            Require(heatmap.Length == 2 && heatmap[0].Weight == 6 &&
+                heatmap[1].Weight == 1 &&
+                heatmap[0].Intensity == 1f &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 99).Length == 0,
+                "Player-card heatmap must reuse bounded 1:5 source weighting and reject absent champions.");
             jungleRows[1].ChampionId = 23;
+            Require(LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 23).Length == 1,
+                "Player-card heatmap must not combine other champion samples.");
             Require(LeagueOngoingCardJungleProjection.Project(jungleRows, 22).Games == 1 &&
                 LeagueOngoingCardJungleProjection.Project(jungleRows, 99) == null,
                 "Current-champion jungle filter must not mix different champion timelines.");
             jungleRows[1].GameId = 1001;
+            Require(LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 0).Length == 0,
+                "Conflicting duplicate jungle games must not create spatial heatmap evidence.");
             Require(LeagueOngoingCardJungleProjection.Project(jungleRows) == null,
                 "Duplicate jungle game IDs must not fabricate a player-card sample.");
             var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,

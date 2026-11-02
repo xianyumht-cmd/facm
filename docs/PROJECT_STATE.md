@@ -1,3 +1,7 @@
+## 2026-11-02 — Native player-card jungle map candidate
+
+Draft #357 adds a source-weighted, localized heatmap toggle and the already-bundled licensed Rift map to the player-card jungle tab. The existing route view remains available with corrected source-coordinate mapping. Synthetic tests cover weighting, champion separation and duplicate rejection; four exact-HEAD Windows CI gates pending. No production, release or live game testing.
+
 ### 2026-11-02 — Bounded native jungle map, flexible historical Rift roster, verified live Arena TEAM-ALL (Draft #357)
 
 **Executable candidate:** `e6848494b08bcc6890b26e7ae97dabe2463e7b6d`. Three source-derived functional clusters were committed on the existing Draft branch; the four Windows gates for this exact HEAD are **pending**, not accepted. The preceding verified `fb037b2201ce4eb95d35eb3440559c07f9726ae3` passed Build, Glass, UI Text and Mayhem. An intermediate `11c10ffb` UI Text failure was caused by two new literal button labels and repaired with registered text keys in `95414989`. No live Tencent/Windows acceptance.
