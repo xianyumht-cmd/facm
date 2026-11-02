@@ -416,6 +416,17 @@ namespace FACM.League
     // into another game's route, and invalid or duplicate games are rejected.
     internal static class LeagueOngoingJungleMapProjection
     {
+        internal static int[] AvailableChampions(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int currentChampionId)
+        {
+            if (samples == null || LeagueOngoingCardJungleProjection.Project(samples) == null)
+                return new int[0];
+            return samples.GroupBy(s => s.ChampionId)
+                .OrderByDescending(g => g.Key == currentChampionId)
+                .ThenByDescending(g => g.Count()).ThenBy(g => g.Key)
+                .Take(20).Select(g => g.Key).ToArray();
+        }
+
         internal static IReadOnlyList<LeagueJungleTimelineSample> Select(
             IReadOnlyList<LeagueJungleTimelineSample> samples, int championId)
         {
@@ -435,6 +446,13 @@ namespace FACM.League
             return samples.Where(s => (championId == 0 || s.ChampionId == championId) &&
                 s.MinutePositions.Count > 0).Take(20).ToArray();
         }
+    }
+
+    internal sealed class LeagueOngoingJungleChampionChoice
+    {
+        internal int ChampionId;
+        internal string Name;
+        public override string ToString() { return Name; }
     }
 
     internal sealed class LeagueOngoingJungleMapPanel : Panel
@@ -592,12 +610,40 @@ namespace FACM.League
                     FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
                 var load = new Button { Width = 160, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.JungleLoad) };
-                var currentChampion = new CheckBox { AutoSize = true,
-                    Text = t(LeagueEfficiencyUiTextKeys.DynamicCurrentChampion),
-                    Checked = player.Player.ChampionId > 0,
-                    Enabled = player.Player.ChampionId > 0 };
+                var championChoice = new ComboBox { Width = 190,
+                    DropDownStyle = ComboBoxStyle.DropDownList };
+                Action populateChampions = () =>
+                {
+                    var previous = (championChoice.SelectedItem as LeagueOngoingJungleChampionChoice)
+                        ?.ChampionId ?? -1;
+                    var ids = LeagueOngoingJungleMapProjection.AvailableChampions(
+                        player.JungleSamples, player.Player.ChampionId);
+                    championChoice.Items.Clear();
+                    championChoice.Items.Add(new LeagueOngoingJungleChampionChoice {
+                        ChampionId = 0, Name = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll)
+                    });
+                    foreach (var id in ids)
+                    {
+                        var name = matches?.FirstOrDefault(m => m.ChampionId == id &&
+                            !string.IsNullOrWhiteSpace(m.ChampionName))?.ChampionName;
+                        name = string.IsNullOrWhiteSpace(name) ? "#" + id :
+                            new string(name.Where(ch => !char.IsControl(ch)).Take(40).ToArray());
+                        championChoice.Items.Add(new LeagueOngoingJungleChampionChoice {
+                            ChampionId = id, Name = name
+                        });
+                    }
+                    var chosen = championChoice.Items.Cast<LeagueOngoingJungleChampionChoice>()
+                        .FirstOrDefault(item => item.ChampionId == previous);
+                    if (chosen == null)
+                    {
+                        var preferred = ids.Length == 0 ? 0 : ids[0];
+                        chosen = championChoice.Items.Cast<LeagueOngoingJungleChampionChoice>()
+                            .First(item => item.ChampionId == preferred);
+                    }
+                    championChoice.SelectedItem = chosen;
+                };
                 jungleHeader.Controls.Add(load);
-                jungleHeader.Controls.Add(currentChampion);
+                jungleHeader.Controls.Add(championChoice);
                 var jungleMap = new LeagueOngoingJungleMapPanel();
                 var jungle = MakeList();
                 jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
@@ -605,10 +651,12 @@ namespace FACM.League
                 Action refresh = () =>
                 {
                     jungle.Items.Clear();
+                    var championId = (championChoice.SelectedItem as LeagueOngoingJungleChampionChoice)
+                        ?.ChampionId ?? 0;
                     jungleMap.SetSamples(LeagueOngoingJungleMapProjection.Select(player.JungleSamples,
-                        currentChampion.Checked ? player.Player.ChampionId : 0));
+                        championId));
                     var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples,
-                        currentChampion.Checked ? player.Player.ChampionId : 0);
+                        championId);
                     if (data == null)
                     {
                         jungle.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
@@ -647,8 +695,9 @@ namespace FACM.League
                         number(data.AverageVoidgrubs) + " / " + number(data.AverageHeralds) +
                         " / " + number(data.AverageBarons));
                 };
+                populateChampions();
                 refresh();
-                currentChampion.CheckedChanged += (sender, args) => refresh();
+                championChoice.SelectedIndexChanged += (sender, args) => refresh();
                 load.Click += async (sender, args) =>
                 {
                     if (!isCurrent() || !load.Enabled) return;
@@ -657,7 +706,10 @@ namespace FACM.League
                     {
                         if (await loadJungle(_lifetime.Token) && !IsDisposed &&
                             !_lifetime.IsCancellationRequested && isCurrent())
+                        {
+                            populateChampions();
                             refresh();
+                        }
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception) { }

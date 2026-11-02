@@ -2103,6 +2103,11 @@ namespace FACM.League
             other.MinuteIndices[1] = 1;
             Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
                 "Duplicate or nonmonotonic timeline minutes must not form invented map routes.");
+            other.MinuteIndices[1] = 2;
+            Require(LeagueOngoingJungleMapProjection.AvailableChampions(new[] { sample, other }, 64)
+                    .SequenceEqual(new[] { 64, 99 }) &&
+                LeagueOngoingJungleMapProjection.AvailableChampions(new[] { sample, sample }, 64).Length == 0,
+                "Source-style jungle champion tabs must rank current champion and reject duplicate games.");
         }
 
         private static void ValidateJungleFormatter()
