@@ -409,11 +409,28 @@ namespace FACM.League
             finally { _localTokenGate.Release(); }
         }
 
+        private static bool EndpointMatchesCatalog(LeagueClientSession session, Uri endpoint,
+            bool leagueToken, LeagueSgpServer[] catalog)
+        {
+            if (session == null || endpoint == null || catalog == null) return false;
+            var currentId = CurrentServerId(session);
+            var current = catalog.FirstOrDefault(server => server.Id == currentId);
+            if (current == null) return false;
+            var authority = endpoint.GetLeftPart(UriPartial.Authority);
+            return catalog.Any(server =>
+                (current.IsTencent ? server.IsTencent : server.Id == current.Id) &&
+                string.Equals(authority, new Uri(leagueToken ? server.Common :
+                    server.MatchHistory).GetLeftPart(UriPartial.Authority),
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
         private async Task<byte[]> SendAsync(LeagueClientSession session, Uri endpoint, string body,
             bool leagueToken, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (session == null || endpoint == null) return null;
+            var catalog = Servers;
+            if (!EndpointMatchesCatalog(session, endpoint, leagueToken, catalog)) return null;
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
                 deadline.CancelAfter(TimeSpan.FromSeconds(8));
@@ -422,10 +439,10 @@ namespace FACM.League
                     string rejectedToken = null;
                     for (var attempt = 0; attempt < 2; attempt++)
                     {
-                        if (!SameSession(session)) return null;
+                        if (!ReferenceEquals(catalog, Servers) || !SameSession(session)) return null;
                         var token = await ReadScopedTokenAsync(session, leagueToken, rejectedToken,
                             deadline.Token).ConfigureAwait(false);
-                        if (token == null || !SameSession(session) ||
+                        if (token == null || !ReferenceEquals(catalog, Servers) || !SameSession(session) ||
                             (rejectedToken != null && string.Equals(token, rejectedToken, StringComparison.Ordinal)))
                             return null;
                         using (var request = new HttpRequestMessage(body == null ? HttpMethod.Get : HttpMethod.Post, endpoint))
@@ -437,7 +454,7 @@ namespace FACM.League
                                 using (var response = await _http.SendAsync(request,
                                     HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
                                 {
-                                    if (!SameSession(session)) return null;
+                                    if (!ReferenceEquals(catalog, Servers) || !SameSession(session)) return null;
                                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && attempt == 0)
                                     {
                                         rejectedToken = token;
@@ -451,7 +468,7 @@ namespace FACM.League
                                     if (!response.IsSuccessStatusCode) return null;
                                     var bytes = await CancelableHttpContentReader.ReadBytesAsync(
                                         response.Content, deadline.Token, 16 * 1024 * 1024).ConfigureAwait(false);
-                                    return SameSession(session) ? bytes : null;
+                                    return ReferenceEquals(catalog, Servers) && SameSession(session) ? bytes : null;
                                 }
                             }
                             catch (HttpRequestException) when (attempt == 0 && SameSession(session))

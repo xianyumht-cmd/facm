@@ -232,6 +232,7 @@ namespace FACM.League
             ValidateRecovery();
             ValidateTokenReuseOwnership();
             ValidateCatalogRefresh();
+            ValidateCatalogRotationFence();
             ValidateEogProjection();
             ValidateEogOnlyFallback();
             ValidateQueueNames();
@@ -781,6 +782,37 @@ namespace FACM.League
             finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
             Require(LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory == baseline,
                 "Synthetic catalog must restore original endpoints.");
+        }
+
+        private static void ValidateCatalogRotationFence()
+        {
+            LeagueSgpServerCatalog.ResetForSmokeTest();
+            try
+            {
+                var owner = Session("HN10", "TENCENT");
+                var handler = new CaptureHandler();
+                handler.AfterRead = () =>
+                {
+                    Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                        @"{""updatedAt"":""2026-08-12T00:00:00.000Z"",""servers"":{
+                        ""TENCENT_HN10"":{""matchHistory"":""https://hn10-alt-sgp.lol.qq.com:21019"",
+                        ""common"":""https://hn10-alt-sgp.lol.qq.com:21019"",""isTencent"":true}}}")),
+                        "Synthetic SGP provider rotation must be accepted.");
+                };
+                using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), handler))
+                {
+                    Require(api.TryGetGameSummaryAsync(601, CancellationToken.None)
+                        .GetAwaiter().GetResult() == null && handler.Calls == 1,
+                        "An in-flight SGP response must be discarded after provider rotation.");
+                    handler.AfterRead = null;
+                    Require(api.TryGetGameSummaryAsync(602, CancellationToken.None)
+                        .GetAwaiter().GetResult() != null &&
+                        handler.Url.StartsWith("https://hn10-alt-sgp.lol.qq.com:21019/",
+                            StringComparison.Ordinal),
+                        "A new request must use the accepted provider after rotation.");
+                }
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
         }
 
         private static void ValidateTokenReuseOwnership()
