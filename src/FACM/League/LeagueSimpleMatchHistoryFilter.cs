@@ -91,6 +91,22 @@ namespace FACM.League
             return true;
         }
 
+        internal static bool TryAppendParticipantPuuid(string csv, string selectedPuuid,
+            out string updatedCsv)
+        {
+            updatedCsv = null;
+            int[] unusedChampions;
+            string[] existing;
+            if (!LeagueSgpMatchHistoryApiClient.SafePuuid(selectedPuuid) ||
+                !TryParseParticipantFilters("", csv, out unusedChampions, out existing) ||
+                existing.Length >= 10 || existing.Contains(selectedPuuid, StringComparer.Ordinal))
+                return false;
+            var updated = string.Join(",", existing.Concat(new[] { selectedPuuid }));
+            if (updated.Length > 2048) return false;
+            updatedCsv = updated;
+            return true;
+        }
+
         internal bool Matches(LeaguePlayerMatchSummary match, DateTime nowUtc)
         {
             if (match == null) return false;

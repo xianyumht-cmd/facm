@@ -12,6 +12,13 @@ namespace FACM.League
 {
     internal sealed class LeagueRemotePlayerHistoryForm : Form
     {
+        private sealed class ParticipantOption
+        {
+            internal string Puuid;
+            internal string Name;
+            public override string ToString() { return Name; }
+        }
+
         private sealed class QueueTagOption
         {
             internal string Tag;
@@ -719,8 +726,8 @@ namespace FACM.League
                 Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsFilter),
                 StartPosition = FormStartPosition.CenterParent,
                 AutoScaleMode = AutoScaleMode.Font,
-                ClientSize = new Size(480, 254),
-                MinimumSize = new Size(480, 254),
+                ClientSize = new Size(480, 308),
+                MinimumSize = new Size(480, 308),
                 BackColor = FacmDesignSystem.Canvas,
                 ForeColor = FacmDesignSystem.Text,
                 Font = Font
@@ -752,16 +759,66 @@ namespace FACM.League
                     Bounds = new Rectangle(18, 146, 444, 26),
                     Text = string.Join(",", _matchPuuids)
                 };
+                var page = _activePage;
+                var picker = new ComboBox
+                {
+                    Bounds = new Rectangle(18, 188, 338, 27),
+                    DropDownStyle = ComboBoxStyle.DropDownList,
+                    BackColor = FacmDesignSystem.SurfaceRaised,
+                    ForeColor = FacmDesignSystem.Text
+                };
+                if (page != null)
+                {
+                    foreach (var candidate in page.Matches
+                        .Where(match => match?.MatchPlayers != null)
+                        .SelectMany(match => match.MatchPlayers)
+                        .Where(player => player != null &&
+                            LeagueSgpMatchHistoryApiClient.SafePuuid(player.PuuId))
+                        .GroupBy(player => player.PuuId, StringComparer.Ordinal)
+                        .Select(group => group.First())
+                        .OrderBy(player => player.PlayerName ?? player.PuuId, StringComparer.Ordinal)
+                        .Take(40))
+                    {
+                        picker.Items.Add(new ParticipantOption
+                        {
+                            Puuid = candidate.PuuId,
+                            Name = string.IsNullOrWhiteSpace(candidate.PlayerName)
+                                ? candidate.PuuId : candidate.PlayerName + " · " + candidate.PuuId
+                        });
+                    }
+                }
+                if (picker.Items.Count > 0) picker.SelectedIndex = 0;
+                var addPlayer = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedAddCondition),
+                    Bounds = new Rectangle(364, 188, 98, 27),
+                    Enabled = picker.Items.Count > 0
+                };
+                addPlayer.Click += (sender, args) =>
+                {
+                    var selected = picker.SelectedItem as ParticipantOption;
+                    string updated;
+                    if (selected == null || !SessionMatches(expectedSession) ||
+                        !ReferenceEquals(_activePage, page) ||
+                        !LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                            playerInput.Text, selected.Puuid, out updated))
+                    {
+                        MessageBox.Show(dialog, _ui.Get(UiTextKeys.LeaguePlayerParticipantsInvalid),
+                            dialog.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                    playerInput.Text = updated;
+                };
                 var cancel = new Button
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
-                    Bounds = new Rectangle(264, 204, 94, 30),
+                    Bounds = new Rectangle(264, 258, 94, 30),
                     DialogResult = DialogResult.Cancel
                 };
                 var apply = new Button
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
-                    Bounds = new Rectangle(368, 204, 94, 30)
+                    Bounds = new Rectangle(368, 258, 94, 30)
                 };
                 int[] nextChampions = null;
                 string[] nextPlayers = null;
@@ -778,7 +835,8 @@ namespace FACM.League
                     dialog.Close();
                 };
                 dialog.Controls.AddRange(new Control[] {
-                    hint, championLabel, championInput, playerLabel, playerInput, cancel, apply
+                    hint, championLabel, championInput, playerLabel, playerInput,
+                    picker, addPlayer, cancel, apply
                 });
                 dialog.AcceptButton = apply;
                 dialog.CancelButton = cancel;

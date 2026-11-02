@@ -817,6 +817,18 @@ namespace FACM.League
                 new LeaguePlayerMatchSummary { GameId = 4, Position = "TOP", ParticipantResolved = false },
                 new LeaguePlayerMatchSummary { GameId = 5, Position = null, ParticipantResolved = true }
             };
+            string appended;
+            Require(LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                "self", "teammate", out appended) && appended == "self,teammate" &&
+                !LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                    appended, "teammate", out appended) && appended == null &&
+                !LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                    "self", "bad puuid", out appended) && appended == null,
+                "On-page summoner picker must append exact verified identities without duplicates.");
+            var full = string.Join(",", Enumerable.Range(1, 10).Select(i => "player" + i));
+            Require(!LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                full, "player11", out appended) && appended == null,
+                "On-page summoner picker must honor the ten-player source filter bound.");
             var filter = new LeagueSimpleMatchHistoryFilter { SubjectPositions = roles };
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
                 .Select(m => m.GameId).SequenceEqual(new long[] { 1, 2 }),
