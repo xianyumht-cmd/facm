@@ -726,8 +726,8 @@ namespace FACM.League
                 Text = _ui.Get(UiTextKeys.LeaguePlayerParticipantsFilter),
                 StartPosition = FormStartPosition.CenterParent,
                 AutoScaleMode = AutoScaleMode.Font,
-                ClientSize = new Size(480, 308),
-                MinimumSize = new Size(480, 308),
+                ClientSize = new Size(480, 362),
+                MinimumSize = new Size(480, 362),
                 BackColor = FacmDesignSystem.Canvas,
                 ForeColor = FacmDesignSystem.Text,
                 Font = Font
@@ -809,16 +809,74 @@ namespace FACM.League
                     }
                     playerInput.Text = updated;
                 };
-                var cancel = new Button
+                var riotId = new TextBox
                 {
-                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
-                    Bounds = new Rectangle(264, 258, 94, 30),
+                    Bounds = new Rectangle(18, 229, 338, 26), MaxLength = 50,
+                    AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterSearchPlayer)
+                };
+                var lookup = new Button
+                {
+                    Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLookup),
+                    Bounds = new Rectangle(364, 229, 98, 27),
+                    Enabled = _historyRegion.SelectedIndex == 0
+                };
+                var lookupStatus = new Label
+                {
+                    Bounds = new Rectangle(18, 262, 444, 34), AutoEllipsis = true,
+                    ForeColor = FacmDesignSystem.TextMuted
+                };
+                using (var lookupLifetime = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                {
+                    dialog.FormClosed += (sender, args) => lookupLifetime.Cancel();
+                    lookup.Click += async (sender, args) =>
+                    {
+                        string name, tag;
+                        if (!SessionMatches(expectedSession) ||
+                            !ReferenceEquals(_activePage, page) ||
+                            _historyRegion.SelectedIndex != 0 ||
+                            !LeaguePlayerDataService.TryParseRiotId(riotId.Text, out name, out tag))
+                        {
+                            lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteInvalid);
+                            return;
+                        }
+                        lookup.Enabled = false;
+                        lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteLoading);
+                        try
+                        {
+                            var result = await _service.SearchRiotIdAsync(_expected,
+                                riotId.Text.Trim(), lookupLifetime.Token);
+                            if (dialog.IsDisposed || lookupLifetime.IsCancellationRequested ||
+                                !SessionMatches(expectedSession) ||
+                                !ReferenceEquals(_activePage, page) ||
+                                _historyRegion.SelectedIndex != 0) return;
+                            string updated;
+                            if (result.Status == LeagueRiotPlayerSearchStatus.Found &&
+                                result.Player != null &&
+                                LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
+                                    playerInput.Text, result.Player.PuuId, out updated))
+                            {
+                                playerInput.Text = updated;
+                                lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteFound);
+                            }
+                            else lookupStatus.Text = _ui.Get(result.Status == LeagueRiotPlayerSearchStatus.NotFound
+                                ? UiTextKeys.LeaguePlayerRemoteNotFound :
+                                result.Status == LeagueRiotPlayerSearchStatus.AccountChanged
+                                    ? UiTextKeys.LeaguePlayerRemoteAccountChanged :
+                                    UiTextKeys.LeaguePlayerRemoteUnavailable);
+                        }
+                        catch (OperationCanceledException) { }
+                        finally { if (!dialog.IsDisposed) lookup.Enabled = true; }
+                    };
+                    var cancel = new Button
+                    {
+                        Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
+                        Bounds = new Rectangle(264, 310, 94, 30),
                     DialogResult = DialogResult.Cancel
                 };
                 var apply = new Button
                 {
                     Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
-                    Bounds = new Rectangle(368, 258, 94, 30)
+                    Bounds = new Rectangle(368, 310, 94, 30)
                 };
                 int[] nextChampions = null;
                 string[] nextPlayers = null;
@@ -836,14 +894,15 @@ namespace FACM.League
                 };
                 dialog.Controls.AddRange(new Control[] {
                     hint, championLabel, championInput, playerLabel, playerInput,
-                    picker, addPlayer, cancel, apply
+                    picker, addPlayer, riotId, lookup, lookupStatus, cancel, apply
                 });
                 dialog.AcceptButton = apply;
                 dialog.CancelButton = cancel;
-                if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession))
-                    return;
-                _matchChampionIds = nextChampions;
-                _matchPuuids = nextPlayers;
+                    if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession))
+                        return;
+                    _matchChampionIds = nextChampions;
+                    _matchPuuids = nextPlayers;
+                }
             }
             _participantsFilterButton.Text = _ui.Get(_matchChampionIds.Length + _matchPuuids.Length > 0
                 ? UiTextKeys.LeaguePlayerParticipantsActive : UiTextKeys.LeaguePlayerParticipantsFilter);
