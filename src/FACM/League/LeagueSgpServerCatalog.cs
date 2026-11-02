@@ -270,8 +270,17 @@ namespace FACM.League
             var tencent = server.IsTencent;
             if (!SafeEndpointShape(value, tencent)) return false;
             var uri = new Uri(value);
-            return !tencent || uri.Host.StartsWith(
+            if (!tencent) return uri.Host.StartsWith(
                 server.PathRegion.ToLowerInvariant() + "-", StringComparison.OrdinalIgnoreCase);
+            var prefix = server.PathRegion.ToLowerInvariant() + "-";
+            if (!uri.Host.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return false;
+            var suffix = uri.Host.Substring(prefix.Length).ToLowerInvariant();
+            if (suffix == "sgp.lol.qq.com") return true;
+            const string ending = "-sgp.lol.qq.com";
+            if (!suffix.EndsWith(ending, StringComparison.Ordinal)) return false;
+            var variant = suffix.Substring(0, suffix.Length - ending.Length);
+            return variant.Length > 0 && variant.Length <= 16 &&
+                variant.All(c => c >= 'a' && c <= 'z' || c >= '0' && c <= '9');
         }
 
         private static LeagueSgpServer Clone(LeagueSgpServer server)

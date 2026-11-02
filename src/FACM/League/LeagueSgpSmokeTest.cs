@@ -650,6 +650,9 @@ namespace FACM.League
                     "Catalog must reject stale or equal versions.");
                 foreach (var bad in new[] {
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-attacker.lol.qq.com"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-alt-sgp.lol.qq.com.evil.example"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-alt-extra-sgp.lol.qq.com"),
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "hn1-alt-sgp.lol.qq.com"),
                     valid.Replace("21019", "443"),
                     valid.Replace("true", "false"),
