@@ -818,7 +818,7 @@ namespace FACM.League
                 filterChampion.Enabled = current && details != null &&
                     verifiedChampions.Contains(selectedId);
                 collectChampion.Enabled = current && canCollect && details != null;
-                if (details == null) { preview.Text = ""; return; }
+                if (details == null) { preview.Text = string.Empty; return; }
                 var parts = new List<string>();
                 if (details.Games > 0)
                 {
@@ -986,7 +986,7 @@ namespace FACM.League
                 tabs.TabPages.Add(junglePage);
             }
             tabs.SelectedTab = masteryPage;
-            var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2 };
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
             root.Controls.Add(tabs, 0, 0);
