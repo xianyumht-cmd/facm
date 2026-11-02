@@ -1,3 +1,18 @@
+## 2026-11-03 — Akari trade-only / Live Client and auto-gameflow owner recovery (Draft #357)
+
+Pinned Akari v1.5.1 `auto-select/trade-controller.ts` checks explicit `benchHandleTradeEnabled` independently of automatic pick `enabled`. Native GGman now honors a trade-only source-imported group under the existing global master switch, including no-pick-priority decline, with the same ChampSelect task and phase/session preflight. No new network owner or polling cadence.
+
+The optional native respawn overlay now re-arms its existing InProgress Live Client read scope when the LCU process changes without a new Gameflow phase notification. The old scope is canceled, death/account samples are reset by generation, and no read is made outside the existing foreground/phase gates. The native reconnect and matchmaking-stop controllers now use the exact existing process/region/platform session owner rather than port/token equivalence alone, preventing a stale Reconnect POST or matchmaking DELETE from reaching a replacement LCU process.
+
+Synthetic regressions cover imported trade-only settings and opt-out, empty trade priorities, phase exit, same-phase respawn owner changes, and same-port/same-token reconnect and matchmaking-stop replacements. **Executable candidate `402d52aaa8c113bee5e86f71e724d1c426554c76`; final four Windows gates pending.** This is source-level lifecycle parity, not live Tencent/Riot/Windows 10/DPI/cloud acceptance.
+
+| Source-functional area | State after this change | Remaining |
+| --- | --- | --- |
+| ChampSelect auto-trade independent switch | **Implemented (CI pending)** | Remaining strategy/option audit and real-client behavior |
+| In-game respawn scope and owner lifecycle | **Implemented (CI pending)** | Real Live Client/DPI acceptance |
+| Reconnect and matchmaking stop owner fence | **Implemented (CI pending)** | Real-client Gameflow acceptance |
+| SGP provider variants, complete player popovers and source-wide parity | **Partial** | Remaining provider/UI/options and final integrated acceptance |
+
 ## 2026-11-03 — Akari trade-only source setting (Draft #357)
 
 Pinned Akari `auto-select/trade-controller.ts` gates received champion trades on `pick.benchHandleTradeEnabled` and available swap priorities, not `pick.enabled`. Native GGman now retains the explicit trade opt-in when the group's automatic pick is disabled, and can arm the existing phase-owned ChampSelect observer even with no pick candidates. The native global auto-pick switch remains an independent master opt-out; no additional polling task, HTTP owner or game mode is introduced. Executable synthetic regressions cover source import/export, trade acceptance with pick disabled, empty-priority decline, global opt-out and phase-exit cancellation. **Candidate; exact-HEAD four Windows CI gates pending.** Real Tencent/Win10 remains unverified.
