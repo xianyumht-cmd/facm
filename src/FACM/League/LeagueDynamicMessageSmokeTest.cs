@@ -2721,20 +2721,25 @@ namespace FACM.League
                     !LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "friendly"),
                     "An explicitly selected player with missing initial history was not recovered with serialized reads.");
 
-                var retry = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
-                Require(retry != null, "Player-card retry fixture lost its roster.");
-                retry.Players[0].History = null;
-                fake.NoLocalHistory = true;
-                Require(!await service.EnsureHistoriesAsync(retry,
-                    new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
-                    retry.Players[0].History == null,
-                    "Failed explicit card reload must not manufacture a history.");
-                fake.NoLocalHistory = false;
-                Require(await service.EnsureHistoriesAsync(retry,
-                    new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
-                    retry.Players[0].History != null &&
-                    LeagueHistoricalMatchDryRun.CardRecentMatches(retry.Players[0]).Count > 0,
-                    "A user-triggered retry must recover the same verified roster card.");
+                var retryFake = new Fake { NoLocalHistory = true };
+                using (var retryService = new LeagueDynamicMessageService(retryFake,
+                    new PerformanceBudgetProvider(), () => session, () => phase))
+                {
+                    var retry = await retryService.LoadAsync(CancellationToken.None)
+                        .ConfigureAwait(false);
+                    Require(retry != null && retry.Players[0].History == null,
+                        "Player-card retry must start from an actually missing history.");
+                    Require(!await retryService.EnsureHistoriesAsync(retry,
+                        new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
+                        retry.Players[0].History == null,
+                        "Failed explicit card reload must not manufacture a history.");
+                    retryFake.NoLocalHistory = false;
+                    Require(await retryService.EnsureHistoriesAsync(retry,
+                        new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
+                        retry.Players[0].History != null &&
+                        LeagueHistoricalMatchDryRun.CardRecentMatches(retry.Players[0]).Count > 0,
+                        "A user-triggered retry must recover the same verified roster card.");
+                }
 
                 var jungle = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(jungle != null, "Missing-history jungle fixture lost its live roster.");
