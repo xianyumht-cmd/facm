@@ -746,6 +746,19 @@ namespace FACM.League
                     local.Paths.Count == 3 &&
                     handler.Url.Contains("/HN1_603/SUMMARY"),
                     "Changing the authenticated region must invalidate the previous SGP token snapshot.");
+
+                session = new LeagueClientSession("LeagueClientUx", 2, 12345, "local-fixture",
+                    "https", "fixture", "HN1", "TENCENT");
+                Require(api.TryGetGameSummaryAsync(604, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 4,
+                    "Replacing the LCU process must invalidate even matching port/password token snapshots.");
+
+                local.HistoryTokens.Enqueue("refreshed-token");
+                handler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+                handler.Statuses.Enqueue(HttpStatusCode.OK);
+                Require(api.TryGetGameSummaryAsync(605, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 5 && handler.Authorization == "Bearer refreshed-token",
+                    "A cached SGP token rejected with 401 must refresh before its single bounded retry.");
             }
         }
 
