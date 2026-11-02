@@ -1852,6 +1852,14 @@ namespace FACM.League
                 !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5 &&
                 jungleCard.FirstCamps.Count == 2,
                 "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            var blueCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 100);
+            var redCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 200);
+            Require(blueCard != null && redCard != null && blueCard.Games == 1 &&
+                redCard.Games == 1 && blueCard.Level3Rate == 1d && redCard.Level4Rate == 1d &&
+                blueCard.AverageDragons == 1d && redCard.AverageDragons == 2d &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 300) == null &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 99, 100) == null,
+                "Jungle card must split verified champion and blue/red side evidence without mixing denominators.");
             jungleRows[0].MinutePositions.Add(Tuple.Create(7000, 7000));
             jungleRows[0].MinuteIndices.Add(1);
             jungleRows[0].GankPositions.Add(Tuple.Create(7000, 7000));
@@ -1861,7 +1869,12 @@ namespace FACM.League
             Require(heatmap.Length == 2 && heatmap[0].Weight == 6 &&
                 heatmap[1].Weight == 1 &&
                 heatmap[0].Intensity == 1f &&
-                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 99).Length == 0,
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 99).Length == 0 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 100).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 200).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 300).Length == 0 &&
+                LeagueOngoingJungleMapProjection.Select(jungleRows, 22, 100).Single().GameId == 1001 &&
+                LeagueOngoingJungleMapProjection.Select(jungleRows, 22, 200).Single().GameId == 1002,
                 "Player-card heatmap must reuse bounded 1:5 source weighting and reject absent champions.");
             jungleRows[1].ChampionId = 23;
             Require(LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22).Length == 1 &&

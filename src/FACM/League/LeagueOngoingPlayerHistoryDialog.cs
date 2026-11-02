@@ -574,17 +574,17 @@ namespace FACM.League
     internal static class LeagueOngoingCardJungleProjection
     {
         internal static LeagueOngoingCardJungleSummary Project(
-            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId = 0)
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId = 0, int teamId = 0)
         {
             if (samples == null || samples.Count == 0 || championId < 0 ||
-                championId > 9999 ||
+                championId > 9999 || (teamId != 0 && teamId != 100 && teamId != 200) ||
                 samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
                 samples.Any(row => row == null || row.GameId <= 0 ||
                     row.ChampionId <= 0 || row.TeamId != 100 && row.TeamId != 200) ||
                 samples.Select(row => row.GameId).Distinct().Count() != samples.Count)
                 return null;
-            var selected = championId == 0 ? samples :
-                samples.Where(row => row.ChampionId == championId).ToArray();
+            var selected = samples.Where(row => (championId == 0 || row.ChampionId == championId) &&
+                (teamId == 0 || row.TeamId == teamId)).ToArray();
             var aggregate = LeagueJungleTimelineAnalysis.Aggregate(selected);
             if (aggregate == null) return null;
             return new LeagueOngoingCardJungleSummary {
@@ -622,9 +622,10 @@ namespace FACM.League
         }
 
         internal static IReadOnlyList<LeagueJungleTimelineSample> Select(
-            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId)
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId, int teamId = 0)
         {
             if (samples == null || championId < 0 || championId > 9999 ||
+                (teamId != 0 && teamId != 100 && teamId != 200) ||
                 samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
                 samples.Any(s => s == null || s.GameId <= 0 || s.ChampionId <= 0 ||
                     s.TeamId != 100 && s.TeamId != 200 ||
@@ -638,15 +639,16 @@ namespace FACM.League
                 samples.Select(s => s.GameId).Distinct().Count() != samples.Count)
                 return new LeagueJungleTimelineSample[0];
             return samples.Where(s => (championId == 0 || s.ChampionId == championId) &&
+                (teamId == 0 || s.TeamId == teamId) &&
                 s.MinutePositions.Count > 0).Take(20).ToArray();
         }
 
         // Reuse the source-weighted 7x7 Rift projection: one weight per minute
         // position, five per confirmed takedown. Selection is bounded and verified.
         internal static LeagueEventMap.HeatmapCell[] Heatmap(
-            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId)
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId, int teamId = 0)
         {
-            var selected = Select(samples, championId);
+            var selected = Select(samples, championId, teamId);
             if (selected.Count == 0) return new LeagueEventMap.HeatmapCell[0];
             return LeagueEventMap.BuildHeatmap(
                 selected.SelectMany(s => s.MinutePositions)
@@ -902,14 +904,14 @@ namespace FACM.League
                 };
                 var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
                     ColumnCount = 1, RowCount = 3 };
-                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
                 jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
                 var jungleHeader = new FlowLayoutPanel { Dock = DockStyle.Fill,
-                    FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
-                var load = new Button { Width = 160, Height = 30,
+                    FlowDirection = FlowDirection.RightToLeft, WrapContents = true };
+                var load = new Button { Width = 125, Height = 30,
                     Text = t(LeagueEfficiencyUiTextKeys.JungleLoad) };
-                var championChoice = new ComboBox { Width = 190,
+                var championChoice = new ComboBox { Width = 145,
                     DropDownStyle = ComboBoxStyle.DropDownList };
                 Action populateChampions = () =>
                 {
@@ -943,6 +945,13 @@ namespace FACM.League
                 };
                 jungleHeader.Controls.Add(load);
                 jungleHeader.Controls.Add(championChoice);
+                var sideChoice = new ComboBox { Width = 112,
+                    DropDownStyle = ComboBoxStyle.DropDownList };
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleMapAllSides));
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleBlueSide));
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleRedSide));
+                sideChoice.SelectedIndex = 0;
+                jungleHeader.Controls.Add(sideChoice);
                 var heatmapToggle = new CheckBox { AutoSize = true, Height = 30,
                     Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
                 jungleHeader.Controls.Add(heatmapToggle);
@@ -957,10 +966,12 @@ namespace FACM.League
                     jungle.Items.Clear();
                     var championId = (championChoice.SelectedItem as LeagueOngoingJungleChampionChoice)
                         ?.ChampionId ?? 0;
+                    var teamId = sideChoice.SelectedIndex == 1 ? 100 :
+                        sideChoice.SelectedIndex == 2 ? 200 : 0;
                     jungleMap.SetSamples(LeagueOngoingJungleMapProjection.Select(player.JungleSamples,
-                        championId));
+                        championId, teamId));
                     var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples,
-                        championId);
+                        championId, teamId);
                     if (data == null)
                     {
                         jungle.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
@@ -1002,6 +1013,7 @@ namespace FACM.League
                 populateChampions();
                 refresh();
                 championChoice.SelectedIndexChanged += (sender, args) => refresh();
+                sideChoice.SelectedIndexChanged += (sender, args) => refresh();
                 load.Click += async (sender, args) =>
                 {
                     if (!isCurrent() || !load.Enabled) return;
