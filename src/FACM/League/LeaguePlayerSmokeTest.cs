@@ -24,6 +24,7 @@ namespace FACM.League
             ValidateProgressiveEnrichmentBudget();
             ValidateChampionMetadataAndStats();
             ValidateSourceSimpleFilters();
+            ValidateSgpSimplePositionFilters();
             ValidateCardCollectionSubjectFilters();
             ValidateAdvancedCombinatorFilters();
             ValidateAdvancedParticipantEquipmentFilters();
@@ -781,6 +782,53 @@ namespace FACM.League
             Require(filter.Matches(edge, now), "Three-hour history boundary must be inclusive.");
             edge.GameCreationLocal = DateTime.MinValue;
             Require(!filter.Matches(edge, now), "Unknown historical timestamps cannot pass a dated filter.");
+        }
+
+        private static void ValidateSgpSimplePositionFilters()
+        {
+            string[] roles;
+            Require(LeagueSimpleMatchHistoryFilter.TryNormalizePositions(
+                new[] { "TOP", "JUNGLE" }, out roles) &&
+                roles.SequenceEqual(new[] { "TOP", "JUNGLE" }),
+                "Source SGP position selections must preserve multiple verified roles.");
+            Require(!LeagueSimpleMatchHistoryFilter.TryNormalizePositions(
+                new[] { "TOP", "TOP" }, out roles) && roles == null &&
+                !LeagueSimpleMatchHistoryFilter.TryNormalizePositions(
+                    new[] { "TOP", "SUPPORT" }, out roles) && roles == null,
+                "Duplicate or unknown positions must be rejected atomically.");
+            Require(!LeagueSimpleMatchHistoryFilter.TryNormalizePositions(
+                new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "TOP" }, out roles),
+                "Source position filters must be bounded to five roles.");
+            Require(LeagueSimpleMatchHistoryFilter.TryNormalizePositions(
+                new[] { "TOP", "JUNGLE" }, out roles) &&
+                LeagueSimpleMatchHistoryFilter.ShouldApplySgpPositions(
+                    LeaguePlayerHistorySource.Sgp, roles) &&
+                !LeagueSimpleMatchHistoryFilter.ShouldApplySgpPositions(
+                    LeaguePlayerHistorySource.Lcu, roles) &&
+                !LeagueSimpleMatchHistoryFilter.ShouldApplySgpPositions(
+                    LeaguePlayerHistorySource.Auto, roles),
+                "Only the explicit SGP source may apply source-backed position predicates.");
+            var now = DateTime.UtcNow;
+            var rows = new[]
+            {
+                new LeaguePlayerMatchSummary { GameId = 1, Position = "TOP", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 2, Position = "JUNGLE", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 3, Position = "MIDDLE", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 4, Position = "TOP", ParticipantResolved = false },
+                new LeaguePlayerMatchSummary { GameId = 5, Position = null, ParticipantResolved = true }
+            };
+            var filter = new LeagueSimpleMatchHistoryFilter { SubjectPositions = roles };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
+                .Select(m => m.GameId).SequenceEqual(new long[] { 1, 2 }),
+                "SGP position OR must reject other, unresolved and unknown target positions.");
+            filter.SubjectChampionId = 22;
+            rows[0].ChampionId = 22;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
+                .Select(m => m.GameId).SequenceEqual(new long[] { 1 }),
+                "Source position OR must intersect champion predicates during analysis and collection.");
+            filter.SubjectPositions = new[] { "SUPPORT" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now).Count == 0,
+                "Forged position filters must fail closed even without UI validation.");
         }
 
         private static LeagueAdvancedMatchNode Predicate(LeagueAdvancedMatchKind kind, string value = null)

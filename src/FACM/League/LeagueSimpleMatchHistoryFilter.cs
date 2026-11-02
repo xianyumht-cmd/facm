@@ -32,6 +32,29 @@ namespace FACM.League
         // The selected player's champion/role, not any participant in the match.
         internal int SubjectChampionId;
         internal string SubjectPosition;
+        internal string[] SubjectPositions;
+        private static readonly string[] SupportedPositions =
+            { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+
+        internal static bool TryNormalizePositions(IEnumerable<string> requested, out string[] positions)
+        {
+            positions = null;
+            if (requested == null) return false;
+            var selected = requested.ToArray();
+            if (selected.Length > SupportedPositions.Length ||
+                selected.Any(role => Array.IndexOf(SupportedPositions, role) < 0) ||
+                selected.Distinct(StringComparer.Ordinal).Count() != selected.Length)
+                return false;
+            positions = selected;
+            return true;
+        }
+
+        internal static bool ShouldApplySgpPositions(LeaguePlayerHistorySource source,
+            string[] positions)
+        {
+            return source == LeaguePlayerHistorySource.Sgp &&
+                positions != null && positions.Length > 0;
+        }
         // Empty = all; NORMAL = known non-Arena match; CHERRY = Arena.
         internal string SubjectMode;
 
@@ -98,6 +121,12 @@ namespace FACM.League
                     string.Equals(match.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase))
                     return false;
             }
+            if (SubjectPositions != null && SubjectPositions.Length > 0 &&
+                (SubjectPositions.Length > SupportedPositions.Length ||
+                 SubjectPositions.Any(role => Array.IndexOf(SupportedPositions, role) < 0) ||
+                 !match.ParticipantResolved || string.IsNullOrEmpty(match.Position) ||
+                 !SubjectPositions.Contains(match.Position, StringComparer.Ordinal)))
+                return false;
             if (SubjectChampionId > 0 && match.ChampionId != SubjectChampionId) return false;
             if (!string.IsNullOrEmpty(SubjectPosition) &&
                 !string.Equals(match.Position, SubjectPosition, StringComparison.OrdinalIgnoreCase))
