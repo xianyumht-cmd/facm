@@ -1,3 +1,16 @@
+### 2026-11-02 — Source parity: native jungle coordinates, free-form Rift preview and live Arena TEAM-ALL (Draft #357)
+
+Pinned Akari v1.5.1 `14557723706ccc0e0a9d62c470141d4cb7190fcd` references: `src/renderer-shared/components/ongoing-game-panel/widgets/player-info-card/PlayerInfoCardJunglePathing.vue`, `jungle-pathing-info/JunglePathingInfo.vue`, `src/main/shards/ongoing-game/computed-state.ts` (CHERRY `TEAM-ALL` in ChampSelect and Gameflow), and `src/shared/shards/ongoing-game/index.ts` (`DraftOptions.teams` arrays). GGman candidate `95414989cf61dce4d531257d199d82f6b2ecb848` includes:
+
+| Source capability | Status | Native parity and remaining gap |
+| --- | --- | --- |
+| Jungle location/path popover | **PARTIAL (candidate)** | Bounded per-game first-14-minute location lines and gank markers in a native card map, with champion/all filter and strict sample validation. Source's full map artwork/aggregated heatmap remains missing. |
+| Free-form historical draft | **PARTIAL (candidate)** | Existing Rift historical preview now supports 2–20 players through add/remove with synthetic isolated identities and exact original-roster restoration; no independent draft-from-empty, and Arena still preserves paired subteams. |
+| Live Arena `TEAM-ALL` | **PARTIAL (candidate)** | Verified, complete-identity CHERRY ChampSelect/InProgress roster projects all known players under TEAM-ALL in normal/jungle targets and list. Unresolved identity cases fail closed; premade two-player evidence is not conflated with display grouping. |
+| All-source history concurrency, full player popovers, remaining automation strategies | **PARTIAL / MISSING** | No claim of source-complete parity; next implementation priorities. |
+
+**CI:** exact-HEAD Windows Build, Glass, UI Text Contract and Mayhem Source Probe pending. An earlier UI Text failure in `11c10ffb` was fixed by registered add/remove text keys in `95414989`. No live CN/Win10 test or production release.
+
 ### 2026-11-02 — Arena TEAM-ALL display semantics, separate from subteam analysis (Draft #357)
 
 Pinned Akari `computed-state.ts` groups Arena visible players under `TEAM-ALL` while `teamParticipantGroups` tracks actual two-player subteams separately. Historical Arena message selection and native player list now expose all verified participants as TEAM-ALL; the enemy-only target is empty in this read-only draft, while actual subteam IDs, friendly perspective, premade inference and team aggregates remain unchanged. Live nonhistorical gameflow and Rift targets retain existing ally/enemy semantics. Executable synthetic regression verifies both target selection and formatted output for 16-player Arena, without collapsing source subteam evidence. Four exact-HEAD Windows gates pending; final CN/Win10 acceptance remains deferred.

@@ -1,3 +1,11 @@
+### 2026-11-02 — Akari native historical and player-card boundaries
+
+Historical previews now retain `LeagueDynamicMessageSnapshot.HistoricalOriginalRoster` as the source-participant restoration anchor independently of the editable `Players` list. Local Rift add/remove operations can grow or shrink the preview within 2–20 verified/synthetic identities without mutating match history or live gameflow. Synthetic players carry no inherited match evidence. Full restore reconstructs the source roster, team, champion, position, queue and target. Arena preview still requires real two-player subteams.
+
+The on-demand native Jungle card renders a bounded coordinate view from the existing phase/account/session-owned timeline service. Each game's first-14-minute positions and gank markers are kept separate; malformed, duplicate and out-of-bounds evidence is not drawn. No new transport, polling loop or Electron dependency.
+
+For verified CHERRY ChampSelect/InProgress roster snapshots with no unresolved identities, `LiveArenaAll` drives source-style TEAM-ALL presentation and message targeting. Original side evidence remains available for premade subteam inference; non-CHERRY snapshots keep ally/enemy behavior. The roster ownership key includes game mode.
+
 ### 2026-11-01 — Cancel-safe regional SGP catalog refresh (Draft #357)
 
 The existing public-data catalog refresh now preserves its two-hour on-demand throttle for completed attempts, but **does not throttle a request cancelled by account/session departure**. The current cancellation token is checked after the public transport returns and before catalog application; cancellation propagates, clears the attempt timestamp, and never publishes that response. The existing trusted Tencent/Riot endpoint allowlist, exact region matching and authenticated SGP request owner remain unchanged. A deterministic no-network synthetic test exercises cancellation, immediate retry and ordinary throttle under the Windows `--league-history-test` gate. This is source-level reliability, **not** proof of live Riot/Tencent compatibility. Remaining SGP token/provider parity and real-region acceptance are open.
