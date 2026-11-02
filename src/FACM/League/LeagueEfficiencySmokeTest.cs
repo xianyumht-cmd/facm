@@ -96,7 +96,7 @@ namespace FACM.League
                 "Formal settings must not contain the abandoned credential-input feature.");
         }
 
-        private static void ValidateAkariGameflowTransfer()
+        internal static void ValidateAkariGameflowTransfer()
         {
             var settings = AppSettings.ParseLines(new string[0]);
             var before = LeagueAkariGameflowTransfer.Export(settings);
