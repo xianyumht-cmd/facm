@@ -740,7 +740,7 @@ namespace FACM.League
                 var source = original ? snapshot.HistoricalOriginalRoster : snapshot.Players;
                 var groups = source.GroupBy(p => original ?
                     p.HistoricalOriginalTeamId : p.HistoricalTeamId).ToArray();
-                if (cherry ? groups.Length != snapshot.Players.Count / 2 ||
+                if (cherry ? groups.Length != source.Count / 2 ||
                     groups.Any(g => g.Count() != 2) :
                     groups.Length != 2 || original && groups.Any(g => g.Count() != 5))
                     return false;

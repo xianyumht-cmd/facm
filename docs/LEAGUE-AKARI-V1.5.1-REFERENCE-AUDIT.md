@@ -1,3 +1,7 @@
+### 2026-11-02 — Arena source/current roster group validation fix
+
+The first Arena paired-roster candidate failed Windows executable smoke because the original-roster validation compared immutable source team count against the edited roster size. Validation now independently checks each roster's own paired-team count, allowing 16→18→20 synthetic expansion while preserving the immutable 16-player reset. Added max-cap and pair-removal regression. This corrects the observed CI failure; final exact-SHA Windows gates remain pending.
+
 ### 2026-11-02 — Clean Arena preview template (Draft #357)
 
 The same history-scoped clean-template action now supports Arena: two synthetic two-player subteams, each with no inherited source account/history, can be expanded through paired additions up to 20 participants, edited, and fully reset to the immutable verified original match. TEAM-ALL display is preserved while actual subteam membership stays paired. Synthetic smoke checks four-player start, expansion and exact 16-player restore. **Partial** Akari free-form draft parity: still no standalone no-match entry; four exact-SHA Windows gates pending.

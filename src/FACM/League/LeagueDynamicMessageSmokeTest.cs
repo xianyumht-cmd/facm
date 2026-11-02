@@ -2014,6 +2014,15 @@ namespace FACM.League
                 "Arena preview must add a history-free subteam without losing TEAM-ALL display.");
             var newArenaTeam = arenaDraft.Players.Single(p =>
                 p.Player.GameName == "Arena new one").HistoricalTeamId;
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena final one", 24, "Arena final two", 25) &&
+                arenaDraft.Players.Count == 20 &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena overflow one", 26, "Arena overflow two", 27) &&
+                LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft,
+                    arenaDraft.Players.Single(p => p.Player.GameName == "Arena final one").HistoricalTeamId) &&
+                arenaDraft.Players.Count == 18,
+                "Arena draft must support 20 paired participants and reject overflow.");
             var expandedArena = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
                 PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
                 ChampionId = p.Player.ChampionId, Position = "",
