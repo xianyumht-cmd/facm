@@ -200,6 +200,40 @@ namespace FACM.League
                 "Account changes during parallel SGP HTTP must discard staged details.");
             concurrentSgp.OnRead = null;
             api.Changed = false;
+
+            var pageSgp = new Sgp { RequireOverlap = true };
+            var pageService = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(),
+                null, pageSgp, () => active);
+            var sparsePage = new LeaguePlayerMatchPage
+            {
+                ClientSession = session, StartIndex = 0, RequestedCount = 3, ReportedGameCount = 3
+            };
+            foreach (var id in Enumerable.Range(130, 3))
+            {
+                var row = Sparse(id);
+                row.DataSource = LeaguePlayerHistorySource.Sgp;
+                row.SgpServerId = "HN10";
+                row.ParticipantResolved = false;
+                row.StatisticsAvailable = false;
+                sparsePage.Matches.Add(row);
+            }
+            reads = api.Games;
+            var prefetched = await pageService.EnrichIncompleteMatchesAsync(
+                new LeaguePlayerProfile { PuuId = "target" }, sparsePage,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(prefetched != null && prefetched.Matches.All(m => m.ParticipantResolved) &&
+                pageSgp.Calls == 3 && pageSgp.Peak >= 2 && pageSgp.Peak <= 4 &&
+                api.Games == reads && sparsePage.Matches.All(m => !m.ParticipantResolved),
+                "Regional page prefetch must overlap within budget and leave source snapshots unchanged.");
+            pageSgp.RequireOverlap = false;
+            pageSgp.OnRead = () => api.Changed = true;
+            var rejectedPage = await pageService.EnrichIncompleteMatchesAsync(
+                new LeaguePlayerProfile { PuuId = "target" }, sparsePage,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(rejectedPage == null,
+                "A changed local account must discard the whole regional prefetched page.");
+            pageSgp.OnRead = null;
+            api.Changed = false;
             api.Changed = true;
             Require(!await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
                 "A same-process account switch invalidates all staged timeline results.");
