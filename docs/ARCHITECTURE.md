@@ -1,3 +1,7 @@
+### 2026-11-02 — Session-scoped post-game and invitation writes
+
+`LeagueEfficiencyModule` passes the existing `LeagueClientModule.CurrentSession` provider to `LeaguePostGameAutomationController`, `LeagueFriendInvitationController` and `LeagueLobbyInvitationController`. The controllers continue to use the single shared Gameflow observer and existing LCU write interfaces. Post-game cycles and pre-end mission attempts are invalidated on process/credential/region/platform replacement; scheduled friends, catalog and room-notice consent do not cross owners; received-invitation and leader-promotion writes reject late old-owner preflight results. No new network owner, timer or endpoint was introduced. The session fence is not a substitute for live account identity and Riot/Tencent payload acceptance.
+
 ### 2026-11-02 — Replay process ownership
 
 `LeagueEncounterReplayService` checks current summoner PUUID, region/platform, LCU credentials and now process ID before local replay metadata and download/watch. The concrete `LeagueReplayWriteApiClient` repeats the exact-session guard at its write boundary. This remains local LCU replay only; Akari's separate SGP regional replay stream is not yet connected, and no new write path or network owner was introduced.
