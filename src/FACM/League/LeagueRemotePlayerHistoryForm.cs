@@ -1008,8 +1008,8 @@ namespace FACM.League
                             {
                                 playerInput.Text = updated;
                                 if (LeagueSimpleMatchHistoryFilter.SafePlayerLabel(
-                                    result.Player.AccountName))
-                                    selectedNames[result.Player.PuuId] = result.Player.AccountName.Trim();
+                                    result.Player.PlayerName))
+                                    selectedNames[result.Player.PuuId] = result.Player.PlayerName.Trim();
                                 lookupStatus.Text = _ui.Get(UiTextKeys.LeaguePlayerRemoteFound);
                             }
                             else lookupStatus.Text = _ui.Get(result.Status == LeagueRiotPlayerSearchStatus.NotFound
