@@ -145,6 +145,9 @@ namespace FACM
                         {
                             FACM.League.LeagueDynamicMessageSmokeTest.Validate();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateWriteRetryAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateBenchRoleSelection();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateJustShowExistingChoiceAsync().GetAwaiter().GetResult();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateAutoBenchAsync().GetAwaiter().GetResult();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateGroupRefreshCancellation();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateRemoteGroupCatalog();

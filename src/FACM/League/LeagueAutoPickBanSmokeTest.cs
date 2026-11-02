@@ -344,7 +344,7 @@ namespace FACM.League
                 "Built-in group routing must recover after synthetic remote catalog tests.");
         }
 
-        private static async Task ValidateSessionRegionFenceAsync()
+        internal static async Task ValidateSessionRegionFenceAsync()
         {
             var first = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
                 "https", "smoke", "HN1", "TENCENT");
@@ -412,7 +412,7 @@ namespace FACM.League
             }
         }
 
-        private static void ValidateBenchRoleSelection()
+        internal static void ValidateBenchRoleSelection()
         {
             var top = LeagueLiveDataService.ParseBenchPayload(Bytes(
                 BenchSession(34, "[55]", 450, false)
@@ -445,7 +445,7 @@ namespace FACM.League
                 "Source-imported role-specific bench priorities must not fall back to the default lane.");
         }
 
-        private static async Task ValidateJustShowExistingChoiceAsync()
+        internal static async Task ValidateJustShowExistingChoiceAsync()
         {
             foreach (var type in new[] { "pick", "ban" })
             {
