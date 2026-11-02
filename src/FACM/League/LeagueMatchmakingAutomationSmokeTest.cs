@@ -16,6 +16,7 @@ namespace FACM.League
             ValidateTransportFence();
             ValidateImmediatePhaseReaction();
             ValidateSessionReplacement();
+            ValidateLobbyRecheckBeforeWrite();
             ValidateAkariStyleAutomationPolicies();
             ValidatePendingInvitationWait();
             ValidateSourceQueueGuards();
@@ -173,6 +174,44 @@ namespace FACM.League
                     readyWrite.Calls.Count == 1,
                     "A replacement ready-check session must cancel the old delay and accept only once.");
             }
+        }
+
+        private static void ValidateLobbyRecheckBeforeWrite()
+        {
+            var read = new FakeReadApi();
+            read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var lobbyReads = 0;
+            read.OnRead = path =>
+            {
+                if (path != LeagueMatchmakingAutomationController.LobbyPath ||
+                    Interlocked.Increment(ref lobbyReads) != 2) return;
+                read.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                    LobbyJson(420, true, false, true, new[] { "self", "ally" }, false));
+            };
+            var write = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(read, write, new FakeClock()))
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(lobbyReads == 2 && write.Calls.Count == 0,
+                "Losing lobby leadership between preflight and search must suppress the POST.");
+
+            var changedParty = new FakeReadApi();
+            changedParty.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self", "ally" }, false));
+            var partyReads = 0;
+            changedParty.OnRead = path =>
+            {
+                if (path != LeagueMatchmakingAutomationController.LobbyPath ||
+                    Interlocked.Increment(ref partyReads) != 2) return;
+                changedParty.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                    LobbyJson(420, true, true, true, new[] { "self" }, false));
+            };
+            var changedWrite = new FakeWriteApi();
+            using (var controller = new LeagueMatchmakingAutomationController(
+                changedParty, changedWrite, new FakeClock()))
+                controller.EvaluateLobbyOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(partyReads == 2 && changedWrite.Calls.Count == 0,
+                "A changed party fingerprint must suppress stale automatic matchmaking.");
         }
 
         private static void ValidateAkariStyleAutomationPolicies()
@@ -693,6 +732,7 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public Action<string> OnRead;
             public readonly System.Collections.Concurrent.ConcurrentQueue<string> Paths =
                 new System.Collections.Concurrent.ConcurrentQueue<string>();
             public void Set(string path, string json) { _responses[path] = Encoding.UTF8.GetBytes(json); }
@@ -701,6 +741,7 @@ namespace FACM.League
                 cancellationToken.ThrowIfCancellationRequested();
                 Interlocked.Increment(ref RequestCount);
                 Paths.Enqueue(path);
+                OnRead?.Invoke(path);
                 byte[] value;
                 _responses.TryGetValue(path, out value);
                 return Task.FromResult(value);

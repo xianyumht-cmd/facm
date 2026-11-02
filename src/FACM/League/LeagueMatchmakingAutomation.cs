@@ -498,6 +498,18 @@ namespace FACM.League
                     await SendRoomNoticeAsync(fingerprint, "即将自动排队", false, cancellationToken).ConfigureAwait(false);
             }
 
+            // Recheck the authoritative lobby after the source/penalty and optional chat reads.
+            // A former leader or changed party must never start a different lobby's search.
+            var latestLobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken)
+                .ConfigureAwait(false));
+            if (!IsSearchActive() || latestLobby == null ||
+                latestLobby.Fingerprint != fingerprint ||
+                !latestLobby.IsEligibleFor(minimumPartySize, waitForInvitees))
+            {
+                LogSearchDiagnostic("lobby-changed-before-write");
+                return false;
+            }
+
             lock (_sync)
             {
                 if (_disposed || !_autoSearch || !IsPhase("Lobby") || !IsOwnerCurrentLocked()) return false;
