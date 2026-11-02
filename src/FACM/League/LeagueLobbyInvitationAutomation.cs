@@ -116,6 +116,8 @@ namespace FACM.League
         private readonly ILeagueClientApi _read;
         private readonly ILeagueMatchmakingWriteApi _write;
         private readonly ILeagueLobbyNoticeWriteApi _notices;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _owner;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private readonly HashSet<string> _attemptedInvitations = new HashSet<string>(StringComparer.Ordinal);
         private Dictionary<string, string> _policies = LeagueInvitationPolicies.Parse(null);
@@ -134,7 +136,13 @@ namespace FACM.League
 
         internal LeagueLobbyInvitationController(
             ILeagueClientApi read, ILeagueMatchmakingWriteApi write, ILeagueLobbyNoticeWriteApi notices)
+            : this(read, write, notices, null) { }
+
+        internal LeagueLobbyInvitationController(
+            ILeagueClientApi read, ILeagueMatchmakingWriteApi write, ILeagueLobbyNoticeWriteApi notices,
+            Func<LeagueClientSession> sessionProvider)
         {
+            _sessionProvider = sessionProvider;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _notices = notices;
@@ -172,7 +180,20 @@ namespace FACM.League
                 if (_disposed) return;
                 _connected = state != null && state.Connected;
                 _phase = state == null ? null : state.Phase;
-                if (!_connected || !IsEligiblePhaseLocked() || (!_handleInvitations && !_autoSkipLeader))
+                if (_sessionProvider != null)
+                {
+                    var next = _connected ? _sessionProvider() : null;
+                    if (!SameOwner(_owner, next))
+                    {
+                        CancelLocked();
+                        _attemptedInvitations.Clear();
+                        _lastLeaderFingerprint = null;
+                        _lastTick = 0;
+                        _owner = next;
+                    }
+                }
+                if (!_connected || !OwnerCurrentLocked() || !IsEligiblePhaseLocked() ||
+                    (!_handleInvitations && !_autoSkipLeader))
                 {
                     CancelLocked();
                     _lastTick = 0;
@@ -196,6 +217,7 @@ namespace FACM.League
             {
                 _connected = true;
                 _phase = phase;
+                if (_sessionProvider != null && _owner == null) _owner = _sessionProvider();
             }
             await EvaluateAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -219,11 +241,19 @@ namespace FACM.League
 
         private async Task EvaluateAsync(CancellationToken cancellationToken)
         {
-            if (IsInvitationsEnabled()) await HandleReceivedInvitationsAsync(cancellationToken).ConfigureAwait(false);
-            if (IsLeaderEnabled()) await SkipLeaderAsync(cancellationToken).ConfigureAwait(false);
+            LeagueClientSession expected;
+            lock (_sync)
+            {
+                if (!OwnerCurrentLocked()) return;
+                expected = _owner;
+            }
+            if (IsInvitationsEnabled())
+                await HandleReceivedInvitationsAsync(expected, cancellationToken).ConfigureAwait(false);
+            if (IsExpectedOwner(expected) && IsLeaderEnabled())
+                await SkipLeaderAsync(expected, cancellationToken).ConfigureAwait(false);
         }
 
-        private async Task HandleReceivedInvitationsAsync(CancellationToken cancellationToken)
+        private async Task HandleReceivedInvitationsAsync(LeagueClientSession expected, CancellationToken cancellationToken)
         {
             var invitations = ParseInvitations(await _read.TryGetBytesAsync(ReceivedInvitationsPath, cancellationToken)
                 .ConfigureAwait(false));
@@ -259,22 +289,25 @@ namespace FACM.League
             var latest = ParseInvitations(await _read.TryGetBytesAsync(ReceivedInvitationsPath, cancellationToken)
                 .ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (latest == null || !latest.Any(item => item.Id == candidate.Item.Id &&
+            if (!IsExpectedOwner(expected) || latest == null || !latest.Any(item => item.Id == candidate.Item.Id &&
                 item.GameType == candidate.Item.GameType && item.CanAccept)) return;
 
             lock (_sync)
             {
-                if (!IsInvitationsEnabledLocked() || !_attemptedInvitations.Add(candidate.Item.Id)) return;
+                if (!IsInvitationsEnabledLocked() || !IsExpectedOwner(expected) ||
+                    !_attemptedInvitations.Add(candidate.Item.Id)) return;
             }
             var path = ReceivedInvitationsPath + "/" + candidate.Item.Id + "/" + candidate.Action;
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             var response = await _write.TrySendAsync("POST", path, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             AppLog.Info("League invitation automation: " + candidate.Action + "/" +
                 (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
         }
 
-        private async Task SkipLeaderAsync(CancellationToken cancellationToken)
+        private async Task SkipLeaderAsync(LeagueClientSession expected, CancellationToken cancellationToken)
         {
             var lobby = ParseLeader(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             if (lobby == null || !lobby.IsLeader || lobby.Members.Count == 0) return;
@@ -287,18 +320,22 @@ namespace FACM.League
 
             var current = ParseLeader(await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (current == null || !current.IsLeader || current.Fingerprint != lobby.Fingerprint ||
+            if (!IsExpectedOwner(expected) || current == null || !current.IsLeader ||
+                current.Fingerprint != lobby.Fingerprint ||
                 !current.Members.Any(item => item.SummonerId == target.SummonerId && item.Ready == target.Ready)) return;
 
             lock (_sync)
             {
-                if (!IsLeaderEnabledLocked() || _lastLeaderFingerprint == lobby.Fingerprint) return;
+                if (!IsLeaderEnabledLocked() || !IsExpectedOwner(expected) ||
+                    _lastLeaderFingerprint == lobby.Fingerprint) return;
                 _lastLeaderFingerprint = lobby.Fingerprint;
             }
             var path = LobbyPath + "/members/" + target.SummonerId + "/promote";
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             var response = await _write.TrySendAsync("POST", path, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
             AppLog.Info("League auto skip leader: " +
                 (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
             if (response == null || !response.IsSuccessStatusCode || _notices == null ||
@@ -311,10 +348,11 @@ namespace FACM.League
             var postPromotion = ParseLeader(await _read.TryGetBytesAsync(LobbyPath, cancellationToken)
                 .ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
-            if (postPromotion == null || postPromotion.PartyId != lobby.PartyId ||
+            if (!IsExpectedOwner(expected) || postPromotion == null ||
+                postPromotion.PartyId != lobby.PartyId ||
                 postPromotion.SelfSummonerId != lobby.SelfSummonerId) return;
             lock (_sync)
-                if (!IsLeaderEnabledLocked()) return;
+                if (!IsLeaderEnabledLocked() || !IsExpectedOwner(expected)) return;
             var notice = await _notices.TrySendNoticeAsync(
                 room, "已发起队长转让", cancellationToken).ConfigureAwait(false);
             AppLog.Info("League auto skip leader room notice: " +
@@ -379,7 +417,8 @@ namespace FACM.League
 
         private bool IsInvitationsEnabledLocked()
         {
-            return !_disposed && _connected && _handleInvitations && IsEligiblePhaseLocked();
+            return !_disposed && _connected && _handleInvitations && IsEligiblePhaseLocked() &&
+                OwnerCurrentLocked();
         }
 
         private bool IsLeaderEnabled()
@@ -389,7 +428,8 @@ namespace FACM.League
 
         private bool IsLeaderEnabledLocked()
         {
-            return !_disposed && _connected && _autoSkipLeader && _phase == "Lobby";
+            return !_disposed && _connected && _autoSkipLeader && _phase == "Lobby" &&
+                OwnerCurrentLocked();
         }
 
         private bool IsEligiblePhaseLocked()
@@ -443,6 +483,25 @@ namespace FACM.League
                 var row = item as Dictionary<string, object>;
                 if (row != null) yield return row;
             }
+        }
+
+        private static bool SameOwner(LeagueClientSession first, LeagueClientSession second)
+        {
+            return first == null ? second == null :
+                LeagueEncounterReplayService.SessionMatches(first, second);
+        }
+
+        private bool OwnerCurrentLocked()
+        {
+            return _sessionProvider == null ||
+                (_owner != null && LeagueEncounterReplayService.SessionMatches(_owner, _sessionProvider()));
+        }
+
+        private bool IsExpectedOwner(LeagueClientSession expected)
+        {
+            return _sessionProvider == null ||
+                (expected != null && SameOwner(expected, _owner) &&
+                 LeagueEncounterReplayService.SessionMatches(expected, _sessionProvider()));
         }
 
         private void CancelLocked()

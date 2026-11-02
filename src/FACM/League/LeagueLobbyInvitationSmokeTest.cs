@@ -22,6 +22,7 @@ namespace FACM.League
             ValidateLeaderPromotion();
             ValidateLeaderRoomNotice();
             ValidateDisabledByDefault();
+            ValidateSessionScopedLobbyActions();
             LeagueFriendInvitationSmokeTest.Validate();
             LeagueAramTeamSideSmokeTest.Validate();
             LeagueQuickMessageSmokeTest.Validate();
@@ -247,6 +248,53 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateSessionScopedLobbyActions()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 55, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var second = new LeagueClientSession("LeagueClientUx", 56, 2999, "test",
+                "https", "fixture", "HN1", "HN1");
+            var current = first;
+            var read = new Read();
+            var write = new Write();
+            read.Set(LeagueLobbyInvitationController.ReceivedInvitationsPath,
+                Invitations("inv-owner", "NORMAL", "Pending", true));
+            read.OnRead = (path, count) =>
+            {
+                if (path == LeagueLobbyInvitationController.ReceivedInvitationsPath && count == 2)
+                    current = second;
+            };
+            using (var controller = new LeagueLobbyInvitationController(read, write, null, () => current))
+            {
+                controller.Configure(true, false, "{\"<DEFAULT>\":\"accept\"}", false);
+                Run(controller, "None");
+                Require(write.Calls.Count == 0,
+                    "An old LCU invitation must not be accepted after a process replacement.");
+                read.OnRead = null;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "None" });
+                Run(controller, "None");
+                Require(write.Calls.Count == 1,
+                    "The replacement LCU owner must independently accept its pending invitation.");
+            }
+
+            current = first;
+            read = new Read();
+            write = new Write();
+            read.Set(LeagueLobbyInvitationController.LobbyPath,
+                "{\"partyId\":\"party-owner\",\"localMember\":{\"summonerId\":10,\"isLeader\":true}," +
+                "\"members\":[{\"summonerId\":20,\"ready\":true}]}");
+            read.Set(LeagueFriendInvitationController.ConversationsPath,
+                "[{\"type\":\"customGame\",\"id\":\"room-leader@party\"}]");
+            write.OnSend = () => current = second;
+            using (var controller = new LeagueLobbyInvitationController(read, write, write, () => current))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Require(write.Calls.Count == 1 && write.Notices.Count == 0,
+                    "Old owner leader promotion must not announce in the replacement owner's room.");
+            }
+        }
+
         private static void ValidateDisabledByDefault()
         {
             var read = new Read();
@@ -287,6 +335,7 @@ namespace FACM.League
             private readonly Dictionary<string, string> _values = new Dictionary<string, string>(StringComparer.Ordinal);
             private readonly Dictionary<string, Queue<string>> _sequences = new Dictionary<string, Queue<string>>(StringComparer.Ordinal);
             internal int Count;
+            internal Action<string, int> OnRead;
             internal void Set(string path, string json) { _values[path] = json; }
             internal void SetSequence(string path, params string[] responses)
             {
@@ -295,7 +344,8 @@ namespace FACM.League
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Interlocked.Increment(ref Count);
+                var count = Interlocked.Increment(ref Count);
+                if (OnRead != null) OnRead(path, count);
                 string value;
                 Queue<string> queue;
                 if (_sequences.TryGetValue(path, out queue) && queue.Count > 0)
@@ -309,10 +359,12 @@ namespace FACM.League
             internal readonly List<string> Calls = new List<string>();
             internal readonly List<string> Notices = new List<string>();
             internal int Status = 204;
+            internal Action OnSend;
             public Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(method + " " + path);
+                if (OnSend != null) OnSend();
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = Status, Body = new byte[0] });
             }
 
