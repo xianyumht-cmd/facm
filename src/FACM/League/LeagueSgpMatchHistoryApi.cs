@@ -345,11 +345,18 @@ namespace FACM.League
             return SendAsync(session, endpoint, null, true, token);
         }
 
+        internal static bool SameOwner(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return expected != null && expected.Matches(current) &&
+                expected.ProcessId == current.ProcessId &&
+                string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(CurrentServerId(expected), CurrentServerId(current), StringComparison.Ordinal);
+        }
+
         private bool SameSession(LeagueClientSession expected)
         {
-            var current = _session();
-            return expected != null && expected.Matches(current) &&
-                string.Equals(CurrentServerId(expected), CurrentServerId(current), StringComparison.Ordinal);
+            return SameOwner(expected, _session());
         }
 
         private async Task<string> ReadScopedTokenAsync(LeagueClientSession session, bool leagueToken,

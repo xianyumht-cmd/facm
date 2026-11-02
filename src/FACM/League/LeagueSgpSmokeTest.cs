@@ -753,6 +753,10 @@ namespace FACM.League
                     local.Paths.Count == 4,
                     "Replacing the LCU process must invalidate even matching port/password token snapshots.");
 
+                Require(!LeagueSgpMatchHistoryApiClient.SameOwner(
+                    Session("HN1", "TENCENT"), session),
+                    "An identical SGP region and LCU password must not hide a process replacement.");
+
                 local.HistoryTokens.Enqueue("refreshed-token");
                 handler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
                 handler.Statuses.Enqueue(HttpStatusCode.OK);
@@ -831,6 +835,16 @@ namespace FACM.League
                 Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
                     throttled.Calls == 1,
                     "Rate-limited SGP responses must never be retried.");
+
+            var processReplaced = new CaptureHandler();
+            var originalOwner = owner;
+            processReplaced.AfterRead = () => owner = new LeagueClientSession(
+                "LeagueClientUx", 99, 12345, "local-fixture", "https", "fixture", "HN10", "TENCENT");
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), processReplaced))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    processReplaced.Calls == 1,
+                    "An in-flight SGP response from a replaced LCU process must be discarded.");
+            owner = originalOwner;
 
             var replaced = new CaptureHandler();
             replaced.Statuses.Enqueue(HttpStatusCode.Unauthorized);

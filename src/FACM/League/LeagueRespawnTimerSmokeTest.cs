@@ -32,6 +32,17 @@ namespace FACM.League
                 Require(!scope.Token.IsCancellationRequested && activeRead.IsCancellationRequested,
                     "A new gameplay phase needs a fresh read scope, not a revived old request.");
             }
+            var owner = new LeagueClientSession("LeagueClientUx", 100, 12345, "fixture",
+                "https", "fixture", "HN10", "TENCENT");
+            Require(LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
+                    "LeagueClientUx", 100, 12345, "fixture", "https", "fixture", "HN10", "TENCENT")) &&
+                !LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
+                    "LeagueClientUx", 101, 12345, "fixture", "https", "fixture", "HN10", "TENCENT")) &&
+                !LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
+                    "LeagueClientUx", 100, 12345, "fixture", "https", "fixture", "HN1", "TENCENT")) &&
+                !LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
+                    "LeagueClientUx", 100, 12345, "fixture", "https", "fixture", "HN10", "NA")),
+                "Respawn read scope must reject a replaced process, platform or region with reused credentials.");
             var inGame = new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" };
             Require(LeagueRespawnOverlayHost.ShouldRun(true, inGame) &&
                 !LeagueRespawnOverlayHost.ShouldRun(false, inGame) &&

@@ -79,6 +79,7 @@ namespace FACM.League
         private LeagueRespawnTimerReader _reader;
         private LeagueRespawnTimerSample _sample;
         private LeagueClientSession _session;
+        private LeagueClientSession _scopeSession;
         private string _account;
         private string _internalName;
         private DateTime _nextIdentityReadUtc;
@@ -124,12 +125,24 @@ namespace FACM.League
             DispatchUiState();
         }
 
+        internal static bool SameOwner(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return expected != null && expected.Matches(current) &&
+                expected.ProcessId == current.ProcessId &&
+                string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase);
+        }
+
         private void SetInProgressLocked(bool desired)
         {
-            if (_inProgress == desired) return;
+            var session = desired ? _sessionProvider() : null;
+            desired = desired && session != null;
+            if (_inProgress == desired && (!desired || SameOwner(_scopeSession, session))) return;
             _inProgress = desired;
+            _scopeSession = session;
             _generation++;
-            _readScope.Transition(desired, _lifetime.Token);
+            _readScope.Transition(false, _lifetime.Token);
+            if (desired) _readScope.Transition(true, _lifetime.Token);
         }
 
         private void AttachWhenReady(object sender, EventArgs args)
@@ -210,8 +223,13 @@ namespace FACM.League
                     return;
                 }
                 var session = _sessionProvider();
-                if (session == null) { HideOverlay(); return; }
-                if (_session == null || !_session.Matches(session))
+                if (session == null || !IsCurrent(generation, session))
+                {
+                    _sample = null;
+                    HideOverlay();
+                    return;
+                }
+                if (!SameOwner(_session, session))
                 {
                     _session = session;
                     _account = null;
@@ -269,7 +287,7 @@ namespace FACM.League
             lock (_sync)
             {
                 return !_disposed && _inProgress && _generation == generation &&
-                    session.Matches(_sessionProvider());
+                    SameOwner(session, _scopeSession) && SameOwner(session, _sessionProvider());
             }
         }
 
