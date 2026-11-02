@@ -1,3 +1,9 @@
+### 2026-11-02 — Source champion preset exchange and public catalog refresh ownership
+
+`LeagueAkariChampionPresetTransfer` is a pure bounded adapter between pinned Akari v1.5.1 `auto-champ-config/state.ts` JSON and the existing `LeagueChampionRunePresets` / `LeagueChampionSpellPresets` compressed catalogs. `LeagueRunePresetManagerForm` is the sole clipboard/confirmation UI; `LeagueAutoApplyController.ImportAkariChampionPresets` saves present categories in one settings transaction, restores in-memory values on save failure and cancels stale auto-apply work. No account identity, LCU writer or new transport crosses this boundary. Both native categories retain 256-entry limits, source group validation and cloud settings keys.
+
+`LeagueSgpServerCatalog` and `LeagueAutoSelectGroupCatalog` retain their existing explicit public-data transport and cancellation scopes. A successful accepted snapshot sets a two-hour success gate; a failed fetch has a five-minute minimum retry interval. This is not an always-on polling owner, and a cancelled account/session refresh clears the attempt gate.
+
 ### 2026-11-02 — Akari native historical and player-card boundaries
 
 Historical previews now retain `LeagueDynamicMessageSnapshot.HistoricalOriginalRoster` as the source-participant restoration anchor independently of the editable `Players` list. Local Rift add/remove operations can grow or shrink the preview within 2–20 verified/synthetic identities without mutating match history or live gameflow. Synthetic players carry no inherited match evidence. Full restore reconstructs the source roster, team, champion, position, queue and target. Arena preview still requires real two-player subteams.
