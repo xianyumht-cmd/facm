@@ -174,6 +174,32 @@ namespace FACM.League
                 "Regional enrichment must use the selected SUMMARY endpoint without an LCU game lookup.");
             Require(await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
                 "The final timeline-batch owner check accepts an unchanged account and session.");
+
+            var concurrentSgp = new Sgp { RequireOverlap = true };
+            var concurrentService = new LeaguePlayerDataService(api, new PerformanceBudgetProvider(),
+                null, concurrentSgp, () => active);
+            var concurrentRows = Enumerable.Range(110, 4).Select(id =>
+            {
+                var row = Sparse(id);
+                row.DataSource = LeaguePlayerHistorySource.Sgp;
+                row.SgpServerId = "HN10";
+                return row;
+            }).ToList();
+            reads = api.Games;
+            var concurrent = await concurrentService.HydrateAnalysisAsync("self", "target",
+                session, concurrentRows, null, CancellationToken.None).ConfigureAwait(false);
+            Require(concurrent.Attempted.Count == 4 && concurrent.Updated == 4 &&
+                concurrentSgp.Calls == 4 && concurrentSgp.Peak >= 2 && concurrentSgp.Peak <= 4 &&
+                api.Games == reads && concurrent.Matches.All(m => m.ParticipantRoster != null),
+                "Regional enrichment must overlap within budget without concurrent LCU game reads.");
+            concurrentSgp.RequireOverlap = false;
+            concurrentSgp.OnRead = () => api.Changed = true;
+            var changed = await concurrentService.HydrateAnalysisAsync("self", "target",
+                session, new[] { concurrentRows[0] }, null, CancellationToken.None).ConfigureAwait(false);
+            Require(changed.AccountChanged && changed.Matches.Count == 0 && changed.Updated == 0,
+                "Account changes during parallel SGP HTTP must discard staged details.");
+            concurrentSgp.OnRead = null;
+            api.Changed = false;
             api.Changed = true;
             Require(!await service.VerifyTimelineOwnerAsync("self", session, CancellationToken.None),
                 "A same-process account switch invalidates all staged timeline results.");
@@ -242,12 +268,36 @@ namespace FACM.League
         private sealed class Sgp : ILeagueSgpMatchHistoryApi
         {
             internal int Calls;
+            internal int Peak;
+            internal bool RequireOverlap;
+            internal Action OnRead;
             internal string Server;
-            public Task<byte[]> TryGetGameSummaryAsync(long id, CancellationToken token, string serverId = null)
+            private int _active;
+            private readonly TaskCompletionSource<bool> _overlap =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public async Task<byte[]> TryGetGameSummaryAsync(long id, CancellationToken token, string serverId = null)
             {
-                Calls++; Server = serverId;
-                return Task.FromResult(Encoding.UTF8.GetBytes("{\"json\":" +
-                    Encoding.UTF8.GetString(Game(id, "target")) + "}"));
+                Interlocked.Increment(ref Calls);
+                Server = serverId;
+                var active = Interlocked.Increment(ref _active);
+                if (active >= 2) _overlap.TrySetResult(true);
+                int peak;
+                do { peak = Peak; if (peak >= active) break; }
+                while (Interlocked.CompareExchange(ref Peak, active, peak) != peak);
+                try
+                {
+                    OnRead?.Invoke();
+                    if (RequireOverlap)
+                    {
+                        var ready = await Task.WhenAny(_overlap.Task,
+                            Task.Delay(TimeSpan.FromSeconds(2), token)).ConfigureAwait(false);
+                        if (ready != _overlap.Task) throw new OperationCanceledException();
+                    }
+                    return Encoding.UTF8.GetBytes("{\"json\":" +
+                        Encoding.UTF8.GetString(Game(id, "target")) + "}");
+                }
+                finally { Interlocked.Decrement(ref _active); }
             }
             public Task<byte[]> TryGetSummaryAsync(string puuid, int start, int count, CancellationToken token, string serverId = null)
             { return Task.FromResult<byte[]>(null); }
