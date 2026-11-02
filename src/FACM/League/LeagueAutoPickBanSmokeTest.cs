@@ -1070,6 +1070,63 @@ namespace FACM.League
                     "An offered higher-priority hero should be accepted after two guarded reads.");
             }
 
+            // Source trade handling is independent of the pick.enabled flag.
+            var tradeOnlyProfiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", PickEnabled = false,
+                    Picks = new List<int> { 55, 34 }, BenchHandleTradeEnabled = true,
+                    BenchPreferHigherPriority = true, PickDelayMs = 0 }
+            });
+            var tradeOnlyRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(80, 55) };
+            var tradeOnlyWrite = new FakeTradeWrite();
+            var noPickWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                tradeOnlyRead, noPickWrite, null, tradeOnlyWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, tradeOnlyProfiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(tradeOnlyWrite.Calls == 1 && tradeOnlyWrite.Id == 80 &&
+                        tradeOnlyWrite.Accept && noPickWrite.Calls.Count == 0,
+                    "Explicit trade handling must work without enabling automatic picks.");
+            }
+
+            // Empty pick priorities still permit an explicit trade handler to decline an offer.
+            var emptyTradeProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", PickEnabled = false,
+                    BenchHandleTradeEnabled = true, PickDelayMs = 0 }
+            });
+            var emptyTradeRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(81, 55) };
+            var emptyTradeWrite = new FakeTradeWrite();
+            var emptyTradeClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                emptyTradeRead, new FakeWrite(), null, emptyTradeWrite, emptyTradeClock))
+            {
+                controller.Configure(true, 0, false, 0, emptyTradeProfile);
+                controller.Observe(Selecting());
+                Require(emptyTradeWrite.Calls == 1 && emptyTradeWrite.Id == 81 &&
+                        !emptyTradeWrite.Accept && emptyTradeClock.Delays == 2,
+                    "Trade-only source configuration must arm the existing ChampSelect episode.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(emptyTradeClock.Cancelled && emptyTradeWrite.Calls == 1,
+                    "Trade-only episode must stop on phase exit without repeating the answer.");
+            }
+            var globalOffRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(82, 55) };
+            var globalOffWrite = new FakeTradeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                globalOffRead, new FakeWrite(), null, globalOffWrite, new InstantClock()))
+            {
+                controller.Configure(false, 0, false, 0, tradeOnlyProfiles);
+                controller.Observe(Selecting());
+                Require(globalOffWrite.Calls == 0 && globalOffRead.ActionPaths.Count == 0,
+                    "The native global auto-pick switch must still disable trade observation.");
+            }
+
             var undesirable = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
                 TradeJson = Trade(74, 22) };
             var declined = new FakeTradeWrite();

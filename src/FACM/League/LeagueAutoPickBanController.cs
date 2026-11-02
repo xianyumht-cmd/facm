@@ -270,7 +270,7 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || _temporarilyDisabled || !_inChampSelect || _episode != null ||
-                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0)) &&
+                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0 || p.BenchHandleTradeEnabled)) &&
                     (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
                 var owner = _session == null ? null : _session();
                 if (_session != null && owner == null) return;
@@ -666,7 +666,7 @@ namespace FACM.League
             var mode = state.AutoSelectGroup ?? LeagueAutoSelectProfiles.ModeFor(state.QueueId, state.GameMode);
             var role = BenchAssignedRole(state);
             var profile = LeagueAutoSelectProfiles.ResolveStrategy(profiles, mode, role);
-            if (!profile.PickEnabled || !profile.BenchHandleTradeEnabled) return false;
+            if (!profile.BenchHandleTradeEnabled) return false;
 
             // Only profiles with explicitly enabled trade handling generate this extra read;
             // all observation still happens in the same phase-scoped selection task.
