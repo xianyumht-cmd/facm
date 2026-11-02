@@ -51,6 +51,7 @@ namespace FACM.League
                 "ChampSelect action writer escaped its method/type/action/champion fence.");
             ValidateActionParsing();
             ValidateProfiles();
+            ValidateAkariAutoSelectTransfer();
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
             ValidatePickIntentAsync().GetAwaiter().GetResult();
             ValidateAutoBenchAsync().GetAwaiter().GetResult();
@@ -606,6 +607,77 @@ namespace FACM.League
             Require(LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"aram\",\"Role\":\"default\"," +
                 "\"BenchAutoSwapEnabled\":true,\"BenchSwapDelayMs\":20000}]").Count == 0,
                 "Unbounded bench delays must be rejected before saving.");
+        }
+
+
+        private static void ValidateAkariAutoSelectTransfer()
+        {
+            var source = new JavaScriptSerializer().Serialize(new
+            {
+                pickConfig = new Dictionary<string, object>
+                {
+                    { "ranked", new {
+                        enabled = true,
+                        champions = new { @default = new[] { 22 }, top = new int[0],
+                            jungle = new int[0], middle = new int[0], bottom = new int[0],
+                            utility = new[] { 40, 16 } },
+                        delaySeconds = 1.5, ignoreIntent = true, strategy = "show-and-lock-in",
+                        showIntent = true, benchSelectFirstAvailableChampion = false,
+                        benchSwapAccumulatedDelaySeconds = 2.9, benchHandleTradeEnabled = false
+                    } }
+                },
+                banConfig = new Dictionary<string, object>
+                {
+                    { "ranked", new {
+                        enabled = true,
+                        champions = new { @default = new[] { 67 }, top = new int[0],
+                            jungle = new int[0], middle = new int[0], bottom = new int[0],
+                            utility = new int[0] },
+                        strategy = "just-show", delaySeconds = 0.5
+                    } }
+                }
+            });
+            var original = new List<LeagueAutoSelectProfile>
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 157 },
+                    BanEnabled = false }
+            };
+            var imported = LeagueAkariAutoSelectTransfer.Import(source, original);
+            var support = imported.Single(p => p.Mode == "ranked" && p.Role == "support");
+            var ranked = imported.Single(p => p.Mode == "ranked" && p.Role == "default");
+            Require(imported.Count == 3 && support.Picks.SequenceEqual(new[] { 40, 16 }) &&
+                support.Bans.Count == 0 && support.BanEnabled && support.BanStrategy == "just-show" &&
+                ranked.Picks.SequenceEqual(new[] { 22 }) &&
+                ranked.Bans.SequenceEqual(new[] { 67 }) &&
+                ranked.PickDelayMs == 1500 && ranked.BanDelayMs == 500 &&
+                ranked.ShowPickIntent && ranked.IgnoreTeammateIntent &&
+                original.Count == 1 && original[0].Picks.SequenceEqual(new[] { 157 }),
+                "Akari pick/ban import must map utility roles, settings and preserve the editor until commit.");
+            var roundTrip = LeagueAkariAutoSelectTransfer.Import(
+                LeagueAkariAutoSelectTransfer.Export(imported), new LeagueAutoSelectProfile[0]);
+            Require(roundTrip.Count == imported.Count &&
+                roundTrip.Single(p => p.Role == "support").Picks.SequenceEqual(new[] { 40, 16 }),
+                "Akari auto-select export/import must retain group and role priorities.");
+            var onlyBan = new JavaScriptSerializer().Serialize(new
+            {
+                banConfig = new Dictionary<string, object>()
+            });
+            var retained = LeagueAkariAutoSelectTransfer.Import(onlyBan, original);
+            Require(retained.Count == 1 && retained[0].Picks.SequenceEqual(new[] { 157 }) &&
+                !retained[0].BanEnabled && retained[0].Bans.Count == 0,
+                "A single Akari category must preserve the other category.");
+            foreach (var bad in new[] {
+                "{}", "{\"pickConfig\":{\"unknown_region_group\":{}}}",
+                "{\"pickConfig\":{\"ranked\":{\"champions\":{}}}}",
+                "{\"banConfig\":[]}", "{\"pickConfig\":null}"
+            })
+            {
+                var rejected = false;
+                try { LeagueAkariAutoSelectTransfer.Import(bad, original); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected && original[0].Picks.SequenceEqual(new[] { 157 }),
+                    "Malformed Akari transfer must reject atomically.");
+            }
         }
 
         internal static async Task ValidateAutoBenchAsync()
