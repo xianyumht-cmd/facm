@@ -361,6 +361,7 @@ namespace FACM.League
                 if (!SameSession(session)) return null;
                 var region = CurrentServerId(session);
                 if (_tokenOwner == null || !_tokenOwner.Matches(session) ||
+                    _tokenOwner.ProcessId != session.ProcessId ||
                     !string.Equals(_tokenRegion, region, StringComparison.Ordinal))
                 {
                     _tokenOwner = session;
@@ -373,8 +374,9 @@ namespace FACM.League
 
                 var cached = leagueToken ? _commonToken : _historyToken;
                 var cachedAt = leagueToken ? _commonTokenAtUtc : _historyTokenAtUtc;
+                var age = DateTime.UtcNow - cachedAt;
                 if (cached != null && !string.Equals(cached, rejectedToken, StringComparison.Ordinal) &&
-                    DateTime.UtcNow - cachedAt < TimeSpan.FromSeconds(TokenReuseSeconds))
+                    age >= TimeSpan.Zero && age < TimeSpan.FromSeconds(TokenReuseSeconds))
                     return cached;
 
                 var credentials = await _local.TryGetBytesAsync(
@@ -500,6 +502,12 @@ namespace FACM.League
             catch (Exception) { return null; }
         }
 
-        public void Dispose() { _http.Dispose(); }
+        public void Dispose()
+        {
+            _historyToken = null;
+            _commonToken = null;
+            _tokenOwner = null;
+            _http.Dispose();
+        }
     }
 }
