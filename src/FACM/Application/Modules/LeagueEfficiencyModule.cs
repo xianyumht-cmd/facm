@@ -330,6 +330,25 @@ namespace FACM.AppHost.Modules
                 LoadEncounterAssetAsync, championId, position, mode, true);
         }
 
+        public Form CreateDynamicPlayerProfileForm(UiTextCatalog ui,
+            LeagueDynamicMessageSnapshot snapshot, string targetPuuid, string targetName)
+        {
+            ThrowIfDisposed();
+            if (snapshot?.Session == null || _dynamicMessages == null ||
+                !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
+                !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
+                !snapshot.Players.Any(p => p?.Player != null &&
+                    string.Equals(p.Player.PuuId, targetPuuid, StringComparison.Ordinal)) ||
+                !LeagueEncounterReplayService.SessionMatches(snapshot.Session,
+                    _leagueClient.CurrentSession))
+                return null;
+            return new LeaguePlayerProfileDialog(_dynamicMessages.PlayerHistoryService, ui,
+                snapshot.SelfPuuid, targetPuuid, targetName, snapshot.Session,
+                () => LeagueEncounterReplayService.SessionMatches(snapshot.Session,
+                    _leagueClient.CurrentSession) ? _leagueClient.CurrentSession : null,
+                null, LeaguePlayerHistorySource.Automatic, LoadEncounterAssetAsync);
+        }
+
         public Task<bool> LoadDynamicMasteryAsync(LeagueDynamicMessageSnapshot snapshot,
             string playerPuuid, CancellationToken token)
         {

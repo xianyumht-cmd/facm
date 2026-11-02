@@ -273,6 +273,12 @@ namespace FACM.League
                 LeagueDynamicMessageService.SafePuuid(player.Player.PuuId);
         }
 
+        internal static bool CanOpenProfile(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return IsLiveRosterPlayer(snapshot, player);
+        }
+
         internal static bool TryCurrentChampion(LeagueDynamicMessageSnapshot snapshot,
             LeagueDynamicMessagePlayer player, out int championId)
         {

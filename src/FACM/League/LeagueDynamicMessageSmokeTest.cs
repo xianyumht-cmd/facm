@@ -1494,6 +1494,8 @@ namespace FACM.League
                 }
             };
             snapshot.Players.Add(player);
+            Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
+                "Verified current-roster players must expose the existing profile detail owner.");
             Require(LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) && champion == 99 &&
                 LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1504,13 +1506,16 @@ namespace FACM.League
                     PuuId = "foreign", ChampionId = 99, Position = "TOP"
                 }
             };
-            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, foreign) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, foreign, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
                     snapshot, foreign, out position),
-                "Unverified roster identities must not start a current-card collection.");
+                "Unverified roster identities must not open profile or collection actions.");
             player.Player.ChampionId = 0;
             player.Player.Position = "NONE";
+            Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
+                "Current player profile details must remain available without champion or lane.");
             Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
@@ -1519,14 +1524,16 @@ namespace FACM.League
             player.Player.ChampionId = 99;
             player.Player.Position = "TOP";
             snapshot.HistoricalStandalone = true;
-            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
                     snapshot, player, out position),
                 "Standalone historical previews must not start current-roster collection.");
             snapshot.HistoricalStandalone = false;
             snapshot.HistoricalOriginalRoster.Add(player);
-            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
                     snapshot, player, out champion) &&
                 !LeagueOngoingCardActionSelection.TryCurrentPosition(
                     snapshot, player, out position),

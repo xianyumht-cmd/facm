@@ -384,6 +384,7 @@ namespace FACM.League
             var recentChampions = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions));
             var championMastery = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileMastery));
             var recentHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingRecentHistory));
+            var playerProfile = tagMenu.Items.Add(_ui.Get(UiTextKeys.LeagueProfileDetailsTitle));
             var enrichHistory = tagMenu.Items.Add(T(LeagueEfficiencyUiTextKeys.OngoingHydrateHistory));
             var collectCurrentChampion = tagMenu.Items.Add(
                 T(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · " +
@@ -412,6 +413,8 @@ namespace FACM.League
                 championMastery.Enabled = !e.Cancel;
                 // A new player can have mastery and jungle evidence before any match history.
                 recentHistory.Enabled = !e.Cancel;
+                playerProfile.Enabled = !e.Cancel &&
+                    LeagueOngoingCardActionSelection.CanOpenProfile(_snapshot, choice.Player);
                 enrichHistory.Enabled = !e.Cancel && _options.GameDetailsLoadCount > 0 &&
                     choice.Player.History != null &&
                     choice.Player.History.Matches.Any(m =>
@@ -451,6 +454,17 @@ namespace FACM.League
                 if (LeagueOngoingCardActionSelection.TryCurrentPosition(
                     _snapshot, choice?.Player, out position))
                     collectCurrent(0, position);
+            };
+            playerProfile.Click += (sender, args) =>
+            {
+                var choice = (tagMenu.SourceControl as CheckedListBox)?.SelectedItem as PlayerChoice;
+                var snapshot = _snapshot;
+                if (_busy || !LeagueOngoingCardActionSelection.CanOpenProfile(
+                    snapshot, choice?.Player)) return;
+                using (var dialog = _module.CreateDynamicPlayerProfileForm(_ui, snapshot,
+                    choice.Player.Player.PuuId, choice.Player.Player.GameName))
+                    if (dialog != null && ReferenceEquals(_snapshot, snapshot))
+                        dialog.ShowDialog(this);
             };
             recentHistory.Click += (sender, e) =>
             {
