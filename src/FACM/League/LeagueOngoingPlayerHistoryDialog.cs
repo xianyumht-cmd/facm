@@ -79,10 +79,21 @@ namespace FACM.League
             LeagueDynamicMessagePlayer player)
         {
             return snapshot != null && !snapshot.HistoricalStandalone &&
-                player?.Player != null && snapshot.Players.Contains(player) &&
+                snapshot.HistoricalOriginalRoster.Count == 0 && player?.Player != null && snapshot.Players.Contains(player) &&
                 LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) &&
                 LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) &&
                 !string.Equals(snapshot.SelfPuuid, player.Player.PuuId, StringComparison.Ordinal);
+        }
+
+        internal static string CopyText(IReadOnlyList<KeyValuePair<string, string>> rows)
+        {
+            if (rows == null || rows.Count == 0 || rows.Count > 40 ||
+                rows.Any(row => string.IsNullOrWhiteSpace(row.Key) ||
+                    row.Key.Any(char.IsControl) || row.Value == null ||
+                    row.Value.Any(char.IsControl))) return string.Empty;
+            var text = string.Join(Environment.NewLine,
+                rows.Select(row => row.Key + ": " + row.Value));
+            return text.Length <= 8192 ? text : string.Empty;
         }
 
         internal static IReadOnlyList<KeyValuePair<string, string>> Project(
@@ -1344,13 +1355,24 @@ namespace FACM.League
                         ForeColor = FacmDesignSystem.Text
                     };
                     list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown), 190);
-                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardStats), 205);
+                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 205);
                     foreach (var detail in details)
                     {
                         var row = new ListViewItem(detail.Key);
                         row.SubItems.Add(detail.Value);
                         list.Items.Add(row);
                     }
+                    list.KeyDown += (source, key) =>
+                    {
+                        if (!key.Control || key.KeyCode != Keys.C) return;
+                        var copy = LeagueOngoingCardStatsProjection.CopyText(details);
+                        if (copy.Length > 0)
+                        {
+                            try { Clipboard.SetText(copy); }
+                            catch (System.Runtime.InteropServices.ExternalException) { }
+                        }
+                        key.Handled = true;
+                    };
                     dialog.Controls.Add(list);
                     dialog.ShowDialog(this);
                 }

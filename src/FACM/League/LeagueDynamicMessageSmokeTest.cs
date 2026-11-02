@@ -1417,6 +1417,10 @@ namespace FACM.League
                     new LeagueDynamicMessagePlayer {
                         Player = new LeagueLivePlayerRow { PuuId = "outside" }
                     }), "Card tag actions must stay scoped to verified non-self roster players.");
+            snapshot.HistoricalOriginalRoster.Add(other);
+            Require(!LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other),
+                "Historical previews must not edit tags through a synthetic card.");
+            snapshot.HistoricalOriginalRoster.Clear();
             snapshot.HistoricalStandalone = true;
             Require(!LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other),
                 "Standalone synthetic drafts must not edit persistent player tags.");
@@ -1435,6 +1439,9 @@ namespace FACM.League
                 }
             };
             var details = LeagueOngoingCardStatsProjection.Project(null, games, "other");
+            Require(LeagueOngoingCardStatsProjection.CopyText(details).Contains("KDA") &&
+                LeagueOngoingCardStatsProjection.CopyText(null) == "",
+                "Verified native card details must support bounded copy and reject missing rows.");
             Require(details.Any(row => row.Key == "KDA" && row.Value == "2.50") &&
                 details.Any(row => row.Key == "KDA avg" && row.Value == "2.50") &&
                 details.Any(row => row.Key == "K / D / A" && row.Value == "3.00 / 2.00 / 2.00") &&
