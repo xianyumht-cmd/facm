@@ -359,6 +359,44 @@ namespace FACM.League
                     "Stable current-region draft must preserve the existing automatic pick.");
             }
 
+            var replacement = new LeagueClientSession("LeagueClientUx", 43, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            var processRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var processWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(processRead, processWrite,
+                null, null, new InstantClock(),
+                () => processRead.Paths.Count == 0 ? first : replacement))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(processWrite.Calls.Count == 0,
+                    "Replacing the LCU process on the same port must reject the old pick episode.");
+            }
+
+            var owner = first;
+            var observerClock = new FakeClock();
+            var observerWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Session("pick", 0, 0) }, observerWrite,
+                null, null, observerClock, () => owner))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                var oldEpisode = controller.RunningForSmokeTest;
+                Require(observerWrite.Calls.Count == 1 && observerClock.Delays == 1,
+                    "Initial LCU owner should arm one phase-scoped pick episode.");
+                owner = replacement;
+                controller.Observe(Selecting());
+                var newEpisode = controller.RunningForSmokeTest;
+                await oldEpisode.ConfigureAwait(false);
+                Require(observerWrite.Calls.Count == 2 && observerClock.Delays == 2,
+                    "Same-phase process replacement must rearm with a fresh action fence.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await newEpisode.ConfigureAwait(false);
+                Require(observerClock.Cancelled,
+                    "Leaving ChampSelect must cancel the replacement process episode.");
+            }
+
             var switchedRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
             var switchedWrite = new FakeWrite();
             using (var controller = new LeagueAutoPickBanController(switchedRead, switchedWrite,

@@ -113,6 +113,7 @@ namespace FACM.League
         private readonly Func<LeagueClientSession> _session;
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
+        private LeagueClientSession _episodeOwner;
         private Task _running;
         private bool _inChampSelect;
         private bool _autoPick;
@@ -216,6 +217,7 @@ namespace FACM.League
                 _profiles = parsedProfiles;
                 previous = _episode;
                 _episode = null;
+                _episodeOwner = null;
             }
             Cancel(previous);
             StartIfEligible();
@@ -229,11 +231,15 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
+                var owner = _session == null ? null : _session();
+                var ownerChanged = _session != null &&
+                    !LeagueMatchmakingAutomationController.SameOwner(_episodeOwner, owner);
                 _inChampSelect = active;
-                if (!active)
+                if (!active || ownerChanged)
                 {
                     previous = _episode;
                     _episode = null;
+                    _episodeOwner = null;
                 }
             }
             Cancel(previous);
@@ -251,6 +257,7 @@ namespace FACM.League
                 {
                     previous = _episode;
                     _episode = null;
+                    _episodeOwner = null;
                 }
             }
             Cancel(previous);
@@ -265,8 +272,11 @@ namespace FACM.League
                 if (_disposed || _temporarilyDisabled || !_inChampSelect || _episode != null ||
                     (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0)) &&
                     (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
+                var owner = _session == null ? null : _session();
+                if (_session != null && owner == null) return;
                 episode = new CancellationTokenSource();
                 _episode = episode;
+                _episodeOwner = owner;
             }
             var running = RunEpisodeAsync(episode);
             lock (_sync) if (ReferenceEquals(_episode, episode)) _running = running;
@@ -306,7 +316,11 @@ namespace FACM.League
             finally
             {
                 lock (_sync)
-                    if (ReferenceEquals(_episode, episode)) _episode = null;
+                    if (ReferenceEquals(_episode, episode))
+                    {
+                        _episode = null;
+                        _episodeOwner = null;
+                    }
                 CompactTraceLog.Record(trace, "autoselect", "phase", "stopped", 0);
                 episode.Dispose();
             }
@@ -316,7 +330,9 @@ namespace FACM.League
         {
             lock (_sync)
                 return !_disposed && _inChampSelect && ReferenceEquals(_episode, episode) &&
-                    !episode.IsCancellationRequested;
+                    !episode.IsCancellationRequested &&
+                    (_session == null || LeagueMatchmakingAutomationController.SameOwner(
+                        _episodeOwner, _session()));
         }
 
         private async Task TryStepAsync(CancellationTokenSource episode, HashSet<string> attempted,
@@ -939,8 +955,10 @@ namespace FACM.League
 
         private async Task<byte[]> ReadSelectionSessionAsync(CancellationToken token)
         {
-            var expected = _session == null ? null : _session();
-            if (_session != null && expected == null) return null;
+            LeagueClientSession expected;
+            lock (_sync) expected = _episodeOwner;
+            if (_session != null && !LeagueMatchmakingAutomationController.SameOwner(
+                    expected, _session())) return null;
             var serverId = expected == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(expected);
             var selection = await _read.TryGetBytesAsync(SessionPath, token).ConfigureAwait(false);
             if (selection == null) return null;
@@ -948,9 +966,7 @@ namespace FACM.League
             if (_session != null)
             {
                 var current = _session();
-                if (current == null || !expected.Matches(current) ||
-                    !string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase) ||
-                    !string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) ||
+                if (!LeagueMatchmakingAutomationController.SameOwner(expected, current) ||
                     serverId != LeagueSgpMatchHistoryApiClient.CurrentServerId(current)) return null;
             }
             return LeagueAutoSelectContext.Bind(selection, gameflow, serverId);
@@ -975,6 +991,7 @@ namespace FACM.League
             {
                 _inChampSelect = true;
                 _episode = episode;
+                _episodeOwner = _session == null ? null : _session();
             }
             return RunOnceAndDisposeAsync(episode, cancellationToken);
         }
@@ -996,7 +1013,12 @@ namespace FACM.League
                 }
                 finally
                 {
-                    lock (_sync) if (ReferenceEquals(_episode, episode)) _episode = null;
+                    lock (_sync)
+                        if (ReferenceEquals(_episode, episode))
+                        {
+                            _episode = null;
+                            _episodeOwner = null;
+                        }
                     Cancel(episode);
                     episode.Dispose();
                 }
@@ -1150,6 +1172,7 @@ namespace FACM.League
                 _disposed = true;
                 previous = _episode;
                 _episode = null;
+                _episodeOwner = null;
             }
             Cancel(previous);
         }
