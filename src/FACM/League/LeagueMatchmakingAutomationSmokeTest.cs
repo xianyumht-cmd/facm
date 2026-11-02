@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSettings();
             ValidateTransportFence();
             ValidateImmediatePhaseReaction();
+            ValidateSessionReplacement();
             ValidateAkariStyleAutomationPolicies();
             ValidatePendingInvitationWait();
             ValidateSourceQueueGuards();
@@ -121,6 +122,56 @@ namespace FACM.League
                     "ReadyCheck phase did not trigger accept promptly.");
                 Require(readyClock.DelayCalls == 0,
                     "ReadyCheck automation inserted a fixed delay before its first accept attempt.");
+            }
+        }
+
+        private static void ValidateSessionReplacement()
+        {
+            var owner = new LeagueClientSession("LeagueClientUx", 1, 12345, "fixture",
+                "https", "fixture", "HN10", "TENCENT");
+            var replacement = new LeagueClientSession("LeagueClientUx", 2, 12345, "fixture",
+                "https", "fixture", "HN10", "TENCENT");
+            Require(!LeagueMatchmakingAutomationController.SameOwner(owner, replacement),
+                "A new LCU process with reused credentials must be treated as a new automation episode.");
+
+            var lobbyRead = new FakeReadApi();
+            lobbyRead.Set(LeagueMatchmakingAutomationController.LobbyPath,
+                LobbyJson(420, true, true, true, new[] { "self" }, false));
+            var lobbyWrite = new FakeWriteApi();
+            var lobbyClock = new FakeClock { BlockFirstDelay = true };
+            using (var controller = new LeagueMatchmakingAutomationController(
+                lobbyRead, lobbyWrite, null, lobbyClock, () => owner))
+            {
+                controller.Configure(true, false, 1, 1500, 0);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(SpinWait.SpinUntil(() => lobbyClock.DelayCalls > 0, 1000),
+                    "Original lobby episode did not enter its pending start delay.");
+                owner = replacement;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                Require(lobbyWrite.WaitForCall(TimeSpan.FromSeconds(1)) &&
+                    lobbyWrite.Calls.Count == 1,
+                    "A replacement lobby session must cancel the old delay and start only its own search.");
+            }
+
+            var readyRead = new FakeReadApi();
+            readyRead.Set(LeagueMatchmakingAutomationController.SearchStatePath,
+                "{\"readyCheck\":{\"state\":\"InProgress\",\"playerResponse\":\"None\"}}");
+            var readyWrite = new FakeWriteApi();
+            var readyClock = new FakeClock { BlockFirstDelay = true };
+            owner = replacement;
+            using (var controller = new LeagueMatchmakingAutomationController(
+                readyRead, readyWrite, null, readyClock, () => owner))
+            {
+                controller.Configure(false, true, 1, 0, 750);
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "ReadyCheck" });
+                Require(SpinWait.SpinUntil(() => readyClock.DelayCalls > 0, 1000),
+                    "Original ready-check episode did not enter its pending accept delay.");
+                owner = new LeagueClientSession("LeagueClientUx", 3, 12345, "fixture",
+                    "https", "fixture", "HN10", "TENCENT");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "ReadyCheck" });
+                Require(readyWrite.WaitForCall(TimeSpan.FromSeconds(1)) &&
+                    readyWrite.Calls.Count == 1,
+                    "A replacement ready-check session must cancel the old delay and accept only once.");
             }
         }
 

@@ -141,7 +141,8 @@ namespace FACM.AppHost.Modules
 
             var matchmakingWriter = (ILeagueMatchmakingWriteApi)_leagueClient;
             _matchmaking = new LeagueMatchmakingAutomationController(_leagueClient, matchmakingWriter,
-                (ILeagueLobbyNoticeWriteApi)_leagueClient, new LeagueMatchmakingSystemClock());
+                (ILeagueLobbyNoticeWriteApi)_leagueClient, new LeagueMatchmakingSystemClock(),
+                () => _leagueClient.CurrentSession);
             _matchmaking.Configure(AutoMatchmakingEnabled, AutoAcceptEnabled, AutoMatchmakingMinPartySize, AutoMatchmakingStartDelayMs, AutoAcceptDelayMs, AutoMatchmakingWaitForInvitees, AutoMatchmakingRoomNotices);
             _matchmakingStop = new LeagueMatchmakingStopController(_leagueClient, matchmakingWriter,
                 () => _leagueClient.CurrentSession);

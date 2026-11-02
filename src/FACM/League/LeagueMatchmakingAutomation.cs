@@ -114,6 +114,8 @@ namespace FACM.League
         private readonly ILeagueMatchmakingWriteApi _write;
         private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly ILeagueMatchmakingClock _clock;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _episodeOwner;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _lobbyCancellation;
         private CancellationTokenSource _readyCancellation;
@@ -149,7 +151,18 @@ namespace FACM.League
             ILeagueMatchmakingWriteApi write,
             ILeagueLobbyNoticeWriteApi notices,
             ILeagueMatchmakingClock clock)
+            : this(read, write, notices, clock, null)
         {
+        }
+
+        internal LeagueMatchmakingAutomationController(
+            ILeagueClientApi read,
+            ILeagueMatchmakingWriteApi write,
+            ILeagueLobbyNoticeWriteApi notices,
+            ILeagueMatchmakingClock clock,
+            Func<LeagueClientSession> sessionProvider)
+        {
+            _sessionProvider = sessionProvider;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _notices = notices;
@@ -241,7 +254,19 @@ namespace FACM.League
             {
                 if (_disposed) return;
                 var old = _phase ?? string.Empty;
+                var owner = _sessionProvider == null ? null : _sessionProvider();
+                var ownerChanged = _sessionProvider != null && !SameOwner(_episodeOwner, owner);
                 _phase = nextPhase;
+                if (ownerChanged)
+                {
+                    CancelLobbyLocked();
+                    CancelReadyLocked();
+                    _lastSearchFingerprint = null;
+                    _lastSearchDiagnostic = null;
+                    _lastImmediateRoomNoticeFingerprint = null;
+                    _acceptAttemptedThisReadyCheck = false;
+                }
+                _episodeOwner = owner;
 
                 if (!string.Equals(nextPhase, "Lobby", StringComparison.OrdinalIgnoreCase))
                 {
@@ -253,7 +278,9 @@ namespace FACM.League
                     }
                     CancelLobbyLocked();
                 }
-                else if (!string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase) && _autoSearch)
+                else if (_autoSearch && (ownerChanged ||
+                    !string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                    _lobbyCancellation == null) && (_sessionProvider == null || owner != null))
                 {
                     _lastSearchFingerprint = null;
                     _lastSearchDiagnostic = null;
@@ -266,7 +293,9 @@ namespace FACM.League
                         _acceptAttemptedThisReadyCheck = false;
                     CancelReadyLocked();
                 }
-                else if (!string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase) && _autoAccept)
+                else if (_autoAccept && (ownerChanged ||
+                    !string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase) ||
+                    _readyCancellation == null) && (_sessionProvider == null || owner != null))
                 {
                     _acceptAttemptedThisReadyCheck = false;
                     startReady = true;
@@ -282,6 +311,7 @@ namespace FACM.League
             {
                 _phase = "Lobby";
                 _autoSearch = true;
+                _episodeOwner = _sessionProvider == null ? null : _sessionProvider();
             }
             await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -292,6 +322,7 @@ namespace FACM.League
             {
                 _phase = "ReadyCheck";
                 _autoAccept = true;
+                _episodeOwner = _sessionProvider == null ? null : _sessionProvider();
             }
             await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -301,7 +332,7 @@ namespace FACM.League
             CancellationToken token;
             lock (_sync)
             {
-                if (_disposed || !_autoSearch || !IsPhase("Lobby")) return;
+                if (_disposed || !_autoSearch || !IsPhase("Lobby") || !IsOwnerCurrentLocked()) return;
                 if (_lobbyCancellation != null) return;
                 _lobbyCancellation = new CancellationTokenSource();
                 token = _lobbyCancellation.Token;
@@ -397,7 +428,8 @@ namespace FACM.League
             if (lobby == null || lobby.Fingerprint != fingerprint || !lobby.IsLeader) return false;
             lock (_sync)
             {
-                if (_disposed || !_roomNotices || !IsPhase("Lobby") || (!cancellation && !_autoSearch)) return false;
+                if (_disposed || !_roomNotices || !IsPhase("Lobby") ||
+                    !IsOwnerCurrentLocked() || (!cancellation && !_autoSearch)) return false;
             }
             token.ThrowIfCancellationRequested();
             var response = await _notices.TrySendNoticeAsync(room, message, token).ConfigureAwait(false);
@@ -468,7 +500,7 @@ namespace FACM.League
 
             lock (_sync)
             {
-                if (_disposed || !_autoSearch || !IsPhase("Lobby")) return false;
+                if (_disposed || !_autoSearch || !IsPhase("Lobby") || !IsOwnerCurrentLocked()) return false;
                 if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
                 {
                     LogSearchDiagnosticLocked("already-attempted");
@@ -482,6 +514,8 @@ namespace FACM.League
                 _lastSearchDiagnostic = null;
             }
 
+            if (!IsSearchActive()) return false;
+            cancellationToken.ThrowIfCancellationRequested();
             AppLog.Info("League auto matchmaking: attempt");
             var response = await _write.TrySendAsync(
                 "POST",
@@ -556,7 +590,7 @@ namespace FACM.League
             CancellationToken token;
             lock (_sync)
             {
-                if (_disposed || !_autoAccept || !IsPhase("ReadyCheck")) return;
+                if (_disposed || !_autoAccept || !IsPhase("ReadyCheck") || !IsOwnerCurrentLocked()) return;
                 if (_readyCancellation != null || _acceptAttemptedThisReadyCheck) return;
                 _readyCancellation = new CancellationTokenSource();
                 token = _readyCancellation.Token;
@@ -607,6 +641,7 @@ namespace FACM.League
                 _acceptAttemptedThisReadyCheck = true;
             }
             if (!IsAcceptActive()) return true;
+            cancellationToken.ThrowIfCancellationRequested();
 
             AppLog.Info("League auto accept: attempt");
             var response = await _write.TrySendAsync(
@@ -713,12 +748,25 @@ namespace FACM.League
 
         private bool IsSearchActive()
         {
-            lock (_sync) return !_disposed && _autoSearch && IsPhase("Lobby");
+            lock (_sync) return !_disposed && _autoSearch && IsPhase("Lobby") && IsOwnerCurrentLocked();
         }
 
         private bool IsAcceptActive()
         {
-            lock (_sync) return !_disposed && _autoAccept && IsPhase("ReadyCheck");
+            lock (_sync) return !_disposed && _autoAccept && IsPhase("ReadyCheck") && IsOwnerCurrentLocked();
+        }
+
+        internal static bool SameOwner(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return expected != null && expected.Matches(current) &&
+                expected.ProcessId == current.ProcessId &&
+                string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsOwnerCurrentLocked()
+        {
+            return _sessionProvider == null || SameOwner(_episodeOwner, _sessionProvider());
         }
 
         private bool IsPhase(string expected)
