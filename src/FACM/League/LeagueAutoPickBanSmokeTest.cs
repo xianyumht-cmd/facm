@@ -138,7 +138,7 @@ namespace FACM.League
         }
 
 
-        private static void ValidateRemoteGroupCatalog()
+        internal static void ValidateRemoteGroupCatalog()
         {
             var valid = @"{""updatedAt"":""2026-08-02T00:00:00.000Z"",""groups"":[{""groupId"":""ranked"",""name"":{""zh-CN"":""排位模式"",""en"":""Ranked""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]}],""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]},{""groupId"":""normal"",""name"":{""zh-CN"":""普通模式"",""en"":""Normal""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""NORMAL""]}],""positions"":[""default""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]}]}";
             try
@@ -628,7 +628,7 @@ namespace FACM.League
         }
 
 
-        private static void ValidateAkariAutoSelectTransfer()
+        internal static void ValidateAkariAutoSelectTransfer()
         {
             var source = new JavaScriptSerializer().Serialize(new
             {
