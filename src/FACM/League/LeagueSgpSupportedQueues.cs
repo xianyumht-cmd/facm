@@ -168,7 +168,8 @@ namespace FACM.League
                     DateTimeStyles.AssumeUniversal, out updated) ||
                     updated.UtcDateTime > DateTime.UtcNow.AddDays(1)) return false;
                 var raw = value as object[];
-                if (raw == null || raw.Length == 0 || raw.Length > 128) return false;
+                // A newer, valid empty catalog explicitly revokes all previously listed queue tags.
+                if (raw == null || raw.Length > 128) return false;
                 var next = new List<int>(raw.Length);
                 var seen = new HashSet<int>();
                 foreach (var item in raw)

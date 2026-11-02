@@ -686,6 +686,21 @@ namespace FACM.League
                     !LeagueSgpSupportedQueues.TryApply(Bytes("{\"updatedAt\":\"2026-08-02T00:00:00.000Z\",\"queues\":[-1]}")) &&
                     LeagueSgpSupportedQueues.IsValidTag("q_9999"),
                     "Stale, duplicate and invalid catalogs must preserve the active list.");
+                var revoked = Bytes("{\"updatedAt\":\"2026-08-03T00:00:00.000Z\",\"queues\":[]}");
+                Require(LeagueSgpSupportedQueues.TryApply(revoked) &&
+                    LeagueSgpSupportedQueues.Snapshot().Length == 0 &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_9999") &&
+                    LeagueSgpSupportedQueues.IsValidTag("ranked") &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_999", 999),
+                    "A source-announced empty queue catalog must revoke stale tags but retain verified-current fallback.");
+                calls = handler.Calls;
+                reads = local.Paths.Count;
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_9999")
+                    .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads &&
+                    !LeagueSgpSupportedQueues.TryApply(valid),
+                    "Revoked queue tags must fail before token reads and older catalogs cannot resurrect them.");
+
             }
             finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
         }
