@@ -636,9 +636,19 @@ namespace FACM.League
                 return true; // Do not auto-swap the bench while trade status is unknown.
             }
             var incoming = ParseIncomingChampionTrade(response);
-            if (incoming == null) return false;
+            if (incoming == null)
+            {
+                // An unreadable or still-received trade must not be mistaken for an empty
+                // trade and allow an automatic bench swap over a pending manual decision.
+                if (!IsKnownInactiveTrade(response))
+                {
+                    RecordOnce(reported, trace, "trade", "unknown_state");
+                    return true;
+                }
+                return false;
+            }
             var key = "trade:" + incoming.Id;
-            if (!attempted.Add(key)) return true;
+            if (attempted.Contains(key)) return true;
             var priorities = LeagueAutoSelectGroupCatalog.FilterSpecials(
                 LeagueAutoSelectProfiles.Candidates(profiles, mode, "default", true, pickId), mode,
                 _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
@@ -674,12 +684,34 @@ namespace FACM.League
             }
             CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "ok", watch.ElapsedMilliseconds);
             var written = await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false);
+            // Retry only explicit server errors. A null/ambiguous response or a definitive
+            // rejection is one-shot; the next tick must not blindly repeat a possible write.
+            if (written == null || written.IsSuccessStatusCode ||
+                written.StatusCode < 500 || written.StatusCode > 599)
+                attempted.Add(key);
             CompactTraceLog.Record(trace, "autoselect-trade", "write",
                 written == null ? "failed_unavailable" :
                 written.IsSuccessStatusCode ? (accept ? "accept_submitted" : "decline_submitted") :
                 "failed_http_" + written.StatusCode,
                 watch.ElapsedMilliseconds);
             return true;
+        }
+
+        internal static bool IsKnownInactiveTrade(byte[] response)
+        {
+            if (response == null || response.Length == 0 || response.Length > 32768) return false;
+            try
+            {
+                var data = new JavaScriptSerializer().DeserializeObject(
+                    Encoding.UTF8.GetString(response)) as Dictionary<string, object>;
+                if (data == null) return false;
+                if (data.Count == 0) return true;
+                var state = ReadString(data, "state");
+                return state == "ACCEPTED" || state == "DECLINED" ||
+                    state == "CANCELLED" || state == "CANCELED" || state == "EXPIRED";
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
         }
 
         internal static LeagueChampionTradeRequest ParseIncomingChampionTrade(byte[] response)
