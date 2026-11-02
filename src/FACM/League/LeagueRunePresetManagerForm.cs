@@ -319,9 +319,15 @@ namespace FACM.League
                 MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerImportSuccess),
                     Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
+            catch (ArgumentException)
+            {
+                // Invalid clipboard JSON is untrusted user data; do not log its contents.
+                MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerTransferFailed),
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             catch (Exception error)
             {
-                AppLog.Error("League champion preset clipboard import failed", error);
+                AppLog.Error("League champion preset clipboard access failed", error);
                 MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerTransferFailed),
                     Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
