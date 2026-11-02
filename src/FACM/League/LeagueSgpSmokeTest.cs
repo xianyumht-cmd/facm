@@ -104,8 +104,29 @@ namespace FACM.League
             finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
         }
 
+        private static async Task ValidateTokenReadSerializationAsync()
+        {
+            var local = new ConcurrentTokenApi();
+            using (var api = new LeagueSgpMatchHistoryApiClient(
+                () => Session("HN10", "TENCENT"), local, new ConcurrentHandler()))
+            {
+                var first = api.TryGetGameSummaryAsync(601, CancellationToken.None);
+                var second = api.TryGetGameSummaryAsync(602, CancellationToken.None);
+                try
+                {
+                    Require(local.Calls == 1 && local.Peak == 1,
+                        "Overlapping SGP requests must not overlap their local entitlement-token reads.");
+                }
+                finally { local.Release(); }
+                var results = await Task.WhenAll(first, second).ConfigureAwait(false);
+                Require(results.All(bytes => bytes != null) && local.Calls == 2 && local.Peak == 1,
+                    "Both SGP requests must complete after serial local-token preflight.");
+            }
+        }
+
         internal static void Validate()
         {
+            ValidateTokenReadSerializationAsync().GetAwaiter().GetResult();
             ValidateSupportedQueueRefreshCancellation();
             var current = Session("HN10", "TENCENT");
             var local = new TokenApi();
@@ -790,6 +811,43 @@ namespace FACM.League
         private static void Require(bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private sealed class ConcurrentTokenApi : ILeagueClientApi
+        {
+            internal int Calls;
+            internal int Peak;
+            private int _active;
+            private readonly TaskCompletionSource<bool> _release =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            internal void Release() { _release.TrySetResult(true); }
+
+            public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                var calls = Interlocked.Increment(ref Calls);
+                var active = Interlocked.Increment(ref _active);
+                int peak;
+                do { peak = Peak; if (peak >= active) break; }
+                while (Interlocked.CompareExchange(ref Peak, active, peak) != peak);
+                try
+                {
+                    if (calls == 1) await _release.Task.ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    return Bytes("{\"accessToken\":\"history-token\"}");
+                }
+                finally { Interlocked.Decrement(ref _active); }
+            }
+        }
+
+        private sealed class ConcurrentHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = new ByteArrayContent(Bytes("{}")) });
+            }
         }
 
         private sealed class TokenApi : ILeagueClientApi
