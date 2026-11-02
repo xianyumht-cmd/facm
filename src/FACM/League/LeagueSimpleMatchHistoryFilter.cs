@@ -140,6 +140,8 @@ namespace FACM.League
             if (SubjectPositions != null && SubjectPositions.Length > 0 &&
                 (SubjectPositions.Length > SupportedPositions.Length ||
                  SubjectPositions.Any(role => Array.IndexOf(SupportedPositions, role) < 0) ||
+                 SubjectPositions.Distinct(StringComparer.Ordinal).Count() != SubjectPositions.Length ||
+                 match.DataSource != LeaguePlayerHistorySource.Sgp ||
                  !match.ParticipantResolved || string.IsNullOrEmpty(match.Position) ||
                  !SubjectPositions.Contains(match.Position, StringComparer.Ordinal)))
                 return false;

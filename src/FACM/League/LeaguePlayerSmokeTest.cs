@@ -811,11 +811,11 @@ namespace FACM.League
             var now = DateTime.UtcNow;
             var rows = new[]
             {
-                new LeaguePlayerMatchSummary { GameId = 1, Position = "TOP", ParticipantResolved = true },
-                new LeaguePlayerMatchSummary { GameId = 2, Position = "JUNGLE", ParticipantResolved = true },
-                new LeaguePlayerMatchSummary { GameId = 3, Position = "MIDDLE", ParticipantResolved = true },
-                new LeaguePlayerMatchSummary { GameId = 4, Position = "TOP", ParticipantResolved = false },
-                new LeaguePlayerMatchSummary { GameId = 5, Position = null, ParticipantResolved = true }
+                new LeaguePlayerMatchSummary { GameId = 1, DataSource = LeaguePlayerHistorySource.Sgp, Position = "TOP", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 2, DataSource = LeaguePlayerHistorySource.Sgp, Position = "JUNGLE", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 3, DataSource = LeaguePlayerHistorySource.Sgp, Position = "MIDDLE", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 4, DataSource = LeaguePlayerHistorySource.Sgp, Position = "TOP", ParticipantResolved = false },
+                new LeaguePlayerMatchSummary { GameId = 5, DataSource = LeaguePlayerHistorySource.Sgp, Position = null, ParticipantResolved = true }
             };
             string appended;
             Require(LeagueSimpleMatchHistoryFilter.TryAppendParticipantPuuid(
@@ -833,11 +833,19 @@ namespace FACM.League
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
                 .Select(m => m.GameId).SequenceEqual(new long[] { 1, 2 }),
                 "SGP position OR must reject other, unresolved and unknown target positions.");
+            rows[1].DataSource = LeaguePlayerHistorySource.Lcu;
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
+                .Select(m => m.GameId).SequenceEqual(new long[] { 1 }),
+                "SGP-only positions must not match an LCU fallback row.");
+            rows[1].DataSource = LeaguePlayerHistorySource.Sgp;
             filter.SubjectChampionId = 22;
             rows[0].ChampionId = 22;
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now)
                 .Select(m => m.GameId).SequenceEqual(new long[] { 1 }),
                 "Source position OR must intersect champion predicates during analysis and collection.");
+            filter.SubjectPositions = new[] { "TOP", "TOP" };
+            Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now).Count == 0,
+                "Duplicate position predicates must fail closed at evaluation.");
             filter.SubjectPositions = new[] { "SUPPORT" };
             Require(LeagueSimpleMatchHistoryFilter.Apply(rows, filter, now).Count == 0,
                 "Forged position filters must fail closed even without UI validation.");
