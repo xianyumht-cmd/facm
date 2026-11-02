@@ -149,7 +149,8 @@ namespace FACM
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateGroupRefreshCancellation();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateRemoteGroupCatalog();
                             FACM.League.LeagueAutoPickBanSmokeTest.ValidateAkariAutoSelectTransfer();
-                            FACM.League.LeaguePostGameAutomationSmokeTest.ValidateMissionRetryBudget();
+                            FACM.League.LeaguePostGameAutomationSmokeTest.Validate();
+                            FACM.League.LeagueLobbyInvitationSmokeTest.Validate();
                             FACM.League.LeaguePlayerSmokeTest.ValidateCardCollectionSubjectFilters();
                             FACM.League.LeaguePlayerSmokeTest.ValidateModeCollectionPipeline();
                             FACM.League.LeaguePlayerHistoryHydrationSmokeTest.Validate();
