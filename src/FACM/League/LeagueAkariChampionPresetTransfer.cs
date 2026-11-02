@@ -10,6 +10,8 @@ namespace FACM.League
     {
         internal bool HasRunes;
         internal bool HasSpells;
+        internal bool HasEnabled;
+        internal bool Enabled;
         internal string Runes;
         internal string Spells;
         internal int RuneCount;
@@ -32,16 +34,20 @@ namespace FACM.League
                 var root = new JavaScriptSerializer { MaxJsonLength = MaxClipboardLength, RecursionLimit = 16 }
                     .DeserializeObject(json) as Dictionary<string, object>;
                 if (root == null) throw new ArgumentException("Invalid champion preset transfer root.");
-                object rawRunes, rawSpells;
+                object rawRunes, rawSpells, rawEnabled;
                 var hasRunes = root.TryGetValue("runesV2", out rawRunes);
                 var hasSpells = root.TryGetValue("summonerSpells", out rawSpells);
-                if (!hasRunes && !hasSpells)
+                var hasEnabled = root.TryGetValue("enabled", out rawEnabled);
+                if (!hasRunes && !hasSpells && !hasEnabled)
                     throw new ArgumentException("No Akari champion presets found.");
+                if (hasEnabled && !(rawEnabled is bool))
+                    throw new ArgumentException("Invalid Akari champion automation setting.");
                 var runes = hasRunes ? ReadRunes(rawRunes) : new List<LeagueChampionRunePreset>();
                 var spells = hasSpells ? ReadSpells(rawSpells) : new List<LeagueChampionSpellPreset>();
                 return new LeagueAkariChampionPresetBundle
                 {
                     HasRunes = hasRunes, HasSpells = hasSpells,
+                    HasEnabled = hasEnabled, Enabled = hasEnabled && (bool)rawEnabled,
                     Runes = hasRunes ? LeagueChampionRunePresets.Serialize(runes) : null,
                     Spells = hasSpells ? LeagueChampionSpellPresets.Serialize(spells) : null,
                     RuneCount = runes.Count, SpellCount = spells.Count
@@ -55,6 +61,12 @@ namespace FACM.League
 
         internal static string Export(IEnumerable<LeagueChampionRunePreset> runes,
             IEnumerable<LeagueChampionSpellPreset> spells)
+        {
+            return Export(runes, spells, null);
+        }
+
+        internal static string Export(IEnumerable<LeagueChampionRunePreset> runes,
+            IEnumerable<LeagueChampionSpellPreset> spells, bool? enabled)
         {
             var runeRows = runes == null ? new List<LeagueChampionRunePreset>() : runes.ToList();
             var spellRows = spells == null ? new List<LeagueChampionSpellPreset>() : spells.ToList();
@@ -83,8 +95,12 @@ namespace FACM.League
                     spell1Id = row.Spell1Id, spell2Id = row.Spell2Id
                 };
             }
-            var result = new JavaScriptSerializer { MaxJsonLength = MaxClipboardLength }.Serialize(
-                new Dictionary<string, object> { { "runesV2", runeMap }, { "summonerSpells", spellMap } });
+            var payload = new Dictionary<string, object>
+            {
+                { "runesV2", runeMap }, { "summonerSpells", spellMap }
+            };
+            if (enabled.HasValue) payload["enabled"] = enabled.Value;
+            var result = new JavaScriptSerializer { MaxJsonLength = MaxClipboardLength }.Serialize(payload);
             if (result.Length > MaxClipboardLength)
                 throw new ArgumentException("Champion preset export is too large.");
             return result;

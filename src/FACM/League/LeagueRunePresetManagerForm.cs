@@ -310,8 +310,13 @@ namespace FACM.League
                 if (!Clipboard.ContainsText(TextDataFormat.UnicodeText)) return;
                 var bundle = LeagueAkariChampionPresetTransfer.Import(
                     Clipboard.GetText(TextDataFormat.UnicodeText));
+                var enableNotice = bundle.HasEnabled
+                    ? T(LeagueChampionSpellPresetUiTextKeys.ManagerImportEnabled).Replace("{0}",
+                        T(bundle.Enabled ? LeagueChampionSpellPresetUiTextKeys.ManagerEnabledOn :
+                            LeagueChampionSpellPresetUiTextKeys.ManagerEnabledOff))
+                    : string.Empty;
                 if (MessageBox.Show(this, T(LeagueChampionSpellPresetUiTextKeys.ManagerImportConfirm) +
-                    " (" + bundle.RuneCount + " / " + bundle.SpellCount + ")",
+                    " (" + bundle.RuneCount + " / " + bundle.SpellCount + ")" + enableNotice,
                     Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                     MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 _controller.ImportAkariChampionPresets(bundle);

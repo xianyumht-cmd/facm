@@ -39,7 +39,7 @@ namespace FACM.League
             var exported = LeagueAkariChampionPresetTransfer.Export(
                 LeagueChampionRunePresets.Parse(parsed.Runes), LeagueChampionSpellPresets.Parse(parsed.Spells));
             var roundtrip = LeagueAkariChampionPresetTransfer.Import(exported);
-            Require(roundtrip.RuneCount == 1 && roundtrip.SpellCount == 1 &&
+            Require(!roundtrip.HasEnabled && roundtrip.RuneCount == 1 && roundtrip.SpellCount == 1 &&
                 LeagueChampionRunePresets.Resolve(roundtrip.Runes, 157, "ranked-top").SelectedPerkIds.Count == 9,
                 "Akari clipboard export must round-trip source fields.");
             var fullRunes = Enumerable.Range(1, 256).Select(id => new LeagueChampionRunePreset
@@ -73,6 +73,17 @@ namespace FACM.League
             }
             catch (ArgumentException) { tooMany = true; }
             Require(tooMany, "Akari clipboard transfer must reject oversized catalogs.");
+            var enabledExport = LeagueAkariChampionPresetTransfer.Export(
+                LeagueChampionRunePresets.Parse(parsed.Runes),
+                LeagueChampionSpellPresets.Parse(parsed.Spells), true);
+            var enabledImport = LeagueAkariChampionPresetTransfer.Import(enabledExport);
+            Require(enabledImport.HasEnabled && enabledImport.Enabled &&
+                enabledImport.RuneCount == 1 && enabledImport.SpellCount == 1,
+                "Full Akari champion settings must preserve the global enabled option.");
+            var disabledOnly = LeagueAkariChampionPresetTransfer.Import("{\"enabled\":false}");
+            Require(disabledOnly.HasEnabled && !disabledOnly.Enabled &&
+                !disabledOnly.HasRunes && !disabledOnly.HasSpells,
+                "An enabled-only Akari update must not replace either preset catalog.");
             var spellsOnly = LeagueAkariChampionPresetTransfer.Import(
                 "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":14}}}}");
             Require(!spellsOnly.HasRunes && spellsOnly.HasSpells && spellsOnly.SpellCount == 1,
@@ -83,7 +94,9 @@ namespace FACM.League
                 "{\"summonerSpells\":{\"157\":{\"unknown\":{\"spell1Id\":4,\"spell2Id\":14}}}}",
                 "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":4}}}}",
                 "{\"summonerSpells\":{\"abc\":{}}}",
-                "{\"unrelated\":{}}"
+                "{\"unrelated\":{}}",
+                "{\"enabled\":1}",
+                "{\"enabled\":\"true\"}"
             };
             foreach (var input in invalid)
             {

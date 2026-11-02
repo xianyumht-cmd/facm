@@ -514,13 +514,17 @@ namespace FACM.League
 
         internal string ExportAkariChampionPresets()
         {
-            return LeagueAkariChampionPresetTransfer.Export(ListRunePresets(), ListSpellPresets());
+            return LeagueAkariChampionPresetTransfer.Export(
+                ListRunePresets(), ListSpellPresets(), PresetsEnabled);
         }
 
         internal void ImportAkariChampionPresets(LeagueAkariChampionPresetBundle bundle)
         {
-            if (bundle == null || !bundle.HasRunes && !bundle.HasSpells)
+            ThrowIfDisposed();
+            if (bundle == null || !bundle.HasRunes && !bundle.HasSpells && !bundle.HasEnabled)
                 throw new ArgumentException("Invalid champion preset import.");
+            if (bundle.HasEnabled && bundle.Enabled && (_presetLive == null || _presetApply == null))
+                throw new InvalidOperationException("Champion preset LCU service is unavailable.");
             var runes = bundle.HasRunes ? LeagueChampionRunePresets.Parse(bundle.Runes) : null;
             var spells = bundle.HasSpells ? LeagueChampionSpellPresets.Parse(bundle.Spells) : null;
             if (bundle.HasRunes && (runes.Count != bundle.RuneCount ||
@@ -530,20 +534,32 @@ namespace FACM.League
                 throw new ArgumentException("Invalid champion preset catalog.");
             var oldRunes = _settings.LeagueChampionRunePresets;
             var oldSpells = _settings.LeagueChampionSpellPresets;
+            var oldEnabled = _settings.LeagueChampionSpellPresetsEnabled;
+            var oldRecommended = _settings.LeagueAutoApplyRecommended;
             try
             {
                 if (bundle.HasRunes) _settings.LeagueChampionRunePresets = bundle.Runes;
                 if (bundle.HasSpells) _settings.LeagueChampionSpellPresets = bundle.Spells;
+                if (bundle.HasEnabled)
+                {
+                    _settings.LeagueChampionSpellPresetsEnabled = bundle.Enabled;
+                    if (bundle.Enabled) _settings.LeagueAutoApplyRecommended = false;
+                }
                 _settings.Save();
             }
             catch
             {
                 _settings.LeagueChampionRunePresets = oldRunes;
                 _settings.LeagueChampionSpellPresets = oldSpells;
+                _settings.LeagueChampionSpellPresetsEnabled = oldEnabled;
+                _settings.LeagueAutoApplyRecommended = oldRecommended;
                 throw;
             }
             lock (_sync) _presetCoordinator.Cancel();
+            _coordinator.CancelPending();
             CancelActiveApply();
+            if (bundle.HasEnabled)
+                Publish(Enabled ? "waiting" : "disabled", null);
         }
 
         internal IReadOnlyList<LeagueChampionSpellPreset> ListSpellPresets()

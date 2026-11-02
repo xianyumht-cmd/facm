@@ -46,6 +46,9 @@ namespace FACM.League
         public const string ManagerImportAkari = "LeagueChampionSpellPresetManagerImportAkari";
         public const string ManagerExportAkari = "LeagueChampionSpellPresetManagerExportAkari";
         public const string ManagerImportConfirm = "LeagueChampionSpellPresetManagerImportConfirm";
+        public const string ManagerImportEnabled = "LeagueChampionSpellPresetManagerImportEnabled";
+        public const string ManagerEnabledOn = "LeagueChampionSpellPresetManagerEnabledOn";
+        public const string ManagerEnabledOff = "LeagueChampionSpellPresetManagerEnabledOff";
         public const string ManagerImportSuccess = "LeagueChampionSpellPresetManagerImportSuccess";
         public const string ManagerExportSuccess = "LeagueChampionSpellPresetManagerExportSuccess";
         public const string ManagerTransferFailed = "LeagueChampionSpellPresetManagerTransferFailed";
@@ -90,6 +93,9 @@ namespace FACM.League
             { ManagerImportAkari, "导入 Akari" },
             { ManagerExportAkari, "导出 Akari" },
             { ManagerImportConfirm, "从剪贴板导入 Akari v1.5.1 英雄配置并替换对应类别的全部本地预设？符文 / 技能条目数：" },
+            { ManagerImportEnabled, "；自动应用将设置为：{0}" },
+            { ManagerEnabledOn, "开启（同时关闭 OP.GG 自动应用）" },
+            { ManagerEnabledOff, "关闭" },
             { ManagerImportSuccess, "Akari 英雄配置已导入本地预设。" },
             { ManagerExportSuccess, "符文和召唤师技能预设已复制为 Akari JSON。" },
             { ManagerTransferFailed, "配置数据无效、过大或剪贴板不可用；未执行导入。" },
