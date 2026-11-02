@@ -664,33 +664,56 @@ namespace FACM.League
                 Action refreshDraftRows = () =>
                 {
                     if (loadedDraft == null) return;
+                    var visible = LeagueHistoricalMatchDryRun.DraftDisplayPlayers(loadedDraft);
                     var options = new LeagueDynamicMessageOptions();
                     var groups = LeaguePremadePlayerTagProjection.Project(loadedDraft,
                         options.PremadeMatchThreshold);
                     var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(loadedDraft,
                         options.PremadeMatchThreshold);
-                    foreach (ListViewItem row in dryRows.Items)
+                    dryRows.BeginUpdate();
+                    try
                     {
-                        var player = row.Tag as LeagueDynamicMessagePlayer;
-                        if (player?.Player == null || row.SubItems.Count < 7) continue;
-                        row.SubItems[0].Text = loadedDraft.HistoricalGameMode == "CHERRY"
-                            ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
-                            : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
-                                LeagueEfficiencyUiTextKeys.DynamicEnemy);
-                        row.SubItems[2].Text = player.ChampionName ?? ("#" + player.Player.ChampionId);
-                        row.SubItems[3].Text = string.IsNullOrEmpty(player.Player.Position) ? "—" :
-                            LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position);
-                        string group;
-                        row.SubItems[5].Text = groups.TryGetValue(player.Player.PuuId, out group)
-                            ? group : "—";
-                        LeaguePremadeTeamAggregate aggregate;
-                        row.SubItems[6].Text = aggregates.TryGetValue(player.Player.PuuId, out aggregate)
-                            ? t(LeagueEfficiencyUiTextKeys.PremadeTeamStats)
-                                .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
-                                .Replace("{1}", aggregate.Kda.HasValue
-                                    ? aggregate.Kda.Value.ToString("0.00") : "—")
-                            : "—";
+                        dryRows.Items.Clear();
+                        foreach (var player in visible)
+                        {
+                            var row = new ListViewItem(loadedDraft.HistoricalGameMode == "CHERRY"
+                                ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
+                                : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
+                                    LeagueEfficiencyUiTextKeys.DynamicEnemy));
+                            row.SubItems.Add(player.Player.GameName ?? ("#" + player.Player.CellId));
+                            row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
+                            row.SubItems.Add(string.IsNullOrEmpty(player.Player.Position) ? "—" :
+                                LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position));
+                            row.Tag = player;
+                            var tags = LeagueOngoingPlayerTagProjection.Project(player.History, options);
+                            row.SubItems.Add(tags.Count == 0 ? "—" : string.Join(" · ", tags.Take(8)));
+                            string group;
+                            row.SubItems.Add(groups.TryGetValue(player.Player.PuuId, out group) ? group : "—");
+                            LeaguePremadeTeamAggregate aggregate;
+                            row.SubItems.Add(aggregates.TryGetValue(player.Player.PuuId, out aggregate)
+                                ? t(LeagueEfficiencyUiTextKeys.PremadeTeamStats)
+                                    .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
+                                    .Replace("{1}", aggregate.Kda.HasValue
+                                        ? aggregate.Kda.Value.ToString("0.00") : "—")
+                                : "—");
+                            var champions = LeagueHistoricalMatchDryRun.RecentChampionUsage(player);
+                            row.SubItems.Add(champions.Count == 0 ? "—" : string.Join(" · ",
+                                champions.Take(3).Select(champion =>
+                                    (string.IsNullOrWhiteSpace(champion.ChampionName) ? "#" +
+                                        champion.ChampionId : champion.ChampionName) +
+                                    " ×" + champion.Games)));
+                            row.ToolTipText = champions.Count == 0 ? string.Empty : string.Join(" · ",
+                                champions.Select(champion => "#" + champion.ChampionId +
+                                    " ×" + champion.Games + " (" +
+                                    champion.WinRate.ToString("0") + "%)"));
+                            dryRows.Items.Add(row);
+                        }
                     }
+                    finally { dryRows.EndUpdate(); }
+                    dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)
+                        .Replace("{0}", visible.Count(player => player.History != null).ToString())
+                        .Replace("{1}", visible.Count.ToString()) + " · " +
+                        t(LeagueEfficiencyUiTextKeys.HistoricalDraftHint);
                 };
                 dryRosterButton.Click += (sender, e) =>
                 {
@@ -752,47 +775,7 @@ namespace FACM.League
                         }
                         loadedDraft = snapshot;
                         dryRosterButton.Enabled = true;
-                        var options = new LeagueDynamicMessageOptions();
-                        var groups = LeaguePremadePlayerTagProjection.Project(snapshot,
-                            options.PremadeMatchThreshold);
-                        var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(snapshot,
-                            options.PremadeMatchThreshold);
-                        foreach (var player in snapshot.Players.OrderByDescending(p => p.Friendly))
-                        {
-                            var row = new ListViewItem(snapshot.HistoricalGameMode == "CHERRY"
-                                ? "#" + player.HistoricalTeamId.ToString(CultureInfo.InvariantCulture)
-                                : t(player.Friendly ? LeagueEfficiencyUiTextKeys.DynamicFriendly :
-                                    LeagueEfficiencyUiTextKeys.DynamicEnemy));
-                            row.SubItems.Add(player.Player.GameName ?? ("#" + player.Player.CellId));
-                            row.SubItems.Add(player.ChampionName ?? ("#" + player.Player.ChampionId));
-                            row.SubItems.Add(string.IsNullOrEmpty(player.Player.Position) ? "—" :
-                                LeaguePlayerHistoryAnalysis.PositionName(ui, player.Player.Position));
-                            row.Tag = player;
-                            var tags = LeagueOngoingPlayerTagProjection.Project(player.History, options);
-                            row.SubItems.Add(tags.Count == 0 ? "—" : string.Join(" · ", tags.Take(8)));
-                            string group;
-                            row.SubItems.Add(groups.TryGetValue(player.Player.PuuId, out group) ? group : "—");
-                            LeaguePremadeTeamAggregate aggregate;
-                            row.SubItems.Add(aggregates.TryGetValue(player.Player.PuuId, out aggregate)
-                                ? t(LeagueEfficiencyUiTextKeys.PremadeTeamStats)
-                                    .Replace("{0}", Math.Round(100d * aggregate.Wins / aggregate.Games).ToString("0"))
-                                    .Replace("{1}", aggregate.Kda.HasValue
-                                        ? aggregate.Kda.Value.ToString("0.00") : "—")
-                                : "—");
-                            var champions = LeagueHistoricalMatchDryRun.RecentChampionUsage(player);
-                            row.SubItems.Add(champions.Count == 0 ? "—" : string.Join(" · ",
-                                champions.Take(3).Select(c =>
-                                    (string.IsNullOrWhiteSpace(c.ChampionName) ? "#" + c.ChampionId : c.ChampionName) +
-                                    " ×" + c.Games)));
-                            row.ToolTipText = champions.Count == 0 ? string.Empty : string.Join(" · ",
-                                champions.Select(c => "#" + c.ChampionId + " ×" + c.Games +
-                                    " (" + c.WinRate.ToString("0") + "%)"));
-                            dryRows.Items.Add(row);
-                        }
-                        dryStatus.Text = t(LeagueEfficiencyUiTextKeys.HistoricalDryRunReady)
-                            .Replace("{0}", snapshot.Players.Count(p => p.History != null).ToString())
-                            .Replace("{1}", snapshot.Players.Count.ToString()) + " · " +
-                            t(LeagueEfficiencyUiTextKeys.HistoricalDraftHint);
+                        refreshDraftRows();
                     }
                     catch (OperationCanceledException) { }
                     catch (Exception)

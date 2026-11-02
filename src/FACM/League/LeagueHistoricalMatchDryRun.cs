@@ -464,6 +464,18 @@ namespace FACM.League
         }
 
 
+        // The scoreboard must rebuild rows after roster changes rather than reuse
+        // stale row tags that still reference removed source players.
+        internal static IReadOnlyList<LeagueDynamicMessagePlayer> DraftDisplayPlayers(
+            LeagueDynamicMessageSnapshot snapshot)
+        {
+            return !ValidTeamDraft(snapshot)
+                ? new LeagueDynamicMessagePlayer[0]
+                : snapshot.Players.OrderByDescending(p => p.Friendly)
+                    .ThenBy(p => p.HistoricalTeamId)
+                    .ThenBy(p => p.Player.CellId).ToArray();
+        }
+
         // Only the local preview may grow or shrink. Original match participants
         // stay in HistoricalOriginalRoster for an exact, reversible reset.
         internal static bool TryAddSyntheticPlayer(LeagueDynamicMessageSnapshot snapshot,

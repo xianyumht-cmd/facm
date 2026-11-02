@@ -1,3 +1,7 @@
+## 2026-11-02 — Historical scoreboard refresh correction
+
+The scoreboard now reconstructs its entire roster list after draft mutations instead of refreshing stale original row objects. Synthetic added/removed players, teams, labels, stats and row action targets reflect the edited preview. Synthetic display projection tests added; exact-SHA Windows CI pending.
+
 ## 2026-11-02 — Arena clean-template extension candidate
 
 Historical Arena preview can start with two synthetic pairs, add more paired subteams, preserve TEAM-ALL display and restore the immutable verified source match. The entry still requires a historical preview, not a standalone editor. Synthetic tests added; exact-SHA Windows CI pending, final Tencent/Win10 acceptance deferred.

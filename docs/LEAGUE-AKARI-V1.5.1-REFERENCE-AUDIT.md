@@ -1,3 +1,7 @@
+### 2026-11-02 — Historical scoreboard roster refresh after synthetic edits
+
+The historical scoreboard previously updated only existing list rows after the native editor closed, leaving stale removed players visible and newly created synthetic players absent. It now rebuilds all rows from the validated current draft, including identities, team membership, champion, role, tags, premade evidence and champion usage. Double-click row tags are replaced with the current player objects. This closes the UI/data/action loop for clean templates and paired Arena edits; executable smoke checks display projection counts. Four exact-SHA Windows gates pending; no live game write.
+
 ### 2026-11-02 — Arena source/current roster group validation fix
 
 The first Arena paired-roster candidate failed Windows executable smoke because the original-roster validation compared immutable source team count against the edited roster size. Validation now independently checks each roster's own paired-team count, allowing 16→18→20 synthetic expansion while preserving the immutable 16-player reset. Added max-cap and pair-removal regression. This corrects the observed CI failure; final exact-SHA Windows gates remain pending.

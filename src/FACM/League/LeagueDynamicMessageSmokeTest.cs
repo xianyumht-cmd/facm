@@ -1881,7 +1881,9 @@ namespace FACM.League
                 snapshot.Players.Count == 10,
                 "Invalid blank roster templates must not alter source or current players.");
             Require(LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Blue draft", "Red draft") &&
-                snapshot.Players.Count == 2 && snapshot.HistoricalQueueId == 0 &&
+                snapshot.Players.Count == 2 &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(snapshot).Count == 2 &&
+                snapshot.HistoricalQueueId == 0 &&
                 snapshot.Players.All(p => p.HistoricalSyntheticAdded && p.History == null &&
                     p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
                 snapshot.Players.Count(p => p.Friendly) == 1 &&
@@ -2008,6 +2010,7 @@ namespace FACM.League
             Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
                     "Arena new one", 22, "Arena new two", 23) &&
                 arenaDraft.Players.Count == 18 &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(arenaDraft).Count == 18 &&
                 arenaDraft.Players.Count(p => p.HistoricalSyntheticAdded) == 2 &&
                 arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
                 LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 18,
