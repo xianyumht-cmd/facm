@@ -334,7 +334,8 @@ namespace FACM.AppHost.Modules
             LeagueDynamicMessageSnapshot snapshot, string targetPuuid, string targetName)
         {
             ThrowIfDisposed();
-            if (snapshot?.Session == null || _dynamicMessages == null ||
+            if (snapshot?.Session == null || snapshot.HistoricalStandalone ||
+                snapshot.HistoricalOriginalRoster.Count > 0 || _dynamicMessages == null ||
                 !LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) ||
                 !LeagueDynamicMessageService.SafePuuid(targetPuuid) ||
                 !snapshot.Players.Any(p => p?.Player != null &&
