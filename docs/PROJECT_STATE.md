@@ -1,3 +1,18 @@
+## 2026-11-02 — Independent read-only Rift/Arena draft workbench (Draft #357)
+
+**Executable candidate:** `4cd59ba702269cf034f31575e335c003cb98d3cd`. The dynamic-message panel now opens a separate native, memory-only draft workbench without first loading any historical match or connecting to LCU. It starts with synthetic blue/red Rift slots or paired Arena subteams, then reuses the native roster editor for 2–20 player creation/removal, champion/role/team/queue/target editing and mode-aware read-only message previews. Source match IDs, accounts, history and game writes are never borrowed; standalone drafts have no original-roster restore action. Synthetic name changes preserve local draft identity and duplicate projected names are rejected atomically. Executable history smoke covers both modes, no source inheritance, additions, queue/perspective protection, duplicate names and forbidden restore. **Four exact-HEAD Windows CI gates pending**; no real Tencent/Win10 acceptance.
+
+| Source scope | Current status | Remaining gap |
+| --- | --- | --- |
+| Independent draft-from-empty | **Implemented candidate; CI pending** | No persistent draft presets or full source option-by-option parity |
+| Historical free-form Rift/Arena editing | **Implemented candidate; prior verified** | Source-specific draft option details and final live-schema acceptance |
+| Player card and jungle analysis | **Partial** | Full Akari popover/interaction parity |
+| SGP/LCU history loading | **Partial** | All-source bounded concurrency and real regional compatibility |
+| ChampSelect/auto-gameflow | **Partial** | Remaining source strategies/presets and real lifecycle acceptance |
+| Cloud sync and Win10/Tencent acceptance | **Unverified live** | Final user-controlled 256-row round-trip and consolidated test |
+
+Next: confirm four exact-SHA Windows gates, then prioritize all-source history concurrency and remaining auto-gameflow/ChampSelect strategies. #357 and stacked #355 remain Draft. No merge, release, deployment, updater, paid infrastructure or production 3.5.78 changes.
+
 ## 2026-11-02 — Historical scoreboard refresh correction
 
 The scoreboard now reconstructs its entire roster list after draft mutations instead of refreshing stale original row objects. Synthetic added/removed players, teams, labels, stats and row action targets reflect the edited preview. Synthetic display projection tests added; exact-SHA Windows CI pending.
