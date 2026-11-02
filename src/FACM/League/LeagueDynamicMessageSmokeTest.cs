@@ -2072,8 +2072,8 @@ namespace FACM.League
                 sample.TopGanks == 1 && sample.MidGanks == 1 && sample.TopWeight > sample.MidWeight &&
                 sample.Level3Gank && sample.Level4Gank && sample.FirstDragonWon == true &&
                 sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d &&
-                sample.MinutePositions.Count == 3 &&
-                sample.MinuteIndices.SequenceEqual(new[] { 1, 2, 3 }) &&
+                sample.MinutePositions.Count == 4 &&
+                sample.MinuteIndices.SequenceEqual(new[] { 1, 2, 3, 4 }) &&
                 sample.GankPositions.Count == 2 &&
                 sample.MinutePositions[0].Item1 == 3830 && sample.GankPositions[1].Item2 == 8000,
                 "Pinned Akari jungle timeline calculations diverged on camp, lanes, early ganks or objectives.");
