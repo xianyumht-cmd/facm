@@ -993,6 +993,7 @@ namespace FACM.League
                     RefreshPostGameSettingsFromModule();
                     RefreshMatchmakingSettingsFromModule();
                     RefreshReconnectSettingsFromModule();
+                    RefreshAutoSelectSettingsFromModule();
                     RefreshInvitationSettingsFromModule();
                     RefreshAramTeamSideSettingsFromModule();
                     RefreshLoginSignatureSettingsFromModule();
@@ -1049,6 +1050,37 @@ namespace FACM.League
             }
             finally { _loading = false; }
             UpdateMatchmakingControlStates();
+        }
+
+        private void RefreshAutoSelectSettingsFromModule()
+        {
+            if (IsDisposed || Disposing || _loading) return;
+            _loading = true;
+            try
+            {
+                _autoPick.Checked = _module.AutoPickEnabled;
+                _autoBan.Checked = _module.AutoBanEnabled;
+                SelectSavedChampion(_pickChampion, _module.AutoPickChampionId);
+                SelectSavedChampion(_banChampion, _module.AutoBanChampionId);
+            }
+            finally { _loading = false; }
+        }
+
+        private static void SelectSavedChampion(ComboBox combo, int id)
+        {
+            if (combo == null) return;
+            for (var i = 0; i < combo.Items.Count; i++)
+            {
+                var option = combo.Items[i] as ChampionChoice;
+                if (option != null && option.Id == id)
+                {
+                    combo.SelectedIndex = i;
+                    return;
+                }
+            }
+            if (id <= 0) return;
+            combo.Items.Add(new ChampionChoice { Id = id, Name = "#" + id });
+            combo.SelectedIndex = combo.Items.Count - 1;
         }
 
         private void RefreshInvitationSettingsFromModule()
