@@ -43,6 +43,10 @@ namespace FACM.League
                 !LeagueRespawnOverlayHost.SameOwner(owner, new LeagueClientSession(
                     "LeagueClientUx", 100, 12345, "fixture", "https", "fixture", "HN10", "NA")),
                 "Respawn read scope must reject a replaced process, platform or region with reused credentials.");
+            Require(ReferenceEquals(LeagueRespawnOverlayHost.TryReadOwner(() => owner), owner) &&
+                    LeagueRespawnOverlayHost.TryReadOwner(null) == null &&
+                    LeagueRespawnOverlayHost.TryReadOwner(() => { throw new InvalidOperationException(); }) == null,
+                "A transient LCU owner discovery failure must not crash the foreground timer.");
             var replacementOwner = new LeagueClientSession(
                 "LeagueClientUx", 101, 12345, "fixture", "https", "fixture", "HN10", "TENCENT");
             Require(LeagueRespawnOverlayHost.ShouldRearmSamePhaseOwner(true, owner, replacementOwner) &&

@@ -139,9 +139,15 @@ namespace FACM.League
             return inProgress && current != null && !SameOwner(expected, current);
         }
 
-        private void SetInProgressLocked(bool desired)
+        internal static LeagueClientSession TryReadOwner(Func<LeagueClientSession> provider)
         {
-            var session = desired ? _sessionProvider() : null;
+            try { return provider == null ? null : provider(); }
+            catch (Exception) { return null; }
+        }
+
+        private void SetInProgressLocked(bool desired, LeagueClientSession observed = null)
+        {
+            var session = desired ? observed ?? _sessionProvider() : null;
             desired = desired && session != null;
             if (_inProgress == desired && (!desired || SameOwner(_scopeSession, session))) return;
             _inProgress = desired;
@@ -202,13 +208,15 @@ namespace FACM.League
             if (_refreshing || _lifetime.IsCancellationRequested) return;
             int generation;
             CancellationToken readToken;
+            // A transient LCU discovery failure must not escape the WinForms timer tick.
+            var observedOwner = TryReadOwner(_sessionProvider);
             lock (_sync)
             {
                 if (_disposed || !_inProgress) return;
                 // The shared Gameflow observer may not emit a new phase when LCU is
                 // replaced during InProgress. Rearm this phase's existing read scope.
-                if (ShouldRearmSamePhaseOwner(_inProgress, _scopeSession, _sessionProvider()))
-                    SetInProgressLocked(true);
+                if (ShouldRearmSamePhaseOwner(_inProgress, _scopeSession, observedOwner))
+                    SetInProgressLocked(true, observedOwner);
                 generation = _generation;
                 readToken = _readScope.Token;
             }
