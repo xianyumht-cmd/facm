@@ -31,6 +31,20 @@ namespace FACM.League
                 { "autoMatchmakingMaximumMatchDuration", new[] { 0d, 0d, 1d } }
             };
 
+        private static string SourceStopPolicy(string native)
+        {
+            var policy = LeagueMatchmakingStopPolicyCodec.Normalize(native);
+            return policy == LeagueMatchmakingStopPolicyCodec.Fixed ? "fixed-duration" :
+                policy == LeagueMatchmakingStopPolicyCodec.Estimated ? "estimated-duration" : "never";
+        }
+
+        private static string NativeStopPolicy(string source)
+        {
+            return source == "fixed-duration" ? LeagueMatchmakingStopPolicyCodec.Fixed :
+                source == "estimated-duration" ? LeagueMatchmakingStopPolicyCodec.Estimated :
+                LeagueMatchmakingStopPolicyCodec.Never;
+        }
+
         internal static string Export(AppSettings settings)
         {
             if (settings == null) throw new ArgumentNullException(nameof(settings));
@@ -44,7 +58,7 @@ namespace FACM.League
                 { "autoReconnectEnabled", settings.LeagueAutoReconnectEnabled },
                 { "autoMatchmakingEnabled", settings.LeagueAutoMatchmakingEnabled },
                 { "autoMatchmakingMaximumMatchDuration", 0 },
-                { "autoMatchmakingRematchStrategy", LeagueMatchmakingStopPolicyCodec.Normalize(settings.LeagueAutoMatchmakingStopPolicy) },
+                { "autoMatchmakingRematchStrategy", SourceStopPolicy(settings.LeagueAutoMatchmakingStopPolicy) },
                 { "autoMatchmakingRematchFixedDuration", settings.LeagueAutoMatchmakingStopAfterMs / 1000d },
                 { "autoMatchmakingDelaySeconds", settings.LeagueAutoMatchmakingStartDelayMs / 1000d },
                 { "autoMatchmakingMinimumMembers", settings.LeagueAutoMatchmakingMinPartySize },
@@ -153,7 +167,7 @@ namespace FACM.League
                     case "autoReconnectEnabled": settings.LeagueAutoReconnectEnabled = (bool)pair.Value; break;
                     case "autoMatchmakingEnabled": settings.LeagueAutoMatchmakingEnabled = (bool)pair.Value; break;
                     case "autoMatchmakingMaximumMatchDuration": break; // Only the source's disabled value (0) is representable.
-                    case "autoMatchmakingRematchStrategy": settings.LeagueAutoMatchmakingStopPolicy = (string)pair.Value; break;
+                    case "autoMatchmakingRematchStrategy": settings.LeagueAutoMatchmakingStopPolicy = NativeStopPolicy((string)pair.Value); break;
                     case "autoMatchmakingRematchFixedDuration": settings.LeagueAutoMatchmakingStopAfterMs = (int)Math.Round((double)pair.Value * 1000); break;
                     case "autoMatchmakingDelaySeconds": settings.LeagueAutoMatchmakingStartDelayMs = (int)Math.Round((double)pair.Value * 1000); break;
                     case "autoMatchmakingMinimumMembers": settings.LeagueAutoMatchmakingMinPartySize = (int)(double)pair.Value; break;

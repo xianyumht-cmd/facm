@@ -118,7 +118,7 @@ namespace FACM.League
                     settings.LeagueAutoAcceptDelayMs == 1500 &&
                     settings.LeagueAutoMatchmakingMinPartySize == 3 &&
                     settings.LeagueAutoMatchmakingStopAfterMs == 42000 &&
-                    settings.LeagueAutoMatchmakingStopPolicy == "fixed-duration" &&
+                    settings.LeagueAutoMatchmakingStopPolicy == "fixed" &&
                     LeagueInvitationPolicies.Parse(settings.LeagueInvitationStrategies)["NORMAL"] == "accept" &&
                     !settings.LeagueAutoMatchmakingEnabled,
                 "Partial import must apply only supplied fields without activating unrelated actions.");
