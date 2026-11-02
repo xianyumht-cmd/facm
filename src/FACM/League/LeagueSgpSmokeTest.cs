@@ -258,7 +258,7 @@ namespace FACM.League
             var service = new LeaguePlayerDataService(local,
                 new FACM.Performance.PerformanceBudgetProvider(), null, null, () => active);
             Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
-                    .GetAwaiter().GetResult() == 420 && local.Calls == 4,
+                    .GetAwaiter().GetResult() == 420 && local.Calls == 3,
                 "Current lobby queue must be read once between two verified local account reads.");
             local.AfterLobby = () => local.Owner = "other";
             Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
