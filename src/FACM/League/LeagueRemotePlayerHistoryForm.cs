@@ -871,33 +871,33 @@ namespace FACM.League
                     {
                         Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedCancel),
                         Bounds = new Rectangle(264, 310, 94, 30),
-                    DialogResult = DialogResult.Cancel
-                };
-                var apply = new Button
-                {
-                    Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
-                    Bounds = new Rectangle(368, 310, 94, 30)
-                };
-                int[] nextChampions = null;
-                string[] nextPlayers = null;
-                apply.Click += (sender, args) =>
-                {
-                    if (!LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
-                        championInput.Text, playerInput.Text, out nextChampions, out nextPlayers))
+                        DialogResult = DialogResult.Cancel
+                    };
+                    var apply = new Button
                     {
-                        MessageBox.Show(dialog, _ui.Get(UiTextKeys.LeaguePlayerParticipantsInvalid),
-                            dialog.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
-                    dialog.DialogResult = DialogResult.OK;
-                    dialog.Close();
-                };
-                dialog.Controls.AddRange(new Control[] {
-                    hint, championLabel, championInput, playerLabel, playerInput,
-                    picker, addPlayer, riotId, lookup, lookupStatus, cancel, apply
-                });
-                dialog.AcceptButton = apply;
-                dialog.CancelButton = cancel;
+                        Text = _ui.Get(UiTextKeys.LeaguePlayerAdvancedApply),
+                        Bounds = new Rectangle(368, 310, 94, 30)
+                    };
+                    int[] nextChampions = null;
+                    string[] nextPlayers = null;
+                    apply.Click += (sender, args) =>
+                    {
+                        if (!LeagueSimpleMatchHistoryFilter.TryParseParticipantFilters(
+                            championInput.Text, playerInput.Text, out nextChampions, out nextPlayers))
+                        {
+                            MessageBox.Show(dialog, _ui.Get(UiTextKeys.LeaguePlayerParticipantsInvalid),
+                                dialog.Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                        dialog.DialogResult = DialogResult.OK;
+                        dialog.Close();
+                    };
+                    dialog.Controls.AddRange(new Control[] {
+                        hint, championLabel, championInput, playerLabel, playerInput,
+                        picker, addPlayer, riotId, lookup, lookupStatus, cancel, apply
+                    });
+                    dialog.AcceptButton = apply;
+                    dialog.CancelButton = cancel;
                     if (dialog.ShowDialog(this) != DialogResult.OK || !SessionMatches(expectedSession))
                         return;
                     _matchChampionIds = nextChampions;
