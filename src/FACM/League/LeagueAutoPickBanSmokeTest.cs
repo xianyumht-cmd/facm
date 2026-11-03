@@ -337,6 +337,30 @@ namespace FACM.League
                 }
                 Require(arenaWrite.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
                     "A source-approved dynamic Arena group must complete bravery through the existing writer.");
+
+                // The source permits a newer empty group list. It must revoke every
+                // automatic pick/ban route, including saved dynamic profiles.
+                var emptyGroups = Bytes("{\\"updatedAt\\":\\"2026-08-11T00:00:00.000Z\\",\\"groups\\":[]}");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(emptyGroups) &&
+                    LeagueAutoSelectGroupCatalog.RemoteGroups.Count == 0 &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry_next", null, true, -3) &&
+                    LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                        Bytes(Flow("RANKED_EXPERIMENTAL"))) == null,
+                    "An empty source group catalog must revoke built-in and dynamic automatic actions.");
+                var revokedGroupWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    revokedGroupWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(revokedGroupWrite.Calls.Count == 0 &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(removed)),
+                    "Revoked groups must not write champions or be restored by stale snapshots.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

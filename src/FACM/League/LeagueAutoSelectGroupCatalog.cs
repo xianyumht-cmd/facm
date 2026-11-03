@@ -225,7 +225,7 @@ namespace FACM.League
                     DateTimeStyles.AssumeUniversal, out updated) ||
                     updated.UtcDateTime > DateTime.UtcNow.AddDays(1)) return false;
                 var raw = groupsValue as object[];
-                if (raw == null || raw.Length == 0 || raw.Length > 16) return false;
+                if (raw == null || raw.Length > 16) return false;
                 var parsed = new List<Group>();
                 var seen = new HashSet<string>(StringComparer.Ordinal);
                 foreach (var item in raw)
