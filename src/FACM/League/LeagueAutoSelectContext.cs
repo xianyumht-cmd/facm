@@ -56,19 +56,21 @@ namespace FACM.League
                     Text(session, "isCustomGame").Equals("True", StringComparison.OrdinalIgnoreCase);
                 int id;
                 var catalogRevision = LeagueAutoSelectGroupCatalog.Revision;
+                var providerRevision = LeagueSgpServerCatalog.Revision;
                 var group = GroupFor(mode, type, custom, sgpServerId);
                 if (session == null || Text(flow, "phase") != "ChampSelect" || group == null ||
                     !int.TryParse(Text(queue, "id"), out id) || id < 0) return null;
                 var role = LeagueAutoSelectGroupCatalog.RoleFor(group, sgpServerId,
                     LeagueAutoSelectProfiles.LocalAssignedRole(session));
-                if (role == null || catalogRevision != LeagueAutoSelectGroupCatalog.Revision) return null;
+                if (role == null || (catalogRevision != LeagueAutoSelectGroupCatalog.Revision ||
+                    providerRevision != LeagueSgpServerCatalog.Revision)) return null;
                 session["autoSelectRole"] = role;
                 session["queueId"] = id;
                 session["gameMode"] = mode;
                 session["autoSelectGroup"] = group == "aram" && LeagueQueueModePolicy.IsAramMayhem(id, mode) ? "mayhem" : group;
                 session["autoSelectContext"] = id.ToString(CultureInfo.InvariantCulture) + ":" + mode + ":" +
                     type + ":" + custom + ":" + (sgpServerId ?? "") + ":" +
-                    role + ":" + session["autoSelectGroup"] + ":" + catalogRevision;
+                    role + ":" + session["autoSelectGroup"] + ":" + catalogRevision + ":" + providerRevision;
                 return Encoding.UTF8.GetBytes(json.Serialize(session));
             }
             catch (ArgumentException) { return null; }
