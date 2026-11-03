@@ -1,3 +1,7 @@
+## 2026-11-03 — Arena special metadata without active target modes
+
+The pinned group schema does not require a nonempty `targetGameModes` array. A CHERRY group retaining `additionalPicks: [-3]` with no target modes is now a valid disabled route. The native parser still rejects an active non-CHERRY route attempting to authorize bravery, and `SpecialAllowed` requires a CHERRY target before enabling -3. Synthetic regression confirms no saved bravery write when the route is revoked. **Final Windows CI pending.**
+
 ## 2026-11-03 — Source-permitted empty auto-select group fields
 
 Pinned `AkariAutoSelectGroupsConfigSchema` permits zero-length `targetGameModes`, nested `queueTypes` and `positions` arrays. Native `LeagueAutoSelectGroupCatalog` now accepts these shapes, retaining its exact mode/queue matcher and authoritative no-match behavior; empty positions expose no lane-specific role options. Synthetic group smoke covers empty targets/queues/positions alongside an unaffected normal group. **Final four Windows CI gates pending; real client remains unverified.**

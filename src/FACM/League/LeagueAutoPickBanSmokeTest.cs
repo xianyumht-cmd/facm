@@ -386,6 +386,27 @@ namespace FACM.League
                     !LeagueAutoSelectGroupCatalog.SupportsRoles("ranked") &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
                     "Empty source positions must remove role-specific options without revoking unrelated groups.");
+
+                // An Arena group can retain source metadata for bravery while its
+                // empty target list disables the route entirely.
+                var noArenaTargets = cherry.Replace("2026-08-06", "2026-08-15")
+                    .Replace(@"""targetGameModes"":[{""gameMode"":""CHERRY"",""queueTypes"":[""ANY""]}]",
+                        @"""targetGameModes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noArenaTargets)) &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3),
+                    "An Arena group with empty target modes must revoke bravery even if its metadata retains -3.");
+                var noArenaWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0),
+                        GameflowJson = cherryFlow, Pickable = "[]" },
+                    noArenaWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, arenaProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(noArenaWrite.Calls.Count == 0,
+                    "A disabled Arena route must not perform a saved bravery pick.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

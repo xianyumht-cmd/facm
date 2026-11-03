@@ -275,7 +275,7 @@ namespace FACM.League
                             queues.Any(q => q != "*" && !SafeCode(q))) return false;
                         group.Targets.Add(Tuple.Create(mode, queues));
                     }
-                    if (group.AdditionalPicks.Contains(-3) &&
+                    if (group.AdditionalPicks.Contains(-3) && group.Targets.Count > 0 &&
                         !group.Targets.Any(t => t.Item1 == "CHERRY")) return false;
                     parsed.Add(group);
                 }

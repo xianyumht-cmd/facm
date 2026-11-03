@@ -1,3 +1,7 @@
+## 2026-11-03 — Arena route revocation with retained special metadata (Draft #357)
+
+A newer Akari group snapshot can remove a group's `targetGameModes` while leaving `additionalPicks: [-3]`. GGman now accepts that source-valid disabled Arena route and refuses both automatic bravery and previously saved Arena priorities, rather than rejecting the entire update and retaining stale routing. Synthetic smoke covers the no-target group and absence of LCU writes. **Exact-HEAD Windows CI pending.** No game acceptance performed.
+
 ## 2026-11-03 — Empty group targets, queue types and positions (Draft #357)
 
 Akari v1.5.1's group schema permits empty `targetGameModes`, `queueTypes` and `positions`. GGman now accepts those bounded, schema-valid empty arrays: empty target/queue routing produces no automatic pick/ban group, while an empty position list disables lane-specific options without invalidating unrelated groups. Synthetic smoke verifies other active groups continue to route and no stale ranked route survives. **Candidate; exact-HEAD Windows CI pending.** This is source configuration compatibility, not live ChampSelect acceptance.
