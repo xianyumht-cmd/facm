@@ -107,10 +107,11 @@ namespace FACM.League
             if (snapshot == null) return !LeagueAutoSelectProfiles.Modes.Contains(groupId, StringComparer.Ordinal)
                 ? false : pick ? groupId == "cherry" : true;
             var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
-            if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+            if (group == null || (!string.IsNullOrEmpty(sgpServerId) &&
+                !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId)) ||
+                (!group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                 (string.IsNullOrEmpty(sgpServerId) ||
-                 !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
-                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return false;
+                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal)))) return false;
             return pick ? group.Targets.Any(t => t.Item1 == "CHERRY") &&
                 group.AdditionalPicks.Contains(-3) : !group.ExcludedBans.Contains(-1);
         }
@@ -137,10 +138,11 @@ namespace FACM.League
             foreach (var entry in snapshot)
             {
                 if (entry.Custom != custom ||
-                    !entry.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+                    (!string.IsNullOrEmpty(sgpServerId) &&
+                    !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId)) ||
+                    (!entry.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                     (string.IsNullOrEmpty(sgpServerId) ||
-                     !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
-                     !entry.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) continue;
+                     !entry.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal)))) continue;
                 foreach (var target in entry.Targets)
                 {
                     if (target.Item1 != mode) continue;
@@ -161,10 +163,11 @@ namespace FACM.League
             lock (Sync) snapshot = _groups;
             if (snapshot == null) return assignedRole ?? "default";
             var group = snapshot.FirstOrDefault(entry => entry.Id == groupId);
-            if (group == null || !group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+            if (group == null || (!string.IsNullOrEmpty(sgpServerId) &&
+                !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId)) ||
+                (!group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
                 (string.IsNullOrEmpty(sgpServerId) ||
-                 !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId) ||
-                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal))) return null;
+                 !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal)))) return null;
             var sourceRole = assignedRole == "support" ? "utility" : assignedRole ?? "default";
             return group.Positions.Contains(sourceRole, StringComparer.Ordinal)
                 ? assignedRole ?? "default" : "default";
