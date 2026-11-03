@@ -114,8 +114,8 @@ namespace FACM.League
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
         private LeagueClientSession _episodeOwner;
-        private long _episodeGroupRevision;
-        private long _episodeProviderRevision;
+        private string _episodeGroupRevision;
+        private string _episodeProviderRevision;
         private Task _running;
         private bool _inChampSelect;
         private bool _autoPick;
