@@ -91,45 +91,41 @@ namespace FACM.League
                     }
                     return true;
                 }
-                // Rebuild from the pinned baseline so a later trusted catalog can revoke
-                // an added platform rather than keeping its old credential destination.
+                // The source's servers record is a complete snapshot. Missing known
+                // regions must be revoked too, not silently restored from the baseline.
+                // Keep pinned identities/host allowlists when validating each entry.
                 var existing = LeagueSgpMatchHistoryApiClient.BuiltinServers;
-                var next = new List<LeagueSgpServer>(existing.Length);
-                var changed = 0;
-                foreach (var server in existing)
+                var next = new List<LeagueSgpServer>(remote.Count);
+                foreach (var item in remote)
                 {
-                    var copy = Clone(server);
-                    object value;
-                    if (remote.TryGetValue(server.Id, out value))
+                    var baseline = existing.FirstOrDefault(server => server.Id == item.Key);
+                    if (baseline != null)
                     {
-                        var entry = value as Dictionary<string, object>;
+                        var entry = item.Value as Dictionary<string, object>;
                         object history, common, tencent, region;
                         if (entry == null || !entry.TryGetValue("matchHistory", out history) ||
                             !entry.TryGetValue("common", out common) ||
                             !entry.TryGetValue("isTencent", out tencent) ||
-                            !(tencent is bool) || (bool)tencent != server.IsTencent ||
-                            !SafeKnownEndpoint(history as string, server, true) ||
-                            !SafeKnownEndpoint(common as string, server, false) ||
+                            !(tencent is bool) || (bool)tencent != baseline.IsTencent ||
+                            !SafeKnownEndpoint(history as string, baseline, true) ||
+                            !SafeKnownEndpoint(common as string, baseline, false) ||
                             entry.TryGetValue("regionPathParam", out region) &&
-                            !string.Equals(region as string, server.PathRegion, StringComparison.Ordinal))
+                            !string.Equals(region as string, baseline.PathRegion, StringComparison.Ordinal))
                             return false;
+                        var copy = Clone(baseline);
                         copy.MatchHistory = history as string;
                         copy.Common = common as string;
-                        changed++;
+                        next.Add(copy);
                     }
-                    next.Add(copy);
+                    else
+                    {
+                        var added = item.Key.StartsWith("TENCENT_", StringComparison.Ordinal)
+                            ? TryCreateTencentServer(item.Key, item.Value)
+                            : TryCreateRiotServer(item.Key, item.Value);
+                        if (added == null) return false;
+                        next.Add(added);
+                    }
                 }
-                foreach (var entry in remote)
-                {
-                    if (existing.Any(server => server.Id == entry.Key)) continue;
-                    var added = entry.Key.StartsWith("TENCENT_", StringComparison.Ordinal)
-                        ? TryCreateTencentServer(entry.Key, entry.Value)
-                        : TryCreateRiotServer(entry.Key, entry.Value);
-                    if (added == null) return false;
-                    next.Add(added);
-                    changed++;
-                }
-                if (changed == 0) return false;
                 object names;
                 if (root.TryGetValue("serverNames", out names))
                 {

@@ -715,11 +715,25 @@ namespace FACM.League
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory ==
                         "https://hn10-alt-sgp.lol.qq.com:21019" &&
-                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
-                    "Newer trusted catalog must update existing region destination and label.");
-                Require(!LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区" &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(owner).Length == 1 &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN1", "TENCENT")) == null,
+                    "A partial source snapshot must revoke omitted built-in providers as well as update destinations.");
+                var sameEndpointsNewer = valid.Replace("2026-08-01T00", "2026-08-01T01");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(sameEndpointsNewer)) &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
                     !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-07-01"))),
-                    "Catalog must reject stale or equal versions.");
+                    "A newer complete snapshot with unchanged endpoints is valid, while stale versions are rejected.");
+                var revokedTokens = new TokenApi();
+                var revokedHandler = new CaptureHandler();
+                using (var revokedApi = new LeagueSgpMatchHistoryApiClient(
+                    () => owner, revokedTokens, revokedHandler))
+                {
+                    revokedApi.TryGetGameSummaryAsync(601, CancellationToken.None, "TENCENT_HN1")
+                        .GetAwaiter().GetResult();
+                    Require(revokedHandler.Calls == 0 && revokedTokens.Paths.Count == 0,
+                        "An omitted built-in region must fail before any SGP credential read.");
+                }
                 foreach (var bad in new[] {
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
                     valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-attacker.lol.qq.com"),
@@ -736,8 +750,9 @@ namespace FACM.League
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(newlyTrusted)) &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Id == "TENCENT_HN11" &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "TENCENT_HN11")?.PathRegion == "HN11" &&
-                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Name == "合成新区",
-                    "A source-announced Tencent platform must enroll only under its verified SGP host template.");
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Name == "合成新区" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null,
+                    "A source-announced Tencent platform must enroll only under its verified SGP host template and revoke omitted regions.");
                 foreach (var unsafeNew in new[] {
                     newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "hn11-attacker.lol.qq.com"),
                     newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "attacker.example"),
@@ -760,8 +775,10 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"))?.Common ==
                         "https://na-red.lol.sgp.pvp.net" &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("OC1", "OCE"))?.Common ==
-                        "https://oce-red.lol.sgp.pvp.net",
-                    "Pinned Riot region aliases must accept their actual source common hosts.");
+                        "https://oce-red.lol.sgp.pvp.net" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("JP", "JP")) == null,
+                    "A Riot-only source snapshot must revoke omitted Tencent and Riot builtins.");
                 foreach (var unsafeKnown in new[] {
                     existingRiot.Replace("na-red.lol.sgp.pvp.net", "br-red.lol.sgp.pvp.net"),
                     existingRiot.Replace("na-red.lol.sgp.pvp.net", "usw2-red.pp.sgp.pvp.net"),
@@ -792,7 +809,7 @@ namespace FACM.League
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(aliasedRiot)) &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME" &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.PathRegion == "ME1" &&
-                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA"))?.Id == "NA1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA")) == null &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA"), "ME") == null,
                     "Source-announced Riot aliases must retain exact region and account scope.");
                 foreach (var unsafeAlias in new[] {
