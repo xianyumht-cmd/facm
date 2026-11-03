@@ -1,3 +1,7 @@
+## 2026-11-03 — Source-permitted empty auto-select group fields
+
+Pinned `AkariAutoSelectGroupsConfigSchema` permits zero-length `targetGameModes`, nested `queueTypes` and `positions` arrays. Native `LeagueAutoSelectGroupCatalog` now accepts these shapes, retaining its exact mode/queue matcher and authoritative no-match behavior; empty positions expose no lane-specific role options. Synthetic group smoke covers empty targets/queues/positions alongside an unaffected normal group. **Final four Windows CI gates pending; real client remains unverified.**
+
 ## 2026-11-03 — Empty auto-select group catalog (Draft #357)
 
 Pinned `src/shared/shards/akari-api/schemas.ts` uses `groups: z.array(...)` without a nonempty constraint. Native `LeagueAutoSelectGroupCatalog.TryApply` now accepts a newer empty array, stores a non-null empty snapshot and keeps the existing `TryGroupFor` authoritative no-match result. This disables all automatic pick/ban group routes without erasing saved profiles, and rejects stale reintroduction. Executable synthetic `LeagueAutoPickBanSmokeTest` covers no group, no special Arena pick and no LCU write. **Four exact-final-HEAD Windows gates pending.** Source option-by-option parity remains partial.

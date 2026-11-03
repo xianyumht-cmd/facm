@@ -1,3 +1,7 @@
+## 2026-11-03 — Empty group targets, queue types and positions (Draft #357)
+
+Akari v1.5.1's group schema permits empty `targetGameModes`, `queueTypes` and `positions`. GGman now accepts those bounded, schema-valid empty arrays: empty target/queue routing produces no automatic pick/ban group, while an empty position list disables lane-specific options without invalidating unrelated groups. Synthetic smoke verifies other active groups continue to route and no stale ranked route survives. **Candidate; exact-HEAD Windows CI pending.** This is source configuration compatibility, not live ChampSelect acceptance.
+
 ## 2026-11-03 — Empty Akari auto-select group revocation (Draft #357)
 
 Pinned Akari v1.5.1 `AkariAutoSelectGroupsConfigSchema` accepts `groups: []`; GGman now accepts a newer empty source group snapshot as an authoritative removal of every automatic pick/ban group. Existing phase-owned group resolution fails closed, including saved dynamic priorities and Arena bravery, rather than falling back to pinned groups. Synthetic smoke verifies no automatic champion write and no resurrection from stale snapshots. **Code candidate after `92e6bce846bc995497760efc921a0051fb1492ae`; final four Windows gates pending.** Live game/Win10/cloud acceptance unchanged.

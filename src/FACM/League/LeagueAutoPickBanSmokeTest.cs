@@ -361,6 +361,31 @@ namespace FACM.League
                 Require(revokedGroupWrite.Calls.Count == 0 &&
                     !LeagueAutoSelectGroupCatalog.TryApply(Bytes(removed)),
                     "Revoked groups must not write champions or be restored by stale snapshots.");
+
+                // The pinned source schema permits empty target modes, queue types and
+                // positions; these disable routing or lane options without invalidating
+                // other still-active groups in the same trusted catalog.
+                var noRankedTargets = valid.Replace("2026-08-02", "2026-08-12")
+                    .Replace(@"""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]}]",
+                        @"""targetGameModes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedTargets)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty targetGameModes must disable only the affected group route.");
+                var noRankedQueues = valid.Replace("2026-08-02", "2026-08-13")
+                    .Replace(@"""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]",
+                        @"""queueTypes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedQueues)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty queueTypes must not route a match to stale automatic priorities.");
+                var noRankedPositions = valid.Replace("2026-08-02", "2026-08-14")
+                    .Replace(@"""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""]",
+                        @"""positions"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedPositions)) &&
+                    !LeagueAutoSelectGroupCatalog.SupportsRoles("ranked") &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty source positions must remove role-specific options without revoking unrelated groups.");
             }
             finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
             Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&

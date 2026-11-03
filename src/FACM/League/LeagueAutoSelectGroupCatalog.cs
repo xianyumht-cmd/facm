@@ -250,7 +250,7 @@ namespace FACM.League
                             !LeagueSgpMatchHistoryApiClient.Servers.Any(known => known.Id == server)))
                         return false;
                     var positions = Strings(Value(entry, "positions"), 8);
-                    if (positions == null || positions.Length == 0 ||
+                    if (positions == null ||
                         positions.Any(p => !new[] { "default", "top", "jungle", "middle", "bottom", "utility" }.Contains(p)))
                         return false;
                     if (!ValidActions(Value(entry, "additionalPicks"),
@@ -259,7 +259,7 @@ namespace FACM.League
                         !ValidActions(Value(entry, "excludedPicks"), -1) ||
                         !ValidActions(Value(entry, "excludedBans"), -1)) return false;
                     var targets = Value(entry, "targetGameModes") as object[];
-                    if (targets == null || targets.Length == 0 || targets.Length > 10) return false;
+                    if (targets == null || targets.Length > 10) return false;
                     var group = new Group { Id = id, DisplayName = Text(names, "zh-CN"),
                         Custom = (bool)Value(entry, "isCustom"),
                         SupportedServers = servers, Positions = positions,
@@ -271,7 +271,7 @@ namespace FACM.League
                         var mode = Text(target, "gameMode");
                         var queues = Strings(Value(target, "queueTypes"), 16);
                         if (!SafeCode(mode) || !AllowedMode(id, mode) ||
-                            queues == null || queues.Length == 0 ||
+                            queues == null ||
                             queues.Any(q => q != "*" && !SafeCode(q))) return false;
                         group.Targets.Add(Tuple.Create(mode, queues));
                     }
