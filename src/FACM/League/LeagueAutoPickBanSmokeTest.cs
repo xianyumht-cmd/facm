@@ -151,6 +151,11 @@ namespace FACM.League
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_FLEX_SR", false) == null,
                     "Trusted newer group catalog must replace pinned queue routing without implicit fallback.");
+                Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "FUTURE_REGION_999") == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("ranked", "FUTURE_REGION_999", false, -1) &&
+                    LeagueAutoSelectGroupCatalog.RoleFor("ranked", "FUTURE_REGION_999", "top") == null,
+                    "Wildcard source groups must not authorize an untrusted SGP region.");
                 var bound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
                     Bytes(Flow("RANKED_SOLO_5x5")));
                 Require(bound != null && Encoding.UTF8.GetString(bound).Contains(":ranked"),
