@@ -247,7 +247,8 @@ namespace FACM.League
                     if (servers == null || servers.Length == 0 ||
                         servers.Contains("*", StringComparer.Ordinal) && servers.Length != 1 ||
                         servers.Any(server => server != "*" &&
-                            !LeagueSgpMatchHistoryApiClient.Servers.Any(known => known.Id == server)))
+                            (server.Length > 64 || !server.All(c =>
+                                c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_'))))
                         return false;
                     var positions = Strings(Value(entry, "positions"), 8);
                     if (positions == null ||
