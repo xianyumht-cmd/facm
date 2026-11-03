@@ -710,6 +710,7 @@ namespace FACM.League
             var owner = Session("HN10", "TENCENT");
             var baseline = LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory;
             var valid = @"{""updatedAt"":""2026-08-01T00:00:00.000Z"",""servers"":{""TENCENT_HN10"":{""matchHistory"":""https://hn10-alt-sgp.lol.qq.com:21019"",""common"":""https://hn10-alt-sgp.lol.qq.com:21019"",""isTencent"":true}},""serverNames"":{""zh-CN"":{""TENCENT_HN10"":""黑玫瑰新区""}}}";
+            var initialRevision = LeagueSgpServerCatalog.Revision;
             try
             {
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
@@ -719,11 +720,16 @@ namespace FACM.League
                     LeagueSgpMatchHistoryApiClient.AvailableServers(owner).Length == 1 &&
                     LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN1", "TENCENT")) == null,
                     "A partial source snapshot must revoke omitted built-in providers as well as update destinations.");
+                Require(LeagueSgpServerCatalog.Revision != initialRevision,
+                    "A provider snapshot must advance the ChampSelect ownership revision.");
+                var firstRevision = LeagueSgpServerCatalog.Revision;
                 var sameEndpointsNewer = valid.Replace("2026-08-01T00", "2026-08-01T01");
                 Require(LeagueSgpServerCatalog.TryApply(Bytes(sameEndpointsNewer)) &&
                     !LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
                     !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-07-01"))),
                     "A newer complete snapshot with unchanged endpoints is valid, while stale versions are rejected.");
+                Require(LeagueSgpServerCatalog.Revision != firstRevision,
+                    "A newer same-endpoint provider snapshot must invalidate an in-flight action.");
                 var revokedTokens = new TokenApi();
                 var revokedHandler = new CaptureHandler();
                 using (var revokedApi = new LeagueSgpMatchHistoryApiClient(
