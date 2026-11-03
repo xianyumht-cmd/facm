@@ -114,6 +114,8 @@ namespace FACM.League
         private readonly object _sync = new object();
         private CancellationTokenSource _episode;
         private LeagueClientSession _episodeOwner;
+        private long _episodeGroupRevision;
+        private long _episodeProviderRevision;
         private Task _running;
         private bool _inChampSelect;
         private bool _autoPick;
@@ -234,8 +236,11 @@ namespace FACM.League
                 var owner = _session == null ? null : _session();
                 var ownerChanged = _session != null &&
                     !LeagueMatchmakingAutomationController.SameOwner(_episodeOwner, owner);
+                var catalogChanged = _episode != null &&
+                    (_episodeGroupRevision != LeagueAutoSelectGroupCatalog.Revision ||
+                     _episodeProviderRevision != LeagueSgpServerCatalog.Revision);
                 _inChampSelect = active;
-                if (!active || ownerChanged)
+                if (!active || ownerChanged || catalogChanged)
                 {
                     previous = _episode;
                     _episode = null;
@@ -277,6 +282,8 @@ namespace FACM.League
                 episode = new CancellationTokenSource();
                 _episode = episode;
                 _episodeOwner = owner;
+                _episodeGroupRevision = LeagueAutoSelectGroupCatalog.Revision;
+                _episodeProviderRevision = LeagueSgpServerCatalog.Revision;
             }
             var running = RunEpisodeAsync(episode);
             lock (_sync) if (ReferenceEquals(_episode, episode)) _running = running;
@@ -331,6 +338,8 @@ namespace FACM.League
             lock (_sync)
                 return !_disposed && _inChampSelect && ReferenceEquals(_episode, episode) &&
                     !episode.IsCancellationRequested &&
+                    _episodeGroupRevision == LeagueAutoSelectGroupCatalog.Revision &&
+                    _episodeProviderRevision == LeagueSgpServerCatalog.Revision &&
                     (_session == null || LeagueMatchmakingAutomationController.SameOwner(
                         _episodeOwner, _session()));
         }
@@ -1032,6 +1041,8 @@ namespace FACM.League
                 _inChampSelect = true;
                 _episode = episode;
                 _episodeOwner = _session == null ? null : _session();
+                _episodeGroupRevision = LeagueAutoSelectGroupCatalog.Revision;
+                _episodeProviderRevision = LeagueSgpServerCatalog.Revision;
             }
             return RunOnceAndDisposeAsync(episode, cancellationToken);
         }
