@@ -183,6 +183,25 @@ namespace FACM.League
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false, "NA1") == null &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null,
                     "Region-scoped groups must be selected only for their trusted server.");
+                // Source catalogs can mention a future region before its trusted SGP
+                // provider arrives. Keep the catalog but never authorize that region.
+                var futureRegion = scoped.Replace("2026-08-03", "2026-08-03T12")
+                    .Replace("TENCENT_HN1", "FUTURE_REGION_999");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "FUTURE_REGION_999") == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("ranked", "FUTURE_REGION_999", false, -1),
+                    "Unknown future SGP regions must parse without becoming trusted action targets.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion.Replace(
+                        "FUTURE_REGION_999", "future.region"))) &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion.Replace(
+                        "FUTURE_REGION_999", "FUTURE_REGION_999_TOO_LONG_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"))),
+                    "Malformed and overlong remote region IDs must be rejected.");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(scoped.Replace(
+                        "2026-08-03T00", "2026-08-03T18"))) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "TENCENT_HN1") == "ranked",
+                    "A newer trusted region snapshot must restore only its authorized routes.");
                 var scopedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
                     Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
                 Require(scopedBound != null &&
