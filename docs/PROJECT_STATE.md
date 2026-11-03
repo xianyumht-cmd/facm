@@ -1,12 +1,16 @@
+## 2026-11-03 — Complete SGP provider-snapshot replacement (Draft #357)
+
+Pinned Akari v1.5.1 `AkariApiConfigLoader` replaces `leagueServers` as a complete validated config object. GGman previously retained omitted pinned regions whenever a newer provider catalog was nonempty. It now builds the entire next provider list from the source's `servers` keys, revoking omitted built-in and dynamic destinations; empty snapshots still revoke all. Known Riot/Tencent endpoints remain pinned to strict host and region ownership, new providers use existing allowlists, and an unchanged but newer complete snapshot is accepted. SGP request preflight continues to reject revoked regions before token reads. Synthetic smoke covers omitted builtins, Riot-only snapshots, same-endpoint newer catalogs, dynamic revocation and invalid-host rejection. **Executable `92e6bce846bc995497760efc921a0051fb1492ae`; exact-HEAD Windows gates pending.** No live Tencent/Riot, cloud or Windows 10/DPI acceptance. PR #357/#355 remain Draft.
+
 ## 2026-11-03 — SGP source catalog revocation and bounded owner follow-up
 
-Pinned Akari v1.5.1 `AkariSupportedQueuesConfigSchema` permits an empty `queues` array; native GGman now accepts a newer empty list as an explicit revocation, rejects stale queue tags before entitlement-token reads, and preserves the already verified current-queue exception. Likewise, a newer explicitly empty `league-servers` catalog shuts down all SGP destinations instead of retaining obsolete credential targets; unknown or stale provider updates remain rejected. The current partial-catalog policy still preserves pinned builtins and is **not** full source parity.
+Pinned Akari v1.5.1 `AkariSupportedQueuesConfigSchema` permits an empty `queues` array; native GGman now accepts a newer empty list as an explicit revocation, rejects stale queue tags before entitlement-token reads, and preserves the already verified current-queue exception. Likewise, a newer explicitly empty `league-servers` catalog shuts down all SGP destinations instead of retaining obsolete credential targets; unknown or stale provider updates remain rejected. The provider catalog now follows Akari's complete-snapshot semantics: any omitted built-in or dynamically added region is revoked on a newer valid catalog, with strict pinned host validation and account-scoped token preflight. Live regional provider behavior remains unverified.
 
 Respawn Live Client discovery also handles transient LCU owner lookup exceptions without allowing a WinForms timer-tick crash or reusing a stale sample. **Latest executable candidate: `9f826ece13f453be0ccf6802c9c370babe25de74`. Exact final-HEAD Windows Build, Glass WebView2, UI Text Contract and Mayhem Source Probe are pending.** No live Tencent/Riot, Windows 10/DPI or cloud sync validation was performed.
 
 | Source-functional area | State | Remaining |
 | --- | --- | --- |
-| SGP supported-queue and full-provider revocation | **Implemented (CI pending)** | Partial provider catalogs and live regional compatibility |
+| SGP supported queues and full provider-snapshot replacement | **Implemented (CI pending)** | Live Tencent/Riot regional compatibility and remaining source options |
 | Respawn Live Client discovery/rearm | **Implemented (CI pending)** | Real game and DPI acceptance |
 | Champion trade-only, reconnect and queue-stop owner fencing | **Implemented (CI pending)** | Real Gameflow/ChampSelect acceptance |
 | Akari 1.5.1 overall source scope | **Partial** | Player-card popovers, remaining ChampSelect/gameflow options and provider behavior |
