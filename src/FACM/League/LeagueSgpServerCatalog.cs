@@ -23,6 +23,15 @@ namespace FACM.League
 
         // Explicit refresh only: failed remote catalogs can retry after five minutes;
         // accepted catalogs retain their two-hour budget. No background polling.
+        internal static string Revision
+        {
+            get
+            {
+                lock (Sync)
+                    return _updatedAt.Ticks.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
         internal static bool ShouldRefresh(DateTime now, DateTime lastAttempt, DateTime lastSuccess)
         {
             return now - lastAttempt >= TimeSpan.FromMinutes(5) &&
