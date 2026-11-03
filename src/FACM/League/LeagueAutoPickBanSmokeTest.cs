@@ -340,7 +340,7 @@ namespace FACM.League
 
                 // The source permits a newer empty group list. It must revoke every
                 // automatic pick/ban route, including saved dynamic profiles.
-                var emptyGroups = Bytes("{\\"updatedAt\\":\\"2026-08-11T00:00:00.000Z\\",\\"groups\\":[]}");
+                var emptyGroups = Bytes(@"{""updatedAt"":""2026-08-11T00:00:00.000Z"",""groups"":[]}");
                 Require(LeagueAutoSelectGroupCatalog.TryApply(emptyGroups) &&
                     LeagueAutoSelectGroupCatalog.RemoteGroups.Count == 0 &&
                     LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null &&
