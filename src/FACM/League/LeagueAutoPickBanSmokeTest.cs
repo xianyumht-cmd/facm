@@ -223,7 +223,7 @@ namespace FACM.League
                 foreach (var bad in new[] {
                     valid.Replace(@"""groupId"":""ranked""", @"""groupId"":""foreign!"""),
                     valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
-                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_UNKNOWN\"]"),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"invalid.region\"]"),
                     valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"*\",\"NA1\"]"),
                     valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[123]"),
                     valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
