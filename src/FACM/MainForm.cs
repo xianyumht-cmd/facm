@@ -265,6 +265,8 @@ namespace FACM
 
 #if GLASS_WORKBENCH_PREVIEW
             if (_compactPilot != null) _compactPilot.ObserveGameflowState(state);
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                _unifiedWorkspace.UpdateGameflowState(state);
 #endif
             var action = _gameflowVisibility.Observe(state, IsDesktopEntryVisible());
             if (action == DesktopEntryGameflowAction.Hide)

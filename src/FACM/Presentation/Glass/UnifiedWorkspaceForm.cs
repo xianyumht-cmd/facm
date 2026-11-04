@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Web.Script.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.League;
@@ -37,6 +38,8 @@ namespace FACM.Presentation.Glass
         private bool _starting;
         private bool _ready;
         private bool _closing;
+        private bool _explicitlyClosingHub;
+        private LeagueDashboardPhaseState _lastGameflowState;
         internal event Action BrowserUnavailable;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui)
@@ -125,6 +128,7 @@ namespace FACM.Presentation.Glass
                     if (IsDisposed) return;
                     _ready = true;
                     SyncWebNavigation();
+                    SyncGameflowState();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -172,6 +176,11 @@ namespace FACM.Presentation.Glass
 
         private void OpenRoute(string route)
         {
+            OpenNativeRoute(route, true);
+        }
+
+        private void OpenNativeRoute(string route, bool pushHistory)
+        {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
             var created = false;
             if (_hub == null || _hub.IsDisposed)
@@ -190,6 +199,18 @@ namespace FACM.Presentation.Glass
                 _hub.MinimumSize = Size.Empty;
                 _hub.MaximumSize = Size.Empty;
                 _content.Controls.Add(_hub);
+                var observedHub = _hub;
+                observedHub.FormClosed += delegate
+                {
+                    if (_explicitlyClosingHub || _closing || IsDisposed) return;
+                    if (ReferenceEquals(_hub, observedHub))
+                    {
+                        _content.Controls.Remove(observedHub);
+                        _hub = null;
+                        _navigation.Home();
+                        ShowHome();
+                    }
+                };
             }
             else if (!_hub.NavigateInUnifiedWorkspace(route))
             {
@@ -198,30 +219,21 @@ namespace FACM.Presentation.Glass
                 return;
             }
 
-            _navigation.Open(route);
+            if (pushHistory) _navigation.Open(route);
             _browser.Dock = DockStyle.Top;
             _browser.Height = 58;
             _content.Visible = true;
             ResizeForRoute(true);
-            if (created) _hub.Show();
-            else _hub.Show();
+            _hub.Show();
             SyncWebNavigation();
         }
 
         private void NavigateBack()
         {
-            if (_navigation.IsHome) return;
-            var route = _navigation.Current;
-            if (!TryCloseCurrentHub()) return;
+            if (_navigation.IsHome || !TryCloseCurrentHub()) return;
             _navigation.Back();
-            // Recreate the page through the verified service factory if history points to one.
             if (_navigation.IsHome) ShowHome();
-            else
-            {
-                var prior = _navigation.Current;
-                _navigation.Back();
-                OpenRoute(prior);
-            }
+            else OpenNativeRoute(_navigation.Current, false);
         }
 
         private void ReturnHome()
@@ -234,11 +246,17 @@ namespace FACM.Presentation.Glass
         private bool TryCloseCurrentHub()
         {
             if (_hub == null || _hub.IsDisposed) return true;
-            _hub.Close();
-            if (!_hub.IsDisposed) return false;
-            _content.Controls.Remove(_hub);
-            _hub = null;
-            return true;
+            _explicitlyClosingHub = true;
+            try
+            {
+                var closing = _hub;
+                closing.Close();
+                if (!closing.IsDisposed) return false;
+                _content.Controls.Remove(closing);
+                if (ReferenceEquals(_hub, closing)) _hub = null;
+                return true;
+            }
+            finally { _explicitlyClosingHub = false; }
         }
 
         private void ShowHome()
@@ -267,6 +285,25 @@ namespace FACM.Presentation.Glass
             if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
             _browser.CoreWebView2.PostWebMessageAsString(
                 _navigation.IsHome ? "home" : "detail:" + _navigation.Current);
+        }
+
+        internal void UpdateGameflowState(LeagueDashboardPhaseState state)
+        {
+            if (IsDisposed) return;
+            _lastGameflowState = state;
+            SyncGameflowState();
+        }
+
+        private void SyncGameflowState()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var connected = _lastGameflowState != null && _lastGameflowState.Connected;
+            var phase = connected ? (_lastGameflowState.Phase ?? string.Empty) : string.Empty;
+            var payload = new JavaScriptSerializer().Serialize(new
+            {
+                type = "status", connected = connected, phase = phase
+            });
+            _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
         private void HandleClosing(object sender, FormClosingEventArgs e)

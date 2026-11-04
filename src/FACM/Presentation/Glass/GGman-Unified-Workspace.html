@@ -49,7 +49,7 @@ body[data-mode="detail"] .close{font-size:18px}
 </header>
 <main id="pages">
   <section id="home">
-    <div class="status"><b>LOL · 等待连接</b><span>自动下一局 · 寻找关 · 接受 开</span><span class="hint">打开 LOL 客户端后会自动显示当前场景</span></div>
+    <div class="status"><b id="clientConnection">LOL · 等待连接</b><span id="clientPhase">正在等候当前客户端状态</span><span class="hint">打开 LOL 客户端后会自动显示当前场景</span></div>
     <div class="tiles">
       <button class="tile" data-route="dashboard"><span class="glyph">L</span><span>LOL 工作台</span></button>
       <button class="tile" data-route="player"><span class="glyph">战</span><span>我的战绩</span></button>
@@ -104,6 +104,12 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
+    document.getElementById("clientConnection").textContent=e.data.connected?"LOL · 已连接":"LOL · 未连接";
+    document.getElementById("clientPhase").textContent=e.data.connected?
+      ("当前阶段 · "+String(e.data.phase||"未知")):"请先启动英雄联盟客户端";
+    return;
+  }
   if(value==="home"||value==="more")setMode(value);
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
