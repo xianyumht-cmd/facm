@@ -336,7 +336,11 @@ namespace FACM.League
             foreach (var item in raw)
             {
                 int id;
-                if (item == null || !int.TryParse(Convert.ToString(item, CultureInfo.InvariantCulture), out id) ||
+                // The source schema requires JSON numbers, not numeric strings or booleans.
+                // JavaScriptSerializer materializes integral JSON values as Int32 or Int64.
+                if (!(item is int) && !(item is long) ||
+                    !int.TryParse(Convert.ToString(item, CultureInfo.InvariantCulture),
+                        NumberStyles.Integer, CultureInfo.InvariantCulture, out id) ||
                     (id <= 0 && (special == 0 || id != special)) || id > 100000) return false;
             }
             return true;
