@@ -34,7 +34,8 @@ marker.style.cssText = 'position:fixed;left:0;top:0;width:10px;height:10px;z-ind
   (documentFits ? '#00ff00' : '#ff0000');
 document.body.appendChild(marker);
 </script>
-'@.Replace('SCENE', $mode)
+'@
+  $visualProbe = $visualProbe.Replace('SCENE', $mode)
   $page = $source.Replace('</body>', $visualProbe + '</body>')
   Set-Content -LiteralPath $htmlPath -Value $page -Encoding utf8 -NoNewline
   $uri = ([System.Uri]::new($htmlPath)).AbsoluteUri
