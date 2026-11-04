@@ -13,6 +13,7 @@ on:
       - 'scripts/Start-Compact-Preview.cmd'
       - 'scripts/Start-Compact-Browser.ps1'
       - 'scripts/Start-Compact-WebView2.cmd'
+      - 'scripts/Test-UnifiedWorkspaceBrowser.ps1'
       - '.github/workflows/glass-workbench-preview.yml'
   workflow_dispatch:
 
@@ -100,6 +101,12 @@ jobs:
               $image.Dispose()
             }
           }
+      - name: Render six HTML workbench routes
+        shell: pwsh
+        run: |
+          & .\scripts\Test-UnifiedWorkspaceBrowser.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Unified browser render smoke failed.' }
+
       - name: Build optional Glass workbench
         shell: pwsh
         run: |
