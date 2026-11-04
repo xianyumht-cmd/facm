@@ -13,6 +13,10 @@ namespace FACM.Services
         public const string AppName = "AppName";
         public const string ControlCenter = "ControlCenter";
         public const string UnifiedMatchmakingInvalid = "UnifiedMatchmakingInvalid";
+        public const string UnifiedSelectionInvalid = "UnifiedSelectionInvalid";
+        public const string UnifiedSelectionSaved = "UnifiedSelectionSaved";
+        public const string UnifiedSelectionMissingChampion = "UnifiedSelectionMissingChampion";
+        public const string UnifiedSelectionFailed = "UnifiedSelectionFailed";
         public const string UnifiedMatchmakingSaved = "UnifiedMatchmakingSaved";
         public const string UnifiedMatchmakingFailed = "UnifiedMatchmakingFailed";
         public const string UnifiedMatchmakingStopNever = "UnifiedMatchmakingStopNever";

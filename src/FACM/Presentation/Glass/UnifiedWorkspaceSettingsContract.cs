@@ -13,6 +13,12 @@ namespace FACM.Presentation.Glass
         internal string StopPolicy;
     }
 
+    internal sealed class UnifiedAutoSelectionChange
+    {
+        internal bool AutoPick, AutoBan;
+        internal int PickId, BanId;
+    }
+
     // Accept only documented, bounded settings: no generic JavaScript-to-native setter.
     internal static class UnifiedWorkspaceSettingsContract
     {
@@ -55,6 +61,30 @@ namespace FACM.Presentation.Glass
             catch (InvalidCastException) { return false; }
         }
 
+        internal static bool TryParseAutoSelection(string json, out UnifiedAutoSelectionChange result)
+        {
+            result = null;
+            if (string.IsNullOrWhiteSpace(json) || json.Length > 1024) return false;
+            try
+            {
+                var fields = new JavaScriptSerializer { MaxJsonLength = 1024 }
+                    .Deserialize<Dictionary<string, object>>(json);
+                if (fields == null || fields.Count != 4) return false;
+                bool autoPick, autoBan;
+                int pickId, banId;
+                if (!Bool(fields, "autoPick", out autoPick) ||
+                    !Bool(fields, "autoBan", out autoBan) ||
+                    !Integer(fields, "pickId", 0, 10000, out pickId) ||
+                    !Integer(fields, "banId", 0, 10000, out banId)) return false;
+                result = new UnifiedAutoSelectionChange
+                { AutoPick = autoPick, AutoBan = autoBan, PickId = pickId, BanId = banId };
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+            catch (InvalidCastException) { return false; }
+        }
+
         private static bool Bool(IDictionary<string, object> fields, string key, out bool value)
         {
             value = false;
@@ -85,6 +115,13 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            UnifiedAutoSelectionChange selection;
+            if (!TryParseAutoSelection("{\"autoPick\":true,\"autoBan\":false,\"pickId\":22,\"banId\":0}", out selection) ||
+                selection.PickId != 22 || selection.AutoBan ||
+                TryParseAutoSelection("{\"autoPick\":true,\"autoBan\":false,\"pickId\":-1,\"banId\":0}", out selection) ||
+                TryParseAutoSelection("{\"autoPick\":true,\"autoBan\":false,\"pickId\":22.5,\"banId\":0}", out selection) ||
+                TryParseAutoSelection("{\"autoPick\":true,\"autoBan\":\"false\",\"pickId\":22,\"banId\":0}", out selection))
+                throw new InvalidOperationException("Auto-selection bridge must preserve typed champion settings.");
             UnifiedMatchmakingChange parsed;
             var sample = "{\"autoSearch\":true,\"autoAccept\":false,\"waitForInvitees\":true," +
                          "\"roomNotices\":false,\"minParty\":2,\"queueDelayMs\":3000," +

@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Threading;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -46,6 +47,8 @@ namespace FACM.Presentation.Glass
         private bool _closing;
         private bool _explicitlyClosingHub;
         private LeagueDashboardPhaseState _lastGameflowState;
+        private CancellationTokenSource _championCatalogCancellation;
+        private int _championCatalogGeneration;
         internal event Action BrowserUnavailable;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
@@ -88,6 +91,7 @@ namespace FACM.Presentation.Glass
                 try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
                 if (_hub != null && !_hub.IsDisposed) _hub.Dispose();
+                CancelChampionCatalog();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -177,6 +181,16 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (message != null && message.StartsWith("save-selection:", StringComparison.Ordinal))
+            {
+                ApplyAutoSelection(message.Substring(15));
+                return;
+            }
+            if (message != null && message.StartsWith("selection-pause:", StringComparison.Ordinal))
+            {
+                ApplySelectionPause(message.Substring(16));
+                return;
+            }
             if (message != null && message.StartsWith("save-matchmaking:", StringComparison.Ordinal))
             {
                 ApplyMatchmakingSettings(message.Substring(17));
@@ -220,6 +234,12 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
+            if (string.Equals(route, "auto-selection", StringComparison.Ordinal))
+            {
+                OpenAutoSelection(pushHistory);
+                return;
+            }
             if (string.Equals(route, "matchmaking-settings", StringComparison.Ordinal))
             {
                 OpenMatchmakingSettings(pushHistory);
@@ -291,6 +311,123 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             _hub.Show();
             SyncWebNavigation();
+        }
+
+        private void OpenAutoSelection(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open("auto-selection");
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncAutoSelection();
+            CancelChampionCatalog();
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            var cancellation = new CancellationTokenSource();
+            _championCatalogCancellation = cancellation;
+            var generation = _championCatalogGeneration;
+            LoadAutoSelectionCatalogAsync(module, cancellation, generation);
+        }
+
+        private async void LoadAutoSelectionCatalogAsync(LeagueEfficiencyModule module,
+            CancellationTokenSource cancellation, int generation)
+        {
+            try
+            {
+                var champions = await module.LoadChampionsAsync(cancellation.Token);
+                if (IsDisposed || cancellation.IsCancellationRequested ||
+                    generation != _championCatalogGeneration ||
+                    !string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal) ||
+                    _browser.CoreWebView2 == null) return;
+                var payload = new JavaScriptSerializer().Serialize(new
+                {
+                    type = "auto-selection-catalog",
+                    champions = (champions ?? new LeagueProfileChampionOption[0])
+                        .Where(item => item != null && item.Id > 0 && item.Id <= 10000)
+                        .Select(item => new { id = item.Id, name = item.Name }).ToArray()
+                });
+                _browser.CoreWebView2.PostWebMessageAsJson(payload);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified auto-select champion directory unavailable: " + exception.GetType().Name);
+            }
+            finally
+            {
+                if (ReferenceEquals(_championCatalogCancellation, cancellation))
+                    _championCatalogCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+
+        private void CancelChampionCatalog()
+        {
+            _championCatalogGeneration++;
+            var previous = _championCatalogCancellation;
+            _championCatalogCancellation = null;
+            if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
+        }
+
+        private void ApplyAutoSelection(string json)
+        {
+            if (!string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal)) return;
+            UnifiedAutoSelectionChange input;
+            if (!UnifiedWorkspaceSettingsContract.TryParseAutoSelection(json, out input))
+            {
+                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionInvalid));
+                return;
+            }
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            try
+            {
+                module.UpdateAutoSelectSettings(input.AutoPick, input.PickId, input.AutoBan, input.BanId);
+                SendSelectionResult(true, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionSaved));
+            }
+            catch (ArgumentException)
+            {
+                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionMissingChampion));
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Unified auto-select settings save failed", exception);
+                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionFailed));
+            }
+        }
+
+        private void ApplySelectionPause(string value)
+        {
+            if (!string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal) ||
+                (value != "true" && value != "false")) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            try { module.UpdateAutoSelectTemporaryPause(value == "true"); SyncAutoSelection(); }
+            catch (Exception exception) { AppLog.Error("Unified auto-select pause failed", exception); }
+        }
+
+        private void SendSelectionResult(bool ok, string message)
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+                { type = "selection-result", ok, message }));
+        }
+
+        private void SyncAutoSelection()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            {
+                type = "auto-selection",
+                autoPick = module.AutoPickEnabled, autoBan = module.AutoBanEnabled,
+                pickId = module.AutoPickChampionId, banId = module.AutoBanChampionId,
+                paused = module.AutoSelectTemporarilyDisabled,
+                champions = new object[0]
+            }));
         }
 
         private void OpenMatchmakingSettings(bool pushHistory)
@@ -540,6 +677,7 @@ namespace FACM.Presentation.Glass
         private void NavigateBack()
         {
             if (_navigation.IsHome || !TryCloseCurrentHub()) return;
+            CancelChampionCatalog();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -548,6 +686,7 @@ namespace FACM.Presentation.Glass
         private void ReturnHome()
         {
             if (!TryCloseCurrentHub()) return;
+            CancelChampionCatalog();
             _navigation.Home();
             ShowHome();
         }
@@ -657,6 +796,7 @@ namespace FACM.Presentation.Glass
                 return;
             }
             _closing = true;
+            CancelChampionCatalog();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -692,6 +832,8 @@ namespace FACM.Presentation.Glass
                 !html.Contains("id=\"statusConnection\"") ||
                 !html.Contains("data-route=\"efficiency-advanced\"") ||
                 !html.Contains("id=\"saveMatchmaking\"") ||
+                !html.Contains("id=\"saveAutoSelection\"") ||
+                !html.Contains("data-route=\"auto-selection\"") ||
                 !html.Contains("id=\"themeList\"") ||
                 !html.Contains("Content-Security-Policy") ||
                 !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||
