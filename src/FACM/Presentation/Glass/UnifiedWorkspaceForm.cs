@@ -60,6 +60,8 @@ namespace FACM.Presentation.Glass
         private LeagueClientSession _presenceSession;
         private CancellationTokenSource _repairCancellation;
         private bool _repairBusy;
+        private CancellationTokenSource _liveCancellation;
+        private int _liveGeneration;
         internal event Action BrowserUnavailable;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
@@ -106,6 +108,7 @@ namespace FACM.Presentation.Glass
                 CancelDashboardRead();
                 CancelPresenceOperation();
                 CancelRepairOperation();
+                CancelLiveRead();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -175,6 +178,7 @@ namespace FACM.Presentation.Glass
                         StartDashboardRead();
                     if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
+                    if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -210,6 +214,12 @@ namespace FACM.Presentation.Glass
             if (message != null && message.StartsWith("repair-action:", StringComparison.Ordinal))
             {
                 ApplyRepairAction(message.Substring(14)); return;
+            }
+            if (message == "live-refresh" || message == "live-sgp")
+            {
+                if (_navigation.Current == LeagueHubNavigation.Live)
+                    StartLiveRead(message == "live-sgp");
+                return;
             }
             if (message == "presence-refresh")
             {
@@ -290,6 +300,8 @@ namespace FACM.Presentation.Glass
             if (!string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal)) CancelDashboardRead();
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
+            if (route != LeagueHubNavigation.Live) CancelLiveRead();
+            if (route == LeagueHubNavigation.Live) { OpenLivePage(pushHistory); return; }
             if (route == LeagueHubNavigation.Repair) { OpenRepairPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Presence) { OpenPresencePage(pushHistory); return; }
             if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
@@ -341,7 +353,8 @@ namespace FACM.Presentation.Glass
                     ? LeagueHubNavigation.Efficiency :
                     string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
                     ? LeagueHubNavigation.Dashboard :
-                    route == "presence-advanced" ? LeagueHubNavigation.Presence : route);
+                    route == "presence-advanced" ? LeagueHubNavigation.Presence :
+                    route == "live-advanced" ? LeagueHubNavigation.Live : route);
                 _hub.UseUnifiedWorkspaceHost();
                 _hub.TopLevel = false;
                 _hub.FormBorderStyle = FormBorderStyle.None;
@@ -370,7 +383,8 @@ namespace FACM.Presentation.Glass
                     ? LeagueHubNavigation.Efficiency :
                     string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
                     ? LeagueHubNavigation.Dashboard :
-                    route == "presence-advanced" ? LeagueHubNavigation.Presence : route))
+                    route == "presence-advanced" ? LeagueHubNavigation.Presence :
+                    route == "live-advanced" ? LeagueHubNavigation.Live : route))
             {
                 // Unsaved settings editor explicitly declined navigation.
                 SyncWebNavigation();
@@ -461,6 +475,99 @@ namespace FACM.Presentation.Glass
             if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
         }
 
+
+
+        private void OpenLivePage(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open(LeagueHubNavigation.Live);
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            if (_ready) StartLiveRead(false);
+        }
+
+        private void StartLiveRead(bool includeSgp)
+        {
+            CancelLiveRead();
+            var module = LeagueHubUiBridge.UnifiedLive;
+            if (module == null) { PostLiveError(); return; }
+            var source = new CancellationTokenSource();
+            _liveCancellation = source;
+            LoadLiveAsync(module, includeSgp, source, _liveGeneration);
+        }
+
+        private async void LoadLiveAsync(LeagueLiveModule module, bool includeSgp,
+            CancellationTokenSource source, int generation)
+        {
+            try
+            {
+                var session = module.UnifiedLiveSession;
+                var snapshot = await module.ReadUnifiedLiveAsync(includeSgp, source.Token);
+                if (!LiveReadIsCurrent(module, session, source, generation)) return;
+                if (snapshot == null) { PostLiveError(); return; }
+                var payload = new JavaScriptSerializer().Serialize(new
+                {
+                    type = "live-details",
+                    connected = snapshot.Connected,
+                    phase = snapshot.Phase,
+                    queue = snapshot.QueueName,
+                    mode = snapshot.GameMode,
+                    map = snapshot.MapName,
+                    gameId = snapshot.GameId,
+                    timer = snapshot.TimerMillisecondsLeft,
+                    sgp = snapshot.SgpEnriched,
+                    allyBans = snapshot.AllyBans.ToArray(),
+                    enemyBans = snapshot.EnemyBans.ToArray(),
+                    players = snapshot.Players.Select(player => new
+                    {
+                        side = player.Side,
+                        name = player.AccountName,
+                        position = player.Position,
+                        champion = player.ChampionId,
+                        local = player.IsLocalPlayer
+                    }).Take(24).ToArray()
+                });
+                _browser.CoreWebView2.PostWebMessageAsJson(payload);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified live read skipped: " + exception.GetType().Name);
+                if (LiveReadIsCurrent(module, null, source, generation, false)) PostLiveError();
+            }
+            finally
+            {
+                if (ReferenceEquals(_liveCancellation, source)) _liveCancellation = null;
+                source.Dispose();
+            }
+        }
+
+        private bool LiveReadIsCurrent(LeagueLiveModule module, LeagueClientSession session,
+            CancellationTokenSource source, int generation, bool checkSession = true)
+        {
+            return !IsDisposed && !_closing && !source.IsCancellationRequested &&
+                ReferenceEquals(_liveCancellation, source) && generation == _liveGeneration &&
+                _navigation.Current == LeagueHubNavigation.Live &&
+                _ready && _browser.CoreWebView2 != null &&
+                (!checkSession || (session == null ? module.UnifiedLiveSession == null :
+                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLiveSession)));
+        }
+
+        private void CancelLiveRead()
+        {
+            _liveGeneration++;
+            var old = _liveCancellation;
+            _liveCancellation = null;
+            if (old != null && !old.IsCancellationRequested) old.Cancel();
+        }
+
+        private void PostLiveError()
+        {
+            if (_ready && !IsDisposed && _browser.CoreWebView2 != null)
+                _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"live-failed\"}");
+        }
 
         private void OpenPresencePage(bool pushHistory)
         {
@@ -1229,6 +1336,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelPresenceOperation();
             CancelRepairOperation();
+            CancelLiveRead();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1241,6 +1349,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelPresenceOperation();
             CancelRepairOperation();
+            CancelLiveRead();
             _navigation.Home();
             ShowHome();
         }
@@ -1360,6 +1469,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelPresenceOperation();
             CancelRepairOperation();
+            CancelLiveRead();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -1409,6 +1519,10 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-route=\"auto-selection\"") ||
                 !html.Contains("id=\"presencePage\"") ||
                 !html.Contains("id=\"repairPage\"") ||
+                !html.Contains("id=\"livePage\"") ||
+                !html.Contains("id=\"liveRefresh\"") ||
+                !html.Contains("id=\"liveSgpRefresh\"") ||
+                !html.Contains("data-route=\"live-advanced\"") ||
                 !html.Contains("data-repair-action=\"window\"") ||
                 !html.Contains("data-repair-action=\"settlement\"") ||
                 !html.Contains("data-repair-action=\"restart\"") ||

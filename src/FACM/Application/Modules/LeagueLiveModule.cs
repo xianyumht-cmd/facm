@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -31,6 +33,25 @@ namespace FACM.AppHost.Modules
             _service = new LeagueLiveDataService(_leagueClient, _performance.Budgets,
                 (ILeagueSgpGsmApi)_leagueClient, () => _leagueClient.CurrentSession);
             _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient);
+        }
+
+        internal LeagueClientSession UnifiedLiveSession { get { return _leagueClient.CurrentSession; } }
+
+        internal async Task<LeagueLiveSnapshot> ReadUnifiedLiveAsync(bool includeSgp, CancellationToken token)
+        {
+            if (_service == null) return null;
+            var initial = _leagueClient.CurrentSession;
+            var snapshot = await _service.RefreshAsync(token);
+            if (token.IsCancellationRequested || !SessionStillMatches(initial)) return null;
+            if (includeSgp && snapshot != null && snapshot.Connected)
+                await _service.TryRefreshSgpTeamsAsync(snapshot, token);
+            return !token.IsCancellationRequested && SessionStillMatches(initial) ? snapshot : null;
+        }
+
+        private bool SessionStillMatches(LeagueClientSession initial)
+        {
+            var current = _leagueClient.CurrentSession;
+            return initial == null ? current == null : LeagueEncounterReplayService.SessionMatches(initial, current);
         }
 
         public Form CreateLiveForm(UiTextCatalog ui)

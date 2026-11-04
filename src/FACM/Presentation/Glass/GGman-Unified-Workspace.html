@@ -49,6 +49,25 @@ body[data-mode="presence"] #home,body[data-mode="presence"] #other{display:none!
 body[data-mode="presence"] #detail{display:flex}
 body[data-mode="presence"] .brand-icon,body[data-mode="presence"] .brand-text{display:none}
 body[data-mode="presence"] #presencePage,body[data-mode="presence"] main{display:block;overflow-y:auto}
+#livePage{display:none;padding:4px 2px}
+#livePage h2{font-size:18px;margin:8px 0 5px}
+#livePage p{color:var(--muted);font-size:12px;line-height:1.7}
+.live-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:11px 0}
+.live-summary>div{background:var(--card);padding:12px;border-radius:10px;min-width:0}
+.live-summary small{display:block;color:var(--muted);font-size:11px}
+.live-summary strong{display:block;margin-top:6px;overflow-wrap:anywhere}
+.live-roster{display:grid;gap:7px;margin-top:12px}
+.live-player{display:flex;align-items:center;gap:10px;padding:11px;background:var(--card);border-radius:9px}
+.live-player .live-mark{color:var(--accent);font-weight:700;min-width:56px}
+.live-player strong{overflow-wrap:anywhere}
+.live-player small{display:block;color:var(--muted);margin-top:3px}
+#livePage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:420px){.live-summary{grid-template-columns:1fr}}
+body[data-mode="live"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="live"] #home,body[data-mode="live"] #other{display:none!important}
+body[data-mode="live"] #detail{display:flex}
+body[data-mode="live"] .brand-icon,body[data-mode="live"] .brand-text{display:none}
+body[data-mode="live"] #livePage,body[data-mode="live"] main{display:block;overflow-y:auto}
 #repairPage{display:none;padding:4px 2px}
 #repairPage h2{font-size:18px;margin:8px 0 5px}
 #repairPage p{font-size:12px;color:var(--muted);line-height:1.7}
@@ -345,6 +364,22 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     <p id="presenceResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
   </section>
+  <section id="livePage">
+    <h2>实时对局</h2><p>按需读取当前选人/对局阵容。资料由已有 LCU 会话服务提供，不额外启动轮询。</p>
+    <div class="live-summary">
+      <div><small>连接状态</small><strong id="liveConnection">等待读取</strong></div>
+      <div><small>对局阶段</small><strong id="livePhase">—</strong></div>
+      <div><small>队列与模式</small><strong id="liveQueue">—</strong></div>
+      <div><small>地图</small><strong id="liveMap">—</strong></div>
+    </div>
+    <p id="liveSummary" role="status" aria-live="polite">等待当前客户端阵容</p>
+    <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
+    <div class="save-row">
+      <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
+      <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
+    </div>
+    <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
+  </section>
   <section id="repairPage">
     <h2>游戏修复</h2>
     <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
@@ -445,7 +480,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -455,6 +490,11 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
+    get("liveRefresh").disabled=true;get("liveSgpRefresh").disabled=true;
+    get("liveSummary").textContent="正在读取当前游戏会话";
+    post(target.dataset.action==="live-sgp"?"live-sgp":"live-refresh");return;
+  }
   if(target.dataset.repairAction){
     if(target.disabled)return;
     if(target.dataset.repairAction==="exit"){get("repairExitConfirm").hidden=false;return;}
@@ -493,10 +533,15 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair"||mode==="live")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
+    get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=false;
+    get("liveSummary").textContent="读取失败或游戏会话已切换，请重新读取";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="repair-state"){
     get("repairAuto").textContent=e.data.auto?"关闭自动修复":"启用自动修复";
     document.querySelectorAll("[data-repair-action]").forEach(function(b){b.disabled=!e.data.available;});
@@ -596,8 +641,31 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:dashboard")setMode("dashboard","dashboard");
   else if(value==="detail:presence")setMode("presence","presence");
   else if(value==="detail:repair")setMode("repair","repair");
+  else if(value==="detail:live")setMode("live","live");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function renderLive(data){
+  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
+  get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
+  get("livePhase").textContent=phaseLabel(data.phase);
+  get("liveQueue").textContent=data.queue||data.mode||"—";
+  get("liveMap").textContent=data.map||"—";
+  var roster=get("livePlayers");roster.replaceChildren();
+  var rows=Array.isArray(data.players)?data.players:[];
+  rows.slice(0,24).forEach(function(player){
+    var row=document.createElement("div");row.className="live-player";
+    var side=document.createElement("span");side.className="live-mark";
+    side.textContent=player.local?"自己":player.side==="my-team"||player.side==="team-1"?"队友":player.side==="their-team"||player.side==="team-2"?"对手":String(player.side||"玩家").slice(0,20);
+    var body=document.createElement("div");var title=document.createElement("strong");
+    title.textContent=player.name||"身份未公开";
+    var detail=document.createElement("small");
+    detail.textContent=[player.champion>0?"英雄 #"+player.champion:"英雄未确认",player.position||""].filter(Boolean).join(" · ");
+    body.append(title,detail);row.append(side,body);roster.appendChild(row);
+  });
+  get("liveSummary").textContent=!data.connected?"连接 LOL 客户端后可查看":
+    rows.length?"阵容 "+rows.length+" 人 · "+(data.sgp?"区域资料已补全":"客户端阵容") :
+    "当前阶段没有可确认的阵容";
+}
 function renderPresence(data){
   var connected=!!data.connected,state=String(data.availability||"").toLowerCase();
   var inGame=String(data.gameStatus||"").toLowerCase()==="ingame";

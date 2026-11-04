@@ -70,6 +70,11 @@ namespace FACM.League
             get { return _module == null ? null : _module.UnifiedRepair; }
         }
 
+        internal static LeagueLiveModule UnifiedLive
+        {
+            get { return _module == null ? null : _module.UnifiedLive; }
+        }
+
         internal static LeagueEfficiencyModule UnifiedEfficiency
         {
             get { return _module == null ? null : _module.UnifiedEfficiency; }

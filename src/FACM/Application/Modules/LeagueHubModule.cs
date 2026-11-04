@@ -64,6 +64,7 @@ namespace FACM.AppHost.Modules
         internal LeagueEfficiencyModule UnifiedEfficiency { get { return _efficiency; } }
         internal LeagueDashboardModule UnifiedDashboard { get { return _dashboard; } }
         internal LeagueGameRepairService UnifiedRepair { get { return _gameRepair.ServiceForSmokeTest; } }
+        internal LeagueLiveModule UnifiedLive { get { return _live; } }
 
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
