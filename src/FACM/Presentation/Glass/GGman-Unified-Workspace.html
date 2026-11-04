@@ -565,8 +565,33 @@ document.addEventListener("click",function(event){
   else if(action==="home"){post("home");}
   else if(action==="more")setMode("more");
 });
+// Keyboard navigation must not steal keys from Chinese IME composition or form editing.
+function navigateBack(){
+  if(mode==="more")setMode("home");
+  else if(mode==="home")post("close");
+  else post("back");
+}
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair"||mode==="live"||mode==="player")post("back");else post("close");}
+  if(event.isComposing||event.keyCode===229||event.defaultPrevented)return;
+  var target=event.target;
+  var editing=!!(target&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)));
+  if(event.key==="Escape"){
+    if(editing&&target.tagName==="INPUT"&&target.type==="search"&&target.value){
+      target.value="";filterToolCards();event.preventDefault();return;
+    }
+    event.preventDefault();navigateBack();return;
+  }
+  if(event.altKey&&!event.ctrlKey&&!event.metaKey&&event.key==="ArrowLeft"){
+    event.preventDefault();navigateBack();return;
+  }
+  if(event.ctrlKey&&!event.altKey&&!event.metaKey&&event.key==="Home"){
+    event.preventDefault();post("home");return;
+  }
+  if(!editing&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&event.key==="/"){
+    event.preventDefault();
+    if(mode!=="more")setMode("more");
+    get("toolSearch").focus();
+  }
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
