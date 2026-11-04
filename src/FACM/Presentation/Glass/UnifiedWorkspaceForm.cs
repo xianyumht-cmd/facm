@@ -732,7 +732,8 @@ namespace FACM.Presentation.Glass
         {
             if (IsDisposed) return;
             var area = Screen.FromControl(this).WorkingArea;
-            var size = UnifiedWorkspaceNavigation.ResolveClientSize(area, detail,
+            var size = UnifiedWorkspaceNavigation.ResolveClientSize(area,
+                detail ? _navigation.Current : string.Empty,
                 Math.Max(1F, DeviceDpi / 96F));
             var original = Location;
             MinimumSize = Size.Empty;

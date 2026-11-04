@@ -63,6 +63,25 @@ namespace FACM.Presentation.Glass
             return ResolveClientSize(workArea, detail, 1F);
         }
 
+        internal static Size ResolveClientSize(Rectangle workArea, string route, float dpiScale)
+        {
+            int width, height;
+            switch (route ?? string.Empty)
+            {
+                case "": width = 400; height = 360; break;
+                case "client-status": width = 460; height = 420; break;
+                case "appearance": width = 590; height = 650; break;
+                case "efficiency": width = 610; height = 640; break;
+                case "auto-selection": width = 580; height = 650; break;
+                case "matchmaking-settings": width = 620; height = 710; break;
+                default: width = 1000; height = 740; break;
+            }
+            var scale = Math.Max(1F, Math.Min(2.5F, dpiScale));
+            return new Size(
+                Math.Min((int)Math.Round(width * scale), Math.Max(260, workArea.Width - 24)),
+                Math.Min((int)Math.Round(height * scale), Math.Max(260, workArea.Height - 24)));
+        }
+
         internal static Size ResolveClientSize(Rectangle workArea, bool detail, float dpiScale)
         {
             // Preserve 400x360 logical-pixel home proportions across 100–200% DPI.
@@ -101,8 +120,14 @@ namespace FACM.Presentation.Glass
             var detail = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), true);
             var small = ResolveClientSize(new Rectangle(0, 0, 720, 580), true);
             var highDpiHome = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), false, 2F);
+            var appearance = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "appearance", 1F);
+            var queue = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "matchmaking-settings", 1F);
+            var tiny = ResolveClientSize(new Rectangle(0, 0, 720, 580), "auto-selection", 1.5F);
             if (normal != new Size(400, 360) || detail != new Size(1000, 740) ||
                 highDpiHome != new Size(800, 720) ||
+                appearance != new Size(590, 650) ||
+                queue != new Size(620, 710) ||
+                tiny.Width > 696 || tiny.Height > 556 ||
                 small.Width > 696 || small.Height > 556)
                 throw new InvalidOperationException("Unified shell size must clamp to the visible work area.");
         }
