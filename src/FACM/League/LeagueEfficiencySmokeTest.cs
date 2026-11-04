@@ -18,6 +18,8 @@ namespace FACM.League
             ValidateUiContract();
             ValidateScrollContract();
             ValidateReadableSettingRows();
+            Require(LeagueEfficiencyForm.RankedDisplayCoverageForSmokeTest(),
+                "Ranked choices must have localized presentation without changing saved API values.");
             LeaguePostGameAutomationSmokeTest.Validate();
         }
 

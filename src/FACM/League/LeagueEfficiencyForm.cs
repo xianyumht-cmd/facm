@@ -60,6 +60,27 @@ namespace FACM.League
         private readonly Label _invitationStatus;
         private bool _loading = true;
         private bool _loginSignatureDirty;
+        private static readonly Dictionary<string, string> RankedDisplayKeys =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "RANKED_SOLO_5x5", LeaguePresenceUiTextKeys.RankedQueueSolo },
+                { "RANKED_FLEX_SR", LeaguePresenceUiTextKeys.RankedQueueFlex },
+                { "CHERRY", LeaguePresenceUiTextKeys.RankedQueueArena },
+                { "RANKED_TFT", LeaguePresenceUiTextKeys.RankedQueueTft },
+                { "RANKED_TFT_TURBO", LeaguePresenceUiTextKeys.RankedQueueTftTurbo },
+                { "RANKED_TFT_DOUBLE_UP", LeaguePresenceUiTextKeys.RankedQueueTftDoubleUp },
+                { "RANKED_FLEX_TT", LeaguePresenceUiTextKeys.RankedQueueFlex3v3 },
+                { "IRON", LeaguePresenceUiTextKeys.RankedTierIron },
+                { "BRONZE", LeaguePresenceUiTextKeys.RankedTierBronze },
+                { "SILVER", LeaguePresenceUiTextKeys.RankedTierSilver },
+                { "GOLD", LeaguePresenceUiTextKeys.RankedTierGold },
+                { "PLATINUM", LeaguePresenceUiTextKeys.RankedTierPlatinum },
+                { "EMERALD", LeaguePresenceUiTextKeys.RankedTierEmerald },
+                { "DIAMOND", LeaguePresenceUiTextKeys.RankedTierDiamond },
+                { "MASTER", LeaguePresenceUiTextKeys.RankedTierMaster },
+                { "GRANDMASTER", LeaguePresenceUiTextKeys.RankedTierGrandmaster },
+                { "CHALLENGER", LeaguePresenceUiTextKeys.RankedTierChallenger }
+            };
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
         {
@@ -405,6 +426,8 @@ namespace FACM.League
             _loginRankTier = AddChoiceRow(root, 40, T(LeagueEfficiencyUiTextKeys.LoginRankTier),
                 T(LeagueEfficiencyUiTextKeys.LoginRankTierHint), LeaguePresenceService.RankedTiers.ToArray(),
                 RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier));
+            EnableLocalizedRankDisplay(_loginRankQueue);
+            EnableLocalizedRankDisplay(_loginRankTier);
             _loginRankDivision = AddChoiceRow(root, 41, T(LeagueEfficiencyUiTextKeys.LoginRankDivision),
                 T(LeagueEfficiencyUiTextKeys.LoginRankDivisionHint), LeaguePresenceService.RankedDivisions.ToArray(),
                 RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision));
@@ -465,6 +488,27 @@ namespace FACM.League
             _loading = false;
             UpdateMatchmakingControlStates();
             _ = LoadChampionCatalogAsync();
+        }
+
+        internal static bool RankedDisplayCoverageForSmokeTest()
+        {
+            return LeaguePresenceService.RankedQueues.All(value => RankedDisplayKeys.ContainsKey(value)) &&
+                LeaguePresenceService.RankedTiers.All(value => RankedDisplayKeys.ContainsKey(value));
+        }
+
+        private void EnableLocalizedRankDisplay(ComboBox combo)
+        {
+            combo.FormattingEnabled = true;
+            combo.Format += delegate(object sender, ListControlConvertEventArgs e)
+            {
+                var value = e.ListItem as string;
+                string key;
+                if (string.IsNullOrWhiteSpace(value) || !RankedDisplayKeys.TryGetValue(value, out key)) return;
+                var label = LeaguePresenceText.Get(_ui, key);
+                if (string.Equals(label, value, StringComparison.OrdinalIgnoreCase))
+                    LeaguePresenceText.DefaultsForSmokeTest().TryGetValue(key, out label);
+                if (!string.IsNullOrWhiteSpace(label)) e.Value = label;
+            };
         }
 
         private bool _reflowingSettingRows;
