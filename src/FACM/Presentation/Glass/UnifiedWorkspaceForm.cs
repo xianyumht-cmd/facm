@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -78,7 +79,8 @@ namespace FACM.Presentation.Glass
             };
             Controls.Add(_content);
             Controls.Add(_browser);
-            Shown += async delegate { await InitializeAsync(); };
+            Resize += delegate { ApplyRoundedRegion(); };
+            Shown += async delegate { ApplyRoundedRegion(); await InitializeAsync(); };
             FormClosing += HandleClosing;
             FormClosed += delegate
             {
@@ -338,13 +340,33 @@ namespace FACM.Presentation.Glass
         {
             if (IsDisposed) return;
             var area = Screen.FromControl(this).WorkingArea;
-            var size = UnifiedWorkspaceNavigation.ResolveClientSize(area, detail);
+            var size = UnifiedWorkspaceNavigation.ResolveClientSize(area, detail,
+                Math.Max(1F, DeviceDpi / 96F));
             var original = Location;
             MinimumSize = Size.Empty;
             ClientSize = size;
             Location = new Point(
                 Math.Max(area.Left + 2, Math.Min(original.X, area.Right - Width - 2)),
                 Math.Max(area.Top + 2, Math.Min(original.Y, area.Bottom - Height - 2)));
+        }
+
+        private void ApplyRoundedRegion()
+        {
+            if (Width < 30 || Height < 30 || IsDisposed) return;
+            var radius = Math.Max(8, (int)Math.Round((_navigation.IsHome ? 16 : 12) *
+                Math.Max(1F, DeviceDpi / 96F)));
+            var arc = Math.Min(radius * 2, Math.Min(Width, Height) / 2);
+            using (var path = new GraphicsPath())
+            {
+                path.AddArc(0, 0, arc, arc, 180, 90);
+                path.AddArc(Width - arc - 1, 0, arc, arc, 270, 90);
+                path.AddArc(Width - arc - 1, Height - arc - 1, arc, arc, 0, 90);
+                path.AddArc(0, Height - arc - 1, arc, arc, 90, 90);
+                path.CloseFigure();
+                var previous = Region;
+                Region = new Region(path);
+                if (previous != null) previous.Dispose();
+            }
         }
 
         private void SyncWebNavigation()

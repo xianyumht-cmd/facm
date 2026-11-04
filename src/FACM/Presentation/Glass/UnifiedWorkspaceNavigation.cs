@@ -55,13 +55,18 @@ namespace FACM.Presentation.Glass
 
         internal static Size ResolveClientSize(Rectangle workArea, bool detail)
         {
-            // The floating entry stays small; content pages expand and clamp to the
-            // actual monitor work area. The child view owns any remaining scrolling.
+            return ResolveClientSize(workArea, detail, 1F);
+        }
+
+        internal static Size ResolveClientSize(Rectangle workArea, bool detail, float dpiScale)
+        {
+            // Preserve 400x360 logical-pixel home proportions across 100–200% DPI.
+            var scale = Math.Max(1F, Math.Min(2.5F, dpiScale));
             var maxWidth = Math.Max(260, workArea.Width - 24);
             var maxHeight = Math.Max(260, workArea.Height - 24);
-            return detail
-                ? new Size(Math.Min(1000, maxWidth), Math.Min(740, maxHeight))
-                : new Size(Math.Min(400, maxWidth), Math.Min(360, maxHeight));
+            return new Size(
+                Math.Min((int)Math.Round((detail ? 1000 : 400) * scale), maxWidth),
+                Math.Min((int)Math.Round((detail ? 740 : 360) * scale), maxHeight));
         }
 
         internal static void ValidateForSmokeTest()
@@ -85,7 +90,9 @@ namespace FACM.Presentation.Glass
             var normal = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), false);
             var detail = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), true);
             var small = ResolveClientSize(new Rectangle(0, 0, 720, 580), true);
+            var highDpiHome = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), false, 2F);
             if (normal != new Size(400, 360) || detail != new Size(1000, 740) ||
+                highDpiHome != new Size(800, 720) ||
                 small.Width > 696 || small.Height > 556)
                 throw new InvalidOperationException("Unified shell size must clamp to the visible work area.");
         }
