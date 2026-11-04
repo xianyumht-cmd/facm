@@ -534,12 +534,12 @@ namespace FACM.Presentation.Glass
                     {
                         gameId = match.GameId,
                         played = match.GameCreationLocal.ToString("yyyy-MM-dd HH:mm"),
-                        champion = string.IsNullOrWhiteSpace(match.ChampionName)
-                            ? "英雄 #" + match.ChampionId : match.ChampionName,
+                        champion = match.ChampionName,
+                        championId = match.ChampionId,
                         mode = match.GameMode,
                         queueId = match.QueueId,
                         outcome = match.StatisticsAvailable
-                            ? (match.Win ? "胜利" : "失败") : "结果待补全",
+                            ? (match.Win ? "win" : "loss") : "unknown",
                         kills = match.Kills,
                         deaths = match.Deaths,
                         assists = match.Assists,

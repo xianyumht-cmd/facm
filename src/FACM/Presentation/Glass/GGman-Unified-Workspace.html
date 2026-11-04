@@ -695,17 +695,17 @@ function renderHistory(data){
   var list=get("historyList");list.replaceChildren();
   var rows=Array.isArray(data.rows)?data.rows:[];
   rows.slice(0,20).forEach(function(match){
-    var card=document.createElement("div");card.className="history-match"+(match.outcome==="胜利"?" win":"");
+    var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
-    var champ=document.createElement("strong");champ.textContent=String(match.champion||"英雄未确认");
-    var outcome=document.createElement("span");outcome.textContent=String(match.outcome||"结果待补全");
+    var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
+    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",unknown:"结果待补全"}[match.outcome]||"结果待补全");
     top.append(champ,outcome);
     var meta=document.createElement("small");
     var duration=Number(match.duration)||0;
     meta.textContent=[match.played,match.mode||"队列 "+match.queueId,
       duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
     var score=document.createElement("small");
-    score.textContent=match.outcome==="结果待补全"?"对局数据待补全":
+    score.textContent=match.outcome==="unknown"?"对局数据待补全":
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
     card.append(top,meta,score);list.appendChild(card);
   });
