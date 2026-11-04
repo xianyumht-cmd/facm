@@ -195,6 +195,14 @@ function renderThemes(data){
     var caption=document.createElement("small");caption.textContent=String(item.description||"");
     text.append(title,caption);button.append(swatch,text);container.appendChild(button);
   });
+  var current=(Array.isArray(data.items)?data.items:[]).find(function(item){return item.id===data.selected;});
+  if(current){
+    var css=document.documentElement.style;
+    [["--canvas",current.background],["--card",current.surface],["--card2",current.surfaceRaised],
+     ["--text",current.text],["--muted",current.muted],["--accent",current.accent],["--line",current.border]]
+      .forEach(function(pair){if(pair[1])css.setProperty(pair[0],String(pair[1]));});
+    document.documentElement.style.colorScheme=current.light?"light":"dark";
+  }
   if(data.selected){document.getElementById("themeResult").textContent="当前主题已保存";}
 }
 document.getElementById("dragHandle").addEventListener("mousedown",function(e){

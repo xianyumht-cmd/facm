@@ -388,7 +388,14 @@ namespace FACM.Presentation.Glass
                 items = ThemeCatalog.All.Select(theme => new
                 {
                     id = theme.Id, name = theme.Name, description = theme.Description,
-                    accent = ColorTranslator.ToHtml(theme.Accent)
+                    accent = ColorTranslator.ToHtml(theme.Accent),
+                    background = ColorTranslator.ToHtml(theme.Background),
+                    surface = ColorTranslator.ToHtml(theme.Surface),
+                    surfaceRaised = ColorTranslator.ToHtml(theme.SurfaceSecondary),
+                    text = ColorTranslator.ToHtml(theme.TextPrimary),
+                    muted = ColorTranslator.ToHtml(theme.TextMuted),
+                    border = ColorTranslator.ToHtml(theme.Border),
+                    light = theme.IsLight
                 }).ToArray()
             });
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
