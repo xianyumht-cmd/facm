@@ -247,6 +247,10 @@ namespace FACM.League
                     LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked", null, false)
                         .SequenceEqual(new[] { 22 }),
                     "Source positive metadata must be accepted and exclusions enforced.");
+                Require(LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "missing", null, true).Count == 0 &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked",
+                        "FUTURE_REGION_999", true).Count == 0,
+                    "Untrusted or revoked source group must not preserve positive pick candidates.");
                 Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(
                     positiveMetadata.Replace("2026-08-05", "2026-08-06")
                         .Replace(@"""additionalPicks"":[22]", @"""additionalPicks"":[0]"))),
