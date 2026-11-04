@@ -37,6 +37,7 @@ namespace FACM
         private CompactLivePilotController _compactPilot;
         private UnifiedWorkspaceForm _unifiedWorkspace;
         private bool _unifiedWorkspaceEnabled;
+        private LeagueDashboardPhaseState _lastUnifiedGameflowState;
 #endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
@@ -194,6 +195,7 @@ namespace FACM
                 if (!_unifiedWorkspace.Visible) _unifiedWorkspace.Show();
                 _unifiedWorkspace.BringToFront();
                 _unifiedWorkspace.Activate();
+                _unifiedWorkspace.UpdateGameflowState(_lastUnifiedGameflowState);
                 return;
             }
             _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui, _settings, _cleanup);
@@ -205,6 +207,7 @@ namespace FACM
             _unifiedWorkspace.FormClosed += delegate { _unifiedWorkspace = null; };
             PositionMenu(_unifiedWorkspace);
             _unifiedWorkspace.Show();
+            _unifiedWorkspace.UpdateGameflowState(_lastUnifiedGameflowState);
             _unifiedWorkspace.Activate();
         }
 
@@ -279,6 +282,7 @@ namespace FACM
             }
 
 #if GLASS_WORKBENCH_PREVIEW
+            _lastUnifiedGameflowState = state;
             if (_compactPilot != null) _compactPilot.ObserveGameflowState(state);
             if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
                 _unifiedWorkspace.UpdateGameflowState(state);

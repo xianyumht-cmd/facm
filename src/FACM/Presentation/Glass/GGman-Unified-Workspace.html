@@ -173,7 +173,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
     document.getElementById("clientConnection").textContent=e.data.connected?"LOL · 已连接":"LOL · 未连接";
     document.getElementById("clientPhase").textContent=e.data.connected?
-      ("当前阶段 · "+String(e.data.phase||"未知")):"请先启动英雄联盟客户端";
+      ("当前阶段 · "+phaseLabel(e.data.phase)):"请先启动英雄联盟客户端";
     return;
   }
   if(value==="home"||value==="more")setMode(value);
@@ -181,6 +181,10 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:efficiency")setMode("quicktools","efficiency");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function phaseLabel(phase){
+  var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
+  return labels[String(phase||"")]||"已连接";
+}
 function renderThemes(data){
   var container=document.getElementById("themeList");container.replaceChildren();
   (Array.isArray(data.items)?data.items:[]).forEach(function(item){
