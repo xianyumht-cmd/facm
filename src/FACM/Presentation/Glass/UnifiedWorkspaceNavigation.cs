@@ -24,6 +24,7 @@ namespace FACM.Presentation.Glass
                 string.Equals(route, "efficiency-advanced", StringComparison.Ordinal) ||
                 string.Equals(route, "matchmaking-settings", StringComparison.Ordinal) ||
                 string.Equals(route, "auto-selection", StringComparison.Ordinal) ||
+                string.Equals(route, "postgame-settings", StringComparison.Ordinal) ||
                 string.Equals(route, "dashboard-advanced", StringComparison.Ordinal) ||
                 LeagueHubNavigation.Views.Any(item =>
                     string.Equals(item.Id, route, StringComparison.Ordinal));
@@ -74,6 +75,8 @@ namespace FACM.Presentation.Glass
                 case "appearance": width = 590; height = 650; break;
                 case "efficiency": width = 610; height = 640; break;
                 case "auto-selection": width = 580; height = 650; break;
+                case "postgame-settings": width = 550; height = 590; break;
+                case "dashboard": width = 640; height = 660; break;
                 case "matchmaking-settings": width = 620; height = 710; break;
                 default: width = 1000; height = 740; break;
             }
@@ -113,6 +116,7 @@ namespace FACM.Presentation.Glass
                 !router.IsHome || !router.Open("efficiency-advanced") || !router.Back() ||
                 !router.Open("matchmaking-settings") || !router.Back() ||
                 !router.Open("auto-selection") || !router.Back() ||
+                !router.Open("postgame-settings") || !router.Back() ||
                 !router.Open("dashboard-advanced") || !router.Back())
                 throw new InvalidOperationException("Unified shell cleanup navigation did not return home.");
             for (var index = 0; index < 100; index++) router.Open(routes[index % routes.Length]);

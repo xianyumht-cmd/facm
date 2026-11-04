@@ -19,6 +19,12 @@ namespace FACM.Presentation.Glass
         internal int PickId, BanId;
     }
 
+    internal sealed class UnifiedPostgameChange
+    {
+        internal bool AutoHonor, AutoReturn;
+        internal string Strategy;
+    }
+
     // Accept only documented, bounded settings: no generic JavaScript-to-native setter.
     internal static class UnifiedWorkspaceSettingsContract
     {
@@ -54,6 +60,30 @@ namespace FACM.Presentation.Glass
                     AcceptDelayMs = acceptDelay, StopAfterMs = stopAfter,
                     StopPolicy = stop
                 };
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+            catch (InvalidCastException) { return false; }
+        }
+
+        internal static bool TryParsePostgame(string json, out UnifiedPostgameChange result)
+        {
+            result = null;
+            if (string.IsNullOrWhiteSpace(json) || json.Length > 1024) return false;
+            try
+            {
+                var fields = new JavaScriptSerializer { MaxJsonLength = 1024 }
+                    .Deserialize<Dictionary<string, object>>(json);
+                if (fields == null || fields.Count != 3) return false;
+                bool honor, returnLobby;
+                string strategy;
+                if (!Bool(fields, "autoHonor", out honor) ||
+                    !Bool(fields, "autoReturn", out returnLobby) ||
+                    !String(fields, "strategy", out strategy) ||
+                    Array.IndexOf(LeagueHonorStrategy.Choices, strategy) < 0) return false;
+                result = new UnifiedPostgameChange
+                { AutoHonor = honor, AutoReturn = returnLobby, Strategy = strategy };
                 return true;
             }
             catch (ArgumentException) { return false; }
@@ -115,6 +145,13 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            UnifiedPostgameChange postgame;
+            var validPostgame = "{\"autoHonor\":true,\"autoReturn\":false,\"strategy\":\"" +
+                LeagueHonorStrategy.Choices[0] + "\"}";
+            if (!TryParsePostgame(validPostgame, out postgame) || !postgame.AutoHonor ||
+                TryParsePostgame(validPostgame.Replace(LeagueHonorStrategy.Choices[0], "invalid-policy"), out postgame) ||
+                TryParsePostgame(validPostgame.Replace("\"autoReturn\":false", "\"autoReturn\":\"false\""), out postgame))
+                throw new InvalidOperationException("Postgame bridge must preserve source honor strategy and typed settings.");
             UnifiedAutoSelectionChange selection;
             if (!TryParseAutoSelection("{\"autoPick\":true,\"autoBan\":false,\"pickId\":22,\"banId\":0}", out selection) ||
                 selection.PickId != 22 || selection.AutoBan ||

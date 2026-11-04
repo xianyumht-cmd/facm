@@ -190,6 +190,11 @@ namespace FACM.Presentation.Glass
                     StartDashboardRead();
                 return;
             }
+            if (message != null && message.StartsWith("save-postgame:", StringComparison.Ordinal))
+            {
+                ApplyPostgameSettings(message.Substring(14));
+                return;
+            }
             if (message != null && message.StartsWith("save-selection:", StringComparison.Ordinal))
             {
                 ApplyAutoSelection(message.Substring(15));
@@ -248,6 +253,11 @@ namespace FACM.Presentation.Glass
             if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
             {
                 OpenDashboardPage(pushHistory);
+                return;
+            }
+            if (string.Equals(route, "postgame-settings", StringComparison.Ordinal))
+            {
+                OpenPostgameSettings(pushHistory);
                 return;
             }
             if (string.Equals(route, "auto-selection", StringComparison.Ordinal))
@@ -405,6 +415,73 @@ namespace FACM.Presentation.Glass
             var previous = _dashboardReadCancellation;
             _dashboardReadCancellation = null;
             if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
+        }
+
+        private void OpenPostgameSettings(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open("postgame-settings");
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncPostgameSettings();
+        }
+
+        private void SyncPostgameSettings()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            var textKeys = new[]
+            {
+                LeagueEfficiencyUiTextKeys.HonorPreferParty,
+                LeagueEfficiencyUiTextKeys.HonorOnlyParty,
+                LeagueEfficiencyUiTextKeys.HonorAnyAlly,
+                LeagueEfficiencyUiTextKeys.HonorOptOut,
+                LeagueEfficiencyUiTextKeys.HonorIncludingOpponent
+            };
+            var payload = new JavaScriptSerializer().Serialize(new
+            {
+                type = "postgame-settings",
+                autoHonor = module.AutoHonorEnabled, autoReturn = module.AutoReturnLobbyEnabled,
+                strategy = module.AutoHonorStrategy,
+                strategies = LeagueHonorStrategy.Choices.Select((value, index) => new
+                {
+                    value, label = LeagueEfficiencyText.Get(_ui, textKeys[Math.Min(index, textKeys.Length - 1)])
+                }).ToArray()
+            });
+            _browser.CoreWebView2.PostWebMessageAsJson(payload);
+        }
+
+        private void ApplyPostgameSettings(string json)
+        {
+            if (!string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal)) return;
+            UnifiedPostgameChange input;
+            if (!UnifiedWorkspaceSettingsContract.TryParsePostgame(json, out input))
+            {
+                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.SaveFailed));
+                return;
+            }
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            try
+            {
+                module.UpdatePostGameSettings(input.AutoHonor, input.AutoReturn, input.Strategy);
+                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.PostGameSaved));
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Unified postgame save failed", exception);
+                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.SaveFailed));
+            }
+        }
+
+        private void SendPostgameResult(string message)
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            { type = "postgame-result", message }));
         }
 
         private void OpenAutoSelection(bool pushHistory)
@@ -931,6 +1008,8 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-route=\"efficiency-advanced\"") ||
                 !html.Contains("id=\"saveMatchmaking\"") ||
                 !html.Contains("id=\"saveAutoSelection\"") ||
+                !html.Contains("id=\"savePostgame\"") ||
+                !html.Contains("data-route=\"postgame-settings\"") ||
                 !html.Contains("data-route=\"auto-selection\"") ||
                 !html.Contains("id=\"refreshDashboard\"") ||
                 !html.Contains("data-route=\"dashboard-advanced\"") ||
