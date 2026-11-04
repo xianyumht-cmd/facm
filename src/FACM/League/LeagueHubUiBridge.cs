@@ -60,6 +60,11 @@ namespace FACM.League
             }
         }
 
+        internal static LeagueEfficiencyModule UnifiedEfficiency
+        {
+            get { return _module == null ? null : _module.UnifiedEfficiency; }
+        }
+
         internal static LeagueHubForm CreateUnifiedEmbeddedForm(UiTextCatalog ui)
         {
             if (_module == null || ui == null) return null;

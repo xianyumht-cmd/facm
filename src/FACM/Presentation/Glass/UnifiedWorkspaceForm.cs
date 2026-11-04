@@ -142,6 +142,8 @@ namespace FACM.Presentation.Glass
                     SyncGameflowState();
                     if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
                         SyncThemeOptions();
+                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
+                        SyncQuickSettings();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -171,6 +173,11 @@ namespace FACM.Presentation.Glass
                 if (WindowState != FormWindowState.Normal) return;
                 ReleaseCapture();
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
+                return;
+            }
+            if (message != null && message.StartsWith("toggle:", StringComparison.Ordinal))
+            {
+                ApplyQuickSetting(message.Substring(7));
                 return;
             }
             if (message != null && message.StartsWith("theme:", StringComparison.Ordinal))
@@ -206,6 +213,11 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (string.Equals(route, "efficiency", StringComparison.Ordinal))
+            {
+                OpenQuickTools(pushHistory);
+                return;
+            }
             if (string.Equals(route, "appearance", StringComparison.Ordinal))
             {
                 OpenAppearance(pushHistory);
@@ -221,7 +233,8 @@ namespace FACM.Presentation.Glass
             {
                 _hub = LeagueHubUiBridge.CreateUnifiedEmbeddedForm(_ui);
                 if (_hub == null) return;
-                _hub.SetInitialView(route);
+                _hub.SetInitialView(string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
+                    ? LeagueHubNavigation.Efficiency : route);
                 _hub.UseUnifiedWorkspaceHost();
                 _hub.TopLevel = false;
                 _hub.FormBorderStyle = FormBorderStyle.None;
@@ -245,7 +258,9 @@ namespace FACM.Presentation.Glass
                     }
                 };
             }
-            else if (!_hub.NavigateInUnifiedWorkspace(route))
+            else if (!_hub.NavigateInUnifiedWorkspace(
+                string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
+                    ? LeagueHubNavigation.Efficiency : route))
             {
                 // Unsaved settings editor explicitly declined navigation.
                 SyncWebNavigation();
@@ -259,6 +274,74 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             _hub.Show();
             SyncWebNavigation();
+        }
+
+        private void OpenQuickTools(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open(LeagueHubNavigation.Efficiency);
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncQuickSettings();
+        }
+
+        private void ApplyQuickSetting(string request)
+        {
+            if (!string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal)) return;
+            var divider = request.LastIndexOf(':');
+            if (divider < 0) return;
+            var key = request.Substring(0, divider);
+            var value = request.Substring(divider + 1);
+            if (value != "true" && value != "false") return;
+            var enabled = value == "true";
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            try
+            {
+                if (key == "autoSearch" || key == "autoAccept")
+                    module.UpdateMatchmakingSettings(
+                        key == "autoSearch" ? enabled : module.AutoMatchmakingEnabled,
+                        key == "autoAccept" ? enabled : module.AutoAcceptEnabled,
+                        module.AutoMatchmakingMinPartySize, module.AutoMatchmakingStartDelayMs,
+                        module.AutoAcceptDelayMs, module.AutoMatchmakingStopPolicy,
+                        module.AutoMatchmakingStopAfterMs, module.AutoMatchmakingWaitForInvitees,
+                        module.AutoMatchmakingRoomNotices);
+                else if (key == "autoReconnect") module.UpdateReconnectSetting(enabled);
+                else if (key == "autoHonor" || key == "autoReturn")
+                    module.UpdatePostGameSettings(key == "autoHonor" ? enabled : module.AutoHonorEnabled,
+                        key == "autoReturn" ? enabled : module.AutoReturnLobbyEnabled,
+                        module.AutoHonorStrategy);
+                else return;
+                SyncQuickSettings();
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Unified workspace quick setting update failed", exception);
+                if (_ready && _browser.CoreWebView2 != null)
+                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"tool-error\"}");
+            }
+        }
+
+        private void SyncQuickSettings()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            var payload = new JavaScriptSerializer().Serialize(new
+            {
+                type = "quick-tools",
+                values = new
+                {
+                    autoSearch = module.AutoMatchmakingEnabled,
+                    autoAccept = module.AutoAcceptEnabled,
+                    autoReconnect = module.AutoReconnectEnabled,
+                    autoHonor = module.AutoHonorEnabled,
+                    autoReturn = module.AutoReturnLobbyEnabled
+                }
+            });
+            _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
         private void OpenAppearance(bool pushHistory)
@@ -489,6 +572,7 @@ namespace FACM.Presentation.Glass
                     throw new InvalidOperationException("Unified workspace HTML lost a native route.");
             }
             if (!html.Contains("data-route=\"cleanup\"") ||
+                !html.Contains("data-setting=\"autoAccept\"") ||
                 !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||
                 !html.Contains("data-action=\"close\""))
                 throw new InvalidOperationException("Unified workspace HTML lost back/home/close navigation.");

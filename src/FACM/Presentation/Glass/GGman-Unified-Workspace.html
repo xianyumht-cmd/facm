@@ -27,6 +27,15 @@ main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263
 #appearance{display:none;padding:4px 2px}
 #appearance h2{font-size:18px;margin:10px 0 6px}
 #appearance p{color:var(--muted);font-size:12px;line-height:1.8;margin:0 0 15px}
+.tools{display:grid;gap:10px;margin-top:10px}.tool-row{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:14px;background:var(--card);border-radius:11px}
+.tool-row strong{font-size:14px}.tool-row small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:5px}
+.toggle{min-width:52px;height:30px;border-radius:17px;background:#2a4360;flex-shrink:0;position:relative}
+.toggle:after{content:"";position:absolute;top:5px;left:5px;width:20px;height:20px;background:white;border-radius:50%;transition:transform .15s ease}
+.toggle[aria-pressed="true"]{background:var(--accent)}.toggle[aria-pressed="true"]:after{transform:translateX(22px)}
+#quicktools{display:none;padding:4px 2px}#quicktools h2{font-size:18px;margin:10px 0 6px}#quicktools p{color:var(--muted);font-size:12px;line-height:1.7}
+body[data-mode="quicktools"] #shell{padding:9px 13px;gap:6px}body[data-mode="quicktools"] #home,body[data-mode="quicktools"] #other{display:none!important}
+body[data-mode="quicktools"] #detail{display:flex}body[data-mode="quicktools"] .brand-icon,body[data-mode="quicktools"] .brand-text{display:none}
+body[data-mode="quicktools"] .header{height:40px}body[data-mode="quicktools"] #quicktools,body[data-mode="quicktools"] main{display:block;overflow-y:auto}
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-bottom:8px}
 .theme-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;min-height:110px;display:flex;align-items:flex-start;gap:10px}
 .theme-card:hover{background:var(--card2)}.theme-card.selected{border-color:var(--accent)}
@@ -78,6 +87,18 @@ body[data-mode="detail"] .close{font-size:18px}
       <button data-action="more">更多功能</button>
     </div>
   </section>
+  <section id="quicktools">
+    <h2>快捷工具</h2><p>开关实时保存到现有 GGman 设置，继续由原生游戏流程控制器执行操作。</p>
+    <div class="tools" id="quickSettings">
+      <div class="tool-row"><span><strong>自动开始排队</strong><small>符合组队条件时自动寻找对局</small></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
+      <div class="tool-row"><span><strong>自动接受对局</strong><small>匹配成功时自动接受一次</small></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
+      <div class="tool-row"><span><strong>断线自动重连</strong><small>仅在可确认重连状态后执行</small></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
+      <div class="tool-row"><span><strong>赛后自动点赞</strong><small>延续已保存的点赞优先级</small></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
+      <div class="tool-row"><span><strong>赛后返回大厅</strong><small>结束点赞流程后再返回</small></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
+    </div>
+    <p id="toolResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-route="efficiency-advanced">查看其他高级选项</button></div>
+  </section>
   <section id="appearance">
     <h2>外观与主题</h2><p>选择喜欢的配色，点击即应用并保存。所有设置仍由 GGman 本地管理。</p>
     <div class="themes" id="themeList" aria-label="可选择的主题"></div>
@@ -100,11 +121,11 @@ body[data-mode="detail"] .close{font-size:18px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","efficiency-advanced":"高级工具设置"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="appearance"?"appearance":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -114,6 +135,13 @@ document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
   if(target.dataset.theme){post("theme:"+target.dataset.theme);return;}
+  if(target.dataset.setting){
+    if(target.disabled)return;
+    var enabled=target.getAttribute("aria-pressed")==="true";
+    target.disabled=true;
+    post("toggle:"+target.dataset.setting+":"+(!enabled?"true":"false"));
+    return;
+  }
   if(target.dataset.route&&titles[target.dataset.route]){post("open:"+target.dataset.route);return;}
   var action=target.dataset.action;
   if(action==="close")post("close");
@@ -122,10 +150,22 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-tools"){
+    Object.keys(e.data.values||{}).forEach(function(key){
+      var button=document.querySelector("[data-setting=\""+key+"\"]");
+      if(button){button.setAttribute("aria-pressed",e.data.values[key]?"true":"false");button.disabled=false;}
+    });
+    document.getElementById("toolResult").textContent=e.data.message||"";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="tool-error"){
+    document.querySelectorAll("[data-setting]").forEach(function(button){button.disabled=false;});
+    document.getElementById("toolResult").textContent="保存失败，请检查程序日志";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="themes"){renderThemes(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="theme-error"){
     document.getElementById("themeResult").textContent="保存主题失败，请查看程序日志";return;
@@ -138,6 +178,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(value==="home"||value==="more")setMode(value);
   else if(value==="detail:appearance")setMode("appearance","appearance");
+  else if(value==="detail:efficiency")setMode("quicktools","efficiency");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
 function renderThemes(data){
