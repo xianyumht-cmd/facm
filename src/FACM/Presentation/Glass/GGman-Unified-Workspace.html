@@ -301,6 +301,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
 #other [hidden]{display:none!important}
 #searchMessage{font-size:11px;color:var(--muted);min-height:16px;margin-top:8px}
 
+.history-filter{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 10px}.history-filter button{min-height:34px;padding:6px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text)}.history-filter button[aria-pressed="true"]{border-color:var(--accent);background:var(--card2);color:var(--accent)}
 </style>
 </head>
 <body data-mode="home">
@@ -385,6 +386,11 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     <p>当前登录账号的近期战绩，按需从现有 LCU/SGP 历史服务读取，换号时会取消并丢弃旧结果。</p>
     <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
     <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
+    <div class="history-filter" role="group" aria-label="筛选已读取战绩">
+      <button type="button" data-history-filter="all" aria-pressed="true">全部</button>
+      <button type="button" data-history-filter="win" aria-pressed="false">胜利</button>
+      <button type="button" data-history-filter="loss" aria-pressed="false">失败</button>
+    </div>
     <div class="history-list" id="historyList" aria-label="近期对局"></div>
     <div class="save-row">
       <button data-action="history-refresh" id="historyRefresh">刷新近期战绩</button>
@@ -711,15 +717,21 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:player")setMode("player","player");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
-function renderHistory(data){
-  get("historyRefresh").disabled=false;
-  get("historyMore").disabled=!data.hasMore;
-  get("historyMore").hidden=!data.hasMore;
-  get("historyAccount").textContent=data.name||"当前召唤师";
-  get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
+var historyRows=[];
+var historyFilter="all";
+document.querySelectorAll("[data-history-filter]").forEach(function(button){
+  button.addEventListener("click",function(){
+    historyFilter=button.dataset.historyFilter;
+    document.querySelectorAll("[data-history-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item===button?"true":"false");
+    });
+    drawHistoryRows();
+  });
+});
+function drawHistoryRows(){
   var list=get("historyList");list.replaceChildren();
-  var rows=Array.isArray(data.rows)?data.rows:[];
-  rows.slice(0,20).forEach(function(match){
+  var rows=historyRows.filter(function(match){return historyFilter==="all"||match.outcome===historyFilter;});
+  rows.forEach(function(match){
     var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
     var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
@@ -734,7 +746,23 @@ function renderHistory(data){
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
     card.append(top,meta,score);list.appendChild(card);
   });
-  get("historyResult").textContent=rows.length?"已读取 "+rows.length+" 场近期对局":"当前账号暂无可读取的历史对局";
+  var wins=historyRows.filter(function(match){return match.outcome==="win";}).length;
+  var losses=historyRows.filter(function(match){return match.outcome==="loss";}).length;
+  var decided=wins+losses;
+  get("historyResult").textContent=historyRows.length?
+    "已读取 "+historyRows.length+" 场 · 胜 "+wins+" / 负 "+losses+
+    (decided?" · 胜率 "+Math.round(wins*100/decided)+"%":"")+
+    (historyFilter==="all"?"":" · 当前筛选 "+rows.length+" 场"):
+    "当前账号暂无可读取的历史对局";
+}
+function renderHistory(data){
+  get("historyRefresh").disabled=false;
+  get("historyMore").disabled=!data.hasMore;
+  get("historyMore").hidden=!data.hasMore;
+  get("historyAccount").textContent=data.name||"当前召唤师";
+  get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
+  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
+  drawHistoryRows();
 }
 function renderLive(data){
   get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
