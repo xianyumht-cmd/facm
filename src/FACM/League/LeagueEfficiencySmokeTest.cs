@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateProcessActions();
             ValidateUiContract();
             ValidateScrollContract();
+            ValidateReadableSettingRows();
             LeaguePostGameAutomationSmokeTest.Validate();
         }
 
@@ -171,6 +172,14 @@ namespace FACM.League
                 Require(pair.Key.IndexOf("Credential", StringComparison.OrdinalIgnoreCase) < 0,
                     "Abandoned credential UI key must not ship.");
             }
+        }
+
+        private static void ValidateReadableSettingRows()
+        {
+            Require(LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(35, 18) >= 82 &&
+                LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(35, 42) >= 107 &&
+                LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(27, 58) >= 115,
+                "Settings rows must grow to contain wrapped descriptions instead of clipping text.");
         }
 
         private static void ValidateScrollContract()

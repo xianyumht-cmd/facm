@@ -452,10 +452,106 @@ namespace FACM.League
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;
+            InstallSectionJump(root);
             Controls.Add(root);
+            root.SizeChanged += delegate { if (Visible) ReflowSettingRows(root); };
+            Shown += delegate { BeginInvoke(new Action(delegate { ReflowSettingRows(root); })); };
             _loading = false;
             UpdateMatchmakingControlStates();
             _ = LoadChampionCatalogAsync();
+        }
+
+        private bool _reflowingSettingRows;
+
+        private void InstallSectionJump(TableLayoutPanel root)
+        {
+            var sections = root.Controls.Cast<Control>()
+                .Select(control => new
+                {
+                    Control = control,
+                    Label = control as Label ?? (control as TableLayoutPanel)?.Controls
+                        .OfType<Label>().FirstOrDefault(label => label.Font.Bold && label.Font.Size >= 10.5F)
+                })
+                .Where(item => item.Label != null && item.Label.Font.Bold &&
+                    item.Label.Font.Size >= 10.5F && item.Label.Font.Size < 15F &&
+                    root.GetPositionFromControl(item.Control).Row >= 2)
+                .OrderBy(item => root.GetPositionFromControl(item.Control).Row)
+                .ToArray();
+            var jump = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Margin = Padding.Empty, BackColor = Color.Transparent
+            };
+            jump.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            jump.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 214F));
+            root.Controls.Remove(_help);
+            jump.Controls.Add(_help, 0, 0);
+            var selector = new ComboBox
+            {
+                Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.Title),
+                Margin = new Padding(5, 10, 2, 10)
+            };
+            foreach (var section in sections) selector.Items.Add(section.Label.Text);
+            selector.SelectedIndexChanged += delegate
+            {
+                if (selector.SelectedIndex >= 0 && selector.SelectedIndex < sections.Length)
+                    root.ScrollControlIntoView(sections[selector.SelectedIndex].Control);
+            };
+            if (selector.Items.Count > 0) selector.SelectedIndex = 0;
+            jump.Controls.Add(selector, 1, 0);
+            root.Controls.Add(jump, 0, 1);
+        }
+
+        internal static int RequiredSettingRowHeightForSmokeTest(int titleHeight, int hintHeight)
+        {
+            return Math.Max(82, Math.Max(0, titleHeight) + Math.Max(0, hintHeight) + 30);
+        }
+
+        private static Label FindSettingHint(Control control)
+        {
+            if (control == null) return null;
+            var label = control as Label;
+            if (label != null && string.Equals(label.Tag as string, "ggman-setting-hint", StringComparison.Ordinal))
+                return label;
+            foreach (Control child in control.Controls)
+            {
+                var result = FindSettingHint(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        private void ReflowSettingRows(TableLayoutPanel root)
+        {
+            if (_reflowingSettingRows || root.IsDisposed || root.ClientSize.Width < 200) return;
+            _reflowingSettingRows = true;
+            try
+            {
+                root.SuspendLayout();
+                for (var row = 0; row < root.RowStyles.Count; row++)
+                {
+                    if (root.RowStyles[row].SizeType != SizeType.Absolute) continue;
+                    var control = root.GetControlFromPosition(0, row);
+                    var hint = FindSettingHint(control);
+                    if (hint == null || string.IsNullOrWhiteSpace(hint.Text)) continue;
+                    var hintWidth = Math.Max(100, hint.Width > 20 ? hint.Width :
+                        root.ClientSize.Width - root.Padding.Horizontal - 370);
+                    var size = TextRenderer.MeasureText(hint.Text, hint.Font,
+                        new Size(hintWidth, 4096), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+                    var table = hint.Parent as TableLayoutPanel;
+                    var titleHeight = table != null && table.RowStyles.Count > 0
+                        ? (int)Math.Ceiling(table.RowStyles[0].Height) : 35;
+                    root.RowStyles[row].Height = RequiredSettingRowHeightForSmokeTest(titleHeight, size.Height);
+                }
+                LeagueSoftGlassSkin.ConfigureEfficiencyScrollSurfaceForSmokeTest(root);
+            }
+            finally
+            {
+                root.ResumeLayout(true);
+                _reflowingSettingRows = false;
+            }
         }
 
         private Control CreatePostGameHeader()
@@ -527,7 +623,8 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 9F),
                 TextAlign = ContentAlignment.MiddleLeft,
-                AutoEllipsis = true
+                AutoEllipsis = false,
+                Tag = "ggman-setting-hint"
             };
             copy.Controls.Add(heading, 0, 0);
             copy.Controls.Add(description, 0, 1);
@@ -623,6 +720,8 @@ namespace FACM.League
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
             };
+            description.AutoEllipsis = false;
+            description.Tag = "ggman-setting-hint";
             panel.Controls.Add(description, 0, 1);
             WireHelp(description, hint);
             WireHelp(panel, hint);
