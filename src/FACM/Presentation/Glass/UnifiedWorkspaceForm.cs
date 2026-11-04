@@ -153,6 +153,15 @@ namespace FACM.Presentation.Glass
                         SyncQuickSettings();
                     if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
                         SyncMatchmakingSettings();
+                    if (string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal))
+                        SyncPostgameSettings();
+                    if (string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal))
+                    {
+                        SyncAutoSelection();
+                        StartAutoSelectionCatalog();
+                    }
+                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
+                        StartDashboardRead();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -350,7 +359,7 @@ namespace FACM.Presentation.Glass
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
-            StartDashboardRead();
+            if (_ready) StartDashboardRead();
         }
 
         private void StartDashboardRead()
@@ -493,7 +502,13 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             SyncWebNavigation();
             SyncAutoSelection();
+            StartAutoSelectionCatalog();
+        }
+
+        private void StartAutoSelectionCatalog()
+        {
             CancelChampionCatalog();
+            if (!_ready || IsDisposed) return;
             var module = LeagueHubUiBridge.UnifiedEfficiency;
             if (module == null) return;
             var cancellation = new CancellationTokenSource();
@@ -987,6 +1002,7 @@ namespace FACM.Presentation.Glass
         internal static void ValidateForSmokeTest()
         {
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
+            UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
             foreach (var view in LeagueHubNavigation.Views)
             {
@@ -1010,6 +1026,8 @@ namespace FACM.Presentation.Glass
                 !html.Contains("id=\"saveAutoSelection\"") ||
                 !html.Contains("id=\"savePostgame\"") ||
                 !html.Contains("data-route=\"postgame-settings\"") ||
+                !html.Contains("data-route=\"matchmaking-settings\"") ||
+                !html.Contains("data-route=\"dashboard-advanced\"") ||
                 !html.Contains("data-route=\"auto-selection\"") ||
                 !html.Contains("id=\"refreshDashboard\"") ||
                 !html.Contains("data-route=\"dashboard-advanced\"") ||
