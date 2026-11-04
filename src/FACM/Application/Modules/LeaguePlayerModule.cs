@@ -12,6 +12,12 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
+    internal sealed class LeagueUnifiedHistorySnapshot
+    {
+        internal LeaguePlayerProfile Profile;
+        internal LeaguePlayerMatchPage Page;
+    }
+
     internal sealed class LeaguePlayerModule : IFacmModule
     {
         private static readonly IReadOnlyList<string> ModuleDependencies = new[] { LeagueClientModule.ModuleId, PerformanceModule.ModuleId };
@@ -47,6 +53,30 @@ namespace FACM.AppHost.Modules
             _details = new LeagueEncounterMatchDetailService(_service, () => _leagueClient.CurrentSession);
             _replay = new LeagueEncounterReplayService(_leagueClient,
                 (ILeagueReplayWriteApi)_leagueClient, () => _leagueClient.CurrentSession);
+        }
+
+        internal LeagueClientSession UnifiedHistorySession { get { return _leagueClient.CurrentSession; } }
+
+        internal async Task<LeagueUnifiedHistorySnapshot> ReadUnifiedHistoryAsync(
+            int count, bool force, CancellationToken cancellationToken)
+        {
+            if (_service == null || (count != 10 && count != 20)) return null;
+            var initial = _leagueClient.CurrentSession;
+            if (initial == null) return null;
+            var profile = await _service.LoadProfileAsync(force, cancellationToken);
+            if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) ||
+                !LeagueEncounterReplayService.SessionMatches(initial, _leagueClient.CurrentSession)) return null;
+            var page = await _service.LoadRecentMatchesAsync(profile, 0, count, force, cancellationToken);
+            if (page != null && !cancellationToken.IsCancellationRequested)
+            {
+                var enriched = await _service.EnrichIncompleteMatchesAsync(profile, page, cancellationToken);
+                if (enriched != null) page = enriched;
+                var named = await _service.EnrichChampionNamesAsync(profile, page, cancellationToken);
+                if (named != null) page = named;
+            }
+            return !cancellationToken.IsCancellationRequested &&
+                LeagueEncounterReplayService.SessionMatches(initial, _leagueClient.CurrentSession)
+                ? new LeagueUnifiedHistorySnapshot { Profile = profile, Page = page } : null;
         }
 
         public Form CreatePlayerForm(UiTextCatalog ui)

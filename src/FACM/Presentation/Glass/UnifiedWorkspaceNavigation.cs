@@ -23,6 +23,7 @@ namespace FACM.Presentation.Glass
                 string.Equals(route, "client-status", StringComparison.Ordinal) ||
                 string.Equals(route, "presence-advanced", StringComparison.Ordinal) ||
                 string.Equals(route, "live-advanced", StringComparison.Ordinal) ||
+                string.Equals(route, "player-advanced", StringComparison.Ordinal) ||
                 string.Equals(route, "efficiency-advanced", StringComparison.Ordinal) ||
                 string.Equals(route, "matchmaking-settings", StringComparison.Ordinal) ||
                 string.Equals(route, "auto-selection", StringComparison.Ordinal) ||
@@ -83,6 +84,7 @@ namespace FACM.Presentation.Glass
                 case "presence": width = 590; height = 700; break;
                 case "repair": width = 590; height = 670; break;
                 case "live": width = 650; height = 730; break;
+                case "player": width = 650; height = 730; break;
                 default: width = 1000; height = 740; break;
             }
             var scale = Math.Max(1F, Math.Min(2.5F, dpiScale));
@@ -119,6 +121,7 @@ namespace FACM.Presentation.Glass
                 !router.Open("appearance") || !router.Back() ||
                 !router.Open("presence-advanced") || !router.Back() ||
                 !router.Open("live-advanced") || !router.Back() ||
+                !router.Open("player-advanced") || !router.Back() ||
                 !router.Open("client-status") || !router.Back() ||
                 !router.IsHome || !router.Open("efficiency-advanced") || !router.Back() ||
                 !router.Open("matchmaking-settings") || !router.Back() ||

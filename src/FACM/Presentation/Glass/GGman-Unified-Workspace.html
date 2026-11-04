@@ -49,6 +49,22 @@ body[data-mode="presence"] #home,body[data-mode="presence"] #other{display:none!
 body[data-mode="presence"] #detail{display:flex}
 body[data-mode="presence"] .brand-icon,body[data-mode="presence"] .brand-text{display:none}
 body[data-mode="presence"] #presencePage,body[data-mode="presence"] main{display:block;overflow-y:auto}
+#historyPage{display:none;padding:4px 2px}
+#historyPage h2{font-size:18px;margin:8px 0 5px}
+#historyPage p{font-size:12px;line-height:1.7;color:var(--muted)}
+.history-profile{display:flex;justify-content:space-between;gap:12px;align-items:center;background:var(--card);padding:13px;border-radius:11px}
+.history-profile strong{overflow-wrap:anywhere}
+.history-list{display:grid;gap:9px;margin-top:12px}
+.history-match{padding:12px;background:var(--card);border-radius:10px;border-left:3px solid var(--line);min-width:0}
+.history-match.win{border-left-color:var(--accent)}
+.history-match .top{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.history-match small{display:block;color:var(--muted);font-size:11px;line-height:1.7;margin-top:5px}
+#historyPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-mode="player"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="player"] #home,body[data-mode="player"] #other{display:none!important}
+body[data-mode="player"] #detail{display:flex}
+body[data-mode="player"] .brand-icon,body[data-mode="player"] .brand-text{display:none}
+body[data-mode="player"] #historyPage,body[data-mode="player"] main{display:block;overflow-y:auto}
 #livePage{display:none;padding:4px 2px}
 #livePage h2{font-size:18px;margin:8px 0 5px}
 #livePage p{color:var(--muted);font-size:12px;line-height:1.7}
@@ -364,6 +380,18 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     <p id="presenceResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
   </section>
+  <section id="historyPage">
+    <h2>我的战绩</h2>
+    <p>当前登录账号的近期战绩，按需从现有 LCU/SGP 历史服务读取，换号时会取消并丢弃旧结果。</p>
+    <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
+    <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
+    <div class="history-list" id="historyList" aria-label="近期对局"></div>
+    <div class="save-row">
+      <button data-action="history-refresh" id="historyRefresh">刷新近期战绩</button>
+      <button data-action="history-more" id="historyMore" hidden>读取更多</button>
+    </div>
+    <div class="actions"><button data-route="player-advanced">筛选与战绩详情</button><button data-route="live">实时对局</button></div>
+  </section>
   <section id="livePage">
     <h2>实时对局</h2><p>按需读取当前选人/对局阵容。资料由已有 LCU 会话服务提供，不额外启动轮询。</p>
     <div class="live-summary">
@@ -480,7 +508,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -490,6 +518,11 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
+    get("historyRefresh").disabled=true;get("historyMore").disabled=true;
+    get("historyResult").textContent="正在读取战绩";
+    post(target.dataset.action==="history-more"?"history-more":"history-refresh");return;
+  }
   if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
     get("liveRefresh").disabled=true;get("liveSgpRefresh").disabled=true;
     get("liveSummary").textContent="正在读取当前游戏会话";
@@ -533,10 +566,18 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair"||mode==="live")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair"||mode==="live"||mode==="player")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-details"){renderHistory(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-failed"){
+    get("historyRefresh").disabled=false;get("historyMore").disabled=true;
+    get("historyResult").textContent="无法读取当前账号，请检查游戏客户端连接或重新登录";
+    get("historyAccount").textContent="未连接";
+    get("historyLevel").textContent="—";
+    get("historyList").replaceChildren();return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
     get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=false;
@@ -642,8 +683,34 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:presence")setMode("presence","presence");
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
+  else if(value==="detail:player")setMode("player","player");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function renderHistory(data){
+  get("historyRefresh").disabled=false;
+  get("historyMore").disabled=!data.hasMore;
+  get("historyMore").hidden=!data.hasMore;
+  get("historyAccount").textContent=data.name||"当前召唤师";
+  get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
+  var list=get("historyList");list.replaceChildren();
+  var rows=Array.isArray(data.rows)?data.rows:[];
+  rows.slice(0,20).forEach(function(match){
+    var card=document.createElement("div");card.className="history-match"+(match.outcome==="胜利"?" win":"");
+    var top=document.createElement("div");top.className="top";
+    var champ=document.createElement("strong");champ.textContent=String(match.champion||"英雄未确认");
+    var outcome=document.createElement("span");outcome.textContent=String(match.outcome||"结果待补全");
+    top.append(champ,outcome);
+    var meta=document.createElement("small");
+    var duration=Number(match.duration)||0;
+    meta.textContent=[match.played,match.mode||"队列 "+match.queueId,
+      duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
+    var score=document.createElement("small");
+    score.textContent=match.outcome==="结果待补全"?"对局数据待补全":
+      "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
+    card.append(top,meta,score);list.appendChild(card);
+  });
+  get("historyResult").textContent=rows.length?"已读取 "+rows.length+" 场近期对局":"当前账号暂无可读取的历史对局";
+}
 function renderLive(data){
   get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
   get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
