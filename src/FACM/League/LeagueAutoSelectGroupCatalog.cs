@@ -124,6 +124,13 @@ namespace FACM.League
             Group[] snapshot;
             lock (Sync) snapshot = _groups;
             var group = snapshot == null ? null : snapshot.FirstOrDefault(g => g.Id == groupId);
+            if (snapshot != null && (group == null ||
+                (!string.IsNullOrEmpty(sgpServerId) &&
+                 !LeagueSgpMatchHistoryApiClient.Servers.Any(server => server.Id == sgpServerId)) ||
+                (!group.SupportedServers.Contains("*", StringComparer.Ordinal) &&
+                 (string.IsNullOrEmpty(sgpServerId) ||
+                  !group.SupportedServers.Contains(sgpServerId, StringComparer.Ordinal)))))
+                return new List<int>();
             var exclusions = group == null ? Array.Empty<int>() :
                 pick ? group.ExcludedPicks : group.ExcludedBans;
             return candidates.Where(id => !exclusions.Contains(id) &&
