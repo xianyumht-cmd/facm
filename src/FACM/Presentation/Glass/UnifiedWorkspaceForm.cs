@@ -571,8 +571,19 @@ namespace FACM.Presentation.Glass
                 if (html.IndexOf("data-route=\"" + view.Id + "\"", StringComparison.Ordinal) < 0)
                     throw new InvalidOperationException("Unified workspace HTML lost a native route.");
             }
+            foreach (var setting in new[]
+            {
+                "autoSearch", "autoAccept", "autoReconnect", "autoHonor", "autoReturn"
+            })
+            {
+                if (!html.Contains("data-setting=\"" + setting + "\""))
+                    throw new InvalidOperationException("Unified HTML lost a real quick setting.");
+            }
             if (!html.Contains("data-route=\"cleanup\"") ||
-                !html.Contains("data-setting=\"autoAccept\"") ||
+                !html.Contains("data-route=\"appearance\"") ||
+                !html.Contains("data-route=\"efficiency-advanced\"") ||
+                !html.Contains("id=\"themeList\"") ||
+                !html.Contains("Content-Security-Policy") ||
                 !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||
                 !html.Contains("data-action=\"close\""))
                 throw new InvalidOperationException("Unified workspace HTML lost back/home/close navigation.");

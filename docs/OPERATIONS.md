@@ -1,3 +1,7 @@
+## Unified WebView2 full-workbench release gate (2026-11-04)
+
+The signed 3.5.80 production executable deliberately excludes `src/FACM/Presentation/Glass/**` from ordinary builds. Draft PR #359 adds a preview-only `--unified-web-workbench` entry gated by `GGMAN_UNIFIED_WEB_WORKBENCH=1`, plus `--unified-workspace-smoke`. The optional Glass CI validates source/test integrity, **not** the production package. Before a release request, finish ALL user-visible actions and in-place route/dialog parity, switch the normal build to the audited WebView2 host, include x64 loader/managed assets without invalidating the existing signed single-EXE/update compatibility contract, explicitly handle absent Evergreen Runtime, verify x64 PE architecture and cold start/memory/reuse, and run four Windows CI gates on the exact final executable source SHA. Confirm real Win10 19045 user navigation, back/home, DPI, IME, focus, scrolling and disconnect behavior. The production updater must remain on `online/version.json` and use authenticated signed 3.5.x GitHub Release only. Do not trigger automatic production publishing because preview UI compiled.
+
 # GGman Operations (3.5.x)
 
 ## Screenshot-based League UI regression verification (2026-11-04)
