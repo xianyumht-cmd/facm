@@ -25,6 +25,16 @@ main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263
 .actions button{min-height:34px;background:var(--card2);border-radius:7px;color:#e0ebf9;font-size:12px}
 .actions button:hover{background:#205175}
 #appearance{display:none;padding:4px 2px}
+#clientStatus{display:none;padding:4px 2px}
+#clientStatus h2{font-size:18px;margin:10px 0 8px}
+#clientStatus p{color:var(--muted);line-height:1.7}
+#clientStatus .status{margin:12px 0}
+body[data-mode="client-status"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="client-status"] #home,body[data-mode="client-status"] #other{display:none!important}
+body[data-mode="client-status"] #detail{display:flex}
+body[data-mode="client-status"] .brand-icon,body[data-mode="client-status"] .brand-text{display:none}
+body[data-mode="client-status"] #clientStatus{display:block}
+body[data-mode="client-status"] main{display:block;overflow-y:auto}
 #appearance h2{font-size:18px;margin:10px 0 6px}
 #appearance p{color:var(--muted);font-size:12px;line-height:1.8;margin:0 0 15px}
 .tools{display:grid;gap:10px;margin-top:10px}.tool-row{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:14px;background:var(--card);border-radius:11px}
@@ -87,6 +97,12 @@ body[data-mode="detail"] .close{font-size:18px}
       <button data-action="more">更多功能</button>
     </div>
   </section>
+  <section id="clientStatus">
+    <h2>LOL 客户端状态</h2>
+    <p>状态来自 GGman 现有 Gameflow 观察者，不会创建新的网络请求或轮询。</p>
+    <div class="status"><b id="statusConnection">未连接</b><span id="statusPhase">等待客户端连接</span><span id="statusHint">启动英雄联盟后自动同步</span></div>
+    <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
+  </section>
   <section id="quicktools">
     <h2>快捷工具</h2><p>开关实时保存到现有 GGman 设置，继续由原生游戏流程控制器执行操作。</p>
     <div class="tools" id="quickSettings">
@@ -107,6 +123,7 @@ body[data-mode="detail"] .close{font-size:18px}
   <section id="other">
     <h2>更多功能</h2>
     <div class="tiles">
+      <button class="tile" data-route="client-status"><span class="glyph">连</span>客户端状态</button>
       <button class="tile" data-route="live"><span class="glyph">实</span>实时对局</button>
       <button class="tile" data-route="recommendation"><span class="glyph">荐</span>出装推荐</button>
       <button class="tile" data-route="presence"><span class="glyph">在</span>在线状态</button>
@@ -121,11 +138,11 @@ body[data-mode="detail"] .close{font-size:18px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","efficiency-advanced":"高级工具设置"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -150,7 +167,7 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
@@ -172,11 +189,15 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
     document.getElementById("clientConnection").textContent=e.data.connected?"LOL · 已连接":"LOL · 未连接";
+    document.getElementById("statusConnection").textContent=e.data.connected?"客户端已连接":"客户端未连接";
+    document.getElementById("statusPhase").textContent=e.data.connected?("当前阶段 · "+phaseLabel(e.data.phase)):"等待英雄联盟客户端";
+    document.getElementById("statusHint").textContent=e.data.connected?"状态由当前游戏会话同步":"启动客户端后自动同步，无需手动刷新";
     document.getElementById("clientPhase").textContent=e.data.connected?
       ("当前阶段 · "+phaseLabel(e.data.phase)):"请先启动英雄联盟客户端";
     return;
   }
   if(value==="home"||value==="more")setMode(value);
+  else if(value==="detail:client-status")setMode("client-status","client-status");
   else if(value==="detail:appearance")setMode("appearance","appearance");
   else if(value==="detail:efficiency")setMode("quicktools","efficiency");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));

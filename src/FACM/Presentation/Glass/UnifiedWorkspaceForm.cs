@@ -218,6 +218,11 @@ namespace FACM.Presentation.Glass
                 OpenQuickTools(pushHistory);
                 return;
             }
+            if (string.Equals(route, "client-status", StringComparison.Ordinal))
+            {
+                OpenClientStatus(pushHistory);
+                return;
+            }
             if (string.Equals(route, "appearance", StringComparison.Ordinal))
             {
                 OpenAppearance(pushHistory);
@@ -342,6 +347,17 @@ namespace FACM.Presentation.Glass
                 }
             });
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
+        }
+
+        private void OpenClientStatus(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open("client-status");
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncGameflowState();
         }
 
         private void OpenAppearance(bool pushHistory)
@@ -588,6 +604,8 @@ namespace FACM.Presentation.Glass
             }
             if (!html.Contains("data-route=\"cleanup\"") ||
                 !html.Contains("data-route=\"appearance\"") ||
+                !html.Contains("data-route=\"client-status\"") ||
+                !html.Contains("id=\"statusConnection\"") ||
                 !html.Contains("data-route=\"efficiency-advanced\"") ||
                 !html.Contains("id=\"themeList\"") ||
                 !html.Contains("Content-Security-Policy") ||
