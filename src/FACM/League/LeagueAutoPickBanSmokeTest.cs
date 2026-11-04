@@ -236,6 +236,21 @@ namespace FACM.League
                     Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-05"))),
                         "Unknown group, server, mixed wildcard, unmodeled action or remote icon must fail closed.");
 
+                var positiveMetadata = valid.Replace("2026-08-02", "2026-08-05")
+                    .Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[22]")
+                    .Replace(@"""additionalBans"":[]", @"""additionalBans"":[67]")
+                    .Replace(@"""excludedPicks"":[-1]", @"""excludedPicks"":[-1,22]")
+                    .Replace(@"""excludedBans"":[]", @"""excludedBans"":[67]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(positiveMetadata)) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked", null, true)
+                        .SequenceEqual(new[] { 67 }) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked", null, false)
+                        .SequenceEqual(new[] { 22 }),
+                    "Source positive metadata must be accepted and exclusions enforced.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(
+                    positiveMetadata.Replace("2026-08-05", "2026-08-06")
+                        .Replace(@"""additionalPicks"":[22]", @"""additionalPicks"":[0]"))),
+                    "Zero cannot become a source champion action.");
                 var cherry = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""groups"":[{""groupId"":""cherry"",""name"":{""zh-CN"":""斗魂竞技场"",""en"":""Arena""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CHERRY"",""queueTypes"":[""ANY""]}],""positions"":[""default""],""additionalPicks"":[-3],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[-1]}]}";
                 var cherryFlow = Flow("ANY").Replace("\"CLASSIC\"", "\"CHERRY\"");
                 Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(cherry)) &&

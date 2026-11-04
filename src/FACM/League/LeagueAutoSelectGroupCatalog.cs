@@ -21,6 +21,7 @@ namespace FACM.League
             internal string[] SupportedServers;
             internal string[] Positions;
             internal int[] AdditionalPicks;
+            internal int[] ExcludedPicks;
             internal int[] ExcludedBans;
             internal readonly List<Tuple<string, string[]>> Targets = new List<Tuple<string, string[]>>();
         }
@@ -119,8 +120,14 @@ namespace FACM.League
         internal static List<int> FilterSpecials(IReadOnlyList<int> candidates,
             string groupId, string sgpServerId, bool pick)
         {
-            return candidates == null ? new List<int>() :
-                candidates.Where(id => id > 0 || SpecialAllowed(groupId, sgpServerId, pick, id)).ToList();
+            if (candidates == null) return new List<int>();
+            Group[] snapshot;
+            lock (Sync) snapshot = _groups;
+            var group = snapshot == null ? null : snapshot.FirstOrDefault(g => g.Id == groupId);
+            var exclusions = group == null ? Array.Empty<int>() :
+                pick ? group.ExcludedPicks : group.ExcludedBans;
+            return candidates.Where(id => !exclusions.Contains(id) &&
+                (id > 0 || SpecialAllowed(groupId, sgpServerId, pick, id))).ToList();
         }
 
         internal static bool TryGroupFor(string mode, string queueType, bool custom, out string group)
@@ -268,6 +275,7 @@ namespace FACM.League
                         Custom = (bool)Value(entry, "isCustom"),
                         SupportedServers = servers, Positions = positions,
                         AdditionalPicks = Actions(Value(entry, "additionalPicks")),
+                        ExcludedPicks = Actions(Value(entry, "excludedPicks")),
                         ExcludedBans = Actions(Value(entry, "excludedBans")) };
                     foreach (var targetValue in targets)
                     {
@@ -322,7 +330,7 @@ namespace FACM.League
             {
                 int id;
                 if (item == null || !int.TryParse(Convert.ToString(item, CultureInfo.InvariantCulture), out id) ||
-                    id != special || special == 0) return false;
+                    (id <= 0 && (special == 0 || id != special)) || id > 100000) return false;
             }
             return true;
         }
