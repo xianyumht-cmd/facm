@@ -1011,6 +1011,11 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("Microsoft YaHei UI") ||
+                !html.Contains("class=\"status status-home\"") ||
+                !html.Contains("class=\"section-caption\"") ||
+                !html.Contains("data-mode=\"home\""))
+                throw new InvalidOperationException("Unified workbench design token or compact home is missing.");
             foreach (var view in LeagueHubNavigation.Views)
             {
                 if (html.IndexOf("data-route=\"" + view.Id + "\"", StringComparison.Ordinal) < 0)

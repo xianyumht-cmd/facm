@@ -23,7 +23,19 @@ foreach ($scene in $cases) {
   $mode = $scene.Mode
   $htmlPath = Join-Path $target.FullName "unified-$mode.html"
   $imagePath = Join-Path $target.FullName "unified-$mode.png"
-  $page = $source.Replace('</body>', "<script>window.GGmanUnifiedShell.setMode('$mode','$mode');</script></body>")
+  $visualProbe = @'
+<script>
+window.GGmanUnifiedShell.setMode('SCENE','SCENE');
+var shell = document.getElementById('shell');
+var documentFits = document.documentElement.scrollWidth <= window.innerWidth + 2 &&
+  shell.scrollWidth <= shell.clientWidth + 2;
+var marker = document.createElement('span');
+marker.style.cssText = 'position:fixed;left:0;top:0;width:10px;height:10px;z-index:2147483647;background:' +
+  (documentFits ? '#00ff00' : '#ff0000');
+document.body.appendChild(marker);
+</script>
+'@.Replace('SCENE', $mode)
+  $page = $source.Replace('</body>', $visualProbe + '</body>')
   Set-Content -LiteralPath $htmlPath -Value $page -Encoding utf8 -NoNewline
   $uri = ([System.Uri]::new($htmlPath)).AbsoluteUri
   $profile = Join-Path $env:RUNNER_TEMP "ggman-unified-$mode"
@@ -43,6 +55,8 @@ foreach ($scene in $cases) {
   try {
     $sample = $image.GetPixel(20,70)
     if ($sample.R -ge 230 -and $sample.G -ge 230 -and $sample.B -ge 230) { throw "Unified view rendered white: $mode" }
+    $layout = $image.GetPixel(4,4)
+    if ($layout.G -lt 180 -or $layout.R -gt 140) { throw "Unified view horizontal overflow or inactive script: $mode" }
   } finally { $image.Dispose() }
   Write-Host "Unified browser rendered: $mode"
 }
