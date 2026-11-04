@@ -1,3 +1,7 @@
+## 2026-11-04 — Browser route visibility does not validate native actions
+
+Headless Edge screenshots now cover home, dashboard, Quick Tools, matchmaking, auto-selection and postgame layouts without fetching external resources. Continue to separately test the C# WebView2 embedded host, route back/home on cold start, invalid JSON/policy rejection, cancellation of in-flight champion/dashboard reads, account switch isolation, Win10 DPI/IME and real LOL. Do not mark a route complete merely because its HTML screenshot is dark and text is visible. New native user-visible strings must be registered in the central UI text contract; the first matchmaking attempt failed the UI Text gate until those keys were added.
+
 ## 2026-11-04 — Do not confuse WebView2 preview with product UI replacement
 
 An earlier WebView2 Glass preview was deliberately disconnected from LOL, cloud, settings and updater; it was **not** proof that the production interface supports real actions. A HTML-only mock can conceal regressions by showing beautiful buttons that do nothing. The accepted unified screenshot requires one small floating-origin shell, in-place route and back navigation, adaptive bounds and a robust bridge to existing C# data and writes. UI tests must cover all route IDs, repeated navigation/back, unknown-message rejection, no new polling owners, focus/IME/DPI, WebView2 Runtime absence and real login/client disconnected states. Keep old native UI available until integrated actions are demonstrably equivalent and release checks pass.
