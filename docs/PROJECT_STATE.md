@@ -1268,15 +1268,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.78
-- GitHub Release：v3.5.78
+- 版本：GGman 3.5.79
+- GitHub Release：v3.5.79
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c19b11881dcbb397c806b0dad2c518f10c0eaa07
-- 发布元数据提交：e03a6aa58d64e90ccfbe48c8809b11fd574cca60
-- Release GGman.exe SHA-256：5EC945C760D75422023AECB0060C023DC8D88933A29B42796AB505162EA72F97
-- release_notes：GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。
+- 发布基础 main：a3c493222c5b49761bdb492c5a337714440914c9
+- 发布元数据提交：95392b69e6af7f01c67ca61d3abb9c17fb549d04
+- Release GGman.exe SHA-256：455D79AAB9AA7E729BDDD6983287CA56C7A9EC96A46131846EB1264FA3F055E5
+- release_notes：GGman 3.5.79：新增原生 LOL 选人禁用、英雄交换、自动游戏流程、玩家资料与战绩分析、打野路径、SGP 区域数据、回放及复活计时等功能；保持轻量 WinForms 架构。Akari 1.5.1 的部分深度选项和玩家卡片交互仍将继续完善。此次更新不强制安装；如遇游戏内兼容问题，请反馈日志。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## Active continuation — verified regional Player and timeline checkpoint (Draft #357)
