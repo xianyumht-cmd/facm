@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -139,6 +140,8 @@ namespace FACM.Presentation.Glass
                     _ready = true;
                     SyncWebNavigation();
                     SyncGameflowState();
+                    if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
+                        SyncThemeOptions();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -170,6 +173,11 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (message != null && message.StartsWith("theme:", StringComparison.Ordinal))
+            {
+                ApplyTheme(message.Substring(6));
+                return;
+            }
             if (message == "back")
             {
                 NavigateBack();
@@ -198,6 +206,11 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (string.Equals(route, "appearance", StringComparison.Ordinal))
+            {
+                OpenAppearance(pushHistory);
+                return;
+            }
             if (string.Equals(route, "cleanup", StringComparison.Ordinal))
             {
                 OpenCleanupPage();
@@ -246,6 +259,56 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             _hub.Show();
             SyncWebNavigation();
+        }
+
+        private void OpenAppearance(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open("appearance");
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncThemeOptions();
+        }
+
+        private void ApplyTheme(string id)
+        {
+            if (!string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal)) return;
+            var candidate = ThemeCatalog.All.FirstOrDefault(item =>
+                string.Equals(item.Id, id, StringComparison.Ordinal));
+            if (candidate == null) return;
+            var before = _settings.ThemeId;
+            try
+            {
+                _settings.ThemeId = candidate.Id;
+                _settings.Save();
+                FacmThemeRuntime.SetCurrent(candidate.Id);
+                SyncThemeOptions();
+            }
+            catch (Exception exception)
+            {
+                _settings.ThemeId = before;
+                AppLog.Error("Unified workspace theme update failed", exception);
+                if (_ready && _browser.CoreWebView2 != null)
+                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"theme-error\"}");
+            }
+        }
+
+        private void SyncThemeOptions()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var payload = new JavaScriptSerializer().Serialize(new
+            {
+                type = "themes",
+                selected = _settings.ThemeId,
+                items = ThemeCatalog.All.Select(theme => new
+                {
+                    id = theme.Id, name = theme.Name, description = theme.Description,
+                    accent = ColorTranslator.ToHtml(theme.Accent)
+                }).ToArray()
+            });
+            _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
         private void OpenCleanupPage()
