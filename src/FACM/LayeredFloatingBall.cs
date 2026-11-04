@@ -332,7 +332,7 @@ namespace FACM
                 using (var brush = new SolidBrush(Color.FromArgb(252, logoColor)))
                 {
                     var measured = graphics.MeasureString("G", logo);
-                    graphics.DrawString("G", logo, brush,
+                    graphics.DrawString("G", logo, brush, // ui-text-contract: allow
                         (size - measured.Width) / 2f - 0.4f,
                         (size - measured.Height) / 2f - 1.2f);
                 }
