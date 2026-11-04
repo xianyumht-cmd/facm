@@ -346,6 +346,12 @@ namespace FACM.League
             _invitationGameType = AddChoiceRow(root, 27,
                 T(LeagueEfficiencyUiTextKeys.InvitationGameType),
                 T(LeagueEfficiencyUiTextKeys.InvitationGameTypeHint), LeagueInvitationPolicies.GameTypes, 0);
+            _invitationGameType.FormattingEnabled = true;
+            _invitationGameType.Format += delegate(object sender, ListControlConvertEventArgs e)
+            {
+                if (string.Equals(e.ListItem as string, "<DEFAULT>", StringComparison.OrdinalIgnoreCase))
+                    e.Value = T(LeagueEfficiencyUiTextKeys.ProfileModeDefault);
+            };
             _invitationAction = AddChoiceRow(root, 28,
                 T(LeagueEfficiencyUiTextKeys.InvitationAction),
                 T(LeagueEfficiencyUiTextKeys.InvitationActionHint), new[]

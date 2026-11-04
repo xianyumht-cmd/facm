@@ -173,8 +173,9 @@ namespace FACM.League
             _matchesList.RetrieveVirtualItem += RetrieveVirtualItem;
             _matchesList.SelectedIndexChanged += (sender, e) => UpdateReplayButton();
 
-            _filterPanel = new FlowLayoutPanel { Dock = DockStyle.None, WrapContents = false,
-                AutoScroll = true, BackColor = FacmDesignSystem.Canvas };
+            _filterPanel = new FlowLayoutPanel { Dock = DockStyle.None, WrapContents = true,
+                AutoScroll = false, FlowDirection = FlowDirection.LeftToRight,
+                Padding = Padding.Empty, BackColor = FacmDesignSystem.Canvas };
             _filterPanel.Controls.Add(FilterLabel(UiTextKeys.LeaguePlayerFilterWinLoss));
             _winFilter = FilterCombo(90);
             _winFilter.AccessibleName = _ui.Get(UiTextKeys.LeaguePlayerFilterWinLoss);
@@ -360,6 +361,7 @@ namespace FACM.League
             }
             UpdateAdvancedFilterLabel();
             UpdateFilterButtonLabels();
+            GroupSimpleFilters();
 
             _refreshButton = CreateButton(UiTextKeys.LeaguePlayerRefresh, FacmButtonTone.Primary);
             _refreshButton.Location = new Point(542, 672);
@@ -529,6 +531,32 @@ namespace FACM.League
             return button;
         }
 
+        private void GroupSimpleFilters()
+        {
+            var controls = _filterPanel.Controls.Cast<Control>().ToArray();
+            _filterPanel.Controls.Clear();
+            for (var i = 0; i < 8 && i + 1 < controls.Length; i += 2)
+            {
+                var group = new FlowLayoutPanel
+                {
+                    AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                    WrapContents = false, FlowDirection = FlowDirection.LeftToRight,
+                    Padding = Padding.Empty, Margin = new Padding(0, 1, 10, 3),
+                    BackColor = Color.Transparent
+                };
+                controls[i].Margin = new Padding(0, 6, 6, 0);
+                controls[i + 1].Margin = new Padding(0, 1, 0, 0);
+                group.Controls.Add(controls[i]);
+                group.Controls.Add(controls[i + 1]);
+                _filterPanel.Controls.Add(group);
+            }
+            for (var i = 8; i < controls.Length; i++)
+            {
+                controls[i].Margin = new Padding(0, 1, 8, 3);
+                _filterPanel.Controls.Add(controls[i]);
+            }
+        }
+
         private static CheckedListBox FilterCheckList()
         {
             return new CheckedListBox { CheckOnClick = true, IntegralHeight = false,
@@ -584,7 +612,7 @@ namespace FACM.League
 
         private static ListView CreateListView(Rectangle bounds, bool virtualMode)
         {
-            return new ListView
+            var list = new ListView
             {
                 Bounds = bounds,
                 BackColor = FacmDesignSystem.Surface,
@@ -595,9 +623,23 @@ namespace FACM.League
                 HeaderStyle = ColumnHeaderStyle.Nonclickable,
                 HideSelection = false,
                 View = View.Details,
+                OwnerDraw = true,
                 VirtualMode = virtualMode,
                 VirtualListSize = 0
             };
+            list.DrawColumnHeader += (sender, e) =>
+            {
+                using (var background = new SolidBrush(FacmDesignSystem.SurfaceRaised))
+                    e.Graphics.FillRectangle(background, e.Bounds);
+                TextRenderer.DrawText(e.Graphics, e.Header.Text, list.Font,
+                    new Rectangle(e.Bounds.Left + 7, e.Bounds.Top,
+                        Math.Max(1, e.Bounds.Width - 12), e.Bounds.Height),
+                    FacmDesignSystem.Text,
+                    TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+            };
+            list.DrawItem += (sender, e) => { e.DrawDefault = true; };
+            list.DrawSubItem += (sender, e) => { e.DrawDefault = true; };
+            return list;
         }
 
         private FacmActionButton CreateButton(string key, FacmButtonTone tone)
@@ -1465,6 +1507,25 @@ namespace FACM.League
             return widths;
         }
 
+        internal static int ResolveFilterRowsForSmokeTest(int availableWidth, int[] widths)
+        {
+            if (widths == null || widths.Length == 0) return 1;
+            var rows = 1;
+            var used = 0;
+            var limit = Math.Max(160, availableWidth);
+            foreach (var raw in widths)
+            {
+                var width = Math.Max(1, raw);
+                if (used > 0 && used + width > limit)
+                {
+                    rows++;
+                    used = 0;
+                }
+                used += width;
+            }
+            return rows;
+        }
+
         private void ResizePlayerPage()
         {
             if (_matchesList == null || _matchesList.IsDisposed) return;
@@ -1480,11 +1541,19 @@ namespace FACM.League
             _statusLabel.Width = Math.Max(160, contentWidth - 12);
             _statsSection.Width = contentWidth;
 
-            var statsHeight = height >= 670 ? 115 : 98;
+            var filterWidths = _filterPanel.Controls.Cast<Control>()
+                .Select(control => Math.Max(control.Width, control.PreferredSize.Width) + control.Margin.Horizontal)
+                .ToArray();
+            var filterRows = ResolveFilterRowsForSmokeTest(contentWidth - 6, filterWidths);
+            var filterHeight = filterRows * 34 + 4;
+            var statsHeight = height >= 740 ? 115 : height >= 670 ? 98 : 78;
             _championStatsList.Bounds = new Rectangle(24, 194, contentWidth, statsHeight);
-            var matchesBounds = ResolveMatchesBoundsForSmokeTest(width, height);
-            _recentSection.Bounds = new Rectangle(26, matchesBounds.Top - 65, contentWidth, 25);
-            _filterPanel.Bounds = new Rectangle(matchesBounds.Left, matchesBounds.Top - 37, contentWidth, 33);
+            _recentSection.Bounds = new Rectangle(26, _championStatsList.Bottom + 10, contentWidth, 25);
+            var filterTop = _recentSection.Bottom + 4;
+            _filterPanel.Bounds = new Rectangle(24, filterTop, contentWidth, filterHeight);
+            var matchesTop = filterTop + filterHeight + 6;
+            var matchesBounds = new Rectangle(24, matchesTop, contentWidth,
+                Math.Max(96, height - 54 - matchesTop));
             _matchesList.Bounds = matchesBounds;
             _emptyStateLabel.Bounds = new Rectangle(
                 matchesBounds.Left + 16,

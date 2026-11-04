@@ -474,6 +474,13 @@ namespace FACM.League
             Require(LeaguePlayerForm.FilterOptionMatchesForSmokeTest("Some Name", "uid", "   "),
                 "Clearing an option search must restore the full available catalog.");
 
+            Require(LeaguePlayerForm.ResolveFilterRowsForSmokeTest(820,
+                    new[] { 200, 200, 200, 200, 120, 120 }) == 2 &&
+                LeaguePlayerForm.ResolveFilterRowsForSmokeTest(550,
+                    new[] { 200, 200, 200, 200, 120, 120 }) >= 3 &&
+                LeaguePlayerForm.ResolveFilterRowsForSmokeTest(820, new int[0]) == 1,
+                "Player filters must wrap instead of overflowing the embedded workbench horizontally.");
+
             var minimum = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(680, 540);
             var defaultSize = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(860, 720);
             var expanded = LeaguePlayerForm.ResolveMatchesBoundsForSmokeTest(1180, 850);

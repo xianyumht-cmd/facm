@@ -502,6 +502,8 @@ namespace FACM.League
             arrange();
 
             FacmDesignSystem.ApplyLeagueSurface(this);
+            AutoScroll = false;
+            AutoScrollMinSize = Size.Empty;
             Shown += async delegate { await RefreshPresenceAsync(); };
             FormClosed += delegate { _lifetime.Cancel(); _lifetime.Dispose(); };
         }
@@ -595,24 +597,24 @@ namespace FACM.League
 
         private void PopulateRankOptions()
         {
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueSolo), "RANKED_SOLO_5x5");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueFlex), "RANKED_FLEX_SR");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueArena), "CHERRY");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTft), "RANKED_TFT");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTftTurbo), "RANKED_TFT_TURBO");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueTftDoubleUp), "RANKED_TFT_DOUBLE_UP");
-            AddOption(_rankQueue, T(LeaguePresenceUiTextKeys.RankedQueueFlex3v3), "RANKED_FLEX_TT");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueSolo, "RANKED_SOLO_5x5"), "RANKED_SOLO_5x5");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueFlex, "RANKED_FLEX_SR"), "RANKED_FLEX_SR");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueArena, "CHERRY"), "CHERRY");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueTft, "RANKED_TFT"), "RANKED_TFT");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueTftTurbo, "RANKED_TFT_TURBO"), "RANKED_TFT_TURBO");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueTftDoubleUp, "RANKED_TFT_DOUBLE_UP"), "RANKED_TFT_DOUBLE_UP");
+            AddOption(_rankQueue, RankLabel(LeaguePresenceUiTextKeys.RankedQueueFlex3v3, "RANKED_FLEX_TT"), "RANKED_FLEX_TT");
 
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierIron), "IRON");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierBronze), "BRONZE");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierSilver), "SILVER");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierGold), "GOLD");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierPlatinum), "PLATINUM");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierEmerald), "EMERALD");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierDiamond), "DIAMOND");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierMaster), "MASTER");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierGrandmaster), "GRANDMASTER");
-            AddOption(_rankTier, T(LeaguePresenceUiTextKeys.RankedTierChallenger), "CHALLENGER");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierIron, "IRON"), "IRON");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierBronze, "BRONZE"), "BRONZE");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierSilver, "SILVER"), "SILVER");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierGold, "GOLD"), "GOLD");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierPlatinum, "PLATINUM"), "PLATINUM");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierEmerald, "EMERALD"), "EMERALD");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierDiamond, "DIAMOND"), "DIAMOND");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierMaster, "MASTER"), "MASTER");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierGrandmaster, "GRANDMASTER"), "GRANDMASTER");
+            AddOption(_rankTier, RankLabel(LeaguePresenceUiTextKeys.RankedTierChallenger, "CHALLENGER"), "CHALLENGER");
 
             AddOption(_rankDivision, "I", "I");
             AddOption(_rankDivision, "II", "II");
@@ -623,6 +625,15 @@ namespace FACM.League
             _rankTier.SelectedIndex = 3;
             _rankDivision.SelectedIndex = 1;
             UpdateRankDivisionEnabled();
+        }
+
+        private string RankLabel(string key, string apiValue)
+        {
+            var label = T(key);
+            if (!string.Equals(label, apiValue, StringComparison.OrdinalIgnoreCase)) return label;
+            string localized;
+            return LeaguePresenceText.DefaultsForSmokeTest().TryGetValue(key, out localized)
+                ? localized : label;
         }
 
         private static void AddOption(ComboBox combo, string label, string value)
