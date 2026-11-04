@@ -696,7 +696,6 @@ namespace FACM.AppHost.Modules
         }
         public bool AutoPickEnabled { get { return _settingsModule.Settings.LeagueAutoPickEnabled; } }
         public bool AutoSelectTemporarilyDisabled { get { return _autoSelectTemporarilyDisabled; } }
-        public bool AutoSelectTemporarilyDisabled { get { return _autoSelectTemporarilyDisabled; } }
         public bool AutoBanEnabled { get { return _settingsModule.Settings.LeagueAutoBanEnabled; } }
         public int AutoPickChampionId { get { return _settingsModule.Settings.LeagueAutoPickChampionId; } }
         public int AutoBanChampionId { get { return _settingsModule.Settings.LeagueAutoBanChampionId; } }
