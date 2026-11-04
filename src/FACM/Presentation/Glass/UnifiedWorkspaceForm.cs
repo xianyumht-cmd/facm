@@ -46,6 +46,7 @@ namespace FACM.Presentation.Glass
         private bool _ready;
         private bool _closing;
         private bool _explicitlyClosingHub;
+        private bool _userMovedWindow;
         private LeagueDashboardPhaseState _lastGameflowState;
         private CancellationTokenSource _championCatalogCancellation;
         private int _championCatalogGeneration;
@@ -66,7 +67,7 @@ namespace FACM.Presentation.Glass
             FormBorderStyle = FormBorderStyle.None;
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
-            Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
+            Font = new Font("Microsoft YaHei UI", 9F);
             TopMost = true;
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = UnifiedWorkspaceNavigation.ResolveClientSize(Screen.PrimaryScreen.WorkingArea, false);
@@ -189,6 +190,7 @@ namespace FACM.Presentation.Glass
             if (message == "drag")
             {
                 if (WindowState != FormWindowState.Normal) return;
+                _userMovedWindow = true;
                 ReleaseCapture();
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
@@ -926,6 +928,11 @@ namespace FACM.Presentation.Glass
             var original = Location;
             MinimumSize = Size.Empty;
             ClientSize = size;
+            if (!_userMovedWindow && _ownerBall.Visible)
+            {
+                _ownerBall.PositionUnifiedWorkspace(this);
+                return;
+            }
             Location = new Point(
                 Math.Max(area.Left + 2, Math.Min(original.X, area.Right - Width - 2)),
                 Math.Max(area.Top + 2, Math.Min(original.Y, area.Bottom - Height - 2)));

@@ -1020,6 +1020,12 @@ namespace FACM
             EnsureMenuOpenAndActive();
         }
 
+        internal void PositionUnifiedWorkspace(Form window)
+        {
+            if (window == null || window.IsDisposed) return;
+            PositionMenu(window);
+        }
+
         private void PositionMenu(Form menu)
         {
             if (Visible && !_animalPetActive)
