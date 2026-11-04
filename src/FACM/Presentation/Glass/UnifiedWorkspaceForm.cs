@@ -213,7 +213,7 @@ namespace FACM.Presentation.Glass
             }
             if (string.Equals(route, "cleanup", StringComparison.Ordinal))
             {
-                OpenCleanupPage();
+                OpenCleanupPage(pushHistory);
                 return;
             }
             if (_cleanupPage != null && !_cleanupPage.IsDisposed && !TryCloseCurrentHub()) return;
@@ -311,7 +311,7 @@ namespace FACM.Presentation.Glass
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
-        private void OpenCleanupPage()
+        private void OpenCleanupPage(bool pushHistory)
         {
             if (_hub != null && !_hub.IsDisposed && !TryCloseCurrentHub()) return;
             if (_cleanupPage == null || _cleanupPage.IsDisposed)
@@ -338,7 +338,7 @@ namespace FACM.Presentation.Glass
                     }
                 };
             }
-            _navigation.Open("cleanup");
+            if (pushHistory) _navigation.Open("cleanup");
             _browser.Dock = DockStyle.Top;
             _browser.Height = 58;
             _content.Visible = true;
