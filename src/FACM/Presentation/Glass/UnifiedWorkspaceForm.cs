@@ -312,7 +312,7 @@ namespace FACM.Presentation.Glass
             UnifiedMatchmakingChange setting;
             if (!UnifiedWorkspaceSettingsContract.TryParseMatchmaking(request, out setting))
             {
-                PostMatchmakingResult(false, "设置格式或数值范围不正确");
+                PostMatchmakingResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingInvalid));
                 return;
             }
             try
@@ -322,12 +322,12 @@ namespace FACM.Presentation.Glass
                     setting.StopPolicy, setting.StopAfterMs,
                     setting.WaitForInvitees, setting.RoomNotices);
                 SyncMatchmakingSettings();
-                PostMatchmakingResult(true, "设置已保存");
+                PostMatchmakingResult(true, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingSaved));
             }
             catch (Exception exception)
             {
                 AppLog.Error("Unified matchmaking settings save failed", exception);
-                PostMatchmakingResult(false, "保存失败，请查看程序日志");
+                PostMatchmakingResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingFailed));
             }
         }
 
@@ -357,9 +357,9 @@ namespace FACM.Presentation.Glass
                 roomNotices = module.AutoMatchmakingRoomNotices,
                 policies = new[]
                 {
-                    new { value = LeagueMatchmakingStopPolicyCodec.Never, label = "从不自动停止" },
-                    new { value = LeagueMatchmakingStopPolicyCodec.Fixed, label = "固定等待时间" },
-                    new { value = LeagueMatchmakingStopPolicyCodec.Estimated, label = "按预计时间停止" }
+                    new { value = LeagueMatchmakingStopPolicyCodec.Never, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopNever) },
+                    new { value = LeagueMatchmakingStopPolicyCodec.Fixed, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopFixed) },
+                    new { value = LeagueMatchmakingStopPolicyCodec.Estimated, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopEstimated) }
                 }
             });
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
