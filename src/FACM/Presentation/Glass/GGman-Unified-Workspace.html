@@ -214,6 +214,31 @@ body:not([data-mode="home"]):not([data-mode="more"]) p{font-size:11.5px;line-hei
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+
+/* Browse page uses the same compact card grammar and native route allowlist. */
+body[data-mode="more"] #shell{padding:10px 14px;gap:8px}
+body[data-mode="more"] #detail{display:flex}
+body[data-mode="more"] .brand-icon,body[data-mode="more"] .brand-text{display:none}
+body[data-mode="more"] .header{min-height:42px;height:42px}
+#other h2{font-size:17px;margin:4px 0}
+#other .more-caption{font-size:11px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+#other .tool-search{display:flex;align-items:center;gap:9px;padding:0 12px;border-radius:11px;
+  height:41px;min-height:41px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+#other .tool-search:focus-within{border-color:var(--accent)}
+#other .tool-search svg{height:18px;width:18px;flex:0 0 18px;fill:none;stroke:var(--muted);stroke-width:1.8}
+#other #toolSearch{border:0;outline:0;background:transparent;color:var(--text);width:100%;
+  font:12.5px "Microsoft YaHei UI","Microsoft YaHei","微软雅黑",sans-serif}
+#other #toolSearch::placeholder{color:var(--muted);opacity:.8}
+#other .tool-section{margin:16px 0 4px}
+#other .tool-section h3{margin:0 0 8px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.2px}
+#other .tiles{margin-top:0;gap:8px}
+#other .tile{min-height:55px}
+#other .tile .glyph{height:32px;width:32px;flex-basis:32px;font-size:14px}
+#other .tile .tile-copy strong{font-size:12px}
+#other .tile .tile-copy small{font-size:10px}
+#other [hidden]{display:none!important}
+#searchMessage{font-size:11px;color:var(--muted);min-height:16px;margin-top:8px}
+
 </style>
 </head>
 <body data-mode="home">
@@ -323,16 +348,29 @@ body:not([data-mode="home"]):not([data-mode="more"]) p{font-size:11.5px;line-hei
     <p id="themeResult" role="status" aria-live="polite"></p>
   </section>
   <section id="other">
-    <h2>更多功能</h2>
-    <div class="tiles">
-      <button class="tile" data-route="client-status"><span class="glyph">连</span>客户端状态</button>
-      <button class="tile" data-route="live"><span class="glyph">实</span>实时对局</button>
-      <button class="tile" data-route="recommendation"><span class="glyph">荐</span>出装推荐</button>
-      <button class="tile" data-route="presence"><span class="glyph">在</span>在线状态</button>
-      <button class="tile" data-route="repair"><span class="glyph">修</span>游戏修复</button>
-      <button class="tile" data-route="profile"><span class="glyph">我</span>我的 GGman</button>
+    <h2>全部功能</h2>
+    <p class="more-caption">按照你要做的事情查找工具，所有页面都在当前小窗中切换。</p>
+    <label class="tool-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <input id="toolSearch" type="search" inputmode="search" placeholder="搜索功能名称" aria-label="搜索功能" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="tool-section">
+      <h3>对局与数据</h3>
+      <div class="tiles">
+        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true">连</span><span class="tile-copy"><strong>客户端状态</strong><small>连接与阶段</small></span></button>
+        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true">实</span><span class="tile-copy"><strong>实时对局</strong><small>查看队友和对手</small></span></button>
+        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true">荐</span><span class="tile-copy"><strong>出装推荐</strong><small>符文和装备</small></span></button>
+        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true">在</span><span class="tile-copy"><strong>在线状态</strong><small>好友展示设置</small></span></button>
+      </div>
     </div>
-    <p class="muted">选择功能后在当前控制中心内打开，点击返回可以回到此处。</p>
+    <div class="tool-section">
+      <h3>维护与个人设置</h3>
+      <div class="tiles">
+        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong><small>修复异常状态</small></span></button>
+        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong><small>个人与偏好</small></span></button>
+      </div>
+    </div>
+    <p id="searchMessage" role="status" aria-live="polite"></p>
     <div class="actions"><button data-action="back">返回控制中心</button></div>
   </section>
 </main>
@@ -348,7 +386,8 @@ function setMode(next,title){
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
-  document.getElementById("routeTitle").textContent=titles[title]||"LOL 工作台";
+  document.getElementById("routeTitle").textContent=mode==="more"?"全部功能":(titles[title]||"LOL 工作台");
+  if(mode==="more")requestAnimationFrame(function(){document.getElementById("toolSearch").focus();});
 }
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
@@ -523,6 +562,19 @@ function saveMatchmaking(){
   get("saveMatchmaking").disabled=true;get("matchmakingResult").textContent="正在保存";
   post("save-matchmaking:"+JSON.stringify(payload));
 }
+function filterToolCards(){
+  var query=(document.getElementById("toolSearch").value||"").trim().toLocaleLowerCase();
+  var count=0;
+  document.querySelectorAll("#other .tool-section .tile").forEach(function(tile){
+    var visible=tile.textContent.toLocaleLowerCase().indexOf(query)>=0;
+    tile.hidden=!visible;if(visible)count++;
+  });
+  document.querySelectorAll("#other .tool-section").forEach(function(section){
+    section.hidden=!Array.from(section.querySelectorAll(".tile")).some(function(tile){return !tile.hidden;});
+  });
+  document.getElementById("searchMessage").textContent=query?(count?"已找到 "+count+" 项功能":"没有匹配的功能"):"";
+}
+document.getElementById("toolSearch").addEventListener("input",filterToolCards);
 function phaseLabel(phase){
   var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
   return labels[String(phase||"")]||"已连接";
