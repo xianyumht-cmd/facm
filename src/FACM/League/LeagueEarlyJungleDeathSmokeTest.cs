@@ -1,0 +1,134 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FACM.Services;
+
+namespace FACM.League
+{
+    internal static class LeagueEarlyJungleDeathSmokeTest
+    {
+        internal static void Validate()
+        {
+            var match = Match();
+            var timeline = new LeagueMatchTimeline { GameId = match.GameId };
+            timeline.Frames.Add(new LeagueMatchTimelineFrame { Timestamp = 0 });
+            timeline.Events.Add(Event(120000, 1, 7, null));
+            timeline.Events.Add(Event(900000, 1, 6, new[] { 7 }));
+            timeline.Events.Add(Event(900001, 1, 7, null));
+            timeline.Events.Add(Event(100000, 1, 6, null));
+            timeline.Events.Add(Event(200000, 2, 7, null));
+            Require(LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match) == 2,
+                "Only deaths involving an enemy jungler within the inclusive 15-minute window count.");
+            Require(LeagueEarlyJungleDeathAnalysis.Calculate(null, match) == null &&
+                LeagueEarlyJungleDeathAnalysis.Calculate(new LeagueMatchTimeline { GameId = 100 }, match) == null &&
+                LeagueEarlyJungleDeathAnalysis.Calculate(new LeagueMatchTimeline { GameId = 999 }, match) == null,
+                "Missing, empty and wrong-game timelines are unknown.");
+            timeline.Events.Clear();
+            Require(LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match) == 0,
+                "A complete empty timeline yields a measured zero.");
+            match.ParticipantRoster[6].Position = null;
+            match.ParticipantRoster[6].SpellIds = new[] { 11, 4 };
+            Require(LeagueEarlyJungleDeathAnalysis.EnemyJunglers(match).SequenceEqual(new[] { 7 }),
+                "Enemy Smite fallback works without position.");
+            match.ParticipantRoster[6].SpellIds = null;
+            Require(LeagueEarlyJungleDeathAnalysis.Calculate(timeline, match) == null,
+                "No identifiable enemy jungler is unknown.");
+            match.ParticipantRoster[6].Position = "JUNGLE";
+            var duplicate = Match(); duplicate.ParticipantRoster[8].ParticipantId = 7;
+            Require(LeagueEarlyJungleDeathAnalysis.EnemyJunglers(duplicate).Length == 0,
+                "Duplicate roster slots are rejected.");
+            var jungler = Match(); jungler.HasSmite = true;
+            Require(LeagueEarlyJungleDeathAnalysis.EnemyJunglers(jungler).Length == 0,
+                "Self junglers are excluded.");
+            var wrongMode = Match(); wrongMode.GameMode = "ARAM";
+            Require(LeagueEarlyJungleDeathAnalysis.Calculate(timeline, wrongMode) == null,
+                "Only Classic Rift is eligible.");
+            var regional = Match(); regional.DataSource = LeaguePlayerHistorySource.Sgp;
+            regional.SgpServerId = "TENCENT_HN10"; regional.GameId = 200;
+            var candidates = LeagueEarlyJungleDeathAnalysis.Candidates(new[] {
+                match, match, regional, wrongMode, jungler, duplicate
+            }, "target");
+            Require(candidates.Count == 2 && candidates.Any(m => m.GameId == 200),
+                "Distinct valid target/source/region games only.");
+            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
+                LeaguePlayerDataService.HistoryDetailKey(match)
+            };
+            Require(LeagueEarlyJungleDeathAnalysis.PendingBatch(candidates, "target", attempted, 0)
+                .Single().GameId == 200 &&
+                LeagueEarlyJungleDeathAnalysis.PendingBatch(candidates, "target", attempted, 40).Count == 0,
+                "Batch bounds and attempted keys hold.");
+            var sample = new LeagueEarlyJungleDeathSample { Match = match, Deaths = 0 };
+            var foreign = Match(); foreign.PuuId = "other";
+            var forged = new LeagueEarlyJungleDeathSample { Match = foreign, Deaths = 99 };
+            var ignored = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new[] { forged }).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(!ignored.Value.HasValue && ignored.Known == 0,
+                "A different target cannot contaminate the comparison.");
+            Require(LeagueEarlyJungleDeathAnalysis.Report(UiTextCatalog.Load(), new[] { forged },
+                candidates, "target", null, 0).Contains("--"),
+                "A different target cannot contaminate the report.");
+            var metric = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new[] { sample, sample }).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(metric.Value == 0d && metric.Known == 1 && metric.Total == 2,
+                "Comparison distinguishes zero, duplicates and eligible scope.");
+            var unknown = LeagueHistoryChampionComparison.Calculate(candidates, 0,
+                new LeagueEarlyJungleDeathSample[0]).Single(v => v.Key ==
+                    UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths);
+            Require(!unknown.Value.HasValue && unknown.Known == 0 && unknown.Total == 2,
+                "Unloaded timelines are not measured zero.");
+            Require(LeagueHistoryChampionOverview.Project(candidates, 0,
+                new LeagueEarlyJungleDeathSample[0]).SelectMany(s => s.Metrics)
+                .All(v => v.Key != UiTextKeys.LeaguePlayerCompareEarlyJungleDeaths),
+                "Unknown early-jungle metrics are hidden in overview.");
+            Require(LeagueEarlyJungleDeathAnalysis.Classify(null, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(double.NaN, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(0, true) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.0, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.49, false) == null &&
+                LeagueEarlyJungleDeathAnalysis.Classify(0.99, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankHard &&
+                LeagueEarlyJungleDeathAnalysis.Classify(1.5, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy &&
+                LeagueEarlyJungleDeathAnalysis.Classify(2, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankEasy &&
+                LeagueEarlyJungleDeathAnalysis.Classify(2.01, false) ==
+                    LeagueEfficiencyUiTextKeys.OngoingEasyGankVery,
+                "Source easy-gank thresholds must be exact and unknown/jungler data must fail closed.");
+            var ui = UiTextCatalog.Load();
+            var report = LeagueEarlyJungleDeathAnalysis.Report(ui, new[] { sample, sample },
+                candidates, "target", attempted, 0);
+            Require(report.Contains("0.00") && report.Contains("1/2") &&
+                report.Contains(LeagueEfficiencyText.Get(ui, LeagueEfficiencyUiTextKeys.OngoingEasyGankHard)),
+                "Known zero, duplicates and coverage are distinct.");
+            Require(LeagueEarlyJungleDeathAnalysis.Report(ui, null, candidates, "target",
+                attempted, 0).Contains("--"), "Unloaded samples are unknown.");
+        }
+
+        private static LeagueMatchTimelineEvent Event(long time, int victim, int killer, int[] assists)
+        {
+            return new LeagueMatchTimelineEvent { Timestamp = time, Type = "CHAMPION_KILL",
+                VictimId = victim, KillerId = killer, Assists = assists };
+        }
+
+        private static LeaguePlayerMatchSummary Match()
+        {
+            var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchSummary {
+                ParticipantId = i, TeamId = i <= 5 ? 100 : 200,
+                PuuId = i == 1 ? "target" : "player-" + i,
+                Position = i == 7 ? "JUNGLE" : "TOP"
+            }).ToArray();
+            return new LeaguePlayerMatchSummary { GameId = 100, MapId = 11,
+                GameMode = "CLASSIC", GameType = "MATCHED_GAME", PuuId = "target",
+                ParticipantId = 1, TeamId = 100, ChampionId = 64, Position = "TOP",
+                DataSource = LeaguePlayerHistorySource.Lcu, ParticipantRoster = roster,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" };
+        }
+
+        private static void Require(bool value, string message)
+        {
+            if (!value) throw new InvalidOperationException(message);
+        }
+    }
+}

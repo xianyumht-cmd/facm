@@ -1,0 +1,2136 @@
+using System;
+using System.Collections.Generic;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web.Script.Serialization;
+using System.Linq;
+using FACM.Performance;
+using FACM.Services;
+
+namespace FACM.League
+{
+    internal static class LeagueAutoPickBanSmokeTest
+    {
+        public static void Validate()
+        {
+            ValidateQueueGroupsAndTiming();
+            ValidateGroupRefreshCancellation();
+            ValidateRemoteGroupCatalog();
+            ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
+            ValidateBenchRoleSelection();
+            ValidateJustShowExistingChoiceAsync().GetAwaiter().GetResult();
+            ValidateLiveQueueContextAsync().GetAwaiter().GetResult();
+            ValidateSpecialChampionsAsync().GetAwaiter().GetResult();
+            ValidateSubsetPicksAsync().GetAwaiter().GetResult();
+            ValidateTransientEligibilityRecoveryAsync().GetAwaiter().GetResult();
+            ValidateWriteRetryAsync().GetAwaiter().GetResult();
+            Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
+                "Automatic pick/ban must default disabled.");
+            var settings = AppSettings.ParseLines(new[]
+            {
+                "LeagueAutoPickEnabled=True", "LeagueAutoBanEnabled=True",
+                "LeagueAutoPickChampionId=22", "LeagueAutoBanChampionId=67"
+            });
+            Require(settings.LeagueAutoPickEnabled && settings.LeagueAutoBanEnabled &&
+                    settings.LeagueAutoPickChampionId == 22 && settings.LeagueAutoBanChampionId == 67,
+                "Auto-select preferences did not parse.");
+            Require(string.Join("\n", settings.BuildLines()).Contains("LeagueAutoPickChampionId=22"),
+                "Auto-select preferences did not serialize.");
+            Require(LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, -3) &&
+                    LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 0, -1) &&
+                    LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, -3) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 0, -3) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, -1) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, -1),
+                "Special champion write targets escaped their action restrictions.");
+            Require(LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, 22) &&
+                    LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", 3, 67) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("DELETE", "pick", 0, 22) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "trade", 3, 67) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "ban", -1, 67) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedForSmokeTest("PATCH", "pick", 0, 0),
+                "ChampSelect action writer escaped its method/type/action/champion fence.");
+            ValidateActionParsing();
+            ValidateProfiles();
+            ValidateAkariAutoSelectTransfer();
+            ValidatePickAndBanAsync().GetAwaiter().GetResult();
+            ValidatePickIntentAsync().GetAwaiter().GetResult();
+            ValidateAutoBenchAsync().GetAwaiter().GetResult();
+            ValidateChampionTradesAsync().GetAwaiter().GetResult();
+            ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
+        }
+
+        internal static void ValidateGroupRefreshCancellation()
+        {
+            LeagueAutoSelectGroupCatalog.ResetForSmokeTest();
+            try
+            {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueAutoSelectGroupCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "Auto-select group catalog must distinguish transient failure from successful refresh.");
+                var loads = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var canceled = false;
+                    try
+                    {
+                        LeagueAutoSelectGroupCatalog.TryRefreshAsync(cancellation.Token,
+                            token => Task.FromResult(0), token =>
+                            {
+                                loads++;
+                                cancellation.Cancel();
+                                return Task.FromResult<byte[]>(null);
+                            }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { canceled = true; }
+                    Require(canceled && loads == 1,
+                        "Cancelled auto-select catalog response must not publish or throttle.");
+                }
+                LeagueAutoSelectGroupCatalog.TryRefreshAsync(CancellationToken.None,
+                    token => Task.FromResult(0), token =>
+                    {
+                        loads++;
+                        return Task.FromResult<byte[]>(null);
+                    }).GetAwaiter().GetResult();
+                Require(loads == 2,
+                    "Cancelled group catalog must allow the next explicit refresh.");
+                LeagueAutoSelectGroupCatalog.TryRefreshAsync(CancellationToken.None,
+                    token => Task.FromResult(0), token =>
+                    {
+                        loads++;
+                        return Task.FromResult<byte[]>(null);
+                    }).GetAwaiter().GetResult();
+                Require(loads == 2,
+                    "Failed group catalog attempt must retain the five-minute retry throttle.");
+            }
+            finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
+        }
+
+        private static void ValidateActionParsing()
+        {
+            var action = LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 0, 0)));
+            Require(action != null && action.Id == 0 && action.ChampionId == 0 && action.Type == "pick",
+                "Valid first-player/first-action zero IDs should be accepted.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 0, 0, false))) == null,
+                "Inactive local action should never be issued.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 0, 0, true, "FINALIZATION"))) == null,
+                "Non-ban-pick timer phase should fail closed.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 0, 0, true, "BAN_PICK", true))) == null,
+                "Completed action should never be issued.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes("not json")) == null,
+                "Malformed session must not create a write target.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(
+                    "{\"timer\":{\"phase\":\"BAN_PICK\"},\"localPlayerCellId\":0," +
+                    "\"actions\":[[{\"id\":0,\"type\":\"pick\",\"championId\":0," +
+                    "\"isInProgress\":true,\"completed\":false}]]}")) == null,
+                "A missing actorCellId must not accidentally match player zero.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(
+                    "{\"timer\":{\"phase\":\"BAN_PICK\"},\"localPlayerCellId\":0," +
+                    "\"actions\":[[{\"id\":0,\"actorCellId\":0,\"type\":\"pick\"," +
+                    "\"championId\":0,\"isInProgress\":true}]]}")) == null,
+                "A session without the completed flag must fail closed.");
+            Require(LeagueAutoPickBanController.IsAvailable(Bytes("[1,22,67]"), 22) &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("[1,67]"), 22) &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("{\"ids\":[22]}"), 22),
+                "Champion availability must use the validated LCU list.");
+        }
+
+
+        internal static void ValidateRemoteGroupCatalog()
+        {
+            var valid = @"{""updatedAt"":""2026-08-02T00:00:00.000Z"",""groups"":[{""groupId"":""ranked"",""name"":{""zh-CN"":""排位模式"",""en"":""Ranked""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]}],""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]},{""groupId"":""normal"",""name"":{""zh-CN"":""普通模式"",""en"":""Normal""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""NORMAL""]}],""positions"":[""default""],""additionalPicks"":[],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[]}]}";
+            try
+            {
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_FLEX_SR", false) == null,
+                    "Trusted newer group catalog must replace pinned queue routing without implicit fallback.");
+                Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "FUTURE_REGION_999") == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("ranked", "FUTURE_REGION_999", false, -1) &&
+                    LeagueAutoSelectGroupCatalog.RoleFor("ranked", "FUTURE_REGION_999", "top") == null,
+                    "Wildcard source groups must not authorize an untrusted SGP region.");
+                var bound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")));
+                Require(bound != null && Encoding.UTF8.GetString(bound).Contains(":ranked"),
+                    "Auto-select context must include the resolved group so a remote route change invalidates in-flight writes.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid)) &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(valid.Replace("2026-08-02", "2026-07-01"))),
+                    "Equal or stale auto-select group catalog must not replace the active snapshot.");
+                var normalProfiles = new[]
+                {
+                    new LeagueAutoSelectProfile { Mode = "normal", Role = "default",
+                        Picks = new List<int> { 67 } },
+                    new LeagueAutoSelectProfile { Mode = "normal", Role = "top",
+                        Picks = new List<int> { 22 } }
+                };
+                Require(LeagueAutoSelectProfiles.Candidates(normalProfiles, "normal", "top", true, 0)
+                        .SequenceEqual(new[] { 67 }),
+                    "A default-only source group must not apply a hidden lane-specific profile.");
+                var normalRoles = valid.Replace("2026-08-02T00", "2026-08-02T12")
+                    .Replace("\"positions\":[\"default\"]",
+                        "\"positions\":[\"default\",\"top\",\"utility\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(normalRoles)) &&
+                    LeagueAutoSelectGroupCatalog.SupportsRoles("normal") &&
+                    LeagueAutoSelectProfiles.Candidates(normalProfiles, "normal", "top", true, 0)
+                        .SequenceEqual(new[] { 22, 67 }),
+                    "Catalog-enabled normal lane priorities must reach the actual pick resolver.");
+                var scoped = valid.Replace("2026-08-02", "2026-08-03")
+                    .Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"TENCENT_HN1\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(scoped)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false, "TENCENT_HN1") == "ranked" &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false, "NA1") == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null,
+                    "Region-scoped groups must be selected only for their trusted server.");
+                // Source catalogs can mention a future region before its trusted SGP
+                // provider arrives. Keep the catalog but never authorize that region.
+                var futureRegion = scoped.Replace("2026-08-03T00", "2026-08-03T12")
+                    .Replace("TENCENT_HN1", "FUTURE_REGION_999");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "FUTURE_REGION_999") == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("ranked", "FUTURE_REGION_999", false, -1),
+                    "Unknown future SGP regions must parse without becoming trusted action targets.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion.Replace(
+                        "FUTURE_REGION_999", "future.region"))) &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(futureRegion.Replace(
+                        "FUTURE_REGION_999", "FUTURE_REGION_999_TOO_LONG_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"))),
+                    "Malformed and overlong remote region IDs must be rejected.");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(scoped.Replace(
+                        "2026-08-03T00", "2026-08-03T18"))) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false,
+                        "TENCENT_HN1") == "ranked",
+                    "A newer trusted region snapshot must restore only its authorized routes.");
+                var scopedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
+                Require(scopedBound != null &&
+                    Encoding.UTF8.GetString(scopedBound).Contains(":TENCENT_HN1:top:ranked") &&
+                    LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                        Bytes(Flow("RANKED_SOLO_5x5")), "NA1") == null,
+                    "The bound action must include its server and reject cross-region remote groups.");
+                var restrictedRoles = scoped.Replace("2026-08-03", "2026-08-04")
+                    .Replace("\"positions\":[\"top\",\"jungle\",\"middle\",\"bottom\",\"utility\"]",
+                        "\"positions\":[\"jungle\"]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(restrictedRoles)),
+                    "Trusted role-restricted group update was rejected.");
+                var restrictedBound = LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                    Bytes(Flow("RANKED_SOLO_5x5")), "TENCENT_HN1");
+                Require(restrictedBound != null &&
+                    LeagueAutoPickBanController.ParseCurrentAction(restrictedBound).Role == "default" &&
+                    Encoding.UTF8.GetString(restrictedBound).Contains(":TENCENT_HN1:default:ranked"),
+                    "A removed remote position must fall back to the default profile before a write.");
+                foreach (var bad in new[] {
+                    valid.Replace(@"""groupId"":""ranked""", @"""groupId"":""foreign!"""),
+                    valid.Replace(@"""gameMode"":""CLASSIC""", @"""gameMode"":""ARAM"""),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"invalid.region\"]"),
+                    valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"*\",\"NA1\"]"),
+                    valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[0]"),
+                    valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[""22""]"),
+                    valid.Replace(@"""additionalBans"":[]", @"""additionalBans"":[true]"),
+                    valid.Replace(@"""excludedBans"":[]", @"""excludedBans"":[22.5]"),
+                    valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
+                })
+                    Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-05"))),
+                        "Unknown group, server, mixed wildcard, unmodeled action or remote icon must fail closed.");
+
+                var positiveMetadata = valid.Replace("2026-08-02", "2026-08-05")
+                    .Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[22]")
+                    .Replace(@"""additionalBans"":[]", @"""additionalBans"":[67]")
+                    .Replace(@"""excludedPicks"":[-1]", @"""excludedPicks"":[-1,22]")
+                    .Replace(@"""excludedBans"":[]", @"""excludedBans"":[67]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(positiveMetadata)) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked", null, true)
+                        .SequenceEqual(new[] { 67 }) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked", null, false)
+                        .SequenceEqual(new[] { 22 }),
+                    "Source positive metadata must be accepted and exclusions enforced.");
+                Require(LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "missing", null, true).Count == 0 &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { 22, 67 }, "ranked",
+                        "FUTURE_REGION_999", true).Count == 0,
+                    "Untrusted or revoked source group must not preserve positive pick candidates.");
+                Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(
+                    positiveMetadata.Replace("2026-08-05", "2026-08-06")
+                        .Replace(@"""additionalPicks"":[22]", @"""additionalPicks"":[0]"))),
+                    "Zero cannot become a source champion action.");
+                var cherry = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""groups"":[{""groupId"":""cherry"",""name"":{""zh-CN"":""斗魂竞技场"",""en"":""Arena""},""iconPath"":""/lol-game-data/assets/test.png"",""isCustom"":false,""supportedSgpServers"":[""*""],""targetGameModes"":[{""gameMode"":""CHERRY"",""queueTypes"":[""ANY""]}],""positions"":[""default""],""additionalPicks"":[-3],""additionalBans"":[],""excludedPicks"":[-1],""excludedBans"":[-1]}]}";
+                var cherryFlow = Flow("ANY").Replace("\"CLASSIC\"", "\"CHERRY\"");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(cherry)) &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3) &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, false, -1) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -3, -1, 22 }, "cherry", null, true)
+                        .SequenceEqual(new[] { -3, 22 }) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -1, 22 }, "cherry", null, false)
+                        .SequenceEqual(new[] { 22 }),
+                    "Remote Arena special choices must enforce source allow/exclude lists.");
+                var before = LeagueAutoSelectContext.Bind(Bytes(Session("pick", 12, 0)), Bytes(cherryFlow));
+                Require(before != null, "Trusted Arena catalog must bind a local action.");
+                var specialProfiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 },
+                        Bans = new List<int> { -1 } } });
+                var pickWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0), GameflowJson = cherryFlow,
+                        Pickable = "[]" }, pickWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(pickWrite.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "Trusted Arena bravery must remain executable without an ordinary champion pool.");
+                var blockedBan = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("ban", 13, 0), GameflowJson = cherryFlow,
+                        Bannable = "[-1]" }, blockedBan, new InstantClock()))
+                {
+                    controller.Configure(false, 0, true, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(blockedBan.Calls.Count == 0,
+                    "A remotely excluded empty ban must never reach the LCU writer.");
+                var revoked = cherry.Replace("2026-08-06", "2026-08-07")
+                    .Replace(@"""additionalPicks"":[-3]", @"""additionalPicks"":[]")
+                    .Replace(@"""excludedBans"":[-1]", @"""excludedBans"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(revoked)) &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3) &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, false, -1) &&
+                    LeagueAutoSelectGroupCatalog.FilterSpecials(new[] { -3, 22 }, "cherry", null, true)
+                        .SequenceEqual(new[] { 22 }),
+                    "Updated group restrictions must revoke obsolete special choices.");
+                var after = LeagueAutoSelectContext.Bind(Bytes(Session("pick", 12, 0)), Bytes(cherryFlow));
+                Require(after != null && !Encoding.UTF8.GetString(before).Equals(Encoding.UTF8.GetString(after),
+                    StringComparison.Ordinal), "Remote catalog revisions must invalidate an in-flight draft context.");
+                var revokedPick = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0), GameflowJson = cherryFlow,
+                        Pickable = "[]" }, revokedPick, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, specialProfiles);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(revokedPick.Calls.Count == 0,
+                    "A removed remote bravery option must not be submitted from a saved profile.");
+
+                var expanded = valid.Replace("2026-08-02", "2026-08-08")
+                    .Replace(@"""groupId"":""ranked""", @"""groupId"":""ranked_next""");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(expanded)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked_next" &&
+                    LeagueAutoSelectGroupCatalog.RemoteGroups.Any(g => g.Item1 == "ranked_next") &&
+                    LeagueAutoSelectGroupCatalog.SupportsRoles("ranked_next"),
+                    "New trusted remote groups must become selectable without adding a new LCU write route.");
+                var dynamicProfile = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "ranked_next", Role = "top",
+                        Picks = new List<int> { 22 } } });
+                Require(LeagueAutoSelectProfiles.Parse(dynamicProfile).Count == 1 &&
+                    LeagueAutoSelectProfiles.Candidates(LeagueAutoSelectProfiles.Parse(dynamicProfile),
+                        "ranked_next", "top", true, 67).SequenceEqual(new[] { 22 }) &&
+                    LeagueAutoSelectProfiles.Candidates(Array.Empty<LeagueAutoSelectProfile>(),
+                        "ranked_next", "top", true, 67).Count == 0 &&
+                    !LeagueAutoSelectProfiles.ResolveStrategy(Array.Empty<LeagueAutoSelectProfile>(),
+                        "ranked_next", "top").PickEnabled,
+                    "A new remote group must use only explicit saved priorities, not a legacy fallback.");
+                var dynamicWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    dynamicWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(dynamicWrite.Calls.SequenceEqual(new[] { "pick:12:22:True" }),
+                    "Explicitly configured new remote group must reach the existing guarded pick writer.");
+                var removed = valid.Replace("2026-08-02", "2026-08-09");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(removed)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == "ranked" &&
+                    !LeagueAutoSelectGroupCatalog.RemoteGroups.Any(),
+                    "A newer catalog must revoke an earlier dynamic group without deleting saved preferences.");
+                var staleWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    staleWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(staleWrite.Calls.Count == 0,
+                    "A revoked remote group must never execute its previously saved priorities.");
+
+                var arenaGroup = cherry.Replace("2026-08-06", "2026-08-10")
+                    .Replace(@"""groupId"":""cherry""", @"""groupId"":""cherry_next""");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(arenaGroup)) &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == "cherry_next" &&
+                    LeagueAutoSelectGroupCatalog.IsArenaGroup("cherry_next") &&
+                    LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry_next", null, true, -3),
+                    "A new trusted Arena group must preserve source-authorized bravery.");
+                var arenaProfile = LeagueAutoSelectProfiles.Serialize(new[] {
+                    new LeagueAutoSelectProfile { Mode = "cherry_next",
+                        Picks = new List<int> { -3 } } });
+                var arenaWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0),
+                        GameflowJson = cherryFlow, Pickable = "[]" },
+                    arenaWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, arenaProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(arenaWrite.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "A source-approved dynamic Arena group must complete bravery through the existing writer.");
+
+                // The source permits a newer empty group list. It must revoke every
+                // automatic pick/ban route, including saved dynamic profiles.
+                var emptyGroups = Bytes(@"{""updatedAt"":""2026-08-11T00:00:00.000Z"",""groups"":[]}");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(emptyGroups) &&
+                    LeagueAutoSelectGroupCatalog.RemoteGroups.Count == 0 &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry_next", null, true, -3) &&
+                    LeagueAutoSelectContext.Bind(Bytes(SessionWithRole("pick", 12, "TOP")),
+                        Bytes(Flow("RANKED_EXPERIMENTAL"))) == null,
+                    "An empty source group catalog must revoke built-in and dynamic automatic actions.");
+                var revokedGroupWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                        GameflowJson = Flow("RANKED_EXPERIMENTAL"), Pickable = "[22]" },
+                    revokedGroupWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 67, false, 0, dynamicProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(revokedGroupWrite.Calls.Count == 0 &&
+                    !LeagueAutoSelectGroupCatalog.TryApply(Bytes(removed)),
+                    "Revoked groups must not write champions or be restored by stale snapshots.");
+
+                // The pinned source schema permits empty target modes, queue types and
+                // positions; these disable routing or lane options without invalidating
+                // other still-active groups in the same trusted catalog.
+                var noRankedTargets = valid.Replace("2026-08-02", "2026-08-12")
+                    .Replace(@"""targetGameModes"":[{""gameMode"":""CLASSIC"",""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]}]",
+                        @"""targetGameModes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedTargets)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty targetGameModes must disable only the affected group route.");
+                var noRankedQueues = valid.Replace("2026-08-02", "2026-08-13")
+                    .Replace(@"""queueTypes"":[""RANKED_EXPERIMENTAL"",""RANKED_SOLO_5x5""]",
+                        @"""queueTypes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedQueues)) &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == null &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty queueTypes must not route a match to stale automatic priorities.");
+                var noRankedPositions = valid.Replace("2026-08-02", "2026-08-14")
+                    .Replace(@"""positions"":[""top"",""jungle"",""middle"",""bottom"",""utility""]",
+                        @"""positions"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noRankedPositions)) &&
+                    !LeagueAutoSelectGroupCatalog.SupportsRoles("ranked") &&
+                    LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", false) == "normal",
+                    "Empty source positions must remove role-specific options without revoking unrelated groups.");
+
+                // An Arena group can retain source metadata for bravery while its
+                // empty target list disables the route entirely.
+                var noArenaTargets = cherry.Replace("2026-08-06", "2026-08-15")
+                    .Replace(@"""targetGameModes"":[{""gameMode"":""CHERRY"",""queueTypes"":[""ANY""]}]",
+                        @"""targetGameModes"":[]");
+                Require(LeagueAutoSelectGroupCatalog.TryApply(Bytes(noArenaTargets)) &&
+                    LeagueAutoSelectContext.GroupFor("CHERRY", "ANY", false) == null &&
+                    !LeagueAutoSelectGroupCatalog.SpecialAllowed("cherry", null, true, -3),
+                    "An Arena group with empty target modes must revoke bravery even if its metadata retains -3.");
+                var noArenaWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    new FakeRead { SessionJson = Session("pick", 12, 0),
+                        GameflowJson = cherryFlow, Pickable = "[]" },
+                    noArenaWrite, new InstantClock()))
+                {
+                    controller.Configure(true, 0, false, 0, arenaProfile);
+                    controller.RunOnceForSmokeTestAsync(CancellationToken.None).GetAwaiter().GetResult();
+                }
+                Require(noArenaWrite.Calls.Count == 0,
+                    "A disabled Arena route must not perform a saved bravery pick.");
+            }
+            finally { LeagueAutoSelectGroupCatalog.ResetForSmokeTest(); }
+            Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_SOLO_5x5", false) == "ranked" &&
+                LeagueAutoSelectContext.GroupFor("CLASSIC", "RANKED_EXPERIMENTAL", false) == null,
+                "Built-in group routing must recover after synthetic remote catalog tests.");
+        }
+
+        internal static async Task ValidateSessionRegionFenceAsync()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            var changed = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN10", "TENCENT");
+            var stableRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var stableWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(stableRead, stableWrite,
+                null, null, new InstantClock(), () => first))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(stableWrite.Calls.Count == 1,
+                    "Stable current-region draft must preserve the existing automatic pick.");
+            }
+
+            var replacement = new LeagueClientSession("LeagueClientUx", 43, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            var processRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var processWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(processRead, processWrite,
+                null, null, new InstantClock(),
+                () => processRead.Paths.Count == 0 ? first : replacement))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(processWrite.Calls.Count == 0,
+                    "Replacing the LCU process on the same port must reject the old pick episode.");
+            }
+
+            var owner = first;
+            var observerClock = new FakeClock();
+            var observerWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Session("pick", 0, 0) }, observerWrite,
+                null, null, observerClock, () => owner))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                var oldEpisode = controller.RunningForSmokeTest;
+                Require(observerWrite.Calls.Count == 1 && observerClock.Delays == 1,
+                    "Initial LCU owner should arm one phase-scoped pick episode.");
+                owner = replacement;
+                controller.Observe(Selecting());
+                var newEpisode = controller.RunningForSmokeTest;
+                await oldEpisode.ConfigureAwait(false);
+                Require(observerWrite.Calls.Count == 2 && observerClock.Delays == 2,
+                    "Same-phase process replacement must rearm with a fresh action fence.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await newEpisode.ConfigureAwait(false);
+                Require(observerClock.Cancelled,
+                    "Leaving ChampSelect must cancel the replacement process episode.");
+            }
+
+            var switchedRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var switchedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(switchedRead, switchedWrite,
+                null, null, new InstantClock(),
+                () => switchedRead.Paths.Count == 0 ? first : changed))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedWrite.Calls.Count == 0,
+                    "A region switch during the two LCU reads must block the draft write.");
+            }
+        }
+
+        internal static void ValidateBenchRoleSelection()
+        {
+            var top = LeagueLiveDataService.ParseBenchPayload(Bytes(
+                BenchSession(34, "[55]", 450, false)
+                    .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"TOP\"}")));
+            var support = LeagueLiveDataService.ParseBenchPayload(Bytes(
+                BenchSession(34, "[55]", 450, false)
+                    .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"UTILITY\"}")));
+            var unknown = LeagueLiveDataService.ParseBenchPayload(Bytes(BenchSession(34, "[55]", 450, false)));
+            var untouchedDefault = LeagueLiveDataService.ParseBenchPayload(
+                Bytes(BenchSession(34, "[55]", 450, false)));
+            Require(LeagueAutoPickBanController.BenchAssignedRole(top) == "top" &&
+                    LeagueAutoPickBanController.BenchAssignedRole(support) == "support" &&
+                    LeagueAutoPickBanController.BenchAssignedRole(unknown) == null,
+                "Bench and trade priorities must use the verified local assigned position.");
+            Require(LeagueAutoPickBanController.PreservePrimaryBenchRole(top, unknown) &&
+                    LeagueAutoPickBanController.BenchAssignedRole(unknown) == "top" &&
+                    !LeagueAutoPickBanController.PreservePrimaryBenchRole(top, support),
+                "Team Builder fallback must retain the primary assigned role and reject conflicts.");
+            var profiles = new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "default",
+                    AkariExactPickRoles = true, Picks = new List<int> { 34 } },
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 55 } }
+            };
+            Require(LeagueAutoSelectProfiles.Candidates(profiles, "rift",
+                        LeagueAutoPickBanController.BenchAssignedRole(top), true, 0)
+                        .SequenceEqual(new[] { 55 }) &&
+                    LeagueAutoSelectProfiles.Candidates(profiles, "rift",
+                        LeagueAutoPickBanController.BenchAssignedRole(untouchedDefault), true, 0)
+                        .SequenceEqual(new[] { 34 }),
+                "Source-imported role-specific bench priorities must not fall back to the default lane.");
+        }
+
+        internal static async Task ValidateJustShowExistingChoiceAsync()
+        {
+            foreach (var type in new[] { "pick", "ban" })
+            {
+                var isPick = type == "pick";
+                var champion = isPick ? 22 : 67;
+                var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+                {
+                    new LeagueAutoSelectProfile
+                    {
+                        Mode = "default", Role = "default",
+                        Picks = new List<int> { 22 }, Bans = new List<int> { 67 },
+                        PickStrategy = "just-show", BanStrategy = "just-show"
+                    }
+                });
+                var read = new FakeRead { SessionJson = Session(type, 7, champion) };
+                var write = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(read, write, new InstantClock()))
+                {
+                    controller.Configure(isPick, isPick ? champion : 0,
+                        !isPick, isPick ? 0 : champion, profiles);
+                    await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                    Require(write.Calls.Count == 0 && read.ActionPaths.Count == 1,
+                        "Just-show must not rewrite an already shown " + type + " choice.");
+                }
+
+                var freshRead = new FakeRead { SessionJson = Session(type, 7, 0) };
+                var freshWrite = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(
+                    freshRead, freshWrite, new InstantClock()))
+                {
+                    controller.Configure(isPick, isPick ? champion : 0,
+                        !isPick, isPick ? 0 : champion, profiles);
+                    await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                    Require(freshWrite.Calls.SequenceEqual(new[]
+                        { type + ":7:" + champion + ":False" }),
+                        "Just-show must still issue its initial nonlocking " + type + " write.");
+                }
+            }
+        }
+
+        private static void ValidateQueueGroupsAndTiming()
+        {
+            var contexts = new[] {
+                new[] { "CLASSIC", "RANKED_SOLO_5x5", "ranked" }, new[] { "CLASSIC", "RANKED_FLEX_SR", "ranked" },
+                new[] { "CLASSIC", "NORMAL", "normal" }, new[] { "ARAM", "ARAM_UNRANKED_5x5", "aram" },
+                new[] { "KIWI", "ANY", "aram" }, new[] { "CHERRY", "ANY", "cherry" }, new[] { "URF", "ANY", "urf" },
+                new[] { "ONEFORALL", "ANY", "oneforall" }, new[] { "ULTBOOK", "ANY", "ultbook" },
+                new[] { "SWIFTPLAY", "RIOTSCRIPT_BOT", "bot" } };
+            foreach (var entry in contexts)
+                Require(LeagueAutoSelectContext.GroupFor(entry[0], entry[1], false) == entry[2], "Pinned queue group did not match.");
+            Require(LeagueAutoSelectContext.GroupFor("CLASSIC", "NORMAL", true) == "custom" &&
+                LeagueAutoSelectContext.GroupFor("PRACTICETOOL", "NORMAL", true) == "custom" &&
+                LeagueAutoSelectContext.GroupFor("ARAM", "ANY", true) == null &&
+                LeagueAutoSelectContext.GroupFor("CLASSIC", "UNKNOWN", false) == null &&
+                LeagueAutoSelectContext.GroupFor("CLASSIC", "", false) == null, "Custom or unsupported queue isolation failed.");
+            var timer = new Dictionary<string, object> { { "internalNowInEpochMs", 50000L },
+                { "totalTimeInPhase", 30000 }, { "adjustedTimeLeftInPhase", 28500 } };
+            Require(LeagueAutoSelectContext.PhaseDelay(2000, false, timer, 50000) == 500, "Phase elapsed time must reduce the first delay.");
+            timer["adjustedTimeLeftInPhase"] = 27900;
+            Require(LeagueAutoSelectContext.PhaseDelay(2000, true, timer, 50000) == 1900, "Second stage did not align with twice the configured offset.");
+            timer["adjustedTimeLeftInPhase"] = -100;
+            Require(LeagueAutoSelectContext.PhaseDelay(2000, false, timer, 50000) == 0, "Expired phase extended the delay.");
+            timer["isInfinite"] = true;
+            Require(LeagueAutoSelectContext.PhaseDelay(2000, false, timer, 50000) == 2000 &&
+                LeagueAutoSelectContext.PhaseDelay(2000, false, null, 50000) == 2000, "Non-authoritative timer changed the configured delay.");
+            var profiles = new List<LeagueAutoSelectProfile>();
+            foreach (var mode in LeagueAutoSelectProfiles.Modes)
+                foreach (var role in mode == "ranked" || mode == "rift" || mode == "custom" ? LeagueAutoSelectProfiles.Roles : new[] { "default" })
+                    profiles.Add(new LeagueAutoSelectProfile { Mode = mode, Role = role,
+                        Picks = Enumerable.Range(1, 20).ToList(), Bans = Enumerable.Range(21, 20).ToList() });
+            var encoded = LeagueAutoSelectProfiles.Serialize(profiles);
+            Require(encoded.Length > 8192 && LeagueAutoSelectProfiles.Parse(encoded).Count == profiles.Count,
+                "The expanded native profile catalog must survive the old size limit.");
+            var settings = new AppSettings { LeagueAutoSelectProfiles = encoded, LeagueAutoPickEnabled = true, LeagueAutoPickChampionId = 22 };
+            Require(AppSettings.ParseLines(settings.BuildLinesForSmokeTest()).LeagueAutoSelectProfiles == encoded, "Expanded profiles failed INI roundtrip.");
+            var restored = new AppSettings();
+            var snapshot = CloudSettingsSnapshot.Capture(settings);
+            snapshot.ApplyTo(restored);
+            var restoredProfiles = LeagueAutoSelectProfiles.Parse(restored.LeagueAutoSelectProfiles);
+            Require(restoredProfiles.Count == profiles.Count && profiles.All(expected =>
+                    restoredProfiles.Any(actual => actual.Mode == expected.Mode && actual.Role == expected.Role &&
+                        actual.Picks.SequenceEqual(expected.Picks) && actual.Bans.SequenceEqual(expected.Bans) &&
+                        actual.PickEnabled == expected.PickEnabled && actual.BanEnabled == expected.BanEnabled &&
+                        actual.PickStrategy == expected.PickStrategy && actual.BanStrategy == expected.BanStrategy &&
+                        actual.PickDelayMs == expected.PickDelayMs && actual.BanDelayMs == expected.BanDelayMs &&
+                        actual.BenchSwapDelayMs == expected.BenchSwapDelayMs)) &&
+                    restored.LeagueAutoPickEnabled && restored.LeagueAutoPickChampionId == 22,
+                "Auto-select profiles or opt-in preferences were lost in cloud restore.");
+            GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = snapshot });
+        }
+
+        private static string Flow(string type, bool custom = false)
+        {
+            return "{\"phase\":\"ChampSelect\",\"gameData\":{\"isCustomGame\":" + (custom ? "true" : "false") +
+                ",\"queue\":{\"id\":420,\"gameMode\":\"CLASSIC\",\"type\":\"" + type + "\"}}}";
+        }
+
+        private static async Task ValidateLiveQueueContextAsync()
+        {
+            var bareSession = SessionWithRole("pick", 12, "TOP").Replace("\"queueId\":420,\"gameMode\":\"CLASSIC\",", "");
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 67 } },
+                new LeagueAutoSelectProfile { Mode = "normal", Picks = new List<int> { 22 } },
+                new LeagueAutoSelectProfile { Mode = "custom", Role = "top", Picks = new List<int> { 22 }, PickEnabled = false } });
+            var reader = new FakeRead { SessionJson = bareSession, GameflowJson = Flow("RANKED_SOLO_5x5") };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 1 && writer.Calls[0] == "pick:12:67:True" &&
+                    reader.Paths.Count(p => p == LeagueLiveDataService.GameflowSessionPath) == 2,
+                    "Real Gameflow context must drive ranked profiles and be revalidated before writing.");
+            }
+            foreach (var flow in new[] { Flow("NORMAL", true), "{}", Flow("RANKED_SOLO_5x5").Replace("ChampSelect", "Lobby") })
+            {
+                reader = new FakeRead { SessionJson = bareSession, GameflowJson = flow }; writer = new FakeWrite();
+                using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+                {
+                    controller.Configure(true, 22, false, 0, profiles);
+                    await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                    Require(writer.Calls.Count == 0 && !reader.Paths.Contains(LeagueAutoPickBanController.PickablePath),
+                        "Disabled custom group or unavailable phase context must not reach candidate writes.");
+                }
+            }
+            reader = new FakeRead { SessionJson = bareSession, GameflowJson = Flow("RANKED_SOLO_5x5"), NextGameflowJson = Flow("NORMAL") };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Changed queue type bypassed the final context fence.");
+            }
+        }
+
+        private static async Task ValidateSpecialChampionsAsync()
+        {
+            var cherry = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 } } });
+            Require(LeagueAutoSelectProfiles.Parse(cherry)[0].Picks.Single() == -3 &&
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"aram\",\"Picks\":[-3]}]").Count == 0 &&
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"ranked\",\"Bans\":[-3]}]").Count == 0,
+                "Arena bravery must not be accepted outside its pick-only group.");
+            var selection = SessionWithRole("pick", 12, "TOP");
+            var arenaFlow = "{\"phase\":\"ChampSelect\",\"gameData\":{\"queue\":{\"id\":1700,\"gameMode\":\"CHERRY\",\"type\":\"NORMAL\"}}}";
+            var reader = new FakeRead { SessionJson = selection, GameflowJson = arenaFlow, Pickable = "[22]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, cherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:-3:True" }),
+                    "Arena bravery must be available without a normal champion grid ID.");
+            }
+            var stagedCherry = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "cherry", Picks = new List<int> { -3 },
+                    PickStrategy = "show-and-lock-in" } });
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = selection, GameflowJson = arenaFlow, Pickable = "[22]" },
+                writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, stagedCherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:-3:False", "pick:12:-3:True" }),
+                    "Source Arena bravery show-and-lock must preserve its negative champion ID.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"), Pickable = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, cherry);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Arena bravery escaped its gameflow context.");
+            }
+            var noBan = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Bans = new List<int> { -1 } } });
+            Require(LeagueAutoSelectProfiles.Parse(noBan)[0].Bans.Single() == -1 &&
+                    LeagueAutoPickBanController.IsAvailable(Bytes("[-1,22]"), -1, "ban", "ranked") &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("[22]"), -1, "ban", "ranked") &&
+                    !LeagueAutoPickBanController.IsAvailable(Bytes("[-1]"), -1, "pick", "ranked"),
+                "Empty ban must require explicit LCU bannable eligibility.");
+            reader = new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[-1,22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, noBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "ban:12:-1:True" }),
+                    "Explicit empty ban was not submitted in an eligible turn.");
+            }
+            var stagedNoBan = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top",
+                    Bans = new List<int> { -1 }, BanStrategy = "show-and-lock-in" } });
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                    GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[-1,22]" },
+                writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, stagedNoBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "ban:12:-1:False", "ban:12:-1:True" }),
+                    "Source empty-ban show-and-lock must preserve its negative champion ID.");
+            }
+            reader = new FakeRead { SessionJson = SessionWithRole("ban", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Bannable = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, noBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Empty ban bypassed server bannable eligibility.");
+            }
+        }
+
+        private static async Task ValidateSubsetPicksAsync()
+        {
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 67, 22 } } });
+            var selection = "{\"allowSubsetChampionPicks\":true," + SessionWithRole("pick", 12, "TOP").Substring(1);
+            var reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:22:True" }) &&
+                    reader.Paths.Count(path => path == LeagueAutoPickBanController.SubsetPath) == 2,
+                    "Subset pick must choose only an eligible offered champion and revalidate before write.");
+            }
+            var showOnly = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "ranked", Role = "top", Picks = new List<int> { 22 },
+                    PickStrategy = "just-show" } });
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, showOnly);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:22:True" }),
+                    "Subset draw must finalize even when the ordinary strategy is show-only.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Missing subset eligibility must fail closed.");
+            }
+            reader = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22,67]", Subset = "[22]", NextSubset = "[67]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.Count == 0, "Changed subset must cancel a stale pick before write.");
+            }
+            reader = new FakeRead { SessionJson = SessionWithRole("pick", 12, "TOP"),
+                GameflowJson = Flow("RANKED_SOLO_5x5"), Pickable = "[22,67]", Subset = "[]" };
+            writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.Calls.SequenceEqual(new[] { "pick:12:67:True" }) &&
+                    !reader.Paths.Contains(LeagueAutoPickBanController.SubsetPath),
+                    "Ordinary drafts must not add subset requests or restrict normal picks.");
+            }
+        }
+
+        private static void ValidateProfiles()
+        {
+            var profiles = new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    Bans = new List<int> { 99 }, PickStrategy = "just-show", PickDelayMs = 1500 },
+                new LeagueAutoSelectProfile { Mode = "aram", Role = "default", Picks = new List<int> { 157 } }
+            };
+            var encoded = LeagueAutoSelectProfiles.Serialize(profiles);
+            var decoded = LeagueAutoSelectProfiles.Parse(encoded);
+            Require(decoded.Count == 2 &&
+                decoded[0].Mode == "rift" && decoded[0].Role == "top" &&
+                decoded[0].Picks.SequenceEqual(new[] { 67, 22 }) &&
+                decoded[0].Bans.SequenceEqual(new[] { 99 }) &&
+                decoded[0].PickStrategy == "just-show" && decoded[0].PickDelayMs == 1500 &&
+                decoded[1].Mode == "aram" && decoded[1].Role == "default" &&
+                decoded[1].Picks.SequenceEqual(new[] { 157 }) &&
+                decoded[1].Bans.Count == 0 &&
+                LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles.Serialize(decoded)).Count == 2,
+                "Priority profiles must round-trip without order loss.");
+            Require(LeagueAutoSelectProfiles.ModeFor(420, "CLASSIC") == "rift" &&
+                    LeagueAutoSelectProfiles.ModeFor(450, "ARAM") == "aram" &&
+                    LeagueAutoSelectProfiles.ModeFor(3270, "ARAM") == "mayhem",
+                "Auto-select modes must use the existing ARAM/Mayhem policy.");
+            Require(LeagueAutoPickBanController.ParseCurrentAction(Bytes(SessionWithRole("pick", 6, "UTILITY")))?.Role
+                    == "support" &&
+                    LeagueAutoPickBanController.ParseCurrentAction(Bytes(SessionWithRole("pick", 6, "FILL")))?.Role
+                    == null,
+                "Only a known locally assigned lane is valid for role-specific profiles.");
+            var fallback = LeagueAutoSelectProfiles.Candidates(decoded, "rift", "top", true, 2);
+            Require(fallback.Count == 3 && fallback[0] == 67 && fallback[1] == 22 && fallback[2] == 2,
+                "Lane-specific priority and basic-choice fallback are not ordered.");
+            var aram = LeagueAutoSelectProfiles.Candidates(decoded, "aram", "default", true, 2);
+            Require(aram.Count == 2 && aram[0] == 157 && aram[1] == 2,
+                "ARAM profile must not leak Rift lane preferences.");
+            Require(LeagueAutoSelectProfiles.ResolveStrategy(decoded, "rift", "top").PickStrategy == "just-show" &&
+                    LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"unsupported!\"}]").Count == 0,
+                "Profile strategy selection or malformed-input rejection failed.");
+            Require(!decoded[1].BenchAutoSwapEnabled && decoded[1].BenchSwapDelayMs == 2900,
+                "Automatic bench must stay opt-in and preserve its delay default on profile round-trip.");
+            Require(LeagueAutoSelectProfiles.Parse("[{\"Mode\":\"aram\",\"Role\":\"default\"," +
+                "\"BenchAutoSwapEnabled\":true,\"BenchSwapDelayMs\":20000}]").Count == 0,
+                "Unbounded bench delays must be rejected before saving.");
+        }
+
+
+        internal static void ValidateAkariAutoSelectTransfer()
+        {
+            var source = new JavaScriptSerializer().Serialize(new
+            {
+                pickConfig = new Dictionary<string, object>
+                {
+                    { "ranked", new {
+                        enabled = true,
+                        champions = new { @default = new[] { 22 }, top = new int[0],
+                            jungle = new int[0], middle = new int[0], bottom = new int[0],
+                            utility = new[] { 40, 16 } },
+                        delaySeconds = 1.5, ignoreIntent = true, strategy = "show-and-lock-in",
+                        showIntent = true, benchSelectFirstAvailableChampion = false,
+                        benchSwapAccumulatedDelaySeconds = 2.9, benchHandleTradeEnabled = false
+                    } }
+                },
+                banConfig = new Dictionary<string, object>
+                {
+                    { "ranked", new {
+                        enabled = true,
+                        champions = new { @default = new[] { 67 }, top = new int[0],
+                            jungle = new int[0], middle = new int[0], bottom = new int[0],
+                            utility = new int[0] },
+                        strategy = "just-show", delaySeconds = 0.5
+                    } }
+                }
+            });
+            var original = new List<LeagueAutoSelectProfile>
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 157 },
+                    BanEnabled = false }
+            };
+            var imported = LeagueAkariAutoSelectTransfer.Import(source, original);
+            var support = imported.Single(p => p.Mode == "ranked" && p.Role == "support");
+            var ranked = imported.Single(p => p.Mode == "ranked" && p.Role == "default");
+            Require(imported.Count == 3 && support.Picks.SequenceEqual(new[] { 40, 16 }) &&
+                support.Bans.Count == 0 && support.BanEnabled && support.BanStrategy == "just-show" &&
+                ranked.Picks.SequenceEqual(new[] { 22 }) &&
+                ranked.Bans.SequenceEqual(new[] { 67 }) &&
+                ranked.PickDelayMs == 1500 && ranked.BanDelayMs == 500 &&
+                ranked.ShowPickIntent && ranked.IgnoreTeammateIntent &&
+                original.Count == 1 && original[0].Picks.SequenceEqual(new[] { 157 }),
+                "Akari pick/ban import must map utility roles, settings and preserve the editor until commit.");
+            Require(ranked.AkariExactPickRoles && ranked.AkariExactBanRoles &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "support", true, 22)
+                    .SequenceEqual(new[] { 40, 16 }) &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "top", true, 22).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", "top", false, 67).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", null, true, 22)
+                    .SequenceEqual(new[] { 22 }) &&
+                LeagueAutoSelectProfiles.Candidates(imported, "ranked", null, false, 67)
+                    .SequenceEqual(new[] { 67 }),
+                "Akari imported lanes must not silently inherit default or legacy champions.");
+            var persisted = LeagueAutoSelectProfiles.Parse(LeagueAutoSelectProfiles.Serialize(imported));
+            Require(LeagueAutoSelectProfiles.Candidates(persisted, "ranked", "top", true, 22).Count == 0 &&
+                LeagueAutoSelectProfiles.Candidates(persisted, "ranked", "support", true, 22)
+                    .SequenceEqual(new[] { 40, 16 }),
+                "Akari lane isolation must survive native settings persistence.");
+            var roundTrip = LeagueAkariAutoSelectTransfer.Import(
+                LeagueAkariAutoSelectTransfer.Export(imported), new LeagueAutoSelectProfile[0]);
+            Require(roundTrip.Count == imported.Count &&
+                roundTrip.Single(p => p.Role == "support").Picks.SequenceEqual(new[] { 40, 16 }) &&
+                LeagueAutoSelectProfiles.Candidates(roundTrip, "ranked", "top", true, 22).Count == 0,
+                "Akari auto-select export/import must retain group and role priorities.");
+            var onlyBan = new JavaScriptSerializer().Serialize(new
+            {
+                banConfig = new Dictionary<string, object>()
+            });
+            var retained = LeagueAkariAutoSelectTransfer.Import(onlyBan, original);
+            Require(retained.Count == 1 && retained[0].Picks.SequenceEqual(new[] { 157 }) &&
+                !retained[0].BanEnabled && retained[0].Bans.Count == 0,
+                "A single Akari category must preserve the other category.");
+            foreach (var bad in new[] {
+                "{}", "{\"pickConfig\":{\"unknown_region_group\":{}}}",
+                "{\"pickConfig\":{\"ranked\":{\"champions\":{}}}}",
+                "{\"banConfig\":[]}", "{\"pickConfig\":null}"
+            })
+            {
+                var rejected = false;
+                try { LeagueAkariAutoSelectTransfer.Import(bad, original); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected && original[0].Picks.SequenceEqual(new[] { 157 }),
+                    "Malformed Akari transfer must reject atomically.");
+            }
+        }
+
+        internal static async Task ValidateAutoBenchAsync()
+        {
+            Require(LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 55 }, true) == 55 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 22 }, true) == 0 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
+                        new[] { 55 }, false) == 0 &&
+                    LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 99,
+                        new[] { 55 }, false) == 55,
+                "Automatic bench priority must protect the current ranked preference.");
+            var guard = new LeagueAutoBenchEpisodeGuard();
+            var tick = System.Diagnostics.Stopwatch.Frequency;
+            guard.ObserveBench(new[] { 55, 22 }, tick);
+            Require(guard.RemainingCooldownMs(55, 2900, tick) == 2900 &&
+                    guard.RemainingCooldownMs(55, 2900, tick + tick) == 1900,
+                "Bench cooldown must count from the first observed appearance, not each poll.");
+            guard.ObserveBench(new[] { 55, 34 }, tick + tick);
+            Require(guard.RemainingCooldownMs(55, 2900, tick + tick * 2) == 900 &&
+                    guard.RemainingCooldownMs(34, 2900, tick + tick * 2) == 1900 &&
+                    guard.RemainingCooldownMs(22, 2900, tick + tick * 2) == 2900,
+                "An already-visible bench champion must retain its age; a new one starts fresh.");
+            guard.ObserveBench(new[] { 34 }, tick + tick * 2);
+            guard.ObserveBench(new[] { 55, 34 }, tick + tick * 3);
+            Require(guard.RemainingCooldownMs(55, 2900, tick + tick * 3) == 2900 &&
+                    guard.RemainingCooldownMs(34, 2900, tick + tick * 3) == 900 &&
+                    guard.RemainingCooldownMs(55, 0, tick + tick * 3) == 0,
+                "Removing and returning a champion must restart only its own cooldown.");
+            Require(guard.AcceptObservedChampion(34), "First held champion must establish an episode baseline.");
+            guard.AcceptAutomaticSwap(55);
+            Require(guard.AcceptObservedChampion(55) && !guard.AcceptObservedChampion(22) &&
+                    !guard.AcceptObservedChampion(55), "Manual swap must block all later automatic writes.");
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 0 }
+            });
+            var read = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) };
+            var benchWriter = new FakeBenchWrite { AfterWrite = id => read.SessionJson = BenchSession(id, "[34]", 450, false) };
+            using (var controller = new LeagueAutoPickBanController(
+                read, new FakeWrite(), benchWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(benchWriter.Calls == 1 && benchWriter.LastId == 55 &&
+                        benchWriter.Route == LeagueBenchSwapRoute.Legacy && read.ActionPaths.Count == 3,
+                    "Opt-in ARAM bench swap must preflight, submit once and read back on the same task.");
+            }
+
+            // A transient stale bench read must not consume the only swap attempt.
+            var recoverRead = new FakeRead {
+                SessionJson = BenchSession(34, "[55]", 450, false),
+                NextSessionJson = BenchSession(34, "[]", 450, false),
+                ThirdSessionJson = BenchSession(34, "[55]", 450, false)
+            };
+            var recoverWrite = new FakeBenchWrite {
+                AfterWrite = id => recoverRead.ThirdSessionJson = BenchSession(id, "[34]", 450, false)
+            };
+            var recoverClock = new BenchRetryClock();
+            using (var controller = new LeagueAutoPickBanController(
+                recoverRead, new FakeWrite(), recoverWrite, recoverClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(recoverClock.PollDelays == 2 && recoverWrite.Calls == 1 &&
+                        recoverWrite.LastId == 55,
+                    "A stale bench preflight must recover on the next verified phase tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(recoverClock.Cancelled && recoverWrite.Calls == 1,
+                    "Bench preflight recovery must not repeat a submitted swap after phase exit.");
+            }
+
+            var disabled = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) },
+                new FakeWrite(), disabled, new InstantClock()))
+            {
+                controller.Configure(true, 34, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(disabled.Calls == 0, "No automatic bench writes without an explicit enabled profile.");
+            }
+
+            var changed = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
+                NextSessionJson = BenchSession(99, "[55]", 450, false) };
+            var cancelledWriter = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                changed, new FakeWrite(), cancelledWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(cancelledWriter.Calls == 0,
+                    "A manual hero change between initial bench scan and POST must cancel the swap.");
+            }
+
+            var originalRoleBench = BenchSession(34, "[55]", 450, false)
+                .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"TOP\"}");
+            var changedRoleBench = BenchSession(34, "[55]", 450, false)
+                .Replace("\"championId\":34}", "\"championId\":34,\"assignedPosition\":\"UTILITY\"}");
+            var roleChangedRead = new FakeRead
+            {
+                SessionJson = originalRoleBench,
+                NextSessionJson = changedRoleBench
+            };
+            var roleChangedWrite = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                roleChangedRead, new FakeWrite(), roleChangedWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(roleChangedWrite.Calls == 0,
+                    "A changed assigned position must cancel a pending automatic bench swap.");
+            }
+
+            var pendingProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 5000 }
+            });
+            var pendingClock = new BenchPendingClock();
+            var pendingWriter = new FakeBenchWrite();
+            using (var cancellation = new CancellationTokenSource())
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false) },
+                new FakeWrite(), pendingWriter, pendingClock))
+            {
+                controller.Configure(true, 0, false, 0, pendingProfile);
+                var operation = controller.RunOnceForSmokeTestAsync(cancellation.Token);
+                Require(pendingClock.Scheduled && pendingWriter.Calls == 0,
+                    "Bench cooldown must wait before any irreversible write.");
+                cancellation.Cancel();
+                try { await operation.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                Require(pendingClock.Cancelled && pendingWriter.Calls == 0,
+                    "Canceling a queued bench swap must prevent the POST.");
+            }
+
+            var teamProfiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "mayhem", Picks = new List<int> { 55, 34 },
+                    BenchAutoSwapEnabled = true, BenchPreferHigherPriority = true, BenchSwapDelayMs = 0 }
+            });
+            var team = new FakeRead
+            {
+                SessionJson = BenchSession(34, "[]", 3270, true),
+                TeamBuilderJson = BenchSession(34, "[55]", 0, true)
+            };
+            var teamWriter = new FakeBenchWrite { AfterWrite = id =>
+                {
+                    team.SessionJson = BenchSession(id, "[]", 3270, true);
+                    team.TeamBuilderJson = BenchSession(id, "[34]", 0, true);
+                } };
+            using (var controller = new LeagueAutoPickBanController(
+                team, new FakeWrite(), teamWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, teamProfiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(teamWriter.Calls == 1 && teamWriter.Route == LeagueBenchSwapRoute.TeamBuilder &&
+                        team.Paths.FindAll(x => x == LeagueLiveDataService.TeamBuilderChampSelectSessionPath).Count == 3,
+                    "Tencent Mayhem must recover the bench via its Team Builder read/write route.");
+            }
+        }
+
+        private static async Task ValidateChampionTradesAsync()
+        {
+            var tradeTiming = new LeagueAutoBenchEpisodeGuard();
+            var origin = System.Diagnostics.Stopwatch.Frequency * 100L;
+            Require(tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000, origin) == 5000 &&
+                    tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                        origin + System.Diagnostics.Stopwatch.Frequency * 2L) == 3000 &&
+                    tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                        origin + System.Diagnostics.Stopwatch.Frequency * 6L) == 0 &&
+                    tradeTiming.RemainingTradeDelayMs("74:55", 5000, 1200, origin) == 200,
+                "Trade delay must use the first observation, not reset on each guarded retry.");
+            tradeTiming.ClearTradeTiming();
+            Require(tradeTiming.RemainingTradeDelayMs("73:55", 5000, 20000,
+                    origin + System.Diagnostics.Stopwatch.Frequency * 6L) == 5000,
+                "A new trade episode must start a fresh bounded delay.");
+
+            Require(LeagueBenchSwapWriteApiClient.BuildTradePathForSmokeTest(73, true) ==
+                    "/lol-champ-select/v1/session/champion-swaps/73/accept" &&
+                    LeagueBenchSwapWriteApiClient.BuildTradePathForSmokeTest(73, false) ==
+                    "/lol-champ-select/v1/session/champion-swaps/73/decline" &&
+                    LeagueBenchSwapWriteApiClient.BuildTradePathForSmokeTest(0, true).Length == 0,
+                "Champion trade writer must keep its fixed authenticated POST routes.");
+            Require(LeagueAutoPickBanController.ParseIncomingChampionTrade(Bytes(Trade(73, 55)))?.Id == 73 &&
+                    LeagueAutoPickBanController.ParseIncomingChampionTrade(Bytes(Trade(73, 55).Replace(
+                        "\"RECEIVED\"", "\"ACCEPTED\""))) == null &&
+                    LeagueAutoPickBanController.ParseIncomingChampionTrade(Bytes(Trade(73, 55).Replace(
+                        "\"initiatedByLocalPlayer\":false", "\"initiatedByLocalPlayer\":true"))) == null &&
+                    LeagueAutoPickBanController.ParseIncomingChampionTrade(Bytes("{}")) == null,
+                "Only an incoming, active CHAMPION swap is eligible for automation.");
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34, 22 },
+                    BenchHandleTradeEnabled = true, BenchPreferHigherPriority = true, PickDelayMs = 0 }
+            });
+            var incoming = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(73, 55) };
+            var accepted = new FakeTradeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                incoming, new FakeWrite(), null, accepted, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(accepted.Calls == 1 && accepted.Id == 73 && accepted.Accept &&
+                        incoming.ActionPaths.Count == 4,
+                    "An offered higher-priority hero should be accepted after two guarded reads.");
+            }
+
+            // Source trade handling is independent of the pick.enabled flag.
+            var tradeOnlyProfiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", PickEnabled = false,
+                    Picks = new List<int> { 55, 34 }, BenchHandleTradeEnabled = true,
+                    BenchPreferHigherPriority = true, PickDelayMs = 0 }
+            });
+            var importedTradeOnly = LeagueAkariAutoSelectTransfer.Import(
+                new JavaScriptSerializer().Serialize(new
+                {
+                    pickConfig = new Dictionary<string, object>
+                    {
+                        { "aram", new {
+                            enabled = false,
+                            champions = new { @default = new[] { 55, 34 }, top = new int[0],
+                                jungle = new int[0], middle = new int[0], bottom = new int[0],
+                                utility = new int[0] },
+                            delaySeconds = 0, ignoreIntent = false, strategy = "show-and-lock-in",
+                            showIntent = false, benchSelectFirstAvailableChampion = true,
+                            benchSwapAccumulatedDelaySeconds = 2.9, benchHandleTradeEnabled = true
+                        } }
+                    }
+                }), new LeagueAutoSelectProfile[0]);
+            Require(importedTradeOnly.Count == 1 && !importedTradeOnly[0].PickEnabled &&
+                    importedTradeOnly[0].BenchHandleTradeEnabled &&
+                    LeagueAkariAutoSelectTransfer.Import(
+                        LeagueAkariAutoSelectTransfer.Export(importedTradeOnly),
+                        new LeagueAutoSelectProfile[0])[0].BenchHandleTradeEnabled,
+                "Source-imported trade-only groups must survive native persistence and Akari export.");
+            var tradeOnlyRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(80, 55) };
+            var tradeOnlyWrite = new FakeTradeWrite();
+            var noPickWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                tradeOnlyRead, noPickWrite, null, tradeOnlyWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, tradeOnlyProfiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(tradeOnlyWrite.Calls == 1 && tradeOnlyWrite.Id == 80 &&
+                        tradeOnlyWrite.Accept && noPickWrite.Calls.Count == 0,
+                    "Explicit trade handling must work without enabling automatic picks.");
+            }
+
+            // Empty pick priorities still permit an explicit trade handler to decline an offer.
+            var emptyTradeProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "aram", PickEnabled = false,
+                    BenchHandleTradeEnabled = true, PickDelayMs = 0 }
+            });
+            var emptyTradeRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(81, 55) };
+            var emptyTradeWrite = new FakeTradeWrite();
+            var emptyTradeClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                emptyTradeRead, new FakeWrite(), null, emptyTradeWrite, emptyTradeClock))
+            {
+                controller.Configure(true, 0, false, 0, emptyTradeProfile);
+                controller.Observe(Selecting());
+                Require(emptyTradeWrite.Calls == 1 && emptyTradeWrite.Id == 81 &&
+                        !emptyTradeWrite.Accept && emptyTradeClock.Delays == 2,
+                    "Trade-only source configuration must arm the existing ChampSelect episode.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(emptyTradeClock.Cancelled && emptyTradeWrite.Calls == 1,
+                    "Trade-only episode must stop on phase exit without repeating the answer.");
+            }
+            var globalOffRead = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(82, 55) };
+            var globalOffWrite = new FakeTradeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                globalOffRead, new FakeWrite(), null, globalOffWrite, new InstantClock()))
+            {
+                controller.Configure(false, 0, false, 0, tradeOnlyProfiles);
+                controller.Observe(Selecting());
+                Require(globalOffWrite.Calls == 0 && globalOffRead.ActionPaths.Count == 0,
+                    "The native global auto-pick switch must still disable trade observation.");
+            }
+
+            var undesirable = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(74, 22) };
+            var declined = new FakeTradeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                undesirable, new FakeWrite(), null, declined, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(declined.Calls == 1 && declined.Id == 74 && !declined.Accept,
+                    "An offered lower-priority hero should be declined with explicit opt-in.");
+            }
+
+            var changed = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(75, 55), NextTradeJson = Trade(76, 55) };
+            var blocked = new FakeTradeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                changed, new FakeWrite(), null, blocked, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(blocked.Calls == 0,
+                    "A changed incoming trade ID between plan and write must cancel automation.");
+            }
+
+            // A server-side 503 must not consume the trade before a later guarded tick.
+            var transientTrade = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(78, 55) };
+            var transientWriter = new FakeTradeWrite { FailFirstResponses = 1 };
+            var retryClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                transientTrade, new FakeWrite(), null, transientWriter, retryClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(retryClock.Delays == 2 && transientWriter.Calls == 2 &&
+                        transientWriter.Id == 78 && transientWriter.Accept,
+                    "Explicit trade HTTP 503 must retry once on the existing guarded ChampSelect tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(retryClock.Cancelled && transientWriter.Calls == 2,
+                    "Trade retry must stop immediately on phase exit.");
+            }
+
+            var stableTrade = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(79, 55) };
+            var stableWriter = new FakeTradeWrite();
+            var stableClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                stableTrade, new FakeWrite(), null, stableWriter, stableClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(stableClock.Delays == 2 && stableWriter.Calls == 1,
+                    "A successful trade must not be submitted twice on subsequent ticks.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
+            Require(LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{}")) &&
+                    LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\"state\":\"DECLINED\"}")) &&
+                    !LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("not-json")) &&
+                    !LeagueAutoPickBanController.IsKnownInactiveTrade(Bytes("{\"state\":\"RECEIVED\"}")),
+                "Uncertain active trade payloads must not be treated as an empty trade.");
+            var malformedTrade = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
+                TradeJson = "not-json" };
+            var guardedBench = new FakeBenchWrite();
+            var benchAndTrade = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "aram", Picks = new List<int> { 55, 34 },
+                    BenchHandleTradeEnabled = true, BenchAutoSwapEnabled = true,
+                    BenchPreferHigherPriority = true, BenchSwapDelayMs = 0 }
+            });
+            using (var controller = new LeagueAutoPickBanController(
+                malformedTrade, new FakeWrite(), guardedBench, new FakeTradeWrite(), new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, benchAndTrade);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(guardedBench.Calls == 0,
+                    "Unreadable incoming-trade status must block an automatic bench swap.");
+            }
+
+            var noTrade = new FakeRead { SessionJson = BenchSession(34, "[55]", 450, false),
+                TradeJson = "{}" };
+            var normalBench = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                noTrade, new FakeWrite(), normalBench, new FakeTradeWrite(), new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, benchAndTrade);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(normalBench.Calls == 1 && normalBench.LastId == 55,
+                    "A verified empty trade response must not suppress an otherwise valid bench upgrade.");
+            }
+
+            var ambiguousTrade = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(80, 55) };
+            var ambiguousWriter = new FakeTradeWrite { NullFirstResponses = 1 };
+            var ambiguousClock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(
+                ambiguousTrade, new FakeWrite(), null, ambiguousWriter, ambiguousClock))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                controller.Observe(Selecting());
+                Require(ambiguousClock.Delays == 2 && ambiguousWriter.Calls == 1,
+                    "Ambiguous trade transport failure must remain one-shot, unlike explicit HTTP 503.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
+            var defaultOff = new FakeRead { SessionJson = BenchSession(34, "[]", 450, false),
+                TradeJson = Trade(77, 55) };
+            using (var controller = new LeagueAutoPickBanController(
+                defaultOff, new FakeWrite(), null, new FakeTradeWrite(), new InstantClock()))
+            {
+                controller.Configure(true, 34, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(!defaultOff.Paths.Contains(LeagueAutoPickBanController.OngoingChampionTradePath),
+                    "Disabled trade automation must not poll the extra LCU endpoint.");
+            }
+        }
+
+        private static async Task ValidatePickAndBanAsync()
+        {
+            var pickRead = new FakeRead { SessionJson = Session("pick", 0, 0) };
+            var pickWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(pickRead, pickWrite, new FakeClock()))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(pickWrite.Calls.Count == 1 && pickWrite.Calls[0] == "pick:0:22:True",
+                    "Pick write must only target the active local action.");
+                Require(pickRead.ActionPaths.Count == 3 && pickRead.ActionPaths[1] == LeagueAutoPickBanController.PickablePath,
+                    "Pick must read active session, pickable list and live preflight.");
+            }
+
+            var banRead = new FakeRead { SessionJson = Session("ban", 4, 0) };
+            var banWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(banRead, banWrite, new FakeClock()))
+            {
+                controller.Configure(false, 0, true, 67);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(banWrite.Calls.Count == 1 && banWrite.Calls[0] == "ban:4:67:True",
+                    "Ban write must only target the active local action.");
+                Require(banRead.ActionPaths.Count == 3 && banRead.ActionPaths[1] == LeagueAutoPickBanController.BannablePath,
+                    "Ban must read the bannable list, not the pickable list.");
+            }
+
+            var manualRead = new FakeRead { SessionJson = Session("pick", 3, 67) };
+            var manualWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(manualRead, manualWrite, new FakeClock()))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(manualWrite.Calls.Count == 0 && manualRead.ActionPaths.Count == 1,
+                    "An existing manually selected different champion must not be overridden.");
+            }
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 99, 67 },
+                    PickStrategy = "just-show", PickDelayMs = 1000 }
+            });
+            var priorityRead = new FakeRead { SessionJson = SessionWithRole("pick", 5, "TOP"), Pickable = "[67,22]" };
+            var priorityWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(priorityRead, priorityWrite, new InstantClock()))
+            {
+                controller.Configure(true, 22, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(priorityWrite.Calls.Count == 1 && priorityWrite.Calls[0] == "pick:5:67:False",
+                    "Mode/role priority must pick the first available fallback and honor just-show.");
+            }
+
+            var avoidIntent = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 } }
+            });
+            var reservedWriter = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithReservation("pick", 12, 67), Pickable = "[22,67]" },
+                reservedWriter, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, avoidIntent);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(reservedWriter.Calls.Count == 1 && reservedWriter.Calls[0] == "pick:12:22:True",
+                    "Active auto-pick must avoid a teammate's reserved first-choice champion by default.");
+            }
+
+            var newReservation = new FakeRead { SessionJson = SessionWithRole("pick", 13, "TOP"),
+                NextSessionJson = SessionWithReservation("pick", 13, 67), Pickable = "[67,22]" };
+            var staleIntentWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(newReservation,
+                staleIntentWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, avoidIntent);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(staleIntentWrite.Calls.Count == 0,
+                    "New teammate intent before lock preflight must cancel the active pick write.");
+            }
+
+            var showAndLock = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },
+                    PickStrategy = "show-and-lock-in" }
+            });
+            var stagedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("pick", 8, "TOP") }, stagedWrite, new InstantClock()))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(stagedWrite.Calls.Count == 2 && stagedWrite.Calls[0] == "pick:8:67:False" &&
+                        stagedWrite.Calls[1] == "pick:8:67:True",
+                    "Show-and-lock must validate and issue two distinct action stages.");
+            }
+
+            var manualAfterShow = new FakeRead
+            {
+                SessionJson = SessionWithRole("pick", 9, "TOP"),
+                ThirdSessionJson = SessionWithRole("pick", 9, "TOP").Replace("\"championId\":0", "\"championId\":99")
+            };
+            var manualAfterShowWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                manualAfterShow, manualAfterShowWrite, new InstantClock()))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(manualAfterShowWrite.Calls.Count == 1 && manualAfterShowWrite.Calls[0] == "pick:9:67:False",
+                    "Manual override after showing must cancel the automatic lock stage.");
+            }
+        }
+
+        private static async Task ValidatePickIntentAsync()
+        {
+            Require(LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(0, 22) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(-1, 22) &&
+                    !LeagueChampSelectActionWriteApiClient.IsAllowedIntentForSmokeTest(1, 0),
+                "Pick intent must use a validated action target and champion id.");
+            Require(LeagueAutoPickBanController.ParsePickIntentAction(Bytes(Planning(0, 0)))?.Id == 10 &&
+                    LeagueAutoPickBanController.ParsePickIntentAction(Bytes(Planning(0, 0)
+                        .Replace("\"PLANNING\"", "\"FINALIZATION\""))) == null &&
+                    LeagueAutoPickBanController.ParsePickIntentAction(Bytes("{}")) == null,
+                "Only an unfinished local pick action in planning/selection may receive intent.");
+
+            var profiles = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    ShowPickIntent = true, PickDelayMs = 0 }
+            });
+            var reader = new FakeRead { SessionJson = Planning(0, 67), Pickable = "[22,67]" };
+            var writer = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(reader, writer, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(writer.IntentCalls.Count == 1 && writer.IntentCalls[0] == "10:22" &&
+                        writer.Calls.Count == 0 && reader.ActionPaths.Count == 4,
+                    "Pick intent must respect teammates and issue only an intent payload, not a lock.");
+            }
+
+            var ignore = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67, 22 },
+                    ShowPickIntent = true, IgnoreTeammateIntent = true }
+            });
+            var ignoredWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Planning(0, 67), Pickable = "[22,67]" },
+                ignoredWrite, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, ignore);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(ignoredWrite.IntentCalls.Count == 1 && ignoredWrite.IntentCalls[0] == "10:67",
+                    "Explicit ignore-intent preference must allow the first available hero.");
+            }
+
+            var changed = new FakeRead { SessionJson = Planning(0, 0),
+                NextSessionJson = Planning(99, 0) };
+            var skipped = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(changed, skipped, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, profiles);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(skipped.IntentCalls.Count == 0,
+                    "A manual intent appearing before preflight must cancel the planned write.");
+            }
+
+            var delayed = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 22 },
+                    ShowPickIntent = true, PickDelayMs = 5000 }
+            });
+            var pendingClock = new BenchPendingClock();
+            var pendingWrite = new FakeWrite();
+            using (var lifetime = new CancellationTokenSource())
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Planning(0, 0), Pickable = "[22]" },
+                pendingWrite, pendingClock))
+            {
+                controller.Configure(true, 0, false, 0, delayed);
+                var operation = controller.RunOnceForSmokeTestAsync(lifetime.Token);
+                Require(pendingClock.Scheduled, "Intent delay must be cancellable before writing.");
+                lifetime.Cancel();
+                try { await operation.ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                Require(pendingClock.Cancelled && pendingWrite.IntentCalls.Count == 0,
+                    "Cancelled intent must never PATCH the future pick action.");
+            }
+        }
+
+        private static async Task ValidateTransientEligibilityRecoveryAsync()
+        {
+            var read = new FakeRead { SessionJson = Session("pick", 81, 0),
+                Pickable = "[]", NextPickable = "[22]" };
+            var writer = new FakeWrite();
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] { "pick:81:22:True" }),
+                    "A temporarily empty pickable list must recover on the next phase-scoped tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 1,
+                    "Eligibility recovery must stop on phase exit without repeating the write.");
+            }
+
+            var selection = "{\"allowSubsetChampionPicks\":true," + SessionWithRole("pick", 82, "TOP").Substring(1);
+            read = new FakeRead { SessionJson = selection, GameflowJson = Flow("RANKED_SOLO_5x5"),
+                Pickable = "[22]", Subset = "[]", NextSubset = "[22]" };
+            writer = new FakeWrite();
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] { "pick:82:22:True" }) &&
+                    read.Paths.Count(path => path == LeagueAutoPickBanController.SubsetPath) == 3,
+                    "Subset eligibility must recover without bypassing the fresh subset preflight.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 1,
+                    "Subset recovery must remain bounded to the active draft.");
+            }
+        }
+
+
+        internal static async Task ValidateWriteRetryAsync()
+        {
+            // A rejected action remains eligible on the next existing ChampSelect tick.
+            var read = new FakeRead { SessionJson = Session("pick", 83, 0) };
+            var writer = new FakeWrite { FailFirstResponses = 1 };
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "pick:83:22:True", "pick:83:22:True"
+                }), "Transient pick HTTP failure must retry in the same verified draft.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 2,
+                    "Successful retry must not repeat after the draft ends.");
+            }
+
+            var showAndLock = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 67 }, PickStrategy = "show-and-lock-in" }
+            });
+            read = new FakeRead { SessionJson = SessionWithRole("pick", 84, "TOP") };
+            writer = new FakeWrite { FailFirstCompletedResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 67, false, 0, showAndLock);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "pick:84:67:False", "pick:84:67:True", "pick:84:67:True"
+                }), "Failed second-stage lock must retry the lock without repeating the successful show.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.Calls.Count == 3,
+                    "Staged retry must remain owned by the current ChampSelect episode.");
+            }
+
+            var alternatePicks = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 67, 22 }, PickStrategy = "show-and-lock-in" }
+            });
+            read = new FakeRead {
+                SessionJson = SessionWithRole("pick", 86, "TOP"),
+                FifthSessionJson = SessionWithRole("pick", 86, "TOP")
+                    .Replace("\"championId\":0", "\"championId\":22")
+            };
+            writer = new FakeWrite { FailFirstCompletedResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 67, false, 0, alternatePicks);
+                controller.Observe(Selecting());
+                Require(writer.Calls.SequenceEqual(new[] {
+                    "pick:86:67:False", "pick:86:67:True"
+                }), "A manual alternative after showing must never be locked by a retry.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
+            read = new FakeRead { SessionJson = Session("ban", 85, 0) };
+            writer = new FakeWrite { FailFirstResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(false, 0, true, 67);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.Calls.SequenceEqual(new[] {
+                    "ban:85:67:True", "ban:85:67:True"
+                }), "Transient ban HTTP failure must not permanently consume the local action.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+
+            // Planning-stage intent uses the same phase-scoped retry as a failed pick or ban.
+            var intentProfiles = LeagueAutoSelectProfiles.Serialize(new[] {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top",
+                    Picks = new List<int> { 22 }, ShowPickIntent = true }
+            });
+            read = new FakeRead { SessionJson = Planning(0, 0), Pickable = "[22]" };
+            writer = new FakeWrite { FailFirstIntentResponses = 1 };
+            clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 0, false, 0, intentProfiles);
+                controller.Observe(Selecting());
+                Require(clock.Delays == 2 && writer.IntentCalls.SequenceEqual(new[] { "10:22", "10:22" }),
+                    "A failed planning-stage intent must retry on the existing ChampSelect tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(clock.Cancelled && writer.IntentCalls.Count == 2,
+                    "Planning intent retry must stop when the ChampSelect episode ends.");
+            }
+        }
+
+        private static async Task ValidateFailureAndCancellationAsync()
+        {
+            var idleClock = new FakeClock();
+            var idleRead = new FakeRead { SessionJson = Session("pick", 1, 0) };
+            var idleWrite = new FakeWrite();
+            using (var idle = new LeagueAutoPickBanController(idleRead, idleWrite, idleClock))
+            {
+                idle.Observe(Selecting());
+                Require(idleRead.ActionPaths.Count == 0 && idleClock.Delays == 0 && idleWrite.Calls.Count == 0,
+                    "Disabled automation must not start a network poller.");
+            }
+
+            var pauseClock = new FakeClock();
+            var pauseRead = new FakeRead { SessionJson = Session("pick", 1, 0) };
+            var pauseWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(pauseRead, pauseWrite, pauseClock))
+            {
+                controller.SetTemporarilyDisabled(true);
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(pauseRead.ActionPaths.Count == 0 && pauseWrite.Calls.Count == 0,
+                    "Temporary pause must suppress LCU work without clearing saved preferences.");
+                controller.SetTemporarilyDisabled(false);
+                var resumed = controller.RunningForSmokeTest;
+                Require(pauseWrite.Calls.Count == 1 && pauseClock.Delays == 1,
+                    "Resuming during ChampSelect must rearm the existing task once.");
+                controller.SetTemporarilyDisabled(true);
+                await resumed.ConfigureAwait(false);
+                Require(pauseClock.Cancelled && pauseWrite.Calls.Count == 1,
+                    "Pausing again must cancel further selector ticks.");
+            }
+
+            var changed = new FakeRead
+            {
+                SessionJson = Session("pick", 2, 0),
+                NextSessionJson = Session("pick", 2, 99)
+            };
+            var changedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(changed, changedWrite, new FakeClock()))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(changedWrite.Calls.Count == 0, "Preflight must respect a later manual champion change.");
+            }
+
+            var unavailable = new FakeRead { SessionJson = Session("pick", 2, 0), Pickable = "[67]" };
+            var unavailableWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(unavailable, unavailableWrite, new FakeClock()))
+            {
+                controller.Configure(true, 22, false, 0);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(unavailableWrite.Calls.Count == 0, "Unavailable champion must not be selected.");
+            }
+
+            var clock = new FakeClock();
+            var read = new FakeRead { SessionJson = Session("pick", 3, 0) };
+            var write = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(read, write, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                var task = controller.RunningForSmokeTest;
+                controller.Observe(Selecting());
+                Require(write.Calls.Count == 1 && clock.Delays == 1,
+                    "Repeated Gameflow events must not duplicate the action or polling loop.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await task.ConfigureAwait(false);
+                Require(clock.Cancelled && write.Calls.Count == 1,
+                    "Leaving ChampSelect failed to cancel the bounded polling loop.");
+            }
+
+            var disabledClock = new FakeClock();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = Session("pick", 9, 0) }, new FakeWrite(), disabledClock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                var task = controller.RunningForSmokeTest;
+                controller.Configure(false, 22, false, 0);
+                await task.ConfigureAwait(false);
+                Require(disabledClock.Cancelled, "Disabling the setting must cancel the active task.");
+            }
+
+            var delayedProfile = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },
+                    PickStrategy = "show-and-lock-in", PickDelayMs = 2000 }
+            });
+            var delayedClock = new CalibratedPendingClock();
+            var delayedWrite = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("pick", 11, "TOP").Replace("\"adjustedTimeLeftInPhase\":20000", "\"adjustedTimeLeftInPhase\":28000,\"totalTimeInPhase\":30000,\"internalNowInEpochMs\":" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()) }, delayedWrite, delayedClock))
+            {
+                controller.Configure(true, 67, false, 0, delayedProfile);
+                controller.Observe(Selecting());
+                var pending = controller.RunningForSmokeTest;
+                Require(delayedWrite.Calls.Count == 1 && delayedWrite.Calls[0] == "pick:11:67:False",
+                    "Show-and-lock should first issue an uncompleted choice.");
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+                Require(delayedClock.Cancelled && delayedWrite.Calls.Count == 1,
+                    "Changing phase after showing must not issue a delayed lock.");
+            }
+        }
+
+        private static string Session(string type, int id, int championId,
+            bool inProgress = true, string phase = "BAN_PICK", bool completed = false)
+        {
+            return "{\"timer\":{\"phase\":\"" + phase + "\"},\"localPlayerCellId\":0,\"actions\":[" +
+                   "[{\"id\":" + id + ",\"actorCellId\":0,\"type\":\"" + type +
+                   "\",\"championId\":" + championId + ",\"isInProgress\":" +
+                   (inProgress ? "true" : "false") + ",\"completed\":" +
+                   (completed ? "true" : "false") + "}]]}";
+        }
+
+        private static string SessionWithRole(string type, int id, string role)
+        {
+            return "{\"timer\":{\"phase\":\"BAN_PICK\",\"adjustedTimeLeftInPhase\":20000}," +
+                   "\"queueId\":420,\"gameMode\":\"CLASSIC\",\"localPlayerCellId\":0," +
+                   "\"myTeam\":[{\"cellId\":0,\"assignedPosition\":\"" + role + "\"}]," +
+                   "\"actions\":[[{\"id\":" + id + ",\"actorCellId\":0,\"type\":\"" + type +
+                   "\",\"championId\":0,\"isInProgress\":true,\"completed\":false}]]}";
+        }
+
+        private static string Planning(int intendedId, int teammateIntent)
+        {
+            return "{\"timer\":{\"phase\":\"PLANNING\",\"adjustedTimeLeftInPhase\":20000}," +
+                "\"queueId\":420,\"gameMode\":\"CLASSIC\",\"localPlayerCellId\":0," +
+                "\"myTeam\":[{\"cellId\":0,\"assignedPosition\":\"TOP\"}," +
+                "{\"cellId\":1,\"championPickIntent\":" + teammateIntent + "}]," +
+                "\"actions\":[[{\"id\":10,\"actorCellId\":0,\"type\":\"pick\"," +
+                "\"championId\":" + intendedId + ",\"isInProgress\":false,\"completed\":false}]]}";
+        }
+
+        private static string SessionWithReservation(string type, int id, int reservedId)
+        {
+            return SessionWithRole(type, id, "TOP").Replace(
+                "\"assignedPosition\":\"TOP\"}",
+                "\"assignedPosition\":\"TOP\"},{\"cellId\":1,\"championPickIntent\":" + reservedId + "}");
+        }
+
+        private static string BenchSession(int held, string benchIds, int queue, bool teamBuilder)
+        {
+            return "{\"timer\":{\"phase\":\"FINALIZATION\",\"adjustedTimeLeftInPhase\":18000}," +
+                "\"queueId\":" + queue + ",\"gameMode\":\"" + (queue == 3270 ? "KIWI" : queue == 0 ? "" : "ARAM") +
+                "\",\"benchEnabled\":true,\"isLegacyChampSelect\":" + (teamBuilder ? "false" : "true") +
+                ",\"localPlayerCellId\":0,\"myTeam\":[{\"cellId\":0,\"championId\":" + held +
+                "}],\"benchChampionIds\":" + benchIds + ",\"actions\":[]} ";
+        }
+
+        private static string Trade(int id, int requestedId)
+        {
+            return "{\"id\":" + id + ",\"type\":\"CHAMPION\",\"state\":\"RECEIVED\"," +
+                "\"initiatedByLocalPlayer\":false,\"requesterChampionId\":" + requestedId + "}";
+        }
+
+        private static LeagueDashboardPhaseState Selecting()
+        {
+            return new LeagueDashboardPhaseState
+            {
+                Connected = true, Phase = "ChampSelect", Activity = LeagueActivityLevel.ChampSelect
+            };
+        }
+
+        private static byte[] Bytes(string value) { return Encoding.UTF8.GetBytes(value); }
+
+        private static void Require(bool ok, string message)
+        {
+            if (!ok) throw new InvalidOperationException(message);
+        }
+
+        private sealed class FakeRead : ILeagueClientApi
+        {
+            public string SessionJson;
+            public string GameflowJson;
+            public string NextGameflowJson;
+            private string _lastSession;
+            private int _gameflowCount;
+            public List<string> ActionPaths { get { return Paths.Where(p => p != LeagueLiveDataService.GameflowSessionPath).ToList(); } }
+            public string NextSessionJson;
+            public string ThirdSessionJson;
+            public string FifthSessionJson;
+            public string TeamBuilderJson;
+            public string TradeJson;
+            public string NextTradeJson;
+            public string Pickable = "[22,67]";
+            public string NextPickable;
+            private int _pickableCount;
+            public string Bannable = "[22,67]";
+            public string Subset = "[22,67]";
+            public string NextSubset;
+            private int _subsetCount;
+            public readonly List<string> Paths = new List<string>();
+            private int _sessionCount;
+            private int _tradeCount;
+
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Paths.Add(path);
+                if (path == LeagueAutoPickBanController.SessionPath)
+                {
+                    _sessionCount++;
+                    var next = _sessionCount > 4 && FifthSessionJson != null ? FifthSessionJson :
+                        _sessionCount > 2 && ThirdSessionJson != null ? ThirdSessionJson :
+                        _sessionCount > 1 && NextSessionJson != null ? NextSessionJson : SessionJson;
+                    _lastSession = next;
+                    return Task.FromResult(Bytes(next));
+                }
+                if (path == LeagueLiveDataService.GameflowSessionPath)
+                {
+                    _gameflowCount++;
+                    if (GameflowJson != null) return Task.FromResult(Bytes(_gameflowCount > 1 && NextGameflowJson != null ? NextGameflowJson : GameflowJson));
+                    var root = new JavaScriptSerializer().DeserializeObject(_lastSession ?? "{}") as Dictionary<string, object>;
+                    var mode = LeagueAutoSelectContext.Text(root, "gameMode");
+                    var id = LeagueAutoSelectContext.Text(root, "queueId");
+                    if (string.IsNullOrEmpty(mode)) mode = "CLASSIC";
+                    if (string.IsNullOrEmpty(id)) id = "420";
+                    var type = id == "420" ? "RANKED_SOLO_5x5" : id == "440" ? "RANKED_FLEX_SR" : "NORMAL";
+                    return Task.FromResult(Bytes("{\"phase\":\"ChampSelect\",\"gameData\":{\"isCustomGame\":false,\"queue\":{\"id\":" + id + ",\"gameMode\":\"" + mode + "\",\"type\":\"" + type + "\"}}}"));
+                }
+                if (path == LeagueAutoPickBanController.PickablePath)
+                {
+                    _pickableCount++;
+                    return Task.FromResult(Bytes(_pickableCount > 1 && NextPickable != null ? NextPickable : Pickable));
+                }
+                if (path == LeagueAutoPickBanController.BannablePath) return Task.FromResult(Bytes(Bannable));
+                if (path == LeagueAutoPickBanController.SubsetPath)
+                {
+                    _subsetCount++;
+                    return Task.FromResult(Bytes(_subsetCount > 1 && NextSubset != null ? NextSubset : Subset));
+                }
+                if (path == LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
+                    return Task.FromResult(Bytes(TeamBuilderJson ?? "{}"));
+                if (path == LeagueAutoPickBanController.OngoingChampionTradePath)
+                {
+                    _tradeCount++;
+                    return Task.FromResult(Bytes(_tradeCount > 1 && NextTradeJson != null
+                        ? NextTradeJson : TradeJson ?? "{}"));
+                }
+                throw new InvalidOperationException("Unexpected auto-select read target.");
+            }
+        }
+
+        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi
+        {
+            public int Calls;
+            public int LastId;
+            public LeagueBenchSwapRoute Route;
+            public Action<int> AfterWrite;
+
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId,
+                LeagueBenchSwapRoute route, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Calls++;
+                LastId = championId;
+                Route = route;
+                AfterWrite?.Invoke(championId);
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private sealed class FakeTradeWrite : ILeagueChampionTradeWriteApi
+        {
+            public int Calls;
+            public int Id;
+            public bool Accept;
+            public int FailFirstResponses;
+            public int NullFirstResponses;
+
+            public Task<LeagueClientWriteResponse> TryAnswerAsync(
+                int tradeId, bool accept, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Calls++;
+                Id = tradeId;
+                Accept = accept;
+                if (NullFirstResponses > 0)
+                {
+                    NullFirstResponses--;
+                    return Task.FromResult<LeagueClientWriteResponse>(null);
+                }
+                var fail = FailFirstResponses > 0;
+                if (fail) FailFirstResponses--;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
+            }
+        }
+
+        private sealed class FakeWrite : ILeagueChampSelectActionWriteApi
+        {
+            public readonly List<string> Calls = new List<string>();
+            public readonly List<string> IntentCalls = new List<string>();
+            public int FailFirstResponses;
+            public int FailFirstCompletedResponses;
+            public int FailFirstIntentResponses;
+
+            public Task<LeagueClientWriteResponse> TryApplyAsync(
+                string type, int id, int championId, bool completed, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Calls.Add(type + ":" + id + ":" + championId + ":" + completed);
+                var fail = FailFirstResponses > 0;
+                if (fail) FailFirstResponses--;
+                else if (completed && FailFirstCompletedResponses > 0)
+                {
+                    FailFirstCompletedResponses--;
+                    fail = true;
+                }
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
+            }
+
+            public Task<LeagueClientWriteResponse> TryIntentAsync(
+                int actionId, int championId, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                IntentCalls.Add(actionId + ":" + championId);
+                var fail = FailFirstIntentResponses > 0;
+                if (fail) FailFirstIntentResponses--;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = fail ? 503 : 204 });
+            }
+        }
+
+        private sealed class CalibratedPendingClock : ILeagueMatchmakingClock
+        {
+            internal bool Cancelled;
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                Require(delay.TotalMilliseconds > 0 && delay.TotalMilliseconds <= 2000, "Staged delay escaped the configured phase budget.");
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
+                return pending.Task;
+            }
+        }
+
+        private sealed class FakeClock : ILeagueMatchmakingClock
+        {
+            public int Delays;
+            public bool Cancelled;
+
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                Require(delay == LeagueAutoPickBanController.PollInterval, "Unexpected auto-select polling cadence.");
+                Delays++;
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                cancellationToken.Register(() =>
+                {
+                    Cancelled = true;
+                    pending.TrySetCanceled();
+                });
+                return pending.Task;
+            }
+        }
+
+        private sealed class TwoStepClock : ILeagueMatchmakingClock
+        {
+            public int Delays;
+            public bool Cancelled;
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                Require(delay == LeagueAutoPickBanController.PollInterval,
+                    "Eligibility recovery must not create an extra polling cadence.");
+                Delays++;
+                if (Delays == 1) return Task.FromResult(0);
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
+                return pending.Task;
+            }
+        }
+
+        private sealed class BenchRetryClock : ILeagueMatchmakingClock
+        {
+            public int PollDelays;
+            public bool Cancelled;
+
+            public Task Delay(TimeSpan delay, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (delay == TimeSpan.FromMilliseconds(250)) return Task.FromResult(0);
+                Require(delay == LeagueAutoPickBanController.PollInterval,
+                    "Bench recovery must use only the existing ChampSelect tick.");
+                PollDelays++;
+                if (PollDelays == 1) return Task.FromResult(0);
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                token.Register(() => { Cancelled = true; pending.TrySetCanceled(); });
+                return pending.Task;
+            }
+        }
+
+        private sealed class InstantClock : ILeagueMatchmakingClock
+        {
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return Task.FromResult(0);
+            }
+        }
+
+        private sealed class BenchPendingClock : ILeagueMatchmakingClock
+        {
+            public bool Scheduled;
+            public bool Cancelled;
+
+            public Task Delay(TimeSpan delay, CancellationToken cancellationToken)
+            {
+                Require(delay == TimeSpan.FromSeconds(5), "Unexpected bench cooldown or network retry.");
+                Scheduled = true;
+                var pending = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                cancellationToken.Register(() =>
+                {
+                    Cancelled = true;
+                    pending.TrySetCanceled();
+                });
+                return pending.Task;
+            }
+        }
+    }
+}

@@ -9,6 +9,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/ggman-glass-webview2-pilot-20261021
   workflow_dispatch:
 
 permissions:
@@ -134,6 +135,14 @@ jobs:
           }
           if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
             throw "Build output not found: $env:OUTPUT_EXE"
+          }
+
+      - name: Run League history synthetic smoke
+        shell: pwsh
+        run: |
+          $smoke = Start-Process -FilePath (Resolve-Path $env:OUTPUT_EXE).Path -ArgumentList '--league-history-test' -Wait -PassThru -NoNewWindow
+          if ($smoke.ExitCode -ne 0) {
+            throw "League history synthetic smoke failed with exit code $($smoke.ExitCode)"
           }
 
       - name: Verify lightweight GGman.exe

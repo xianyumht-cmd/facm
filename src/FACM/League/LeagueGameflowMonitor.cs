@@ -46,6 +46,7 @@ namespace FACM.League
                 ClientProcessDetected = state.ClientProcessDetected,
                 GameProcessDetected = state.GameProcessDetected,
                 Phase = state.Phase,
+                IsRankedQueue = state.IsRankedQueue,
                 Activity = state.Activity,
                 BudgetName = state.BudgetName,
                 UpdatedAtUtc = state.UpdatedAtUtc
@@ -71,7 +72,7 @@ namespace FACM.League
 
         public LeagueGameflowMonitor(ILeagueClientApi client, PerformanceBudgetProvider budgets)
         {
-            _phaseService = new LeagueDashboardPhaseService(client, budgets);
+            _phaseService = new LeagueDashboardPhaseService(client, budgets, true);
         }
 
         public event Action<LeagueDashboardPhaseState> StateChanged;

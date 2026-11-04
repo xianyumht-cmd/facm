@@ -13,9 +13,13 @@ namespace FACM.League
         {
             ValidateHotkeys();
             ValidateSettings();
+            ValidateAkariGameflowTransfer();
             ValidateProcessActions();
             ValidateUiContract();
             ValidateScrollContract();
+            ValidateReadableSettingRows();
+            Require(LeagueEfficiencyForm.RankedDisplayCoverageForSmokeTest(),
+                "Ranked choices must have localized presentation without changing saved API values.");
             LeaguePostGameAutomationSmokeTest.Validate();
         }
 
@@ -71,6 +75,7 @@ namespace FACM.League
                 "LeagueAutoReturnLobbyEnabled=True",
                 "LeagueAutoMatchmakingEnabled=True",
                 "LeagueAutoAcceptEnabled=True",
+                "LeagueAutoReconnectEnabled=True",
                 "LeagueAutoMatchmakingMinPartySize=3",
                 "LeagueAutoMatchmakingStartDelayMs=2000",
                 "LeagueAutoAcceptDelayMs=500"
@@ -81,15 +86,63 @@ namespace FACM.League
                 "Post-game automation settings did not parse.");
             Require(settings.LeagueAutoMatchmakingEnabled && settings.LeagueAutoAcceptEnabled,
                 "Next-game automation settings did not parse.");
+            Require(settings.LeagueAutoReconnectEnabled, "Reconnect preference did not parse.");
             Require(settings.LeagueAutoMatchmakingMinPartySize == 3 && settings.LeagueAutoMatchmakingStartDelayMs == 2000 && settings.LeagueAutoAcceptDelayMs == 500,
                 "Next-game policy settings did not parse.");
             var serialized = string.Join("\n", settings.BuildLines());
             Require(serialized.Contains("LeagueExitGameHotkey=F8"), "Exit-game hotkey setting did not serialize.");
             Require(serialized.Contains("LeagueAutoAcceptEnabled=True"), "Auto-accept setting did not serialize.");
+            Require(serialized.Contains("LeagueAutoReconnectEnabled=True"), "Reconnect setting did not serialize.");
             Require(serialized.IndexOf("Credential", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("password", StringComparison.OrdinalIgnoreCase) < 0 &&
                     serialized.IndexOf("account=", StringComparison.OrdinalIgnoreCase) < 0,
                 "Formal settings must not contain the abandoned credential-input feature.");
+        }
+
+        internal static void ValidateAkariGameflowTransfer()
+        {
+            var settings = AppSettings.ParseLines(new string[0]);
+            var before = LeagueAkariGameflowTransfer.Export(settings);
+            Dictionary<string, object> parsed;
+            string error;
+            Require(LeagueAkariGameflowTransfer.TryParse(before, out parsed, out error) &&
+                    parsed.Count == 19 && (double)parsed["autoMatchmakingMaximumMatchDuration"] == 0,
+                "Default native gameflow must round-trip through source-shaped JSON.");
+            var input = "{\"autoHonorEnabled\":true,\"autoHonorStrategy\":\"only-lobby-member\"," +
+                "\"autoAcceptDelaySeconds\":1.5,\"autoMatchmakingMinimumMembers\":3," +
+                "\"autoMatchmakingRematchStrategy\":\"fixed-duration\"," +
+                "\"autoMatchmakingRematchFixedDuration\":42," +
+                "\"invitationHandlingStrategies\":{\"<DEFAULT>\":\"ignore\",\"NORMAL\":\"accept\"}}";
+            Require(LeagueAkariGameflowTransfer.TryParse(input, out parsed, out error),
+                "Supported source gameflow settings must parse.");
+            LeagueAkariGameflowTransfer.ApplyValidated(settings, parsed);
+            Require(settings.LeagueAutoHonorTeammateEnabled &&
+                    settings.LeagueAutoHonorStrategy == "only-lobby-member" &&
+                    settings.LeagueAutoAcceptDelayMs == 1500 &&
+                    settings.LeagueAutoMatchmakingMinPartySize == 3 &&
+                    settings.LeagueAutoMatchmakingStopAfterMs == 42000 &&
+                    settings.LeagueAutoMatchmakingStopPolicy == "fixed" &&
+                    LeagueInvitationPolicies.Parse(settings.LeagueInvitationStrategies)["NORMAL"] == "accept" &&
+                    !settings.LeagueAutoMatchmakingEnabled,
+                "Partial import must apply only supplied fields without activating unrelated actions.");
+            Require(LeagueAkariGameflowTransfer.TryParse(LeagueAkariGameflowTransfer.Export(settings),
+                    out parsed, out error) && parsed.Count == 19,
+                "Imported source settings must export as a valid full source object.");
+            foreach (var invalid in new[] {
+                "{\"autoAcceptEnabled\":\"true\"}",
+                "{\"autoMatchmakingMaximumMatchDuration\":120}",
+                "{\"autoMatchmakingMinimumMembers\":6}",
+                "{\"autoAcceptDelaySeconds\":0.3}",
+                "{\"autoHonorStrategy\":\"unsafe\"}",
+                "{\"invitationHandlingStrategies\":{\"UNKNOWN\":\"accept\"}}",
+                "{\"autoMatchmakingRoomNotices\":true}",
+                "{\"autoAcceptEnabled\":true,\"autoReconnectEnabled\":null}"
+            })
+                Require(!LeagueAkariGameflowTransfer.TryParse(invalid, out parsed, out error),
+                    "Invalid or unrepresentable source options must fail atomically.");
+            Require(!settings.LeagueAutoAcceptEnabled &&
+                    settings.LeagueAutoAcceptDelayMs == 1500,
+                "Rejected imports must not mutate previously validated settings.");
         }
 
         private static void ValidateProcessActions()
@@ -121,6 +174,14 @@ namespace FACM.League
                 Require(pair.Key.IndexOf("Credential", StringComparison.OrdinalIgnoreCase) < 0,
                     "Abandoned credential UI key must not ship.");
             }
+        }
+
+        private static void ValidateReadableSettingRows()
+        {
+            Require(LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(35, 18) >= 82 &&
+                LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(35, 42) >= 107 &&
+                LeagueEfficiencyForm.RequiredSettingRowHeightForSmokeTest(27, 58) >= 115,
+                "Settings rows must grow to contain wrapped descriptions instead of clipping text.");
         }
 
         private static void ValidateScrollContract()

@@ -64,6 +64,16 @@ namespace FACM.League
 
         private static void ValidateParsingAndCaching()
         {
+            var styleCatalog = new LeagueBuildAdvisorCatalog();
+            LeagueBuildAdvisorDataService.ParseLocalPerkStyles(Encoding.UTF8.GetBytes(
+                "{\"styles\":[{\"id\":8300,\"name\":\"Inspiration\",\"iconPath\":\"/lol-game-data/assets/v1/perkstyles/8300.png\"}," +
+                "{\"id\":8400,\"name\":\"Resolve\",\"iconPath\":\"https://invalid.example/icon.png\"}]}"), styleCatalog);
+            Require(styleCatalog.PerkStyles[8300] == "Inspiration" &&
+                styleCatalog.PerkStyleIcons[8300] == "lcu:/lol-game-data/assets/v1/perkstyles/8300.png" &&
+                !styleCatalog.PerkStyleIcons.ContainsKey(8400) &&
+                LeagueBuildAdvisorDataService.CloneLocalCatalog(styleCatalog).PerkStyleIcons[8300] ==
+                    styleCatalog.PerkStyleIcons[8300],
+                "Local rune-style icons must use allowlisted LCU paths and survive catalog cloning.");
             var lcu = new FakeLeagueApi();
             var opgg = new FakeOpggApi();
             var budgets = new PerformanceBudgetProvider();

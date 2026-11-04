@@ -21,6 +21,7 @@ namespace FACM.League
         private readonly Label _phaseValue;
         private readonly Label _performanceValue;
         private readonly Label _updatedValue;
+        private readonly Label _respawnValue;
         private readonly FacmActionButton _refreshButton;
         private readonly FacmActionButton _closeButton;
         private readonly Panel _scrollRoot;
@@ -30,6 +31,11 @@ namespace FACM.League
         private readonly FacmGlassPanel _detailsPanel;
         private bool _arranging;
         private readonly System.Windows.Forms.Timer _timer;
+        private readonly System.Windows.Forms.Timer _respawnTimer;
+        private readonly LeagueRespawnTimerReader _respawnReader = new LeagueRespawnTimerReader();
+        private LeagueRespawnTimerSample _respawnSample;
+        private string _respawnAccount;
+        private bool _respawnRefreshing;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private LeagueDashboardSnapshot _snapshot;
         private DateTime _lastDetailsUtc = DateTime.MinValue;
@@ -93,6 +99,17 @@ namespace FACM.League
             _updatedValue = AddDetailRow(details, UiTextKeys.LeagueDashboardLastUpdated, 124, false);
             Controls.Add(details);
 
+            _respawnValue = new Label
+            {
+                Text = string.Empty,
+                AutoEllipsis = false,
+                Visible = false,
+                ForeColor = FacmDesignSystem.Warning,
+                BackColor = Color.Transparent,
+                Font = new Font(FacmThemeRuntime.Current.FontName, 10F, FontStyle.Bold)
+            };
+            Controls.Add(_respawnValue);
+
             _refreshButton = CreateButton(
                 UiTextKeys.LeagueDashboardRefresh,
                 new Rectangle(432, 389, 92, 30),
@@ -126,6 +143,9 @@ namespace FACM.League
             LayoutDashboard();
             _timer = new System.Windows.Forms.Timer { Interval = 5000 };
             _timer.Tick += async delegate { await RefreshAsync(false); };
+            _respawnTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+            _respawnTimer.Tick += async delegate { await RefreshRespawnAsync(); };
+            Resize += delegate { if (!IsDisposed) AdjustTimerInterval(); };
             Shown += async delegate
             {
                 await RefreshAsync(true);
@@ -136,7 +156,10 @@ namespace FACM.League
             {
                 _timer.Stop();
                 _timer.Dispose();
+                _respawnTimer.Stop();
+                _respawnTimer.Dispose();
                 if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
+                _respawnReader.Dispose();
                 _lifetime.Dispose();
             };
         }
@@ -320,6 +343,13 @@ namespace FACM.League
                 _detailsPanel.SetBounds(pad, detailsY, width, rowTop + Unit(8));
                 y = detailsY + _detailsPanel.Height + Unit(16);
 
+                if (_respawnValue.Visible)
+                {
+                    var respawnHeight = LabelHeight(_respawnValue, width, Unit(24));
+                    _respawnValue.SetBounds(pad, y, width, respawnHeight);
+                    y += respawnHeight + Unit(8);
+                }
+
                 var buttonHeight = Unit(32);
                 var closeWidth = Math.Max(Unit(96),
                     TextRenderer.MeasureText(_closeButton.Text, _closeButton.Font).Width + Unit(24));
@@ -380,6 +410,8 @@ namespace FACM.League
                 value.ForeColor = FacmDesignSystem.Text;
                 FacmThemeRuntime.ReplaceFont(value, fontName, 9.5F, FontStyle.Regular);
             }
+            _respawnValue.ForeColor = FacmDesignSystem.Warning;
+            FacmThemeRuntime.ReplaceFont(_respawnValue, fontName, 10F, FontStyle.Bold);
             FacmThemeRuntime.ReplaceFont(_refreshButton, fontName, 9.5F, FontStyle.Bold);
             FacmThemeRuntime.ReplaceFont(_closeButton, fontName, 9.5F, FontStyle.Bold);
             _connectionValue.ForeColor = _snapshot != null && _snapshot.Connected
@@ -474,6 +506,17 @@ namespace FACM.League
 
         private void AdjustTimerInterval()
         {
+            var inGame = _snapshot != null && _snapshot.Connected &&
+                string.Equals(_snapshot.Phase, "InProgress", StringComparison.OrdinalIgnoreCase);
+            if (inGame && Visible && WindowState != FormWindowState.Minimized)
+            {
+                if (!_respawnTimer.Enabled) _respawnTimer.Start();
+            }
+            else
+            {
+                _respawnTimer.Stop();
+                ClearRespawn();
+            }
             if (!Visible || WindowState == FormWindowState.Minimized) { _timer.Interval = 10000; return; }
             switch (_snapshot == null ? LeagueActivityLevel.None : _snapshot.Activity)
             {
@@ -482,6 +525,56 @@ namespace FACM.League
                 case LeagueActivityLevel.InGame: _timer.Interval = 8000; break;
                 default: _timer.Interval = 5000; break;
             }
+        }
+
+        private async Task RefreshRespawnAsync()
+        {
+            if (_respawnRefreshing || IsDisposed || _lifetime.IsCancellationRequested ||
+                _snapshot == null || !_snapshot.Connected ||
+                !string.Equals(_snapshot.Phase, "InProgress", StringComparison.OrdinalIgnoreCase)) return;
+
+            var account = _snapshot.AccountName;
+            if (string.IsNullOrWhiteSpace(account)) { ClearRespawn(); return; }
+            if (!string.Equals(account, _respawnAccount, StringComparison.OrdinalIgnoreCase))
+            {
+                _respawnSample = null;
+                _respawnAccount = account;
+            }
+            _respawnRefreshing = true;
+            try
+            {
+                var bytes = await _respawnReader.ReadAsync(_lifetime.Token);
+                if (IsDisposed || _lifetime.IsCancellationRequested || !_respawnTimer.Enabled ||
+                    !string.Equals(_snapshot.AccountName, account, StringComparison.OrdinalIgnoreCase)) return;
+                _respawnSample = LeagueRespawnTimerProjection.Project(bytes, account, _respawnSample);
+                var display = _respawnSample != null && _respawnSample.IsDead;
+                var layoutChanged = _respawnValue.Visible != display;
+                _respawnValue.Visible = display;
+                _respawnValue.Text = _respawnValue.Visible
+                    ? string.Format(_ui.Get(UiTextKeys.LeagueDashboardRespawnCountdown),
+                        Math.Ceiling(_respawnSample.TimeLeftSeconds).ToString("0"))
+                    : string.Empty;
+                if (layoutChanged) LayoutDashboard();
+            }
+            catch (OperationCanceledException) { }
+            catch (ObjectDisposedException) { }
+            catch (Exception exception)
+            {
+                if (!_lifetime.IsCancellationRequested)
+                    AppLog.Info("League respawn view refresh skipped: " + exception.GetType().Name);
+                if (!IsDisposed) ClearRespawn();
+            }
+            finally { _respawnRefreshing = false; }
+        }
+
+        private void ClearRespawn()
+        {
+            var wasVisible = _respawnValue.Visible;
+            _respawnSample = null;
+            _respawnAccount = null;
+            _respawnValue.Visible = false;
+            _respawnValue.Text = string.Empty;
+            if (wasVisible && !IsDisposed) LayoutDashboard();
         }
 
         private static string FirstNonEmpty(params string[] values)

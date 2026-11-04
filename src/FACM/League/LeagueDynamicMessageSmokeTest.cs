@@ -1,0 +1,3092 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using FACM.Performance;
+
+namespace FACM.League
+{
+    internal static class LeagueDynamicMessageSmokeTest
+    {
+        internal static void Validate()
+        {
+            ValidatePlayerTags();
+            LeagueTaggedPlayerReminderSmokeTest.Validate();
+            LeagueEncounterHistorySmokeTest.Validate();
+            ValidateAggregation();
+            ValidateQueueTagPreference();
+            ValidateQueueTagRoutingAsync().GetAwaiter().GetResult();
+            ValidateTaggedConcurrencyAsync().GetAwaiter().GetResult();
+            ValidateUntaggedConcurrencyAsync().GetAwaiter().GetResult();
+            ValidateAutoHistoryPages();
+            ValidateCardPageAdditions();
+            ValidateSamePageDuplicateEvidence();
+            ValidateAutomaticCardOffsets();
+            ValidateTaggedCacheIsolationAsync().GetAwaiter().GetResult();
+            ValidatePlayerOrdering();
+            ValidateExplicitHistoryHydrationAsync().GetAwaiter().GetResult();
+            ValidateRosterDetailPrefetchAsync().GetAwaiter().GetResult();
+            ValidateRosterCardPrefetchAsync().GetAwaiter().GetResult();
+            ValidateLobbyQueryAsync().GetAwaiter().GetResult();
+            ValidatePremadeInference();
+            ValidateOngoingPlayerTags();
+            ValidateEncounterCardTags();
+            ValidateKillDamageEfficiencyTag();
+            ValidateHistoricalDryRun();
+            ValidateOngoingKdaOutliers();
+            ValidateOngoingCardDetails();
+            ValidateOngoingCardCollectionActions();
+            ValidatePrivacyTag();
+            ValidatePrivacyLoadingAsync().GetAwaiter().GetResult();
+            ValidateMasteryLoadingAsync().GetAwaiter().GetResult();
+            ValidateChampionUsageMode();
+            ValidateJungleTimeline();
+            ValidateJungleFormatter();
+            ValidateJunglePrefetch();
+            ValidateLoadingAsync().GetAwaiter().GetResult();
+            ValidateMissingHistoryAsync().GetAwaiter().GetResult();
+            ValidateJungleLoadingAsync().GetAwaiter().GetResult();
+            ValidateBatchAsync().GetAwaiter().GetResult();
+        }
+
+        private static void ValidateAutoHistoryPages()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoHistoryPages = 10 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoHistoryPages == 10 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":11}").AutoHistoryPages == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\"AutoHistoryPages\":-1}").AutoHistoryPages == 0,
+                "Player-card automatic history pagination must be opt-in and bounded to ten pages.");
+        }
+
+        private static void ValidateAutomaticCardOffsets()
+        {
+            var small = LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(2, 10);
+            var normal = LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(20, 10);
+            Require(small.Length == 10 && small[0] == 2 && small[9] == 182 &&
+                normal.Length == 9 && normal[0] == 20 && normal[8] == 180 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(2, 0).Length == 0 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(1, 10).Length == 0 &&
+                LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(20, 11).Length == 0,
+                "Automatic player-card pages must cover at most 200 games with exact offsets.");
+        }
+
+        private static void ValidateCardPageAdditions()
+        {
+            var original = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win", ParticipantResolved = true, StatisticsAvailable = true,
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
+                GameCreationEpochMs = 1000
+            };
+            var same = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 1, ChampionId = 11, WinResult = "win", ParticipantResolved = true, StatisticsAvailable = true,
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420,
+                GameCreationEpochMs = 1000
+            };
+            var next = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 2, ChampionId = 22, WinResult = "loss", ParticipantResolved = true, StatisticsAvailable = true,
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420
+            };
+            var current = new List<LeaguePlayerMatchSummary> { original };
+            var additions = LeagueHistoricalMatchDryRun.CardPageAdditions(
+                current, new[] { same, next }, "self");
+            Require(additions != null && additions.Count == 1 &&
+                additions[0].GameId == 2 && current.Count == 1,
+                "Overlapping card pages must add only new, validated games without mutation.");
+            same.ChampionId = 33;
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { same, next }, "self") == null,
+                "Contradictory game identities across history pages must fail closed.");
+            same.ChampionId = 11;
+            next.PuuId = "foreign";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { next }, "self") == null,
+                "Foreign player history must not enter the current card.");
+            next.PuuId = "self";
+            same.DataSource = LeaguePlayerHistorySource.Sgp;
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { same }, "self") == null,
+                "The same game cannot switch source between card pages.");
+
+            same.DataSource = LeaguePlayerHistorySource.Lcu;
+            original.MapId = 11; original.GameMode = "CLASSIC";
+            same.MapId = 30; same.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self") == null,
+                "Conflicting map evidence across pages must fail closed.");
+            same.MapId = 11; same.GameMode = "CHERRY";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self") == null,
+                "Conflicting mode evidence across pages must fail closed.");
+            same.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(current, new[] { same }, "self")?.Count == 0,
+                "Consistent overlapping page evidence must remain deduplicated.");
+            Require(LeagueHistoricalMatchDryRun.CardPageAdditions(
+                    current, new[] { next }, "self")?.Count == 1,
+                "A new verified game may be appended after an overlapping page.");
+        }
+
+        private static void ValidateSamePageDuplicateEvidence()
+        {
+            var player = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "self" },
+                History = new LeaguePlayerMatchPage()
+            };
+            var first = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true,
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 420, MapId = 11,
+                GameCreationEpochMs = 1000, GameMode = "CLASSIC"
+            };
+            var duplicate = new LeaguePlayerMatchSummary {
+                PuuId = "self", GameId = 901, ChampionId = 11, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true,
+                DataSource = LeaguePlayerHistorySource.Lcu, QueueId = 430, MapId = 11,
+                GameCreationEpochMs = 1000, GameMode = "CLASSIC"
+            };
+            player.History.Matches.Add(first);
+            player.History.Matches.Add(duplicate);
+            Func<bool> rejected = () =>
+                LeagueHistoricalMatchDryRun.CardRecentMatches(player).Count == 0 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player).Count == 0;
+            Require(rejected(), "Conflicting same-page queue evidence must fail closed.");
+            duplicate.QueueId = 420; duplicate.GameCreationEpochMs = 2000;
+            Require(rejected(), "Conflicting same-page creation times must fail closed.");
+            duplicate.GameCreationEpochMs = 1000; duplicate.DataSource = LeaguePlayerHistorySource.Sgp;
+            Require(rejected(), "Conflicting same-page history sources must fail closed.");
+            duplicate.DataSource = LeaguePlayerHistorySource.Lcu; duplicate.MapId = 12;
+            Require(rejected(), "Conflicting same-page maps must fail closed.");
+            duplicate.MapId = 11; duplicate.GameMode = "CHERRY";
+            Require(rejected(), "Conflicting same-page game modes must fail closed.");
+            duplicate.GameMode = "CLASSIC";
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(player).Count == 1 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(player).Count == 1,
+                "Identical overlapping rows must deduplicate without losing the verified match.");
+        }
+
+        private static void ValidatePlayerTags()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "ggman-player-tags-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var store = new LeaguePlayerTagStore(directory);
+                Require(store.ReadTags("self", "HN1", "HN1").Count == 0,
+                    "Empty local player tag storage must not create phantom records.");
+                store.SetTag("self", "ally", "HN1", "HN1", "常用队友");
+                Require(store.ReadTags("self", "hn1", "hn1")["ally"] == "常用队友" &&
+                    store.ReadTags("other", "HN1", "HN1").Count == 0 &&
+                    store.ReadTags("self", "HN2", "HN1").Count == 0 &&
+                    store.ReadTags("self", "HN1", "HN2").Count == 0,
+                    "Player tags must be scoped to own account, region and platform.");
+                store.SetTag("self", "ally", "HN1", "HN1", "记住这位");
+                var reloaded = new LeaguePlayerTagStore(directory);
+                Require(reloaded.ReadTags("self", "HN1", "HN1")["ally"] == "记住这位",
+                    "Player tag edits must survive a process restart.");
+                store.SetTag("self", "ally", "HN1", "HN1", "");
+                Require(reloaded.ReadTags("self", "HN1", "HN1").Count == 0,
+                    "Clearing a player tag must remove the scoped record.");
+                bool rejected = false;
+                try { store.SetTag("self", "self", "HN1", "HN1", "self-tag"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Self-player tags must be rejected.");
+                rejected = false;
+                try { store.SetTag("self", "ally", "HN1", "HN1", "invalid\u0001tag"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Control characters must not enter player tags.");
+                store.SetTag("self", "ally", "HN1", "HN1", "unchanged");
+                var exchange = Path.Combine(directory, "akari-tags.json");
+                Require(store.ExportAkariJson(exchange) == 1,
+                    "Player tag export must include exactly the locally stored records.");
+                var exported = File.ReadAllText(exchange, Encoding.UTF8);
+                Require(exported.Contains("\"type\":\"league-akari-tagged-players\"") &&
+                    exported.Contains("\"databaseVersion\":15") && exported.Contains("\"rsoPlatformId\":\"HN1\""),
+                    "Player tag export must match Akari 1.5.1's interchange schema.");
+                store.SetTag("self", "ally", "HN1", "HN1", "modified");
+                Require(store.ImportAkariJson(exchange) == 1 &&
+                    store.ReadTags("self", "HN1", "HN1")["ally"] == "unchanged",
+                    "Import must merge scoped tags and preserve exported values.");
+                store.SetTag("other", "enemy", "HN2", "HN2", "不同账号的标记");
+                var browserRecords = reloaded.ReadAllTags();
+                Require(browserRecords.Count == 2 && browserRecords.Any(p => p.SelfPuuid == "other" &&
+                    p.Puuid == "enemy" && p.Region == "HN2") &&
+                    browserRecords.Any(p => p.SelfPuuid == "self" && p.Puuid == "ally" && p.Tag == "unchanged"),
+                    "The local tag browser must enumerate every stored account without a live lobby.");
+                var expected = browserRecords.Single(p => p.SelfPuuid == "self");
+                Require(reloaded.TryEditStoredTag(expected, "重新标记") &&
+                    store.ReadTags("self", "HN1", "HN1")["ally"] == "重新标记" &&
+                    !reloaded.TryEditStoredTag(expected, "过期覆盖"),
+                    "Browser edits must preserve scope and reject stale records.");
+                var fresh = reloaded.ReadAllTags().Single(p => p.SelfPuuid == "self");
+                Require(reloaded.TryEditStoredTag(fresh, "") &&
+                    store.ReadTags("self", "HN1", "HN1").Count == 0 &&
+                    reloaded.ReadAllTags().Count == 1,
+                    "Browser deletion must remove only the selected scoped tag.");
+                Require(reloaded.TryCreateStoredTag("self", "encounter-only", "hn1", "HN1", "第一次相遇") &&
+                    reloaded.ReadTags("self", "HN1", "HN1")["encounter-only"] == "第一次相遇" &&
+                    !reloaded.TryCreateStoredTag("self", "encounter-only", "HN1", "hn1", "旧窗口覆盖") &&
+                    reloaded.ReadTags("self", "HN1", "HN1")["encounter-only"] == "第一次相遇" &&
+                    reloaded.ReadTags("other", "HN1", "HN1").Count == 0,
+                    "Adding a tag from an encountered-only player must not overwrite newer or other-account tags.");
+                Require(reloaded.TryCreateStoredTag("other", "encounter-only", "HN1", "HN1", "另一个账号") &&
+                    reloaded.ReadTags("other", "HN1", "HN1")["encounter-only"] == "另一个账号" &&
+                    reloaded.ReadTags("self", "HN1", "HN2").Count == 0,
+                    "Local saved-player tagging must keep each account and platform independent.");
+                rejected = false;
+                try { reloaded.TryCreateStoredTag("self", "self", "HN1", "HN1", "invalid"); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Saved-player tag creation must reject the current player as its own target.");
+                var invalidExchange = Path.Combine(directory, "invalid-tags.json");
+                File.WriteAllText(invalidExchange, exported.Replace("league-akari-tagged-players", "different-schema"), Encoding.UTF8);
+                rejected = false;
+                try { store.ImportAkariJson(invalidExchange); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected && store.ReadTags("other", "HN2", "HN2")["enemy"] == "不同账号的标记",
+                    "A foreign player tag file must not mutate valid local tags.");
+                var path = Path.Combine(directory, "league-player-tags.json");
+                File.WriteAllText(path, "{broken json", Encoding.UTF8);
+                rejected = false;
+                try { store.SetTag("self", "ally", "HN1", "HN1", "overwritten"); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected && File.ReadAllText(path, Encoding.UTF8).Contains("broken json"),
+                    "Invalid player tag storage must fail without overwriting the damaged file.");
+            }
+            finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        }
+
+        private static void ValidateQueueTagPreference()
+        {
+            var defaults = LeagueDynamicMessageOptions.Parse("{}");
+            Require(LeaguePlayerDataService.SgpOwnerMatches("self", "self", "self") &&
+                LeaguePlayerDataService.SgpOwnerMatches("self", "self", null) &&
+                !LeaguePlayerDataService.SgpOwnerMatches("self", "target", "self") &&
+                !LeaguePlayerDataService.SgpOwnerMatches("self", "self", "other") &&
+                !LeaguePlayerDataService.SgpOwnerMatches("../unsafe", "../unsafe", null),
+                "SGP opponent history must validate the signed-in owner, not the target player.");
+            Require(defaults.MatchHistoryTagPreference == "all" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("all", 420) == null &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 420) == "q_420" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 0) == "" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("current", 99999) == "q_99999" &&
+                LeagueDynamicMessageService.ResolveHistoryQueueTag("unknown", 420) == "",
+                "Current-queue history may offer a bounded tag; the data owner must verify local LCU metadata before SGP.");
+            defaults.MatchHistoryTagPreference = "current";
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(defaults))
+                    .MatchHistoryTagPreference == "current" &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryTagPreference\":\"invalid\"}")
+                    .MatchHistoryTagPreference == "all",
+                "Queue-tag preferences must roundtrip and reject invalid persisted modes.");
+        }
+
+        private static async Task ValidateQueueTagRoutingAsync()
+        {
+            var local = new Fake();
+            var sgp = new TaggedHistoryFake();
+            var session = Session("tagged-owner");
+            var service = new LeaguePlayerDataService(local, new PerformanceBudgetProvider(),
+                null, sgp, () => session);
+            var target = new LeaguePlayerProfile { PuuId = "enemy" };
+            var page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page != null && page.Matches.Count == 0 && sgp.TaggedCalls == 1 &&
+                sgp.LastPuuid == "enemy" && sgp.LastTag == "q_420" &&
+                !local.Paths.Any(p => p.Contains("/matches?")),
+                "SGP current-queue history must query the tagged opponent without an LCU fallback.");
+            local.ProfilePuuid = "other";
+            page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page == null && sgp.TaggedCalls == 1,
+                "An account mismatch must fail before issuing a tagged opponent request.");
+            local.ProfilePuuid = "self";
+            sgp.OnTagged = () => local.ProfilePuuid = "replacement";
+            page = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, "q_420", "self").ConfigureAwait(false);
+            Require(page == null && sgp.TaggedCalls == 2,
+                "An account change during tagged SGP retrieval must discard the response.");
+        }
+
+        private static async Task ValidateTaggedCacheIsolationAsync()
+        {
+            var fake = new Fake { ChampionNamesJson = "[{\"id\":77,\"name\":\"Alpha\"}]" };
+            var session = Session("cache-isolation");
+            var service = new LeaguePlayerDataService(fake, new PerformanceBudgetProvider(),
+                null, null, () => session);
+            var target = new LeaguePlayerProfile { PuuId = "enemy" };
+            var tagged = new LeaguePlayerMatchPage { ClientSession = session,
+                StartIndex = 0, RequestedCount = 2 };
+            tagged.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "enemy", GameId = 999, ChampionId = 77 });
+            var named = await service.EnrichChampionNamesAsync(target, tagged,
+                CancellationToken.None, false).ConfigureAwait(false);
+            Require(named != null && named.Matches[0].ChampionName == "Alpha",
+                "Tagged source fixture must actually enrich champion metadata.");
+            var untagged = await service.LoadRecentMatchesAsync(target, 0, 2, false,
+                CancellationToken.None, null, "self").ConfigureAwait(false);
+            Require(untagged != null && untagged.Matches.All(m => m.GameId != 999) &&
+                fake.Paths.Any(p => p.Contains("/matches?")),
+                "Tagged SGP enrichment must not pollute the untagged LCU history cache.");
+        }
+
+        private static async Task ValidateUntaggedConcurrencyAsync()
+        {
+            var fake = new Fake { NoLocalHistory = true };
+            var sgp = new TaggedHistoryFake {
+                AllowUntagged = true, RequireOverlap = true, DelayMs = 30
+            };
+            var session = Session("parallel-all-source");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase, sgp))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "all", true, 2)
+                    .ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.History != null) &&
+                    sgp.UntaggedCalls == 2 && sgp.MaxConcurrent == 2 &&
+                    fake.MaxConcurrent == 1 &&
+                    fake.Paths.Count(p => p.Contains("/matches?")) == 2,
+                    "Untagged local-first misses must overlap only the authenticated SGP fallback.");
+            }
+            fake = new Fake { NoLocalHistory = true };
+            sgp = new TaggedHistoryFake { AllowUntagged = true };
+            sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase, sgp))
+            {
+                var changed = await service.LoadAsync(CancellationToken.None, 2, "all", true, 2)
+                    .ConfigureAwait(false);
+                Require(changed == null && sgp.UntaggedCalls > 0,
+                    "Untagged regional fallback must reject a replaced signed-in owner.");
+            }
+        }
+
+        private static async Task ValidateTaggedConcurrencyAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { HistoryConcurrency = 4 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .HistoryConcurrency == 4 &&
+                LeagueDynamicMessageOptions.Parse("{\"HistoryConcurrency\":5}").HistoryConcurrency == 2,
+                "SGP concurrency must persist and reject invalid settings.");
+            var fake = new Fake();
+            var sgp = new TaggedHistoryFake { DelayMs = 30, RequireOverlap = true };
+            var session = Session("parallel-tagged");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase, sgp))
+            {
+                Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 0)
+                    .ConfigureAwait(false) == null && sgp.TaggedCalls == 0,
+                    "Invalid concurrency must fail before network reads.");
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
+                    .ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.History != null) && sgp.TaggedCalls == 2 &&
+                    sgp.MaxConcurrent == 2 && fake.MaxConcurrent == 1 &&
+                    !fake.Paths.Any(p => p.Contains("/matches?")),
+                    "Tagged SGP reads must overlap within the configured bound while LCU stays serialized. " +
+                    "roster=" + (snapshot == null ? "null" : snapshot.Players.Count.ToString()) +
+                    " tagged=" + sgp.TaggedCalls + " sgpMax=" + sgp.MaxConcurrent +
+                    " lcuMax=" + fake.MaxConcurrent);
+                var sequential = new TaggedHistoryFake { DelayMs = 30 };
+                using (var serial = new LeagueDynamicMessageService(new Fake(),
+                    new PerformanceBudgetProvider(), () => session, () => phase, sequential))
+                {
+                    var one = await serial.LoadAsync(CancellationToken.None, 2, "current", true, 1)
+                        .ConfigureAwait(false);
+                    Require(one != null && one.Players.Count == 2 &&
+                        sequential.TaggedCalls == 2 && sequential.MaxConcurrent == 1,
+                        "Concurrency one must preserve serialized tagged SGP reads.");
+                }
+                var restrictedBudget = new PerformanceBudgetProvider();
+                restrictedBudget.UpdateLeagueActivity(LeagueActivityLevel.InGame);
+                var restrictedSgp = new TaggedHistoryFake { DelayMs = 30 };
+                using (var restricted = new LeagueDynamicMessageService(new Fake(),
+                    restrictedBudget, () => session, () => phase, restrictedSgp))
+                {
+                    var capped = await restricted.LoadAsync(CancellationToken.None, 2, "current", true, 4)
+                        .ConfigureAwait(false);
+                    Require(capped != null && restrictedSgp.TaggedCalls == 2 &&
+                        restrictedSgp.MaxConcurrent == 1,
+                        "Game-sensitive performance budget must cap configured SGP concurrency.");
+                }
+                sgp.OnTagged = () => fake.ProfilePuuid = "replacement";
+                Require(await service.LoadAsync(CancellationToken.None, 2, "current", true, 2)
+                    .ConfigureAwait(false) == null,
+                    "Account replacement during concurrent SGP must discard the roster.");
+            }
+        }
+
+        private static async Task ValidateExplicitHistoryHydrationAsync()
+        {
+            var settings = new LeagueDynamicMessageOptions { GameDetailsLoadCount = 3 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(settings))
+                    .GameDetailsLoadCount == 3 &&
+                LeagueDynamicMessageOptions.Parse("{\"GameDetailsLoadCount\":21}").GameDetailsLoadCount == 20,
+                "Bounded detail hydration settings must persist and reject invalid values.");
+            var fake = new Fake { IncompleteHistory = true };
+            var session = Session("history-details");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].History.Matches.Count == 1 &&
+                    !snapshot.Players[0].History.Matches[0].ParticipantResolved,
+                    "Sparse source fixture must remain unresolved before explicit detail loading.");
+                var before = fake.Paths.Count(p => p == "/lol-match-history/v1/games/1");
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None, 0)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before,
+                    "Disabled detail hydration must not issue any LCU request.");
+                Require(await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None, 1)
+                    .ConfigureAwait(false) && snapshot.Players[0].History.Matches[0].ParticipantResolved &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before + 1 &&
+                    fake.MaxConcurrent == 1,
+                    "Explicit detail hydration must enrich only current-owner history through bounded LCU reads.");
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p == "/lol-match-history/v1/games/1") == before + 1,
+                    "Already attempted detail records must not be fetched again.");
+                session = Session("changed");
+                Require(!await service.HydrateHistoryAsync(snapshot, "self", CancellationToken.None)
+                    .ConfigureAwait(false), "Old account/session must not reuse hydrated player history.");
+            }
+        }
+
+        private static async Task ValidateRosterDetailPrefetchAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoRosterDetailPrefetchCount = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoRosterDetailPrefetchCount == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoRosterDetailPrefetchCount == 0 &&
+                LeagueDynamicMessageOptions.Parse("{\"AutoRosterDetailPrefetchCount\":21}")
+                    .AutoRosterDetailPrefetchCount == 0,
+                "Automatic roster detail prefetch must be opt-in, persisted and bounded.");
+            var fake = new Fake { IncompleteHistory = true };
+            var session = Session("roster-detail-prefetch");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2,
+                    "Roster detail fixture must have two source-backed players.");
+                var before = fake.Paths.Count(path => path == "/lol-match-history/v1/games/1");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 0, CancellationToken.None)
+                        .ConfigureAwait(false) == 0 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before,
+                    "Disabled prefetch must make no detail request.");
+                var changed = await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(changed == 2 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == before + 2 &&
+                    fake.MaxConcurrent == 1,
+                    "One configured detail read must be available to each roster player through the single LCU owner.");
+                var reads = fake.Paths.Count(path => path == "/lol-match-history/v1/games/1");
+                session = Session("replaced");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    fake.Paths.Count(path => path == "/lol-match-history/v1/games/1") == reads,
+                    "Stale account/session cannot issue automatic roster detail requests.");
+            }
+            var all = new Fake { IncompleteHistory = true };
+            session = Session("roster-two-players");
+            using (var service = new LeagueDynamicMessageService(all, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    all.Paths.Count(path => path == "/lol-match-history/v1/games/1") == 2 &&
+                    snapshot.Players.All(player => player.History.Matches[0].ParticipantResolved) &&
+                    all.MaxConcurrent == 1,
+                    "Per-player detail budgets must serve both roster players without concurrent LCU reads.");
+            }
+            var multiple = new Fake { IncompleteHistory = true, MultipleIncompleteHistory = true };
+            session = Session("roster-per-player-detail");
+            using (var service = new LeagueDynamicMessageService(multiple,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.All(player => player.History.Matches.Count == 2),
+                    "Per-player detail fixture must expose two sparse matches per player.");
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    multiple.Paths.Count(path => path == "/lol-match-history/v1/games/1") == 2 &&
+                    multiple.Paths.Count(path => path == "/lol-match-history/v1/games/2") == 2 &&
+                    snapshot.Players.All(player => player.History.Matches.All(match => match.ParticipantResolved)) &&
+                    multiple.MaxConcurrent == 1,
+                    "A two-detail setting must hydrate two games for each player, not two games globally.");
+            }
+            var card = new Fake { PagedHistory = true };
+            session = Session("roster-card-detail");
+            using (var service = new LeagueDynamicMessageService(card,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2,
+                    "Card detail fixture must load a third source game for each player.");
+                foreach (var player in snapshot.Players)
+                {
+                    Require(player.RosterCardHistory.Count == 3, "Card-only history was not staged.");
+                    foreach (var match in player.RosterCardHistory.Where(match => match.GameId != 3))
+                        player.AnalysisDetailAttempted.Add(LeaguePlayerDataService.HistoryDetailKey(match));
+                    var sparse = player.RosterCardHistory.Single(match => match.GameId == 3);
+                    sparse.ParticipantResolved = false;
+                    sparse.StatisticsAvailable = false;
+                    sparse.ParticipantRoster = null;
+                }
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    card.Paths.Count(path => path == "/lol-match-history/v1/games/3") == 2 &&
+                    snapshot.Players.All(player =>
+                        player.RosterCardHistory.Single(match => match.GameId == 3).ParticipantResolved &&
+                        player.History.Matches.Count == 2) &&
+                    card.MaxConcurrent == 1,
+                    "Per-player detail prefetch must enrich the loaded card pages without enlarging initial analysis.");
+                session = Session("roster-card-detail-switched");
+                var before = card.Paths.Count;
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    card.Paths.Count == before,
+                    "A replaced account/session must not hydrate retained card-only history.");
+            }
+            var replaced = new Fake { IncompleteHistory = true };
+            session = Session("roster-switch-during-detail");
+            using (var service = new LeagueDynamicMessageService(replaced,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                replaced.OnRead = path =>
+                {
+                    if (path == "/lol-match-history/v1/games/1")
+                        session = Session("roster-switched");
+                };
+                Require(await service.PrefetchRosterDetailsAsync(snapshot, 2,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    snapshot.Players.All(player => !player.History.Matches[0].ParticipantResolved),
+                    "A session change during detail fetching must discard unowned results.");
+            }
+        }
+
+        private static async Task ValidateRosterCardPrefetchAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { AutoRosterHistoryPages = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .AutoRosterHistoryPages == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").AutoRosterHistoryPages == 0,
+                "Roster-wide card paging must be saved and default disabled.");
+            var fake = new Fake();
+            var session = Session("roster-card-pages");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                var firstCount = snapshot.Players[0].History.Matches.Count;
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 0,
+                        CancellationToken.None).ConfigureAwait(false) == 0 &&
+                    snapshot.Players.All(player => player.RosterCardHistory == null) &&
+                    LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot),
+                    "Disabled roster card paging must not populate a separate card cache.");
+                var fetched = await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(fetched == 2 && snapshot.Players.All(player =>
+                        player.RosterCardHistory != null &&
+                        player.RosterCardNextIndex == snapshot.HistoryLoadCount + 20 &&
+                        player.RosterCardExhausted) &&
+                    snapshot.Players[0].History.Matches.Count == firstCount &&
+                    !LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot) &&
+                    fake.MaxConcurrent == 1,
+                    "Roster paging must keep the analysis sample small and isolate card-only history.");
+                var reads = fake.Paths.Count;
+                session = Session("roster-card-replaced");
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    fake.Paths.Count == reads,
+                    "Stale roster card prefetch cannot issue requests for a replaced session.");
+            }
+            var paged = new Fake { PagedHistory = true };
+            session = Session("roster-resume-pages");
+            using (var service = new LeagueDynamicMessageService(paged,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    snapshot.Players.All(player => player.RosterCardNextIndex == 40 &&
+                        !player.RosterCardExhausted && player.RosterCardHistory.Count == 3) &&
+                    LeagueDynamicMessageService.HasMoreRosterCardHistory(snapshot),
+                    "The first roster page must preserve a resumable offset for every player.");
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == 2 &&
+                    snapshot.Players.All(player => player.RosterCardNextIndex == 60 &&
+                        player.RosterCardHistory.Count == 4) &&
+                    paged.Paths.Count(path => path.Contains("begIndex=20")) == 2 &&
+                    paged.Paths.Count(path => path.Contains("begIndex=40")) == 2,
+                    "Continuing roster paging must reuse prior cards without refetching earlier pages.");
+                session = Session("roster-resume-replaced");
+                var reads = paged.Paths.Count;
+                Require(await service.PrefetchRosterCardHistoryAsync(snapshot, 1,
+                        CancellationToken.None).ConfigureAwait(false) == -1 &&
+                    paged.Paths.Count == reads,
+                    "A replaced session must not continue previously staged roster pages.");
+            }
+        }
+
+        private static void ValidatePlayerOrdering()
+        {
+            var options = new LeagueDynamicMessageOptions { OrderPlayerBy = "win-rate" };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .OrderPlayerBy == "win-rate" &&
+                LeagueDynamicMessageOptions.Parse("{\"OrderPlayerBy\":\"bad\"}").OrderPlayerBy == "default",
+                "Source player-card sort modes must persist and reject unknown values.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = true, Player = new LeagueLivePlayerRow { PuuId = "jungle", Position = "JUNGLE" },
+                History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = true, Player = new LeagueLivePlayerRow { PuuId = "top", Position = "TOP" },
+                History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                Friendly = false, Player = new LeagueLivePlayerRow { PuuId = "enemy", Position = "TOP" } });
+            snapshot.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "jungle", GameId = 1, ChampionId = 1, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "loss", Kills = 15, Deaths = 1, Assists = 0 });
+            snapshot.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "top", GameId = 2, ChampionId = 2, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "win", Kills = 10, Deaths = 0, Assists = 0 });
+            snapshot.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary {
+                PuuId = "top", GameId = 3, ChampionId = 2, ParticipantResolved = true,
+                StatisticsAvailable = true, WinResult = "win", Kills = 10, Deaths = 0, Assists = 0 });
+            Func<string, string[]> order = mode => LeagueDynamicMessageService.OrderPlayers(snapshot, mode)
+                .Select(p => p.Player.PuuId).ToArray();
+            Require(order("default").SequenceEqual(new[] { "jungle", "top", "enemy" }) &&
+                order("position").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("win-rate").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("kda").SequenceEqual(new[] { "top", "jungle", "enemy" }) &&
+                order("akari-score").SequenceEqual(new[] { "jungle", "top", "enemy" }) &&
+                order("premade-team").SequenceEqual(new[] { "jungle", "top", "enemy" }),
+                "Native sorting must preserve teams, respect source order modes and keep unknown evidence stable.");
+        }
+
+        private static async Task ValidateLobbyQueryAsync()
+        {
+            var options = new LeagueDynamicMessageOptions { QueryInLobbyPhase = true };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).QueryInLobbyPhase &&
+                !LeagueDynamicMessageOptions.Parse("{}").QueryInLobbyPhase,
+                "Lobby querying must be opt-in and survive saved settings.");
+            var fake = new Fake();
+            var session = Session("lobby");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(),
+                () => session, () => phase))
+            {
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null &&
+                    fake.Paths.Count == 0, "Lobby analysis must not read anything until explicitly enabled.");
+                var snapshot = await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Phase == "Lobby" && snapshot.Players.Count == 2 &&
+                    snapshot.Players.All(p => p.Friendly && p.History != null) &&
+                    snapshot.Players[0].Player.PuuId == "self" && snapshot.Players[1].Player.PuuId == "enemy" &&
+                    snapshot.HistoryLoadCount == 2 && fake.MaxConcurrent == 1,
+                    "Opt-in Lobby analysis must use only the current party with bounded shared history reads.");
+                var older = await service.LoadHistoryPageAsync(snapshot, "enemy", 2,
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(older != null && older.Count <= 20 &&
+                    fake.Paths.Any(p => p.Contains("begIndex=2&endIndex=21")),
+                    "Explicit player-card history pagination must request only a bounded 20-row page.");
+                var reads = fake.Paths.Count;
+                Require(await service.LoadHistoryPageAsync(snapshot, "enemy", 201,
+                    CancellationToken.None).ConfigureAwait(false) == null && fake.Paths.Count == reads,
+                    "Out-of-range player-card pagination must not issue requests.");
+                fake.OnRead = path => { if (path.Contains("/matches?")) session = Session("changed"); };
+                Require(await service.LoadHistoryPageAsync(snapshot, "enemy", 2,
+                    CancellationToken.None).ConfigureAwait(false) == null,
+                    "An account change during player-card pagination must discard the page.");
+                fake.OnRead = null; session = Session("lobby");
+                var sends = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "test" }, 0,
+                    (line, token) => { sends++; return Task.FromResult(true); }, CancellationToken.None)
+                    .ConfigureAwait(false) && sends == 0,
+                    "Lobby analysis must never send ChampSelect or in-game chat messages.");
+                fake.ChangeLobbyRoster = true;
+                Require(!await service.IsCurrentAsync(snapshot, CancellationToken.None).ConfigureAwait(false),
+                    "Changed Lobby membership must invalidate the old player-card snapshot.");
+                fake.ChangeLobbyRoster = false;
+                fake.DuplicateLobbyPuuid = true;
+                Require(await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false) == null,
+                    "Duplicate Lobby identities must fail closed.");
+                fake.DuplicateLobbyPuuid = false;
+                fake.ProfilePuuid = "other";
+                Require(await service.LoadAsync(CancellationToken.None, 2, "all", true).ConfigureAwait(false) == null,
+                    "A Lobby without the authenticated player must not produce history.");
+            }
+        }
+
+        private static void ValidateAggregation()
+        {
+            var options = new LeagueDynamicMessageOptions { NameStrategy = "preferName", CsPerMinute = true,
+                ChampionDamageShare = true, GoldShare = true, VisionScore = true, KillParticipation = true,
+                DamageGoldEfficiency = true };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).GoldShare &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"bad\"}").Target == "all", "Dynamic option validation failed.");
+            var service = new LeaguePlayerDataService(new Fake(), new PerformanceBudgetProvider());
+            var page = service.ParseMatchPage(Bytes(History()), new LeaguePlayerProfile { PuuId = "self", SummonerId = 1 }, 0, 20);
+            Require(page.Matches.Count == 2 && page.Matches[0].StatisticsAvailable &&
+                page.Matches[0].ChampionDamageShare == 0.3 && page.Matches[0].GoldShare == 0.5 &&
+                page.Matches[0].KillParticipation == 0.8 && page.Matches[0].DamageGoldEfficiency == 0.03,
+                "Participant/team metric parsing diverged from the pinned formulas.");
+            Require(page.Matches[0].SameTeamPuuids != null &&
+                page.Matches[0].SameTeamPuuids.SequenceEqual(new[] { "enemy", "self" }),
+                "Historical same-team identities were not derived from participant team IDs.");
+            Require(page.Matches[0].MapId == 11 && page.Matches[0].TeamId == 100 &&
+                page.Matches[0].ParticipantId == 1 && page.Matches[0].HasSmite,
+                "Jungle timeline identity and Rift/Smite metadata were not retained.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true, History = page,
+                Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 }, ChampionName = "Alpha" });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy", GameName = "Enemy", ChampionId = 77 }, ChampionName = "Alpha" });
+            var lines = LeagueDynamicMessageFormatter.Build(snapshot, options);
+            Require(lines.Count == 2 && lines[0].Contains("KDA 9.00") && lines[0].Contains("50%") &&
+                lines[0].Contains("6.0") && lines[0].Contains("40%") && lines[0].Contains("15.0"),
+                "Rating lines must aggregate total KDA and mean per-game shares correctly.");
+            Require(lines[1].Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.DynamicUnavailable)) &&
+                !lines[1].Contains("0%"), "Unavailable history was represented as zero statistics.");
+            options.Target = "friendly"; options.ShowCurrentChampion = true;
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options).Single().Contains("KDA 4.00"),
+                "Current-champion selection did not filter the sample.");
+            options.Target = "all"; options.ShowCurrentChampion = false; options.NameStrategy = "preferChampionName";
+            var duplicates = LeagueDynamicMessageFormatter.Build(snapshot, options);
+            Require(duplicates[0].StartsWith("Self", StringComparison.Ordinal) && duplicates[1].StartsWith("Enemy", StringComparison.Ordinal),
+                "Duplicate champion names must fall back to player identity.");
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options, new HashSet<string>()).Count == 0,
+                "Empty player selection unexpectedly generated outgoing lines.");
+            snapshot.Players[0].Player.GameName = "/command\nextra";
+            options.NameStrategy = "preferName";
+            Require(LeagueDynamicMessageFormatter.Build(snapshot, options).All(l => !l.StartsWith("/", StringComparison.Ordinal) &&
+                !l.Any(char.IsControl) && l.Length <= LeagueQuickMessagePresets.MaximumMessageLength), "Names injected a command, control or oversized line.");
+        }
+
+        private static void ValidatePremadeInference()
+        {
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            var self = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "self" }, History = new LeaguePlayerMatchPage() };
+            var ally = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "ally" }, History = new LeaguePlayerMatchPage() };
+            var enemy = new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy" }, History = new LeaguePlayerMatchPage() };
+            snapshot.Players.Add(self); snapshot.Players.Add(ally); snapshot.Players.Add(enemy);
+            for (var game = 1; game <= 5; game++)
+            {
+                self.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "self", "ally", "enemy" } });
+                ally.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "self", "ally" } });
+            }
+            self.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1,
+                SameTeamPuuids = new[] { "self", "ally" } });
+            var groups = LeaguePremadeInference.Infer(snapshot);
+            var playerTags = LeaguePremadePlayerTagProjection.Project(snapshot, 5);
+            Require(playerTags.Count == 2 && playerTags["self"] == playerTags["ally"] &&
+                !playerTags.ContainsKey("enemy") && playerTags["self"].Contains("A") &&
+                LeaguePremadePlayerTagProjection.Project(snapshot, 6).Count == 0,
+                "Ongoing player cards must show stable source-backed premade IDs only at the chosen threshold.");
+            Require(groups.Count == 1 && groups[0].SequenceEqual(new[] { "ally", "self" }),
+                "Premade inference must count distinct same-team games and never mix current opposing sides.");
+            self.Player.GameName = "Self"; ally.Player.GameName = "Ally";
+            var options = new LeagueDynamicMessageOptions { Target = "friendly", PremadeNameStrategy = "preferName" };
+            var lines = LeaguePremadeMessageFormatter.Build(snapshot, options);
+            Require(lines.Count == 1 && lines[0].Contains("Ally") && lines[0].Contains("Self") &&
+                !lines[0].Contains("Enemy"), "Premade preview must describe only the chosen current side.");
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options,
+                new HashSet<string>(StringComparer.Ordinal)).Count == 0,
+                "An empty premade selection must not dispatch a message.");
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options,
+                new HashSet<string> { "not-a-current-group" }).Count == 0,
+                "Arbitrary group IDs must not enter an outgoing message.");
+            options.Target = "enemy";
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).Count == 0,
+                "No-evidence opposing groups must not be represented as confirmed negatives.");
+            options.Target = "all";
+            self.Player.GameName = "/cmd\n" + new string('x', 300);
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).All(line =>
+                line.Length <= LeagueQuickMessagePresets.MaximumMessageLength && !line.Any(char.IsControl) &&
+                !line.StartsWith("/", StringComparison.Ordinal)),
+                "Premade output must be bounded and reject command/control character injection.");
+            var large = new LeagueDynamicMessageSnapshot();
+            var ids = Enumerable.Range(0, 20).Select(index => "member" + index).ToArray();
+            foreach (var id in ids)
+                large.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                    Player = new LeagueLivePlayerRow { PuuId = id, GameName = new string('M', 80) },
+                    History = new LeaguePlayerMatchPage() });
+            for (var game = 1; game <= 5; game++)
+                large.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = ids });
+            var largeLines = LeaguePremadeMessageFormatter.Build(large, options);
+            Require(largeLines.Count == 1 && largeLines[0].Length <= LeagueQuickMessagePresets.MaximumMessageLength &&
+                largeLines[0].Contains("["), "Large inferred groups must fit in chat without silently disappearing.");
+            var saved = LeagueDynamicMessageOptions.Save(options);
+            Require(LeagueDynamicMessageOptions.Parse(saved).PremadeNameStrategy == "preferName" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeNameStrategy == "preferName",
+                "Premade name strategy must persist and remain backward-compatible with old settings.");
+            options.PremadeMatchThreshold = 6;
+            Require(LeaguePremadeMessageFormatter.Build(snapshot, options).Count == 0,
+                "Premade threshold changes must affect outgoing messages, not just the selection UI.");
+            Require(LeaguePremadeInference.Infer(snapshot, 6).Count == 0,
+                "Duplicate source histories counted one historical game more than once.");
+            ally.Friendly = false;
+            Require(LeaguePremadePlayerTagProjection.Project(snapshot, 5).Count == 0,
+                "Premade player-card tags must disappear when current team ownership changes.");
+            Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
+                "An opposing current-side player was incorrectly inferred as a premade member.");
+            ally.Friendly = true;
+            foreach (var match in self.History.Matches) match.SameTeamPuuids = new[] { "ally" };
+            ally.History.Matches.Clear();
+            Require(LeaguePremadeInference.Infer(snapshot).Count == 0,
+                "History without a verified source-player identity produced false premade evidence.");
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).PremadeMatchThreshold == 6 &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeMatchThreshold == 5,
+                "Premade source threshold must persist and older settings must keep the pinned default.");
+            Require(LeagueDynamicMessageOptions.Parse("{\"PremadeMatchThreshold\":1}").PremadeMatchThreshold == 5 &&
+                LeagueDynamicMessageOptions.Parse("{\"PremadeMatchThreshold\":21}").PremadeMatchThreshold == 5,
+                "Invalid thresholds must not weaken the source-defined bounds.");
+            var disputed = new LeagueDynamicMessageSnapshot();
+            var a = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "a" }, History = new LeaguePlayerMatchPage() };
+            var b = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "b" }, History = new LeaguePlayerMatchPage() };
+            disputed.Players.Add(a); disputed.Players.Add(b);
+            for (var game = 1; game <= 5; game++)
+            {
+                a.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game, SameTeamPuuids = new[] { "a", "b" } });
+                b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game, SameTeamPuuids = new[] { "b" } });
+            }
+            Require(LeaguePremadeInference.Infer(disputed).Count == 0,
+                "Conflicting participant team rosters must not imply a premade group.");
+            b.History.Matches.Clear();
+            Require(LeaguePremadeInference.Infer(disputed).Count == 1,
+                "Missing history is not a contradiction when another verified roster supplies evidence.");
+            b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, SameTeamPuuids = new[] { "a", "b" } });
+            b.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, SameTeamPuuids = new[] { "b" } });
+            Require(LeaguePremadeInference.Infer(disputed).Count == 0,
+                "Contradictory duplicate source game rows must not be counted as premade evidence.");
+            var strong = new LeagueDynamicMessageSnapshot();
+            foreach (var id in new[] { "one", "two", "three" })
+                strong.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() });
+            for (var i = 0; i < 13; i++)
+                strong.Players[0].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 100 + i,
+                    GameCreationEpochMs = 100000 + i * 1000, WinResult = "win",
+                    ParticipantResolved = true, StatisticsAvailable = true });
+            for (var index = 1; index < 3; index++)
+                for (var i = 0; i < 5; i++)
+                    strong.Players[index].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 200 + index * 10 + i,
+                        GameCreationEpochMs = 200000 + i * 1000, WinResult = "win",
+                        ParticipantResolved = true, StatisticsAvailable = true });
+            Require(LeaguePremadeTeamTagProjection.Classify(strong.Players) ==
+                LeaguePremadeTeamTagProjection.WinRateTeam,
+                "Pinned three-player high-win-rate/streak team classification was not projected.");
+            strong.Players[1].History.Matches[0].GameCreationEpochMs = 0;
+            Require(LeaguePremadeTeamTagProjection.Classify(strong.Players) == null,
+                "Missing chronological evidence must not create a high-win-rate team label.");
+            var low = new LeagueDynamicMessageSnapshot();
+            foreach (var id in new[] { "low1", "low2" })
+            {
+                var player = new LeagueDynamicMessagePlayer { Friendly = false,
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = new LeaguePlayerMatchPage() };
+                for (var i = 0; i < 4; i++)
+                    player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 300 + i,
+                        WinResult = "loss", ParticipantResolved = true, StatisticsAvailable = true });
+                low.Players.Add(player);
+            }
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
+                LeaguePremadeTeamTagProjection.LossRateTeam,
+                "Pinned low-win-rate team classification must use known outcomes, not missing games.");
+            low.Players[1].History.Matches[0].WinResult = null;
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) ==
+                LeaguePremadeTeamTagProjection.LossRateTeam,
+                "One unknown game must not be counted as a loss or erase other classified outcomes.");
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true });
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
+                "Conflicting duplicate game outcomes must not create a team label.");
+            low.Players[1].History.Matches.RemoveAt(low.Players[1].History.Matches.Count - 1);
+            low.Players[1].Friendly = true;
+            Require(LeaguePremadeTeamTagProjection.Classify(low.Players) == null,
+                "Current opposing sides must not share a premade team label.");
+            Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
+                "Opposing current teams must not receive a shared member-history aggregate.");
+            low.Players[1].Friendly = false;
+            var aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
+            Require(aggregate != null && aggregate.Games == 7 && aggregate.Wins == 0 &&
+                aggregate.Kda.HasValue && aggregate.Kda.Value == 0d,
+                "Premade member sample must count verified outcomes and preserve known zero KDA.");
+            low.Players[0].History.Matches[0].Kills = -1;
+            Require(!LeaguePremadeTeamAggregate.Project(low.Players).Kda.HasValue,
+                "Invalid participant statistics must suppress KDA rather than becoming zero.");
+            foreach (var member in low.Players)
+                foreach (var match in member.History.Matches)
+                {
+                    match.StatisticsAvailable = true;
+                    match.Kills = 2; match.Deaths = 1; match.Assists = 3;
+                }
+            aggregate = LeaguePremadeTeamAggregate.Project(low.Players);
+            Require(aggregate != null && aggregate.Kda.HasValue && Math.Abs(aggregate.Kda.Value - 5d) < 0.0001,
+                "Premade member KDA must use only complete classified source samples.");
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 301, WinResult = "win",
+                ParticipantResolved = true, StatisticsAvailable = true });
+            Require(LeaguePremadeTeamAggregate.Project(low.Players) == null,
+                "Conflicting duplicate historical outcomes must suppress the entire team summary.");
+            low.Players[1].History.Matches.RemoveAt(low.Players[1].History.Matches.Count - 1);
+            low.Players[1].History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 400,
+                GameType = "CUSTOM_GAME", WinResult = "win", ParticipantResolved = true,
+                StatisticsAvailable = true });
+            Require(LeaguePremadeTeamAggregate.Project(low.Players).Wins == 0 &&
+                LeaguePremadeTeamTagProjection.Classify(low.Players) == LeaguePremadeTeamTagProjection.LossRateTeam,
+                "Non-matchmade history must not affect ongoing premade outcome labels.");
+        }
+
+        private static void ValidateOngoingPlayerTags()
+        {
+            var page = new LeaguePlayerMatchPage();
+            var now = DateTime.UtcNow;
+            for (var i = 0; i < 16; i++)
+                page.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 1000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", SpellIds = i < 8 ? new[] { 4, 7 } : new[] { 7, 4 }
+                });
+            var tags = LeagueOngoingPlayerTagProjection.Project(page);
+            Require(tags.Count == 3 &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingHighWinRate)) &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash)) &&
+                tags.Any(tag => tag.Contains("16")),
+                "Source-backed player card tags must project winning streak, high win rate and mixed Flash slots.");
+            page.Matches[0].StatisticsAvailable = false;
+            tags = LeagueOngoingPlayerTagProjection.Project(page);
+            Require(tags.Count == 1 &&
+                tags.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMixedFlash)),
+                "Unknown newest game must break the streak and cannot count toward a 16-game win rate.");
+            var losses = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 4; i++)
+                losses.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 2000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss"
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Count == 1 &&
+                LeagueOngoingPlayerTagProjection.Project(losses)[0].Contains("4"),
+                "Pinned loss streak threshold must work without fabricating other player tags.");
+            Require(LeagueOngoingPlayerTagProjection.Project(new LeaguePlayerMatchPage()).Count == 0,
+                "Missing history must not create any player-card tags.");
+            var invalid = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 16; i++)
+                invalid.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 0, GameCreationLocal = now.AddMinutes(-i), GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                    SpellIds = new[] { 4, 7 }
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(invalid).Count == 0,
+                "Invalid game IDs must not create ongoing player-card tags.");
+            losses.Matches[0].SoloKills = 2d;
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Any(tag => tag.Contains("2.0")),
+                "Known solo kills must produce the pinned player-card solo-kill tag.");
+            losses.Matches[0].SoloKills = null;
+            Require(LeagueOngoingPlayerTagProjection.Project(losses).Count == 1,
+                "Missing solo-kill evidence must not be treated as a positive average.");
+            var metrics = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 2; i++)
+                metrics.Matches.Add(new LeaguePlayerMatchSummary
+                {
+                    GameId = 3000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", GameDurationSeconds = 1800, CreepScore = 180,
+                    ChampionDamageShare = 0.42, DamageTakenShare = 0.21, GoldShare = 0.25,
+                    DamageGoldEfficiency = 1.4, EnemyMissingPings = 3, VisionScore = 20
+                });
+            Require(LeagueOngoingPlayerTagProjection.Project(metrics).Count == 0,
+                "Source-default optional metric tags must remain disabled.");
+            var tagOptions = new LeagueDynamicMessageOptions
+            {
+                ShowAverageTeamDamageTag = true, ShowAverageTeamDamageTakenTag = true,
+                ShowAverageTeamGoldTag = true, ShowAverageCsPerMinuteTag = true,
+                ShowAverageDamageGoldEfficiencyTag = true, ShowAverageEnemyMissingPingsTag = true,
+                ShowAverageVisionScoreTag = true
+            };
+            var metricTags = LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions);
+            Require(metricTags.Count == 7 && metricTags.Any(value => value.Contains("42%")) &&
+                metricTags.Any(value => value.Contains("6.0")) && metricTags.Any(value => value.Contains("3.0")),
+                "Seven source-backed optional player-card metrics must use verified history.");
+            var savedOptions = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(tagOptions));
+            Require(savedOptions.ShowAverageEnemyMissingPingsTag &&
+                savedOptions.ShowAverageTeamDamageTag &&
+                !LeagueDynamicMessageOptions.Parse("{}").ShowAverageTeamDamageTag,
+                "Player-card display switches must persist and old settings must retain source defaults.");
+            metrics.Matches[0].ChampionDamageShare = null;
+            metrics.Matches[1].ChampionDamageShare = null;
+            metrics.Matches[0].EnemyMissingPings = double.NaN;
+            metrics.Matches[1].EnemyMissingPings = -1;
+            metricTags = LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions);
+            Require(metricTags.Count == 5 && !metricTags.Any(value => value.Contains("42%")),
+                "Missing and invalid optional statistics must not produce phantom tags.");
+            tagOptions.ShowAverageTeamGoldTag = false;
+            Require(LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions).Count == 4,
+                "Independent player-card toggles must change projection without changing match data.");
+            metrics.Matches[0].EnemyMissingPings = 2;
+            Require(!LeagueOngoingPlayerTagProjection.Project(metrics, tagOptions)
+                .Any(value => value.Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingMissingPings))),
+                "Source enemy-missing ping average requires every valid match to supply the metric.");
+
+            var scored = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 8; i++)
+            {
+                var match = new LeaguePlayerMatchSummary
+                {
+                    GameId = 4000 + i, GameCreationLocal = now.AddMinutes(-i),
+                    GameType = "MATCHED_GAME", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win", GameDurationSeconds = 1800, CreepScore = 300,
+                    TeamId = 100, ParticipantId = 1, PuuId = "scored",
+                    Kills = 10, Deaths = 1, Assists = 10,
+                    DamageDealtToChampions = 20000, DamageTaken = 20000,
+                    GoldEarned = 20000, VisionScore = 80, TotalHeal = 5000
+                };
+                var teammates = Enumerable.Range(2, 4).Select(id => new LeaguePlayerMatchSummary
+                {
+                    ParticipantId = id, TeamId = 100, PuuId = "mate-" + id,
+                    StatisticsAvailable = true, Kills = 1,
+                    DamageDealtToChampions = 1000, DamageTaken = 1000,
+                    GoldEarned = 1000, VisionScore = 10
+                }).ToArray();
+                match.ParticipantRoster = new[] { match }.Concat(teammates).ToArray();
+                scored.Matches.Add(match);
+            }
+            var scoreTags = LeagueOngoingPlayerTagProjection.Project(scored);
+            Require(scoreTags.Any(value => value == LeagueEfficiencyText.Get(null,
+                    LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance)) &&
+                !scoreTags.Any(value => value.Contains("Akari")),
+                "Pinned eight-game exceptional score must display the source-default performance tag.");
+            var scoreOptions = new LeagueDynamicMessageOptions
+            {
+                ShowGreatPerformanceTag = false, ShowAkariScoreTag = true
+            };
+            scoreTags = LeagueOngoingPlayerTagProjection.Project(scored, scoreOptions);
+            Require(scoreTags.Any(value => value.Contains("Akari")) &&
+                !scoreTags.Any(value => value == LeagueEfficiencyText.Get(null,
+                    LeagueEfficiencyUiTextKeys.OngoingExtraordinaryPerformance)),
+                "Performance and exact score badges must be independently configurable.");
+            scored.Matches.Clear();
+            Require(LeagueOngoingPlayerTagProjection.Project(scored, scoreOptions).Count == 0,
+                "Empty evidence must never retain a previous player's score.");
+            var gankOptions = new LeagueDynamicMessageOptions { ShowEasyGankTag = true };
+            var gankHistory = new LeaguePlayerMatchPage();
+            gankHistory.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1,
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" });
+            Require(LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)) &&
+                !LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1, true)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)),
+                "On-demand gank labels must use measured evidence and exclude current junglers.");
+            gankOptions.ShowEasyGankTag = false;
+            Require(!LeagueOngoingPlayerTagProjection.Project(gankHistory, gankOptions, 2.1)
+                    .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingEasyGankVery)) &&
+                !LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(gankOptions)).ShowEasyGankTag &&
+                LeagueDynamicMessageOptions.Parse("{}").ShowEasyGankTag,
+                "Gank visibility must be independently configurable with old settings defaults.");
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(scoreOptions))
+                .ShowAkariScoreTag && !LeagueDynamicMessageOptions.Parse("{}").ShowAkariScoreTag,
+                "Source-default Akari score visibility must survive settings roundtrip.");
+        }
+
+        private static void ValidateEncounterCardTags()
+        {
+            var records = new[]
+            {
+                new LeagueEncounterRecord { GameId = 10, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 10, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 11, SelfPuuid = "self", Puuid = "ally",
+                    Region = "hn1", PlatformId = "hn1" },
+                new LeagueEncounterRecord { GameId = 12, SelfPuuid = "self", Puuid = "enemy",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 13, SelfPuuid = "other", Puuid = "ally",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = 14, SelfPuuid = "self", Puuid = "ally",
+                    Region = "HN2", PlatformId = "HN2" },
+                new LeagueEncounterRecord { GameId = 15, SelfPuuid = "self", Puuid = "stranger",
+                    Region = "HN1", PlatformId = "HN1" },
+                new LeagueEncounterRecord { GameId = -1, SelfPuuid = "self", Puuid = "enemy",
+                    Region = "HN1", PlatformId = "HN1" }
+            };
+            var tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally", "enemy" });
+            Require(tags.Count == 2 && tags["ally"] == 2 && tags["enemy"] == 1,
+                "Encounter card tags must deduplicate game IDs and enforce account, region and roster.");
+            Require(LeagueEncounterTagProjection.Project(records, "other", "HN1", "HN1",
+                new[] { "other", "enemy" }).Count == 0 &&
+                LeagueEncounterTagProjection.Project(records, "self", "HN2", "HN1",
+                    new[] { "self", "ally" }).Count == 0 &&
+                LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                    new[] { "ally", "enemy" }).Count == 0,
+                "Encounter card tags must fail closed across account, platform and absent self.");
+            var ownHistory = new LeaguePlayerMatchPage();
+            var allyHistory = new LeaguePlayerMatchPage();
+            var roster = new[]
+            {
+                new LeaguePlayerMatchIdentity { PuuId = "self" },
+                new LeaguePlayerMatchIdentity { PuuId = "ally" }
+            };
+            ownHistory.Matches.Add(new LeaguePlayerMatchSummary
+            {
+                GameId = 16, PuuId = "self", ParticipantResolved = true, MatchPlayers = roster
+            });
+            allyHistory.Matches.Add(new LeaguePlayerMatchSummary
+            {
+                GameId = 16, PuuId = "ally", ParticipantResolved = true, MatchPlayers = roster
+            });
+            var recent = new[]
+            {
+                new LeagueDynamicMessagePlayer { Player = new LeagueLivePlayerRow { PuuId = "self" },
+                    History = ownHistory },
+                new LeagueDynamicMessagePlayer { Player = new LeagueLivePlayerRow { PuuId = "ally" },
+                    History = allyHistory }
+            };
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally", "enemy" }, recent);
+            Require(tags["ally"] == 3 && tags["enemy"] == 1,
+                "Recent verified mutual rosters must merge with saved encounters without extra network calls.");
+            allyHistory.Matches[0].MatchPlayers = new[]
+            {
+                new LeaguePlayerMatchIdentity { PuuId = "self" },
+                new LeaguePlayerMatchIdentity { PuuId = "stranger" }
+            };
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Contradictory recent rosters cannot invent encounters.");
+            allyHistory.Matches[0].MatchPlayers = roster;
+            ownHistory.Matches[0].SgpServerId = "foreign";
+            allyHistory.Matches[0].SgpServerId = "foreign";
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent, "HN1");
+            Require(tags["ally"] == 2, "Cross-region SGP matches must not enter current-session encounter badges.");
+            ownHistory.Matches[0].SgpServerId = null;
+            allyHistory.Matches[0].SgpServerId = null;
+            allyHistory.Matches[0].PuuId = "wrong-owner";
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Wrong-owner recent history must not create an encounter.");
+            allyHistory.Matches[0].PuuId = "ally";
+            allyHistory.Matches.Add(allyHistory.Matches[0]);
+            tags = LeagueEncounterTagProjection.Project(records, "self", "HN1", "HN1",
+                new[] { "self", "ally" }, recent);
+            Require(tags["ally"] == 2, "Duplicate recent game IDs must fail closed without throwing.");
+            allyHistory.Matches.RemoveAt(1);
+            var options = LeagueDynamicMessageOptions.Parse("{}");
+            Require(options.ShowSelfTag && options.ShowTaggedTag && options.ShowMetTag,
+                "Pinned player-card identity tag defaults must survive old settings.");
+            options.ShowSelfTag = false;
+            options.ShowTaggedTag = false;
+            options.ShowMetTag = false;
+            var restored = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(!restored.ShowSelfTag && !restored.ShowTaggedTag && !restored.ShowMetTag,
+                "Identity tag switches must persist independently.");
+        }
+
+        private static void ValidateKillDamageEfficiencyTag()
+        {
+            var page = new LeaguePlayerMatchPage();
+            var self = new LeaguePlayerMatchSummary
+            {
+                GameId = 7001, GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win",
+                ParticipantId = 1, PuuId = "self", TeamId = 100,
+                Kills = 8, DamageDealtToChampions = 1000
+            };
+            var teammates = Enumerable.Range(2, 4).Select(id => new LeaguePlayerMatchSummary
+            {
+                ParticipantId = id, PuuId = "mate-" + id, TeamId = 100,
+                StatisticsAvailable = true, Kills = id == 2 ? 2 : 0,
+                DamageDealtToChampions = 1000
+            }).ToArray();
+            self.ParticipantRoster = new[] { self }.Concat(teammates).ToArray();
+            page.Matches.Add(self);
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == 4d &&
+                LeaguePlayerHistoryAnalysis.Calculate(page.Matches).KillDamageEfficiency == 4d,
+                "Pinned kill/damage efficiency must use team kill and champion damage shares in player analysis.");
+            var options = new LeagueDynamicMessageOptions { ShowAverageKillDamageEfficiencyTag = true };
+            Require(LeagueOngoingPlayerTagProjection.Project(page, options)
+                .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageHigh)),
+                "High kill/damage efficiency must be opt-in and source threshold based.");
+            self.Kills = 1;
+            teammates[0].Kills = 9;
+            self.DamageDealtToChampions = 3000;
+            teammates[0].DamageDealtToChampions = 2000;
+            foreach (var mate in teammates.Skip(1)) mate.DamageDealtToChampions = 0;
+            Require(LeagueOngoingPlayerTagProjection.Project(page, options)
+                .Contains(LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingKillDamageLow)),
+                "Low kill/damage efficiency must use the pinned 0.65 boundary.");
+            teammates[0].DamageDealtToChampions = null;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null &&
+                LeaguePlayerHistoryAnalysis.Calculate(page.Matches).KillDamageEfficiency == null &&
+                !LeagueOngoingPlayerTagProjection.Project(page, options)
+                    .Any(tag => tag.Contains("击杀伤害效率")),
+                "Missing team damage cannot create a misleading efficiency badge.");
+            teammates[0].DamageDealtToChampions = 2000;
+            teammates[0].ParticipantId = 1;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null,
+                "Duplicate team participant IDs must fail closed.");
+            teammates[0].ParticipantId = 2;
+            teammates[0].PuuId = "self";
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(self) == null,
+                "Duplicate team PUUIDs must fail closed.");
+            var arena = new LeaguePlayerMatchSummary
+            {
+                GameId = 7002, GameMode = "CHERRY", ParticipantResolved = true,
+                StatisticsAvailable = true, ParticipantId = 1, PuuId = "arena-self",
+                PlayerSubteamId = 3, Kills = 8, DamageDealtToChampions = 1000
+            };
+            var arenaAlly = new LeaguePlayerMatchSummary
+            {
+                ParticipantId = 2, PuuId = "arena-ally", PlayerSubteamId = 3,
+                StatisticsAvailable = true, Kills = 2, DamageDealtToChampions = 4000
+            };
+            arena.ParticipantRoster = new[] { arena, arenaAlly };
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(arena) == 4d,
+                "Arena efficiency must use the complete two-player subteam, not a five-player roster.");
+            arenaAlly.PlayerSubteamId = 4;
+            Require(LeagueOngoingPlayerTagProjection.KillDamageEfficiency(arena) == null,
+                "Incomplete Arena subteams must not produce efficiency tags.");
+            Require(!LeagueDynamicMessageOptions.Parse("{}").ShowAverageKillDamageEfficiencyTag &&
+                LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options))
+                    .ShowAverageKillDamageEfficiencyTag,
+                "The new optional badge must roundtrip without changing old defaults.");
+        }
+
+        private static void ValidatePrivacyTag()
+        {
+            Func<string, byte[]> bytes = value => Encoding.UTF8.GetBytes(value);
+            Require(LeagueDynamicMessageService.ParsePrivacy(
+                bytes("{\"puuid\":\"target\",\"privacy\":\"PRIVATE\"}"), "target") == true &&
+                LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"PUBLIC\"}"), "target") == false &&
+                !LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"PRIVATE\"}"), "other").HasValue &&
+                !LeagueDynamicMessageService.ParsePrivacy(
+                    bytes("{\"puuid\":\"target\",\"privacy\":\"UNKNOWN\"}"), "target").HasValue &&
+                !LeagueDynamicMessageService.ParsePrivacy(bytes("{}"), "target").HasValue,
+                "Summoner privacy must require an exact owner and a source-known enum.");
+            var options = new LeagueDynamicMessageOptions();
+            var privateTag = LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.OngoingPrivacyPrivate);
+            Require(LeagueOngoingPlayerTagProjection.Project(null, options, null, false, true)
+                    .Contains(privateTag) &&
+                !LeagueOngoingPlayerTagProjection.Project(null, options, null, false, false)
+                    .Contains(privateTag) &&
+                !LeagueOngoingPlayerTagProjection.Project(null, options, null, false, null)
+                    .Contains(privateTag),
+                "Private is a verified explicit status, not missing or public data.");
+            options.ShowPrivacyTag = false;
+            Require(!LeagueOngoingPlayerTagProjection.Project(null, options, null, false, true)
+                    .Contains(privateTag) &&
+                !LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options)).ShowPrivacyTag &&
+                LeagueDynamicMessageOptions.Parse("{}").ShowPrivacyTag,
+                "Privacy visibility must persist without breaking old settings.");
+        }
+
+        private static async Task ValidatePrivacyLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("privacy");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && !fake.Paths.Any(p => p.Contains("/summoners/puuid/")),
+                    "Privacy lookup must never start in the background.");
+                fake.OnRead = path =>
+                {
+                    if (path.Contains("/summoners/puuid/")) session = Session("replacement");
+                };
+                Require(!await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    !snapshot.Players.Single(p => p.Player.PuuId == "enemy").IsPrivate.HasValue,
+                    "Session replacement during privacy lookup must discard the response.");
+                fake.OnRead = null;
+                session = Session("privacy");
+                snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null &&
+                    await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                        .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").IsPrivate == true,
+                    "An explicit same-account privacy lookup must populate a verified private tag.");
+                var count = fake.Paths.Count(p => p.Contains("/summoners/puuid/"));
+                Require(await service.LoadPrivacyAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("/summoners/puuid/")) == count,
+                    "Verified privacy must not be fetched again within the same roster.");
+            }
+        }
+
+        private static async Task ValidateMasteryLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("mastery");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake,
+                new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && fake.MasteryReads == 0 &&
+                    !await service.LoadMasteryAsync(snapshot, "unknown", CancellationToken.None)
+                        .ConfigureAwait(false),
+                    "Mastery must be opt-in and restricted to an exact roster PUUID.");
+                fake.OnMastery = () => session = Session("replacement");
+                Require(!await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery == null,
+                    "Mastery must discard data if the active client changes mid-request.");
+                fake.OnMastery = null;
+                session = Session("mastery");
+                snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null &&
+                    await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                        .ConfigureAwait(false) &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Masteries.Count == 2 &&
+                    snapshot.Players.Single(p => p.Player.PuuId == "enemy").Mastery.Score == 6000,
+                    "On-demand mastery must use the verified top-nine LCU envelope.");
+                var count = fake.MasteryReads;
+                Require(await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) && fake.MasteryReads == count,
+                    "Verified mastery should not be refetched within an unchanged roster.");
+                phase.Phase = "Lobby";
+                Require(!await service.LoadMasteryAsync(snapshot, "enemy", CancellationToken.None)
+                    .ConfigureAwait(false) && fake.MasteryReads == count,
+                    "Mastery must be unavailable after leaving the current game phase.");
+            }
+        }
+
+        private static void ValidateChampionUsageMode()
+        {
+            var historySettings = new LeagueDynamicMessageOptions { MatchHistoryLoadCount = 2 };
+            Require(LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(historySettings))
+                    .MatchHistoryLoadCount == 2 &&
+                LeagueDynamicMessageOptions.Parse("{}").MatchHistoryLoadCount == 20 &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryLoadCount\":1}")
+                    .MatchHistoryLoadCount == 20 &&
+                LeagueDynamicMessageOptions.Parse("{\"MatchHistoryLoadCount\":21}")
+                    .MatchHistoryLoadCount == 20,
+                "Native history load budget must persist and reject out-of-range counts.");
+            var options = LeagueDynamicMessageOptions.Parse("{}");
+            Require(options.ChampionUsageMode == "recent",
+                "The source champion usage default must remain recent for existing settings.");
+            options.ChampionUsageMode = "mastery";
+            Require(LeagueDynamicMessageOptions.Parse(
+                    LeagueDynamicMessageOptions.Save(options)).ChampionUsageMode == "mastery",
+                "Mastery champion usage mode must survive settings serialization.");
+            options.ChampionUsageMode = "none";
+            Require(LeagueDynamicMessageOptions.Parse(
+                    LeagueDynamicMessageOptions.Save(options)).ChampionUsageMode == "none",
+                "Disabled champion usage mode must survive settings serialization.");
+            Require(LeagueDynamicMessageOptions.Parse(
+                    "{\"ChampionUsageMode\":\"invalid\"}").ChampionUsageMode == "recent",
+                "Unknown champion usage mode must fail closed to the source default.");
+        }
+
+
+        private static void ValidateOngoingCardDetails()
+        {
+            var snapshot = new LeagueDynamicMessageSnapshot { SelfPuuid = "self" };
+            var self = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "self" }
+            };
+            var other = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "other" }
+            };
+            snapshot.Players.Add(self);
+            snapshot.Players.Add(other);
+            Require(LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other) &&
+                !LeagueOngoingCardStatsProjection.CanEditTag(snapshot, self) &&
+                !LeagueOngoingCardStatsProjection.CanEditTag(snapshot,
+                    new LeagueDynamicMessagePlayer {
+                        Player = new LeagueLivePlayerRow { PuuId = "outside" }
+                    }), "Card tag actions must stay scoped to verified non-self roster players.");
+            snapshot.HistoricalOriginalRoster.Add(other);
+            Require(!LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other),
+                "Historical previews must not edit tags through a synthetic card.");
+            snapshot.HistoricalOriginalRoster.Clear();
+            snapshot.HistoricalStandalone = true;
+            Require(!LeagueOngoingCardStatsProjection.CanEditTag(snapshot, other),
+                "Standalone synthetic drafts must not edit persistent player tags.");
+            var games = new List<LeaguePlayerMatchSummary> {
+                new LeaguePlayerMatchSummary {
+                    PuuId = "other", GameId = 101, ChampionId = 22,
+                    GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    WinResult = "win", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 4, Deaths = 2, Assists = 4
+                },
+                new LeaguePlayerMatchSummary {
+                    PuuId = "other", GameId = 102, ChampionId = 22,
+                    GameMode = "CHERRY", GameType = "MATCHED_GAME",
+                    WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 2, Deaths = 2, Assists = 0
+                }
+            };
+            var details = LeagueOngoingCardStatsProjection.Project(null, games, "other");
+            Require(LeagueOngoingCardStatsProjection.CopyText(details).Contains("KDA") &&
+                LeagueOngoingCardStatsProjection.CopyText(null) == "",
+                "Verified native card details must support bounded copy and reject missing rows.");
+            Require(details.Any(row => row.Key == "KDA" && row.Value == "2.50") &&
+                details.Any(row => row.Key == "KDA avg" && row.Value == "2.50") &&
+                details.Any(row => row.Key == "K / D / A" && row.Value == "3.00 / 2.00 / 2.00") &&
+                details.Any(row => row.Key == "KDA CV") &&
+                details.Count(row => row.Key ==
+                    LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.ProfileModeCherry)) == 1,
+                "Source card details must expose verified per-game averages and mode evidence.");
+            Require(LeagueOngoingCardStatsProjection.Project(null, games, "foreign").Count == 0,
+                "Card detail popovers must not project another player's history.");
+            games[1].GameId = 101;
+            Require(LeagueOngoingCardStatsProjection.Project(null, games, "other").Count == 0,
+                "Ambiguous duplicate game evidence must not generate card details.");
+        }
+
+        private static void ValidateOngoingCardCollectionActions()
+        {
+            var row = new LeagueOngoingCardBreakdownRow {
+                Kind = "champion-position-mode", ChampionId = 22,
+                Position = "JUNGLE", Mode = "CHERRY"
+            };
+            int champion; string position, mode;
+            Require(LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode) &&
+                champion == 22 && position == "JUNGLE" && mode == "CHERRY",
+                "Source player-card collection must retain intersected champion/role/mode.");
+            row.Kind = "position";
+            Require(LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode) &&
+                champion == 0 && position == "JUNGLE" && mode == "",
+                "Position-only collection must not inherit an unrelated champion or mode.");
+            row.Kind = "champion-mode";
+            row.Mode = "UNKNOWN";
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Unsupported mode must fail closed before full player collection.");
+            row.Mode = "CHERRY";
+            row.ChampionId = 0;
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Missing champion identity must block champion-specific collection.");
+            row.Kind = "unsupported";
+            Require(!LeagueOngoingCardActionSelection.TrySelect(row,
+                    out champion, out position, out mode),
+                "Unknown source card action cannot create a collection request.");
+
+            var snapshot = new LeagueDynamicMessageSnapshot { SelfPuuid = "self" };
+            var player = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow {
+                    PuuId = "target", ChampionId = 99, Position = "jungle"
+                }
+            };
+            snapshot.Players.Add(player);
+            Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
+                "Verified current-roster players must expose the existing profile detail owner.");
+            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player, false, true),
+                "Current junglers must have a direct pathing entry unless the feature is disabled.");
+            Require(LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) && champion == 99 &&
+                LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position) && position == "JUNGLE",
+                "Current-card hero and lane actions must work without historical match rows.");
+            var foreign = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow {
+                    PuuId = "foreign", ChampionId = 99, Position = "TOP"
+                }
+            };
+            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, foreign) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, foreign) &&
+                !LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, foreign, true, true) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, foreign, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, foreign, out position),
+                "Unverified roster identities must not open profile or collection actions.");
+            player.Player.ChampionId = 0;
+            player.Player.Position = "NONE";
+            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player, true, true),
+                "All-player opt-in must include verified nonjunglers, never foreign roster identities.");
+            player.Player.Spell2Id = 11;
+            Require(LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player),
+                "Smite must identify a current jungler even before lane assignment.");
+            player.Player.Spell2Id = 0;
+            var jungleOptions = new LeagueDynamicMessageOptions {
+                ShowJunglePathing = false, ShowJunglePathingForAllPlayers = true };
+            var restoredJungle = LeagueDynamicMessageOptions.Parse(
+                LeagueDynamicMessageOptions.Save(jungleOptions));
+            Require(!restoredJungle.ShowJunglePathing && restoredJungle.ShowJunglePathingForAllPlayers,
+                "Akari jungle visibility choices must survive the native settings round-trip.");
+            Require(LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player),
+                "Current player profile details must remain available without champion or lane.");
+            Require(!LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Missing champion and unsupported lane must disable source card actions.");
+            player.Player.ChampionId = 99;
+            player.Player.Position = "TOP";
+            snapshot.HistoricalStandalone = true;
+            Require(!LeagueOngoingCardActionSelection.CanOpenJungle(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Standalone historical previews must not start current-roster collection.");
+            snapshot.HistoricalStandalone = false;
+            snapshot.HistoricalOriginalRoster.Add(player);
+            Require(!LeagueOngoingCardActionSelection.CanOpenProfile(snapshot, player) &&
+                !LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out champion) &&
+                !LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out position),
+                "Edited historical drafts must not masquerade as live collection targets.");
+        }
+
+        private static void ValidateOngoingKdaOutliers()
+        {
+            var values = new Dictionary<string, double?> {
+                { "one", 1d }, { "two", 2d }, { "three", 3d },
+                { "four", 4d }, { "five", 20d }
+            };
+            var outliers = LeagueOngoingKdaOutliers.Detect(values);
+            Require(outliers.Count == 1 && outliers["five"] == "over",
+                "Source IQR comparison must flag a verified high-KDA outlier.");
+            values["one"] = -1d;
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Invalid KDA evidence must suppress the whole comparison.");
+            values["one"] = 0d;
+            values["five"] = 4d;
+            outliers = LeagueOngoingKdaOutliers.Detect(values);
+            Require(outliers.Count == 1 && outliers["one"] == "below",
+                "Source IQR comparison must flag a low-KDA outlier.");
+            values.Remove("five");
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Comparisons with fewer than five verified players must stay unknown.");
+            values["five"] = null;
+            Require(LeagueOngoingKdaOutliers.Detect(values).Count == 0,
+                "Missing per-player statistics must not fabricate an outlier.");
+
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            foreach (var entry in new[] { 1, 2, 3, 4, 20 }.Select((kda, index) =>
+                new { Kda = kda, Index = index }))
+            {
+                var id = "player-" + entry.Index;
+                var page = new LeaguePlayerMatchPage();
+                page.Matches.Add(new LeaguePlayerMatchSummary {
+                    GameId = 100 + entry.Index, PuuId = id, ChampionId = 22,
+                    WinResult = "win", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true,
+                    Kills = entry.Kda, Deaths = 1, Assists = 0
+                });
+                snapshot.Players.Add(new LeagueDynamicMessagePlayer {
+                    Player = new LeagueLivePlayerRow { PuuId = id }, History = page
+                });
+            }
+            outliers = LeagueOngoingKdaOutliers.Project(snapshot);
+            Require(outliers.Count == 1 && outliers["player-4"] == "over",
+                "Roster KDA comparison must use verified individual match histories.");
+            snapshot.Players[4].RosterCardHistory = new List<LeaguePlayerMatchSummary> {
+                new LeaguePlayerMatchSummary {
+                    GameId = 900, PuuId = "player-4", ChampionId = 22,
+                    WinResult = "win", GameMode = "CLASSIC", GameType = "MATCHED_GAME",
+                    ParticipantResolved = true, StatisticsAvailable = true,
+                    Kills = 1, Deaths = 1, Assists = 0
+                }
+            };
+            Require(LeagueOngoingKdaOutliers.Project(snapshot).Count == 0,
+                "Roster comparison must use verified expanded card history when available.");
+            snapshot.Players[4].RosterCardHistory = null;
+            snapshot.Players[4].History.Matches[0].PuuId = "foreign";
+            Require(LeagueOngoingKdaOutliers.Project(snapshot).Count == 0,
+                "Foreign player evidence must suppress roster outlier comparison.");
+        }
+
+        private static void ValidateHistoricalDryRun()
+        {
+            var standalone = LeagueHistoricalMatchDryRun.BuildStandalone(
+                "CLASSIC", "Blue", "Red");
+            Require(standalone != null && standalone.HistoricalStandalone &&
+                standalone.HistoricalOriginalRoster.Count == 0 &&
+                standalone.Players.Count == 2 && standalone.Players.All(p =>
+                    p.HistoricalSyntheticAdded && p.History == null &&
+                    p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(standalone).Count == 2 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(standalone),
+                "Standalone Rift draft must have no source match or restorable identity.");
+            var standaloneFirst = standalone.Players[0];
+            var standaloneBatch = standalone.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            standaloneBatch[0].DraftName = "Edited Blue";
+            standaloneBatch[0].ChampionId = 22;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(standalone,
+                    standaloneBatch, standalone.SelfPuuid, 420) &&
+                object.ReferenceEquals(standaloneFirst, standalone.Players[0]) &&
+                standalone.Players[0].Player.GameName == "Edited Blue" &&
+                standalone.Players[0].History == null && standalone.HistoricalQueueId == 420 &&
+                LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(standalone,
+                    "Third", 100, 99) && standalone.Players.Count == 3 &&
+                !LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(
+                    standalone, standalone.SelfPuuid),
+                "Standalone Rift edits and additions must stay isolated and reversible.");
+            var duplicateNames = standalone.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = "",
+                DraftName = "Same Name"
+            }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(
+                    standalone, duplicateNames) &&
+                standalone.Players[0].Player.GameName == "Edited Blue",
+                "Standalone draft must reject duplicate names atomically.");
+            var exportedDraft = LeagueHistoricalMatchDryRun.ExportStandalone(standalone);
+            var restoredDraft = LeagueHistoricalMatchDryRun.ImportStandalone(exportedDraft);
+            Require(!string.IsNullOrEmpty(exportedDraft) && restoredDraft != null &&
+                restoredDraft.HistoricalStandalone &&
+                restoredDraft.HistoricalOriginalRoster.Count == 0 &&
+                restoredDraft.Players.Count == 3 &&
+                restoredDraft.HistoricalQueueId == 420 &&
+                restoredDraft.Players[0].Player.GameName == "Edited Blue" &&
+                restoredDraft.Players[0].Player.ChampionId == 22 &&
+                restoredDraft.Players.All(p => p.History == null &&
+                    p.HistoricalSyntheticAdded && p.HistoricalOriginalPlayer == null) &&
+                restoredDraft.Players.Select(p => p.Player.PuuId).Intersect(
+                    standalone.Players.Select(p => p.Player.PuuId)).Count() == 0 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(restoredDraft),
+                "Standalone draft JSON must round-trip without reusing source or local identities.");
+            Require(LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("\"QueueId\":420", "\"QueueId\":100001")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("\"Mode\":\"CLASSIC\"", "\"Mode\":\"UNKNOWN\"")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(
+                    exportedDraft.Replace("Edited Blue", "Red")) == null &&
+                LeagueHistoricalMatchDryRun.ImportStandalone(new string('X',
+                    LeagueHistoricalMatchDryRun.MaximumStandaloneDraftJsonLength + 1)) == null,
+                "Imported draft presets must reject invalid queue, mode, duplicate names and size.");
+            Require(LeagueHistoricalMatchDryRun.BuildStandalone(
+                    "INVALID", "Blue", "Red") == null &&
+                LeagueHistoricalMatchDryRun.BuildStandalone(
+                    "CLASSIC", "Same", "Same") == null,
+                "Standalone draft must reject unsupported modes and duplicate names.");
+            var standaloneArena = LeagueHistoricalMatchDryRun.BuildStandalone(
+                "CHERRY", "Arena Blue", "Arena Red");
+            Require(standaloneArena != null && standaloneArena.HistoricalStandalone &&
+                standaloneArena.HistoricalOriginalRoster.Count == 0 &&
+                standaloneArena.Players.Count == 4 &&
+                LeagueDynamicMessageService.TargetPlayers(standaloneArena, "all").Count == 4 &&
+                LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(
+                    standaloneArena, "New One", 22, "New Two", 23) &&
+                standaloneArena.Players.Count == 6 &&
+                !LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(standaloneArena),
+                "Standalone Arena draft must keep paired TEAM-ALL without source evidence.");
+            var restoredArena = LeagueHistoricalMatchDryRun.ImportStandalone(
+                LeagueHistoricalMatchDryRun.ExportStandalone(standaloneArena));
+            Require(restoredArena != null && restoredArena.Players.Count == 6 &&
+                restoredArena.Players.GroupBy(p => p.HistoricalTeamId)
+                    .All(group => group.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(restoredArena, "all").Count == 6,
+                "Arena draft preset must restore paired teams and TEAM-ALL selection.");
+            var tripleRows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",
+                    GameMode = "CLASSIC", WinResult = "win", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 6, Deaths = 2, Assists = 8 },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "BOTTOM",
+                    GameMode = "CHERRY", WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 2, Deaths = 4, Assists = 3 },
+                new LeaguePlayerMatchSummary { GameId = 103, PuuId = "target",
+                    ChampionId = 22, ChampionName = "Ashe", Position = "TOP",
+                    GameMode = "CLASSIC", WinResult = "loss", ParticipantResolved = true,
+                    StatisticsAvailable = true, Kills = 3, Deaths = 5, Assists = 1 }
+            };
+            var tripleGroups = LeagueOngoingCardBreakdown.Project(tripleRows, "target")
+                .Where(row => row.Kind == "champion-position-mode").ToArray();
+            Require(tripleGroups.Length == 3 &&
+                tripleGroups.All(row => row.ChampionId == 22 && row.Analysis.Games == 1) &&
+                tripleGroups.Count(row => row.Position == "BOTTOM" && row.Mode == "CHERRY") == 1 &&
+                tripleGroups.Count(row => row.Position == "BOTTOM" && row.Mode == "NORMAL") == 1 &&
+                LeagueOngoingCardBreakdown.Project(tripleRows, "foreign").Count == 0,
+                "Three-way player-card drilldown must keep champion, role and mode distinct.");
+            var cardRows = new[] {
+                new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 22,
+                    PuuId = "target", WinResult = "win", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 7, Deaths = 0, Assists = 8,
+                    Position = "TOP", GameMode = "CLASSIC" },
+                new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 23,
+                    PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 2, Deaths = 2, Assists = 4,
+                    Position = "JUNGLE", GameMode = "CLASSIC" },
+                new LeaguePlayerMatchSummary { GameId = 3, ChampionId = 24,
+                    PuuId = "target", WinResult = "remake", ParticipantResolved = true },
+                new LeaguePlayerMatchSummary { GameId = 4, ChampionId = 25,
+                    PuuId = "target", WinResult = "win", GameMode = "CHERRY",
+                    SubteamPlacement = 1, ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 5, ChampionId = 26,
+                    PuuId = "target", WinResult = "win", GameMode = "PRACTICETOOL",
+                    Position = "BOTTOM", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 99, Deaths = 0, Assists = 99 }
+            };
+            var cardStats = LeagueHistoricalMatchDryRun.CardAnalysis(cardRows, "target");
+            Require(cardStats != null && cardStats.Games == 5 &&
+                cardStats.Wins == 2 && cardStats.Losses == 1 && cardStats.Remakes == 1 &&
+                Math.Abs(cardStats.WinRate.Value - 200d / 3d) < 0.001 &&
+                cardStats.StatisticsGames == 3 && cardStats.Kda == 10.5 &&
+                cardStats.KdaCv.HasValue && cardStats.AverageGameKda == 6d &&
+                Math.Abs(cardStats.KdaCv.Value - Math.Sqrt(42d) / 6d) < 0.00001 &&
+                cardStats.ArenaPlacements == 1 && cardStats.ArenaFirstPlaces == 1 &&
+                cardStats.NormalWins == 1 && cardStats.NormalLosses == 1 &&
+                cardStats.CherryWins == 1 && cardStats.CherryLosses == 0 &&
+                cardStats.NormalWinRate == 50 && cardStats.CherryWinRate == 100 &&
+                cardStats.MostPlayedPositions.Count == 2 &&
+                cardStats.Positions["TOP"] == 1 && cardStats.Positions["JUNGLE"] == 1 &&
+                !cardStats.Positions.ContainsKey("BOTTOM"),
+                "Card analysis must exclude remakes from win rate and missing stats from KDA.");
+            Require(LeagueHistoricalMatchDryRun.CardAnalysis(cardRows.Concat(
+                    new[] { cardRows[0] }).ToArray(), "target") == null &&
+                LeagueHistoricalMatchDryRun.CardAnalysis(cardRows, "foreign") == null &&
+                LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
+                    new LeaguePlayerMatchSummary { GameId = 8, ChampionId = 22,
+                        PuuId = "target", WinResult = null } }, "target") == null,
+                "Card analysis must reject duplicate, foreign and unknown source evidence.");
+            var zeroKda = LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
+                new LeaguePlayerMatchSummary { GameId = 9, ChampionId = 22,
+                    PuuId = "target", WinResult = "loss", StatisticsAvailable = true,
+                    ParticipantResolved = true, Kills = 0, Deaths = 4, Assists = 0,
+                    GameMode = "CLASSIC" }
+            }, "target");
+            Require(zeroKda != null && zeroKda.Kda == 0 && !zeroKda.KdaCv.HasValue &&
+                zeroKda.NormalWinRate == 0 && !zeroKda.CherryWinRate.HasValue,
+                "Zero-mean KDA samples must not produce NaN or an invented variation.");
+            var unknownMode = LeagueHistoricalMatchDryRun.CardAnalysis(new[] {
+                new LeaguePlayerMatchSummary { GameId = 10, ChampionId = 22,
+                    PuuId = "target", WinResult = "win", GameMode = "",
+                    ParticipantResolved = true, StatisticsAvailable = true },
+                new LeaguePlayerMatchSummary { GameId = 11, ChampionId = 23,
+                    PuuId = "target", WinResult = "loss", GameMode = "CHERRY",
+                    ParticipantResolved = true, StatisticsAvailable = true }
+            }, "target");
+            Require(unknownMode != null && unknownMode.Wins == 1 && unknownMode.Losses == 1 &&
+                unknownMode.NormalWins == 0 && unknownMode.NormalLosses == 0 &&
+                unknownMode.CherryLosses == 1 && !unknownMode.NormalWinRate.HasValue,
+                "Missing game-mode evidence must not fabricate a normal-mode win rate.");
+            var masteryPlayer = new LeagueDynamicMessagePlayer {
+                Player = new LeagueLivePlayerRow { PuuId = "target" },
+                Mastery = new LeaguePlayerMasteryDetails {
+                    Masteries = new List<Dictionary<string, object>> {
+                        new Dictionary<string, object> {
+                            { "championId", 22 }, { "championLevel", 7 },
+                            { "championPoints", 13000L }, { "puuid", "target" }
+                        },
+                        new Dictionary<string, object> {
+                            { "championId", 23 }, { "championLevel", 4 },
+                            { "championPoints", 2000L }, { "puuid", "target" }
+                        }
+                    }
+                }
+            };
+            var masteryRows = LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows);
+            Require(masteryRows.Count == 2 && masteryRows[0].ChampionId == 22 &&
+                masteryRows[0].ChampionName == "#22" && masteryRows[0].Points == 13000 &&
+                masteryRows[1].Level == 4,
+                "On-demand card mastery must retain verified champion, level and point evidence.");
+            var championAnalyses = LeagueOngoingCardBreakdown.Project(cardRows, "target")
+                .Where(row => row.Kind == "champion").ToArray();
+            var preview = LeagueOngoingCardChampionPreview.Project(
+                championAnalyses, masteryRows, 22);
+            Require(preview != null && preview.Games > 0 &&
+                preview.MasteryLevel == 7 && preview.MasteryPoints == 13000 &&
+                LeagueOngoingCardChampionPreview.Project(
+                    championAnalyses, masteryRows, 9999) == null,
+                "Selected champion detail must combine verified history and mastery only.");
+            var masteryOnly = LeagueOngoingCardChampionPreview.Project(
+                new LeagueOngoingCardBreakdownRow[0], masteryRows, 23);
+            Require(masteryOnly != null && masteryOnly.Games == 0 &&
+                masteryOnly.MasteryLevel == 4,
+                "A mastery-only champion must remain available before history exists.");
+            Require(LeagueOngoingCardChampionPreview.Project(
+                new[] { championAnalyses[0], championAnalyses[0] }, masteryRows,
+                championAnalyses[0].ChampionId) == null,
+                "Ambiguous duplicate champion analysis must fail closed.");
+            var originalMasteries = masteryPlayer.Mastery.Masteries.ToList();
+            for (var i = 0; i < 7; i++)
+                masteryPlayer.Mastery.Masteries.Add(new Dictionary<string, object> {
+                    { "championId", 100 + i }, { "championLevel", 1 },
+                    { "championPoints", (long)(100 + i) }, { "puuid", "target" }
+                });
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 9,
+                "Pinned source displays nine champion masteries, not eight.");
+            masteryPlayer.Mastery.Masteries.Add(new Dictionary<string, object> {
+                { "championId", 107 }, { "championLevel", 1 },
+                { "championPoints", 107L }, { "puuid", "target" }
+            });
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Unexpected tenth top-mastery row must fail closed.");
+            masteryPlayer.Mastery.Masteries = originalMasteries;
+            masteryPlayer.Mastery.Masteries[1]["puuid"] = "foreign";
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Foreign mastery evidence must not appear in another player's card.");
+            masteryPlayer.Mastery.Masteries[1]["puuid"] = "target";
+            masteryPlayer.Mastery.Masteries[1]["championId"] = 22;
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer, cardRows).Count == 0,
+                "Conflicting duplicate champion mastery must fail closed.");
+            masteryPlayer.Mastery.Masteries[1]["championId"] = 23;
+            Require(LeagueOngoingCardMasteryProjection.Project(masteryPlayer,
+                new List<LeaguePlayerMatchSummary>()).Count == 2,
+                "Current-roster mastery must remain accessible before match history is loaded.");
+            var jungleRows = new[] {
+                new LeagueJungleTimelineSample { GameId = 1001, ChampionId = 22,
+                    TeamId = 100, TopWeight = 6, MidWeight = 4, TotalWeight = 10,
+                    Level3Gank = true, Dragons = 1,
+                    FirstCamp = "blue", FirstCampSide = "blue" },
+                new LeagueJungleTimelineSample { GameId = 1002, ChampionId = 22,
+                    TeamId = 200, TopWeight = 2, BotWeight = 8, TotalWeight = 10,
+                    Level4Gank = true, Dragons = 2,
+                    FirstCamp = "red", FirstCampSide = "blue" }
+            };
+            var jungleCard = LeagueOngoingCardJungleProjection.Project(jungleRows);
+            Require(jungleCard != null && jungleCard.Games == 2 &&
+                Math.Abs(jungleCard.TopRate - 0.4) < 0.001 &&
+                jungleCard.Level3Rate == 0.5 && jungleCard.Level4Rate == 0.5 &&
+                !jungleCard.FirstDragonRate.HasValue && jungleCard.AverageDragons == 1.5 &&
+                jungleCard.FirstCamps.Count == 2 && jungleCard.FirstCampGames == 2,
+                "On-demand card jungle stats must preserve verified samples and unknown dragon evidence.");
+            var unknownCampSide = new LeagueJungleTimelineSample { GameId = 1003,
+                ChampionId = 22, TeamId = 100, FirstCamp = "blue" };
+            var partialCamp = LeagueOngoingCardJungleProjection.Project(new[] {
+                jungleRows[0], unknownCampSide });
+            Require(partialCamp != null && partialCamp.Games == 2 &&
+                partialCamp.FirstCampGames == 1 && partialCamp.FirstCamps.Count == 1 &&
+                partialCamp.FirstCamps["blue/normal/blue"] == 1 &&
+                LeagueJungleTimelineAnalysis.Aggregate(new[] { unknownCampSide }).FirstCamps.Count == 0,
+                "Unknown camp-side evidence must not invent an invade or dilute known first-clear rates.");
+            var blueCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 100);
+            var redCard = LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 200);
+            Require(blueCard != null && redCard != null && blueCard.Games == 1 &&
+                redCard.Games == 1 && blueCard.Level3Rate == 1d && redCard.Level4Rate == 1d &&
+                blueCard.AverageDragons == 1d && redCard.AverageDragons == 2d &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 22, 300) == null &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 99, 100) == null,
+                "Jungle card must split verified champion and blue/red side evidence without mixing denominators.");
+            jungleRows[0].MinutePositions.Add(Tuple.Create(7000, 7000));
+            jungleRows[0].MinuteIndices.Add(1);
+            jungleRows[0].GankPositions.Add(Tuple.Create(7000, 7000));
+            jungleRows[1].MinutePositions.Add(Tuple.Create(12000, 12000));
+            jungleRows[1].MinuteIndices.Add(1);
+            var heatmap = LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22);
+            Require(heatmap.Length == 2 && heatmap[0].Weight == 6 &&
+                heatmap[1].Weight == 1 &&
+                heatmap[0].Intensity == 1f &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 99).Length == 0 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 100).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 200).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22, 300).Length == 0 &&
+                LeagueOngoingJungleMapProjection.Select(jungleRows, 22, 100).Single().GameId == 1001 &&
+                LeagueOngoingJungleMapProjection.Select(jungleRows, 22, 200).Single().GameId == 1002,
+                "Player-card heatmap must reuse bounded 1:5 source weighting and reject absent champions.");
+            jungleRows[1].ChampionId = 23;
+            Require(LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 22).Length == 1 &&
+                LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 23).Length == 1,
+                "Player-card heatmap must not combine other champion samples.");
+            Require(LeagueOngoingCardJungleProjection.Project(jungleRows, 22).Games == 1 &&
+                LeagueOngoingCardJungleProjection.Project(jungleRows, 99) == null,
+                "Current-champion jungle filter must not mix different champion timelines.");
+            jungleRows[1].GameId = 1001;
+            Require(LeagueOngoingJungleMapProjection.Heatmap(jungleRows, 0).Length == 0,
+                "Conflicting duplicate jungle games must not create spatial heatmap evidence.");
+            Require(LeagueOngoingCardJungleProjection.Project(jungleRows) == null,
+                "Duplicate jungle game IDs must not fabricate a player-card sample.");
+            var match = new LeaguePlayerMatchSummary { GameId = 500, MapId = 11,
+                GameMode = "CLASSIC", QueueId = 420, TeamId = 100, PuuId = "target" };
+            var roster = Enumerable.Range(1, 10).Select(i => new LeaguePlayerMatchParticipant {
+                ParticipantId = i, TeamId = i <= 5 ? 100 : 200,
+                PuuId = i == 1 ? "target" : "player-" + i,
+                ChampionId = i + 10, PlayerName = "Player" + i,
+                Position = i == 7 ? "JUNGLE" : "TOP",
+                SpellIds = new[] { 4, 7 }
+            }).ToList();
+            var snapshot = LeagueHistoricalMatchDryRun.Build(match, roster, "target");
+            Require(snapshot != null && snapshot.Players.Count == 10 &&
+                snapshot.HistoricalQueueId == 420 &&
+                snapshot.HistoricalOriginalQueueId == 420 &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "target").Player.ChampionId == 11 &&
+                snapshot.Players.All(p => p.History == null) &&
+                snapshot.Phase == "HistoricalPreview",
+                "Historical dry run must build a read-only, bounded, exact-target two-team roster.");
+            roster[8].Position = "NOT_A_LANE";
+            var sanitized = LeagueHistoricalMatchDryRun.Build(match, roster, "target");
+            Require(sanitized != null &&
+                sanitized.Players.Single(p => p.Player.PuuId == "player-9").Player.Position == "" &&
+                sanitized.Players.Single(p => p.Player.PuuId == "player-9").HistoricalOriginalPosition == "",
+                "Historical roster must not carry unverified lane names into editable draft cells.");
+            roster[8].Position = "TOP";
+            Require(snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalChampionId == 12 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalPosition == "TOP",
+                "Historical drafts must retain an immutable source selection for local reset.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.ChampionId == 99 &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.Position == "MIDDLE" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "#99",
+                "A local historical draft must allow bounded champion and lane overrides.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE",
+                    null, "JUNGLE", "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalPrimaryPosition == "JUNGLE" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalSecondaryPosition == "TOP",
+                "Historical drafts must preserve independent primary and secondary position choices.");
+            Require(!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "MIDDLE",
+                    null, "TOP", "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalPrimaryPosition == "JUNGLE",
+                "Duplicate draft position preferences must be rejected without mutation.");
+            Require(!LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 0, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 10000, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "INVALID") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "other", 12, "TOP") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").Player.ChampionId == 99,
+                "Invalid historical draft overrides must not mutate any player.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 12, "TOP"),
+                "A historical draft override must support restoring its original selection.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 22, "JUNGLE",
+                "Ashe\u0001") &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2").ChampionName == "Ashe" &&
+                roster[1].ChampionId == 12 && roster[1].Position == "TOP" &&
+                snapshot.Players.Single(p => p.Player.PuuId == "player-2")
+                    .HistoricalOriginalChampionId == 12,
+                "Historical selection edits must sanitize names and preserve immutable source evidence.");
+            var target = snapshot.Players.Single(p => p.Player.PuuId == "target");
+            var teammate = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
+            target.History = new LeaguePlayerMatchPage();
+            teammate.History = new LeaguePlayerMatchPage();
+            for (var game = 1; game <= 5; game++)
+            {
+                target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "target", "player-2" },
+                    WinResult = "win", StatisticsAvailable = true, ParticipantResolved = true,
+                    Kills = 2, Deaths = 1, Assists = 3 });
+                teammate.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "target", "player-2" },
+                    WinResult = "win", StatisticsAvailable = true, ParticipantResolved = true,
+                    Kills = 2, Deaths = 1, Assists = 3 });
+            }
+            var aggregates = LeagueHistoricalMatchDryRun.TeamAggregates(snapshot);
+            Require(aggregates.Count == 2 && aggregates["target"].Games == 10 &&
+                aggregates["player-2"].Wins == 10 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot, 6).Count == 0,
+                "Historical premade stats require a validated shared-game threshold.");
+            var swapped = snapshot.Players.Single(p => p.Player.PuuId == "player-6");
+            Require(LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "target", "player-6") &&
+                target.HistoricalTeamId == 200 && target.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                target.HistoricalTeamId == 100 && target.Friendly &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-3") &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "missing") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
+                teammate.HistoricalTeamId == 200 && swapped.HistoricalTeamId == 100 &&
+                !teammate.Friendly && swapped.Friendly &&
+                teammate.Player.Side == "enemy" && swapped.Player.Side == "ally" &&
+                teammate.HistoricalOriginalTeamId == 100 && swapped.HistoricalOriginalTeamId == 200 &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 0,
+                "Rift draft swaps must preserve five-player sides, original evidence and premade scope.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                teammate.Friendly && !swapped.Friendly &&
+                teammate.HistoricalTeamId == 100 && swapped.HistoricalTeamId == 200 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(snapshot).Count == 2 &&
+                roster[1].TeamId == 100 && roster[5].TeamId == 200,
+                "Restoring a historical team draft must restore inference without touching source records.");
+            Require(LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 200) &&
+                teammate.HistoricalTeamId == 200 && !teammate.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 4 &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 200) &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "missing", 100) &&
+                !LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "player-2", 300) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot) &&
+                teammate.HistoricalTeamId == 100 && teammate.Friendly &&
+                roster[1].TeamId == 100,
+                "Single-player Rift moves must be reversible, source-isolated and identity checked.");
+            foreach (var id in new[] { "player-2", "player-3", "player-4", "player-5" })
+                Require(LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, id, 200),
+                    "Rift free-form preview should permit any nonempty team size.");
+            Require(!LeagueHistoricalMatchDryRun.TryMoveTeam(snapshot, "target", 200) &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 100) == 1 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(snapshot),
+                "Moving the final player out of a team must fail without mutation.");
+
+            var batch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? ""
+            }).ToArray();
+            var firstBatch = batch.Single(p => p.PuuId == "player-2");
+            var secondBatch = batch.Single(p => p.PuuId == "player-6");
+            firstBatch.TeamId = 200; secondBatch.TeamId = 100;
+            firstBatch.ChampionId = 88; firstBatch.Position = "MIDDLE";
+            firstBatch.PrimaryPosition = "TOP"; firstBatch.SecondaryPosition = "JUNGLE";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.HistoricalTeamId == 200 && swapped.HistoricalTeamId == 100 &&
+                teammate.Player.ChampionId == 88 && teammate.Player.Position == "MIDDLE" &&
+                teammate.HistoricalPrimaryPosition == "TOP" && !teammate.Friendly &&
+                roster[1].ChampionId == 12 && roster[1].TeamId == 100,
+                "Atomic historical roster editing must update sides and selections without source writes.");
+            firstBatch.ChampionId = 10000;
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.Player.ChampionId == 88 && teammate.HistoricalTeamId == 200,
+                "Invalid bulk champion must reject the entire lineup without partial mutation.");
+            firstBatch.ChampionId = 88; secondBatch.TeamId = 200;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                swapped.HistoricalTeamId == 200 &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 100) == 4 &&
+                snapshot.Players.Count(p => p.HistoricalTeamId == 200) == 6 &&
+                snapshot.Players.Count(p => p.Friendly) == 4,
+                "Source-style Rift draft teams may be unbalanced without changing verified match data.");
+            var oneSide = batch.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.PuuId, TeamId = 100, ChampionId = p.ChampionId,
+                Position = p.Position, PrimaryPosition = p.PrimaryPosition,
+                SecondaryPosition = p.SecondaryPosition
+            }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, oneSide) &&
+                swapped.HistoricalTeamId == 200,
+                "A draft cannot silently remove the other Rift team.");
+            secondBatch.TeamId = 100;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                swapped.HistoricalTeamId == 100 &&
+                snapshot.Players.Count(p => p.Friendly) == 5,
+                "A free-form Rift draft must be reversible without a full source reset.");
+            firstBatch.PuuId = "target";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch) &&
+                teammate.HistoricalTeamId == 200,
+                "Duplicate or replaced target identity must reject the whole draft.");
+            firstBatch.PuuId = "player-2";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "missing") &&
+                snapshot.SelfPuuid == "target" && teammate.HistoricalTeamId == 200,
+                "Unknown historical targets must reject the whole roster transaction.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-2") &&
+                snapshot.SelfPuuid == "player-2" && teammate.Friendly &&
+                target.HistoricalTeamId == 100 && !target.Friendly &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target") &&
+                snapshot.SelfPuuid == "target" && target.Friendly,
+                "An existing reassigned player must be selectable as the preview perspective.");
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target", -1) &&
+                !LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "target", 100001) &&
+                snapshot.HistoricalQueueId == 420 && snapshot.SelfPuuid == "target",
+                "Invalid historical queue IDs must reject the entire preview transaction.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, batch, "player-7", 440) &&
+                snapshot.HistoricalQueueId == 440 &&
+                snapshot.SelfPuuid == "player-7" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                !target.Friendly && teammate.Friendly && !swapped.Friendly &&
+                roster[6].PuuId == "player-7" && roster[6].TeamId == 200,
+                "Historical target switching must reproject only the preview perspective.");
+            // Free-form names replace only a draft slot, never a verified source participant.
+            var customBatch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            var customSlot = customBatch.Single(p => p.PuuId == "player-2");
+            customSlot.DraftName = "Custom Teammate";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch, "player-2", 440) &&
+                snapshot.SelfPuuid.StartsWith("draft-", StringComparison.Ordinal) &&
+                snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid).History == null &&
+                snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid).Player.GameName == "Custom Teammate" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                roster[1].PuuId == "player-2" && roster[1].TeamId == 100,
+                "Custom draft players must replace only preview slots, with no inherited match evidence.");
+            var custom = snapshot.Players.Single(p => p.Player.PuuId == snapshot.SelfPuuid);
+            customBatch = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Changed Custom";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                snapshot.SelfPuuid == custom.Player.PuuId &&
+                custom.Player.GameName == "Changed Custom",
+                "Editing a synthetic player's name must preserve its draft identity.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Bad\nName";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                custom.Player.GameName == "Changed Custom",
+                "Invalid custom names must reject the entire draft without mutation.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = new string('Z', 49);
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                custom.Player.GameName == "Changed Custom",
+                "Overlong new-player names must fail without modifying the preview.");
+            customBatch.Single(p => p.PuuId == custom.Player.PuuId).DraftName = "Changed Custom";
+            var anotherSlot = customBatch.Single(p => p.PuuId == "player-3");
+            anotherSlot.DraftName = "Another Draft Player";
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, customBatch) &&
+                snapshot.Players.Count(p => p.HistoricalOriginalPlayer != null) == 2 &&
+                snapshot.Players.All(p => p.HistoricalOriginalPlayer == null || p.History == null),
+                "Multiple custom draft players must retain original slots and never inherit verified history.");
+            var restoreOne = snapshot.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = p.Player.Position ?? "",
+                PrimaryPosition = p.HistoricalPrimaryPosition ?? "",
+                SecondaryPosition = p.HistoricalSecondaryPosition ?? "",
+                DraftName = p.Player.GameName
+            }).ToArray();
+            restoreOne.Single(p => p.PuuId == custom.Player.PuuId).DraftName =
+                custom.HistoricalOriginalPlayer.Player.GameName;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(snapshot, restoreOne,
+                    custom.Player.PuuId) &&
+                snapshot.SelfPuuid == "player-2" &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
+                teammate.History != null &&
+                snapshot.Players.Count(p => p.HistoricalOriginalPlayer != null) == 1 &&
+                snapshot.Players.Any(p => p.Player.GameName == "Another Draft Player" &&
+                    p.History == null),
+                "Restoring one custom slot by its exact source name must recover its verified identity without resetting other custom slots.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, teammate)) &&
+                snapshot.Players.All(p => !p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                snapshot.SelfPuuid == "target" && teammate.HistoricalOriginalPlayer == null,
+                "Full draft reset must recover original source identities and evidence.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.HistoricalQueueId == 420 &&
+                snapshot.SelfPuuid == "target" && target.Friendly && teammate.Friendly &&
+                teammate.HistoricalTeamId == 100 && teammate.Player.ChampionId == 12,
+                "Bulk lineup reset must restore immutable historical source evidence.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(snapshot, "player-2", 99, "BOTTOM",
+                    null, "TOP", "JUNGLE") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(snapshot, "player-2", "player-6") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                teammate.HistoricalTeamId == 100 && teammate.Friendly &&
+                teammate.Player.ChampionId == 12 && teammate.ChampionName == "#12" &&
+                teammate.Player.Position == "TOP" &&
+                teammate.HistoricalPrimaryPosition == "" && teammate.HistoricalSecondaryPosition == "" &&
+                snapshot.Players.Count(p => p.Friendly) == 5 &&
+                roster[1].ChampionId == 12 && roster[1].TeamId == 100,
+                "Whole historical draft reset must restore every local selection and team without source writes.");
+
+            var originalPlayer = snapshot.Players.Single(p => p.Player.PuuId == "player-2");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Custom Eleventh", 100, 99, "JUNGLE") &&
+                snapshot.Players.Count == 11 &&
+                snapshot.Players.Single(p => p.Player.GameName == "Custom Eleventh")
+                    .HistoricalSyntheticAdded &&
+                snapshot.Players.Single(p => p.Player.GameName == "Custom Eleventh")
+                    .History == null &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Custom Eleventh", 200, 99) &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Bad\nName", 200, 99),
+                "Added preview players must have fresh identities without inherited source history.");
+            Require(!LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, "target") &&
+                LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, "player-2") &&
+                snapshot.Players.Count == 10 &&
+                snapshot.Players.All(p => p.Player.PuuId != "player-2") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, originalPlayer)) &&
+                snapshot.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Removing a source preview row must preserve exact original roster restoration.");
+            Require(!LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Same", "Same") &&
+                !LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Bad\nName", "Red") &&
+                snapshot.Players.Count == 10,
+                "Invalid blank roster templates must not alter source or current players.");
+            Require(LeagueHistoricalMatchDryRun.TryStartBlankRoster(snapshot, "Blue draft", "Red draft") &&
+                snapshot.Players.Count == 2 &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(snapshot).Count == 2 &&
+                snapshot.HistoricalQueueId == 0 &&
+                snapshot.Players.All(p => p.HistoricalSyntheticAdded && p.History == null &&
+                    p.Player.PuuId.StartsWith("draft-", StringComparison.Ordinal)) &&
+                snapshot.Players.Count(p => p.Friendly) == 1 &&
+                snapshot.Players.Single(p => p.Friendly).Player.PuuId == snapshot.SelfPuuid &&
+                snapshot.HistoricalOriginalRoster.Count == 10,
+                "Blank two-sided draft must isolate source identities and keep immutable reset evidence.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Third draft", 200, 22, "JUNGLE") &&
+                snapshot.Players.Count == 3 &&
+                !LeagueHistoricalMatchDryRun.TryRemoveDraftPlayer(snapshot, snapshot.SelfPuuid) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 && snapshot.SelfPuuid == "target" &&
+                snapshot.HistoricalQueueId == 420 &&
+                snapshot.Players.Any(p => object.ReferenceEquals(p, originalPlayer)),
+                "Blank draft additions and full reset must restore original verified players and queue.");
+            for (var index = 0; index < 10; index++)
+                Require(LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot,
+                    "Extra " + index, 100, 100 + index), "Bounded free-form draft rejected a valid player.");
+            Require(snapshot.Players.Count == 20 &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticPlayer(snapshot, "Overflow", 200, 1) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(snapshot) &&
+                snapshot.Players.Count == 10 && snapshot.SelfPuuid == "target",
+                "A free-form historical preview must stop at 20 players and fully reset.");
+            target.History.Matches.Clear();
+            target.History.Matches.AddRange(new[] {
+                new LeaguePlayerMatchSummary { GameId = 100, PuuId = "target", ChampionId = 22,
+                    ChampionName = "Ashe", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 101, PuuId = "target", ChampionId = 22,
+                    ChampionName = "Ashe", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "loss" },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target", ChampionId = 1,
+                    ChampionName = "Annie", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 102, PuuId = "target", ChampionId = 2,
+                    ChampionName = "Olaf", ParticipantResolved = true, StatisticsAvailable = true,
+                    WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 103, PuuId = "other", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 104, PuuId = "target", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = false, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 105, PuuId = "target", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" },
+                new LeaguePlayerMatchSummary { GameId = 105, PuuId = "other", ChampionId = 1,
+                    ParticipantResolved = true, StatisticsAvailable = true, WinResult = "win" }
+            });
+            var usage = LeagueHistoricalMatchDryRun.RecentChampionUsage(target);
+            target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 106,
+                PuuId = "target", ChampionId = 99, ChampionName = "Lux",
+                WinResult = "remake", GameType = "MATCHED_GAME", ParticipantResolved = true });
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(target).Count == 3 &&
+                LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
+                "Player card history must preserve verified remakes without treating them as played wins.");
+            target.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 106,
+                PuuId = "target", ChampionId = 98, WinResult = "remake" });
+            Require(LeagueHistoricalMatchDryRun.CardRecentMatches(target).Count == 2,
+                "Contradictory duplicate remakes must be excluded from the player card.");
+            Require(LeagueHistoricalMatchDryRun.VerifiedRecentMatches(target).Count == 2,
+                "Historical player details must omit duplicate conflicts and wrong-owner evidence.");
+            Require(usage.Count == 1 && usage[0].ChampionId == 22 &&
+                usage[0].Games == 2 && usage[0].Wins == 1 && usage[0].WinRate == 50 &&
+                LeagueHistoricalMatchDryRun.RecentChampionUsage(
+                    new LeagueDynamicMessagePlayer { Player = target.Player }).Count == 0,
+                "Recent champion usage must exclude conflicting duplicate games, wrong owners and unknown outcomes.");
+            roster[9].PuuId = roster[8].PuuId;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Duplicate historical player identities must fail closed.");
+            roster[9].PuuId = "player-10";
+            roster[9].TeamId = 100;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "A contradictory five-versus-five historical roster must fail closed.");
+            roster[9].TeamId = 200;
+            roster[9].PuuId = null;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Anonymous historical players must not be guessed.");
+            roster[9].PuuId = "player-10";
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "other") == null,
+                "A different target must never reuse a historical draft.");
+            match.MapId = 12;
+            Require(LeagueHistoricalMatchDryRun.Build(match, roster, "target") == null,
+                "Non-Rift historical games must not masquerade as standard two-team drafts.");
+
+            var arena = new LeaguePlayerMatchSummary { GameId = 501, MapId = 30,
+                GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
+            var arenaRoster = Enumerable.Range(1, 16).Select(i => new LeaguePlayerMatchParticipant {
+                ParticipantId = i, TeamId = i <= 8 ? 100 : 200,
+                PlayerSubteamId = (i + 1) / 2, SubteamPlacement = (i + 1) / 2,
+                PuuId = i == 1 ? "target" : "arena-" + i,
+                ChampionId = i + 20, PlayerName = "Arena" + i
+            }).ToList();
+            var arenaDraft = LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target");
+            arenaRoster[2].Position = "TOP";
+            var sanitizedArena = LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target");
+            Require(sanitizedArena != null &&
+                sanitizedArena.Players.All(p => p.Player.Position == ""),
+                "Arena historical preview must not expose standard lane assignments.");
+            arenaRoster[2].Position = null;
+            Require(arenaDraft != null && arenaDraft.HistoricalGameMode == "CHERRY" &&
+                arenaDraft.Players.Count == 16 && arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                arenaDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 8,
+                "Arena historical draft must preserve eight independent two-player subteams.");
+            Require(LeagueDynamicMessageService.TargetPlayers(arenaDraft, "friendly").Count == 16 &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 16 &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "enemy").Count == 0 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "friendly" }).Count == 16 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "enemy" }).Count == 0 &&
+                LeagueDynamicMessageFormatter.Build(arenaDraft,
+                    new LeagueDynamicMessageOptions { Target = "invalid" }).Count == 0 &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2,
+                "Source TEAM-ALL must include the entire Arena preview without losing two-player subteam evidence.");
+            var arenaPerspective = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            Require(!LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Same", 22, "Same", 23) &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena3", 22, "New", 23) &&
+                arenaDraft.Players.Count == 16,
+                "Arena pair input must reject duplicate names without modifying a roster.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena new one", 22, "Arena new two", 23) &&
+                arenaDraft.Players.Count == 18 &&
+                LeagueHistoricalMatchDryRun.DraftDisplayPlayers(arenaDraft).Count == 18 &&
+                arenaDraft.Players.Count(p => p.HistoricalSyntheticAdded) == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 18,
+                "Arena preview must add a history-free subteam without losing TEAM-ALL display.");
+            var newArenaTeam = arenaDraft.Players.Single(p =>
+                p.Player.GameName == "Arena new one").HistoricalTeamId;
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena final one", 24, "Arena final two", 25) &&
+                arenaDraft.Players.Count == 20 &&
+                !LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena overflow one", 26, "Arena overflow two", 27) &&
+                LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft,
+                    arenaDraft.Players.Single(p => p.Player.GameName == "Arena final one").HistoricalTeamId) &&
+                arenaDraft.Players.Count == 18,
+                "Arena draft must support 20 paired participants and reject overflow.");
+            var expandedArena = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, expandedArena) &&
+                !LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft, 1) &&
+                LeagueHistoricalMatchDryRun.TryRemoveArenaPair(arenaDraft, newArenaTeam) &&
+                arenaDraft.Players.Count == 16 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Count == 16 &&
+                arenaDraft.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Arena pair removal and full reset must preserve immutable source identities.");
+            Require(LeagueHistoricalMatchDryRun.TryStartBlankRoster(arenaDraft,
+                    "Arena alpha", "Arena beta") &&
+                arenaDraft.Players.Count == 4 &&
+                arenaDraft.Players.All(p => p.HistoricalSyntheticAdded && p.History == null) &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).Count() == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueDynamicMessageService.TargetPlayers(arenaDraft, "all").Count == 4,
+                "Arena clean template must create only synthetic two-person subteams.");
+            Require(LeagueHistoricalMatchDryRun.TryAddSyntheticArenaPair(arenaDraft,
+                    "Arena gamma", 22, "Arena delta", 23) &&
+                arenaDraft.Players.Count == 6 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Count == 16 && arenaDraft.SelfPuuid == "target" &&
+                arenaDraft.Players.All(p => !p.HistoricalSyntheticAdded),
+                "Arena clean template must grow and restore verified original participants.");
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaPerspective, "arena-3") &&
+                arenaDraft.SelfPuuid == "arena-3" &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                !arenaDraft.Players.Single(p => p.Player.PuuId == "target").Friendly &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.SelfPuuid == "target" &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2,
+                "Arena perspective editing must respect original two-player subteams and reset.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "TOP") &&
+                !LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 99, "",
+                    null, "TOP", "") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.Position == "",
+                "Arena draft edits must never invent standard lane assignments.");
+            var enemyOne = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3");
+            var enemyTwo = arenaDraft.Players.Single(p => p.Player.PuuId == "arena-5");
+            enemyOne.History = new LeaguePlayerMatchPage();
+            enemyTwo.History = new LeaguePlayerMatchPage();
+            for (var game = 1; game <= 5; game++)
+            {
+                enemyOne.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "arena-3", "arena-5" } });
+                enemyTwo.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = game,
+                    SameTeamPuuids = new[] { "arena-3", "arena-5" } });
+            }
+            Require(LeaguePremadeInference.Infer(arenaDraft).Count == 0 &&
+                LeagueHistoricalMatchDryRun.TeamAggregates(arenaDraft).Count == 0,
+                "Arena draft must never infer a premade across two enemy subteams.");
+            Require(LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "target", "arena-3") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "target").Friendly &&
+                arenaDraft.Players.Count(p => p.Friendly) == 2 &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(arenaDraft) &&
+                !LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-4") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-5") &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 3 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-5").HistoricalTeamId == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2) &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalTeams(arenaDraft) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
+                arenaRoster[2].PlayerSubteamId == 2,
+                "Arena swaps must preserve two-player subteams and original source identity.");
+            Require(LeagueHistoricalMatchDryRun.TryEditSelection(arenaDraft, "arena-3", 98, "") &&
+                LeagueHistoricalMatchDryRun.TrySwapTeams(arenaDraft, "arena-3", "arena-5") &&
+                LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 23 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.Position == "" &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 2 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2),
+                "Whole Arena draft reset must restore source champions and two-player subteams.");
+
+            var arenaBatch = arenaDraft.Players.Select(p => new LeagueHistoricalRosterSelection {
+                PuuId = p.Player.PuuId, TeamId = p.HistoricalTeamId,
+                ChampionId = p.Player.ChampionId, Position = "",
+                PrimaryPosition = "", SecondaryPosition = ""
+            }).ToArray();
+            var arenaA = arenaBatch.Single(p => p.PuuId == "arena-3");
+            var arenaB = arenaBatch.Single(p => p.PuuId == "arena-5");
+            arenaA.TeamId = 3; arenaB.TeamId = 2;
+            arenaA.ChampionId = 87;
+            Require(LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaBatch) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").HistoricalTeamId == 3 &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 87 &&
+                arenaDraft.Players.GroupBy(p => p.HistoricalTeamId).All(g => g.Count() == 2),
+                "Arena bulk draft must preserve exact two-player subteams.");
+            arenaA.Position = "TOP";
+            Require(!LeagueHistoricalMatchDryRun.TryApplyRosterDraft(arenaDraft, arenaBatch) &&
+                arenaDraft.Players.Single(p => p.Player.PuuId == "arena-3").Player.ChampionId == 87,
+                "Arena bulk draft must reject invented standard lanes atomically.");
+            Require(LeagueHistoricalMatchDryRun.TryRestoreOriginalDraft(arenaDraft),
+                "Arena bulk draft must restore source evidence.");
+            var legacyArena = new LeaguePlayerMatchSummary { GameId = 502, MapId = 30,
+                GameMode = "CHERRY", PuuId = "target", PlayerSubteamId = 1 };
+            var legacyDraft = LeagueHistoricalMatchDryRun.Build(legacyArena,
+                arenaRoster.Take(8).ToArray(), "target");
+            Require(legacyDraft != null && legacyDraft.Players.Count == 8 &&
+                legacyDraft.Players.Count(p => p.Friendly) == 2 &&
+                legacyDraft.Players.Select(p => p.HistoricalTeamId).Distinct().Count() == 4,
+                "Historical four-subteam Arena drafts must remain compatible with older valid matches.");
+            arenaRoster[15].PlayerSubteamId = 1;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Arena subteam overflow must fail closed.");
+            arenaRoster[15].PlayerSubteamId = 8;
+            arenaRoster[15].SubteamPlacement = 1;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Conflicting Arena placement must fail closed.");
+            arenaRoster[15].SubteamPlacement = 8;
+            arena.PlayerSubteamId = 2;
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Historical Arena target subteam mismatch must fail closed.");
+            arena.PlayerSubteamId = 1;
+            arenaRoster.RemoveAt(15);
+            Require(LeagueHistoricalMatchDryRun.Build(arena, arenaRoster, "target") == null,
+                "Incomplete Arena rosters must not be treated as full drafts.");
+        }
+
+        private static void ValidateJungleTimeline()
+        {
+            var timeline = "{\"frames\":[" +
+                "{\"events\":[{\"type\":\"ELITE_MONSTER_KILL\",\"timestamp\":300000,\"killerId\":1,\"killerTeamId\":100,\"monsterType\":\"DRAGON\"}]}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3500,\"y\":10000}}}}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":3600,\"y\":11000},\"level\":3,\"minionsKilled\":2,\"jungleMinionsKilled\":13}}," +
+                "\"events\":[{\"type\":\"CHAMPION_KILL\",\"timestamp\":170000,\"killerId\":1,\"position\":{\"x\":3600,\"y\":11000}}]}," +
+                "{\"participantFrames\":{\"1\":{\"position\":{\"x\":8000,\"y\":8000}}}," +
+                "\"events\":[{\"type\":\"CHAMPION_KILL\",\"timestamp\":210000,\"killerId\":3,\"assistingParticipantIds\":[1],\"position\":{\"x\":8000,\"y\":8000}}]}]}";
+            var sample = LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 7, 64, 1, 100, 11, true);
+            Require(sample != null && sample.FirstCamp == "blue" && sample.FirstCampSide == "blue" &&
+                sample.TopGanks == 1 && sample.MidGanks == 1 && sample.TopWeight > sample.MidWeight &&
+                sample.Level3Gank && sample.Level4Gank && sample.FirstDragonWon == true &&
+                sample.Dragons == 1 && sample.SoloDragons == 1 && sample.FirstDragonSeconds == 300d &&
+                sample.MinutePositions.Count == 4 &&
+                sample.MinuteIndices.SequenceEqual(new[] { 1, 2, 3, 4 }) &&
+                sample.GankPositions.Count == 2 &&
+                sample.MinutePositions[0].Item1 == 3830 && sample.GankPositions[1].Item2 == 8000,
+                "Pinned Akari jungle timeline calculations diverged on camp, lanes, early ganks or objectives.");
+            Require(LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 12, true) == null &&
+                LeagueJungleTimelineAnalysis.Parse(Bytes(timeline), 8, 64, 1, 100, 11, false) == null,
+                "Non-Rift or non-jungle matches must not produce jungle analysis.");
+            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(new[] { sample, sample });
+            Require(aggregate != null && aggregate.Games == 1 && aggregate.Level3GankRate == 1d &&
+                aggregate.AverageDragons == 1d && aggregate.FirstDragonRate == 1d &&
+                aggregate.FirstCamps["blue/normal/blue"] == 1,
+                "Jungle aggregation must deduplicate games and retain source-rate denominators.");
+            Require(LeagueJungleTimelineAnalysis.Parse(Bytes("{"), 9, 64, 1, 100, 11, true) == null,
+                "Malformed timeline unexpectedly produced a game result.");
+            var other = new LeagueJungleTimelineSample { GameId = 8, ChampionId = 99, TeamId = 200 };
+            other.MinutePositions.Add(Tuple.Create(1000, 1000));
+            other.MinuteIndices.Add(1);
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 64)
+                    .Single().GameId == 7 &&
+                LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 2 &&
+                LeagueOngoingJungleMapProjection.Select(new[] { sample, sample }, 0).Count == 0,
+                "Jungle map must isolate champion evidence and reject duplicate games.");
+            other.MinutePositions.Add(Tuple.Create(16001, 1));
+            other.MinuteIndices.Add(2);
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
+                "Invalid map coordinates must not be rendered.");
+            other.MinutePositions[1] = Tuple.Create(2000, 2000);
+            other.MinuteIndices[1] = 1;
+            Require(LeagueOngoingJungleMapProjection.Select(new[] { sample, other }, 0).Count == 0,
+                "Duplicate or nonmonotonic timeline minutes must not form invented map routes.");
+            other.MinuteIndices[1] = 2;
+            Require(LeagueOngoingJungleMapProjection.AvailableChampions(new[] { sample, other }, 64)
+                    .SequenceEqual(new[] { 64, 99 }) &&
+                LeagueOngoingJungleMapProjection.AvailableChampions(new[] { sample, sample }, 64).Length == 0,
+                "Source-style jungle champion tabs must rank current champion and reject duplicate games.");
+        }
+
+        private static void ValidateJungleFormatter()
+        {
+            var player = new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "self", GameName = "Self", ChampionId = 77 },
+                ChampionName = "Alpha", History = new LeaguePlayerMatchPage(),
+                JungleSamples = new[]
+                {
+                    new LeagueJungleTimelineSample { GameId = 1, ChampionId = 77, TeamId = 100,
+                        TopWeight = 6, MidWeight = 2, TotalWeight = 8, FirstCamp = "blue", FirstCampSide = "blue",
+                        Level3Gank = true, FirstDragonWon = true, Dragons = 2, Voidgrubs = 3 },
+                    new LeagueJungleTimelineSample { GameId = 2, ChampionId = 77, TeamId = 100,
+                        TopWeight = 2, BotWeight = 6, TotalWeight = 8, FirstCamp = "red", FirstCampSide = "red",
+                        Level4Gank = true, FirstDragonWon = false, Dragons = 1, Heralds = 1 }
+                }
+            };
+            player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1, ChampionId = 77, ChampionName = "Alpha" });
+            player.History.Matches.Add(new LeaguePlayerMatchSummary { GameId = 2, ChampionId = 77, ChampionName = "Alpha" });
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(player);
+            var options = new LeagueDynamicMessageOptions();
+            var selected = new HashSet<string> { "self" };
+            var lines = LeagueJungleMessageFormatter.Build(snapshot, options, selected);
+            Require(lines.Count > 0 && lines[0].StartsWith("Alpha：打野样本2场", StringComparison.Ordinal) &&
+                string.Join(" ", lines).Contains("蓝方常规开野50%") &&
+                string.Join(" ", lines).Contains("首龙控制50%") &&
+                string.Join(" ", lines).Contains("三级抓人50%"),
+                "The current-champion jungle preset omitted a source-derived metric or first-clear distribution.");
+            options.JungleShowCurrentChampion = false;
+            lines = LeagueJungleMessageFormatter.Build(snapshot, options, selected);
+            Require(string.Join(" ", lines).Contains("常用打野Alpha") &&
+                !string.Join(" ", lines).Contains("蓝方常规开野"),
+                "Global jungle formatting must show main champions instead of current-champion first clears.");
+            options.Target = "enemy";
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Count == 0,
+                "Jungle target filtering included an opposing-side player.");
+            options.Target = "all";
+            player.JungleSamples = null;
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Count == 0,
+                "Unavailable timelines were misrepresented as confirmed zero jungle games.");
+            player.JungleSamples = new[] { new LeagueJungleTimelineSample { GameId = 3, ChampionId = 99, TeamId = 200 } };
+            options.JungleShowCurrentChampion = true;
+            Require(LeagueJungleMessageFormatter.Build(snapshot, options, selected).Single().Contains("暂无打野记录"),
+                "Current champion filtering unexpectedly reused another champion's jungle games.");
+            var parsed = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(parsed.JungleShowCurrentChampion && parsed.JungleFirstClearDistribution &&
+                parsed.JungleNameStrategy == "preferChampionName" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").JungleShowCurrentChampion,
+                "Jungle preferences did not roundtrip or default like pinned Akari 1.5.1.");
+            options.FriendlyShortcut = "Ctrl+F5";
+            options.JungleFriendlyShortcut = "Ctrl+F6";
+            options.JungleEnemyShortcut = "Ctrl+F7";
+            options.JungleAllShortcut = "Ctrl+F8";
+            options.PremadeFriendlyShortcut = "Ctrl+F9";
+            options.PremadeEnemyShortcut = "Ctrl+F10";
+            options.PremadeAllShortcut = "Ctrl+F11";
+            var shortcuts = LeagueDynamicMessageOptions.Parse(LeagueDynamicMessageOptions.Save(options));
+            Require(shortcuts.JungleAllShortcut == "Ctrl+F8" && shortcuts.PremadeEnemyShortcut == "Ctrl+F10" &&
+                shortcuts.FriendlyShortcut == "Ctrl+F5", "Independent preset shortcut groups were not persisted.");
+            options.PremadeAllShortcut = options.JungleAllShortcut;
+            var rejected = false;
+            try { LeagueDynamicMessageOptions.Save(options); }
+            catch (ArgumentException) { rejected = true; }
+            Require(rejected, "A repeated binding across preset groups must be rejected.");
+            Require(LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").JungleAllShortcut == "" &&
+                LeagueDynamicMessageOptions.Parse("{\"Target\":\"all\"}").PremadeFriendlyShortcut == "",
+                "Legacy options must leave the new shortcut groups disabled.");
+            var targetSnapshot = new LeagueDynamicMessageSnapshot();
+            targetSnapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "ally" } });
+            targetSnapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemy" } });
+            Require(LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "friendly").SetEquals(new[] { "ally" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy").SetEquals(new[] { "enemy" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "all").Count == 2 &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "invalid").Count == 0,
+                "Shortcut target selection must respect the current roster and side.");
+
+            Require(LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CHERRY", 8, 0) &&
+                LeagueDynamicMessageService.ShouldUseArenaAll("ChampSelect", "CHERRY", 2, 0) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CLASSIC", 8, 0) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("InProgress", "CHERRY", 8, 1) &&
+                !LeagueDynamicMessageService.ShouldUseArenaAll("Lobby", "CHERRY", 8, 0),
+                "Live Arena TEAM-ALL must require verified CHERRY roster ownership.");
+            targetSnapshot.Phase = "InProgress";
+            targetSnapshot.LiveArenaAll = true;
+            Require(LeagueDynamicMessageService.ArenaAllGroup(targetSnapshot) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "friendly")
+                    .SetEquals(new[] { "ally", "enemy" }) &&
+                LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy").Count == 0,
+                "Live Arena grouping must include all verified participants, not an invented enemy team.");
+            var arenaOptions = new LeagueDynamicMessageOptions { Target = "friendly" };
+            Require(LeagueDynamicMessageFormatter.Build(targetSnapshot, arenaOptions).Count == 2,
+                "Live Arena formatter must include both visible players under TEAM-ALL.");
+            arenaOptions.Target = "enemy";
+            Require(LeagueDynamicMessageFormatter.Build(targetSnapshot, arenaOptions).Count == 0,
+                "Live Arena must not manufacture an enemy-only message target.");
+            targetSnapshot.LiveArenaAll = false;
+            Require(LeagueDynamicMessageService.TargetPlayers(targetSnapshot, "enemy")
+                .SetEquals(new[] { "enemy" }),
+                "Ordinary live matches must retain their real ally/enemy target split.");
+        }
+
+        private static void ValidateJunglePrefetch()
+        {
+            var options = new LeagueDynamicMessageOptions();
+            Require(!LeagueDynamicMessageService.JunglePrefetchEnabled(options),
+                "Default-disabled jungle shortcuts must not schedule timeline background reads.");
+            options.JungleEnemyShortcut = "Ctrl+F8";
+            Require(LeagueDynamicMessageService.JunglePrefetchEnabled(options),
+                "An enabled jungle target shortcut must opt into timeline prefetch.");
+            var snapshot = new LeagueDynamicMessageSnapshot();
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "allytop", Position = "TOP" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "enemyjungle", Role = "JUNGLE" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = true,
+                Player = new LeagueLivePlayerRow { PuuId = "allyjungle", Position = "jungle" }, History = new LeaguePlayerMatchPage() });
+            snapshot.Players.Add(new LeagueDynamicMessagePlayer { Friendly = false,
+                Player = new LeagueLivePlayerRow { PuuId = "unavailable", Position = "JUNGLE" } });
+            Require(LeagueDynamicMessageService.JunglePrefetchOrder(snapshot).Select(p => p.Player.PuuId)
+                .SequenceEqual(new[] { "allyjungle", "enemyjungle", "unavailable", "allytop" }),
+                "Known jungle positions must be prioritized while still including missing-history players for recovery.");
+            Require(LeagueDynamicMessageService.TargetPlayers(snapshot, "enemy").SetEquals(new[] { "enemyjungle", "unavailable" }),
+                "Enemy-only prefetch must not select friendly player identities.");
+        }
+
+        private static async Task ValidateLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("first");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                Require(fake.Paths.Count == 0, "Dynamic messages started background network work.");
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.Count == 2 && snapshot.Players.All(p => p.History != null) &&
+                    snapshot.Players[0].Friendly && !snapshot.Players[1].Friendly && fake.MaxConcurrent == 1,
+                    "Both-team loading must use bounded sequential shared LCU reads.");
+                var beforeBudget = fake.Paths.Count;
+                Require(await service.LoadAsync(CancellationToken.None, 1).ConfigureAwait(false) == null &&
+                    fake.Paths.Count == beforeBudget,
+                    "Invalid match-history budgets must fail without issuing a request.");
+                var bounded = await service.LoadAsync(CancellationToken.None, 2).ConfigureAwait(false);
+                var boundedPaths = fake.Paths.Skip(beforeBudget)
+                    .Where(path => path.Contains("/matches?")).ToArray();
+                Require(bounded != null && bounded.HistoryLoadCount == 2 &&
+                    boundedPaths.Length > 0 && boundedPaths.All(path => path.Contains("endIndex=1")) &&
+                    bounded.Players.All(p => p.History == null || p.History.Matches.Count <= 2),
+                    "The native match-history budget must reach actual LCU requests and bound results.");
+                snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                var reads = fake.Paths.Count;
+                Require(!await service.IsCurrentAsync(snapshot, CancellationToken.None).ConfigureAwait(false) && fake.Paths.Count == reads,
+                    "Expired previews must be rejected before additional requests.");
+                fake.OnRead = path => { if (path.Contains("/matches?")) session = Session("replacement"); };
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null,
+                    "Account/session replacement retained an old analysis snapshot.");
+                fake.OnRead = null; session = Session("first"); fake.RosterReads = 0; fake.ChangeRoster = true;
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null,
+                    "Changed champion roster retained a stale preview.");
+                fake.ChangeRoster = false;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    fake.OnRead = path => cancellation.Cancel();
+                    var cancelled = false;
+                    try { await service.LoadAsync(cancellation.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled, "Closing/replacing generation did not cancel shared LCU requests.");
+                }
+                fake.OnRead = null; phase.Phase = "Lobby"; reads = fake.Paths.Count;
+                Require(await service.LoadAsync(CancellationToken.None).ConfigureAwait(false) == null && fake.Paths.Count == reads,
+                    "Unavailable game analysis must not poll from the Lobby.");
+            }
+        }
+
+        private static async Task ValidateJungleLoadingAsync()
+        {
+            var fake = new Fake();
+            var session = Session("jungle");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].JungleSamples == null &&
+                    !fake.Paths.Any(p => p.Contains("game-timelines")),
+                    "Jungle timeline requests ran without explicit selection.");
+                Require(!await service.LoadJungleAsync(snapshot, "missing", CancellationToken.None).ConfigureAwait(false),
+                    "A non-roster jungle identity was accepted.");
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Explicit jungle timeline load rejected current roster and session.");
+                var samples = snapshot.Players[0].JungleSamples;
+                Require(samples != null && samples.Count == 2 && samples[0].GameId == 1 &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2 && fake.MaxConcurrent == 1,
+                    "On-demand jungle timelines must use one bounded authenticated client request at a time.");
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "Already loaded jungle samples were downloaded again.");
+                var refreshed = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(refreshed != null && refreshed.Players[0].JungleSamples != null &&
+                    refreshed.Players[0].JungleSamples.Count == 2 &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "Fresh previews must reuse matching current-account jungle timelines.");
+                phase.Phase = "InProgress";
+                service.Observe(phase);
+                var inGame = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(inGame != null && inGame.Players[0].JungleSamples != null &&
+                    inGame.Players[0].JungleSamples.Count == 2 &&
+                    await service.LoadJungleAsync(inGame, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 2,
+                    "ChampSelect to InProgress must preserve reusable player history without repeat timeline GETs.");
+                fake.ChangeHistory = true;
+                var changedHistory = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(changedHistory != null && changedHistory.Players[0].JungleSamples == null,
+                    "Changed match history reused stale cached jungle data.");
+                fake.ChangeHistory = false;
+                var recached = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(recached != null && await service.LoadJungleAsync(recached, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Jungle samples could not be refreshed after a history change.");
+                fake.ProfilePuuid = "enemy";
+                var switchedAccount = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedAccount != null && switchedAccount.SelfPuuid == "enemy" &&
+                    switchedAccount.Players[0].JungleSamples == null,
+                    "Signed-in summoner change did not clear the timeline cache.");
+                fake.ProfilePuuid = "self";
+                var switchedBack = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(switchedBack != null && switchedBack.Players[0].JungleSamples == null,
+                    "Returning to a previous account resurrected an old cache scope.");
+                phase.Phase = "ChampSelect";
+                service.Observe(phase);
+                snapshot.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count(p => p.Contains("game-timelines")) == 4, "Expired jungle snapshots made new timeline requests.");
+                snapshot.CreatedUtc = DateTime.UtcNow;
+                session = Session("different");
+                Require(!await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false),
+                    "Account change reused previous jungle samples.");
+                var replacement = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(replacement != null && replacement.Players[0].JungleSamples == null,
+                    "LCU session replacement did not invalidate previously loaded jungle samples.");
+            }
+            var incomplete = new Fake { IncompleteHistory = true };
+            session = Session("detail");
+            using (var service = new LeagueDynamicMessageService(incomplete, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players[0].History.Matches[0].ParticipantId == 0,
+                    "Fixture did not preserve an unresolved match summary.");
+                Require(await service.LoadJungleAsync(snapshot, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    snapshot.Players[0].JungleSamples.Count == 1 &&
+                    incomplete.Paths.Contains("/lol-match-history/v1/games/1"),
+                    "On-demand jungle analysis did not resolve missing participant identity from game detail.");
+            }
+        }
+
+        private static async Task ValidateMissingHistoryAsync()
+        {
+            var fake = new Fake();
+            var session = Session("history-recovery");
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(snapshot != null && snapshot.Players.All(p => p.History != null),
+                    "The history-recovery fixture did not initialize its roster.");
+                snapshot.Players[0].History = null;
+                Require(LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "friendly") &&
+                    !LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "enemy") &&
+                    LeagueDynamicMessageService.SelectedNeedsHistory(snapshot, new HashSet<string> { "self" }) &&
+                    !LeagueDynamicMessageService.SelectedNeedsHistory(snapshot, new HashSet<string> { "enemy" }),
+                    "Missing-history send guards must distinguish selected players and target sides.");
+                var before = fake.Paths.Count(p => p.Contains("/self/matches?"));
+                Require(await service.EnsureHistoriesAsync(snapshot, new HashSet<string> { "self" }, CancellationToken.None)
+                    .ConfigureAwait(false) && snapshot.Players[0].History != null &&
+                    fake.Paths.Count(p => p.Contains("/self/matches?")) == before + 1 && fake.MaxConcurrent == 1 &&
+                    !LeagueDynamicMessageService.TargetNeedsHistory(snapshot, "friendly"),
+                    "An explicitly selected player with missing initial history was not recovered with serialized reads.");
+
+                var retryFake = new Fake { NoLocalHistory = true };
+                using (var retryService = new LeagueDynamicMessageService(retryFake,
+                    new PerformanceBudgetProvider(), () => session, () => phase))
+                {
+                    var retry = await retryService.LoadAsync(CancellationToken.None)
+                        .ConfigureAwait(false);
+                    Require(retry != null && retry.Players[0].History == null,
+                        "Player-card retry must start from an actually missing history.");
+                    Require(!await retryService.EnsureHistoriesAsync(retry,
+                        new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
+                        retry.Players[0].History == null,
+                        "Failed explicit card reload must not manufacture a history.");
+                    retryFake.NoLocalHistory = false;
+                    Require(await retryService.EnsureHistoriesAsync(retry,
+                        new HashSet<string> { "self" }, CancellationToken.None).ConfigureAwait(false) &&
+                        retry.Players[0].History != null &&
+                        LeagueHistoricalMatchDryRun.CardRecentMatches(retry.Players[0]).Count > 0,
+                        "A user-triggered retry must recover the same verified roster card.");
+                }
+
+                var jungle = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(jungle != null, "Missing-history jungle fixture lost its live roster.");
+                jungle.Players[0].History = null;
+                jungle.Players[0].JungleSamples = null;
+                Require(await service.LoadJungleAsync(jungle, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    jungle.Players[0].History != null && jungle.Players[0].JungleSamples != null &&
+                    jungle.Players[0].JungleSamples.Count == 2,
+                    "Jungle loading must refill missing history before timeline analysis.");
+
+                var stale = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                stale.Players[0].History = null;
+                stale.CreatedUtc = DateTime.UtcNow.AddMinutes(-3);
+                before = fake.Paths.Count;
+                Require(!await service.EnsureHistoriesAsync(stale, new HashSet<string> { "self" },
+                    CancellationToken.None).ConfigureAwait(false) && fake.Paths.Count == before,
+                    "An expired roster was allowed to recover histories or issue network requests.");
+                stale.CreatedUtc = DateTime.UtcNow;
+                session = Session("another-account-session");
+                before = fake.Paths.Count;
+                Require(!await service.LoadJungleAsync(stale, "self", CancellationToken.None).ConfigureAwait(false) &&
+                    fake.Paths.Count == before, "A replaced client session recovered stale jungle history.");
+            }
+        }
+
+        private static async Task ValidateBatchAsync()
+        {
+            var fake = new Fake();
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" };
+            var session = Session("batch");
+            using (var service = new LeagueDynamicMessageService(fake, new PerformanceBudgetProvider(), () => session, () => phase))
+            {
+                var snapshot = await service.LoadAsync(CancellationToken.None).ConfigureAwait(false);
+                service.Select(snapshot, new[] { "enemy", "not-in-roster" });
+                Require(service.Selection(snapshot).SetEquals(new[] { "enemy" }), "Player selection escaped the active roster.");
+                var calls = 0;
+                Require(await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 2,
+                    "Bounded dynamic batch did not reuse the provided line sender.");
+                calls = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; phase.Phase = "Lobby"; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 1,
+                    "Phase departure continued the dynamic batch.");
+                phase.Phase = "ChampSelect"; calls = 0;
+                Require(!await service.SendAsync(snapshot, new[] { "first", "second" }, 0, (line, token) =>
+                { calls++; service.Cancel(); return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 1,
+                    "Explicit cancellation continued the dynamic batch.");
+                calls = 0; fake.ChangeRoster = true;
+                Require(!await service.SendAsync(snapshot, new[] { "stale" }, 0, (line, token) =>
+                { calls++; return Task.FromResult(true); }, CancellationToken.None).ConfigureAwait(false) && calls == 0,
+                    "Stale roster bypassed the final batch preflight.");
+                service.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" });
+                Require(service.Selection(snapshot) == null, "Player identities survived their phase selection scope.");
+            }
+            var options = new LeagueDynamicMessageOptions { EnemyShortcut = "Ctrl+F6", Target = "enemy", VisionScore = true };
+            var settings = new FACM.Services.AppSettings { LeagueDynamicMessageOptions = LeagueDynamicMessageOptions.Save(options) };
+            var parsed = FACM.Services.AppSettings.ParseLines(settings.BuildLinesForSmokeTest());
+            Require(LeagueDynamicMessageOptions.Parse(parsed.LeagueDynamicMessageOptions).EnemyShortcut == "Ctrl+F6",
+                "Dynamic shortcuts failed INI persistence.");
+            var restored = new FACM.Services.AppSettings();
+            FACM.Services.CloudSettingsSnapshot.Capture(settings).ApplyTo(restored);
+            var restoredOptions = LeagueDynamicMessageOptions.Parse(restored.LeagueDynamicMessageOptions);
+            Require(restoredOptions.Target == "enemy" && restoredOptions.VisionScore && restoredOptions.EnemyShortcut == "Ctrl+F6",
+                "Dynamic options failed cloud persistence.");
+            var rejected = false;
+            try { LeagueDynamicMessageOptions.Save(new LeagueDynamicMessageOptions { EnemyShortcut = "F6", AllShortcut = "F6" }); }
+            catch (ArgumentException) { rejected = true; }
+            Require(rejected, "Duplicate dynamic shortcuts must fail before registration.");
+        }
+
+        private static LeagueClientSession Session(string key) { return new LeagueClientSession("fixture", 1, 12345, key, "https", "smoke"); }
+        private static byte[] Bytes(string text) { return Encoding.UTF8.GetBytes(text); }
+        private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }
+
+        private static string History()
+        {
+            return "{\"games\":{\"games\":[" + Match(1, 3, 5, 2, 300, 120, 10, true) + "," + Match(2, 7, 3, 0, 500, 120, 20, false) + "]}}";
+        }
+
+        private static string Match(int id, int kills, int assists, int deaths, int damage, int cs, int vision, bool win)
+        {
+            return "{\"gameId\":" + id + ",\"mapId\":11,\"gameDuration\":1200,\"participantIdentities\":[" +
+                "{\"participantId\":1,\"player\":{\"puuid\":\"self\",\"summonerId\":1}}," +
+                "{\"participantId\":2,\"player\":{\"puuid\":\"enemy\",\"summonerId\":2}}],\"participants\":[" +
+                "{\"participantId\":1,\"teamId\":100,\"spell1Id\":11,\"championId\":" + (id == 1 ? 77 : 88) + ",\"stats\":{\"kills\":" + kills +
+                ",\"assists\":" + assists + ",\"deaths\":" + deaths + ",\"win\":" + (win ? "true" : "false") +
+                ",\"totalDamageDealtToChampions\":" + damage + ",\"totalDamageTaken\":200,\"goldEarned\":10000,\"totalMinionsKilled\":" + cs +
+                ",\"neutralMinionsKilled\":0,\"visionScore\":" + vision + ",\"teamPosition\":\"TOP\"}}," +
+                "{\"participantId\":2,\"teamId\":100,\"championId\":99,\"stats\":{\"kills\":" + (10 - kills) +
+                ",\"assists\":1,\"deaths\":1,\"win\":true,\"totalDamageDealtToChampions\":" + (1000 - damage) +
+                ",\"totalDamageTaken\":800,\"goldEarned\":10000}}]}";
+        }
+
+        private sealed class TaggedHistoryFake : ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi
+        {
+            internal int TaggedCalls;
+            internal int UntaggedCalls;
+            internal bool AllowUntagged;
+            internal string LastPuuid;
+            internal string LastTag;
+            internal Action OnTagged;
+            internal int DelayMs;
+            internal int MaxConcurrent;
+            internal bool RequireOverlap;
+            private int _concurrent;
+            private int _barrierArrivals;
+            private readonly TaskCompletionSource<bool> _parallelBarrier =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            public async Task<byte[]> TryGetTaggedSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, string serverId, string tag)
+            {
+                token.ThrowIfCancellationRequested();
+                if (tag == null) Interlocked.Increment(ref UntaggedCalls);
+                else Interlocked.Increment(ref TaggedCalls);
+                var concurrent = Interlocked.Increment(ref _concurrent);
+                var previous = Volatile.Read(ref MaxConcurrent);
+                while (concurrent > previous)
+                {
+                    var observed = Interlocked.CompareExchange(ref MaxConcurrent, concurrent, previous);
+                    if (observed == previous) break;
+                    previous = observed;
+                }
+                try
+                {
+                    if (RequireOverlap)
+                    {
+                        if (Interlocked.Increment(ref _barrierArrivals) >= 2)
+                            _parallelBarrier.TrySetResult(true);
+                        await Task.WhenAny(_parallelBarrier.Task,
+                            Task.Delay(TimeSpan.FromSeconds(2), token)).ConfigureAwait(false);
+                        token.ThrowIfCancellationRequested();
+                    }
+                    LastPuuid = targetPuuid;
+                    LastTag = tag;
+                    if (DelayMs > 0) await Task.Delay(DelayMs, token).ConfigureAwait(false);
+                    OnTagged?.Invoke();
+                    return Bytes("{\"games\":[]}");
+                }
+                finally { Interlocked.Decrement(ref _concurrent); }
+            }
+
+            public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, string serverId = null)
+            {
+                if (!AllowUntagged)
+                    throw new InvalidOperationException("Tagged history must not use unfiltered SGP.");
+                return TryGetTaggedSummaryAsync(targetPuuid, startIndex, count,
+                    token, serverId, null);
+            }
+
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+
+            public Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private sealed class Fake : ILeagueClientApi, ILeagueMasteryReadApi
+        {
+            internal readonly List<string> Paths = new List<string>();
+            internal int RosterReads, MaxConcurrent;
+            private int _concurrent;
+            internal bool ChangeRoster;
+            internal bool ChangeHistory;
+            internal bool ChangeLobbyRoster;
+            internal bool DuplicateLobbyPuuid;
+            internal int LobbyReads;
+            internal string ProfilePuuid = "self";
+            internal bool IncompleteHistory;
+            internal bool MultipleIncompleteHistory;
+            internal bool PagedHistory;
+            internal bool NoLocalHistory;
+            internal string ChampionNamesJson = "[]";
+            internal Action<string> OnRead;
+            internal Action OnMastery;
+            internal int MasteryReads;
+            public Task<byte[]> TryGetMasteryTopAsync(LeagueClientSession expected,
+                string target, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                MasteryReads++;
+                OnMastery?.Invoke();
+                return Task.FromResult(Bytes("{\"puuid\":\"" + target +
+                    "\",\"score\":6000,\"masteries\":[{\"championId\":99,\"championPoints\":5000,\"championLevel\":7}," +
+                    "{\"championId\":22,\"championPoints\":3000,\"championLevel\":6}]}"));
+            }
+            public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested(); Paths.Add(path);
+                MaxConcurrent = Math.Max(MaxConcurrent, Interlocked.Increment(ref _concurrent));
+                try
+                {
+                    await Task.Delay(1, token).ConfigureAwait(false);
+                    OnRead?.Invoke(path); token.ThrowIfCancellationRequested();
+                    if (path.StartsWith("/lol-summoner/v2/summoners/puuid/", StringComparison.Ordinal))
+                        return Bytes("{\"puuid\":\"enemy\",\"privacy\":\"PRIVATE\"}");
+                    if (path == LeagueDashboardDetailsService.SummonerPath)
+                        return Bytes("{\"puuid\":\"" + ProfilePuuid + "\",\"summonerId\":1}");
+                    if (path == LeagueLiveDataService.LobbyPath)
+                    {
+                        LobbyReads++;
+                        return Bytes("{\"gameConfig\":{\"queueId\":420,\"gameMode\":\"CLASSIC\"},\"members\":[" +
+                            "{\"puuid\":\"self\",\"summonerId\":1,\"summonerName\":\"Self\"}," +
+                            "{\"puuid\":\"" + (DuplicateLobbyPuuid ? "self" :
+                                ChangeLobbyRoster && LobbyReads > 1 ? "replacement" : "enemy") +
+                            "\",\"summonerId\":2,\"summonerName\":\"Other\"}," +
+                            "{\"puuid\":\"bot\",\"isBot\":true}]}");
+                    }
+                    if (path == LeagueLiveDataService.ChampSelectSessionPath)
+                    {
+                        RosterReads++;
+                        return Bytes("{\"localPlayerCellId\":0,\"myTeam\":[{\"cellId\":0,\"puuid\":\"self\",\"summonerId\":1,\"gameName\":\"Self\",\"championId\":77}]," +
+                            "\"theirTeam\":[{\"cellId\":5,\"puuid\":\"enemy\",\"summonerId\":2,\"gameName\":\"Enemy\",\"championId\":" +
+                            (ChangeRoster && RosterReads > 1 ? 88 : 99) + "}]}");
+                    }
+                    if (path == LeagueLiveDataService.GameflowSessionPath)
+                        return Bytes("{\"phase\":\"InProgress\",\"gameData\":{\"gameId\":100,\"teamOne\":[" +
+                            "{\"puuid\":\"self\",\"summonerId\":1,\"championId\":77}],\"teamTwo\":[" +
+                            "{\"puuid\":\"enemy\",\"summonerId\":2,\"championId\":99}]}}");
+                    if (path.Contains("/matches?") && PagedHistory && path.Contains("begIndex=20"))
+                        return Bytes("{\"games\":{\"games\":[" + Match(3, 3, 5, 2, 300, 120, 10, true) + "]}}");
+                    if (path.Contains("/matches?") && PagedHistory && path.Contains("begIndex=40"))
+                        return Bytes("{\"games\":{\"games\":[" + Match(4, 3, 5, 2, 300, 120, 10, true) + "]}}");
+                    if (path.Contains("/matches?") && NoLocalHistory) return null;
+                    if (path.Contains("/matches?")) return Bytes(IncompleteHistory ?
+                        (MultipleIncompleteHistory
+                            ? "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11},{\"gameId\":2,\"mapId\":11}]}}"
+                            : "{\"games\":{\"games\":[{\"gameId\":1,\"mapId\":11}]}}") : ChangeHistory ?
+                        "{\"games\":{\"games\":[" + Match(3, 1, 4, 0, 200, 130, 15, false) + "]}}" : History());
+                    if (path == "/lol-match-history/v1/games/1") return Bytes(Match(1, 3, 5, 2, 300, 120, 10, true));
+                    if (path == "/lol-match-history/v1/games/2" && MultipleIncompleteHistory)
+                        return Bytes(Match(2, 7, 3, 0, 500, 120, 20, false));
+                    if (path == "/lol-match-history/v1/games/3" && PagedHistory)
+                        return Bytes(Match(3, 3, 5, 2, 300, 120, 10, true));
+                    if (path.StartsWith("/lol-match-history/v1/game-timelines/", StringComparison.Ordinal))
+                        return Bytes("{\"frames\":[{\"events\":[]},{\"participantFrames\":{\"1\":{\"position\":{\"x\":3830,\"y\":7880}}}}]}");
+                    if (path == LeaguePlayerDataService.ChampionSummaryPath) return Bytes(ChampionNamesJson);
+                    throw new InvalidOperationException("Unexpected dynamic analysis route.");
+                }
+                finally { Interlocked.Decrement(ref _concurrent); }
+            }
+        }
+    }
+}

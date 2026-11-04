@@ -1,0 +1,1773 @@
+using System;
+using System.Drawing;
+using System.Globalization;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using FACM.Services;
+using FACM.Theming;
+
+namespace FACM.League
+{
+    // Filters only verified, already loaded player-card evidence; paging always keeps its source cursor.
+    internal static class LeagueOngoingHistoryFilter
+    {
+        private static readonly string[] Roles = { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+
+        internal static IReadOnlyList<LeaguePlayerMatchSummary> Select(
+            IList<LeaguePlayerMatchSummary> matches, string puuid, int championId, string position,
+            string mode = "")
+        {
+            if (matches == null || matches.Count > 200 ||
+                !LeagueDynamicMessageService.SafePuuid(puuid) ||
+                championId < 0 || championId > 9999 ||
+                (mode != "" && mode != "NORMAL" && mode != "CHERRY") ||
+                (!string.IsNullOrEmpty(position) && !Roles.Contains(position, StringComparer.Ordinal)))
+                return new LeaguePlayerMatchSummary[0];
+            return matches.Where(m => m != null && m.GameId > 0 && m.ChampionId > 0 &&
+                    (string.IsNullOrEmpty(m.PuuId) || string.Equals(m.PuuId, puuid, StringComparison.Ordinal)) &&
+                    (string.IsNullOrWhiteSpace(m.GameType) ||
+                     string.Equals(m.GameType, "MATCHED_GAME", StringComparison.OrdinalIgnoreCase)) &&
+                    LeaguePlayerHistoryAnalysis.Outcome(m) != LeagueHistoryOutcome.Unknown)
+                .GroupBy(m => m.GameId).Where(g => g.Count() == 1).Select(g => g.First())
+                .Where(m => (championId == 0 || m.ChampionId == championId) &&
+                    (string.IsNullOrEmpty(position) ||
+                     string.Equals(m.Position, position, StringComparison.OrdinalIgnoreCase)) &&
+                    (mode == "" || (!string.IsNullOrWhiteSpace(m.GameMode) &&
+                     !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase) &&
+                     (mode == "CHERRY") ==
+                     string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase))))
+                .OrderByDescending(m => m.GameCreationEpochMs).ThenByDescending(m => m.GameId)
+                .ToArray();
+        }
+
+        internal static bool NeedsCollection(IList<LeaguePlayerMatchSummary> matches, string puuid,
+            int championId, string position, int nextIndex, int requests, string mode = "")
+        {
+            return (championId > 0 || !string.IsNullOrEmpty(position) || mode != "") &&
+                LeagueDynamicMessageService.SafePuuid(puuid) &&
+                championId >= 0 && championId <= 9999 &&
+                (mode == "" || mode == "NORMAL" || mode == "CHERRY") &&
+                (string.IsNullOrEmpty(position) || Roles.Contains(position, StringComparer.Ordinal)) &&
+                nextIndex >= 0 && nextIndex < 200 && requests >= 0 && requests < 5 &&
+                matches != null && matches.Count <= 200 &&
+                Select(matches, puuid, championId, position, mode).Count < 20;
+        }
+
+        internal static int[] Champions(IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            return Select(matches, puuid, 0, "").GroupBy(m => m.ChampionId)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key)
+                .Select(g => g.Key).ToArray();
+        }
+
+        internal static string[] Positions(IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            var rows = Select(matches, puuid, 0, "");
+            return Roles.Where(role => rows.Any(m =>
+                string.Equals(m.Position, role, StringComparison.OrdinalIgnoreCase))).ToArray();
+        }
+    }
+
+
+    // Source-aligned on-demand card details: use only the verified, bounded card sample.
+    internal static class LeagueOngoingCardStatsProjection
+    {
+        internal static bool CanEditTag(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return snapshot != null && !snapshot.HistoricalStandalone &&
+                snapshot.HistoricalOriginalRoster.Count == 0 && player?.Player != null && snapshot.Players.Contains(player) &&
+                LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) &&
+                LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) &&
+                !string.Equals(snapshot.SelfPuuid, player.Player.PuuId, StringComparison.Ordinal);
+        }
+
+        internal static string CopyText(IReadOnlyList<KeyValuePair<string, string>> rows)
+        {
+            if (rows == null || rows.Count == 0 || rows.Count > 40 ||
+                rows.Any(row => string.IsNullOrWhiteSpace(row.Key) ||
+                    row.Key.Any(char.IsControl) || row.Value == null ||
+                    row.Value.Any(char.IsControl))) return string.Empty;
+            var text = string.Join(Environment.NewLine,
+                rows.Select(row => row.Key + ": " + row.Value));
+            return text.Length <= 8192 ? text : string.Empty;
+        }
+
+        internal static IReadOnlyList<KeyValuePair<string, string>> Project(
+            UiTextCatalog ui, IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            var selected = LeagueOngoingHistoryFilter.Select(matches, puuid, 0, "");
+            if (selected.Count == 0) return new KeyValuePair<string, string>[0];
+            var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(selected, puuid);
+            if (analysis == null) return new KeyValuePair<string, string>[0];
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Func<double?, string> percent = value => value.HasValue
+                ? value.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—";
+            var rows = new List<KeyValuePair<string, string>>();
+            Action<string, string> add = (label, value) =>
+                rows.Add(new KeyValuePair<string, string>(label, value));
+            add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame),
+                analysis.Games.ToString(CultureInfo.CurrentCulture));
+            add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate),
+                percent(analysis.WinRate) + " (" + analysis.Wins + " / " + analysis.Losses + ")");
+            if (analysis.Kda.HasValue)
+                add("KDA", analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.AverageGameKda.HasValue)
+                add("KDA avg", analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.KdaCv.HasValue)
+                add("KDA CV", analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
+            if (analysis.StatisticsGames > 0)
+                add("K / D / A", string.Join(" / ", new[] {
+                    analysis.Kills, analysis.Deaths, analysis.Assists
+                }.Select(value => (value / (double)analysis.StatisticsGames)
+                    .ToString("0.00", CultureInfo.CurrentCulture))));
+            if (analysis.NormalWins + analysis.NormalLosses > 0)
+                add(t(LeagueEfficiencyUiTextKeys.ProfileModeNormal),
+                    percent(analysis.NormalWinRate) + " (" +
+                    (analysis.NormalWins + analysis.NormalLosses) + ")");
+            if (analysis.CherryWins + analysis.CherryLosses > 0)
+                add(t(LeagueEfficiencyUiTextKeys.ProfileModeCherry),
+                    percent(analysis.CherryWinRate) + " (" +
+                    (analysis.CherryWins + analysis.CherryLosses) + ")");
+            if (analysis.ArenaPlacements > 0)
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaCount),
+                    analysis.ArenaFirstPlaces + " / " + analysis.ArenaPlacements);
+            if (analysis.MostPlayedPositions.Count > 0)
+                add(t(LeagueEfficiencyUiTextKeys.OngoingCardPositions)
+                    .Replace("{0}", "").Trim(),
+                    string.Join(" / ", analysis.MostPlayedPositions.Select(position =>
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, position.Key) +
+                        " " + position.Value.ToString(CultureInfo.CurrentCulture))));
+            return rows;
+        }
+    }
+
+    internal sealed class LeagueOngoingCardBreakdownRow
+    {
+        internal string Kind, Label, Mode, Position;
+        internal int ChampionId;
+        internal LeagueHistoricalCardAnalysis Analysis;
+    }
+
+    // The popup never initiates history reads: every row comes from the current verified card.
+    internal static class LeagueOngoingCardBreakdown
+    {
+        internal static IReadOnlyList<LeagueOngoingCardBreakdownRow> Project(
+            IList<LeaguePlayerMatchSummary> matches, string puuid)
+        {
+            if (matches == null || matches.Count > 200 ||
+                !LeagueDynamicMessageService.SafePuuid(puuid))
+                return new LeagueOngoingCardBreakdownRow[0];
+            var verified = LeagueOngoingHistoryFilter.Select(matches, puuid, 0, "");
+            var result = new List<LeagueOngoingCardBreakdownRow>();
+            foreach (var group in verified.GroupBy(m => m.ChampionId)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key))
+            {
+                var name = group.Select(m => m.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion", ChampionId = group.Key,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            }
+            foreach (var group in verified.Where(m => new[] {
+                "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"
+            }.Contains(m.Position, StringComparer.Ordinal)).GroupBy(m => m.Position)
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "position", Position = group.Key, Label = group.Key,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            foreach (var group in verified.Where(m =>
+                !string.IsNullOrWhiteSpace(m.GameMode) &&
+                !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(m => string.Equals(m.GameMode, "CHERRY", StringComparison.OrdinalIgnoreCase)
+                    ? "CHERRY" : "NORMAL").OrderBy(g => g.Key, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "mode", Mode = group.Key, Label = group.Key,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+
+            var roles = new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" };
+            foreach (var group in verified.Where(m => roles.Contains(m.Position, StringComparer.Ordinal))
+                .GroupBy(m => new { m.ChampionId, m.Position })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.ChampionId)
+                .ThenBy(g => g.Key.Position, StringComparer.Ordinal))
+            {
+                var name = group.Select(m => m.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion-position", ChampionId = group.Key.ChampionId,
+                    Position = group.Key.Position,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key.ChampionId : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.ToArray(), puuid)
+                });
+            }
+            var modes = verified.Where(m => !string.IsNullOrWhiteSpace(m.GameMode) &&
+                !string.Equals(m.GameMode, "PRACTICETOOL", StringComparison.OrdinalIgnoreCase))
+                .Select(m => new { Match = m, Mode = string.Equals(m.GameMode, "CHERRY",
+                    StringComparison.OrdinalIgnoreCase) ? "CHERRY" : "NORMAL" }).ToArray();
+            foreach (var group in modes.GroupBy(m => new { m.Match.ChampionId, m.Mode })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.ChampionId)
+                .ThenBy(g => g.Key.Mode, StringComparer.Ordinal))
+            {
+                var name = group.Select(m => m.Match.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion-mode", ChampionId = group.Key.ChampionId,
+                    Mode = group.Key.Mode,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key.ChampionId : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.Select(m => m.Match).ToArray(), puuid)
+                });
+            }
+            foreach (var group in modes.Where(m => roles.Contains(m.Match.Position, StringComparer.Ordinal))
+                .GroupBy(m => new { m.Match.Position, m.Mode })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.Position, StringComparer.Ordinal)
+                .ThenBy(g => g.Key.Mode, StringComparer.Ordinal))
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "position-mode", Position = group.Key.Position, Mode = group.Key.Mode,
+                    Label = group.Key.Position,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(group.Select(m => m.Match).ToArray(), puuid)
+                });
+            foreach (var group in modes.Where(m => roles.Contains(m.Match.Position, StringComparer.Ordinal))
+                .GroupBy(m => new { m.Match.ChampionId, m.Match.Position, m.Mode })
+                .OrderByDescending(g => g.Count()).ThenBy(g => g.Key.ChampionId)
+                .ThenBy(g => g.Key.Position, StringComparer.Ordinal)
+                .ThenBy(g => g.Key.Mode, StringComparer.Ordinal))
+            {
+                var name = group.Select(m => m.Match.ChampionName)
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var safeName = new string((name ?? "")
+                    .Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardBreakdownRow {
+                    Kind = "champion-position-mode", ChampionId = group.Key.ChampionId,
+                    Position = group.Key.Position, Mode = group.Key.Mode,
+                    Label = string.IsNullOrWhiteSpace(safeName) ? "#" + group.Key.ChampionId : safeName,
+                    Analysis = LeagueHistoricalMatchDryRun.CardAnalysis(
+                        group.Select(m => m.Match).ToArray(), puuid)
+                });
+            }
+            return result.Where(row => row.Analysis != null).ToArray();
+        }
+    }
+
+    internal static class LeagueOngoingCardActionSelection
+    {
+        private static bool IsLiveRosterPlayer(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return snapshot != null && player?.Player != null &&
+                !snapshot.HistoricalStandalone && snapshot.HistoricalOriginalRoster.Count == 0 &&
+                snapshot.Players.Contains(player) &&
+                LeagueDynamicMessageService.SafePuuid(snapshot.SelfPuuid) &&
+                LeagueDynamicMessageService.SafePuuid(player.Player.PuuId);
+        }
+
+        internal static bool CanOpenProfile(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player)
+        {
+            return IsLiveRosterPlayer(snapshot, player);
+        }
+
+        internal static bool CanOpenJungle(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player, bool enabled = true, bool showForAll = false)
+        {
+            if (!enabled || !IsLiveRosterPlayer(snapshot, player)) return false;
+            if (showForAll) return true;
+            var position = player.Player.Position;
+            return string.Equals(position?.Trim(), "JUNGLE", StringComparison.OrdinalIgnoreCase) ||
+                player.Player.Spell1Id == 11 || player.Player.Spell2Id == 11;
+        }
+
+        internal static bool TryCurrentChampion(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player, out int championId)
+        {
+            championId = 0;
+            if (!IsLiveRosterPlayer(snapshot, player) ||
+                player.Player.ChampionId <= 0 || player.Player.ChampionId > 9999) return false;
+            championId = player.Player.ChampionId;
+            return true;
+        }
+
+        internal static bool TryCurrentPosition(LeagueDynamicMessageSnapshot snapshot,
+            LeagueDynamicMessagePlayer player, out string position)
+        {
+            position = "";
+            if (!IsLiveRosterPlayer(snapshot, player) ||
+                string.IsNullOrWhiteSpace(player.Player.Position) ||
+                player.Player.Position.Length > 16) return false;
+            var role = player.Player.Position.Trim().ToUpperInvariant();
+            if (!new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                .Contains(role, StringComparer.Ordinal)) return false;
+            position = role;
+            return true;
+        }
+
+        internal static bool TrySelect(LeagueOngoingCardBreakdownRow row,
+            out int championId, out string position, out string mode)
+        {
+            championId = 0; position = ""; mode = "";
+            if (row == null || !new[] { "champion", "position", "mode",
+                "champion-position", "champion-mode", "position-mode",
+                "champion-position-mode" }.Contains(row.Kind, StringComparer.Ordinal))
+                return false;
+            var champion = row.Kind.StartsWith("champion", StringComparison.Ordinal);
+            var role = row.Kind == "position" || row.Kind == "champion-position" ||
+                row.Kind == "position-mode" || row.Kind == "champion-position-mode";
+            var gameMode = row.Kind == "mode" || row.Kind == "champion-mode" ||
+                row.Kind == "position-mode" || row.Kind == "champion-position-mode";
+            if (champion && (row.ChampionId < 1 || row.ChampionId > 9999) ||
+                role && !new[] { "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY" }
+                    .Contains(row.Position, StringComparer.Ordinal) ||
+                gameMode && row.Mode != "NORMAL" && row.Mode != "CHERRY")
+                return false;
+            championId = champion ? row.ChampionId : 0;
+            position = role ? row.Position : "";
+            mode = gameMode ? row.Mode : "";
+            return true;
+        }
+    }
+
+    internal sealed class LeagueOngoingCardBreakdownDialog : Form
+    {
+        internal bool HasSelection { get; private set; }
+        internal bool CollectFull { get; private set; }
+        internal int SelectedChampionId { get; private set; }
+        internal string SelectedPosition { get; private set; }
+        internal string SelectedMode { get; private set; }
+
+        internal LeagueOngoingCardBreakdownDialog(UiTextCatalog ui,
+            IList<LeaguePlayerMatchSummary> matches, string puuid, bool canCollect = false)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown);
+            Width = 780; Height = 460; MinimumSize = new Size(540, 320);
+            AutoScaleMode = AutoScaleMode.Font; StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false; BackColor = FacmDesignSystem.Canvas;
+            ForeColor = FacmDesignSystem.Text;
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var breakdown = LeagueOngoingCardBreakdown.Project(matches, puuid);
+            Action<LeagueOngoingCardBreakdownRow, bool> applySelection = (selected, collect) =>
+            {
+                int champion; string position, mode;
+                if (!LeagueOngoingCardActionSelection.TrySelect(selected,
+                    out champion, out position, out mode)) return;
+                HasSelection = true;
+                CollectFull = collect;
+                SelectedChampionId = champion;
+                SelectedPosition = position;
+                SelectedMode = mode;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            foreach (var kind in new[] { "champion", "position", "mode",
+                "champion-position", "champion-mode", "position-mode",
+                "champion-position-mode" })
+            {
+                var championLabel = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion);
+                var positionLabel = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition);
+                var modeLabel = t(LeagueEfficiencyUiTextKeys.AdvancedMode);
+                var label = kind == "champion" ? championLabel
+                    : kind == "position" ? positionLabel
+                    : kind == "mode" ? modeLabel
+                    : kind == "champion-position" ? championLabel + " / " + positionLabel
+                    : kind == "champion-mode" ? championLabel + " / " + modeLabel
+                    : kind == "position-mode" ? positionLabel + " / " + modeLabel
+                    : championLabel + " / " + positionLabel + " / " + modeLabel;
+                var page = new TabPage(label) { BackColor = FacmDesignSystem.Canvas };
+                var list = new ListView {
+                    Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                    GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
+                    ForeColor = FacmDesignSystem.Text
+                };
+                list.Columns.Add(label, 145);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame), 75);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate), 95);
+                list.Columns.Add("KDA", 85);
+                list.Columns.Add("KDA CV", 85);
+                list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaCount), 115);
+                foreach (var item in breakdown.Where(row => row.Kind == kind))
+                {
+                    var a = item.Analysis;
+                    var modeName = item.Mode == "CHERRY"
+                        ? t(LeagueEfficiencyUiTextKeys.ProfileModeCherry)
+                        : t(LeagueEfficiencyUiTextKeys.ProfileModeNormal);
+                    var title = kind == "mode" ? modeName
+                        : kind == "position" ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
+                        : kind == "champion-position" ? item.Label + " / " +
+                            LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position)
+                        : kind == "champion-mode" ? item.Label + " / " + modeName
+                        : kind == "position-mode" ? LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position) +
+                            " / " + modeName
+                        : kind == "champion-position-mode" ? item.Label + " / " +
+                            LeaguePlayerHistoryAnalysis.PositionName(ui, item.Position) +
+                            " / " + modeName : item.Label;
+                    var row = new ListViewItem(title);
+                    row.SubItems.Add(a.Games.ToString(CultureInfo.CurrentCulture));
+                    row.SubItems.Add(a.WinRate.HasValue
+                        ? a.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—");
+                    row.SubItems.Add(a.Kda.HasValue
+                        ? a.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—");
+                    row.SubItems.Add(a.KdaCv.HasValue
+                        ? a.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—");
+                    row.SubItems.Add(a.ArenaPlacements > 0
+                        ? a.ArenaFirstPlaces + "/" + a.ArenaPlacements : "—");
+                    row.Tag = item;
+                    list.Items.Add(row);
+                }
+                Action selectGroup = () =>
+                {
+                    if (list.SelectedItems.Count == 1)
+                        applySelection(list.SelectedItems[0].Tag as LeagueOngoingCardBreakdownRow, false);
+                };
+                list.DoubleClick += (sender, args) => selectGroup();
+                list.KeyDown += (sender, args) =>
+                {
+                    if (args.KeyCode != Keys.Enter) return;
+                    selectGroup();
+                    args.Handled = true;
+                };
+                page.Controls.Add(list);
+                tabs.TabPages.Add(page);
+            }
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
+                Padding = new Padding(10) };
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+            root.Controls.Add(tabs, 0, 0);
+            var close = new Button { Dock = DockStyle.Right, Width = 100,
+                Text = t(LeagueEfficiencyUiTextKeys.DynamicTagCancel),
+                DialogResult = DialogResult.Cancel };
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
+            actions.Controls.Add(close);
+            if (canCollect)
+            {
+                var collect = new Button { Width = 140, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+                collect.Click += (sender, args) =>
+                {
+                    var selected = tabs.SelectedTab?.Controls.OfType<ListView>()
+                        .FirstOrDefault()?.SelectedItems;
+                    if (selected != null && selected.Count == 1)
+                        applySelection(selected[0].Tag as LeagueOngoingCardBreakdownRow, true);
+                };
+                actions.Controls.Add(collect);
+            }
+            root.Controls.Add(actions, 0, 1);
+            Controls.Add(root); CancelButton = close;
+        }
+    }
+
+    internal sealed class LeagueOngoingHistoryFilterOption
+    {
+        internal int ChampionId;
+        internal string Position;
+        internal string Label;
+        public override string ToString() { return Label ?? ""; }
+    }
+
+    // Bounded, local player-card history; the existing dynamic-message owner supplies all data.
+
+    internal sealed class LeagueOngoingCardMasteryRow
+    {
+        internal int ChampionId;
+        internal string ChampionName;
+        internal long Level;
+        internal long Points;
+    }
+
+    // Project only the current player's explicitly fetched, source-verified mastery.
+    internal static class LeagueOngoingCardMasteryProjection
+    {
+        internal static IReadOnlyList<LeagueOngoingCardMasteryRow> Project(
+            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches)
+        {
+            if (player?.Player == null || player.Mastery?.Masteries == null ||
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
+                player.Mastery.Masteries.Count > 9)
+                return new LeagueOngoingCardMasteryRow[0];
+            var names = LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId, 0, "")
+                .GroupBy(match => match.ChampionId)
+                .ToDictionary(group => group.Key, group => group
+                    .Select(match => match.ChampionName)
+                    .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "");
+            var seen = new HashSet<long>();
+            var result = new List<LeagueOngoingCardMasteryRow>();
+            foreach (var raw in player.Mastery.Masteries)
+            {
+                var id = LeagueMatchTimelineParser.Number(raw, "championId");
+                var level = LeagueMatchTimelineParser.Number(raw, "championLevel");
+                var points = LeagueMatchTimelineParser.Number(raw, "championPoints");
+                var owner = LeagueMatchTimelineParser.Text(raw, "puuid");
+                if (!id.HasValue || id.Value < 1 || id.Value > int.MaxValue ||
+                    !seen.Add(id.Value) || !level.HasValue || level.Value < 0 ||
+                    !points.HasValue || points.Value < 0 ||
+                    (!string.IsNullOrEmpty(owner) &&
+                     !string.Equals(owner, player.Player.PuuId, StringComparison.OrdinalIgnoreCase)))
+                    return new LeagueOngoingCardMasteryRow[0];
+                string name;
+                names.TryGetValue((int)id.Value, out name);
+                name = new string((name ?? "").Where(c => !char.IsControl(c)).Take(48).ToArray()).Trim();
+                result.Add(new LeagueOngoingCardMasteryRow {
+                    ChampionId = (int)id.Value,
+                    ChampionName = name.Length == 0 ? "#" + id.Value : name,
+                    Level = level.Value,
+                    Points = points.Value
+                });
+            }
+            return result.OrderByDescending(row => row.Points)
+                .ThenBy(row => row.ChampionId).ToArray();
+        }
+    }
+
+
+    // Source-style per-champion detail uses only already verified card rows and mastery.
+    internal sealed class LeagueOngoingCardChampionPreview
+    {
+        internal int ChampionId, Games, Wins, Losses;
+        internal double? WinRate, Kda, KdaCv;
+        internal long? MasteryLevel, MasteryPoints;
+
+        internal static LeagueOngoingCardChampionPreview Project(
+            IReadOnlyList<LeagueOngoingCardBreakdownRow> analyses,
+            IReadOnlyList<LeagueOngoingCardMasteryRow> masteries, int championId)
+        {
+            if (championId < 1 || championId > 9999 || analyses == null || masteries == null)
+                return null;
+            var found = analyses.Where(row => row != null && row.Kind == "champion" &&
+                row.ChampionId == championId).Take(2).ToArray();
+            var mastery = masteries.Where(row => row != null &&
+                row.ChampionId == championId).Take(2).ToArray();
+            if (found.Length > 1 || mastery.Length > 1 ||
+                found.Length == 0 && mastery.Length == 0 ||
+                found.Length == 1 && found[0].Analysis == null)
+                return null;
+            var a = found.Length == 1 ? found[0].Analysis : null;
+            var m = mastery.Length == 1 ? mastery[0] : null;
+            return new LeagueOngoingCardChampionPreview {
+                ChampionId = championId,
+                Games = a == null ? 0 : a.Games,
+                Wins = a == null ? 0 : a.Wins,
+                Losses = a == null ? 0 : a.Losses,
+                WinRate = a?.WinRate,
+                Kda = a?.Kda,
+                KdaCv = a?.KdaCv,
+                MasteryLevel = m == null ? (long?)null : m.Level,
+                MasteryPoints = m == null ? (long?)null : m.Points
+            };
+        }
+    }
+
+    // An on-demand native player-card detail: existing verified champion usage and
+    // explicitly requested mastery share one read-only, copyable surface.
+    internal sealed class LeagueOngoingCardJungleSummary
+    {
+        internal int Games;
+        internal double TopRate, MidRate, BotRate, Level3Rate, Level4Rate;
+        internal double? FirstDragonRate;
+        internal double AverageDragons, AverageVoidgrubs, AverageHeralds, AverageBarons;
+        internal double? AverageFirstDragonSeconds;
+        internal int FirstCampGames;
+        internal IReadOnlyDictionary<string, int> FirstCamps;
+    }
+
+    internal static class LeagueOngoingCardJungleProjection
+    {
+        internal static LeagueOngoingCardJungleSummary Project(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId = 0, int teamId = 0)
+        {
+            if (samples == null || samples.Count == 0 || championId < 0 ||
+                championId > 9999 || (teamId != 0 && teamId != 100 && teamId != 200) ||
+                samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
+                samples.Any(row => row == null || row.GameId <= 0 ||
+                    row.ChampionId <= 0 || row.TeamId != 100 && row.TeamId != 200) ||
+                samples.Select(row => row.GameId).Distinct().Count() != samples.Count)
+                return null;
+            var selected = samples.Where(row => (championId == 0 || row.ChampionId == championId) &&
+                (teamId == 0 || row.TeamId == teamId)).ToArray();
+            var aggregate = LeagueJungleTimelineAnalysis.Aggregate(selected);
+            if (aggregate == null) return null;
+            return new LeagueOngoingCardJungleSummary {
+                Games = aggregate.Games,
+                TopRate = aggregate.TopRate, MidRate = aggregate.MidRate,
+                BotRate = aggregate.BotRate,
+                Level3Rate = aggregate.Level3GankRate,
+                Level4Rate = aggregate.Level4GankRate,
+                FirstDragonRate = selected.Any(row => row.FirstDragonWon.HasValue)
+                    ? (double?)aggregate.FirstDragonRate : null,
+                AverageFirstDragonSeconds = aggregate.AverageFirstDragonSeconds,
+                FirstCamps = aggregate.FirstCamps,
+                FirstCampGames = selected.Count(row => row.FirstCamp != null &&
+                    (row.FirstCampSide == "blue" || row.FirstCampSide == "red")),
+                AverageDragons = aggregate.AverageDragons,
+                AverageVoidgrubs = aggregate.AverageVoidgrubs,
+                AverageHeralds = aggregate.AverageHeralds,
+                AverageBarons = aggregate.AverageBarons
+            };
+        }
+    }
+
+
+    // The map uses only already-loaded timeline evidence. A game is never spliced
+    // into another game's route, and invalid or duplicate games are rejected.
+    internal static class LeagueOngoingJungleMapProjection
+    {
+        internal static int[] AvailableChampions(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int currentChampionId)
+        {
+            if (samples == null || LeagueOngoingCardJungleProjection.Project(samples) == null)
+                return new int[0];
+            return samples.GroupBy(s => s.ChampionId)
+                .OrderByDescending(g => g.Key == currentChampionId)
+                .ThenByDescending(g => g.Count()).ThenBy(g => g.Key)
+                .Take(20).Select(g => g.Key).ToArray();
+        }
+
+        internal static IReadOnlyList<LeagueJungleTimelineSample> Select(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId, int teamId = 0)
+        {
+            if (samples == null || championId < 0 || championId > 9999 ||
+                (teamId != 0 && teamId != 100 && teamId != 200) ||
+                samples.Count > LeaguePlayerDataService.MaximumMatchCount ||
+                samples.Any(s => s == null || s.GameId <= 0 || s.ChampionId <= 0 ||
+                    s.TeamId != 100 && s.TeamId != 200 ||
+                    s.MinutePositions.Count > 14 || s.GankPositions.Count > 20 ||
+                    s.MinuteIndices.Count != s.MinutePositions.Count ||
+                    s.MinuteIndices.Where((minute, i) => minute < 1 || minute > 14 ||
+                        i > 0 && minute <= s.MinuteIndices[i - 1]).Any() ||
+                    s.MinutePositions.Concat(s.GankPositions).Any(p =>
+                        p == null || p.Item1 < 0 || p.Item1 > 16000 ||
+                        p.Item2 < 0 || p.Item2 > 16000)) ||
+                samples.Select(s => s.GameId).Distinct().Count() != samples.Count)
+                return new LeagueJungleTimelineSample[0];
+            return samples.Where(s => (championId == 0 || s.ChampionId == championId) &&
+                (teamId == 0 || s.TeamId == teamId) &&
+                s.MinutePositions.Count > 0).Take(20).ToArray();
+        }
+
+        // Reuse the source-weighted 7x7 Rift projection: one weight per minute
+        // position, five per confirmed takedown. Selection is bounded and verified.
+        internal static LeagueEventMap.HeatmapCell[] Heatmap(
+            IReadOnlyList<LeagueJungleTimelineSample> samples, int championId, int teamId = 0)
+        {
+            var selected = Select(samples, championId, teamId);
+            if (selected.Count == 0) return new LeagueEventMap.HeatmapCell[0];
+            return LeagueEventMap.BuildHeatmap(
+                selected.SelectMany(s => s.MinutePositions)
+                    .Select(p => new PointF(p.Item1, p.Item2)),
+                selected.SelectMany(s => s.GankPositions)
+                    .Select(p => new PointF(p.Item1, p.Item2)), 11);
+        }
+    }
+
+    internal sealed class LeagueOngoingJungleChampionChoice
+    {
+        internal int ChampionId;
+        internal string Name;
+        public override string ToString() { return Name; }
+    }
+
+    internal sealed class LeagueOngoingJungleMapPanel : Panel
+    {
+        private IReadOnlyList<LeagueJungleTimelineSample> _samples =
+            new LeagueJungleTimelineSample[0];
+        private LeagueEventMap.HeatmapCell[] _heatmap = new LeagueEventMap.HeatmapCell[0];
+        private readonly Bitmap _map;
+        private bool _showHeatmap;
+
+        internal LeagueOngoingJungleMapPanel()
+        {
+            DoubleBuffered = true;
+            Dock = DockStyle.Fill;
+            BackColor = FacmDesignSystem.CanvasRaised;
+            AccessibleName = "Jungle first 14 minutes position map";
+            using (var stream = typeof(LeagueEventMap).Assembly.GetManifestResourceStream(
+                "FACM.Resources.LeagueMaps.11.png"))
+            {
+                if (stream != null)
+                    using (var image = Image.FromStream(stream)) _map = new Bitmap(image);
+            }
+        }
+
+        internal void SetSamples(IReadOnlyList<LeagueJungleTimelineSample> samples)
+        {
+            _samples = samples ?? new LeagueJungleTimelineSample[0];
+            _heatmap = LeagueOngoingJungleMapProjection.Heatmap(_samples, 0);
+            Invalidate();
+        }
+
+        internal void SetHeatmapMode(bool enabled)
+        {
+            if (_showHeatmap == enabled) return;
+            _showHeatmap = enabled;
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var size = Math.Min(Width - 24, Height - 20);
+            if (size < 40) return;
+            var left = (Width - size) / 2f;
+            var top = (Height - size) / 2f;
+            var bounds = new RectangleF(left, top, size, size);
+            if (_map != null)
+                g.DrawImage(_map, bounds);
+            else
+                using (var fill = new SolidBrush(Color.FromArgb(20, 116, 155, 142)))
+                    g.FillRectangle(fill, bounds);
+            LeagueEventMap.DrawJungleSideOverlay(g, Rectangle.Round(bounds));
+            if (_showHeatmap)
+            {
+                var laneColors = new[] { Color.FromArgb(220, 38, 38),
+                    Color.FromArgb(245, 158, 11), Color.FromArgb(37, 99, 235) };
+                foreach (var cell in _heatmap.OrderBy(c => c.Intensity))
+                {
+                    var radius = Math.Max(5f, size / 7f * (0.3f + cell.Intensity * 0.4f));
+                    var x = left + cell.Center.X * size;
+                    var y = top + cell.Center.Y * size;
+                    using (var brush = new SolidBrush(Color.FromArgb(
+                        (int)(255f * (0.22f + cell.Intensity * 0.52f)), laneColors[cell.Lane])))
+                        g.FillEllipse(brush, x - radius, y - radius, radius * 2, radius * 2);
+                }
+                return;
+            }
+            Func<Tuple<int, int>, PointF> point = p =>
+            {
+                var normalized = LeagueEventMap.Normalize(p.Item1, p.Item2, 11).Value;
+                return new PointF(left + normalized.X * size, top + normalized.Y * size);
+            };
+            using (var route = new Pen(Color.FromArgb(160, 66, 170, 169), 1.8f))
+            using (var minute = new SolidBrush(Color.FromArgb(180, 66, 170, 169)))
+            using (var gank = new SolidBrush(Color.FromArgb(220, 224, 144, 75)))
+            {
+                foreach (var sample in _samples)
+                {
+                    var positions = sample.MinutePositions.Select(point).ToArray();
+                    for (var i = 1; i < positions.Length; i++)
+                        if (sample.MinuteIndices[i] == sample.MinuteIndices[i - 1] + 1)
+                            g.DrawLine(route, positions[i - 1], positions[i]);
+                    foreach (var p in positions)
+                        g.FillEllipse(minute, p.X - 3, p.Y - 3, 6, 6);
+                    foreach (var p in sample.GankPositions.Select(point))
+                        g.FillEllipse(gank, p.X - 4, p.Y - 4, 8, 8);
+                }
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) _map?.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    internal sealed class LeagueOngoingCardInsightsDialog : Form
+    {
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+        internal int SelectedChampionId { get; private set; }
+        internal int CollectChampionId { get; private set; }
+
+        internal LeagueOngoingCardInsightsDialog(UiTextCatalog ui,
+            LeagueDynamicMessagePlayer player, IList<LeaguePlayerMatchSummary> matches,
+            bool canCollect, Func<bool> isCurrent,
+            Func<CancellationToken, Task<bool>> loadJungle, bool openJungle = false)
+        {
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = ui.Get(UiTextKeys.LeagueProfileMastery) + " · " +
+                (player.Player.GameName ?? ("#" + player.Player.CellId));
+            Width = 640; Height = 450; MinimumSize = new Size(450, 310);
+            AutoScaleMode = AutoScaleMode.Font;
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var tabs = new TabControl { Dock = DockStyle.Fill };
+            var usagePage = new TabPage(ui.Get(UiTextKeys.LeaguePlayerAnalysisTopChampions)) {
+                BackColor = FacmDesignSystem.Canvas
+            };
+            var usage = MakeList();
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 190);
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll), 90);
+            usage.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon), 90);
+            usage.Columns.Add("%", 80);
+            var championAnalyses = LeagueOngoingCardBreakdown.Project(matches, player.Player.PuuId)
+                .Where(entry => entry.Kind == "champion").ToArray();
+            var masteryRows = LeagueOngoingCardMasteryProjection.Project(player, matches);
+            foreach (var entry in championAnalyses)
+            {
+                var item = new ListViewItem(entry.Label) { Tag = entry.ChampionId };
+                item.SubItems.Add(entry.Analysis.Games.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Analysis.Wins.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Analysis.WinRate.HasValue
+                    ? entry.Analysis.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—");
+                usage.Items.Add(item);
+            }
+            usagePage.Controls.Add(usage);
+            var masteryPage = new TabPage(ui.Get(UiTextKeys.LeagueProfileMastery)) {
+                BackColor = FacmDesignSystem.Canvas
+            };
+            var mastery = MakeList();
+            mastery.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 190);
+            mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel), 110);
+            mastery.Columns.Add(ui.Get(UiTextKeys.LeagueProfileMasteryPoints), 150);
+            foreach (var entry in masteryRows)
+            {
+                var item = new ListViewItem(entry.ChampionName) { Tag = entry.ChampionId };
+                item.SubItems.Add(entry.Level.ToString(CultureInfo.CurrentCulture));
+                item.SubItems.Add(entry.Points.ToString("N0", CultureInfo.CurrentCulture));
+                mastery.Items.Add(item);
+            }
+            if (mastery.Items.Count == 0)
+                mastery.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
+            masteryPage.Controls.Add(mastery);
+            var verifiedChampions = new HashSet<int>(
+                LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId));
+            Action<ListView, bool> select = (list, collect) =>
+            {
+                if (isCurrent != null && !isCurrent() || list == null ||
+                    list.SelectedItems.Count != 1) return;
+                var id = list.SelectedItems[0].Tag;
+                if (!(id is int) || (int)id <= 0) return;
+                if (canCollect && (collect || !verifiedChampions.Contains((int)id)))
+                    CollectChampionId = (int)id;
+                else if (verifiedChampions.Contains((int)id))
+                    SelectedChampionId = (int)id;
+                else return;
+                DialogResult = DialogResult.OK;
+                Close();
+            };
+            var footer = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 3, RowCount = 1, Padding = new Padding(8, 4, 8, 4) };
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 145));
+            var preview = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                TextAlign = ContentAlignment.MiddleLeft };
+            var filterChampion = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) };
+            var collectChampion = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+            Func<ListView> activeList = () => tabs.SelectedTab == usagePage ? usage :
+                tabs.SelectedTab == masteryPage ? mastery : null;
+            Action updatePreview = () =>
+            {
+                var list = activeList();
+                var id = list != null && list.SelectedItems.Count == 1
+                    ? list.SelectedItems[0].Tag : null;
+                var current = isCurrent == null || isCurrent();
+                var selectedId = id is int ? (int)id : 0;
+                var details = LeagueOngoingCardChampionPreview.Project(
+                    championAnalyses, masteryRows, selectedId);
+                filterChampion.Enabled = current && details != null &&
+                    verifiedChampions.Contains(selectedId);
+                collectChampion.Enabled = current && canCollect && details != null;
+                if (details == null) { preview.Text = string.Empty; return; }
+                var parts = new List<string>();
+                if (details.Games > 0)
+                {
+                    parts.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate) + " " +
+                        (details.WinRate.HasValue
+                            ? details.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%"
+                            : "—") + " (" + details.Wins + "/" + details.Losses + ")");
+                    parts.Add("KDA " + (details.Kda.HasValue
+                        ? details.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—"));
+                    if (details.KdaCv.HasValue)
+                        parts.Add("CV " + details.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
+                }
+                if (details.MasteryLevel.HasValue)
+                    parts.Add(ui.Get(UiTextKeys.LeagueProfileMasteryLevel) + " " +
+                        details.MasteryLevel.Value.ToString(CultureInfo.CurrentCulture) + " · " +
+                        details.MasteryPoints.Value.ToString("N0", CultureInfo.CurrentCulture));
+                preview.Text = string.Join("  ·  ", parts);
+            };
+            foreach (var list in new[] { usage, mastery })
+            {
+                list.DoubleClick += (sender, args) => select(list, true);
+                list.KeyDown += (sender, args) =>
+                {
+                    if (args.KeyCode != Keys.Enter) return;
+                    select(list, false);
+                    args.Handled = true;
+                };
+                list.SelectedIndexChanged += (sender, args) => updatePreview();
+            }
+            tabs.SelectedIndexChanged += (sender, args) => updatePreview();
+            filterChampion.Click += (sender, args) => select(activeList(), false);
+            collectChampion.Click += (sender, args) => select(activeList(), true);
+            footer.Controls.Add(preview, 0, 0);
+            footer.Controls.Add(filterChampion, 1, 0);
+            footer.Controls.Add(collectChampion, 2, 0);
+            tabs.TabPages.Add(usagePage); tabs.TabPages.Add(masteryPage);
+            if (loadJungle != null && isCurrent != null)
+            {
+                var junglePage = new TabPage(t(LeagueEfficiencyUiTextKeys.JungleTab)) {
+                    BackColor = FacmDesignSystem.Canvas
+                };
+                var jungleLayout = new TableLayoutPanel { Dock = DockStyle.Fill,
+                    ColumnCount = 1, RowCount = 3 };
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 48));
+                jungleLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 52));
+                var jungleHeader = new FlowLayoutPanel { Dock = DockStyle.Fill,
+                    FlowDirection = FlowDirection.RightToLeft, WrapContents = true };
+                var load = new Button { Width = 125, Height = 30,
+                    Text = t(LeagueEfficiencyUiTextKeys.JungleLoad) };
+                var championChoice = new ComboBox { Width = 145,
+                    DropDownStyle = ComboBoxStyle.DropDownList };
+                Action populateChampions = () =>
+                {
+                    var previous = (championChoice.SelectedItem as LeagueOngoingJungleChampionChoice)
+                        ?.ChampionId ?? -1;
+                    var ids = LeagueOngoingJungleMapProjection.AvailableChampions(
+                        player.JungleSamples, player.Player.ChampionId);
+                    championChoice.Items.Clear();
+                    championChoice.Items.Add(new LeagueOngoingJungleChampionChoice {
+                        ChampionId = 0, Name = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll)
+                    });
+                    foreach (var id in ids)
+                    {
+                        var name = matches?.FirstOrDefault(m => m.ChampionId == id &&
+                            !string.IsNullOrWhiteSpace(m.ChampionName))?.ChampionName;
+                        name = string.IsNullOrWhiteSpace(name) ? "#" + id :
+                            new string(name.Where(ch => !char.IsControl(ch)).Take(40).ToArray());
+                        championChoice.Items.Add(new LeagueOngoingJungleChampionChoice {
+                            ChampionId = id, Name = name
+                        });
+                    }
+                    var chosen = championChoice.Items.Cast<LeagueOngoingJungleChampionChoice>()
+                        .FirstOrDefault(item => item.ChampionId == previous);
+                    if (chosen == null)
+                    {
+                        var preferred = ids.Length == 0 ? 0 : ids[0];
+                        chosen = championChoice.Items.Cast<LeagueOngoingJungleChampionChoice>()
+                            .First(item => item.ChampionId == preferred);
+                    }
+                    championChoice.SelectedItem = chosen;
+                };
+                jungleHeader.Controls.Add(load);
+                jungleHeader.Controls.Add(championChoice);
+                var sideChoice = new ComboBox { Width = 112,
+                    DropDownStyle = ComboBoxStyle.DropDownList };
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleMapAllSides));
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleBlueSide));
+                sideChoice.Items.Add(ui.Get(UiTextKeys.LeagueJungleRedSide));
+                sideChoice.SelectedIndex = 0;
+                jungleHeader.Controls.Add(sideChoice);
+                var heatmapToggle = new CheckBox { AutoSize = true, Height = 30,
+                    Text = ui.Get(UiTextKeys.LeagueJungleMapHeatmapToggle) };
+                jungleHeader.Controls.Add(heatmapToggle);
+                var jungleMap = new LeagueOngoingJungleMapPanel();
+                heatmapToggle.CheckedChanged += (sender, args) =>
+                    jungleMap.SetHeatmapMode(heatmapToggle.Checked);
+                var jungle = MakeList();
+                jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleTab), 210);
+                jungle.Columns.Add(t(LeagueEfficiencyUiTextKeys.JungleActivity), 320);
+                Action refresh = () =>
+                {
+                    jungle.Items.Clear();
+                    var championId = (championChoice.SelectedItem as LeagueOngoingJungleChampionChoice)
+                        ?.ChampionId ?? 0;
+                    var teamId = sideChoice.SelectedIndex == 1 ? 100 :
+                        sideChoice.SelectedIndex == 2 ? 200 : 0;
+                    jungleMap.SetSamples(LeagueOngoingJungleMapProjection.Select(player.JungleSamples,
+                        championId, teamId));
+                    var data = LeagueOngoingCardJungleProjection.Project(player.JungleSamples,
+                        championId, teamId);
+                    if (data == null)
+                    {
+                        jungle.Items.Add(t(LeagueEfficiencyUiTextKeys.DynamicUnavailable));
+                        return;
+                    }
+                    Action<string, string> add = (name, value) =>
+                    {
+                        var item = new ListViewItem(name);
+                        item.SubItems.Add(value);
+                        jungle.Items.Add(item);
+                    };
+                    Func<double, string> rate = value => value.ToString("P0", CultureInfo.CurrentCulture);
+                    Func<double, string> number = value => value.ToString("0.0", CultureInfo.CurrentCulture);
+                    add(t(LeagueEfficiencyUiTextKeys.JungleTab),
+                        data.Games.ToString(CultureInfo.CurrentCulture));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleActivity),
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, "TOP") + " " + rate(data.TopRate) +
+                        " / " + LeaguePlayerHistoryAnalysis.PositionName(ui, "MIDDLE") + " " +
+                        rate(data.MidRate) + " / " +
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, "BOTTOM") + " " + rate(data.BotRate));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleEarlyGank),
+                        "3: " + rate(data.Level3Rate) + " / 4: " + rate(data.Level4Rate));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleDragon),
+                        (data.FirstDragonRate.HasValue ? rate(data.FirstDragonRate.Value) : "—") +
+                        " / " + number(data.AverageDragons) +
+                        " / " + (data.AverageFirstDragonSeconds.HasValue
+                            ? TimeSpan.FromSeconds(data.AverageFirstDragonSeconds.Value).ToString(@"m\:ss")
+                            : "—"));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleFirstClear),
+                        data.FirstCampGames == 0 ? "—" :
+                        data.FirstCampGames.ToString(CultureInfo.CurrentCulture) + "/" +
+                        data.Games.ToString(CultureInfo.CurrentCulture) + " · " +
+                        string.Join(" / ", data.FirstCamps.OrderByDescending(entry => entry.Value)
+                            .ThenBy(entry => entry.Key, StringComparer.Ordinal).Take(3)
+                            .Select(entry => entry.Key.Replace("/", " · ") + " " +
+                                rate(entry.Value / (double)data.FirstCampGames))));
+                    add(t(LeagueEfficiencyUiTextKeys.JungleMonsters),
+                        number(data.AverageVoidgrubs) + " / " + number(data.AverageHeralds) +
+                        " / " + number(data.AverageBarons));
+                };
+                populateChampions();
+                refresh();
+                championChoice.SelectedIndexChanged += (sender, args) => refresh();
+                sideChoice.SelectedIndexChanged += (sender, args) => refresh();
+                load.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || !load.Enabled) return;
+                    load.Enabled = false;
+                    try
+                    {
+                        if (await loadJungle(_lifetime.Token) && !IsDisposed &&
+                            !_lifetime.IsCancellationRequested && isCurrent())
+                        {
+                            populateChampions();
+                            refresh();
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally { if (!IsDisposed) load.Enabled = true; }
+                };
+                jungleLayout.Controls.Add(jungleHeader, 0, 0);
+                jungleLayout.Controls.Add(jungleMap, 0, 1);
+                jungleLayout.Controls.Add(jungle, 0, 2);
+                junglePage.Controls.Add(jungleLayout);
+                tabs.TabPages.Add(junglePage);
+                if (openJungle)
+                    Shown += (sender, args) =>
+                    {
+                        if (!IsDisposed && isCurrent() && player.JungleSamples == null)
+                            load.PerformClick();
+                    };
+            }
+            tabs.SelectedTab = openJungle && tabs.TabPages.Count > 2
+                ? tabs.TabPages[2] : masteryPage;
+            var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+            root.Controls.Add(tabs, 0, 0);
+            root.Controls.Add(footer, 0, 1);
+            Controls.Add(root);
+            updatePreview();
+            Activated += (sender, args) =>
+            {
+                if (isCurrent != null && !isCurrent()) Close();
+            };
+            Shown += (sender, args) =>
+            {
+                if (isCurrent != null && !isCurrent()) Close();
+            };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            base.Dispose(disposing);
+        }
+
+        private static ListView MakeList()
+        {
+            var list = new ListView {
+                Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                GridLines = true, MultiSelect = true,
+                BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text
+            };
+            list.KeyDown += (sender, args) =>
+            {
+                if (!args.Control || args.KeyCode != Keys.C || list.SelectedItems.Count == 0) return;
+                var lines = list.SelectedItems.Cast<ListViewItem>()
+                    .Select(item => string.Join("\t", item.SubItems.Cast<ListViewItem.ListViewSubItem>()
+                        .Select(cell => cell.Text)));
+                try { Clipboard.SetText(string.Join(Environment.NewLine, lines)); }
+                catch (System.Runtime.InteropServices.ExternalException) { }
+                args.Handled = true;
+            };
+            return list;
+        }
+    }
+
+    internal sealed class LeagueOngoingPlayerHistoryDialog : Form
+    {
+        private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
+
+        internal LeagueOngoingPlayerHistoryDialog(UiTextCatalog ui,
+            LeagueDynamicMessageSnapshot snapshot, LeagueDynamicMessagePlayer player,
+            Func<bool> isCurrent,
+            Func<LeaguePlayerMatchSummary, CancellationToken, Task<LeagueEncounterMatchDetailResult>> loadDetail,
+            Func<string, CancellationToken, Task<Bitmap>> loadAsset,
+            Func<int, CancellationToken, Task<IReadOnlyList<LeaguePlayerMatchSummary>>> loadMore,
+            int autoPages = 0, Func<int, string, string, Form> openFullCollection = null,
+            Func<CancellationToken, Task<bool>> loadMastery = null,
+            Func<CancellationToken, Task<bool>> loadJungle = null,
+            Func<IWin32Window, Task> editTag = null,
+            Func<CancellationToken, Task<bool>> reloadHistory = null)
+        {
+            if (ui == null || snapshot == null || player?.Player == null ||
+                isCurrent == null || loadDetail == null || loadAsset == null || loadMore == null ||
+                !snapshot.Players.Contains(player) ||
+                !LeagueDynamicMessageService.SafePuuid(player.Player.PuuId) ||
+                autoPages < 0 || autoPages > 10)
+                throw new ArgumentException("A current player-card snapshot is required.");
+            Func<string, string> t = key => LeagueEfficiencyText.Get(ui, key);
+            Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · " +
+                (player.Player.GameName ?? ("#" + player.Player.CellId));
+            Width = 780; Height = 490; MinimumSize = new Size(520, 350);
+            AutoScaleMode = AutoScaleMode.Font;
+            StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
+            BackColor = FacmDesignSystem.Canvas; ForeColor = FacmDesignSystem.Text;
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1,
+                RowCount = 4, Padding = new Padding(12) };
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var matches = player.RosterCardHistory != null &&
+                player.RosterCardNextIndex >= snapshot.HistoryLoadCount
+                ? player.RosterCardHistory.ToList()
+                : LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
+            var selectedChampion = 0;
+            var selectedPosition = "";
+            var selectedMode = "";
+            Func<IReadOnlyList<LeaguePlayerMatchSummary>> visibleMatches = () =>
+                LeagueOngoingHistoryFilter.Select(matches, player.Player.PuuId,
+                    selectedChampion, selectedPosition, selectedMode);
+            Func<string> summaryText = () =>
+            {
+                var visible = visibleMatches();
+                return t(LeagueEfficiencyUiTextKeys.OngoingRecentSummary)
+                    .Replace("{0}", visible.Count.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{1}", visible.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                        LeagueHistoryOutcome.Win).ToString(CultureInfo.CurrentCulture))
+                    .Replace("{2}", visible.Count(m => LeaguePlayerHistoryAnalysis.Outcome(m) ==
+                        LeagueHistoryOutcome.Loss).ToString(CultureInfo.CurrentCulture));
+            };
+            var summary = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = summaryText() };
+            var stats = new Label { Dock = DockStyle.Fill, AutoEllipsis = true,
+                ForeColor = FacmDesignSystem.TextMuted };
+            var statsTip = new ToolTip();
+            Action refreshStats = () =>
+            {
+                var analysis = LeagueHistoricalMatchDryRun.CardAnalysis(visibleMatches(), player.Player.PuuId);
+                if (analysis == null)
+                {
+                    stats.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                    return;
+                }
+                var detail = t(LeagueEfficiencyUiTextKeys.OngoingCardStats)
+                    .Replace("{0}", analysis.WinRate.HasValue
+                        ? analysis.WinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) + "%" : "—")
+                    .Replace("{1}", analysis.Wins.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{2}", analysis.Losses.ToString(CultureInfo.CurrentCulture))
+                    .Replace("{3}", analysis.Kda.HasValue
+                        ? analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture) : "—")
+                    .Replace("{4}", analysis.StatisticsGames.ToString(CultureInfo.CurrentCulture));
+                if (analysis.ArenaPlacements > 0)
+                    detail += " · " + t(LeagueEfficiencyUiTextKeys.OngoingCardArenaFirst)
+                        .Replace("{0}", analysis.ArenaFirstPlaces.ToString(CultureInfo.CurrentCulture))
+                        .Replace("{1}", analysis.ArenaPlacements.ToString(CultureInfo.CurrentCulture));
+                if (analysis.MostPlayedPositions.Count > 0)
+                    detail += " · " + t(LeagueEfficiencyUiTextKeys.OngoingCardPositions)
+                        .Replace("{0}", string.Join(" / ", analysis.MostPlayedPositions
+                            .Select(p => p.Key + " " + p.Value.ToString(CultureInfo.CurrentCulture))));
+                stats.Text = detail;
+                var expanded = detail;
+                if (analysis.KdaCv.HasValue)
+                    expanded += Environment.NewLine + "KDA CV: " +
+                        analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture);
+                if (analysis.NormalWinRate.HasValue)
+                    expanded += Environment.NewLine + t(LeagueEfficiencyUiTextKeys.ProfileModeNormal) + ": " +
+                        analysis.NormalWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
+                        "% (" + (analysis.NormalWins + analysis.NormalLosses).ToString(
+                            CultureInfo.CurrentCulture) + ")";
+                if (analysis.CherryWinRate.HasValue)
+                    expanded += Environment.NewLine + t(LeagueEfficiencyUiTextKeys.ProfileModeCherry) + ": " +
+                        analysis.CherryWinRate.Value.ToString("0.0", CultureInfo.CurrentCulture) +
+                        "% (" + (analysis.CherryWins + analysis.CherryLosses).ToString(
+                            CultureInfo.CurrentCulture) + ")";
+                stats.AccessibleDescription = expanded;
+                statsTip.SetToolTip(stats, expanded);
+            };
+            refreshStats();
+            var rows = new ListView { Dock = DockStyle.Fill, View = View.Details,
+                FullRowSelect = true, GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text };
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame), 120);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardChampion), 165);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon) + " / " +
+                t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost), 100);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftKda), 150);
+            rows.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicPositions), 115);
+            Action<LeaguePlayerMatchSummary> appendMatch = match =>
+            {
+                var outcome = LeaguePlayerHistoryAnalysis.Outcome(match);
+                var row = new ListViewItem(match.GameId.ToString(CultureInfo.InvariantCulture));
+                row.SubItems.Add(string.IsNullOrWhiteSpace(match.ChampionName)
+                    ? "#" + match.ChampionId : match.ChampionName);
+                row.SubItems.Add(match.GameMode == "CHERRY" &&
+                    LeagueCherryTeams.ValidPlacement(match.SubteamPlacement).HasValue
+                    ? t(LeagueEfficiencyUiTextKeys.OngoingRecentPlacement).Replace("{0}",
+                        match.SubteamPlacement.Value.ToString(CultureInfo.CurrentCulture))
+                    : t(outcome == LeagueHistoryOutcome.Win
+                        ? LeagueEfficiencyUiTextKeys.DynamicEncounterMatchWon :
+                        outcome == LeagueHistoryOutcome.Loss
+                        ? LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLost :
+                        outcome == LeagueHistoryOutcome.Remake
+                        ? LeagueEfficiencyUiTextKeys.OngoingRecentRemake :
+                        LeagueEfficiencyUiTextKeys.OngoingRecentAbort));
+                row.SubItems.Add(match.StatisticsAvailable && match.ParticipantResolved
+                    ? match.Kills + " / " + match.Deaths + " / " + match.Assists : "—");
+                row.SubItems.Add(string.IsNullOrWhiteSpace(match.Position) ? "—" : match.Position);
+                row.Tag = match;
+                rows.Items.Add(row);
+            };
+            var filters = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6 };
+            foreach (var width in new[] { 13f, 21f, 13f, 21f, 12f, 20f })
+                filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, width));
+            var championLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) };
+            var positionLabel = new Label { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition) };
+            var championChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            var positionChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            var modeChoice = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll));
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.ProfileModeNormal));
+            modeChoice.Items.Add(t(LeagueEfficiencyUiTextKeys.ProfileModeCherry));
+            modeChoice.SelectedIndex = 0;
+            filters.Controls.Add(new Label { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.AdvancedMode),
+                TextAlign = ContentAlignment.MiddleLeft }, 4, 0);
+            filters.Controls.Add(modeChoice, 5, 0);
+            filters.Controls.Add(championLabel, 0, 0);
+            filters.Controls.Add(championChoice, 1, 0);
+            filters.Controls.Add(positionLabel, 2, 0);
+            filters.Controls.Add(positionChoice, 3, 0);
+            Action updateCollect = null;
+            Action refreshRows = () =>
+            {
+                rows.BeginUpdate();
+                try
+                {
+                    rows.Items.Clear();
+                    foreach (var match in visibleMatches()) appendMatch(match);
+                }
+                finally { rows.EndUpdate(); }
+                summary.Text = summaryText();
+                refreshStats();
+                if (updateCollect != null) updateCollect();
+            };
+            var updatingChoices = false;
+            Action rebuildChoices = () =>
+            {
+                updatingChoices = true;
+                try
+                {
+                    championChoice.Items.Clear();
+                    championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                    { ChampionId = 0, Label = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll) });
+                    var verifiedChoices = LeagueOngoingHistoryFilter.Select(
+                        matches, player.Player.PuuId, 0, "");
+                    foreach (var id in LeagueOngoingHistoryFilter.Champions(matches, player.Player.PuuId))
+                    {
+                        var row = verifiedChoices.First(m => m.ChampionId == id);
+                        championChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                        {
+                            ChampionId = id,
+                            Label = string.IsNullOrWhiteSpace(row.ChampionName)
+                                ? "#" + id.ToString(CultureInfo.InvariantCulture) : row.ChampionName
+                        });
+                    }
+                    championChoice.SelectedIndex = 0;
+                    for (var i = 0; i < championChoice.Items.Count; i++)
+                        if (((LeagueOngoingHistoryFilterOption)championChoice.Items[i]).ChampionId == selectedChampion)
+                            championChoice.SelectedIndex = i;
+                    positionChoice.Items.Clear();
+                    positionChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                    { Position = "", Label = t(LeagueEfficiencyUiTextKeys.OngoingCardFilterAll) });
+                    foreach (var role in LeagueOngoingHistoryFilter.Positions(matches, player.Player.PuuId))
+                        positionChoice.Items.Add(new LeagueOngoingHistoryFilterOption
+                        { Position = role, Label = LeaguePlayerHistoryAnalysis.PositionName(ui, role) });
+                    positionChoice.SelectedIndex = 0;
+                    for (var i = 0; i < positionChoice.Items.Count; i++)
+                        if (((LeagueOngoingHistoryFilterOption)positionChoice.Items[i]).Position == selectedPosition)
+                            positionChoice.SelectedIndex = i;
+                    modeChoice.SelectedIndex = selectedMode == "CHERRY" ? 2 :
+                        selectedMode == "NORMAL" ? 1 : 0;
+                }
+                finally { updatingChoices = false; }
+            };
+            championChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedChampion = ((LeagueOngoingHistoryFilterOption)championChoice.SelectedItem).ChampionId;
+                refreshRows();
+            };
+            positionChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedPosition = ((LeagueOngoingHistoryFilterOption)positionChoice.SelectedItem).Position;
+                refreshRows();
+            };
+            modeChoice.SelectedIndexChanged += (sender, args) =>
+            {
+                if (updatingChoices) return;
+                selectedMode = modeChoice.SelectedIndex == 2 ? "CHERRY" :
+                    modeChoice.SelectedIndex == 1 ? "NORMAL" : "";
+                refreshRows();
+            };
+            rebuildChoices();
+            refreshRows();
+            var loading = false;
+            var nextIndex = player.RosterCardHistory != null &&
+                player.RosterCardNextIndex >= snapshot.HistoryLoadCount
+                ? player.RosterCardNextIndex : snapshot.HistoryLoadCount;
+            var hasMore = player.History != null &&
+                nextIndex < 200 && !player.RosterCardExhausted;
+            var more = new Button { Dock = DockStyle.Fill,
+                Text = player.History == null && reloadHistory != null
+                    ? ui.Get(UiTextKeys.LeaguePlayerRemoteRetry)
+                    : t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore),
+                Enabled = hasMore || player.History == null && reloadHistory != null };
+            var collect = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect), Enabled = false };
+            var collecting = false;
+            var fullCollect = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardCollect) + " · 1000" };
+            var fullCollectMenu = new ContextMenuStrip();
+            fullCollect.Disposed += (sender, args) => fullCollectMenu.Dispose();
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4 };
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 118));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 148));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 125));
+            header.Controls.Add(summary, 0, 0);
+            header.Controls.Add(more, 1, 0);
+            header.Controls.Add(collect, 2, 0);
+            header.Controls.Add(fullCollect, 3, 0);
+            updateCollect = () =>
+            {
+                collect.Enabled = !collecting && !loading && hasMore && isCurrent() &&
+                    LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
+                        selectedChampion, selectedPosition, nextIndex, 0, selectedMode);
+                int currentChampion; string currentPosition;
+                fullCollect.Enabled = !collecting && !loading && isCurrent() &&
+                    openFullCollection != null &&
+                    (selectedMode != "" || selectedChampion > 0 ||
+                     !string.IsNullOrEmpty(selectedPosition) ||
+                     LeagueOngoingCardActionSelection.TryCurrentChampion(
+                         snapshot, player, out currentChampion) ||
+                     LeagueOngoingCardActionSelection.TryCurrentPosition(
+                         snapshot, player, out currentPosition));
+            };
+            Action<int, string, string> openCollection = (championId, position, mode) =>
+            {
+                if (!isCurrent() || collecting || loading || openFullCollection == null) return;
+                using (var dialog = openFullCollection(championId, position, mode))
+                    if (dialog != null) dialog.ShowDialog(this);
+                if (!IsDisposed) updateCollect();
+            };
+            fullCollect.Click += (sender, args) =>
+            {
+                if (!fullCollect.Enabled || !isCurrent()) return;
+                fullCollectMenu.Items.Clear();
+                if (selectedChampion > 0 || selectedPosition != "" || selectedMode != "")
+                {
+                    var selected = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown));
+                    selected.Click += (source, e) =>
+                        openCollection(selectedChampion, selectedPosition, selectedMode);
+                }
+                int currentChampion;
+                if (LeagueOngoingCardActionSelection.TryCurrentChampion(
+                    snapshot, player, out currentChampion))
+                {
+                    var item = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardFilterChampion) + " · #" +
+                        currentChampion.ToString(CultureInfo.InvariantCulture));
+                    item.Click += (source, e) =>
+                    {
+                        int freshChampion;
+                        if (LeagueOngoingCardActionSelection.TryCurrentChampion(
+                            snapshot, player, out freshChampion) && freshChampion == currentChampion)
+                            openCollection(currentChampion, "", "");
+                    };
+                }
+                string currentPosition;
+                if (LeagueOngoingCardActionSelection.TryCurrentPosition(
+                    snapshot, player, out currentPosition))
+                {
+                    var item = fullCollectMenu.Items.Add(
+                        t(LeagueEfficiencyUiTextKeys.OngoingCardFilterPosition) + " · " +
+                        LeaguePlayerHistoryAnalysis.PositionName(ui, currentPosition));
+                    item.Click += (source, e) =>
+                    {
+                        string freshPosition;
+                        if (LeagueOngoingCardActionSelection.TryCurrentPosition(
+                            snapshot, player, out freshPosition) && freshPosition == currentPosition)
+                            openCollection(0, currentPosition, "");
+                    };
+                }
+                if (fullCollectMenu.Items.Count > 0)
+                    fullCollectMenu.Show(fullCollect, new Point(0, fullCollect.Height));
+            };
+            updateCollect();
+            Func<CancellationToken, Task<bool>> fetchNext = async requestToken =>
+            {
+                if (loading || !hasMore || !isCurrent()) return false;
+                loading = true; more.Enabled = false; collect.Enabled = false;
+                try
+                {
+                    var page = await loadMore(nextIndex, requestToken);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return false;
+                    if (page == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return false;
+                    }
+                    var additions = LeagueHistoricalMatchDryRun.CardPageAdditions(
+                        matches, page, player.Player.PuuId);
+                    if (additions == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return false;
+                    }
+                    nextIndex += Math.Min(20, 200 - nextIndex);
+                    foreach (var match in additions) matches.Add(match);
+                    hasMore = additions.Count > 0 && nextIndex < 200;
+                    player.RosterCardHistory = matches.ToList();
+                    player.RosterCardNextIndex = nextIndex;
+                    player.RosterCardExhausted = !hasMore;
+                    rebuildChoices();
+                    refreshRows();
+                    return page.Count > 0;
+                }
+                catch (OperationCanceledException) { return false; }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                    return false;
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = hasMore && nextIndex < 200 && isCurrent() && !collecting;
+                        updateCollect();
+                    }
+                }
+            };
+            more.Click += async (sender, args) =>
+            {
+                if (player.History != null)
+                {
+                    await fetchNext(_lifetime.Token);
+                    return;
+                }
+                if (reloadHistory == null || loading || collecting || !isCurrent()) return;
+                loading = true; more.Enabled = false; collect.Enabled = false;
+                fullCollect.Enabled = false;
+                try
+                {
+                    var recovered = await reloadHistory(_lifetime.Token);
+                    if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                    if (!recovered || player.History == null)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    var restored = LeagueHistoricalMatchDryRun.CardRecentMatches(player).ToList();
+                    if (restored.Count > snapshot.HistoryLoadCount)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    matches.Clear();
+                    matches.AddRange(restored);
+                    nextIndex = snapshot.HistoryLoadCount;
+                    hasMore = restored.Count > 0 && nextIndex < 200;
+                    player.RosterCardHistory = null;
+                    player.RosterCardNextIndex = 0;
+                    player.RosterCardExhausted = !hasMore;
+                    more.Text = t(LeagueEfficiencyUiTextKeys.OngoingHistoryLoadMore);
+                    rebuildChoices();
+                    refreshRows();
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = !collecting && isCurrent() &&
+                            (hasMore || player.History == null && reloadHistory != null);
+                        updateCollect();
+                    }
+                }
+            };
+            collect.Click += async (sender, args) =>
+            {
+                if (collecting || loading || !isCurrent()) return;
+                collecting = true;
+                more.Enabled = false;
+                updateCollect();
+                try
+                {
+                    using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                    {
+                        deadline.CancelAfter(TimeSpan.FromSeconds(60));
+                        for (var requests = 0; requests < 5; requests++)
+                        {
+                            if (deadline.IsCancellationRequested ||
+                                !LeagueOngoingHistoryFilter.NeedsCollection(matches, player.Player.PuuId,
+                                    selectedChampion, selectedPosition, nextIndex, requests,
+                                    selectedMode) ||
+                                !hasMore || !await fetchNext(deadline.Token)) break;
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { }
+                finally
+                {
+                    collecting = false;
+                    if (!IsDisposed)
+                    {
+                        more.Enabled = hasMore && !loading && isCurrent();
+                        updateCollect();
+                    }
+                }
+            };
+            rows.DoubleClick += async (sender, args) =>
+            {
+                if (loading || !isCurrent() || rows.SelectedItems.Count != 1) return;
+                var match = rows.SelectedItems[0].Tag as LeaguePlayerMatchSummary;
+                if (match == null) return;
+                loading = true;
+                summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchLoading);
+                try
+                {
+                    var detail = await loadDetail(match, _lifetime.Token);
+                    if (IsDisposed || !isCurrent() || _lifetime.IsCancellationRequested) return;
+                    if (detail?.Status != LeagueEncounterMatchDetailStatus.Ready)
+                    {
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                        return;
+                    }
+                    if (detail.EogOnly != null)
+                    {
+                        using (var dialog = new LeagueSgpEogOnlyDialog(ui, detail))
+                            dialog.ShowDialog(this);
+                    }
+                    else if (detail.Participants != null && detail.Participants.Count > 0)
+                    {
+                        using (var dialog = new LeagueEncounterMatchScoreboardDialog(ui,
+                            detail, loadAsset))
+                            dialog.ShowDialog(this);
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception)
+                {
+                    if (!IsDisposed)
+                        summary.Text = t(LeagueEfficiencyUiTextKeys.DynamicEncounterMatchUnavailable);
+                }
+                finally
+                {
+                    loading = false;
+                    if (!IsDisposed && isCurrent())
+                        summary.Text = summaryText();
+                }
+            };
+            layout.Controls.Add(header, 0, 0);
+            layout.Controls.Add(filters, 0, 1);
+            var statsRow = new TableLayoutPanel { Dock = DockStyle.Fill,
+                ColumnCount = 2 + (loadMastery == null ? 0 : 1) +
+                    (editTag != null && LeagueOngoingCardStatsProjection.CanEditTag(snapshot, player) ? 1 : 0) };
+            statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            if (loadMastery != null)
+                statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+            statsRow.Controls.Add(stats, 0, 0);
+            stats.Cursor = Cursors.Hand;
+            stats.Click += (sender, args) =>
+            {
+                if (!isCurrent() || loading || collecting) return;
+                var details = LeagueOngoingCardStatsProjection.Project(
+                    ui, visibleMatches().ToList(), player.Player.PuuId);
+                if (details.Count == 0) return;
+                using (var dialog = new Form {
+                    Text = t(LeagueEfficiencyUiTextKeys.OngoingRecentHistory) + " · KDA",
+                    Width = 450, Height = 400, MinimumSize = new Size(340, 280),
+                    StartPosition = FormStartPosition.CenterParent,
+                    AutoScaleMode = AutoScaleMode.Font, ShowInTaskbar = false,
+                    BackColor = FacmDesignSystem.Canvas, ForeColor = FacmDesignSystem.Text
+                })
+                {
+                    var list = new ListView {
+                        Dock = DockStyle.Fill, View = View.Details, FullRowSelect = true,
+                        GridLines = true, BackColor = FacmDesignSystem.CanvasRaised,
+                        ForeColor = FacmDesignSystem.Text
+                    };
+                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown), 190);
+                    list.Columns.Add(t(LeagueEfficiencyUiTextKeys.DynamicEncounterScoreboardResult), 205);
+                    foreach (var detail in details)
+                    {
+                        var row = new ListViewItem(detail.Key);
+                        row.SubItems.Add(detail.Value);
+                        list.Items.Add(row);
+                    }
+                    list.KeyDown += (source, key) =>
+                    {
+                        if (!key.Control || key.KeyCode != Keys.C) return;
+                        var copy = LeagueOngoingCardStatsProjection.CopyText(details);
+                        if (copy.Length > 0)
+                        {
+                            try { Clipboard.SetText(copy); }
+                            catch (System.Runtime.InteropServices.ExternalException) { }
+                        }
+                        key.Handled = true;
+                    };
+                    dialog.Controls.Add(list);
+                    dialog.ShowDialog(this);
+                }
+            };
+            var breakdownButton = new Button { Dock = DockStyle.Fill,
+                Text = t(LeagueEfficiencyUiTextKeys.OngoingCardBreakdown) };
+            breakdownButton.Click += (sender, args) =>
+            {
+                if (!isCurrent() || loading || collecting) return;
+                using (var dialog = new LeagueOngoingCardBreakdownDialog(ui,
+                    matches, player.Player.PuuId, openFullCollection != null))
+                {
+                    if (dialog.ShowDialog(this) != DialogResult.OK || !dialog.HasSelection ||
+                        !isCurrent()) return;
+                    if (dialog.CollectFull && openFullCollection != null)
+                    {
+                        using (var collection = openFullCollection(
+                            dialog.SelectedChampionId, dialog.SelectedPosition, dialog.SelectedMode))
+                            if (collection != null) collection.ShowDialog(this);
+                        if (!IsDisposed) updateCollect();
+                        return;
+                    }
+                    selectedChampion = dialog.SelectedChampionId;
+                    selectedPosition = dialog.SelectedPosition;
+                    selectedMode = dialog.SelectedMode;
+                    rebuildChoices();
+                    refreshRows();
+                }
+            };
+            statsRow.Controls.Add(breakdownButton, 1, 0);
+            if (loadMastery != null)
+            {
+                var masteryButton = new Button { Dock = DockStyle.Fill,
+                    Text = ui.Get(UiTextKeys.LeagueProfileMastery) };
+                masteryButton.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || loading || collecting || !masteryButton.Enabled) return;
+                    masteryButton.Enabled = false;
+                    try
+                    {
+                        await loadMastery(_lifetime.Token);
+                        if (IsDisposed || _lifetime.IsCancellationRequested || !isCurrent()) return;
+                        using (var dialog = new LeagueOngoingCardInsightsDialog(
+                            ui, player, matches, openFullCollection != null, isCurrent, loadJungle))
+                        {
+                            if (dialog.ShowDialog(this) != DialogResult.OK || !isCurrent()) return;
+                            if (dialog.CollectChampionId > 0 && openFullCollection != null)
+                            {
+                                using (var collection = openFullCollection(
+                                    dialog.CollectChampionId, "", ""))
+                                    if (collection != null) collection.ShowDialog(this);
+                            }
+                            else if (dialog.SelectedChampionId > 0)
+                            {
+                                selectedChampion = dialog.SelectedChampionId;
+                                selectedPosition = "";
+                                selectedMode = "";
+                                rebuildChoices();
+                                refreshRows();
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally
+                    {
+                        if (!IsDisposed) masteryButton.Enabled = true;
+                    }
+                };
+                statsRow.Controls.Add(masteryButton, 2, 0);
+            }
+            if (editTag != null && LeagueOngoingCardStatsProjection.CanEditTag(snapshot, player))
+            {
+                var tagButton = new Button { Dock = DockStyle.Fill,
+                    Text = t(LeagueEfficiencyUiTextKeys.DynamicTagEdit) };
+                statsRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
+                tagButton.Click += async (sender, args) =>
+                {
+                    if (!isCurrent() || loading || collecting || !tagButton.Enabled) return;
+                    tagButton.Enabled = false;
+                    try { await editTag(this); }
+                    catch (OperationCanceledException) { }
+                    catch (Exception) { }
+                    finally
+                    {
+                        if (!IsDisposed) tagButton.Enabled = isCurrent();
+                    }
+                };
+                statsRow.Controls.Add(tagButton, loadMastery == null ? 2 : 3, 0);
+            }
+            layout.Controls.Add(statsRow, 0, 2);
+            layout.Controls.Add(rows, 0, 3);
+            Controls.Add(layout);
+            Shown += async (sender, args) =>
+            {
+                if (!isCurrent()) { Close(); return; }
+                if (autoPages == 0) return;
+                // Auto-load only after the user opens this card, never during roster polling.
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token))
+                {
+                    deadline.CancelAfter(TimeSpan.FromSeconds(95));
+                    foreach (var offset in LeagueHistoricalMatchDryRun.AutomaticCardPageOffsets(
+                        snapshot.HistoryLoadCount, autoPages).Where(offset => offset >= nextIndex))
+                    {
+                        if (!hasMore || deadline.IsCancellationRequested || nextIndex != offset ||
+                            !await fetchNext(deadline.Token)) break;
+                    }
+                }
+            };
+            Activated += (sender, args) => { if (!isCurrent()) Close(); };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) { _lifetime.Cancel(); _lifetime.Dispose(); }
+            base.Dispose(disposing);
+        }
+    }
+}

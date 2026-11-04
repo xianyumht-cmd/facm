@@ -11,6 +11,8 @@ namespace FACM.League
             string fallback;
             if (LeagueAutoApplyUiTextKeys.TryGetDefault(key, out fallback))
                 return ui.Get(key, fallback);
+            if (LeagueChampionSpellPresetUiTextKeys.TryGetDefault(key, out fallback))
+                return ui.Get(key, fallback);
             if (LeagueItemSetUiTextKeys.TryGetDefault(key, out fallback))
                 return ui.Get(key, fallback);
             return ui.Get(key);

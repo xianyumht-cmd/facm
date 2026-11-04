@@ -1,10 +1,10 @@
 {
   "enabled": true,
-  "version": "3.5.78",
+  "version": "3.5.80",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.78/FACM.exe",
-  "sha256": "5EC945C760D75422023AECB0060C023DC8D88933A29B42796AB505162EA72F97",
-  "release_notes": "GGman 3.5.78：统一升级 GGman 工作台、游戏修复、在线状态、快捷工具、海斗攻略、战绩与推荐、悬浮启动器、主题选择、更新中心、账号与配置、清理和桌宠等界面的视觉风格；优化信息层级、文字阅读、按钮状态、分组布局及部分窗口在较窄尺寸下的排版。保留原有游戏查询、账号云同步、ESC 配置与更新机制，不强制更新。此版本先开放用户实机截图反馈，后续继续完善主题、缩放和界面细节。",
-  "published_at": "2026-10-17T09:09:56.5630059+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.80/FACM.exe",
+  "sha256": "D69D597E2F00153CC0305EA1B55DEF74867A16F9B8E048E88AEC7169DF3C7511",
+  "release_notes": "GGman 3.5.80：针对 3.5.79 的实际截图反馈优化 LOL 工作台。快捷工具与自动化设置说明按文字长度自适应显示，并新增设置分组快速跳转；我的战绩筛选按组换行、深色表头与列表区域重排；在线状态页限制重复滚动；段位、队列和组队邀请默认选项改为中文显示，保留原有接口值和设置。此版本不强制更新，仍建议反馈不同 DPI 的实际界面表现。",
+  "published_at": "2026-11-04T07:54:18.6757274+00:00"
 }

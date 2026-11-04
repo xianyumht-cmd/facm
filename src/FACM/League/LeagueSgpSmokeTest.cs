@@ -1,0 +1,1139 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace FACM.League
+{
+    internal static class LeagueSgpSmokeTest
+    {
+        internal static void ValidateRefreshCancellation()
+        {
+            LeagueSgpServerCatalog.ResetForSmokeTest();
+            try
+            {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueSgpServerCatalog.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueSgpServerCatalog.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueSgpServerCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueSgpServerCatalog.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "SGP catalog must use five-minute failure retry and two-hour successful refresh bounds.");
+                var attempts = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var canceled = false;
+                    try
+                    {
+                        LeagueSgpServerCatalog.TryRefreshAsync(cancellation.Token, token =>
+                        {
+                            attempts++;
+                            cancellation.Cancel();
+                            return Task.FromResult<byte[]>(null);
+                        }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { canceled = true; }
+                    Require(canceled && attempts == 1,
+                        "Cancelling a catalog refresh must propagate without publishing data.");
+                }
+                var result = LeagueSgpServerCatalog.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(!result && attempts == 2,
+                    "Cancelled catalog refresh must not throttle the next explicit request.");
+                LeagueSgpServerCatalog.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(attempts == 2,
+                    "A failed catalog attempt must retain its five-minute on-demand retry throttle.");
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
+        }
+
+        internal static void ValidateSupportedQueueRefreshCancellation()
+        {
+            LeagueSgpSupportedQueues.ResetForSmokeTest();
+            try
+            {
+                var now = new DateTime(2026, 11, 2, 0, 0, 0, DateTimeKind.Utc);
+                Require(!LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddMinutes(-4), DateTime.MinValue) &&
+                    LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddMinutes(-5), DateTime.MinValue) &&
+                    !LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddHours(-3), now.AddMinutes(-119)) &&
+                    LeagueSgpSupportedQueues.ShouldRefresh(now, now.AddHours(-3), now.AddHours(-2)),
+                    "Supported queue catalog must retry failures after five minutes but cache accepted lists for two hours.");
+                var attempts = 0;
+                using (var cancellation = new CancellationTokenSource())
+                {
+                    var cancelled = false;
+                    try
+                    {
+                        LeagueSgpSupportedQueues.TryRefreshAsync(cancellation.Token, token =>
+                        {
+                            attempts++;
+                            cancellation.Cancel();
+                            return Task.FromResult(Bytes(
+                                @"{""updatedAt"":""2026-08-01T00:00:00.000Z"",""queues"":[420,450]}"));
+                        }).GetAwaiter().GetResult();
+                    }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled && attempts == 1 &&
+                        LeagueSgpSupportedQueues.Snapshot().Length == 17,
+                        "Cancelled supported-queue catalog must not publish stale data.");
+                }
+                Require(!LeagueSgpSupportedQueues.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult() && attempts == 2,
+                    "Cancelled supported-queue refresh must permit an immediate explicit retry.");
+                LeagueSgpSupportedQueues.TryRefreshAsync(CancellationToken.None, token =>
+                {
+                    attempts++;
+                    return Task.FromResult<byte[]>(null);
+                }).GetAwaiter().GetResult();
+                Require(attempts == 2,
+                    "A failed supported-queue refresh must retain its five-minute retry throttle.");
+            }
+            finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
+        }
+
+        private static async Task ValidateTokenReadSerializationAsync()
+        {
+            var local = new ConcurrentTokenApi();
+            using (var api = new LeagueSgpMatchHistoryApiClient(
+                () => Session("HN10", "TENCENT"), local, new ConcurrentHandler()))
+            {
+                var first = api.TryGetGameSummaryAsync(601, CancellationToken.None);
+                var second = api.TryGetGameSummaryAsync(602, CancellationToken.None);
+                try
+                {
+                    Require(local.Calls == 1 && local.Peak == 1,
+                        "Overlapping SGP requests must not overlap their local entitlement-token reads.");
+                }
+                finally { local.Release(); }
+                var results = await Task.WhenAll(first, second).ConfigureAwait(false);
+                Require(results.All(bytes => bytes != null) && local.Calls == 1 && local.Peak == 1,
+                    "Concurrent SGP requests must share a short-lived session-scoped token preflight.");
+            }
+        }
+
+        internal static void Validate()
+        {
+            ValidateTokenReadSerializationAsync().GetAwaiter().GetResult();
+            ValidateSupportedQueueRefreshCancellation();
+            // The server chooser must identify the actual Tencent region before any SGP request.
+            // A wrong label can direct a cross-region lookup to the wrong platform.
+            var sourceTencentNames = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "TENCENT_HN1", "艾欧尼亚" },
+                { "TENCENT_HN10", "黑色玫瑰" },
+                { "TENCENT_TJ100", "联盟四区" },
+                { "TENCENT_TJ101", "联盟五区" },
+                { "TENCENT_NJ100", "联盟一区" },
+                { "TENCENT_GZ100", "联盟二区" },
+                { "TENCENT_CQ100", "联盟三区" },
+                { "TENCENT_BGP2", "峡谷之巅" },
+                { "TENCENT_PBE", "体验服" },
+                { "TENCENT_PREPBE", "预备体验服" }
+            };
+            var builtinTencent = LeagueSgpMatchHistoryApiClient.BuiltinServers
+                .Where(server => server.IsTencent).ToArray();
+            Require(builtinTencent.Length == sourceTencentNames.Count &&
+                builtinTencent.All(server => sourceTencentNames.ContainsKey(server.Id) &&
+                    server.Name == sourceTencentNames[server.Id]),
+                "Tencent regional selector labels must match the pinned Akari v1.5.1 server catalog.");
+            foreach (var server in builtinTencent)
+            {
+                var platform = server.Id.Substring("TENCENT_".Length);
+                var selected = LeagueSgpMatchHistoryApiClient.ResolveServer(Session(platform, "TENCENT"));
+                Require(selected != null && selected.Id == server.Id &&
+                    selected.PathRegion == platform && selected.Name == sourceTencentNames[server.Id],
+                    "A Tencent region name must select its own platform, never another numbered region.");
+            }
+            var sourceRiotNames = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                { "TW2", "台湾" }, { "SG2", "新加坡" },
+                { "PH2", "菲律宾" }, { "VN2", "越南" },
+                { "PBE", "PBE" }, { "EUW", "EUW" },
+                { "JP", "日本" }, { "RU", "俄罗斯" },
+                { "BR1", "巴西" }, { "OC1", "大洋洲" },
+                { "TR1", "土耳其" }, { "LA1", "拉丁美洲北部" },
+                { "LA2", "拉丁美洲南部" }, { "NA1", "北美" },
+                { "TH2", "泰国" }, { "KR", "韩国" }
+            };
+            var builtinRiot = LeagueSgpMatchHistoryApiClient.BuiltinServers
+                .Where(server => !server.IsTencent).ToArray();
+            Require(builtinRiot.Length == sourceRiotNames.Count &&
+                builtinRiot.All(server => sourceRiotNames.ContainsKey(server.Id) &&
+                    server.Name == sourceRiotNames[server.Id]),
+                "International region chooser labels must match the pinned Akari v1.5.1 Chinese directory.");
+            foreach (var server in builtinRiot)
+            {
+                var selected = LeagueSgpMatchHistoryApiClient.ResolveServer(
+                    Session(server.PathRegion, server.Id));
+                Require(selected != null && selected.Id == server.Id &&
+                    selected.Name == sourceRiotNames[server.Id] &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(
+                        Session(server.PathRegion, server.Id)).Length == 1,
+                    "An international region must resolve only its own authenticated SGP provider.");
+            }
+            var current = Session("HN10", "TENCENT");
+            var local = new TokenApi();
+            var handler = new CaptureHandler();
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => current, local, handler))
+            {
+                Require(LeagueSgpMatchHistoryApiClient.AvailableServers(current).Length == 10,
+                    "Tencent discovery must include the exact pinned server catalog.");
+                var aliases = new Dictionary<string, string> {
+                    { "NA", "NA1" }, { "BR", "BR1" }, { "TR", "TR1" },
+                    { "LAN", "LA1" }, { "LAS", "LA2" }, { "OCE", "OC1" },
+                    { "EUW1", "EUW" }, { "JP1", "JP" } };
+                foreach (var alias in aliases)
+                {
+                    var regionalSession = Session("unused-platform", alias.Key);
+                    Require(LeagueSgpMatchHistoryApiClient.CurrentServerId(regionalSession) == alias.Value &&
+                        LeagueSgpMatchHistoryApiClient.ResolveServer(regionalSession)?.Id == alias.Value,
+                        "Pinned SGP region alias mapping failed for " + alias.Key);
+                }
+                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("unused-platform", "UNKNOWN")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("unused-platform", "NA"), "EUW") == null,
+                    "Unknown and unrelated region selectors must remain unavailable.");
+                var euw = LeagueSgpMatchHistoryApiClient.ResolveServer(Session("EUW1", "EUW"));
+                Require(euw != null && euw.PathRegion == "EUW1" &&
+                    euw.MatchHistory == "https://euc1-red.pp.sgp.pvp.net" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(current, "NA1") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "EUW") == null,
+                    "International path overrides and Tencent-only cross-region capability must remain explicit.");
+                api.TryGetGameSummaryAsync(601, CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn1-k8s-sgp.lol.qq.com:21019/" +
+                    "match-history-query/v1/products/lol/HN1_601/SUMMARY" &&
+                    handler.Authorization == "Bearer history-token" && local.Paths[0] == LeagueSgpMatchHistoryApiClient.EntitlementsPath,
+                    "A selected regional game summary must use that server's path and Entitlements token.");
+                api.TryGetGameDetailsAsync(601, CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/HN10_601/DETAILS", StringComparison.Ordinal),
+                    "SGP timeline details must use DETAILS rather than the participant summary payload.");
+                api.TryGetSummonerAsync("target-puuid", CancellationToken.None, "TENCENT_TJ100")
+                    .GetAwaiter().GetResult();
+                Require(handler.Url == "https://tj100-sgp.lol.qq.com:21019/summoner-ledge/v1/regions/TJ100/summoners/puuids" &&
+                    handler.Method == HttpMethod.Post && handler.Body == "[\"target-puuid\"]" &&
+                    handler.Authorization == "Bearer profile-token" &&
+                    local.Paths[local.Paths.Count - 1] == LeagueSgpMatchHistoryApiClient.LeagueSessionTokenPath,
+                    "Summoner profiles require the League session token, exact region and bounded JSON POST body.");
+                api.TryGetRankedStatsAsync("target-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn10-k8s-sgp.lol.qq.com:21019/leagues-ledge/v2/rankedStats/puuid/target-puuid" &&
+                    handler.Method == HttpMethod.Get && handler.Authorization == "Bearer profile-token",
+                    "Same-region SGP ranked fallback must use league session token and pinned leagues-ledge path.");
+                var rankedCalls = handler.Calls;
+                var rankedTokenReads = local.Paths.Count;
+                api.TryGetRankedStatsAsync("target-puuid", CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
+                Require(handler.Calls == rankedCalls && local.Paths.Count == rankedTokenReads,
+                    "Source-ranked league stats must never use cross-region Tencent access.");
+                api.TryGetChallengesAsync("target-puuid", CancellationToken.None, "TENCENT_HN1").GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn1-k8s-sgp.lol.qq.com:21019/challenges-client/v2/all-player-data/?puuid=target-puuid" &&
+                    handler.Method == HttpMethod.Post && handler.Body == "[]" &&
+                    handler.Authorization == "Bearer profile-token",
+                    "Regional challenges must preserve the trailing slash, empty friends array and League-session token.");
+                api.TryGetGsmByPuuidAsync("local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url == "https://hn10-k8s-sgp.lol.qq.com:21019/gsm/v1/ledge/region/HN10/puuid/local-puuid" &&
+                    handler.Method == HttpMethod.Get && handler.Authorization == "Bearer profile-token",
+                    "Pinned GSM live-team read must use current region and League-session token.");
+                api.TryGetGsmByGameIdAsync(601, CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/gsm/v1/ledge/region/HN10/gameId/601", StringComparison.Ordinal),
+                    "Pinned GSM gameId read must use the current region.");
+                api.TryGetStatsEogAsync(601, "local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/local-puuid", StringComparison.Ordinal) &&
+                    handler.Authorization == "Bearer profile-token",
+                    "Pinned SGP end-of-game read must be current-region and League-session scoped.");
+                api.TryGetStatsEogAsync(601, "other-puuid", CancellationToken.None)
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/stats/endOfGame/region/HN10/gameId/601/puuid/other-puuid",
+                    StringComparison.Ordinal),
+                    "Current-region EOG must support a selected remote player without using the owner's PUUID.");
+                ValidateSupportedQueues(api, handler, local);
+                var calls = handler.Calls;
+                var reads = local.Paths.Count;
+                api.TryGetSummaryAsync("../unsafe", 0, 10, CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetSummaryAsync("target", int.MaxValue, 10, CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetGameSummaryAsync(0, CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetSummonerAsync("target", CancellationToken.None, "https://other.example")
+                    .GetAwaiter().GetResult();
+                api.TryGetChallengesAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetChallengesAsync("target", CancellationToken.None, "NA1").GetAwaiter().GetResult();
+                api.TryGetRankedStatsAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetGsmByPuuidAsync("../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetGsmByGameIdAsync(0, CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetStatsEogAsync(-1, "local-puuid", CancellationToken.None).GetAwaiter().GetResult();
+                api.TryGetStatsEogAsync(601, "../unsafe", CancellationToken.None).GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads,
+                    "Invalid target inputs must fail before credentials or HTTP are requested.");
+                handler.AfterRead = () => current = Session("HN1", "TENCENT");
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null,
+                    "Even an unchanged LCU port/password cannot publish a response after region replacement.");
+                using (var cancel = new CancellationTokenSource())
+                {
+                    cancel.Cancel();
+                    var cancelled = false;
+                    try { api.TryGetGameSummaryAsync(601, cancel.Token).GetAwaiter().GetResult(); }
+                    catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled, "External cancellation must remain observable by the caller.");
+                }
+            }
+            ValidateRecovery();
+            ValidateTokenReuseOwnership();
+            ValidateCatalogRefresh();
+            ValidateCatalogRotationFence();
+            ValidateEogProjection();
+            ValidateEogOnlyFallback();
+            ValidateQueueNames();
+            ValidateCurrentLobbyQueue();
+            ValidateCurrentQueueHistory();
+            Require(LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"profile-token\"")) == "profile-token" &&
+                LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("{\"token\":\"wrong-shape\"}")) == null &&
+                LeagueSgpMatchHistoryApiClient.ReadLeagueSessionToken(Bytes("\"bad\\u007fheader\"")) == null,
+                "League session credentials must be a bounded printable JSON string.");
+        }
+
+        private static void ValidateQueueNames()
+        {
+            var names = LeagueSgpSupportedQueues.ParseQueueNames(Bytes(
+                @"[{""id"":420,""name"":""Ranked Solo""},{""id"":450,""name"":""ARAM""},
+                    {""id"":450,""name"":""Duplicate""},{""id"":-1,""name"":""Bad""},
+                    {""id"":430,""name"":""Line\nBreak""}]"));
+            Require(names.Count == 2 && names[420] == "Ranked Solo" && names[450] == "ARAM",
+                "LCU queue metadata must supply trusted display names without duplicate or unsafe labels.");
+            Require(LeagueSgpSupportedQueues.ParseQueueNames(Bytes(@"{}")).Count == 0 &&
+                LeagueSgpSupportedQueues.ParseQueueNames(null).Count == 0,
+                "Unavailable or malformed queue metadata must preserve numeric fallback.");
+        }
+
+        private static void ValidateCurrentLobbyQueue()
+        {
+            Require(LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":420}}")) == 420 &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":450}}")) == 450 &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":""420""}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":-1}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(
+                    @"{""gameConfig"":{""queueId"":420.5}}")) == null &&
+                LeagueSgpSupportedQueues.ParseLobbyQueueId(Bytes(@"{}")) == null &&
+                LeagueSgpSupportedQueues.ParseGameflowQueueId(Bytes(
+                    @"{""gameData"":{""queue"":{""id"":999}}}")) == 999 &&
+                LeagueSgpSupportedQueues.ParseGameflowQueueId(Bytes(
+                    @"{""gameData"":{""queue"":{""id"":""999""}}}")) == null,
+                "Lobby queue suggestions require an exact bounded numeric LCU gameConfig.queueId.");
+            var session = Session("HN1", "TENCENT");
+            var active = session;
+            var local = new LobbyApi();
+            var service = new LeaguePlayerDataService(local,
+                new FACM.Performance.PerformanceBudgetProvider(), null, null, () => active);
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == 420 && local.Calls == 3,
+                "Current lobby queue must be read once between two verified local account reads.");
+            local.AfterLobby = () => local.Owner = "other";
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "A changed owner after the lobby read must discard the queue suggestion.");
+            local.Owner = "self";
+            local.AfterLobby = () => active = Session("HN10", "TENCENT");
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "A changed region/session after the lobby read must discard the queue suggestion.");
+            active = session;
+            local.AfterLobby = null;
+            local.NoLobby = true;
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == 999,
+                "A gameflow queue confirmed by local metadata must be available without a lobby.");
+            local.MissingMetadata = true;
+            Require(service.LoadCurrentLobbyQueueIdAsync("self", session, CancellationToken.None)
+                    .GetAwaiter().GetResult() == null,
+                "Unlisted gameflow queues without local metadata must fail closed.");
+        }
+
+        private static void ValidateCurrentQueueHistory()
+        {
+            var session = Session("HN1", "TENCENT");
+            var active = session;
+            var local = new LobbyApi { NoLobby = true };
+            var regional = new CurrentQueueHistoryApi();
+            var service = new LeaguePlayerDataService(local,
+                new FACM.Performance.PerformanceBudgetProvider(), null, regional, () => active);
+            var expected = new LeaguePlayerProfile { PuuId = "self" };
+            var result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 1 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable &&
+                local.MetadataCalls == 1,
+                "A metadata-confirmed current queue must use one catalog read and the existing SGP owner.");
+            var roster = service.LoadTaggedRosterHistoryAsync(new LeaguePlayerProfile { PuuId = "target" },
+                0, 2, "q_999", "self", CancellationToken.None).GetAwaiter().GetResult();
+            Require(roster == null && regional.Calls == 2 && local.MetadataCalls == 2,
+                "Current-queue roster history must use the same LCU metadata and SGP owner.");
+            var recent = service.LoadRecentMatchesAsync(new LeaguePlayerProfile { PuuId = "target" },
+                0, 2, false, CancellationToken.None, "q_999", "self").GetAwaiter().GetResult();
+            Require(recent == null && regional.Calls == 3 && local.MetadataCalls == 3,
+                "Current-queue player-card pagination must use verified regional SGP.");
+            local.MissingMetadata = true;
+            service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 3,
+                "An unlisted queue without local metadata must not read SGP.");
+            local.MissingMetadata = false;
+            service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp,
+                serverId: "TENCENT_HN10", queueTag: "q_999").GetAwaiter().GetResult();
+            Require(regional.Calls == 3,
+                "A locally verified queue must never authorize another region.");
+            regional.AfterRequest = () => local.GameflowQueueId = 998;
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 4 && result.Status == LeagueRiotPlayerSearchStatus.Unavailable,
+                "A queue changed during an SGP request must discard its response.");
+            local.GameflowQueueId = 999;
+            regional.AfterRequest = () => local.Owner = "other";
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 5 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A replaced signed-in account must discard the current-queue SGP response.");
+            local.Owner = "self";
+            regional.AfterRequest = () => active = Session("HN10", "TENCENT");
+            result = service.LoadRemotePlayerHistoryAsync(expected, "target",
+                CancellationToken.None, source: LeaguePlayerHistorySource.Sgp, queueTag: "q_999")
+                .GetAwaiter().GetResult();
+            Require(regional.Calls == 6 && result.Status == LeagueRiotPlayerSearchStatus.AccountChanged,
+                "A changed SGP region during the request must not publish the old-region response.");
+        }
+
+        private sealed class CurrentQueueHistoryApi : ILeagueSgpMatchHistoryApi, ILeagueSgpCurrentQueueHistoryApi
+        {
+            internal int Calls;
+            internal Action AfterRequest;
+            public Task<byte[]> TryGetCurrentQueueSummaryAsync(string targetPuuid, int startIndex,
+                int count, CancellationToken token, int verifiedCurrentQueueId)
+            {
+                token.ThrowIfCancellationRequested();
+                if (targetPuuid != "target" || verifiedCurrentQueueId != 999)
+                    throw new InvalidOperationException("Unverified current queue request.");
+                Calls++;
+                AfterRequest?.Invoke();
+                return Task.FromResult<byte[]>(null);
+            }
+            public Task<byte[]> TryGetSummaryAsync(string targetPuuid, int startIndex, int count,
+                CancellationToken token, string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameSummaryAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetGameDetailsAsync(long gameId, CancellationToken token,
+                string serverId = null) { return Task.FromResult<byte[]>(null); }
+            public Task<byte[]> TryGetSummonerAsync(string targetPuuid, CancellationToken token,
+                string serverId = null)
+            {
+                return Task.FromResult(Bytes(@"[{""puuid"":""target""}]"));
+            }
+        }
+
+        private sealed class LobbyApi : ILeagueClientApi
+        {
+            internal string Owner = "self";
+            internal int Calls;
+            internal Action AfterLobby;
+            internal bool NoLobby;
+            internal bool MissingMetadata;
+            internal int GameflowQueueId = 999;
+            internal int MetadataCalls;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Calls++;
+                if (path == "/lol-lobby/v2/lobby")
+                {
+                    AfterLobby?.Invoke();
+                    return Task.FromResult(Bytes(NoLobby ? @"{}" :
+                        @"{""gameConfig"":{""queueId"":420}}"));
+                }
+                if (path == "/lol-gameflow/v1/session")
+                    return Task.FromResult(Bytes("{\"gameData\":{\"queue\":{\"id\":" +
+                        GameflowQueueId.ToString() + "}}}"));
+                if (path == "/lol-game-data/assets/v1/queues.json")
+                {
+                    MetadataCalls++;
+                    return Task.FromResult(Bytes(MissingMetadata ? @"[]" :
+                        @"[{""id"":420,""name"":""Ranked""},{""id"":999,""name"":""Custom""}," +
+                        @"{""id"":998,""name"":""Other""}]"));
+                }
+                return Task.FromResult(Bytes(@"{""puuid"":""" + Owner + @"""}"));
+            }
+        }
+
+        private static void ValidateEogProjection()
+        {
+            var fixture = Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",""gameMode"":""CLASSIC"",
+                ""queueId"":420,""gameLength"":1800,""gameType"":""MATCHED_GAME"",
+                ""endOfGameTimestamp"":1720000000000,""roomPassword"":""never-show"",""mucJwtDto"":{""jwt"":""secret""},
+                ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
+                    ""teamId"":100,""championId"":12,""riotIdGameName"":""Local"",
+                    ""level"":30,""wins"":12,""losses"":4,""eloChange"":-12.5,
+                    ""leaver"":false,""botPlayer"":false,
+                    ""riotIdTagLine"":""CN1"",""spell1Id"":4,""spell2Id"":14,
+                    ""detectedTeamPosition"":""MIDDLE"",""statistics"":[
+                        {""statTypeName"":""CHAMPIONS_KILLED"",""value"":5},
+                        {""statTypeName"":""NUM_DEATHS"",""value"":2},
+                        {""statTypeName"":""ASSISTS"",""value"":8},
+                        {""statTypeName"":""WIN"",""value"":1},
+                        {""statTypeName"":""DAMAGE_RATIO"",""value"":0.75},
+                        {""statTypeName"":""RANK_CHANGE"",""value"":-12}]}],
+                ""otherTeamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""other-puuid"",
+                    ""teamId"":200,""championId"":13,""statistics"":[]}]}");
+            var parsed = LeagueSgpEogProjection.Parse(fixture, 601, "local-puuid");
+            Require(parsed != null && parsed.Players.Count == 2 &&
+                parsed.GameLengthSeconds == 1800 &&
+                parsed.GameEndEpochMs == 1720000000000L && parsed.GameType == "MATCHED_GAME" &&
+                parsed.Players[0].Name == "Local#CN1" && parsed.Players[0].Kills == 5 &&
+                parsed.Players[0].Win == true && parsed.Players[0].Spell1Id == 4 &&
+                parsed.Players[0].Spell2Id == 14 && parsed.Players[0].Position == "MIDDLE" &&
+                parsed.Players[0].Statistics.Count == 6 &&
+                parsed.Players[0].Statistics["CHAMPIONS_KILLED"] == 5 &&
+                parsed.Players[0].Statistics["DAMAGE_RATIO"] == 0.75 &&
+                parsed.Players[0].Statistics["RANK_CHANGE"] == -12 &&
+                parsed.Players[0].Metadata["LEVEL"] == "30" &&
+                parsed.Players[0].Metadata["ELO_CHANGE"] == "-12.5" &&
+                parsed.Players[0].Metadata["LEAVER"] == "false" &&
+                parsed.Players[0].Metadata["BOT_PLAYER"] == "false" &&
+                parsed.Players[0].Metadata.Count == 6 &&
+                parsed.Players[1].Metadata.Count == 0 &&
+                !parsed.Players[0].Damage.HasValue &&
+                !parsed.Players[1].Win.HasValue,
+                "Pinned EOG team and participant stats must distinguish known values from missing metrics.");
+
+
+            var replayMatch = LeagueSgpEogProjection.ReplayMetadata(parsed);
+            Require(replayMatch != null && replayMatch.GameId == 601 && replayMatch.QueueId == 420 &&
+                replayMatch.GameType == "MATCHED_GAME" && replayMatch.GameDurationSeconds == 1800 &&
+                replayMatch.GameCreationEpochMs == 1720000000000L - 1800000L,
+                "Verified EOG end-time and duration must produce exact current-region replay metadata.");
+            parsed.GameEndEpochMs = null;
+            Require(LeagueSgpEogProjection.ReplayMetadata(parsed) == null,
+                "EOG replay must fail closed without a trusted millisecond end timestamp.");
+            parsed.GameEndEpochMs = 1720000000000L;
+            var p1 = new LeagueSgpEogPlayer {
+                TeamId = 100, Kills = 5, Deaths = 2, Assists = 8,
+                Damage = 15000, Gold = 12000, Minions = 150, NeutralMinions = 20, Vision = 30 };
+            var p2 = new LeagueSgpEogPlayer {
+                TeamId = 100, Kills = 10, Deaths = 3, Assists = 4,
+                Damage = 10000, Gold = 8000, Minions = 90, NeutralMinions = 10, Vision = 12 };
+            var balanced = new LeagueSgpEogResult {
+                GameId = 601, GameLengthSeconds = 1800,
+                Players = new List<LeagueSgpEogPlayer> { p1, p2 } };
+            var metrics = LeagueSgpEogProjection.Analyze(balanced, p1);
+            Require(metrics.Kda == 6.5 && Math.Abs(metrics.KillParticipation.Value - 13d / 15d) < 0.00001 &&
+                Math.Abs(metrics.DamageShare.Value - 0.6) < 0.00001 &&
+                Math.Abs(metrics.GoldShare.Value - 0.6) < 0.00001 &&
+                metrics.DamagePerMinute == 500 && metrics.GoldPerMinute == 400 &&
+                Math.Abs(metrics.CsPerMinute.Value - 170d / 30d) < 0.00001 &&
+                metrics.VisionPerMinute == 1,
+                "EOG source game duration and complete team evidence must support native per-player analysis.");
+            p2.Damage = null;
+            Require(!LeagueSgpEogProjection.Analyze(balanced, p1).DamageShare.HasValue &&
+                LeagueSgpEogProjection.Analyze(balanced, p1).DamagePerMinute == 500,
+                "Missing peer damage must hide team share without discarding a sourced per-minute metric.");
+            balanced.GameLengthSeconds = null;
+            Require(!LeagueSgpEogProjection.Analyze(balanced, p1).CsPerMinute.HasValue &&
+                LeagueSgpEogProjection.Analyze(balanced, p1).Kda == 6.5,
+                "Missing duration must not fabricate per-minute metrics or erase complete KDA.");
+            Require(!LeagueSgpEogProjection.Analyze(balanced, new LeagueSgpEogPlayer { TeamId = 100 }).Kda.HasValue,
+                "Unverified players must not receive derived EOG statistics.");
+            var summaries = LeagueSgpEogProjection.SummarizeTeams(balanced);
+            Require(summaries.Count == 1 && summaries[0].PlayerCount == 2 &&
+                summaries[0].Kills == 15 && summaries[0].Damage == null &&
+                summaries[0].Gold == 20000 && summaries[0].CreepScore == 270 &&
+                !summaries[0].Win.HasValue && LeagueSgpEogOnlyDialog.FormatTeam(null) == "—" &&
+                LeagueSgpEogOnlyDialog.FormatTeam(0) == "0",
+                "EOG team comparisons must preserve complete sums and unknown source values.");
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                new LeagueEncounterMatchDetailResult {
+                    Status = LeagueEncounterMatchDetailStatus.Ready,
+                    Match = new LeaguePlayerMatchSummary { GameId = 601 },
+                    EogOnly = parsed, IsCurrentSession = () => true }))
+            {
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var split = layout?.Controls.OfType<System.Windows.Forms.SplitContainer>().FirstOrDefault();
+                var rows = split?.Panel1.Controls.OfType<System.Windows.Forms.ListView>().FirstOrDefault();
+                var teams = layout?.Controls.OfType<System.Windows.Forms.ListView>().FirstOrDefault();
+                Require(dialog.Controls.Count > 0 && dialog.Text.Length > 0 &&
+                    rows != null && rows.Columns.Count == 11 && rows.Items.Count == 2 &&
+                    teams != null && teams.Columns.Count == 8 && teams.Items.Count == 2,
+                    "A validated EOG-only match must construct complete native team/player rows without SUMMARY.");
+            }
+
+            var replayDetail = new LeagueEncounterMatchDetailResult {
+                Status = LeagueEncounterMatchDetailStatus.Ready,
+                Match = replayMatch, EogOnly = parsed, IsCurrentSession = () => true };
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                replayDetail, (match, token) => Task.FromResult(
+                    new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Checking })))
+            {
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var footer = layout?.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var replayButton = footer?.Controls.OfType<System.Windows.Forms.Button>()
+                    .FirstOrDefault(button => button.Text == LeagueEfficiencyText.Get(
+                        FACM.Services.UiTextCatalog.Load(), LeagueEfficiencyUiTextKeys.DynamicEncounterReplay));
+                Require(replayButton != null && replayButton.Enabled,
+                    "EOG-only detail must expose the existing guarded replay action for complete metadata.");
+            }
+            replayDetail.Match = new LeaguePlayerMatchSummary { GameId = 601 };
+            using (var dialog = new LeagueSgpEogOnlyDialog(FACM.Services.UiTextCatalog.Load(),
+                replayDetail, (match, token) => Task.FromResult(
+                    new LeagueEncounterReplayResult { Status = LeagueEncounterReplayStatus.Checking })))
+            {
+                var layout = dialog.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var footer = layout?.Controls.OfType<System.Windows.Forms.TableLayoutPanel>().FirstOrDefault();
+                var buttons = footer?.Controls.OfType<System.Windows.Forms.Button>().ToArray();
+                Require(buttons != null && buttons.Any(button => !button.Enabled),
+                    "Incomplete replay metadata must leave the EOG-only replay control disabled.");
+            }
+            Require(LeagueSgpEogProjection.Parse(fixture, 602, "local-puuid") == null &&
+                LeagueSgpEogProjection.Parse(fixture, 601, "wrong-owner") == null &&
+                LeagueSgpEogProjection.Parse(Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",
+                    ""teamPlayerParticipantStats"":[],""otherTeamPlayerParticipantStats"":[]}"),
+                    601, "local-puuid") == null &&
+                LeagueSgpEogProjection.Parse(Bytes(@"{""gameId"":601,""puuid"":""local-puuid"",
+                    ""teamPlayerParticipantStats"":[{""gameId"":601,""puuid"":""local-puuid"",
+                        ""teamId"":100,""championId"":12,""statistics"":[]}],
+                    ""otherTeamPlayerParticipantStats"":[{""gameId"":601,
+                        ""puuid"":""local-puuid"",""teamId"":200,""championId"":13,
+                        ""statistics"":[]}]}"), 601, "local-puuid") == null,
+                "EOG wrong game, wrong owner, empty roster and duplicate identity must fail closed.");
+        }
+
+        private static void ValidateEogOnlyFallback()
+        {
+            var local = Session("HN1", "TENCENT");
+            var foreign = Session("NA1", "NA1");
+            Require(LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, null, true) &&
+                LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, "TENCENT_HN1", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, "TENCENT_HN10", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(local, null, false) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(foreign, "TENCENT_HN1", true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(Session("UNKNOWN", "UNKNOWN"), null, true) &&
+                !LeagueEncounterMatchDetailService.CanUseEogOnlyFallback(null, null, true),
+                "EOG-only detail must be offered only for the current trusted region and non-LCU source.");
+            Require(LeagueSgpEogOnlyDialog.FormatStatistic(-2.5) == "-2.5" &&
+                LeagueSgpEogOnlyDialog.FormatStatistic(0.125) == "0.125" &&
+                LeagueSgpEogOnlyDialog.FormatMetric(null) == "—" &&
+                LeagueSgpEogOnlyDialog.FormatMetric(0) == "0",
+                "EOG-only inspection must preserve signed/fractional values, true zero and missing metrics.");
+        }
+
+        private static void ValidateSupportedQueues(LeagueSgpMatchHistoryApiClient api,
+            CaptureHandler handler, TokenApi local)
+        {
+            try
+            {
+                Require(LeagueSgpSupportedQueues.Snapshot().Length == 17 &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_420") &&
+                    LeagueSgpSupportedQueues.IsValidTag("ranked") &&
+                    LeagueSgpSupportedQueues.IsValidTag("normal"),
+                    "Pinned supported queue defaults and general tags must be available.");
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_420")
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/SUMMARY?startIndex=0&count=10&tag=q_420", StringComparison.Ordinal) &&
+                    handler.Authorization == "Bearer history-token",
+                    "SGP queue selection must use server-side tags with the existing entitlement owner.");
+                var calls = handler.Calls;
+                var reads = local.Paths.Count;
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_999")
+                    .GetAwaiter().GetResult();
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "ranked&count=999")
+                    .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_999", 999) &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_998", 999) &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_999&count=999", 999) &&
+                    LeaguePlayerDataService.CanUseCurrentQueueTag("q_999", null, 999) &&
+                    !LeaguePlayerDataService.CanUseCurrentQueueTag("q_999", "TENCENT_HN10", 999),
+                    "Only an exact verified current-region queue may bypass the public catalog.");
+                api.TryGetCurrentQueueSummaryAsync("target", 0, 10, CancellationToken.None, 999)
+                    .GetAwaiter().GetResult();
+                Require(handler.Url.EndsWith("/SUMMARY?startIndex=0&count=10&tag=q_999",
+                    StringComparison.Ordinal) && handler.Authorization == "Bearer history-token",
+                    "Current queue reads must use the existing authenticated SGP owner.");
+                calls = handler.Calls;
+                reads = local.Paths.Count;
+                api.TryGetCurrentQueueSummaryAsync("target", 0, 10, CancellationToken.None, -1)
+                    .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads,
+                    "Invalid current queue IDs must fail before credentials are requested.");
+                var valid = Bytes("{\"updatedAt\":\"2026-08-01T00:00:00.000Z\",\"queues\":[420,450,9999]}");
+                Require(LeagueSgpSupportedQueues.TryApply(valid) &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_9999") &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_440") &&
+                    LeagueSgpSupportedQueues.Snapshot().Length == 3,
+                    "New supported queues must atomically replace the old snapshot.");
+                Require(!LeagueSgpSupportedQueues.TryApply(valid) &&
+                    !LeagueSgpSupportedQueues.TryApply(Bytes("{\"updatedAt\":\"2026-08-02T00:00:00.000Z\",\"queues\":[420,420]}")) &&
+                    !LeagueSgpSupportedQueues.TryApply(Bytes("{\"updatedAt\":\"2026-08-02T00:00:00.000Z\",\"queues\":[-1]}")) &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_9999"),
+                    "Stale, duplicate and invalid catalogs must preserve the active list.");
+                var revoked = Bytes("{\"updatedAt\":\"2026-08-03T00:00:00.000Z\",\"queues\":[]}");
+                Require(LeagueSgpSupportedQueues.TryApply(revoked) &&
+                    LeagueSgpSupportedQueues.Snapshot().Length == 0 &&
+                    !LeagueSgpSupportedQueues.IsValidTag("q_9999") &&
+                    LeagueSgpSupportedQueues.IsValidTag("ranked") &&
+                    LeagueSgpSupportedQueues.IsValidTag("q_999", 999),
+                    "A source-announced empty queue catalog must revoke stale tags but retain verified-current fallback.");
+                calls = handler.Calls;
+                reads = local.Paths.Count;
+                api.TryGetTaggedSummaryAsync("target", 0, 10, CancellationToken.None, null, "q_9999")
+                    .GetAwaiter().GetResult();
+                Require(handler.Calls == calls && local.Paths.Count == reads &&
+                    !LeagueSgpSupportedQueues.TryApply(valid),
+                    "Revoked queue tags must fail before token reads and older catalogs cannot resurrect them.");
+
+            }
+            finally { LeagueSgpSupportedQueues.ResetForSmokeTest(); }
+        }
+
+        private static void ValidateCatalogRefresh()
+        {
+            var owner = Session("HN10", "TENCENT");
+            var baseline = LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory;
+            var valid = @"{""updatedAt"":""2026-08-01T00:00:00.000Z"",""servers"":{""TENCENT_HN10"":{""matchHistory"":""https://hn10-alt-sgp.lol.qq.com:21019"",""common"":""https://hn10-alt-sgp.lol.qq.com:21019"",""isTencent"":true}},""serverNames"":{""zh-CN"":{""TENCENT_HN10"":""黑玫瑰新区""}}}";
+            var initialRevision = LeagueSgpServerCatalog.Revision;
+            try
+            {
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory ==
+                        "https://hn10-alt-sgp.lol.qq.com:21019" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区" &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(owner).Length == 1 &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN1", "TENCENT")) == null,
+                    "A partial source snapshot must revoke omitted built-in providers as well as update destinations.");
+                Require(LeagueSgpServerCatalog.Revision != initialRevision,
+                    "A provider snapshot must advance the ChampSelect ownership revision.");
+                var firstRevision = LeagueSgpServerCatalog.Revision;
+                var sameEndpointsNewer = valid.Replace("2026-08-01T00", "2026-08-01T01");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(sameEndpointsNewer)) &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid)) &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-07-01"))),
+                    "A newer complete snapshot with unchanged endpoints is valid, while stale versions are rejected.");
+                Require(LeagueSgpServerCatalog.Revision != firstRevision,
+                    "A newer same-endpoint provider snapshot must invalidate an in-flight action.");
+                var revokedTokens = new TokenApi();
+                var revokedHandler = new CaptureHandler();
+                using (var revokedApi = new LeagueSgpMatchHistoryApiClient(
+                    () => owner, revokedTokens, revokedHandler))
+                {
+                    revokedApi.TryGetGameSummaryAsync(601, CancellationToken.None, "TENCENT_HN1")
+                        .GetAwaiter().GetResult();
+                    Require(revokedHandler.Calls == 0 && revokedTokens.Paths.Count == 0,
+                        "An omitted built-in region must fail before any SGP credential read.");
+                }
+                foreach (var bad in new[] {
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "attacker.example"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-attacker.lol.qq.com"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-alt-sgp.lol.qq.com.evil.example"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn10-alt-extra-sgp.lol.qq.com"),
+                    valid.Replace("hn10-alt-sgp.lol.qq.com", "hn1-alt-sgp.lol.qq.com"),
+                    valid.Replace("21019", "443"),
+                    valid.Replace("true", "false"),
+                    valid.Replace("TENCENT_HN10", "UNKNOWN")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(bad.Replace("2026-08-01", "2026-08-02"))),
+                        "Untrusted, wrong-port, wrong-owner and unknown-only catalogs must fail closed.");
+                var newlyTrusted = @"{""updatedAt"":""2026-08-03T00:00:00.000Z"",""servers"":{""TENCENT_HN11"":{""matchHistory"":""https://hn11-k8s-sgp.lol.qq.com:21019"",""common"":""https://hn11-k8s-sgp.lol.qq.com:21019"",""isTencent"":true}},""serverNames"":{""zh-CN"":{""TENCENT_HN11"":""合成新区""}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(newlyTrusted)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Id == "TENCENT_HN11" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"), "TENCENT_HN11")?.PathRegion == "HN11" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT"))?.Name == "合成新区" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null,
+                    "A source-announced Tencent platform must enroll only under its verified SGP host template and revoke omitted regions.");
+                foreach (var unsafeNew in new[] {
+                    newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "hn11-attacker.lol.qq.com"),
+                    newlyTrusted.Replace("hn11-k8s-sgp.lol.qq.com", "attacker.example"),
+                    newlyTrusted.Replace("21019", "443"),
+                    newlyTrusted.Replace(@"""isTencent"":true", @"""isTencent"":true,""regionPathParam"":""HN10"""),
+                    newlyTrusted.Replace(@"""isTencent"":true", @"""isTencent"":false")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(unsafeNew.Replace("2026-08-03", "2026-08-04"))),
+                        "A new platform must reject wrong provider, hostname, port or region identity.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-08-05"))) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("HN11", "TENCENT")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner).Name == "黑玫瑰新区",
+                    "A newer catalog must revoke an omitted dynamic platform and retain its own known entries.");
+                // Pinned Riot common hosts use aliases, not regionPathParam for several platforms.
+                var existingRiot = @"{""updatedAt"":""2026-08-05T12:00:00.000Z"",""servers"":{
+                    ""NA1"":{""matchHistory"":""https://usw2-red.pp.sgp.pvp.net"",""common"":""https://na-red.lol.sgp.pvp.net"",""isTencent"":false},
+                    ""EUW"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",""common"":""https://euw-red.lol.sgp.pvp.net"",""isTencent"":false},
+                    ""OC1"":{""matchHistory"":""https://apse1-red.pp.sgp.pvp.net"",""common"":""https://oce-red.lol.sgp.pvp.net"",""isTencent"":false}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(existingRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"))?.Common ==
+                        "https://na-red.lol.sgp.pvp.net" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("OC1", "OCE"))?.Common ==
+                        "https://oce-red.lol.sgp.pvp.net" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("JP", "JP")) == null,
+                    "A Riot-only source snapshot must revoke omitted Tencent and Riot builtins.");
+                foreach (var unsafeKnown in new[] {
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "br-red.lol.sgp.pvp.net"),
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "usw2-red.pp.sgp.pvp.net"),
+                    existingRiot.Replace("usw2-red.pp.sgp.pvp.net", "attacker.sgp.pvp.net"),
+                    existingRiot.Replace("na-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net.evil.example"),
+                    existingRiot.Replace("https://na-red.lol.sgp.pvp.net", "http://na-red.lol.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeKnown.Replace("2026-08-05T12", "2026-08-05T13"))),
+                        "Riot history and profile tokens must remain on pinned provider-specific hosts.");
+                var newRiot = @"{""updatedAt"":""2026-08-06T00:00:00.000Z"",""servers"":{""ME1"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",""common"":""https://me1-red.lol.sgp.pvp.net"",""isTencent"":false}},""serverNames"":{""zh-CN"":{""ME1"":""合成国际区""}}}";
+                var newRiotSession = Session("ME1", "ME1");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(newRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Id == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession)?.Name == "合成国际区" &&
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(Session("ME1", "ME")) == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "ME")) == null &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(newRiotSession).Length == 1 &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession, "NA1") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "ME1") == null,
+                    "New Riot regions must use exact provider hosts without widening cross-region access.");
+                // Source schema supports an ID with a numeric platform path (EUW/EUW1).
+                var aliasedRiot = @"{""updatedAt"":""2026-08-06T12:00:00.000Z"",""servers"":{
+                    ""ME"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me-red.lol.sgp.pvp.net"",""isTencent"":false,
+                    ""regionPathParam"":""ME1""}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(aliasedRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.PathRegion == "ME1" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA")) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA"), "ME") == null,
+                    "Source-announced Riot aliases must retain exact region and account scope.");
+                foreach (var unsafeAlias in new[] {
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""NA1"""),
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""ME_X"""),
+                    aliasedRiot.Replace(@"""regionPathParam"":""ME1""", @"""regionPathParam"":""ME1234"""),
+                    aliasedRiot.Replace("me-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net"),
+                    aliasedRiot.Replace("euc1-red.pp.sgp.pvp.net", "me-red.pp.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeAlias.Replace("2026-08-06T12", "2026-08-06T13"))),
+                        "Riot alias enrollment must reject foreign paths and unpinned token destinations.");
+                var bothRiot = @"{""updatedAt"":""2026-08-06T15:00:00.000Z"",""servers"":{
+                    ""ME"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me-red.lol.sgp.pvp.net"",""isTencent"":false,
+                    ""regionPathParam"":""ME1""},
+                    ""ME1"":{""matchHistory"":""https://euc1-red.pp.sgp.pvp.net"",
+                    ""common"":""https://me1-red.lol.sgp.pvp.net"",""isTencent"":false}}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(bothRiot)) &&
+                    LeagueSgpMatchHistoryApiClient.CurrentServerId(Session("ME1", "ME")) == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"))?.Id == "ME" &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("ME1", "ME"), "ME1") == null,
+                    "Known Riot region identity must override numeric platform fallback.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                    newRiot.Replace("2026-08-06T00", "2026-08-06T18"))),
+                    "Exact-ID Riot servers must remain supported after an alias catalog refresh.");
+                var riotHandler = new CaptureHandler();
+                using (var riotApi = new LeagueSgpMatchHistoryApiClient(
+                    () => newRiotSession, new TokenApi(), riotHandler))
+                {
+                    riotApi.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult();
+                    Require(riotHandler.Url == "https://euc1-red.pp.sgp.pvp.net/" +
+                        "match-history-query/v1/products/lol/ME1_601/SUMMARY" &&
+                        riotHandler.Authorization == "Bearer history-token",
+                        "A newly trusted Riot region must use its exact verified game path.");
+                }
+                foreach (var unsafeRiot in new[] {
+                    newRiot.Replace("euc1-red.pp.sgp.pvp.net", "me1-red.pp.sgp.pvp.net"),
+                    newRiot.Replace("me1-red.lol.sgp.pvp.net", "na-red.lol.sgp.pvp.net"),
+                    newRiot.Replace("me1-red.lol.sgp.pvp.net", "me1-red.lol.sgp.pvp.net.evil.example"),
+                    newRiot.Replace(@"""isTencent"":false", @"""isTencent"":true"),
+                    newRiot.Replace(@"""isTencent"":false", @"""isTencent"":false,""regionPathParam"":""ME2"""),
+                    newRiot.Replace("ME1", "ME_1"),
+                    newRiot.Replace("https://euc1-red.pp.sgp.pvp.net", "http://euc1-red.pp.sgp.pvp.net")
+                })
+                    Require(!LeagueSgpServerCatalog.TryApply(Bytes(
+                        unsafeRiot.Replace("2026-08-06", "2026-08-07"))),
+                        "Riot enrollment must reject unpinned gateways, aliases, host and scheme changes.");
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                        valid.Replace("2026-08-01", "2026-08-08"))) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(newRiotSession) == null,
+                    "A newer catalog must revoke an omitted dynamic Riot region.");
+                Require(LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN11") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1"), "TENCENT_HN10") == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner, "NA1") == null,
+                    "Dynamic catalog must not widen cross-region permissions.");
+                var disabledCatalog = @"{""updatedAt"":""2026-08-09T00:00:00.000Z"",""servers"":{},""serverNames"":{}}";
+                Require(LeagueSgpServerCatalog.TryApply(Bytes(disabledCatalog)) &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(owner) == null &&
+                    LeagueSgpMatchHistoryApiClient.ResolveServer(Session("NA1", "NA1")) == null &&
+                    LeagueSgpMatchHistoryApiClient.AvailableServers(owner).Length == 0 &&
+                    !LeagueSgpServerCatalog.TryApply(Bytes(valid.Replace("2026-08-01", "2026-08-08"))),
+                    "A newer source catalog explicitly disabling all providers must revoke stale SGP destinations.");
+
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
+            Require(LeagueSgpMatchHistoryApiClient.ResolveServer(owner).MatchHistory == baseline,
+                "Synthetic catalog must restore original endpoints.");
+        }
+
+        private static void ValidateCatalogRotationFence()
+        {
+            LeagueSgpServerCatalog.ResetForSmokeTest();
+            try
+            {
+                var owner = Session("HN10", "TENCENT");
+                var handler = new CaptureHandler();
+                handler.AfterRead = () =>
+                {
+                    Require(LeagueSgpServerCatalog.TryApply(Bytes(
+                        @"{""updatedAt"":""2026-08-12T00:00:00.000Z"",""servers"":{
+                        ""TENCENT_HN10"":{""matchHistory"":""https://hn10-alt-sgp.lol.qq.com:21019"",
+                        ""common"":""https://hn10-alt-sgp.lol.qq.com:21019"",""isTencent"":true}}}")),
+                        "Synthetic SGP provider rotation must be accepted.");
+                };
+                using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), handler))
+                {
+                    Require(api.TryGetGameSummaryAsync(601, CancellationToken.None)
+                        .GetAwaiter().GetResult() == null && handler.Calls == 1,
+                        "An in-flight SGP response must be discarded after provider rotation.");
+                    handler.AfterRead = null;
+                    Require(api.TryGetGameSummaryAsync(602, CancellationToken.None)
+                        .GetAwaiter().GetResult() != null &&
+                        handler.Url.StartsWith("https://hn10-alt-sgp.lol.qq.com:21019/",
+                            StringComparison.Ordinal),
+                        "A new request must use the accepted provider after rotation.");
+                }
+            }
+            finally { LeagueSgpServerCatalog.ResetForSmokeTest(); }
+        }
+
+        private static void ValidateTokenReuseOwnership()
+        {
+            var session = Session("HN10", "TENCENT");
+            var local = new TokenApi();
+            var handler = new CaptureHandler();
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => session, local, handler))
+            {
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    api.TryGetGameSummaryAsync(602, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 1,
+                    "Sequential SGP details failed to reuse a bounded same-session entitlement token.");
+
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 2 &&
+                    local.Paths[1] == LeagueSgpMatchHistoryApiClient.LeagueSessionTokenPath,
+                    "Common SGP credentials must never reuse the match-history token.");
+
+                session = Session("HN1", "TENCENT");
+                Require(api.TryGetGameSummaryAsync(603, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 3 &&
+                    handler.Url.Contains("/HN1_603/SUMMARY"),
+                    "Changing the authenticated region must invalidate the previous SGP token snapshot.");
+
+                session = new LeagueClientSession("LeagueClientUx", 2, 12345, "local-fixture",
+                    "https", "fixture", "HN1", "TENCENT");
+                Require(api.TryGetGameSummaryAsync(604, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 4,
+                    "Replacing the LCU process must invalidate even matching port/password token snapshots.");
+
+                Require(!LeagueSgpMatchHistoryApiClient.SameOwner(
+                    Session("HN1", "TENCENT"), session),
+                    "An identical SGP region and LCU password must not hide a process replacement.");
+
+                local.HistoryTokens.Enqueue("refreshed-token");
+                handler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+                handler.Statuses.Enqueue(HttpStatusCode.OK);
+                Require(api.TryGetGameSummaryAsync(605, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    local.Paths.Count == 5 && handler.Authorization == "Bearer refreshed-token",
+                    "A cached SGP token rejected with 401 must refresh before its single bounded retry.");
+            }
+        }
+
+        private static void ValidateRecovery()
+        {
+            Require(LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.BadGateway) &&
+                LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.ServiceUnavailable) &&
+                LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus(HttpStatusCode.GatewayTimeout) &&
+                !LeagueSgpMatchHistoryApiClient.IsTransientGatewayStatus((HttpStatusCode)429),
+                "Gateway retries must not include rate-limited responses.");
+            var owner = Session("HN10", "TENCENT");
+            var local = new TokenApi();
+            var handler = new CaptureHandler();
+            local.HistoryTokens.Enqueue("expired-token");
+            local.HistoryTokens.Enqueue("fresh-token");
+            handler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            handler.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, local, handler))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    handler.Calls == 2 && local.Paths.Count == 2 &&
+                    handler.Authorization == "Bearer fresh-token",
+                    "An expired entitlement token must be freshly read before one retry.");
+
+            var unchanged = new CaptureHandler();
+            unchanged.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            unchanged.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), unchanged))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    unchanged.Calls == 1,
+                    "A rejected unchanged token must not trigger another HTTP request.");
+
+            var gateway = new CaptureHandler();
+            gateway.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            gateway.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), gateway))
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    gateway.Calls == 2 && gateway.Bodies.Count == 2 &&
+                    gateway.Bodies[0] == "[\"target\"]" && gateway.Bodies[1] == gateway.Bodies[0],
+                    "A transient gateway error must retry the same JSON POST body.");
+
+            var profileLocal = new TokenApi();
+            profileLocal.ProfileTokens.Enqueue("expired-profile");
+            profileLocal.ProfileTokens.Enqueue("fresh-profile");
+            var profileHandler = new CaptureHandler();
+            profileHandler.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, profileLocal, profileHandler))
+                Require(api.TryGetSummonerAsync("target", CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    profileHandler.Calls == 2 &&
+                    profileHandler.Authorization == "Bearer fresh-profile" &&
+                    profileHandler.Bodies.Count == 2 &&
+                    profileHandler.Bodies[0] == profileHandler.Bodies[1],
+                    "League-session token refresh must retry an identical summoner POST only once.");
+
+            var stillUnavailable = new CaptureHandler();
+            stillUnavailable.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            stillUnavailable.Statuses.Enqueue(HttpStatusCode.ServiceUnavailable);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), stillUnavailable))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    stillUnavailable.Calls == 2, "Repeated gateway errors must not cause unbounded retries.");
+
+            var connection = new CaptureHandler { ThrowOnce = true };
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), connection))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() != null &&
+                    connection.Calls == 2, "A single transport failure must recover with a bounded retry.");
+
+            var throttled = new CaptureHandler();
+            throttled.Statuses.Enqueue((HttpStatusCode)429);
+            throttled.Statuses.Enqueue(HttpStatusCode.OK);
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), throttled))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    throttled.Calls == 1,
+                    "Rate-limited SGP responses must never be retried.");
+
+            var processReplaced = new CaptureHandler();
+            var originalOwner = owner;
+            processReplaced.AfterRead = () => owner = new LeagueClientSession(
+                "LeagueClientUx", 99, 12345, "local-fixture", "https", "fixture", "HN10", "TENCENT");
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), processReplaced))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    processReplaced.Calls == 1,
+                    "An in-flight SGP response from a replaced LCU process must be discarded.");
+            owner = originalOwner;
+
+            var replaced = new CaptureHandler();
+            replaced.Statuses.Enqueue(HttpStatusCode.Unauthorized);
+            replaced.AfterRead = () => owner = Session("HN1", "TENCENT");
+            using (var api = new LeagueSgpMatchHistoryApiClient(() => owner, new TokenApi(), replaced))
+                Require(api.TryGetGameSummaryAsync(601, CancellationToken.None).GetAwaiter().GetResult() == null &&
+                    replaced.Calls == 1,
+                    "Changing the LCU region must prevent credential retry.");
+        }
+
+        private static LeagueClientSession Session(string platform, string region)
+        {
+            return new LeagueClientSession("LeagueClientUx", 1, 12345, "local-fixture", "https", "fixture", platform, region);
+        }
+
+        private static byte[] Bytes(string value) { return Encoding.UTF8.GetBytes(value); }
+        private static void Require(bool condition, string message)
+        {
+            if (!condition) throw new InvalidOperationException(message);
+        }
+
+        private sealed class ConcurrentTokenApi : ILeagueClientApi
+        {
+            internal int Calls;
+            internal int Peak;
+            private int _active;
+            private readonly TaskCompletionSource<bool> _release =
+                new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            internal void Release() { _release.TrySetResult(true); }
+
+            public async Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                var calls = Interlocked.Increment(ref Calls);
+                var active = Interlocked.Increment(ref _active);
+                int peak;
+                do { peak = Peak; if (peak >= active) break; }
+                while (Interlocked.CompareExchange(ref Peak, active, peak) != peak);
+                try
+                {
+                    if (calls == 1) await _release.Task.ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    return Bytes("{\"accessToken\":\"history-token\"}");
+                }
+                finally { Interlocked.Decrement(ref _active); }
+            }
+        }
+
+        private sealed class ConcurrentHandler : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                    { Content = new ByteArrayContent(Bytes("{}")) });
+            }
+        }
+
+        private sealed class TokenApi : ILeagueClientApi
+        {
+            internal readonly List<string> Paths = new List<string>();
+            internal readonly Queue<string> HistoryTokens = new Queue<string>();
+            internal readonly Queue<string> ProfileTokens = new Queue<string>();
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Paths.Add(path);
+                var historyToken = HistoryTokens.Count > 0 ? HistoryTokens.Dequeue() : "history-token";
+                var profileToken = ProfileTokens.Count > 0 ? ProfileTokens.Dequeue() : "profile-token";
+                return Task.FromResult(Bytes(path == LeagueSgpMatchHistoryApiClient.EntitlementsPath
+                    ? "{\"accessToken\":\"" + historyToken + "\"}" : "\"" + profileToken + "\""));
+            }
+        }
+
+        private sealed class CaptureHandler : HttpMessageHandler
+        {
+            internal int Calls;
+            internal readonly Queue<HttpStatusCode> Statuses = new Queue<HttpStatusCode>();
+            internal bool ThrowOnce;
+            internal readonly List<string> Bodies = new List<string>();
+            internal string Url, Authorization, Body;
+            internal HttpMethod Method;
+            internal Action AfterRead;
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+            {
+                Calls++;
+                Url = request.RequestUri.AbsoluteUri;
+                Authorization = request.Headers.Authorization.ToString();
+                Method = request.Method;
+                Body = request.Content == null ? null : await request.Content.ReadAsStringAsync().ConfigureAwait(false);
+                Bodies.Add(Body);
+                if (ThrowOnce) { ThrowOnce = false; throw new HttpRequestException("synthetic network failure"); }
+                AfterRead?.Invoke();
+                return new HttpResponseMessage(Statuses.Count == 0 ? HttpStatusCode.OK : Statuses.Dequeue())
+                    { Content = new ByteArrayContent(Bytes("{}")) };
+            }
+        }
+    }
+}

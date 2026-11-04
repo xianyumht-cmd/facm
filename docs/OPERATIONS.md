@@ -1,10 +1,25 @@
 # GGman Operations (3.5.x)
 
+## Screenshot-based League UI regression verification (2026-11-04)
+
+For the League Hub, Efficiency/Quick Tools, Player History and Presence views, use the owner's 3.5.79 screenshot findings as regression input. Validate the embedded viewport (not the standalone form's nominal dimensions) at about 1120×674 and the repository's 900×580/1120×640 minimum sizes; repeat at 100%, 125%, 150% and 200% DPI where real Windows capture is available. Check full Chinese hint rendering, toggles/click targets, contextual section navigation, wrapped filter groups without horizontal bars, enough match list/footer area, dark ListView headers including selected/virtual rows, a single vertical scroll owner, no exposed English protocol enums, Tab/IME/focus and stable scroll position on resize. Do not confuse no logged-in League client / zero visible matches with confirmed LCU failure.
+
+Source assertions plus the four Windows Build/Glass/UI Text/Mayhem checks are necessary for a release candidate but do **not** by themselves certify native screenshot/DPI behavior. The owner requested a signed online update without intermediate detached builds; record any post-release visual failures as actionable hotfix issues, never claim the images were programmatically re-rendered by CI. Never bypass the 3.5.x signing, release-file SHA/signer or updater activation checks.
+
+
 ## Compact preview white-screen response (2026-10-24)
 
 The owner observed a completely **white 380×285 preview window** with no rendered interface. Native WebView2 startup was not validated by prior green CI. Avoid asking for UI aesthetics feedback from that image. The replacement artifact uses `Start-Compact-Preview.cmd` to launch its sibling offline HTML through installed Microsoft Edge in app-window mode. It does not need the native WebView2 host to initialize; unlike the native frameless version, the Edge app has its own close/title strip, and secondary pages may need manual window enlargement. `Start-Compact-WebView2.cmd` explicitly retains the previous native path for technical diagnostics but is **not** the recommended visual review entry. The existing 49,991-byte approved Glass reference remains untouched.
 
 Inspect the browser-generated home and Mayhem PNG screenshots from the `GGman-Compact-Visual-Checks` build artifact before asking the owner to review again. Windows headless rendering checks only the HTML and basic background visibility, not the native WebView2 host, DPI behavior, keyboard journeys or the user's monitor. If the Edge fallback also fails to render, stop and collect sanitized error output/screenshots; do not claim a fix from a build result.
+
+## Compact ranked-source probe and stacked candidate gate (2026-10-25)
+
+For Akari follow-up work based on #355, open an **independent Draft PR targeting** `feat/ggman-glass-webview2-pilot-20261021` (not `main`). The Windows Build, UI Text Contract, Mayhem source and Glass candidate workflows accept this temporary stacked PR base. Observe all four jobs on the final commit. Do not merge either PR or modify production update metadata.
+
+In the Glass candidate job, inspect `Probe live public ranking sources (informational)` and the `Compact-Public-Source-Probe` artifact, specifically `ordinary-aram valid=...` and `rift-top valid=...`, `all_rows`, `trace_event` and their source patch. A workflow success **does not** override `valid=False`. Source timeout, empty parsing, wrong lane and stale/mismatched patches must remain distinguishable from live-client failure. Latest pre-fix reference: Glass job #40174485817 showed ARAM valid and Rift invalid despite HTTP 200 / 864 ranked rows. No account tokens or LCU payloads should appear in this probe.
+
+For a genuine Win10 operator check, run the *unsigned opt-in compact live pilot only after closing official GGman*, then select an identified local-player Rift role and standard ARAM in actual LOL. Export the normal sanitized diagnostic ZIP and record client patch, queue/role, rendered rank count, unproxied request latency, memory/CPU baseline and shutdown cleanup. Never enter credentials into a test script or treat HTML fixture tests as real-game acceptance.
 
 ## Compact standalone visual acceptance (2026-10-24; Draft PR #355)
 

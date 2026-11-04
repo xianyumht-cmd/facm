@@ -29,6 +29,7 @@ namespace FACM.League
         public bool IsLeader { get; set; }
         public int QueueId { get; set; }
         public int RealMemberCount { get; set; }
+        public bool HasPendingInvitations { get; set; }
         public List<string> MemberIds { get; private set; } = new List<string>();
 
         public string Fingerprint
@@ -58,16 +59,27 @@ namespace FACM.League
 
         public bool IsEligibleFor(int minimumPartySize)
         {
+            return IsEligibleFor(minimumPartySize, true);
+        }
+
+        public bool IsEligibleFor(int minimumPartySize, bool waitForInvitees)
+        {
             var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
-            return CanStartActivity && IsLeader && RealMemberCount >= minimum;
+            return CanStartActivity && IsLeader && (!waitForInvitees || !HasPendingInvitations) && RealMemberCount >= minimum;
         }
 
         public string BlockReasonFor(int minimumPartySize)
+        {
+            return BlockReasonFor(minimumPartySize, true);
+        }
+
+        public string BlockReasonFor(int minimumPartySize, bool waitForInvitees)
         {
             var minimum = Math.Max(1, Math.Min(5, minimumPartySize));
             if (!CanStartActivity) return "cannot-start";
             if (!IsLeader) return "not-leader";
             if (RealMemberCount <= 0) return "no-members";
+            if (waitForInvitees && HasPendingInvitations) return "waiting-for-invitees";
             if (RealMemberCount < minimum) return "party-below-minimum-" + minimum.ToString();
             return null;
         }
@@ -93,29 +105,36 @@ namespace FACM.League
     {
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string SearchStatePath = "/lol-matchmaking/v1/search";
+        internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
         private static readonly TimeSpan LobbyObserveInterval = TimeSpan.FromSeconds(3);
         private static readonly TimeSpan ReadyObserveInterval = TimeSpan.FromMilliseconds(500);
 
         private readonly object _sync = new object();
         private readonly ILeagueClientApi _read;
         private readonly ILeagueMatchmakingWriteApi _write;
+        private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly ILeagueMatchmakingClock _clock;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _episodeOwner;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private CancellationTokenSource _lobbyCancellation;
         private CancellationTokenSource _readyCancellation;
         private string _phase;
         private string _lastSearchFingerprint;
         private string _lastSearchDiagnostic;
+        private string _lastImmediateRoomNoticeFingerprint;
         private bool _acceptAttemptedThisReadyCheck;
         private bool _autoSearch;
         private bool _autoAccept;
+        private bool _waitForInvitees = true;
+        private bool _roomNotices;
         private int _minimumPartySize = 1;
         private int _searchStartDelayMs;
         private int _acceptDelayMs;
         private bool _disposed;
 
         public LeagueMatchmakingAutomationController(ILeagueClientApi read, ILeagueMatchmakingWriteApi write)
-            : this(read, write, new LeagueMatchmakingSystemClock())
+            : this(read, write, null, new LeagueMatchmakingSystemClock())
         {
         }
 
@@ -123,15 +142,36 @@ namespace FACM.League
             ILeagueClientApi read,
             ILeagueMatchmakingWriteApi write,
             ILeagueMatchmakingClock clock)
+            : this(read, write, null, clock)
         {
+        }
+
+        internal LeagueMatchmakingAutomationController(
+            ILeagueClientApi read,
+            ILeagueMatchmakingWriteApi write,
+            ILeagueLobbyNoticeWriteApi notices,
+            ILeagueMatchmakingClock clock)
+            : this(read, write, notices, clock, null)
+        {
+        }
+
+        internal LeagueMatchmakingAutomationController(
+            ILeagueClientApi read,
+            ILeagueMatchmakingWriteApi write,
+            ILeagueLobbyNoticeWriteApi notices,
+            ILeagueMatchmakingClock clock,
+            Func<LeagueClientSession> sessionProvider)
+        {
+            _sessionProvider = sessionProvider;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
+            _notices = notices;
             _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
         public void Configure(bool autoSearch, bool autoAccept)
         {
-            Configure(autoSearch, autoAccept, 1, 0, 0);
+            Configure(autoSearch, autoAccept, 1, 0, 0, true);
         }
 
         public void Configure(
@@ -140,6 +180,29 @@ namespace FACM.League
             int minimumPartySize,
             int searchStartDelayMs,
             int acceptDelayMs)
+        {
+            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, true, false);
+        }
+
+        public void Configure(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs,
+            bool waitForInvitees)
+        {
+            Configure(autoSearch, autoAccept, minimumPartySize, searchStartDelayMs, acceptDelayMs, waitForInvitees, false);
+        }
+
+        public void Configure(
+            bool autoSearch,
+            bool autoAccept,
+            int minimumPartySize,
+            int searchStartDelayMs,
+            int acceptDelayMs,
+            bool waitForInvitees,
+            bool roomNotices)
         {
             minimumPartySize = Math.Max(1, Math.Min(5, minimumPartySize));
             searchStartDelayMs = Math.Max(0, Math.Min(60000, searchStartDelayMs));
@@ -152,7 +215,9 @@ namespace FACM.League
                 if (_disposed) return;
                 var wasAutoSearch = _autoSearch;
                 var wasAutoAccept = _autoAccept;
-                var lobbyPolicyChanged = _minimumPartySize != minimumPartySize || _searchStartDelayMs != searchStartDelayMs;
+                var lobbyPolicyChanged = _minimumPartySize != minimumPartySize ||
+                    _searchStartDelayMs != searchStartDelayMs || _waitForInvitees != waitForInvitees ||
+                    _roomNotices != roomNotices;
                 var readyPolicyChanged = _acceptDelayMs != acceptDelayMs;
 
                 restartLobby = autoSearch && IsPhase("Lobby") && (!wasAutoSearch || lobbyPolicyChanged);
@@ -171,6 +236,8 @@ namespace FACM.League
                 _autoSearch = autoSearch;
                 _autoAccept = autoAccept;
                 _minimumPartySize = minimumPartySize;
+                _waitForInvitees = waitForInvitees;
+                _roomNotices = roomNotices;
                 _searchStartDelayMs = searchStartDelayMs;
                 _acceptDelayMs = acceptDelayMs;
             }
@@ -187,7 +254,19 @@ namespace FACM.League
             {
                 if (_disposed) return;
                 var old = _phase ?? string.Empty;
+                var owner = _sessionProvider == null ? null : _sessionProvider();
+                var ownerChanged = _sessionProvider != null && !SameOwner(_episodeOwner, owner);
                 _phase = nextPhase;
+                if (ownerChanged)
+                {
+                    CancelLobbyLocked();
+                    CancelReadyLocked();
+                    _lastSearchFingerprint = null;
+                    _lastSearchDiagnostic = null;
+                    _lastImmediateRoomNoticeFingerprint = null;
+                    _acceptAttemptedThisReadyCheck = false;
+                }
+                _episodeOwner = owner;
 
                 if (!string.Equals(nextPhase, "Lobby", StringComparison.OrdinalIgnoreCase))
                 {
@@ -195,10 +274,13 @@ namespace FACM.League
                     {
                         _lastSearchFingerprint = null;
                         _lastSearchDiagnostic = null;
+                        _lastImmediateRoomNoticeFingerprint = null;
                     }
                     CancelLobbyLocked();
                 }
-                else if (!string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase) && _autoSearch)
+                else if (_autoSearch && (ownerChanged ||
+                    !string.Equals(old, "Lobby", StringComparison.OrdinalIgnoreCase) ||
+                    _lobbyCancellation == null) && (_sessionProvider == null || owner != null))
                 {
                     _lastSearchFingerprint = null;
                     _lastSearchDiagnostic = null;
@@ -211,7 +293,9 @@ namespace FACM.League
                         _acceptAttemptedThisReadyCheck = false;
                     CancelReadyLocked();
                 }
-                else if (!string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase) && _autoAccept)
+                else if (_autoAccept && (ownerChanged ||
+                    !string.Equals(old, "ReadyCheck", StringComparison.OrdinalIgnoreCase) ||
+                    _readyCancellation == null) && (_sessionProvider == null || owner != null))
                 {
                     _acceptAttemptedThisReadyCheck = false;
                     startReady = true;
@@ -227,6 +311,7 @@ namespace FACM.League
             {
                 _phase = "Lobby";
                 _autoSearch = true;
+                _episodeOwner = _sessionProvider == null ? null : _sessionProvider();
             }
             await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -237,6 +322,7 @@ namespace FACM.League
             {
                 _phase = "ReadyCheck";
                 _autoAccept = true;
+                _episodeOwner = _sessionProvider == null ? null : _sessionProvider();
             }
             await EvaluateReadyAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -246,7 +332,7 @@ namespace FACM.League
             CancellationToken token;
             lock (_sync)
             {
-                if (_disposed || !_autoSearch || !IsPhase("Lobby")) return;
+                if (_disposed || !_autoSearch || !IsPhase("Lobby") || !IsOwnerCurrentLocked()) return;
                 if (_lobbyCancellation != null) return;
                 _lobbyCancellation = new CancellationTokenSource();
                 token = _lobbyCancellation.Token;
@@ -256,18 +342,111 @@ namespace FACM.League
 
         private async Task RunLobbyObserverAsync(CancellationToken cancellationToken)
         {
+            LeagueClientSession originatingOwner;
+            lock (_sync) originatingOwner = _episodeOwner;
             var initialDelay = GetSearchStartDelay();
-            if (initialDelay > TimeSpan.Zero)
+            string announcedFingerprint = null;
+            try
             {
-                AppLog.Info("League auto matchmaking: wait/start-delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
-                await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+                if (initialDelay > TimeSpan.Zero)
+                {
+                    AppLog.Info("League auto matchmaking: wait/start-delay-ms-" + ((int)initialDelay.TotalMilliseconds).ToString());
+                    if (RoomNoticesEnabled())
+                        announcedFingerprint = await RunRoomCountdownAsync(initialDelay, cancellationToken).ConfigureAwait(false);
+                    else
+                        await _clock.Delay(initialDelay, cancellationToken).ConfigureAwait(false);
+                }
+                while (IsSearchActive())
+                {
+                    var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
+                    if (success) return;
+                    await _clock.Delay(LobbyObserveInterval, cancellationToken).ConfigureAwait(false);
+                }
             }
-            while (IsSearchActive())
+            catch (OperationCanceledException)
             {
-                var success = await EvaluateLobbyAsync(cancellationToken).ConfigureAwait(false);
-                if (success) return;
-                await _clock.Delay(LobbyObserveInterval, cancellationToken).ConfigureAwait(false);
+                if (announcedFingerprint != null && RoomNoticesEnabled() &&
+                    SameEpisodeOwner(originatingOwner))
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                    {
+                        try { await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消", true, timeout.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                }
+                throw;
             }
+        }
+
+        private async Task<string> RunRoomCountdownAsync(TimeSpan duration, CancellationToken token)
+        {
+            LeagueClientSession originatingOwner;
+            lock (_sync) originatingOwner = _episodeOwner;
+            var remaining = (int)Math.Ceiling(duration.TotalMilliseconds);
+            string announcedFingerprint = null;
+            try
+            {
+                while (remaining > 0 && IsSearchActive())
+                {
+                    var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, token).ConfigureAwait(false));
+                    int minimum;
+                    bool wait;
+                    lock (_sync) { minimum = _minimumPartySize; wait = _waitForInvitees; }
+                    if (lobby == null || !lobby.IsEligibleFor(minimum, wait) ||
+                        (announcedFingerprint != null && announcedFingerprint != lobby.Fingerprint))
+                    {
+                        if (announcedFingerprint != null && lobby != null && lobby.Fingerprint == announcedFingerprint)
+                            await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消：房间条件发生变化", true, token).ConfigureAwait(false);
+                        await _clock.Delay(TimeSpan.FromMilliseconds(remaining), token).ConfigureAwait(false);
+                        return null;
+                    }
+                    var seconds = (int)Math.Ceiling(remaining / 1000d);
+                    if (await SendRoomNoticeAsync(lobby.Fingerprint, "将在 " + seconds + " 秒后自动排队", false, token).ConfigureAwait(false))
+                        announcedFingerprint = lobby.Fingerprint;
+                    var step = Math.Min(1000, remaining);
+                    await _clock.Delay(TimeSpan.FromMilliseconds(step), token).ConfigureAwait(false);
+                    remaining -= step;
+                }
+                return announcedFingerprint;
+            }
+            catch (OperationCanceledException)
+            {
+                if (announcedFingerprint != null && RoomNoticesEnabled() &&
+                    SameEpisodeOwner(originatingOwner))
+                {
+                    using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                    {
+                        try { await SendRoomNoticeAsync(announcedFingerprint, "自动排队已取消", true, timeout.Token).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                }
+                throw;
+            }
+        }
+
+        private async Task<bool> SendRoomNoticeAsync(string fingerprint, string message, bool cancellation, CancellationToken token)
+        {
+            if (_notices == null || string.IsNullOrEmpty(fingerprint) || !RoomNoticesEnabled()) return false;
+            var room = LeagueFriendInvitationController.ParseCustomGameConversation(
+                await _read.TryGetBytesAsync(LeagueFriendInvitationController.ConversationsPath, token).ConfigureAwait(false));
+            if (room == null) return false;
+            var lobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, token).ConfigureAwait(false));
+            if (lobby == null || lobby.Fingerprint != fingerprint || !lobby.IsLeader) return false;
+            lock (_sync)
+            {
+                if (_disposed || !_roomNotices || !IsPhase("Lobby") ||
+                    !IsOwnerCurrentLocked() || (!cancellation && !_autoSearch)) return false;
+            }
+            token.ThrowIfCancellationRequested();
+            var response = await _notices.TrySendNoticeAsync(room, message, token).ConfigureAwait(false);
+            AppLog.Info("League matchmaking room notice: " +
+                (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+            return response != null && response.IsSuccessStatusCode;
+        }
+
+        private bool RoomNoticesEnabled()
+        {
+            lock (_sync) return !_disposed && _roomNotices && _notices != null;
         }
 
         private async Task<bool> EvaluateLobbyAsync(CancellationToken cancellationToken)
@@ -279,10 +458,16 @@ namespace FACM.League
                 LogSearchDiagnostic("lobby-unavailable");
                 return false;
             }
-            var minimumPartySize = GetMinimumPartySize();
-            if (!lobby.IsEligibleFor(minimumPartySize))
+            int minimumPartySize;
+            bool waitForInvitees;
+            lock (_sync)
             {
-                LogSearchDiagnostic(lobby.BlockReasonFor(minimumPartySize) ?? "not-eligible");
+                minimumPartySize = _minimumPartySize;
+                waitForInvitees = _waitForInvitees;
+            }
+            if (!lobby.IsEligibleFor(minimumPartySize, waitForInvitees))
+            {
+                LogSearchDiagnostic(lobby.BlockReasonFor(minimumPartySize, waitForInvitees) ?? "not-eligible");
                 return false;
             }
 
@@ -290,7 +475,50 @@ namespace FACM.League
             cancellationToken.ThrowIfCancellationRequested();
             lock (_sync)
             {
-                if (_disposed || !_autoSearch || !IsPhase("Lobby")) return false;
+                if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
+                {
+                    LogSearchDiagnosticLocked("already-attempted");
+                    return false;
+                }
+            }
+
+            var sourceBlock = await ReadSourceQueueBlockAsync(cancellationToken).ConfigureAwait(false);
+            if (sourceBlock != null)
+            {
+                LogSearchDiagnostic(sourceBlock);
+                return false;
+            }
+
+            if (RoomNoticesEnabled() && GetSearchStartDelay() == TimeSpan.Zero)
+            {
+                var announce = false;
+                lock (_sync)
+                {
+                    if (_lastImmediateRoomNoticeFingerprint != fingerprint)
+                    {
+                        _lastImmediateRoomNoticeFingerprint = fingerprint;
+                        announce = true;
+                    }
+                }
+                if (announce)
+                    await SendRoomNoticeAsync(fingerprint, "即将自动排队", false, cancellationToken).ConfigureAwait(false);
+            }
+
+            // Recheck the authoritative lobby after the source/penalty and optional chat reads.
+            // A former leader or changed party must never start a different lobby's search.
+            var latestLobby = ParseLobby(await _read.TryGetBytesAsync(LobbyPath, cancellationToken)
+                .ConfigureAwait(false));
+            if (!IsSearchActive() || latestLobby == null ||
+                latestLobby.Fingerprint != fingerprint ||
+                !latestLobby.IsEligibleFor(minimumPartySize, waitForInvitees))
+            {
+                LogSearchDiagnostic("lobby-changed-before-write");
+                return false;
+            }
+
+            lock (_sync)
+            {
+                if (_disposed || !_autoSearch || !IsPhase("Lobby") || !IsOwnerCurrentLocked()) return false;
                 if (string.Equals(_lastSearchFingerprint, fingerprint, StringComparison.Ordinal))
                 {
                     LogSearchDiagnosticLocked("already-attempted");
@@ -304,6 +532,8 @@ namespace FACM.League
                 _lastSearchDiagnostic = null;
             }
 
+            if (!IsSearchActive()) return false;
+            cancellationToken.ThrowIfCancellationRequested();
             AppLog.Info("League auto matchmaking: attempt");
             var response = await _write.TrySendAsync(
                 "POST",
@@ -354,12 +584,31 @@ namespace FACM.League
             return ok;
         }
 
+        private async Task<string> ReadSourceQueueBlockAsync(CancellationToken token)
+        {
+            var gameflow = ParseObject(await _read.TryGetBytesAsync(GameflowSessionPath, token).ConfigureAwait(false));
+            if (ReadBool(ReadDictionary(gameflow, "gameData"), "isCustomGame"))
+                return "custom-game";
+
+            var search = ParseObject(await _read.TryGetBytesAsync(SearchStatePath, token).ConfigureAwait(false));
+            foreach (var error in EnumerateDictionaries(ReadValue(search, "errors")))
+            {
+                var raw = ReadValue(error, "penaltyTimeRemaining");
+                double seconds;
+                if (raw != null && double.TryParse(Convert.ToString(raw, System.Globalization.CultureInfo.InvariantCulture),
+                    System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out seconds) &&
+                    seconds > 0d && !double.IsInfinity(seconds))
+                    return "waiting-for-penalty-time";
+            }
+            return null;
+        }
+
         private void StartReadyObserver()
         {
             CancellationToken token;
             lock (_sync)
             {
-                if (_disposed || !_autoAccept || !IsPhase("ReadyCheck")) return;
+                if (_disposed || !_autoAccept || !IsPhase("ReadyCheck") || !IsOwnerCurrentLocked()) return;
                 if (_readyCancellation != null || _acceptAttemptedThisReadyCheck) return;
                 _readyCancellation = new CancellationTokenSource();
                 token = _readyCancellation.Token;
@@ -410,6 +659,7 @@ namespace FACM.League
                 _acceptAttemptedThisReadyCheck = true;
             }
             if (!IsAcceptActive()) return true;
+            cancellationToken.ThrowIfCancellationRequested();
 
             AppLog.Info("League auto accept: attempt");
             var response = await _write.TrySendAsync(
@@ -471,6 +721,11 @@ namespace FACM.League
                 if (string.IsNullOrWhiteSpace(id)) id = ReadString(member, "summonerId");
                 if (!string.IsNullOrWhiteSpace(id)) output.MemberIds.Add(id.Trim());
             }
+            // Pending outgoing invitations are part of the same already-read Lobby snapshot;
+            // eligibility decides whether they block according to the saved user policy.
+            output.HasPendingInvitations = EnumerateDictionaries(ReadValue(root, "invitations"))
+                .Any(invitation => string.Equals(ReadString(invitation, "state"),
+                    "Pending", StringComparison.OrdinalIgnoreCase));
             return output;
         }
 
@@ -499,11 +754,6 @@ namespace FACM.League
             AppLog.Info("League auto matchmaking: skip/" + reason);
         }
 
-        private int GetMinimumPartySize()
-        {
-            lock (_sync) return _minimumPartySize;
-        }
-
         private TimeSpan GetSearchStartDelay()
         {
             lock (_sync) return TimeSpan.FromMilliseconds(_searchStartDelayMs);
@@ -516,12 +766,33 @@ namespace FACM.League
 
         private bool IsSearchActive()
         {
-            lock (_sync) return !_disposed && _autoSearch && IsPhase("Lobby");
+            lock (_sync) return !_disposed && _autoSearch && IsPhase("Lobby") && IsOwnerCurrentLocked();
         }
 
         private bool IsAcceptActive()
         {
-            lock (_sync) return !_disposed && _autoAccept && IsPhase("ReadyCheck");
+            lock (_sync) return !_disposed && _autoAccept && IsPhase("ReadyCheck") && IsOwnerCurrentLocked();
+        }
+
+        internal static bool SameOwner(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return expected != null && expected.Matches(current) &&
+                expected.ProcessId == current.ProcessId &&
+                string.Equals(expected.PlatformId, current.PlatformId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(expected.Region, current.Region, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsOwnerCurrentLocked()
+        {
+            return _sessionProvider == null || SameOwner(_episodeOwner, _sessionProvider());
+        }
+
+        private bool SameEpisodeOwner(LeagueClientSession originatingOwner)
+        {
+            lock (_sync)
+                return _sessionProvider == null ||
+                    (SameOwner(originatingOwner, _episodeOwner) &&
+                     SameOwner(originatingOwner, _sessionProvider()));
         }
 
         private bool IsPhase(string expected)

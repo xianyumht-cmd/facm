@@ -92,7 +92,8 @@ namespace FACM
             var singleInstanceActivationTest = HasArgument(args, "--single-instance-activation-test");
             var facmHostTest = HasArgument(args, "--facm-host-test");
             var performanceContractTest = HasArgument(args, "--performance-contract-test");
-            var leagueDashboardTest = HasArgument(args, "--league-dashboard-test");
+            var leagueHistoryTest = HasArgument(args, "--league-history-test");
+            var leagueDashboardTest = HasArgument(args, "--league-dashboard-test") || leagueHistoryTest;
             var updateMirrorTest = HasArgument(args, "--update-mirror-test");
             var usageTelemetryTest = HasArgument(args, "--usage-telemetry-test");
             var testMode = petCatalogTest || animalPetTest || mayhemSourceTest || mayhemBodyCancellationTest ||
@@ -136,7 +137,44 @@ namespace FACM
 
                 if (facmHostTest) { Environment.ExitCode = FacmHostSmokeTest.Run(); return; }
                 if (performanceContractTest) { Environment.ExitCode = PerformanceContractSmokeTest.Run(); return; }
-                if (leagueDashboardTest) { Environment.ExitCode = LeagueDashboardSmokeTest.Run(); return; }
+                if (leagueDashboardTest)
+                {
+                    if (leagueHistoryTest)
+                    {
+                        try
+                        {
+                            FACM.League.LeagueDynamicMessageSmokeTest.Validate();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateWriteRetryAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateSessionRegionFenceAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateBenchRoleSelection();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateJustShowExistingChoiceAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateAutoBenchAsync().GetAwaiter().GetResult();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateGroupRefreshCancellation();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateRemoteGroupCatalog();
+                            FACM.League.LeagueAutoPickBanSmokeTest.ValidateAkariAutoSelectTransfer();
+                            FACM.League.LeagueEfficiencySmokeTest.ValidateAkariGameflowTransfer();
+                            FACM.League.LeaguePostGameAutomationSmokeTest.Validate();
+                            FACM.League.LeagueLobbyInvitationSmokeTest.Validate();
+                            FACM.League.LeaguePlayerSmokeTest.ValidateCardCollectionSubjectFilters();
+                            FACM.League.LeaguePlayerSmokeTest.ValidateModeCollectionPipeline();
+                            FACM.League.LeaguePlayerHistoryHydrationSmokeTest.Validate();
+                            FACM.League.LeagueRespawnTimerSmokeTest.Validate();
+                            FACM.League.LeagueSgpSmokeTest.ValidateRefreshCancellation();
+                            FACM.League.LeagueSgpSmokeTest.ValidateSupportedQueueRefreshCancellation();
+                            Console.WriteLine("GGman League history synthetic smoke passed.");
+                            Environment.ExitCode = 0;
+                        }
+                        catch (Exception exception)
+                        {
+                            Console.Error.WriteLine(exception);
+                            System.Diagnostics.Debug.WriteLine(exception);
+                            Environment.ExitCode = 4;
+                        }
+                        return;
+                    }
+                    Environment.ExitCode = LeagueDashboardSmokeTest.Run();
+                    return;
+                }
                 if (updateMirrorTest) { Environment.ExitCode = UpdateMirrorSmokeTest.Run(); return; }
                 if (usageTelemetryTest) { UsageTelemetryModule.ValidateForSmokeTest(); Environment.ExitCode = 0; return; }
                 if (singleInstanceActivationTest) { Environment.ExitCode = SingleInstanceActivation.RunSmokeTest(); return; }

@@ -83,6 +83,8 @@ namespace FACM.League
         internal const string ItemsPath = "/lol-game-data/assets/v1/items.json";
         internal const string SummonerSpellsPath = "/lol-game-data/assets/v1/summoner-spells.json";
         internal const string PerksPath = "/lol-game-data/assets/v1/perks.json";
+        internal const string PerkStylesPath = "/lol-game-data/assets/v1/perkstyles.json";
+        internal const string CherryAugmentsPath = "/lol-game-data/assets/v1/cherry-augments.json";
         internal const string DefaultOpggTier = "all";
         internal static readonly TimeSpan BuildCacheDuration = TimeSpan.FromMinutes(10);
         private const int AlternativeRowLimit = 3;
@@ -298,12 +300,72 @@ namespace FACM.League
             byte[] spellsBytes,
             byte[] perksBytes)
         {
+            return ParseLocalCatalog(championsBytes, itemsBytes, spellsBytes, perksBytes);
+        }
+
+        internal static LeagueBuildAdvisorCatalog ParseLocalCatalog(
+            byte[] championsBytes,
+            byte[] itemsBytes,
+            byte[] spellsBytes,
+            byte[] perksBytes)
+        {
             var catalog = new LeagueBuildAdvisorCatalog();
             ParseIdNameArray(championsBytes, catalog.Champions, catalog.ChampionIcons);
             ParseIdNameArray(itemsBytes, catalog.Items, catalog.ItemIcons);
             ParseIdNameArray(spellsBytes, catalog.Spells, catalog.SpellIcons);
-            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons);
+            ParseIdNameArray(perksBytes, catalog.Perks, catalog.PerkIcons,
+                catalog.PerkEndOfGameDescriptions);
             return catalog;
+        }
+
+        internal static void ParseLocalAugments(byte[] bytes, LeagueBuildAdvisorCatalog catalog)
+        {
+            if (bytes == null || bytes.Length == 0 || catalog == null) return;
+            object decoded;
+            try { decoded = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)); }
+            catch { return; }
+            foreach (var row in EnumerateDictionaries(decoded))
+            {
+                var id = ReadInt(row, "id");
+                if (id <= 0) continue;
+                var name = ReadString(row, "nameTRA");
+                if (!string.IsNullOrWhiteSpace(name)) catalog.Augments[id] = name.Trim();
+                var rarity = ReadString(row, "rarity");
+                if (rarity == "kSilver" || rarity == "kGold" || rarity == "kPrismatic" ||
+                    rarity == "kBronze" || rarity == "kEventChoice")
+                    catalog.AugmentRarities[id] = rarity;
+                var icon = ReadString(row, "augmentSmallIconPath");
+                var reference = "lcu:" + icon;
+                // Match the same strict allowlist as deferred scoreboard asset loading.
+                if (FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(reference))
+                    catalog.AugmentIcons[id] = reference;
+            }
+        }
+
+        internal static void ParseLocalPerkStyles(byte[] bytes, LeagueBuildAdvisorCatalog catalog)
+        {
+            if (bytes == null || bytes.Length == 0 || catalog == null) return;
+            Dictionary<string, object> decoded;
+            try { decoded = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>; }
+            catch { return; }
+            foreach (var row in EnumerateDictionaries(ReadValue(decoded, "styles")))
+            {
+                var id = ReadInt(row, "id");
+                var name = ReadString(row, "name");
+                if (id > 0 && !string.IsNullOrWhiteSpace(name)) catalog.PerkStyles[id] = name.Trim();
+                var iconPath = ReadString(row, "iconPath");
+                if (id <= 0 || string.IsNullOrWhiteSpace(iconPath)) continue;
+                var reference = AssetReference(iconPath);
+                if (FACM.AppHost.Modules.LeagueEfficiencyModule.IsSafeEncounterAssetReference(reference))
+                    catalog.PerkStyleIcons[id] = reference;
+            }
+        }
+
+        internal static LeagueBuildAdvisorCatalog CloneLocalCatalog(LeagueBuildAdvisorCatalog source)
+        {
+            return CloneCatalog(source);
         }
 
         internal string ParsePrimaryRankedPosition(byte[] bytes, int championId)
@@ -513,6 +575,9 @@ namespace FACM.League
                 Activity = live == null ? LeagueActivityLevel.None : live.Activity,
                 BudgetName = live == null ? _budgets.Current.Name : live.BudgetName,
                 QueueId = live == null ? 0 : live.QueueId,
+                QueueType = live == null ? null : live.QueueType,
+                GameId = live == null ? 0 : live.GameId,
+                GameMode = live == null ? null : live.GameMode,
                 Source = "OP.GG Global",
                 UpdatedAtUtc = DateTime.UtcNow
             };
@@ -701,11 +766,13 @@ namespace FACM.League
             return (double)wins / play;
         }
 
-        private void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output, IDictionary<int, string> icons = null)
+        private static void ParseIdNameArray(byte[] bytes, IDictionary<int, string> output,
+            IDictionary<int, string> icons = null, IDictionary<int, string[]> endOfGameDescriptions = null)
         {
             if (bytes == null || bytes.Length == 0 || output == null) return;
             object decoded;
-            try { decoded = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)); }
+            try { decoded = new JavaScriptSerializer { MaxJsonLength = 8 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)); }
             catch { return; }
             foreach (var row in EnumerateDictionaries(decoded))
             {
@@ -715,6 +782,14 @@ namespace FACM.League
                 if (id > 0 && !string.IsNullOrWhiteSpace(name)) output[id] = name.Trim();
                 if (id > 0 && icons != null && !string.IsNullOrWhiteSpace(iconPath))
                     icons[id] = AssetReference(iconPath);
+                if (id > 0 && endOfGameDescriptions != null)
+                {
+                    var descriptions = EnumerateValues(ReadValue(row, "endOfGameStatDescs"))
+                        .OfType<string>().Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Take(3).Select(value => value.Length <= 800 ? value : value.Substring(0, 800))
+                        .ToArray();
+                    if (descriptions.Length > 0) endOfGameDescriptions[id] = descriptions;
+                }
             }
         }
 
@@ -920,9 +995,16 @@ namespace FACM.League
             Copy(source.Items, clone.Items);
             Copy(source.Spells, clone.Spells);
             Copy(source.Perks, clone.Perks);
+            foreach (var pair in source.PerkEndOfGameDescriptions)
+                clone.PerkEndOfGameDescriptions[pair.Key] = (string[])pair.Value.Clone();
+            Copy(source.PerkStyles, clone.PerkStyles);
+            Copy(source.Augments, clone.Augments);
+            Copy(source.AugmentRarities, clone.AugmentRarities);
             Copy(source.ItemIcons, clone.ItemIcons);
             Copy(source.SpellIcons, clone.SpellIcons);
             Copy(source.PerkIcons, clone.PerkIcons);
+            Copy(source.PerkStyleIcons, clone.PerkStyleIcons);
+            Copy(source.AugmentIcons, clone.AugmentIcons);
             Copy(source.ChampionIcons, clone.ChampionIcons);
             return clone;
         }

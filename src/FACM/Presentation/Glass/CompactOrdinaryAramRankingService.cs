@@ -50,7 +50,7 @@ namespace FACM.Presentation.Glass
                 try
                 {
                     var response = await LeaguePublicDataTransport.GetAsync(
-                        Url, TimeSpan.FromSeconds(3.5), token, false).ConfigureAwait(false);
+                        Url, TimeSpan.FromSeconds(6), token, false).ConfigureAwait(false);
                     var parsed = Parse(response.ReadUtf8());
                     watch.Stop();
                     if (!MayhemRankingSourceService.IsComplete(parsed))
@@ -69,7 +69,9 @@ namespace FACM.Presentation.Glass
                 }
                 catch (OperationCanceledException)
                 {
-                    CompactTraceLog.Record(traceId, "aram", "query", "cancelled", watch.ElapsedMilliseconds);
+                    CompactTraceLog.Record(traceId, "aram", "query",
+                        token.IsCancellationRequested ? "cancelled" : "failed_timeout",
+                        watch.ElapsedMilliseconds);
                     if (token.IsCancellationRequested) throw;
                     return null;
                 }

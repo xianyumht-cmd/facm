@@ -18,6 +18,7 @@ namespace FACM.League
             ValidateBenchQuickPick();
             ValidatePollingBudget();
             ValidateCancellation();
+            ValidateSgpLiveTeamEnrichment();
             if (!LeagueLiveUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("League Live tray bridge lost MainForm tray access.");
         }
@@ -192,6 +193,126 @@ namespace FACM.League
                 }
             }
             Require(api.Paths.Count == 0, "Canceled League Live refresh must not start LCU requests.");
+        }
+
+
+        private static void ValidateSgpLiveTeamEnrichment()
+        {
+            var ownerSession = new LeagueClientSession("LeagueClientUx", 1, 12345,
+                "fixture", "https", "synthetic", "HN10", "TENCENT");
+            var api = new SgpLiveFixtureApi();
+            var sgp = new SgpLiveFixture();
+            var service = new LeagueLiveDataService(api, new PerformanceBudgetProvider(), sgp,
+                () => ownerSession);
+            var snapshot = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(snapshot.Activity == LeagueActivityLevel.InGame && !snapshot.SgpEnriched,
+                "Normal Live polling must remain local-only.");
+            Require(service.TryRefreshSgpTeamsAsync(snapshot, CancellationToken.None)
+                .GetAwaiter().GetResult(), "Valid pinned GSM response did not enrich Live.");
+            Require(snapshot.SgpEnriched && snapshot.Players.Count == 2 &&
+                snapshot.Players.Exists(p => p.IsLocalPlayer && p.PuuId == "local-puuid" &&
+                    p.Spell1Id == 4 && p.Spell2Id == 7) &&
+                snapshot.Players.Exists(p => p.PuuId == "enemy-puuid" &&
+                    p.Spell1Id == 4 && p.Spell2Id == 12),
+                "SGP team, champion and positional summoner spells did not reach Live rows.");
+            var cached = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(cached.SgpEnriched && sgp.Calls == 1,
+                "Normal Live polling must reuse bounded verified data without repeated SGP HTTP.");
+
+            api.Puuid = "switched-puuid";
+            var switched = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!switched.SgpEnriched && switched.Players.All(p => p.Spell1Id == 0),
+                "Account change must invalidate cached GSM spells and team data.");
+
+            api.Puuid = "local-puuid";
+            sgp.AfterRead = () => api.Puuid = "switched-puuid";
+            var pending = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!service.TryRefreshSgpTeamsAsync(pending, CancellationToken.None)
+                .GetAwaiter().GetResult() && !pending.SgpEnriched,
+                "Account replacement during remote GSM read must fail closed.");
+            sgp.AfterRead = null;
+            api.Puuid = "local-puuid";
+            sgp.Json = sgp.Json.Replace(@"""gameId"":123456", @"""gameId"":654321");
+            var wrongGame = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!service.TryRefreshSgpTeamsAsync(wrongGame, CancellationToken.None)
+                .GetAwaiter().GetResult() && !wrongGame.SgpEnriched,
+                "Mismatched GSM game identity must not be displayed.");
+            sgp.Json = SgpLiveFixture.ValidJson;
+            sgp.AfterRead = () => ownerSession = new LeagueClientSession("LeagueClientUx", 2, 12346,
+                "fixture-2", "https", "synthetic", "HN1", "TENCENT");
+            var replaced = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!service.TryRefreshSgpTeamsAsync(replaced, CancellationToken.None)
+                .GetAwaiter().GetResult(), "Region/session replacement must reject in-flight GSM.");
+            sgp.AfterRead = null;
+
+            api.Phase = "Lobby";
+            var exited = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.Phase = "InProgress";
+            var reentered = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!exited.SgpEnriched && !reentered.SgpEnriched,
+                "Gameflow exit must clear SGP enrichment instead of replaying a previous episode.");
+
+            var anonymousBot = SgpLiveFixture.ValidJson.Replace(
+                @"""teamTwo"":[{""puuid"":""enemy-puuid""", @"""teamTwo"":[{""puuid"":""""");
+            var parsedBots = LeagueLiveDataService.ParseSgpGame(
+                Encoding.UTF8.GetBytes(anonymousBot), 123456, "local-puuid");
+            Require(parsedBots != null && parsedBots.Count == 1 &&
+                parsedBots[0].IsLocalPlayer && parsedBots[0].CellId == -1 &&
+                parsedBots[0].Spell1Id == 4,
+                "Anonymous bot slots must not suppress verified local GSM team data.");
+
+            var oversizedSelections = string.Join(",", Enumerable.Range(1, 41)
+                .Select(id => "{\"puuid\":\"extra-" + id + "\",\"spell1Id\":4}"));
+            var oversizedGame = SgpLiveFixture.ValidJson.Replace(
+                @"""playerChampionSelections"":[", @"""playerChampionSelections"":[" + oversizedSelections + ",");
+            Require(LeagueLiveDataService.ParseSgpGame(
+                Encoding.UTF8.GetBytes(oversizedGame), 123456, "local-puuid") == null,
+                "Oversized GSM selection sets must fail within the bounded parser budget.");
+
+            Require(LeagueLiveDataService.ParseSgpGame(
+                Encoding.UTF8.GetBytes(SgpLiveFixture.ValidJson.Replace(
+                    @"""puuid"":""enemy-puuid""", @"""puuid"":""local-puuid""")),
+                123456, "local-puuid") == null,
+                "Duplicate GSM team identities must be rejected.");
+        }
+
+        private sealed class SgpLiveFixtureApi : ILeagueClientApi
+        {
+            internal string Puuid = "local-puuid";
+            internal string Phase = "InProgress";
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueDashboardPhaseService.PhasePath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("\"" + Phase + "\""));
+                if (path == LeagueDashboardDetailsService.SummonerPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + Puuid + "\"}"));
+                if (path == LeagueLiveDataService.GameflowSessionPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes(
+                        "{\"phase\":\"" + Phase + "\",\"gameData\":{\"gameId\":123456," +
+                        "\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":22}]," +
+                        "\"teamTwo\":[{\"puuid\":\"enemy-puuid\",\"championId\":55}]}}"));
+                return Task.FromResult<byte[]>(null);
+            }
+        }
+
+        private sealed class SgpLiveFixture : ILeagueSgpGsmApi
+        {
+            internal const string ValidJson = @"{""playerCredentials"":{""gameId"":123456,""puuid"":""local-puuid""},""game"":{""id"":123456,""teamOne"":[{""puuid"":""local-puuid"",""championId"":22,""summonerName"":""Me"",""selectedPosition"":""BOTTOM""}],""teamTwo"":[{""puuid"":""enemy-puuid"",""championId"":55,""summonerName"":""Enemy"",""selectedPosition"":""MIDDLE""}],""playerChampionSelections"":[{""puuid"":""local-puuid"",""spell1Id"":4,""spell2Id"":7},{""puuid"":""enemy-puuid"",""spell1Id"":4,""spell2Id"":12}]}}";
+            internal string Json = ValidJson;
+            internal int Calls;
+            internal Action AfterRead;
+            public Task<byte[]> TryGetGsmByPuuidAsync(string puuid, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Calls++;
+                AfterRead?.Invoke();
+                return Task.FromResult(Encoding.UTF8.GetBytes(Json));
+            }
+            public Task<byte[]> TryGetGsmByGameIdAsync(long gameId, CancellationToken token)
+            {
+                throw new InvalidOperationException("Live must not query GSM by gameId.");
+            }
         }
 
         private static void Require(bool condition, string message)

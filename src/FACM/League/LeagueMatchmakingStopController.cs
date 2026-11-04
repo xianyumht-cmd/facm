@@ -49,17 +49,31 @@ namespace FACM.League
     internal sealed class LeagueMatchmakingSearchState
     {
         public bool IsCurrentlyInQueue { get; set; }
+        public string SearchState { get; set; }
         public double? TimeInQueueSeconds { get; set; }
         public double? EstimatedQueueTimeSeconds { get; set; }
+        public double PenaltyTimeSeconds { get; set; }
 
-        public bool HasUsableEstimate
+        public bool IsSearching
+        {
+            get { return string.Equals(SearchState, "Searching", StringComparison.OrdinalIgnoreCase); }
+        }
+
+        public bool HasUsableQueueTime
         {
             get
             {
-                return IsCurrentlyInQueue &&
+                return IsCurrentlyInQueue && IsSearching &&
                        TimeInQueueSeconds.HasValue && TimeInQueueSeconds.Value >= 0d &&
-                       EstimatedQueueTimeSeconds.HasValue && EstimatedQueueTimeSeconds.Value > 0d;
+                       !double.IsNaN(TimeInQueueSeconds.Value) && !double.IsInfinity(TimeInQueueSeconds.Value) &&
+                       PenaltyTimeSeconds >= 0d && !double.IsNaN(PenaltyTimeSeconds) &&
+                       !double.IsInfinity(PenaltyTimeSeconds);
             }
+        }
+
+        public bool HasUsableEstimate
+        {
+            get { return HasUsableQueueTime && EstimatedQueueTimeSeconds.HasValue && EstimatedQueueTimeSeconds.Value > 0d; }
         }
     }
 
@@ -77,9 +91,12 @@ namespace FACM.League
 
         private readonly ILeagueClientApi _readApi;
         private readonly ILeagueMatchmakingWriteApi _writeApi;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private readonly ILeagueMatchmakingClock _clock;
         private readonly object _sync = new object();
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private CancellationTokenSource _episode;
+        private LeagueClientSession _episodeSession;
         private LeagueMatchmakingStopPolicy _policy;
         private int _fixedStopAfterMs;
         private string _phase = string.Empty;
@@ -88,10 +105,19 @@ namespace FACM.League
         private bool _stopConfirmed;
         private bool _disposed;
 
-        public LeagueMatchmakingStopController(ILeagueClientApi readApi, ILeagueMatchmakingWriteApi writeApi)
+        public LeagueMatchmakingStopController(ILeagueClientApi readApi, ILeagueMatchmakingWriteApi writeApi,
+            Func<LeagueClientSession> sessionProvider)
+            : this(readApi, writeApi, sessionProvider, new LeagueMatchmakingSystemClock())
+        {
+        }
+
+        internal LeagueMatchmakingStopController(ILeagueClientApi readApi, ILeagueMatchmakingWriteApi writeApi,
+            Func<LeagueClientSession> sessionProvider, ILeagueMatchmakingClock clock)
         {
             _readApi = readApi ?? throw new ArgumentNullException(nameof(readApi));
             _writeApi = writeApi ?? throw new ArgumentNullException(nameof(writeApi));
+            _sessionProvider = sessionProvider ?? throw new ArgumentNullException(nameof(sessionProvider));
+            _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         }
 
         public void Configure(string policy, int fixedStopAfterMs)
@@ -114,6 +140,7 @@ namespace FACM.League
                 {
                     previous = _episode;
                     _episode = null;
+                    _episodeSession = null;
                     _generation++;
                     _stopConfirmed = false;
                 }
@@ -129,21 +156,24 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
-                var nextPhase = state == null ? string.Empty : state.Phase ?? string.Empty;
-                var nextActivity = state == null ? LeagueActivityLevel.None : state.Activity;
+                var nextPhase = state != null && state.Connected ? state.Phase ?? string.Empty : string.Empty;
+                var nextActivity = state != null && state.Connected ? state.Activity : LeagueActivityLevel.None;
                 var wasMatchmaking = IsMatchmaking(_phase, _activity);
                 var isMatchmaking = IsMatchmaking(nextPhase, nextActivity);
+                var sessionChanged = _episode != null &&
+                    !SameEpisodeSession(_episodeSession, _sessionProvider());
                 _phase = nextPhase;
                 _activity = nextActivity;
 
-                if (!isMatchmaking)
+                if (!isMatchmaking || sessionChanged)
                 {
                     previous = _episode;
                     _episode = null;
+                    _episodeSession = null;
                     _generation++;
                     _stopConfirmed = false;
                 }
-                else if (!wasMatchmaking || _episode == null)
+                if (isMatchmaking && (!wasMatchmaking || sessionChanged || _episode == null))
                 {
                     start = _policy != LeagueMatchmakingStopPolicy.Never;
                     _stopConfirmed = false;
@@ -166,6 +196,8 @@ namespace FACM.League
 
         private void StartEpisode()
         {
+            var session = _sessionProvider();
+            if (session == null) return;
             CancellationTokenSource request;
             int generation;
             LeagueMatchmakingStopPolicy policy;
@@ -175,6 +207,7 @@ namespace FACM.League
                 if (_disposed || _episode != null || _policy == LeagueMatchmakingStopPolicy.Never || !IsMatchmaking(_phase, _activity))
                     return;
                 _episode = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                _episodeSession = session;
                 request = _episode;
                 generation = ++_generation;
                 policy = _policy;
@@ -191,11 +224,31 @@ namespace FACM.League
         {
             try
             {
-                await Task.Delay(Math.Max(1000, delayMs), cancellationToken).ConfigureAwait(false);
-                if (!IsCurrentMatchmakingEpisode(generation)) return;
-                var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
-                if (state == null || !state.IsCurrentlyInQueue) return;
-                await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
+                var missingReads = 0;
+                while (!cancellationToken.IsCancellationRequested && IsCurrentMatchmakingEpisode(generation))
+                {
+                    var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
+                    if (state == null)
+                    {
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    if (!state.IsCurrentlyInQueue || !state.IsSearching) return;
+                    var remaining = FixedStopRemaining(state, delayMs);
+                    if (!remaining.HasValue)
+                    {
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    missingReads = 0;
+                    if (remaining.Value > TimeSpan.Zero)
+                    {
+                        await _clock.Delay(remaining.Value, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    if (await TryStopAsync(generation, cancellationToken).ConfigureAwait(false)) return;
+                    await _clock.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                }
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -208,19 +261,26 @@ namespace FACM.League
         {
             try
             {
+                var missingReads = 0;
                 while (!cancellationToken.IsCancellationRequested && IsCurrentMatchmakingEpisode(generation))
                 {
                     var state = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
-                    if (state == null || !state.IsCurrentlyInQueue) return;
+                    if (state == null)
+                    {
+                        await _clock.Delay(MissingSearchRetryDelay(++missingReads), cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
+                    if (!state.IsCurrentlyInQueue || !state.IsSearching) return;
+                    missingReads = 0;
                     if (ShouldStopForEstimate(state))
                     {
                         var stopped = await TryStopAsync(generation, cancellationToken).ConfigureAwait(false);
                         if (stopped) return;
-                        await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
                     }
                     else
                     {
-                        await Task.Delay(EstimatedPollInterval, cancellationToken).ConfigureAwait(false);
+                        await _clock.Delay(EstimatedPollInterval, cancellationToken).ConfigureAwait(false);
                     }
                 }
             }
@@ -233,10 +293,23 @@ namespace FACM.League
 
         private async Task<bool> TryStopAsync(int generation, CancellationToken cancellationToken)
         {
+            LeagueMatchmakingStopPolicy policy;
+            int fixedStopAfterMs;
             lock (_sync)
             {
                 if (!IsCurrentMatchmakingEpisodeLocked(generation) || _stopConfirmed) return _stopConfirmed;
+                policy = _policy;
+                fixedStopAfterMs = _fixedStopAfterMs;
             }
+
+            // The Gameflow phase can lag behind an LCU search-state transition.
+            // Recheck the authoritative search before deleting an active request.
+            var before = await ReadSearchStateAsync(cancellationToken).ConfigureAwait(false);
+            if (!IsCurrentMatchmakingEpisode(generation) || before == null ||
+                !before.IsCurrentlyInQueue || !before.IsSearching ||
+                (policy == LeagueMatchmakingStopPolicy.EstimatedTime && !ShouldStopForEstimate(before)) ||
+                (policy == LeagueMatchmakingStopPolicy.FixedTime && !ShouldStopForFixed(before, fixedStopAfterMs)))
+                return false;
 
             LeagueClientWriteResponse response = null;
             try
@@ -284,10 +357,13 @@ namespace FACM.League
             try
             {
                 var root = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as IDictionary<string, object>;
-                if (root == null) return null;
+                object inQueue;
+                if (root == null || !root.TryGetValue("isCurrentlyInQueue", out inQueue) ||
+                    !(inQueue is bool)) return null;
                 var result = new LeagueMatchmakingSearchState
                 {
-                    IsCurrentlyInQueue = ReadBool(root, "isCurrentlyInQueue")
+                    IsCurrentlyInQueue = (bool)inQueue,
+                    SearchState = ReadString(root, "searchState")
                 };
                 result.TimeInQueueSeconds = ReadNullableDouble(root, "timeInQueue");
                 result.EstimatedQueueTimeSeconds = FirstPositive(
@@ -301,6 +377,15 @@ namespace FACM.League
                         ReadNullableDouble(searchState, "estimatedQueueTime"),
                         ReadNullableDouble(searchState, "estimatedQueueTimeInSeconds"));
                 }
+                object lowPriority;
+                if (root.TryGetValue("lowPriorityData", out lowPriority) && lowPriority != null)
+                {
+                    var lowPriorityData = lowPriority as IDictionary<string, object>;
+                    if (lowPriorityData == null)
+                        result.PenaltyTimeSeconds = double.NaN;
+                    else if (lowPriorityData.ContainsKey("penaltyTime") && lowPriorityData["penaltyTime"] != null)
+                        result.PenaltyTimeSeconds = ReadNullableDouble(lowPriorityData, "penaltyTime") ?? double.NaN;
+                }
                 return result;
             }
             catch
@@ -312,7 +397,27 @@ namespace FACM.League
         internal static bool ShouldStopForEstimate(LeagueMatchmakingSearchState state)
         {
             return state != null && state.HasUsableEstimate &&
-                   state.TimeInQueueSeconds.Value >= state.EstimatedQueueTimeSeconds.Value;
+                   state.TimeInQueueSeconds.Value - state.PenaltyTimeSeconds >= state.EstimatedQueueTimeSeconds.Value;
+        }
+
+        internal static TimeSpan? FixedStopRemaining(LeagueMatchmakingSearchState state, int fixedStopAfterMs)
+        {
+            if (state == null || !state.HasUsableQueueTime) return null;
+            var limitMs = Math.Max(1000, Math.Min(600000, fixedStopAfterMs));
+            var actualQueueMs = Math.Max(0d, state.TimeInQueueSeconds.Value - state.PenaltyTimeSeconds) * 1000d;
+            return TimeSpan.FromMilliseconds(Math.Ceiling(Math.Max(0d, limitMs - actualQueueMs)));
+        }
+
+        internal static bool ShouldStopForFixed(LeagueMatchmakingSearchState state, int fixedStopAfterMs)
+        {
+            var remaining = FixedStopRemaining(state, fixedStopAfterMs);
+            return remaining.HasValue && remaining.Value == TimeSpan.Zero;
+        }
+
+        private static string ReadString(IDictionary<string, object> root, string key)
+        {
+            object value;
+            return root != null && root.TryGetValue(key, out value) ? value as string : null;
         }
 
         internal static bool IsMatchmakingForSmokeTest(string phase, LeagueActivityLevel activity)
@@ -327,15 +432,6 @@ namespace FACM.League
                 if (value.HasValue && value.Value > 0d && !double.IsNaN(value.Value) && !double.IsInfinity(value.Value))
                     return value;
             return null;
-        }
-
-        private static bool ReadBool(IDictionary<string, object> root, string key)
-        {
-            object raw;
-            if (root == null || !root.TryGetValue(key, out raw) || raw == null) return false;
-            if (raw is bool) return (bool)raw;
-            bool value;
-            return bool.TryParse(Convert.ToString(raw, CultureInfo.InvariantCulture), out value) && value;
         }
 
         private static double? ReadNullableDouble(IDictionary<string, object> root, string key)
@@ -363,6 +459,17 @@ namespace FACM.League
             return value != null;
         }
 
+        internal static TimeSpan MissingSearchRetryDelay(int consecutiveMissingReads)
+        {
+            return TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(5,
+                Math.Max(1, consecutiveMissingReads)))));
+        }
+
+        internal static bool SameEpisodeSession(LeagueClientSession expected, LeagueClientSession current)
+        {
+            return LeagueMatchmakingAutomationController.SameOwner(expected, current);
+        }
+
         private bool IsCurrentMatchmakingEpisode(int generation)
         {
             lock (_sync) return IsCurrentMatchmakingEpisodeLocked(generation);
@@ -371,7 +478,8 @@ namespace FACM.League
         private bool IsCurrentMatchmakingEpisodeLocked(int generation)
         {
             return !_disposed && generation == _generation && _episode != null &&
-                   _policy != LeagueMatchmakingStopPolicy.Never && IsMatchmaking(_phase, _activity);
+                   _policy != LeagueMatchmakingStopPolicy.Never && IsMatchmaking(_phase, _activity) &&
+                   SameEpisodeSession(_episodeSession, _sessionProvider());
         }
 
         private static bool IsMatchmaking(string phase, LeagueActivityLevel activity)
@@ -400,6 +508,7 @@ namespace FACM.League
                 _generation++;
                 episode = _episode;
                 _episode = null;
+                _episodeSession = null;
             }
             CancelAndDispose(episode);
             try { _lifetime.Cancel(); }

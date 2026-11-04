@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Performance;
@@ -115,6 +117,7 @@ namespace FACM.League
 
             return snapshot.ChampionId.ToString(CultureInfo.InvariantCulture) + ":" +
                    snapshot.QueueId.ToString(CultureInfo.InvariantCulture) + ":" +
+                   (snapshot.QueueType ?? string.Empty) + ":" +
                    (snapshot.Mode ?? string.Empty).Trim().ToLowerInvariant() + ":" +
                    (snapshot.Position ?? string.Empty).Trim().ToLowerInvariant() + ":" +
                    (snapshot.Version ?? string.Empty).Trim() + recommendation;
@@ -280,6 +283,7 @@ namespace FACM.League
             plan.ChampionId = snapshot.ChampionId;
             plan.ChampionName = snapshot.ChampionName;
             plan.QueueId = snapshot.QueueId;
+            plan.QueueType = snapshot.QueueType;
             plan.Mode = snapshot.Mode;
             plan.Position = snapshot.Position;
             plan.Version = snapshot.Version;
@@ -406,6 +410,9 @@ namespace FACM.League
         private readonly LeagueBuildAdvisorDataService _readService;
         private readonly ILeagueAutoApplyExecutor _executor;
         private readonly LeagueAutoApplyCoordinator _coordinator;
+        private readonly LeagueChampionSpellPresetCoordinator _presetCoordinator = new LeagueChampionSpellPresetCoordinator();
+        private readonly LeagueLiveDataService _presetLive;
+        private readonly LeagueBuildApplyService _presetApply;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private Task _loopTask;
         private CancellationTokenSource _activeApply;
@@ -427,13 +434,17 @@ namespace FACM.League
             PerformanceBudgetProvider budgets,
             LeagueBuildAdvisorDataService readService,
             ILeagueAutoApplyExecutor executor,
-            LeagueAutoApplyCoordinator coordinator)
+            LeagueAutoApplyCoordinator coordinator,
+            LeagueLiveDataService presetLive = null,
+            LeagueBuildApplyService presetApply = null)
         {
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _readService = readService ?? throw new ArgumentNullException(nameof(readService));
             _executor = executor ?? throw new ArgumentNullException(nameof(executor));
             _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+            _presetLive = presetLive;
+            _presetApply = presetApply;
             _lastStatus = settings.LeagueAutoApplyRecommended ? "waiting" : "disabled";
         }
 
@@ -442,6 +453,250 @@ namespace FACM.League
         public bool Enabled
         {
             get { return _settings.LeagueAutoApplyRecommended; }
+        }
+
+        internal bool PresetsEnabled { get { return _settings.LeagueChampionSpellPresetsEnabled; } }
+
+        internal LeagueChampionSpellPreset FindPreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            return LeagueChampionSpellPresets.Resolve(_settings.LeagueChampionSpellPresets, snapshot.ChampionId, group);
+        }
+
+        internal LeagueChampionRunePreset FindRunePreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            return LeagueChampionRunePresets.Resolve(_settings.LeagueChampionRunePresets, snapshot.ChampionId, group);
+        }
+
+        internal static LeagueBuildApplyPlan MakePresetPlan(LeagueBuildAdvisorSnapshot snapshot,
+            LeagueChampionSpellPreset spells, LeagueChampionRunePreset runes)
+        {
+            if (snapshot == null || (spells == null && runes == null)) return null;
+            var group = LeagueChampionSpellPresets.GroupFor(
+                snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (string.IsNullOrWhiteSpace(group) ||
+                spells != null && !MatchesPresetGroup(spells.Group, group) ||
+                runes != null && !MatchesPresetGroup(runes.Group, group))
+                return null;
+            var plan = new LeagueBuildApplyPlan
+            {
+                ChampionId = snapshot.ChampionId,
+                QueueId = snapshot.QueueId,
+                QueueType = snapshot.QueueType,
+                PresetGroup = group,
+                Mode = snapshot.Mode,
+                Position = snapshot.Position,
+                Version = snapshot.Version
+            };
+            if (spells != null)
+            {
+                plan.Spell1Id = spells.Spell1Id;
+                plan.Spell2Id = spells.Spell2Id;
+            }
+            if (runes != null)
+            {
+                plan.PrimaryStyleId = runes.PrimaryStyleId;
+                plan.SecondaryStyleId = runes.SecondaryStyleId;
+                plan.PresetPerkIds.AddRange(runes.SelectedPerkIds);
+            }
+            return plan;
+        }
+
+        private static bool MatchesPresetGroup(string saved, string current)
+        {
+            return string.Equals(saved, current, StringComparison.Ordinal) ||
+                   current.StartsWith("ranked-", StringComparison.Ordinal) &&
+                   string.Equals(saved, "ranked-default", StringComparison.Ordinal);
+        }
+
+        internal string ExportAkariChampionPresets()
+        {
+            return LeagueAkariChampionPresetTransfer.Export(
+                ListRunePresets(), ListSpellPresets(), PresetsEnabled);
+        }
+
+        internal void ImportAkariChampionPresets(LeagueAkariChampionPresetBundle bundle)
+        {
+            ThrowIfDisposed();
+            if (bundle == null || !bundle.HasRunes && !bundle.HasSpells && !bundle.HasEnabled)
+                throw new ArgumentException("Invalid champion preset import.");
+            if (bundle.HasEnabled && bundle.Enabled && (_presetLive == null || _presetApply == null))
+                throw new InvalidOperationException("Champion preset LCU service is unavailable.");
+            var runes = bundle.HasRunes ? LeagueChampionRunePresets.Parse(bundle.Runes) : null;
+            var spells = bundle.HasSpells ? LeagueChampionSpellPresets.Parse(bundle.Spells) : null;
+            if (bundle.HasRunes && (runes.Count != bundle.RuneCount ||
+                    !string.Equals(LeagueChampionRunePresets.Serialize(runes), bundle.Runes, StringComparison.Ordinal)) ||
+                bundle.HasSpells && (spells.Count != bundle.SpellCount ||
+                    !string.Equals(LeagueChampionSpellPresets.Serialize(spells), bundle.Spells, StringComparison.Ordinal)))
+                throw new ArgumentException("Invalid champion preset catalog.");
+            var oldRunes = _settings.LeagueChampionRunePresets;
+            var oldSpells = _settings.LeagueChampionSpellPresets;
+            var oldEnabled = _settings.LeagueChampionSpellPresetsEnabled;
+            var oldRecommended = _settings.LeagueAutoApplyRecommended;
+            try
+            {
+                if (bundle.HasRunes) _settings.LeagueChampionRunePresets = bundle.Runes;
+                if (bundle.HasSpells) _settings.LeagueChampionSpellPresets = bundle.Spells;
+                if (bundle.HasEnabled)
+                {
+                    _settings.LeagueChampionSpellPresetsEnabled = bundle.Enabled;
+                    if (bundle.Enabled) _settings.LeagueAutoApplyRecommended = false;
+                }
+                _settings.Save();
+            }
+            catch
+            {
+                _settings.LeagueChampionRunePresets = oldRunes;
+                _settings.LeagueChampionSpellPresets = oldSpells;
+                _settings.LeagueChampionSpellPresetsEnabled = oldEnabled;
+                _settings.LeagueAutoApplyRecommended = oldRecommended;
+                throw;
+            }
+            lock (_sync) _presetCoordinator.Cancel();
+            _coordinator.CancelPending();
+            CancelActiveApply();
+            if (bundle.HasEnabled)
+                Publish(Enabled ? "waiting" : "disabled", null);
+        }
+
+        internal IReadOnlyList<LeagueChampionSpellPreset> ListSpellPresets()
+        {
+            return LeagueChampionSpellPresets.Parse(_settings.LeagueChampionSpellPresets);
+        }
+
+        internal void SaveSpellPresetByKey(LeagueChampionSpellPreset preset)
+        {
+            if (preset == null || !LeagueChampionSpellPresets.ValidGroup(preset.Group))
+                throw new ArgumentException("Invalid champion spell preset.");
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Upsert(
+                _settings.LeagueChampionSpellPresets, preset);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal void RemoveSpellPresetByKey(int championId, string group)
+        {
+            if (championId <= 0 || !LeagueChampionSpellPresets.ValidGroup(group))
+                throw new ArgumentException("Invalid champion spell preset key.");
+            _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
+                _settings.LeagueChampionSpellPresets, championId, group);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal IReadOnlyList<LeagueChampionRunePreset> ListRunePresets()
+        {
+            return LeagueChampionRunePresets.Parse(_settings.LeagueChampionRunePresets);
+        }
+
+        internal void SaveRunePresetByKey(LeagueChampionRunePreset preset)
+        {
+            if (preset == null || !LeagueChampionSpellPresets.ValidGroup(preset.Group))
+                throw new ArgumentException("Invalid champion rune preset.");
+            var updated = LeagueChampionRunePresets.Upsert(_settings.LeagueChampionRunePresets, preset);
+            _settings.LeagueChampionRunePresets = updated;
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal void RemoveRunePresetByKey(int championId, string group)
+        {
+            if (championId <= 0 || !LeagueChampionSpellPresets.ValidGroup(group))
+                throw new ArgumentException("Invalid champion rune preset key.");
+            _settings.LeagueChampionRunePresets = LeagueChampionRunePresets.Remove(
+                _settings.LeagueChampionRunePresets, championId, group);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+        }
+
+        internal void SaveEditedRunePreset(LeagueBuildAdvisorSnapshot snapshot,
+            LeagueChampionRunePreset preset)
+        {
+            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(
+                snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (preset == null || string.IsNullOrWhiteSpace(group) ||
+                snapshot.Activity != LeagueActivityLevel.ChampSelect ||
+                preset.ChampionId != snapshot.ChampionId ||
+                !string.Equals(preset.Group, group, StringComparison.Ordinal))
+                throw new ArgumentException("Rune preset context changed.");
+
+            var updated = LeagueChampionRunePresets.Upsert(_settings.LeagueChampionRunePresets, preset);
+            _settings.LeagueChampionRunePresets = updated;
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+            AppLog.Info("League rune preset edited; champion=" + preset.ChampionId + "; group=" + group);
+        }
+
+        internal void SavePreset(LeagueBuildAdvisorSnapshot snapshot, LeagueBuildApplyPlan current)
+        {
+            var group = snapshot == null ? null : LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (string.IsNullOrWhiteSpace(group) || current == null || (!current.HasSpells && !current.HasRunes) ||
+                current.ChampionId != snapshot.ChampionId || current.QueueId != snapshot.QueueId)
+                throw new InvalidOperationException("Champion selection is not available for a loadout preset.");
+            var spellValue = current.HasSpells ? LeagueChampionSpellPresets.Upsert(
+                _settings.LeagueChampionSpellPresets, new LeagueChampionSpellPreset
+                {
+                    ChampionId = current.ChampionId, Group = group,
+                    Spell1Id = current.Spell1Id, Spell2Id = current.Spell2Id
+                }) : _settings.LeagueChampionSpellPresets;
+            var runeValue = current.HasRunes ? LeagueChampionRunePresets.Upsert(
+                _settings.LeagueChampionRunePresets, new LeagueChampionRunePreset
+                {
+                    ChampionId = current.ChampionId, Group = group,
+                    PrimaryStyleId = current.PrimaryStyleId, SecondaryStyleId = current.SecondaryStyleId,
+                    SelectedPerkIds = current.GetSelectedPerkIds()
+                }) : _settings.LeagueChampionRunePresets;
+            _settings.LeagueChampionSpellPresets = spellValue;
+            _settings.LeagueChampionRunePresets = runeValue;
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+            AppLog.Info("League loadout preset saved; champion=" + current.ChampionId + "; group=" + group +
+                        "; spells=" + current.HasSpells + "; runes=" + current.HasRunes);
+        }
+
+        internal void RemovePreset(LeagueBuildAdvisorSnapshot snapshot)
+        {
+            if (snapshot == null) return;
+            var group = LeagueChampionSpellPresets.GroupFor(snapshot.QueueId, snapshot.Mode, snapshot.Position, snapshot.GameMode, snapshot.QueueType);
+            if (string.IsNullOrWhiteSpace(group)) return;
+            var existing = FindPreset(snapshot);
+            var existingRunes = FindRunePreset(snapshot);
+            if (existing == null && existingRunes == null) return;
+            if (existing != null)
+                _settings.LeagueChampionSpellPresets = LeagueChampionSpellPresets.Remove(
+                    _settings.LeagueChampionSpellPresets, snapshot.ChampionId, existing.Group);
+            if (existingRunes != null)
+                _settings.LeagueChampionRunePresets = LeagueChampionRunePresets.Remove(
+                    _settings.LeagueChampionRunePresets, snapshot.ChampionId, existingRunes.Group);
+            lock (_sync) _presetCoordinator.Cancel();
+            CancelActiveApply();
+            _settings.Save();
+            AppLog.Info("League loadout preset removed; champion=" + snapshot.ChampionId + "; group=" + group);
+        }
+
+        internal void SetPresetsEnabled(bool enabled)
+        {
+            ThrowIfDisposed();
+            if (enabled && (_presetLive == null || _presetApply == null))
+                throw new InvalidOperationException("Champion preset LCU service is unavailable.");
+            if (_settings.LeagueChampionSpellPresetsEnabled == enabled) return;
+            _settings.LeagueChampionSpellPresetsEnabled = enabled;
+            if (enabled) _settings.LeagueAutoApplyRecommended = false;
+            _settings.Save();
+            lock (_sync) _presetCoordinator.Cancel();
+            _coordinator.CancelPending();
+            CancelActiveApply();
+            Publish(Enabled ? "waiting" : "disabled", null);
+            AppLog.Info("League spell preset automation=" + (enabled ? "enabled" : "disabled"));
         }
 
         public string LastStatus
@@ -470,6 +725,12 @@ namespace FACM.League
             }
 
             _settings.LeagueAutoApplyRecommended = enabled;
+            if (enabled)
+            {
+                _settings.LeagueChampionSpellPresetsEnabled = false;
+                lock (_sync) _presetCoordinator.Cancel();
+                CancelActiveApply();
+            }
             _settings.Save();
             if (!enabled)
             {
@@ -486,15 +747,23 @@ namespace FACM.League
         internal async Task RunOneIterationAsync(DateTime utcNow, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
-            if (!Enabled)
+            if (!Enabled && !PresetsEnabled)
             {
                 _coordinator.Observe(null, false, utcNow);
+                lock (_sync) _presetCoordinator.Cancel();
                 return;
             }
 
             if (!ShouldObserveForBudget(_budgets.Current))
             {
                 _coordinator.CancelPending();
+                lock (_sync) _presetCoordinator.Cancel();
+                return;
+            }
+
+            if (PresetsEnabled)
+            {
+                await RunPresetIterationAsync(utcNow, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -562,6 +831,67 @@ namespace FACM.League
             }
         }
 
+        private async Task RunPresetIterationAsync(DateTime utcNow, CancellationToken cancellationToken)
+        {
+            if (_presetLive == null || _presetApply == null) return;
+            var snapshot = LeagueChampionSpellPresets.FromLive(
+                await _presetLive.RefreshAsync(cancellationToken).ConfigureAwait(false));
+            if (!PresetsEnabled || !ShouldObserveForBudget(_budgets.Current))
+            {
+                lock (_sync) _presetCoordinator.Cancel();
+                return;
+            }
+
+            var preset = FindPreset(snapshot);
+            var runePreset = FindRunePreset(snapshot);
+            var plan = MakePresetPlan(snapshot, preset, runePreset);
+            LeagueAutoApplyDecision decision;
+            lock (_sync)
+                decision = _presetCoordinator.Observe(snapshot, plan, true, utcNow);
+            if (!decision.ShouldExecute || plan == null) return;
+
+            CancellationTokenSource active;
+            lock (_sync)
+            {
+                if (!PresetsEnabled || !ShouldObserveForBudget(_budgets.Current)) return;
+                active = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+                _activeApply = active;
+            }
+            var trace = Guid.NewGuid().ToString("N").Substring(0, 12);
+            var clock = Stopwatch.StartNew();
+            try
+            {
+                plan.TraceId = trace;
+                AppLog.Info("League loadout preset apply start; trace=" + trace +
+                            "; champion=" + plan.ChampionId +
+                            "; spells=" + plan.HasSpells + "; runes=" + plan.HasRunes);
+                var result = await _presetApply.ApplyAsync(plan, active.Token).ConfigureAwait(false);
+                AppLog.Info("League loadout preset apply finish; trace=" + trace +
+                            "; result=" + (result == null ? "failed" : result.Status) +
+                            "; spell=" + (result == null ? "unavailable" : result.SpellStatus) +
+                            "; rune=" + (result == null ? "unavailable" : result.RuneStatus) +
+                            "; ms=" + clock.ElapsedMilliseconds);
+            }
+            catch (OperationCanceledException)
+            {
+                AppLog.Info("League loadout preset apply cancelled; trace=" + trace +
+                            "; ms=" + clock.ElapsedMilliseconds);
+                if (cancellationToken.IsCancellationRequested) throw;
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("League loadout preset apply failed; trace=" + trace, exception);
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    if (ReferenceEquals(_activeApply, active)) _activeApply = null;
+                }
+                active.Dispose();
+            }
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -589,10 +919,13 @@ namespace FACM.League
             {
                 try
                 {
-                    if (Enabled && ShouldObserveForBudget(_budgets.Current))
+                    if ((Enabled || PresetsEnabled) && ShouldObserveForBudget(_budgets.Current))
                         await RunOneIterationAsync(DateTime.UtcNow, cancellationToken).ConfigureAwait(false);
                     else
+                    {
                         _coordinator.CancelPending();
+                        lock (_sync) _presetCoordinator.Cancel();
+                    }
                 }
                 catch (OperationCanceledException)
                 {

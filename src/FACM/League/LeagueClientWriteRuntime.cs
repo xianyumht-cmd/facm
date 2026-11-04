@@ -38,6 +38,7 @@ namespace FACM.League
     /// </summary>
     internal sealed class LeagueClientWriteApiClient : ILeagueClientWriteApi, IDisposable
     {
+        internal const string ReconnectPath = "/lol-gameflow/v1/reconnect";
         private const string MySelectionPath = "/lol-champ-select/v1/session/my-selection";
         private const string PerkPagesPath = "/lol-perks/v1/pages";
         private const string PerkCreatePath = "/lol-perks/v1/pages/";
@@ -83,7 +84,9 @@ namespace FACM.League
                 {
                     using (var request = new HttpRequestMessage(new HttpMethod(verb), normalizedPath))
                     {
-                        request.Content = new StringContent(json ?? string.Empty, Encoding.UTF8, "application/json");
+                        // Reconnect is a bodyless LCU command. Other JSON writers keep their existing contract.
+                        if (!string.Equals(normalizedPath, ReconnectPath, StringComparison.Ordinal))
+                            request.Content = new StringContent(json ?? string.Empty, Encoding.UTF8, "application/json");
                         using (var response = await lease.Client.SendAsync(
                             request,
                             HttpCompletionOption.ResponseHeadersRead,
@@ -133,6 +136,10 @@ namespace FACM.League
 
         private static bool IsAllowedTarget(string verb, string normalizedPath)
         {
+            if (string.Equals(verb, "POST", StringComparison.Ordinal) &&
+                string.Equals(normalizedPath, ReconnectPath, StringComparison.Ordinal))
+                return true;
+
             if (string.Equals(verb, "PATCH", StringComparison.Ordinal) &&
                 string.Equals(normalizedPath, MySelectionPath, StringComparison.Ordinal))
                 return true;

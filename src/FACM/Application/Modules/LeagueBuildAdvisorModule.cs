@@ -112,7 +112,9 @@ namespace FACM.AppHost.Modules
                 _performance.Budgets,
                 _service,
                 executor,
-                new LeagueAutoApplyCoordinator());
+                new LeagueAutoApplyCoordinator(),
+                new LeagueLiveDataService(_leagueClient, _performance.Budgets),
+                _applyService);
             _autoApply.Start();
         }
 

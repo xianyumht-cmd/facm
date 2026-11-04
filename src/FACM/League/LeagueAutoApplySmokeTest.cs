@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -13,12 +14,362 @@ namespace FACM.League
         public static void Validate()
         {
             ValidateSettingsPersistenceContract();
+            ValidateChampionSpellPresetContracts();
+            ValidateRuneEditorCatalog();
+            ValidateExpandedChampionPresetCatalogs();
+            ValidateAkariChampionPresetTransfer();
             ValidateStableExactlyOnceContract();
             ValidateDisableAndPhaseContract();
             ValidateSharedPayloadCache();
             ValidateResultTruthfulness();
             ValidateStatusObserverIsolation();
             ValidateUiTextDefaults();
+        }
+
+        private static void ValidateAkariChampionPresetTransfer()
+        {
+            const string akari = "{\"runesV2\":{\"157\":{\"ranked-top\":{\"primaryStyleId\":8000," +
+                "\"subStyleId\":8100,\"selectedPerkIds\":[8005,9111,9104,8014,8139,8135,5005,5008,5001]}}}," +
+                "\"summonerSpells\":{\"157\":{\"ranked-top\":{\"spell1Id\":4,\"spell2Id\":14}}}}";
+            var parsed = LeagueAkariChampionPresetTransfer.Import(akari);
+            Require(parsed.HasRunes && parsed.HasSpells && parsed.RuneCount == 1 && parsed.SpellCount == 1 &&
+                LeagueChampionRunePresets.Resolve(parsed.Runes, 157, "ranked-top") != null &&
+                LeagueChampionSpellPresets.Resolve(parsed.Spells, 157, "ranked-top").Spell2Id == 14,
+                "Pinned Akari rune and spell settings must import together.");
+            var exported = LeagueAkariChampionPresetTransfer.Export(
+                LeagueChampionRunePresets.Parse(parsed.Runes), LeagueChampionSpellPresets.Parse(parsed.Spells));
+            var roundtrip = LeagueAkariChampionPresetTransfer.Import(exported);
+            Require(!roundtrip.HasEnabled && roundtrip.RuneCount == 1 && roundtrip.SpellCount == 1 &&
+                LeagueChampionRunePresets.Resolve(roundtrip.Runes, 157, "ranked-top").SelectedPerkIds.Count == 9,
+                "Akari clipboard export must round-trip source fields.");
+            var fullRunes = Enumerable.Range(1, 256).Select(id => new LeagueChampionRunePreset
+            {
+                ChampionId = id, Group = "normal", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            }).ToArray();
+            var fullSpells = Enumerable.Range(1, 256).Select(id => new LeagueChampionSpellPreset
+            {
+                ChampionId = id, Group = "normal", Spell1Id = 4, Spell2Id = 14
+            }).ToArray();
+            var fullImport = LeagueAkariChampionPresetTransfer.Import(
+                LeagueAkariChampionPresetTransfer.Export(fullRunes, fullSpells));
+            Require(fullImport.RuneCount == 256 && fullImport.SpellCount == 256 &&
+                LeagueChampionRunePresets.Parse(fullImport.Runes).Count == 256 &&
+                LeagueChampionSpellPresets.Parse(fullImport.Spells).Count == 256,
+                "Akari clipboard transfer must retain full 256-entry local catalogs.");
+            var tooMany = false;
+            try
+            {
+                LeagueAkariChampionPresetTransfer.Export(fullRunes.Concat(new[]
+                {
+                    new LeagueChampionRunePreset
+                    {
+                        ChampionId = 257, Group = "normal", PrimaryStyleId = 8000,
+                        SecondaryStyleId = 8100,
+                        SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+                    }
+                }), fullSpells);
+            }
+            catch (ArgumentException) { tooMany = true; }
+            Require(tooMany, "Akari clipboard transfer must reject oversized catalogs.");
+            var enabledExport = LeagueAkariChampionPresetTransfer.Export(
+                LeagueChampionRunePresets.Parse(parsed.Runes),
+                LeagueChampionSpellPresets.Parse(parsed.Spells), true);
+            var enabledImport = LeagueAkariChampionPresetTransfer.Import(enabledExport);
+            Require(enabledImport.HasEnabled && enabledImport.Enabled &&
+                enabledImport.RuneCount == 1 && enabledImport.SpellCount == 1,
+                "Full Akari champion settings must preserve the global enabled option.");
+            var disabledOnly = LeagueAkariChampionPresetTransfer.Import("{\"enabled\":false}");
+            Require(disabledOnly.HasEnabled && !disabledOnly.Enabled &&
+                !disabledOnly.HasRunes && !disabledOnly.HasSpells,
+                "An enabled-only Akari update must not replace either preset catalog.");
+            var spellsOnly = LeagueAkariChampionPresetTransfer.Import(
+                "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":14}}}}");
+            Require(!spellsOnly.HasRunes && spellsOnly.HasSpells && spellsOnly.SpellCount == 1,
+                "Importing one Akari catalog must preserve the other local catalog.");
+            var invalid = new[]
+            {
+                "{\"runesV2\":{\"157\":{\"ranked-top\":{\"primaryStyleId\":8000}}}}",
+                "{\"summonerSpells\":{\"157\":{\"unknown\":{\"spell1Id\":4,\"spell2Id\":14}}}}",
+                "{\"summonerSpells\":{\"157\":{\"normal\":{\"spell1Id\":4,\"spell2Id\":4}}}}",
+                "{\"summonerSpells\":{\"abc\":{}}}",
+                "{\"unrelated\":{}}",
+                "{\"enabled\":1}",
+                "{\"enabled\":\"true\"}"
+            };
+            foreach (var input in invalid)
+            {
+                var rejected = false;
+                try { LeagueAkariChampionPresetTransfer.Import(input); }
+                catch (ArgumentException) { rejected = true; }
+                Require(rejected, "Malformed or unsupported Akari data must reject the entire import.");
+            }
+        }
+
+        private static void ValidateExpandedChampionPresetCatalogs()
+        {
+            var spellRows = Enumerable.Range(1, 256).Select(id => new LeagueChampionSpellPreset
+            {
+                ChampionId = id, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
+            }).ToArray();
+            var runeRows = Enumerable.Range(1, 256).Select(id => new LeagueChampionRunePreset
+            {
+                ChampionId = id, Group = "ranked-default", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            }).ToArray();
+            var spells = LeagueChampionSpellPresets.Serialize(spellRows);
+            var runes = LeagueChampionRunePresets.Serialize(runeRows);
+            Require(spells.StartsWith("z1:", StringComparison.Ordinal) &&
+                runes.StartsWith("z1:", StringComparison.Ordinal) &&
+                spells.Length <= 4096 && runes.Length <= 7500 &&
+                LeagueChampionSpellPresets.Parse(spells).Count == 256 &&
+                LeagueChampionRunePresets.Parse(runes).Count == 256,
+                "Full-capacity compressed champion catalogs did not roundtrip.");
+            var restored = AppSettings.ParseLines(new[]
+            {
+                "LeagueChampionSpellPresets=" + spells,
+                "LeagueChampionRunePresets=" + runes
+            });
+            var cloud = CloudSettingsSnapshot.Capture(restored);
+            var fromCloud = AppSettings.ParseLines(Array.Empty<string>());
+            cloud.ApplyTo(fromCloud);
+            Require(fromCloud.LeagueChampionSpellPresets == spells &&
+                fromCloud.LeagueChampionRunePresets == runes &&
+                LeagueChampionRunePresets.Resolve(fromCloud.LeagueChampionRunePresets, 256, "ranked-top") != null,
+                "Compressed champion presets lost local/cloud or ranked fallback compatibility.");
+            var runeLimit = false;
+            var spellLimit = false;
+            try
+            {
+                LeagueChampionRunePresets.Upsert(runes, new LeagueChampionRunePreset
+                {
+                    ChampionId = 257, Group = "ranked-default", PrimaryStyleId = 8000,
+                    SecondaryStyleId = 8100,
+                    SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+                });
+            }
+            catch (ArgumentException) { runeLimit = true; }
+            try
+            {
+                LeagueChampionSpellPresets.Upsert(spells, new LeagueChampionSpellPreset
+                {
+                    ChampionId = 257, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
+                });
+            }
+            catch (ArgumentException) { spellLimit = true; }
+            Require(runeLimit && spellLimit &&
+                LeagueChampionRunePresets.Parse(runes).Count == 256 &&
+                LeagueChampionSpellPresets.Parse(spells).Count == 256,
+                "Full champion catalogs must reject the 257th entry without damaging saved data.");
+            Require(LeagueChampionSpellPresets.Parse("z1:%%%").Count == 0 &&
+                LeagueChampionRunePresets.Parse("z1:%%%").Count == 0 &&
+                LeaguePresetCodec.Decode("z1:%%%", 7500) == null,
+                "Malformed compressed champion presets must fail closed.");
+            var runeProtected = false;
+            var spellProtected = false;
+            try { LeagueChampionRunePresets.Upsert("z1:%%%", runeRows[0]); }
+            catch (ArgumentException) { runeProtected = true; }
+            try { LeagueChampionSpellPresets.Remove("z1:%%%", 1, "ranked-default"); }
+            catch (ArgumentException) { spellProtected = true; }
+            Require(runeProtected && spellProtected,
+                "An unreadable saved catalog must not be overwritten by editing or removal.");
+            var expanded = new string('x', LeaguePresetCodec.MaxExpandedBytes + 1);
+            var oversized = "z1:" + Convert.ToBase64String(CompressForSmokeTest(expanded));
+            Require(LeaguePresetCodec.Decode(oversized, 7500) == null,
+                "Compressed catalog expansion limit was bypassed.");
+        }
+
+        private static byte[] CompressForSmokeTest(string text)
+        {
+            using (var stream = new System.IO.MemoryStream())
+            {
+                using (var compressor = new System.IO.Compression.DeflateStream(
+                    stream, System.IO.Compression.CompressionLevel.Optimal, true))
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+                    compressor.Write(bytes, 0, bytes.Length);
+                }
+                return stream.ToArray();
+            }
+        }
+
+        private static void ValidateRuneEditorCatalog()
+        {
+            const string styles = @"{""schemaVersion"":2,""styles"":[{""id"":8000,""name"":""Precision"",""allowedSubStyles"":[8100],""slots"":[{""type"":""kKeyStone"",""perks"":[8005,8008]},{""type"":""kMixedRegularSplashable"",""perks"":[9111]},{""type"":""kMixedRegularSplashable"",""perks"":[9104]},{""type"":""kMixedRegularSplashable"",""perks"":[8014]},{""type"":""kStatMod"",""perks"":[5008,5005]},{""type"":""kStatMod"",""perks"":[5008,5002]},{""type"":""kStatMod"",""perks"":[5001,5011]}]},{""id"":8100,""name"":""Domination"",""allowedSubStyles"":[8000],""slots"":[{""type"":""kKeyStone"",""perks"":[8112]},{""type"":""kMixedRegularSplashable"",""perks"":[8126,8139]},{""type"":""kMixedRegularSplashable"",""perks"":[8135]},{""type"":""kMixedRegularSplashable"",""perks"":[8105]},{""type"":""kStatMod"",""perks"":[5008,5005]},{""type"":""kStatMod"",""perks"":[5008,5002]},{""type"":""kStatMod"",""perks"":[5001,5011]}]}]}";
+            const string perks = "[{\"id\":8005,\"name\":\"Press\"},{\"id\":8008,\"name\":\"Lethal\"},{\"id\":9111,\"name\":\"Triumph\"},{\"id\":9104,\"name\":\"Legend\"},{\"id\":8014,\"name\":\"Coup\"},{\"id\":8112,\"name\":\"Electro\"},{\"id\":8126,\"name\":\"Sudden\"},{\"id\":8139,\"name\":\"Taste\"},{\"id\":8135,\"name\":\"Hunter\"},{\"id\":8105,\"name\":\"Relentless\"},{\"id\":5008,\"name\":\"Adaptive\"},{\"id\":5005,\"name\":\"Speed\"},{\"id\":5002,\"name\":\"Movement\"},{\"id\":5001,\"name\":\"Health\"},{\"id\":5011,\"name\":\"Scaling\"}]";
+            var catalog = LeagueRuneCatalog.Parse(
+                System.Text.Encoding.UTF8.GetBytes(styles), System.Text.Encoding.UTF8.GetBytes(perks));
+            var champions = LeagueRuneCatalog.ParseChampions(System.Text.Encoding.UTF8.GetBytes(
+                "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":145,\"name\":\"KaiSa\"}]"));
+            Require(champions.Count == 2 && champions.Any(row => row.Id == 157) &&
+                LeagueRuneCatalog.ParseChampions(System.Text.Encoding.UTF8.GetBytes(
+                    "[{\"id\":157,\"name\":\"Yasuo\"},{\"id\":157,\"name\":\"Duplicate\"}]")).Count == 0,
+                "Champion preset manager must use a validated local LCU champion directory.");
+            var spellOptions = LeagueRuneCatalog.ParseSummonerSpells(System.Text.Encoding.UTF8.GetBytes(
+                "[{\"id\":4,\"name\":\"Flash\",\"gameModes\":[\"CLASSIC\",\"ARAM\"]},{\"id\":14,\"name\":\"Ignite\",\"gameModes\":[\"CLASSIC\"]}]"));
+            Require(spellOptions.Count == 2 &&
+                spellOptions.Single(option => option.Id == 4).SupportsGroup("aram") &&
+                !spellOptions.Single(option => option.Id == 14).SupportsGroup("aram") &&
+                spellOptions.Single(option => option.Id == 14).SupportsGroup("ranked-middle") &&
+                spellOptions.Any(option => option.Id == 4) &&
+                LeagueRuneCatalog.ParseSummonerSpells(System.Text.Encoding.UTF8.GetBytes(
+                    "[{\"id\":4,\"name\":\"Flash\"},{\"id\":4,\"name\":\"Duplicate\"}]")).Count == 0,
+                "Manual spell editor must reject a malformed LCU spell directory.");
+            Require(LeagueChampionSpellPresets.KnownGroups.Contains("ranked-utility") &&
+                LeagueChampionSpellPresets.KnownGroups.Contains("aram"),
+                "Champion preset manager lost supported source mode groups.");
+            Require(LeagueRuneCatalog.Parse(
+                    System.Text.Encoding.UTF8.GetBytes(styles.Replace(
+                        "\"schemaVersion\":2", "\"schemaVersion\":3")),
+                    System.Text.Encoding.UTF8.GetBytes(perks)) == null,
+                "Unsupported rune schema versions must fail closed.");
+            Require(catalog != null && catalog.Styles.Count == 2 &&
+                catalog.Choices(new[] { 8005 }).Single().Name == "Press",
+                "Rune editor did not load the current LCU perk catalog.");
+            var preset = new LeagueChampionRunePreset
+            {
+                ChampionId = 157, Group = "ranked-top", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5008, 5002, 5001 }
+            };
+            Require(catalog.Valid(preset) && catalog.StatChoices(8000, 1).Any(option => option.Id == 5002),
+                "Source-pinned typed stat-mod slots or valid nine-slot rune selection were rejected.");
+            preset.SelectedPerkIds[5] = 8126;
+            Require(!catalog.Valid(preset), "Two secondary perks from the same row were accepted.");
+            preset.SelectedPerkIds[5] = 8135;
+            preset.SelectedPerkIds[8] = 5008;
+            Require(!catalog.Valid(preset), "Invalid stat shard row was accepted.");
+            preset.SelectedPerkIds[8] = 5001;
+            preset.SecondaryStyleId = 8000;
+            Require(!catalog.Valid(preset), "Primary style was accepted as its own secondary.");
+            Require(LeagueRuneCatalog.Parse(new byte[2 * 1024 * 1024 + 1],
+                System.Text.Encoding.UTF8.GetBytes(perks)) == null,
+                "Oversized LCU perk catalog was accepted.");
+        }
+
+        private static void ValidateChampionSpellPresetContracts()
+        {
+            var defaults = AppSettings.ParseLines(Array.Empty<string>());
+            Require(!defaults.LeagueChampionSpellPresetsEnabled &&
+                    LeagueChampionSpellPresets.Parse(defaults.LeagueChampionSpellPresets).Count == 0 &&
+                    LeagueChampionRunePresets.Parse(defaults.LeagueChampionRunePresets).Count == 0,
+                "Champion spell presets must default off and empty.");
+
+            var rankedTop = LeagueChampionSpellPresets.GroupFor(420, "ranked", "top");
+            var rankedSupport = LeagueChampionSpellPresets.GroupFor(440, "ranked", "support");
+            Require(rankedTop == "ranked-top" && rankedSupport == "ranked-utility" &&
+                    LeagueChampionSpellPresets.GroupFor(400, "ranked", "top") == "normal" &&
+                    LeagueChampionSpellPresets.GroupFor(450, "aram", "none") == "aram" &&
+                    LeagueChampionSpellPresets.GroupFor(1700, null, "none", "NEXUSBLITZ") == "nexusblitz" &&
+                    LeagueChampionSpellPresets.GroupFor(1700, null, "none", "ULTBOOK") == "ultbook" &&
+                    LeagueChampionSpellPresets.GroupFor(3270, null, "none", "ARAM") == null &&
+                    LeagueChampionSpellPresets.GroupFor(3270, null, "none") == null &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "jungle", "CLASSIC",
+                        "RANKED_EXPERIMENTAL") == "ranked-jungle" &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "top", "CLASSIC",
+                        "NORMAL") == "normal" &&
+                    LeagueChampionSpellPresets.GroupFor(9999, "ranked", "top", "ARAM",
+                        "RANKED_EXPERIMENTAL") == null,
+                "Champion spell preset mode / queue isolation regressed.");
+
+            var encoded = LeagueChampionSpellPresets.Serialize(new[]
+            {
+                new LeagueChampionSpellPreset
+                {
+                    ChampionId = 157, Group = "ranked-default", Spell1Id = 4, Spell2Id = 14
+                }
+            });
+            var fallback = LeagueChampionSpellPresets.Resolve(encoded, 157, rankedTop);
+            Require(fallback != null && fallback.Group == "ranked-default" && fallback.Spell2Id == 14,
+                "Ranked champion default spell fallback was lost.");
+
+            encoded = LeagueChampionSpellPresets.Upsert(encoded, new LeagueChampionSpellPreset
+            {
+                ChampionId = 157, Group = rankedTop, Spell1Id = 4, Spell2Id = 11
+            });
+            Require(LeagueChampionSpellPresets.Resolve(encoded, 157, rankedTop).Spell2Id == 11 &&
+                    LeagueChampionSpellPresets.Resolve(encoded, 157, rankedSupport).Spell2Id == 14,
+                "Lane-specific preset did not override ranked default only for its own lane.");
+            Require(LeagueChampionSpellPresets.Parse("[{\"ChampionId\":157,\"Group\":\"normal\",\"Spell1Id\":4,\"Spell2Id\":4}]").Count == 0 &&
+                    LeagueChampionSpellPresets.Parse(new string('x', 4097)).Count == 0,
+                "Invalid or oversized champion spell presets must fail closed.");
+
+            var runePreset = new LeagueChampionRunePreset
+            {
+                ChampionId = 157, Group = "ranked-default", PrimaryStyleId = 8000,
+                SecondaryStyleId = 8100,
+                SelectedPerkIds = new List<int> { 8005, 9111, 9104, 8014, 8139, 8135, 5005, 5008, 5001 }
+            };
+            var runeJson = LeagueChampionRunePresets.Serialize(new[] { runePreset });
+            Require(LeagueChampionRunePresets.Resolve(runeJson, 157, rankedTop).SelectedPerkIds.SequenceEqual(runePreset.SelectedPerkIds) &&
+                    LeagueChampionRunePresets.Resolve(runeJson, 157, "aram") == null &&
+                    LeagueChampionRunePresets.Parse(new string('x', 7501)).Count == 0 &&
+                    LeagueChampionRunePresets.Parse("[{\"ChampionId\":157,\"Group\":\"aram\",\"PrimaryStyleId\":8000,\"SecondaryStyleId\":8100,\"SelectedPerkIds\":[8005]}]").Count == 0,
+                "Champion rune preset serialization, ranked fallback or malformed inputs regressed.");
+
+            var restored = AppSettings.ParseLines(new[]
+            {
+                "LeagueChampionSpellPresetsEnabled=True",
+                "LeagueChampionSpellPresets=" + encoded,
+                "LeagueChampionRunePresets=" + runeJson,
+                "LeagueAutoApplyRecommended=True"
+            });
+            Require(restored.LeagueChampionSpellPresetsEnabled && !restored.LeagueAutoApplyRecommended &&
+                    LeagueChampionSpellPresets.Parse(restored.LeagueChampionSpellPresets).Count == 2 &&
+                    LeagueChampionRunePresets.Parse(restored.LeagueChampionRunePresets).Count == 1 &&
+                    restored.BuildLines().Any(line => line == "LeagueChampionSpellPresets=" + encoded),
+                "Preset settings roundtrip or OP.GG mutual exclusion failed.");
+            var cloud = CloudSettingsSnapshot.Capture(restored);
+            var fromCloud = AppSettings.ParseLines(Array.Empty<string>());
+            cloud.ApplyTo(fromCloud);
+            Require(fromCloud.LeagueChampionRunePresets == runeJson &&
+                    fromCloud.LeagueChampionSpellPresets == encoded &&
+                    fromCloud.LeagueChampionSpellPresetsEnabled && !fromCloud.LeagueAutoApplyRecommended,
+                "Cloud settings snapshot must restore both champion preset catalogs and their mutual exclusion.");
+
+            var coordinator = new LeagueChampionSpellPresetCoordinator();
+            var now = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc);
+            var snapshot = CreateSnapshot(157, "Yasuo");
+            snapshot.GameId = 100;
+            snapshot.Position = "top";
+            snapshot.QueueType = "RANKED_SOLO_5x5";
+            var combined = LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset);
+            Require(combined.QueueType == snapshot.QueueType && combined.PresetGroup == rankedTop,
+                "Saved champion loadout must preserve the selected ranked queue and group.");
+            Require(combined.HasSpells && combined.HasRunes && combined.GetSelectedPerkIds().SequenceEqual(runePreset.SelectedPerkIds),
+                "Combined LCU preset lost saved rune selection or summoner spells.");
+            Require(LeagueAutoApplyController.MakePresetPlan(snapshot,
+                    new LeagueChampionSpellPreset { ChampionId = 157, Group = "aram", Spell1Id = 4, Spell2Id = 14 },
+                    null) == null,
+                "A different game-mode preset must never be bound to this draft.");
+            Require(LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasRunes &&
+                    !LeagueAutoApplyController.MakePresetPlan(snapshot, null, runePreset).HasSpells,
+                "Rune-only preset should apply without a summoner-spell preset.");
+            Require(!coordinator.Observe(snapshot, combined, true, now).ShouldExecute,
+                "Preset must wait for stable champion context.");
+            Require(coordinator.Observe(snapshot, combined, true, now.AddSeconds(2)).ShouldExecute &&
+                    !coordinator.Observe(snapshot, combined, true, now.AddSeconds(4)).ShouldExecute,
+                "Preset must apply once per stable game/champion/group.");
+            snapshot.Position = "jungle";
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(4)).ShouldExecute &&
+                    LeagueAutoApplyController.MakePresetPlan(snapshot, fallback, runePreset) != null,
+                "Ranked-default fallback should remain available without reusing the old role plan.");
+            snapshot.Position = "top";
+            snapshot.GameId = 101;
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(5)).ShouldExecute &&
+                    coordinator.Observe(snapshot, combined, true, now.AddSeconds(7)).ShouldExecute,
+                "A new game must restore a previously used champion's preset again.");
+            snapshot.Activity = LeagueActivityLevel.InGame;
+            Require(!coordinator.Observe(snapshot, combined, true, now.AddSeconds(8)).ShouldExecute,
+                "Presets must never apply during InProgress.");
+            snapshot.Activity = LeagueActivityLevel.ChampSelect;
+            Require(!coordinator.Observe(snapshot, combined, false, now.AddSeconds(9)).ShouldExecute,
+                "Disabled presets must not issue writes.");
+            Require(LeagueChampionSpellPresets.Parse(
+                LeagueChampionSpellPresets.Remove(encoded, 157, rankedTop)).Count == 1,
+                "Removing a lane-specific preset unexpectedly deleted other configurations.");
         }
 
         private static void ValidateSettingsPersistenceContract()
