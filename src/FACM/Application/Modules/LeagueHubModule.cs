@@ -63,6 +63,7 @@ namespace FACM.AppHost.Modules
         public const string ModuleId = "league-hub";
         internal LeagueEfficiencyModule UnifiedEfficiency { get { return _efficiency; } }
         internal LeagueDashboardModule UnifiedDashboard { get { return _dashboard; } }
+        internal LeagueGameRepairService UnifiedRepair { get { return _gameRepair.ServiceForSmokeTest; } }
 
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }

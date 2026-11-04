@@ -17,7 +17,9 @@ $cases = @(
   @{ Mode='quicktools'; Width=630; Height=650 },
   @{ Mode='matchmaking-settings'; Width=640; Height=740 },
   @{ Mode='auto-selection'; Width=600; Height=680 },
-  @{ Mode='postgame-settings'; Width=580; Height=610 }
+  @{ Mode='postgame-settings'; Width=580; Height=610 },
+  @{ Mode='presence'; Width=620; Height=730 },
+  @{ Mode='repair'; Width=620; Height=710 }
 )
 foreach ($scene in $cases) {
   $mode = $scene.Mode

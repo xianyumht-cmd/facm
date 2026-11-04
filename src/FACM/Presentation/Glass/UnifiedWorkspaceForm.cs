@@ -58,6 +58,8 @@ namespace FACM.Presentation.Glass
         private bool _presenceBusy;
         private LeaguePresenceSnapshot _presenceSnapshot;
         private LeagueClientSession _presenceSession;
+        private CancellationTokenSource _repairCancellation;
+        private bool _repairBusy;
         internal event Action BrowserUnavailable;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
@@ -103,6 +105,7 @@ namespace FACM.Presentation.Glass
                 CancelChampionCatalog();
                 CancelDashboardRead();
                 CancelPresenceOperation();
+                CancelRepairOperation();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -171,6 +174,7 @@ namespace FACM.Presentation.Glass
                     if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
                         StartDashboardRead();
                     if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
+                    if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -202,6 +206,10 @@ namespace FACM.Presentation.Glass
                 ReleaseCapture();
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
+            }
+            if (message != null && message.StartsWith("repair-action:", StringComparison.Ordinal))
+            {
+                ApplyRepairAction(message.Substring(14)); return;
             }
             if (message == "presence-refresh")
             {
@@ -281,6 +289,8 @@ namespace FACM.Presentation.Glass
             if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
             if (!string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal)) CancelDashboardRead();
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
+            if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
+            if (route == LeagueHubNavigation.Repair) { OpenRepairPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Presence) { OpenPresencePage(pushHistory); return; }
             if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
             {
@@ -656,6 +666,125 @@ namespace FACM.Presentation.Glass
             _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
             {
                 type = "presence-result", status = result
+            }));
+        }
+
+
+        private void OpenRepairPage(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open(LeagueHubNavigation.Repair);
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncRepairState();
+        }
+
+        private void SyncRepairState()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var service = LeagueHubUiBridge.UnifiedRepair;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            {
+                type = "repair-state",
+                available = service != null,
+                auto = service != null && service.AutoRepairEnabled
+            }));
+        }
+
+        private void ApplyRepairAction(string action)
+        {
+            if (_navigation.Current != LeagueHubNavigation.Repair || _repairBusy) return;
+            var service = LeagueHubUiBridge.UnifiedRepair;
+            if (service == null) { PostRepairResult("unavailable", null); return; }
+            if (action == "auto")
+            {
+                try
+                {
+                    var updated = service.SetAutoRepairEnabled(!service.AutoRepairEnabled);
+                    PostRepairResult(updated != null && updated.Success ? "success" : "failed",
+                        updated == null ? null : updated.Message);
+                    SyncRepairState();
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Info("Unified auto-repair switch failed: " + exception.GetType().Name);
+                    PostRepairResult("failed", null);
+                }
+                return;
+            }
+            if (action != "window" && action != "settlement" && action != "restart" && action != "exit")
+                return;
+            var cancellation = new CancellationTokenSource();
+            _repairCancellation = cancellation;
+            _repairBusy = true;
+            RunRepairActionAsync(action, service, cancellation);
+        }
+
+        private async void RunRepairActionAsync(string action,
+            LeagueGameRepairService service, CancellationTokenSource cancellation)
+        {
+            try
+            {
+                if (cancellation.IsCancellationRequested) return;
+                if (action == "exit")
+                {
+                    var efficiency = LeagueHubUiBridge.UnifiedEfficiency;
+                    var result = efficiency == null ? null : await efficiency.RunExitGameAsync();
+                    if (IsCurrentRepairOperation(cancellation))
+                        PostRepairResult(result == null ? "failed" : result.Status, null);
+                }
+                else
+                {
+                    LeagueGameRepairResult result;
+                    if (action == "window") result = await service.RepairWindowAsync(cancellation.Token);
+                    else if (action == "settlement") result = await service.SkipSettlementAsync(cancellation.Token);
+                    else result = await service.RestartClientUxAsync(cancellation.Token);
+                    if (IsCurrentRepairOperation(cancellation))
+                        PostRepairResult(result != null && result.Success ? "success" : "failed",
+                            result == null ? null : result.Message);
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified repair action failed: " + exception.GetType().Name);
+                if (IsCurrentRepairOperation(cancellation)) PostRepairResult("failed", null);
+            }
+            finally
+            {
+                if (ReferenceEquals(_repairCancellation, cancellation))
+                {
+                    _repairCancellation = null;
+                    _repairBusy = false;
+                }
+                cancellation.Dispose();
+            }
+        }
+
+        private bool IsCurrentRepairOperation(CancellationTokenSource cancellation)
+        {
+            return !IsDisposed && !_closing && !cancellation.IsCancellationRequested &&
+                ReferenceEquals(_repairCancellation, cancellation) &&
+                _navigation.Current == LeagueHubNavigation.Repair &&
+                _ready && _browser.CoreWebView2 != null;
+        }
+
+        private void CancelRepairOperation()
+        {
+            _repairBusy = false;
+            var cancellation = _repairCancellation;
+            _repairCancellation = null;
+            if (cancellation != null && !cancellation.IsCancellationRequested) cancellation.Cancel();
+        }
+
+        private void PostRepairResult(string status, string message)
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            {
+                type = "repair-result", status = status, message = message
             }));
         }
 
@@ -1099,6 +1228,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelPresenceOperation();
+            CancelRepairOperation();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1110,6 +1240,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelPresenceOperation();
+            CancelRepairOperation();
             _navigation.Home();
             ShowHome();
         }
@@ -1228,6 +1359,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelPresenceOperation();
+            CancelRepairOperation();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -1276,6 +1408,11 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-route=\"dashboard-advanced\"") ||
                 !html.Contains("data-route=\"auto-selection\"") ||
                 !html.Contains("id=\"presencePage\"") ||
+                !html.Contains("id=\"repairPage\"") ||
+                !html.Contains("data-repair-action=\"window\"") ||
+                !html.Contains("data-repair-action=\"settlement\"") ||
+                !html.Contains("data-repair-action=\"restart\"") ||
+                !html.Contains("data-repair-action=\"exit\"") ||
                 !html.Contains("data-presence-mode=\"Online\"") ||
                 !html.Contains("id=\"presenceSaveSignature\"") ||
                 !html.Contains("id=\"presenceSaveRank\"") ||

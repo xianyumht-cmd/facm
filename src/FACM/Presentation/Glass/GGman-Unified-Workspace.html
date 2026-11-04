@@ -49,6 +49,21 @@ body[data-mode="presence"] #home,body[data-mode="presence"] #other{display:none!
 body[data-mode="presence"] #detail{display:flex}
 body[data-mode="presence"] .brand-icon,body[data-mode="presence"] .brand-text{display:none}
 body[data-mode="presence"] #presencePage,body[data-mode="presence"] main{display:block;overflow-y:auto}
+#repairPage{display:none;padding:4px 2px}
+#repairPage h2{font-size:18px;margin:8px 0 5px}
+#repairPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#repairPage .tool-row{flex-wrap:wrap;gap:9px}
+#repairPage .tool-row button{padding:9px 12px;border-radius:8px;background:var(--card2);min-height:38px;white-space:nowrap}
+#repairPage .tool-row button:disabled{opacity:.55}
+#repairExitConfirm{padding:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:12px}
+#repairExitConfirm[hidden]{display:none!important}
+#repairExitConfirm button{background:var(--card2);border-radius:8px;padding:10px;min-height:38px;margin-right:8px}
+#repairExitConfirm button[data-action="repair-confirm"]{background:var(--accent);color:var(--canvas)}
+body[data-mode="repair"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="repair"] #home,body[data-mode="repair"] #other{display:none!important}
+body[data-mode="repair"] #detail{display:flex}
+body[data-mode="repair"] .brand-icon,body[data-mode="repair"] .brand-text{display:none}
+body[data-mode="repair"] #repairPage,body[data-mode="repair"] main{display:block;overflow-y:auto}
 #postgameSettings{display:none;padding:4px 2px}
 #postgameSettings h2{font-size:18px;margin:8px 0 5px}
 #postgameSettings p{color:var(--muted);font-size:12px;line-height:1.65}
@@ -330,6 +345,22 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     <p id="presenceResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
   </section>
+  <section id="repairPage">
+    <h2>游戏修复</h2>
+    <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
+    <div class="tools">
+      <div class="tool-row"><span><strong>窗口恢复</strong><small>将异常大小或屏幕外的 LOL 客户端窗口恢复到可见位置</small></span><button data-repair-action="window">立即修复</button></div>
+      <div class="tool-row"><span><strong>自动窗口修复</strong><small>沿用已有客户端窗口事件，不添加后台服务</small></span><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
+      <div class="tool-row"><span><strong>跳过卡住的结算</strong><small>使用已有 LCU 赛后写入接口</small></span><button data-repair-action="settlement">跳过结算</button></div>
+      <div class="tool-row"><span><strong>重启客户端界面</strong><small>仅重启 Riot 客户端的 UX 进程，可能关闭当前界面</small></span><button data-repair-action="restart">重启界面</button></div>
+      <div class="tool-row"><span><strong>退出当前游戏</strong><small>仅针对当前正在运行的游戏进程，请先保存必要内容</small></span><button data-repair-action="exit">退出游戏</button></div>
+    </div>
+    <div id="repairExitConfirm" hidden>
+      <p>确定退出当前运行的游戏吗？此操作可能中断对局。</p>
+      <button data-action="repair-confirm">确认退出</button><button data-action="repair-cancel">取消</button>
+    </div>
+    <p id="repairResult" role="status" aria-live="polite"></p>
+  </section>
   <section id="postgameSettings">
     <h2>赛后处理</h2><p>结束对局后自动点赞，并按需返回大厅。偏好与进度由现有赛后控制器负责。</p>
     <div class="setting-checks">
@@ -414,7 +445,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -424,6 +455,17 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.repairAction){
+    if(target.disabled)return;
+    if(target.dataset.repairAction==="exit"){get("repairExitConfirm").hidden=false;return;}
+    get("repairResult").textContent="正在执行";
+    post("repair-action:"+target.dataset.repairAction);return;
+  }
+  if(target.dataset.action==="repair-confirm"){
+    get("repairExitConfirm").hidden=true;get("repairResult").textContent="正在退出";
+    post("repair-action:exit");return;
+  }
+  if(target.dataset.action==="repair-cancel"){get("repairExitConfirm").hidden=true;return;}
   if(target.dataset.presenceMode){post("presence-mode:"+target.dataset.presenceMode);get("presenceResult").textContent="正在保存";return;}
   if(target.dataset.action==="presence-refresh"){post("presence-refresh");get("presenceResult").textContent="正在读取";return;}
   if(target.dataset.action==="presence-signature"){post("presence-signature:"+JSON.stringify({message:get("presenceSignature").value}));get("presenceResult").textContent="正在保存";return;}
@@ -451,10 +493,20 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence"||mode==="repair")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="repair-state"){
+    get("repairAuto").textContent=e.data.auto?"关闭自动修复":"启用自动修复";
+    document.querySelectorAll("[data-repair-action]").forEach(function(b){b.disabled=!e.data.available;});
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="repair-result"){
+    var labels={success:"操作完成",failed:"执行失败","no-target":"没有可退出的游戏",unavailable:"修复服务不可用"};
+    get("repairResult").textContent=e.data.message||labels[e.data.status]||"操作未完成";
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-state"){renderPresence(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-result"){
     var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
@@ -543,6 +595,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:postgame-settings")setMode("postgame-settings","postgame-settings");
   else if(value==="detail:dashboard")setMode("dashboard","dashboard");
   else if(value==="detail:presence")setMode("presence","presence");
+  else if(value==="detail:repair")setMode("repair","repair");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
 function renderPresence(data){

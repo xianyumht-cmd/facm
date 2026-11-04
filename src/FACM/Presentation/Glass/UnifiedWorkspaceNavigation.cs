@@ -80,6 +80,7 @@ namespace FACM.Presentation.Glass
                 case "dashboard": width = 640; height = 660; break;
                 case "matchmaking-settings": width = 620; height = 710; break;
                 case "presence": width = 590; height = 700; break;
+                case "repair": width = 590; height = 670; break;
                 default: width = 1000; height = 740; break;
             }
             var scale = Math.Max(1F, Math.Min(2.5F, dpiScale));
