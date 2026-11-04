@@ -144,6 +144,8 @@ namespace FACM.Presentation.Glass
                         SyncThemeOptions();
                     if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
                         SyncQuickSettings();
+                    if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
+                        SyncMatchmakingSettings();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -173,6 +175,11 @@ namespace FACM.Presentation.Glass
                 if (WindowState != FormWindowState.Normal) return;
                 ReleaseCapture();
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
+                return;
+            }
+            if (message != null && message.StartsWith("save-matchmaking:", StringComparison.Ordinal))
+            {
+                ApplyMatchmakingSettings(message.Substring(17));
                 return;
             }
             if (message != null && message.StartsWith("toggle:", StringComparison.Ordinal))
@@ -213,6 +220,11 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (string.Equals(route, "matchmaking-settings", StringComparison.Ordinal))
+            {
+                OpenMatchmakingSettings(pushHistory);
+                return;
+            }
             if (string.Equals(route, "efficiency", StringComparison.Ordinal))
             {
                 OpenQuickTools(pushHistory);
@@ -279,6 +291,78 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             _hub.Show();
             SyncWebNavigation();
+        }
+
+        private void OpenMatchmakingSettings(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open("matchmaking-settings");
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            SyncMatchmakingSettings();
+        }
+
+        private void ApplyMatchmakingSettings(string request)
+        {
+            if (!string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal)) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            UnifiedMatchmakingChange setting;
+            if (!UnifiedWorkspaceSettingsContract.TryParseMatchmaking(request, out setting))
+            {
+                PostMatchmakingResult(false, "设置格式或数值范围不正确");
+                return;
+            }
+            try
+            {
+                module.UpdateMatchmakingSettings(setting.AutoSearch, setting.AutoAccept,
+                    setting.MinParty, setting.QueueDelayMs, setting.AcceptDelayMs,
+                    setting.StopPolicy, setting.StopAfterMs,
+                    setting.WaitForInvitees, setting.RoomNotices);
+                SyncMatchmakingSettings();
+                PostMatchmakingResult(true, "设置已保存");
+            }
+            catch (Exception exception)
+            {
+                AppLog.Error("Unified matchmaking settings save failed", exception);
+                PostMatchmakingResult(false, "保存失败，请查看程序日志");
+            }
+        }
+
+        private void PostMatchmakingResult(bool ok, string message)
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+                { type = "matchmaking-result", ok, message }));
+        }
+
+        private void SyncMatchmakingSettings()
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            var module = LeagueHubUiBridge.UnifiedEfficiency;
+            if (module == null) return;
+            var payload = new JavaScriptSerializer().Serialize(new
+            {
+                type = "matchmaking-settings",
+                autoSearch = module.AutoMatchmakingEnabled,
+                autoAccept = module.AutoAcceptEnabled,
+                minParty = module.AutoMatchmakingMinPartySize,
+                queueDelayMs = module.AutoMatchmakingStartDelayMs,
+                acceptDelayMs = module.AutoAcceptDelayMs,
+                stopPolicy = module.AutoMatchmakingStopPolicy,
+                stopAfterMs = module.AutoMatchmakingStopAfterMs,
+                waitForInvitees = module.AutoMatchmakingWaitForInvitees,
+                roomNotices = module.AutoMatchmakingRoomNotices,
+                policies = new[]
+                {
+                    new { value = LeagueMatchmakingStopPolicyCodec.Never, label = "从不自动停止" },
+                    new { value = LeagueMatchmakingStopPolicyCodec.Fixed, label = "固定等待时间" },
+                    new { value = LeagueMatchmakingStopPolicyCodec.Estimated, label = "按预计时间停止" }
+                }
+            });
+            _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
         private void OpenQuickTools(bool pushHistory)
@@ -607,6 +691,7 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-route=\"client-status\"") ||
                 !html.Contains("id=\"statusConnection\"") ||
                 !html.Contains("data-route=\"efficiency-advanced\"") ||
+                !html.Contains("id=\"saveMatchmaking\"") ||
                 !html.Contains("id=\"themeList\"") ||
                 !html.Contains("Content-Security-Policy") ||
                 !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||

@@ -24,6 +24,22 @@ main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263
 .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:13px}
 .actions button{min-height:34px;background:var(--card2);border-radius:7px;color:#e0ebf9;font-size:12px}
 .actions button:hover{background:#205175}
+#matchmakingSettings{display:none;padding:4px 2px}
+#matchmakingSettings h2{font-size:18px;margin:8px 0 4px}
+#matchmakingSettings p{color:var(--muted);font-size:12px;line-height:1.7}
+.setting-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:12px 0}
+.setting-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+.setting-grid input,.setting-grid select{font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);height:38px;border-radius:8px;padding:0 10px;min-width:0;width:100%}
+.setting-grid input:focus-visible,.setting-grid select:focus-visible{outline:2px solid var(--accent)}
+.setting-checks{display:grid;gap:9px;margin:12px 0}.setting-checks label{background:var(--card);padding:11px 13px;border-radius:9px;display:flex;gap:10px;align-items:center}
+.setting-checks input{accent-color:var(--accent);width:17px;height:17px}
+.save-row{display:flex;gap:8px;align-items:center;margin-top:12px}.save-row button{border-radius:9px;background:var(--accent);color:#002235;font-weight:750;padding:11px 17px}.save-row button:disabled{opacity:.5}
+@media(max-width:450px){.setting-grid{grid-template-columns:1fr}}
+body[data-mode="matchmaking-settings"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="matchmaking-settings"] #home,body[data-mode="matchmaking-settings"] #other{display:none!important}
+body[data-mode="matchmaking-settings"] #detail{display:flex}
+body[data-mode="matchmaking-settings"] .brand-icon,body[data-mode="matchmaking-settings"] .brand-text{display:none}
+body[data-mode="matchmaking-settings"] #matchmakingSettings,body[data-mode="matchmaking-settings"] main{display:block;overflow-y:auto}
 #appearance{display:none;padding:4px 2px}
 #clientStatus{display:none;padding:4px 2px}
 #clientStatus h2{font-size:18px;margin:10px 0 8px}
@@ -113,7 +129,25 @@ body[data-mode="detail"] .close{font-size:18px}
       <div class="tool-row"><span><strong>赛后返回大厅</strong><small>结束点赞流程后再返回</small></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
     </div>
     <p id="toolResult" role="status" aria-live="polite"></p>
-    <div class="actions"><button data-route="efficiency-advanced">查看其他高级选项</button></div>
+    <div class="actions"><button data-route="matchmaking-settings">排队详细设置</button><button data-route="efficiency-advanced">高级工具</button></div>
+  </section>
+  <section id="matchmakingSettings">
+    <h2>自动排队与确认对局</h2>
+    <p>这些选项直接使用现有的 LOL 自动匹配控制器。保存后会沿用同一游戏会话，无额外后台轮询。</p>
+    <div class="setting-checks">
+      <label><input type="checkbox" id="queueEnabled"> 自动开始寻找对局</label>
+      <label><input type="checkbox" id="acceptEnabled"> 自动接受对局</label>
+      <label><input type="checkbox" id="waitInvitees"> 等待队友加入后再排队</label>
+      <label><input type="checkbox" id="roomNotices"> 在组队房间提示排队状态</label>
+    </div>
+    <div class="setting-grid">
+      <label>最少组队人数<input id="minParty" type="number" inputmode="numeric" min="1" max="5" step="1"></label>
+      <label>排队前等待（秒）<input id="queueDelay" type="number" inputmode="decimal" min="0" max="60" step="0.1"></label>
+      <label>自动接受延迟（秒）<input id="acceptDelay" type="number" inputmode="decimal" min="0" max="15" step="0.1"></label>
+      <label>停止匹配策略<select id="stopPolicy"></select></label>
+      <label>固定停止时间（秒）<input id="stopAfter" type="number" inputmode="decimal" min="1" max="600" step="0.1"></label>
+    </div>
+    <div class="save-row"><button data-save="matchmaking" id="saveMatchmaking">保存设置</button><span class="muted" id="matchmakingResult" role="status" aria-live="polite"></span></div>
   </section>
   <section id="appearance">
     <h2>外观与主题</h2><p>选择喜欢的配色，点击即应用并保存。所有设置仍由 GGman 本地管理。</p>
@@ -138,11 +172,11 @@ body[data-mode="detail"] .close{font-size:18px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -151,6 +185,7 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.save==="matchmaking"){saveMatchmaking();return;}
   if(target.dataset.theme){post("theme:"+target.dataset.theme);return;}
   if(target.dataset.setting){
     if(target.disabled)return;
@@ -167,10 +202,15 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-settings"){renderMatchmaking(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-result"){
+    document.getElementById("saveMatchmaking").disabled=false;
+    document.getElementById("matchmakingResult").textContent=e.data.ok?"设置已保存":String(e.data.message||"设置保存失败");return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-tools"){
     Object.keys(e.data.values||{}).forEach(function(key){
       var button=document.querySelector("[data-setting=\""+key+"\"]");
@@ -200,8 +240,38 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:client-status")setMode("client-status","client-status");
   else if(value==="detail:appearance")setMode("appearance","appearance");
   else if(value==="detail:efficiency")setMode("quicktools","efficiency");
+  else if(value==="detail:matchmaking-settings")setMode("matchmaking-settings","matchmaking-settings");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function renderMatchmaking(data){
+  var fields={queueEnabled:"autoSearch",acceptEnabled:"autoAccept",waitInvitees:"waitForInvitees",roomNotices:"roomNotices"};
+  Object.keys(fields).forEach(function(key){document.getElementById(key).checked=!!data[fields[key]];});
+  document.getElementById("minParty").value=String(data.minParty||1);
+  document.getElementById("queueDelay").value=String((Number(data.queueDelayMs)||0)/1000);
+  document.getElementById("acceptDelay").value=String((Number(data.acceptDelayMs)||0)/1000);
+  document.getElementById("stopAfter").value=String((Number(data.stopAfterMs)||1000)/1000);
+  var selector=document.getElementById("stopPolicy");selector.replaceChildren();
+  (Array.isArray(data.policies)?data.policies:[]).forEach(function(item){
+    var option=document.createElement("option");option.value=item.value;option.textContent=item.label;
+    selector.appendChild(option);
+  });selector.value=data.stopPolicy||"";
+  document.getElementById("saveMatchmaking").disabled=false;
+  document.getElementById("matchmakingResult").textContent="";
+}
+function saveMatchmaking(){
+  var get=function(id){return document.getElementById(id);};
+  var checks=["minParty","queueDelay","acceptDelay","stopAfter"];
+  if(checks.some(function(id){return !get(id).checkValidity()||get(id).value.trim()==="";})){
+    get("matchmakingResult").textContent="请检查人数和延迟范围";return;
+  }
+  var payload={autoSearch:get("queueEnabled").checked,autoAccept:get("acceptEnabled").checked,
+    waitForInvitees:get("waitInvitees").checked,roomNotices:get("roomNotices").checked,
+    minParty:Number(get("minParty").value),queueDelayMs:Math.round(Number(get("queueDelay").value)*1000),
+    acceptDelayMs:Math.round(Number(get("acceptDelay").value)*1000),
+    stopAfterMs:Math.round(Number(get("stopAfter").value)*1000),stopPolicy:get("stopPolicy").value};
+  get("saveMatchmaking").disabled=true;get("matchmakingResult").textContent="正在保存";
+  post("save-matchmaking:"+JSON.stringify(payload));
+}
 function phaseLabel(phase){
   var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
   return labels[String(phase||"")]||"已连接";
