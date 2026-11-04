@@ -411,6 +411,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
 "use strict";
 var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
 var mode="home";
+function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
   mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="detail"?"detail":next==="more"?"more":"home";
