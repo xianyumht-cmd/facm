@@ -1268,15 +1268,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.79
-- GitHub Release：v3.5.79
+- 版本：GGman 3.5.80
+- GitHub Release：v3.5.80
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：a3c493222c5b49761bdb492c5a337714440914c9
-- 发布元数据提交：95392b69e6af7f01c67ca61d3abb9c17fb549d04
-- Release GGman.exe SHA-256：455D79AAB9AA7E729BDDD6983287CA56C7A9EC96A46131846EB1264FA3F055E5
-- release_notes：GGman 3.5.79：新增原生 LOL 选人禁用、英雄交换、自动游戏流程、玩家资料与战绩分析、打野路径、SGP 区域数据、回放及复活计时等功能；保持轻量 WinForms 架构。Akari 1.5.1 的部分深度选项和玩家卡片交互仍将继续完善。此次更新不强制安装；如遇游戏内兼容问题，请反馈日志。
+- 发布基础 main：d3010f718c4fca372d7775c42e2927d1f76b44b0
+- 发布元数据提交：fbc75b40d8d802467a8e69568906bff21ac6819d
+- Release GGman.exe SHA-256：D69D597E2F00153CC0305EA1B55DEF74867A16F9B8E048E88AEC7169DF3C7511
+- release_notes：GGman 3.5.80：针对 3.5.79 的实际截图反馈优化 LOL 工作台。快捷工具与自动化设置说明按文字长度自适应显示，并新增设置分组快速跳转；我的战绩筛选按组换行、深色表头与列表区域重排；在线状态页限制重复滚动；段位、队列和组队邀请默认选项改为中文显示，保留原有接口值和设置。此版本不强制更新，仍建议反馈不同 DPI 的实际界面表现。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
