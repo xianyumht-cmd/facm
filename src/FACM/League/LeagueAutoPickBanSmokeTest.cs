@@ -231,6 +231,9 @@ namespace FACM.League
                     valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"invalid.region\"]"),
                     valid.Replace("\"supportedSgpServers\":[\"*\"]", "\"supportedSgpServers\":[\"*\",\"NA1\"]"),
                     valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[0]"),
+                    valid.Replace(@"""additionalPicks"":[]", @"""additionalPicks"":[""22""]"),
+                    valid.Replace(@"""additionalBans"":[]", @"""additionalBans"":[true]"),
+                    valid.Replace(@"""excludedBans"":[]", @"""excludedBans"":[22.5]"),
                     valid.Replace(@"""iconPath"":""/lol-game-data/assets/test.png""", @"""iconPath"":""https://evil.example/test.png""")
                 })
                     Require(!LeagueAutoSelectGroupCatalog.TryApply(Bytes(bad.Replace("2026-08-02", "2026-08-05"))),
