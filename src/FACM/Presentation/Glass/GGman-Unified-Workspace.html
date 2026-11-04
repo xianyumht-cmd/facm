@@ -57,7 +57,7 @@ body[data-mode="detail"] .close{font-size:18px}
       <button class="tile" data-route="efficiency"><span class="glyph">工</span><span>快捷工具</span></button>
     </div>
     <div class="actions">
-      <button data-route="repair">清理与修复</button>
+      <button data-route="cleanup">清理与修复</button>
       <button data-route="profile">个性化</button>
       <button data-action="more">更多功能</button>
     </div>
@@ -79,7 +79,7 @@ body[data-mode="detail"] .close{font-size:18px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){

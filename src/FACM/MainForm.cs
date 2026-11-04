@@ -196,7 +196,7 @@ namespace FACM
                 _unifiedWorkspace.Activate();
                 return;
             }
-            _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui);
+            _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui, _settings, _cleanup);
             _unifiedWorkspace.BrowserUnavailable += delegate
             {
                 _unifiedWorkspaceEnabled = false;

@@ -18,8 +18,9 @@ namespace FACM.Presentation.Glass
 
         internal static bool IsAllowed(string route)
         {
-            return LeagueHubNavigation.Views.Any(item =>
-                string.Equals(item.Id, route, StringComparison.Ordinal));
+            return string.Equals(route, "cleanup", StringComparison.Ordinal) ||
+                LeagueHubNavigation.Views.Any(item =>
+                    string.Equals(item.Id, route, StringComparison.Ordinal));
         }
 
         internal bool Open(string route)
@@ -76,7 +77,8 @@ namespace FACM.Presentation.Glass
                 if (router.Current != routes[index] || !router.Back())
                     throw new InvalidOperationException("Unified shell back stack is not stable.");
             }
-            if (!router.IsHome || router.Back()) throw new InvalidOperationException("Unified shell did not return home.");
+            if (!router.IsHome || router.Back() || !router.Open("cleanup") || !router.Back())
+                throw new InvalidOperationException("Unified shell cleanup navigation did not return home.");
             for (var index = 0; index < 100; index++) router.Open(routes[index % routes.Length]);
             if (router.Depth > 16) throw new InvalidOperationException("Unified shell history is unbounded.");
             router.Home();

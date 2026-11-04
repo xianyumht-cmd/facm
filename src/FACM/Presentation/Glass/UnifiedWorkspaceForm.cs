@@ -8,6 +8,7 @@ using System.Web.Script.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.League;
+using FACM.AppHost.Modules;
 using FACM.Services;
 using FACM.Theming;
 using Microsoft.Web.WebView2.Core;
@@ -32,9 +33,12 @@ namespace FACM.Presentation.Glass
         private readonly UnifiedWorkspaceNavigation _navigation = new UnifiedWorkspaceNavigation();
         private readonly MainForm _ownerBall;
         private readonly UiTextCatalog _ui;
+        private readonly AppSettings _settings;
+        private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
         private readonly Panel _content;
         private LeagueHubForm _hub;
+        private CleanupRepairForm _cleanupPage;
         private bool _starting;
         private bool _ready;
         private bool _closing;
@@ -42,10 +46,13 @@ namespace FACM.Presentation.Glass
         private LeagueDashboardPhaseState _lastGameflowState;
         internal event Action BrowserUnavailable;
 
-        internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui)
+        internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
+            AppSettings settings, CleanupModule cleanup)
         {
             _ownerBall = ownerBall ?? throw new ArgumentNullException(nameof(ownerBall));
             _ui = ui ?? throw new ArgumentNullException(nameof(ui));
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
             Text = ui.AppName;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
@@ -78,6 +85,7 @@ namespace FACM.Presentation.Glass
                 try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
                 if (_hub != null && !_hub.IsDisposed) _hub.Dispose();
+                if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
         }
@@ -188,12 +196,16 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
-            var created = false;
+            if (string.Equals(route, "cleanup", StringComparison.Ordinal))
+            {
+                OpenCleanupPage();
+                return;
+            }
+            if (_cleanupPage != null && !_cleanupPage.IsDisposed && !TryCloseCurrentHub()) return;
             if (_hub == null || _hub.IsDisposed)
             {
                 _hub = LeagueHubUiBridge.CreateUnifiedEmbeddedForm(_ui);
                 if (_hub == null) return;
-                created = true;
                 _hub.SetInitialView(route);
                 _hub.UseUnifiedWorkspaceHost();
                 _hub.TopLevel = false;
@@ -234,6 +246,42 @@ namespace FACM.Presentation.Glass
             SyncWebNavigation();
         }
 
+        private void OpenCleanupPage()
+        {
+            if (_hub != null && !_hub.IsDisposed && !TryCloseCurrentHub()) return;
+            if (_cleanupPage == null || _cleanupPage.IsDisposed)
+            {
+                _cleanupPage = new CleanupRepairForm(_ownerBall, _settings, _cleanup);
+                _cleanupPage.TopLevel = false;
+                _cleanupPage.FormBorderStyle = FormBorderStyle.None;
+                _cleanupPage.Dock = DockStyle.Fill;
+                _cleanupPage.MinimumSize = Size.Empty;
+                _cleanupPage.MaximumSize = Size.Empty;
+                _cleanupPage.ShowInTaskbar = false;
+                _cleanupPage.TopMost = false;
+                _content.Controls.Add(_cleanupPage);
+                var page = _cleanupPage;
+                page.FormClosed += delegate
+                {
+                    if (_explicitlyClosingHub || _closing || IsDisposed) return;
+                    if (ReferenceEquals(_cleanupPage, page))
+                    {
+                        _content.Controls.Remove(page);
+                        _cleanupPage = null;
+                        _navigation.Home();
+                        ShowHome();
+                    }
+                };
+            }
+            _navigation.Open("cleanup");
+            _browser.Dock = DockStyle.Top;
+            _browser.Height = 58;
+            _content.Visible = true;
+            ResizeForRoute(true);
+            _cleanupPage.Show();
+            SyncWebNavigation();
+        }
+
         private void NavigateBack()
         {
             if (_navigation.IsHome || !TryCloseCurrentHub()) return;
@@ -251,6 +299,19 @@ namespace FACM.Presentation.Glass
 
         private bool TryCloseCurrentHub()
         {
+            if (_cleanupPage != null && !_cleanupPage.IsDisposed)
+            {
+                _explicitlyClosingHub = true;
+                try
+                {
+                    var cleanup = _cleanupPage;
+                    cleanup.Close();
+                    if (!cleanup.IsDisposed) return false;
+                    _content.Controls.Remove(cleanup);
+                    if (ReferenceEquals(_cleanupPage, cleanup)) _cleanupPage = null;
+                }
+                finally { _explicitlyClosingHub = false; }
+            }
             if (_hub == null || _hub.IsDisposed) return true;
             _explicitlyClosingHub = true;
             try
@@ -342,7 +403,8 @@ namespace FACM.Presentation.Glass
                 if (html.IndexOf("data-route=\"" + view.Id + "\"", StringComparison.Ordinal) < 0)
                     throw new InvalidOperationException("Unified workspace HTML lost a native route.");
             }
-            if (!html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||
+            if (!html.Contains("data-route=\"cleanup\"") ||
+                !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||
                 !html.Contains("data-action=\"close\""))
                 throw new InvalidOperationException("Unified workspace HTML lost back/home/close navigation.");
         }
