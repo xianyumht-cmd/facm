@@ -106,6 +106,13 @@ jobs:
           msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
 
+      - name: Validate unified single-window route and back contract
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $test = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
+          if ($test.ExitCode -ne 0) { throw 'Unified WebView2 route and embedded HTML smoke failed.' }
+
       - name: Guard approved compact UI geometry
         shell: pwsh
         run: |

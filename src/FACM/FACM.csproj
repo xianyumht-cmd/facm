@@ -38,6 +38,10 @@
                       LogicalName="FACM.Presentation.Glass.GGman-Compact-Preview.html"
                       Type="Non-Resx"
                       WithCulture="false" />
+    <EmbeddedResource Include="Presentation\Glass\GGman-Unified-Workspace.html"
+                      LogicalName="FACM.Presentation.Glass.GGman-Unified-Workspace.html"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup>

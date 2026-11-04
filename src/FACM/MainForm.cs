@@ -35,6 +35,8 @@ namespace FACM
         private CompactMenuForm _menu;
 #if GLASS_WORKBENCH_PREVIEW
         private CompactLivePilotController _compactPilot;
+        private UnifiedWorkspaceForm _unifiedWorkspace;
+        private bool _unifiedWorkspaceEnabled;
 #endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
@@ -155,6 +157,8 @@ namespace FACM
         {
 #if GLASS_WORKBENCH_PREVIEW
             if (_compactPilot != null) _compactPilot.Hide();
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                _unifiedWorkspace.Close();
 #endif
             if (_menu == null) return;
             var menu = _menu;
@@ -163,6 +167,32 @@ namespace FACM
         }
 
 #if GLASS_WORKBENCH_PREVIEW
+        internal void EnableUnifiedWebWorkbench()
+        {
+            _unifiedWorkspaceEnabled = true;
+        }
+
+        private void ShowUnifiedWebWorkbench()
+        {
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+            {
+                if (!_unifiedWorkspace.Visible) _unifiedWorkspace.Show();
+                _unifiedWorkspace.BringToFront();
+                _unifiedWorkspace.Activate();
+                return;
+            }
+            _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui);
+            _unifiedWorkspace.BrowserUnavailable += delegate
+            {
+                _unifiedWorkspaceEnabled = false;
+                BeginInvoke(new Action(delegate { EnsureMenuOpenAndActive(); }));
+            };
+            _unifiedWorkspace.FormClosed += delegate { _unifiedWorkspace = null; };
+            PositionMenu(_unifiedWorkspace);
+            _unifiedWorkspace.Show();
+            _unifiedWorkspace.Activate();
+        }
+
         internal void EnableCompactLivePilot(ILeagueClientApi league)
         {
             if (_compactPilot != null) return;
@@ -526,6 +556,9 @@ namespace FACM
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
+#if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed) _unifiedWorkspace.Dispose();
+#endif
             _appIcon.Dispose();
         }
 
@@ -908,6 +941,11 @@ namespace FACM
             if (IsDisposed || _exiting) return;
 
 #if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                ShowUnifiedWebWorkbench();
+                return;
+            }
             if (_compactPilot != null)
             {
                 _compactPilot.Show();
@@ -939,6 +977,12 @@ namespace FACM
         private void ToggleMenu()
         {
 #if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                if (_unifiedWorkspace != null && _unifiedWorkspace.Visible) _unifiedWorkspace.Close();
+                else ShowUnifiedWebWorkbench();
+                return;
+            }
             if (_compactPilot != null)
             {
                 if (_compactPilot.Visible) _compactPilot.Hide();

@@ -56,6 +56,12 @@ namespace FACM.League
             }
         }
 
+        internal static LeagueHubForm CreateUnifiedEmbeddedForm(UiTextCatalog ui)
+        {
+            if (_module == null || ui == null) return null;
+            return _module.CreateForm(ui) as LeagueHubForm;
+        }
+
         private static void Open(MainForm owner, string requestedViewId)
         {
             if (_dialogOpen || _module == null || owner == null || owner.IsDisposed) return;

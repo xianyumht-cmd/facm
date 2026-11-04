@@ -45,6 +45,12 @@ namespace FACM
                     System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Live-Compact-Checks"));
                 return;
             }
+            if (HasArgument(args, "--unified-workspace-smoke"))
+            {
+                try { UnifiedWorkspaceForm.ValidateForSmokeTest(); Environment.ExitCode = 0; }
+                catch (Exception exception) { AppLog.Error("Unified workspace smoke failed", exception); Environment.ExitCode = 4; }
+                return;
+            }
             if (HasArgument(args, "--compact-preview-smoke"))
             {
                 Application.EnableVisualStyles();
@@ -251,6 +257,12 @@ namespace FACM
 
                     var mainForm = shell.MainForm;
 #if GLASS_WORKBENCH_PREVIEW
+                    if (HasArgument(args, "--unified-web-workbench") &&
+                        string.Equals(Environment.GetEnvironmentVariable("GGMAN_UNIFIED_WEB_WORKBENCH"),
+                            "1", StringComparison.Ordinal) && mainForm != null)
+                    {
+                        mainForm.EnableUnifiedWebWorkbench();
+                    }
                     if (HasArgument(args, "--compact-live-pilot") &&
                         string.Equals(Environment.GetEnvironmentVariable("GGMAN_COMPACT_LIVE_PILOT"),
                             "1", StringComparison.Ordinal) && mainForm != null)
