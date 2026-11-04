@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.79",
+  "enabled": false,
+  "version": "3.5.80",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.79/FACM.exe",
-  "sha256": "455D79AAB9AA7E729BDDD6983287CA56C7A9EC96A46131846EB1264FA3F055E5",
-  "release_notes": "GGman 3.5.79：新增原生 LOL 选人禁用、英雄交换、自动游戏流程、玩家资料与战绩分析、打野路径、SGP 区域数据、回放及复活计时等功能；保持轻量 WinForms 架构。Akari 1.5.1 的部分深度选项和玩家卡片交互仍将继续完善。此次更新不强制安装；如遇游戏内兼容问题，请反馈日志。",
-  "published_at": "2026-11-04T07:04:47.2000229+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.80/FACM.exe",
+  "sha256": "D69D597E2F00153CC0305EA1B55DEF74867A16F9B8E048E88AEC7169DF3C7511",
+  "release_notes": "GGman 3.5.80：针对 3.5.79 的实际截图反馈优化 LOL 工作台。快捷工具与自动化设置说明按文字长度自适应显示，并新增设置分组快速跳转；我的战绩筛选按组换行、深色表头与列表区域重排；在线状态页限制重复滚动；段位、队列和组队邀请默认选项改为中文显示，保留原有接口值和设置。此版本不强制更新，仍建议反馈不同 DPI 的实际界面表现。",
+  "published_at": "2026-11-04T07:54:10.9392242+00:00"
 }
