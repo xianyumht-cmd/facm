@@ -1,3 +1,7 @@
+## 2026-11-04 — Unified WebView2 control-center conversion begun
+
+The owner selected the existing 400×360 two-column GGman floating launcher screenshot as the UI baseline and requested every tool/page to load inside the same adaptive window with Back/Home. The current 3.5.80 is still the signed production version. A new feature branch `feat/ggman-unified-webview2-workspace-20261104` introduces the responsive embedded HTML shell and bounded route stack in the opt-in Glass build, without replacing the production shell yet. Nine LOL workbench routes retain their existing C# business ownership; integrating them as nested native forms is only transitional. Not done: fully HTML detail pages, all settings/cloud/update/cleanup workflows, native-WebView2 hosting/asset packaging end-to-end and Win10 acceptance. Do not ship a visual-only preview or claim full conversion from compiler CI.
+
 ## 2026-11-03 — Arena route revocation with retained special metadata (Draft #357)
 
 A newer Akari group snapshot can remove a group's `targetGameModes` while leaving `additionalPicks: [-3]`. GGman now accepts that source-valid disabled Arena route and refuses both automatic bravery and previously saved Arena priorities, rather than rejecting the entire update and retaining stale routing. Synthetic smoke covers the no-target group and absence of LCU writes. **Exact-HEAD Windows CI pending.** No game acceptance performed.

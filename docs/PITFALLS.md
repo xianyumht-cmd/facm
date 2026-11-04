@@ -1,3 +1,7 @@
+## 2026-11-04 — Do not confuse WebView2 preview with product UI replacement
+
+An earlier WebView2 Glass preview was deliberately disconnected from LOL, cloud, settings and updater; it was **not** proof that the production interface supports real actions. A HTML-only mock can conceal regressions by showing beautiful buttons that do nothing. The accepted unified screenshot requires one small floating-origin shell, in-place route and back navigation, adaptive bounds and a robust bridge to existing C# data and writes. UI tests must cover all route IDs, repeated navigation/back, unknown-message rejection, no new polling owners, focus/IME/DPI, WebView2 Runtime absence and real login/client disconnected states. Keep old native UI available until integrated actions are demonstrably equivalent and release checks pass.
+
 ## 2026-11-04 — GGman 3.5.79 WinForms embedded layout regressions from nine owner screenshots
 
 Production screenshots at approximately 1120×674 show text clipped by fixed-height settings cards in `LeagueEfficiencyForm`, a forced one-line `LeaguePlayerForm` filter bar with horizontal scroll and colliding controls, native light `ListView` headers on dark content, and redundant scrollbars in `LeaguePresenceForm`. English raw values such as `<DEFAULT>`, `RANKED_SOLO_5x5`, and `CHALLENGER` were visible in Chinese menus. These are observable usability failures, not proof that LCU/SGP functionality is broken; the client was disconnected for the captures.

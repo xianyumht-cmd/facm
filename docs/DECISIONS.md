@@ -1,3 +1,7 @@
+## 2026-11-04 — Adopt HTML/WebView2 as GGman's unified floating control center UI
+
+The owner accepted the current small 3.5.80 control-center screenshot as the precise entry-point shape but rejected the bulky WinForms workbench. Adopt a single persistent/reusable WebView2 HTML/CSS shell; keep C# services, memory-bounded native floating ball, account and game-session authority, and a progressive fallback while migrating. Every feature must appear within this ONE window, with Back/Home and responsive resize, not standalone WinForms windows. Existing Glass previews do not constitute live integration. Protect the 3.5.80 online release until full actions and UI parity, CI, package/signing and runtime checks justify a new signed release.
+
 ## 2026-11-01 — Keep Akari SGP queue-tag scope distinct from champion history
 
 Source `matchHistoryTagPreference` is an SGP history query tag (`all` or `q_{currentQueueId}`), not a filter for the currently selected champion. Preserve current native history retrieval without fabricating queue-specific samples from a 20-match all-mode page. The incorrect current-champion filter was removed; exact SGP tag wiring remains a documented parity gap requiring trusted queue/session/account evidence and the existing request owner. A configurable 2–20 per-player native fetch budget is retained to respect the lightweight client, while Akari's 200-match maximum remains a separate partial-parity limitation.

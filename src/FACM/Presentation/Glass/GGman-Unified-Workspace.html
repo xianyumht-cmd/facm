@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>GGman</title>
+<style>
+:root{color-scheme:dark;--canvas:#040c20;--card:#112349;--card2:#153151;--text:#f1f7ff;--muted:#a9bcda;--accent:#08bad6;--line:#243653;font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--text);font-size:13px;overflow:hidden}
+button{font:inherit;color:inherit;border:0;cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#shell{height:100dvh;min-height:180px;display:flex;flex-direction:column;padding:16px;gap:14px}
+.header{height:42px;flex-shrink:0;display:flex;align-items:center;gap:12px;user-select:none}
+.brand-icon{height:40px;width:40px;flex:0 0 40px;display:grid;place-items:center;background:var(--accent);border-radius:10px;color:#fff;font-size:19px;font-weight:800}
+.brand-name{font-size:18px;font-weight:750;letter-spacing:.2px}.subhead{font-size:11px;color:var(--muted);margin-top:2px}
+.close,.back,.home{background:transparent;color:#c5d8f1;min-width:31px;min-height:31px;border-radius:8px}
+.close:hover,.back:hover,.home:hover{background:var(--card2)}.close{margin-left:auto;font-size:21px}
+main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263b59 transparent}
+.status{padding:12px 13px;background:var(--card);border-radius:11px;display:flex;flex-direction:column;gap:4px}
+.status b{font-size:14px}.status span{color:var(--muted);font-size:12px}.status .hint{color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:11px}
+.tile{display:flex;align-items:center;gap:9px;text-align:left;min-width:0;min-height:57px;padding:9px;background:var(--card);border-radius:11px;font-weight:650}
+.tile:hover{background:#1a365a}.tile .glyph{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;font-size:19px;color:var(--accent);background:#113c61;border-radius:8px}
+.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:13px}
+.actions button{min-height:34px;background:var(--card2);border-radius:7px;color:#e0ebf9;font-size:12px}
+.actions button:hover{background:#205175}
+#other{display:none}#other.open{display:block}
+#other .tiles{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:6px}
+#other h2{font-size:15px;margin:2px 0 12px}.muted{color:var(--muted);font-size:11px;line-height:1.6}
+#detail{display:none;align-items:center;gap:10px;width:100%;min-width:0}
+#detail .title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+body[data-mode="detail"] #shell{padding:9px 13px;gap:0}
+body[data-mode="detail"] #home,body[data-mode="detail"] #other{display:none!important}
+body[data-mode="detail"] .header{height:40px}body[data-mode="detail"] .brand-icon,body[data-mode="detail"] .brand-text{display:none}
+body[data-mode="detail"] #detail{display:flex}
+body[data-mode="detail"] main{display:none}
+body[data-mode="detail"] .close{font-size:18px}
+@media(max-width:350px){#shell{padding:10px;gap:8px}.tile{padding:7px;min-height:52px}.tile .glyph{width:32px;height:32px;flex-basis:32px}}
+@media(prefers-reduced-motion:no-preference){.tile,.actions button{transition:background .14s ease}}
+</style>
+</head>
+<body data-mode="home">
+<div id="shell">
+<header class="header" id="dragHandle">
+  <div class="brand-icon" aria-hidden="true">G</div>
+  <div class="brand-text"><div class="brand-name">GGman</div><div class="subhead">轻盈的 LOL 控制中心</div></div>
+  <div id="detail"><button class="back" aria-label="返回上一页" data-action="back">‹</button><span class="title" id="routeTitle">LOL 工作台</span><button class="home" title="返回控制中心" data-action="home">⌂</button></div>
+  <button class="close" aria-label="关闭控制中心" data-action="close">×</button>
+</header>
+<main id="pages">
+  <section id="home">
+    <div class="status"><b>LOL · 等待连接</b><span>自动下一局 · 寻找关 · 接受 开</span><span class="hint">打开 LOL 客户端后会自动显示当前场景</span></div>
+    <div class="tiles">
+      <button class="tile" data-route="dashboard"><span class="glyph">L</span><span>LOL 工作台</span></button>
+      <button class="tile" data-route="player"><span class="glyph">战</span><span>我的战绩</span></button>
+      <button class="tile" data-route="mayhem"><span class="glyph">海</span><span>海斗攻略</span></button>
+      <button class="tile" data-route="efficiency"><span class="glyph">工</span><span>快捷工具</span></button>
+    </div>
+    <div class="actions">
+      <button data-route="repair">清理与修复</button>
+      <button data-route="profile">个性化</button>
+      <button data-action="more">更多功能</button>
+    </div>
+  </section>
+  <section id="other">
+    <h2>更多功能</h2>
+    <div class="tiles">
+      <button class="tile" data-route="live"><span class="glyph">实</span>实时对局</button>
+      <button class="tile" data-route="recommendation"><span class="glyph">荐</span>出装推荐</button>
+      <button class="tile" data-route="presence"><span class="glyph">在</span>在线状态</button>
+      <button class="tile" data-route="repair"><span class="glyph">修</span>游戏修复</button>
+      <button class="tile" data-route="profile"><span class="glyph">我</span>我的 GGman</button>
+    </div>
+    <p class="muted">选择功能后在当前控制中心内打开，点击返回可以回到此处。</p>
+    <div class="actions"><button data-action="back">返回控制中心</button></div>
+  </section>
+</main>
+</div>
+<script>
+(function(){
+"use strict";
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态"};
+var mode="home";
+function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
+function setMode(next,title){
+  mode=next==="detail"?"detail":next==="more"?"more":"home";
+  document.body.dataset.mode=mode;
+  document.getElementById("other").classList.toggle("open",mode==="more");
+  document.getElementById("home").style.display=mode==="home"?"block":"none";
+  document.getElementById("routeTitle").textContent=titles[title]||"LOL 工作台";
+}
+document.addEventListener("click",function(event){
+  var target=event.target.closest("button");
+  if(!target)return;
+  if(target.dataset.route&&titles[target.dataset.route]){post("open:"+target.dataset.route);return;}
+  var action=target.dataset.action;
+  if(action==="close")post("close");
+  else if(action==="back"){if(mode==="more")setMode("home");else post("back");}
+  else if(action==="home"){post("home");}
+  else if(action==="more")setMode("more");
+});
+document.addEventListener("keydown",function(event){
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail")post("back");else post("close");}
+});
+if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
+  var value=String(e.data||"");
+  if(value==="home"||value==="more")setMode(value);
+  else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
+});
+document.getElementById("dragHandle").addEventListener("mousedown",function(e){
+  if(e.button===0&&!e.target.closest("button"))post("drag");
+});
+window.GGmanUnifiedShell={setMode:setMode,knownRoutes:Object.keys(titles)};
+})();
+</script>
+</body></html>

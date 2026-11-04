@@ -1,3 +1,7 @@
+## 2026-11-04 — One adaptive WebView2 workbench, not independent WinForms pages
+
+For GGman, the small floating-ball control center in the owner's screenshot is the canonical home. New development must use an HTML/CSS responsive workbench with a typed C# bridge. Route/back/history/resize must remain within one window; nested modal windows are a temporary migration compatibility step, never a final state. Backend performance/session fences, launcher/tray behavior and Cloud/Updater safety stay native. Finish complete functional navigation and source-parity actions before requesting a signed online update; record incomplete routes explicitly instead of shipping a beautiful empty shell.
+
 ## 2026-11-04 — Interface legibility regression rule (3.5.79 screenshot feedback)
 
 Nine native screenshots of the integrated League workbench exposed cropped multiline explanations, overlapping filter controls, native bright list headers, duplicate scrollbars and exposed protocol enum values. Every WinForms page change must budget for the actual Hub embedded viewport, text wrap and DPI; use layout measurement/flow, not narrower absolute rows, and preserve full control click targets. Require deterministic narrow/wide sizing tests and Windows four-gate CI before an online release. The owner prefers a normal signed 3.5.x online update after the batch is repaired, not detached EXE testing. Live LoL connectivity was absent in those screenshots, so no gameplay API failure can be inferred.
