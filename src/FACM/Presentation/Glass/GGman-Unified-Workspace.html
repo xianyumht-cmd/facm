@@ -24,6 +24,19 @@ main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263
 .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:13px}
 .actions button{min-height:34px;background:var(--card2);border-radius:7px;color:#e0ebf9;font-size:12px}
 .actions button:hover{background:#205175}
+#dashboardPage{display:none;padding:4px 2px}
+#dashboardPage h2{font-size:18px;margin:8px 0 5px}
+#dashboardPage p{font-size:12px;color:var(--muted);line-height:1.65}
+.dashboard-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0}
+.dashboard-card{padding:13px;background:var(--card);border-radius:10px;min-width:0}
+.dashboard-card .small{display:block;font-size:11px;color:var(--muted);margin-bottom:8px}
+.dashboard-card strong{font-size:14px;display:block;overflow-wrap:anywhere}
+@media(max-width:420px){.dashboard-cards{grid-template-columns:1fr}}
+body[data-mode="dashboard"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="dashboard"] #home,body[data-mode="dashboard"] #other{display:none!important}
+body[data-mode="dashboard"] #detail{display:flex}
+body[data-mode="dashboard"] .brand-icon,body[data-mode="dashboard"] .brand-text{display:none}
+body[data-mode="dashboard"] #dashboardPage,body[data-mode="dashboard"] main{display:block;overflow-y:auto}
 #autoSelection{display:none;padding:4px 2px}
 #autoSelection h2{font-size:18px;margin:8px 0 5px}
 #autoSelection p{color:var(--muted);font-size:12px;line-height:1.65}
@@ -139,6 +152,19 @@ body[data-mode="detail"] .close{font-size:18px}
     <p id="toolResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-route="matchmaking-settings">排队详细设置</button><button data-route="auto-selection">自动选禁</button><button data-route="efficiency-advanced">高级工具</button></div>
   </section>
+  <section id="dashboardPage">
+    <h2>LOL 工作台</h2><p>按需读取当前已连接客户端的账号和对局信息，使用 GGman 原有游戏会话。</p>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="dbConnection">等待连接</strong></div>
+      <div class="dashboard-card"><span class="small">当前阶段</span><strong id="dbPhase">未连接</strong></div>
+      <div class="dashboard-card"><span class="small">登录账号</span><strong id="dbAccount">—</strong></div>
+      <div class="dashboard-card"><span class="small">所在服务器</span><strong id="dbServer">—</strong></div>
+      <div class="dashboard-card"><span class="small">召唤师等级</span><strong id="dbLevel">—</strong></div>
+      <div class="dashboard-card"><span class="small">性能预算</span><strong id="dbBudget">—</strong></div>
+    </div>
+    <div class="save-row"><button data-action="refresh-dashboard" id="refreshDashboard">读取最新状态</button><span class="muted" id="dashboardResult" role="status"></span></div>
+    <div class="actions"><button data-route="player">我的战绩</button><button data-route="live">实时对局</button><button data-route="dashboard-advanced">完整工作台</button></div>
+  </section>
   <section id="autoSelection">
     <h2>自动选禁英雄</h2>
     <p>选择英雄后保存，自动选禁只在选人阶段由 GGman 原有控制器执行。可随时临时暂停。</p>
@@ -196,11 +222,11 @@ body[data-mode="detail"] .close{font-size:18px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","dashboard-advanced":"完整工作台"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="dashboard"?"dashboard":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -209,6 +235,10 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="refresh-dashboard"){
+    target.disabled=true;document.getElementById("dashboardResult").textContent="正在读取";
+    post("dashboard-refresh");return;
+  }
   if(target.dataset.save==="matchmaking"){saveMatchmaking();return;}
   if(target.dataset.save==="auto-selection"){saveAutoSelection();return;}
   if(target.dataset.theme){post("theme:"+target.dataset.theme);return;}
@@ -227,10 +257,24 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="dashboard")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-details"){
+    document.getElementById("refreshDashboard").disabled=false;
+    document.getElementById("dbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"客户端运行中":"未连接";
+    document.getElementById("dbPhase").textContent=phaseLabel(e.data.phase);
+    document.getElementById("dbAccount").textContent=e.data.account||"—";
+    document.getElementById("dbServer").textContent=e.data.server||"—";
+    document.getElementById("dbLevel").textContent=e.data.level>0?String(e.data.level):"—";
+    document.getElementById("dbBudget").textContent=e.data.budget||"—";
+    document.getElementById("dashboardResult").textContent=e.data.message||"";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-failed"){
+    document.getElementById("refreshDashboard").disabled=false;
+    document.getElementById("dashboardResult").textContent="读取失败，请确认游戏客户端连接";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="auto-selection"){
     document.getElementById("selectionPickEnabled").checked=!!e.data.autoPick;
     document.getElementById("selectionBanEnabled").checked=!!e.data.autoBan;
@@ -283,6 +327,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:efficiency")setMode("quicktools","efficiency");
   else if(value==="detail:matchmaking-settings")setMode("matchmaking-settings","matchmaking-settings");
   else if(value==="detail:auto-selection")setMode("auto-selection","auto-selection");
+  else if(value==="detail:dashboard")setMode("dashboard","dashboard");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
 function renderChampionChoices(champions,pickId,banId){

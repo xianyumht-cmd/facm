@@ -24,6 +24,7 @@ namespace FACM.Presentation.Glass
                 string.Equals(route, "efficiency-advanced", StringComparison.Ordinal) ||
                 string.Equals(route, "matchmaking-settings", StringComparison.Ordinal) ||
                 string.Equals(route, "auto-selection", StringComparison.Ordinal) ||
+                string.Equals(route, "dashboard-advanced", StringComparison.Ordinal) ||
                 LeagueHubNavigation.Views.Any(item =>
                     string.Equals(item.Id, route, StringComparison.Ordinal));
         }
@@ -111,7 +112,8 @@ namespace FACM.Presentation.Glass
                 !router.Open("client-status") || !router.Back() ||
                 !router.IsHome || !router.Open("efficiency-advanced") || !router.Back() ||
                 !router.Open("matchmaking-settings") || !router.Back() ||
-                !router.Open("auto-selection") || !router.Back())
+                !router.Open("auto-selection") || !router.Back() ||
+                !router.Open("dashboard-advanced") || !router.Back())
                 throw new InvalidOperationException("Unified shell cleanup navigation did not return home.");
             for (var index = 0; index < 100; index++) router.Open(routes[index % routes.Length]);
             if (router.Depth > 16) throw new InvalidOperationException("Unified shell history is unbounded.");

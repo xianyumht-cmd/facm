@@ -49,6 +49,8 @@ namespace FACM.Presentation.Glass
         private LeagueDashboardPhaseState _lastGameflowState;
         private CancellationTokenSource _championCatalogCancellation;
         private int _championCatalogGeneration;
+        private CancellationTokenSource _dashboardReadCancellation;
+        private int _dashboardReadGeneration;
         internal event Action BrowserUnavailable;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
@@ -92,6 +94,7 @@ namespace FACM.Presentation.Glass
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
                 if (_hub != null && !_hub.IsDisposed) _hub.Dispose();
                 CancelChampionCatalog();
+                CancelDashboardRead();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -181,6 +184,12 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (message == "dashboard-refresh")
+            {
+                if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
+                    StartDashboardRead();
+                return;
+            }
             if (message != null && message.StartsWith("save-selection:", StringComparison.Ordinal))
             {
                 ApplyAutoSelection(message.Substring(15));
@@ -235,6 +244,12 @@ namespace FACM.Presentation.Glass
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
             if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
+            if (!string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal)) CancelDashboardRead();
+            if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
+            {
+                OpenDashboardPage(pushHistory);
+                return;
+            }
             if (string.Equals(route, "auto-selection", StringComparison.Ordinal))
             {
                 OpenAutoSelection(pushHistory);
@@ -271,7 +286,9 @@ namespace FACM.Presentation.Glass
                 _hub = LeagueHubUiBridge.CreateUnifiedEmbeddedForm(_ui);
                 if (_hub == null) return;
                 _hub.SetInitialView(string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Efficiency : route);
+                    ? LeagueHubNavigation.Efficiency :
+                    string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
+                    ? LeagueHubNavigation.Dashboard : route);
                 _hub.UseUnifiedWorkspaceHost();
                 _hub.TopLevel = false;
                 _hub.FormBorderStyle = FormBorderStyle.None;
@@ -297,7 +314,9 @@ namespace FACM.Presentation.Glass
             }
             else if (!_hub.NavigateInUnifiedWorkspace(
                 string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Efficiency : route))
+                    ? LeagueHubNavigation.Efficiency :
+                    string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
+                    ? LeagueHubNavigation.Dashboard : route))
             {
                 // Unsaved settings editor explicitly declined navigation.
                 SyncWebNavigation();
@@ -311,6 +330,81 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             _hub.Show();
             SyncWebNavigation();
+        }
+
+        private void OpenDashboardPage(bool pushHistory)
+        {
+            if (!TryCloseCurrentHub()) return;
+            if (pushHistory) _navigation.Open(LeagueHubNavigation.Dashboard);
+            _content.Visible = false;
+            _browser.Dock = DockStyle.Fill;
+            ResizeForRoute(true);
+            SyncWebNavigation();
+            StartDashboardRead();
+        }
+
+        private void StartDashboardRead()
+        {
+            CancelDashboardRead();
+            var module = LeagueHubUiBridge.UnifiedDashboard;
+            if (module == null) return;
+            var cancellation = new CancellationTokenSource();
+            _dashboardReadCancellation = cancellation;
+            var generation = _dashboardReadGeneration;
+            LoadDashboardAsync(module, cancellation, generation);
+        }
+
+        private async void LoadDashboardAsync(LeagueDashboardModule module,
+            CancellationTokenSource cancellation, int generation)
+        {
+            try
+            {
+                var snapshot = await module.ReadUnifiedDashboardAsync(cancellation.Token);
+                if (IsDisposed || cancellation.IsCancellationRequested ||
+                    generation != _dashboardReadGeneration ||
+                    !string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                    _browser.CoreWebView2 == null) return;
+                if (snapshot == null)
+                {
+                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"dashboard-failed\"}");
+                    return;
+                }
+                var payload = new JavaScriptSerializer().Serialize(new
+                {
+                    type = "dashboard-details",
+                    connected = snapshot.Connected,
+                    clientProcess = snapshot.ClientProcessDetected,
+                    phase = snapshot.Phase,
+                    account = snapshot.AccountName,
+                    server = !string.IsNullOrWhiteSpace(snapshot.PlatformName)
+                        ? snapshot.PlatformName : snapshot.PlatformId,
+                    level = snapshot.SummonerLevel,
+                    budget = snapshot.BudgetName
+                });
+                _browser.CoreWebView2.PostWebMessageAsJson(payload);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified League dashboard read skipped: " + exception.GetType().Name);
+                if (!IsDisposed && generation == _dashboardReadGeneration &&
+                    _browser.CoreWebView2 != null)
+                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"dashboard-failed\"}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_dashboardReadCancellation, cancellation))
+                    _dashboardReadCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+
+        private void CancelDashboardRead()
+        {
+            _dashboardReadGeneration++;
+            var previous = _dashboardReadCancellation;
+            _dashboardReadCancellation = null;
+            if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
         }
 
         private void OpenAutoSelection(bool pushHistory)
@@ -678,6 +772,7 @@ namespace FACM.Presentation.Glass
         {
             if (_navigation.IsHome || !TryCloseCurrentHub()) return;
             CancelChampionCatalog();
+            CancelDashboardRead();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -687,6 +782,7 @@ namespace FACM.Presentation.Glass
         {
             if (!TryCloseCurrentHub()) return;
             CancelChampionCatalog();
+            CancelDashboardRead();
             _navigation.Home();
             ShowHome();
         }
@@ -798,6 +894,7 @@ namespace FACM.Presentation.Glass
             }
             _closing = true;
             CancelChampionCatalog();
+            CancelDashboardRead();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -835,6 +932,8 @@ namespace FACM.Presentation.Glass
                 !html.Contains("id=\"saveMatchmaking\"") ||
                 !html.Contains("id=\"saveAutoSelection\"") ||
                 !html.Contains("data-route=\"auto-selection\"") ||
+                !html.Contains("id=\"refreshDashboard\"") ||
+                !html.Contains("data-route=\"dashboard-advanced\"") ||
                 !html.Contains("id=\"themeList\"") ||
                 !html.Contains("Content-Security-Policy") ||
                 !html.Contains("data-action=\"back\"") || !html.Contains("data-action=\"home\"") ||

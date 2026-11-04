@@ -60,6 +60,11 @@ namespace FACM.League
             }
         }
 
+        internal static LeagueDashboardModule UnifiedDashboard
+        {
+            get { return _module == null ? null : _module.UnifiedDashboard; }
+        }
+
         internal static LeagueEfficiencyModule UnifiedEfficiency
         {
             get { return _module == null ? null : _module.UnifiedEfficiency; }

@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using System.Threading;
+using System.Threading.Tasks;
 using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
@@ -65,6 +67,26 @@ namespace FACM.AppHost.Modules
             // Share one transition-only notification with open Player details dialogs.
             LeaguePlayerPostgameRefreshBridge.Observe(state);
             LeagueGameflowEventDispatcher.DispatchSafely(GameflowStateChanged, state, "dashboard-module");
+        }
+
+        internal async Task<LeagueDashboardSnapshot> ReadUnifiedDashboardAsync(CancellationToken cancellationToken)
+        {
+            var state = CurrentGameflowState;
+            if (state == null || !state.Connected)
+                return new LeagueDashboardSnapshot
+                {
+                    Connected = state != null && state.Connected,
+                    ClientProcessDetected = state != null && state.ClientProcessDetected,
+                    GameProcessDetected = state != null && state.GameProcessDetected,
+                    Phase = state == null ? null : state.Phase,
+                    UpdatedAtUtc = state == null ? DateTime.UtcNow : state.UpdatedAtUtc
+                };
+            var session = _leagueClient.CurrentSession;
+            if (session == null) return null;
+            var service = new LeagueDashboardDetailsService(_leagueClient, _performance.Budgets);
+            var snapshot = await service.LoadAsync(state, cancellationToken);
+            return LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession)
+                ? snapshot : null;
         }
 
         public Form CreateDashboardForm(UiTextCatalog ui)
