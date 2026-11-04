@@ -174,6 +174,12 @@ namespace FACM.Presentation.Glass
                 OpenRoute(message.Substring(5));
         }
 
+        internal void OpenFromNativeRoute(string route)
+        {
+            if (IsDisposed || _closing || !UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            OpenRoute(route);
+        }
+
         private void OpenRoute(string route)
         {
             OpenNativeRoute(route, true);

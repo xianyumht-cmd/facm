@@ -25,17 +25,21 @@ namespace FACM.League
 
         public static void RequestOpen()
         {
-            if (_dialogOpen || _openPending || _module == null) return;
+            if (_module == null) return;
             var owner = Application.OpenForms.OfType<MainForm>().FirstOrDefault(form => !form.IsDisposed);
             if (owner == null || !owner.IsHandleCreated) return;
-
+            if (owner.TryNavigateUnifiedRoute(string.Empty)) return;
+            if (_dialogOpen || _openPending) return;
             QueueOpen(owner, string.Empty);
         }
 
         public static void RequestOpen(MainForm owner, string viewId)
         {
-            if (_dialogOpen || _openPending || _module == null || owner == null || owner.IsDisposed || !owner.IsHandleCreated) return;
-            QueueOpen(owner, NormalizeViewId(viewId));
+            if (_module == null || owner == null || owner.IsDisposed || !owner.IsHandleCreated) return;
+            var route = NormalizeViewId(viewId);
+            if (owner.TryNavigateUnifiedRoute(route)) return;
+            if (_dialogOpen || _openPending) return;
+            QueueOpen(owner, route);
         }
 
         private static void QueueOpen(MainForm owner, string requestedViewId)

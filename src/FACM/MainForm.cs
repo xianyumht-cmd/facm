@@ -153,6 +153,21 @@ namespace FACM
             EnsureMenuOpenAndActive();
         }
 
+        internal bool TryNavigateUnifiedRoute(string viewId)
+        {
+#if GLASS_WORKBENCH_PREVIEW
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return false;
+            if (!string.IsNullOrWhiteSpace(viewId) && !UnifiedWorkspaceNavigation.IsAllowed(viewId))
+                return false;
+            ShowUnifiedWebWorkbench();
+            if (!string.IsNullOrWhiteSpace(viewId) && _unifiedWorkspace != null)
+                _unifiedWorkspace.OpenFromNativeRoute(viewId);
+            return true;
+#else
+            return false;
+#endif
+        }
+
         public void CloseMenu()
         {
 #if GLASS_WORKBENCH_PREVIEW
