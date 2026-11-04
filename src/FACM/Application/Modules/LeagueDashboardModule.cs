@@ -94,6 +94,12 @@ namespace FACM.AppHost.Modules
             return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui);
         }
 
+        internal LeagueClientSession UnifiedPresenceSession { get { return _leagueClient.CurrentSession; } }
+        internal LeaguePresenceService CreateUnifiedPresenceService()
+        {
+            return new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient);
+        }
+
         public Form CreatePresenceForm(UiTextCatalog ui, ThemeDefinition theme)
         {
             return new LeaguePresenceForm(

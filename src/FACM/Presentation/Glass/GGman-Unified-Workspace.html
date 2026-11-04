@@ -37,6 +37,18 @@ body[data-mode="dashboard"] #home,body[data-mode="dashboard"] #other{display:non
 body[data-mode="dashboard"] #detail{display:flex}
 body[data-mode="dashboard"] .brand-icon,body[data-mode="dashboard"] .brand-text{display:none}
 body[data-mode="dashboard"] #dashboardPage,body[data-mode="dashboard"] main{display:block;overflow-y:auto}
+#presencePage{display:none;padding:4px 2px}
+#presencePage h2{font-size:18px;margin:8px 0 5px}
+#presencePage p{color:var(--muted);font-size:12px;line-height:1.65}
+.presence-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.presence-modes button{min-height:42px;border:1px solid var(--line);background:var(--card);border-radius:9px}
+.presence-modes button.selected{border-color:var(--accent);color:var(--accent)}
+.presence-modes button:disabled{opacity:.55}
+body[data-mode="presence"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="presence"] #home,body[data-mode="presence"] #other{display:none!important}
+body[data-mode="presence"] #detail{display:flex}
+body[data-mode="presence"] .brand-icon,body[data-mode="presence"] .brand-text{display:none}
+body[data-mode="presence"] #presencePage,body[data-mode="presence"] main{display:block;overflow-y:auto}
 #postgameSettings{display:none;padding:4px 2px}
 #postgameSettings h2{font-size:18px;margin:8px 0 5px}
 #postgameSettings p{color:var(--muted);font-size:12px;line-height:1.65}
@@ -299,6 +311,25 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     <div class="save-row"><button data-action="refresh-dashboard" id="refreshDashboard">读取最新状态</button><span class="muted" id="dashboardResult" role="status"></span></div>
     <div class="actions"><button data-route="player">我的战绩</button><button data-route="live">实时对局</button><button data-route="dashboard-advanced">完整工作台</button></div>
   </section>
+  <section id="presencePage">
+    <h2>在线状态</h2><p>读取当前 LOL 客户端的聊天状态。保存后由原有 C# 服务回读校验，客户端可能覆盖游戏中状态。</p>
+    <div class="status"><b id="presenceCurrent">等待读取</b><span id="presenceName">请先连接英雄联盟</span></div>
+    <div class="presence-modes" id="presenceModes">
+      <button data-presence-mode="Online">在线</button><button data-presence-mode="Away">离开</button>
+      <button data-presence-mode="DoNotDisturb">勿扰</button><button data-presence-mode="Mobile">手机在线</button>
+      <button data-presence-mode="Offline">离线</button><button data-presence-mode="DisplayInGame">游戏中</button>
+    </div>
+    <div class="setting-grid"><label>个性签名<input id="presenceSignature" maxlength="512" autocomplete="off" placeholder="输入展示给好友的签名"></label></div>
+    <div class="save-row"><button id="presenceSaveSignature" data-action="presence-signature">保存签名</button></div>
+    <div class="setting-grid">
+      <label>展示队列<select id="presenceQueue"></select></label>
+      <label>展示段位<select id="presenceTier"></select></label>
+      <label>分段<select id="presenceDivision"><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select></label>
+    </div>
+    <div class="save-row"><button id="presenceSaveRank" data-action="presence-rank">保存展示段位</button></div>
+    <p id="presenceResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
+  </section>
   <section id="postgameSettings">
     <h2>赛后处理</h2><p>结束对局后自动点赞，并按需返回大厅。偏好与进度由现有赛后控制器负责。</p>
     <div class="setting-checks">
@@ -378,11 +409,11 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台"};
+var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
 var mode="home";
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -392,6 +423,10 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.presenceMode){post("presence-mode:"+target.dataset.presenceMode);get("presenceResult").textContent="正在保存";return;}
+  if(target.dataset.action==="presence-refresh"){post("presence-refresh");get("presenceResult").textContent="正在读取";return;}
+  if(target.dataset.action==="presence-signature"){post("presence-signature:"+JSON.stringify({message:get("presenceSignature").value}));get("presenceResult").textContent="正在保存";return;}
+  if(target.dataset.action==="presence-rank"){post("presence-rank:"+JSON.stringify({queue:get("presenceQueue").value,tier:get("presenceTier").value,division:get("presenceDivision").value}));get("presenceResult").textContent="正在保存";return;}
   if(target.dataset.action==="refresh-dashboard"){
     target.disabled=true;document.getElementById("dashboardResult").textContent="正在读取";
     post("dashboard-refresh");return;
@@ -415,10 +450,15 @@ document.addEventListener("click",function(event){
   else if(action==="more")setMode("more");
 });
 document.addEventListener("keydown",function(event){
-  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard")post("back");else post("close");}
+  if(event.key==="Escape"){event.preventDefault();if(mode==="more")setMode("home");else if(mode==="detail"||mode==="appearance"||mode==="quicktools"||mode==="client-status"||mode==="matchmaking-settings"||mode==="auto-selection"||mode==="postgame-settings"||mode==="dashboard"||mode==="presence")post("back");else post("close");}
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="presence-state"){renderPresence(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="presence-result"){
+    var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
+    get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-details"){
     document.getElementById("refreshDashboard").disabled=false;
     document.getElementById("dbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"客户端运行中":"未连接";
@@ -501,8 +541,42 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:auto-selection")setMode("auto-selection","auto-selection");
   else if(value==="detail:postgame-settings")setMode("postgame-settings","postgame-settings");
   else if(value==="detail:dashboard")setMode("dashboard","dashboard");
+  else if(value==="detail:presence")setMode("presence","presence");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function renderPresence(data){
+  var connected=!!data.connected,state=String(data.availability||"").toLowerCase();
+  var inGame=String(data.gameStatus||"").toLowerCase()==="ingame";
+  var labels={chat:"在线",online:"在线",away:"离开",dnd:"勿扰",mobile:"手机在线",offline:"离线"};
+  get("presenceName").textContent=connected?(data.name||"当前账号"):"请先连接英雄联盟";
+  get("presenceCurrent").textContent=connected?(inGame?"游戏中":(labels[state]||"已连接")):"客户端未连接";
+  get("presenceSignature").value=connected?String(data.message||""):"";
+  ["presenceSignature","presenceSaveSignature","presenceSaveRank","presenceQueue","presenceTier","presenceDivision"].forEach(function(id){get(id).disabled=!connected;});
+  get("presenceQueue").value=data.queue||"RANKED_SOLO_5x5";
+  get("presenceTier").value=data.tier||"GOLD";
+  get("presenceDivision").value=data.division||"II";
+  if(["MASTER","GRANDMASTER","CHALLENGER"].indexOf(get("presenceTier").value)>=0)get("presenceDivision").disabled=true;
+  document.querySelectorAll("[data-presence-mode]").forEach(function(button){
+    var chosen=button.dataset.presenceMode;
+    var selected=connected&&(chosen==="DisplayInGame"?inGame:!inGame&&
+      (({Online:"chat",Away:"away",DoNotDisturb:"dnd",Mobile:"mobile",Offline:"offline"}[chosen]===state)||
+       (chosen==="Online"&&state==="online")));
+    button.classList.toggle("selected",selected);button.disabled=!connected;
+  });
+  get("presenceResult").textContent=connected?"":"连接 LOL 后可使用状态设置";
+}
+function initPresenceOptions(){
+  var queues=[["单双排","RANKED_SOLO_5x5"],["灵活排位","RANKED_FLEX_SR"],["斗魂竞技场","CHERRY"],
+    ["云顶之弈","RANKED_TFT"],["云顶狂暴","RANKED_TFT_TURBO"],["双人作战","RANKED_TFT_DOUBLE_UP"],["三人排位","RANKED_FLEX_TT"]];
+  var tiers=[["黑铁","IRON"],["青铜","BRONZE"],["白银","SILVER"],["黄金","GOLD"],["铂金","PLATINUM"],["翡翠","EMERALD"],["钻石","DIAMOND"],["大师","MASTER"],["宗师","GRANDMASTER"],["最强王者","CHALLENGER"]];
+  [["presenceQueue",queues],["presenceTier",tiers]].forEach(function(entry){
+    var select=get(entry[0]);entry[1].forEach(function(item){var option=document.createElement("option");option.textContent=item[0];option.value=item[1];select.appendChild(option);});
+  });
+  get("presenceTier").addEventListener("change",function(){
+    get("presenceDivision").disabled=["MASTER","GRANDMASTER","CHALLENGER"].indexOf(get("presenceTier").value)>=0;
+  });
+}
+initPresenceOptions();
 function savePostgame(){
   var payload={autoHonor:document.getElementById("postgameHonor").checked,
     autoReturn:document.getElementById("postgameReturn").checked,
