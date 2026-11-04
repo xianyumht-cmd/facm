@@ -582,7 +582,7 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.HandleInvitations, "自动处理收到的组队邀请" },
             { LeagueEfficiencyUiTextKeys.HandleInvitationsHint, "按下方模式策略接受或拒绝邀请。所有模式默认忽略；关闭时不处理邀请。" },
             { LeagueEfficiencyUiTextKeys.InvitationGameType, "组队邀请模式" },
-            { LeagueEfficiencyUiTextKeys.InvitationGameTypeHint, "选择一种邀请模式后，设置右侧的动作。<DEFAULT> 是未单独设置模式时的默认策略。" },
+            { LeagueEfficiencyUiTextKeys.InvitationGameTypeHint, "选择一种邀请模式后设置对应动作；默认模式用于尚未单独配置的邀请。" },
             { LeagueEfficiencyUiTextKeys.InvitationAction, "当前模式邀请策略" },
             { LeagueEfficiencyUiTextKeys.InvitationActionHint, "忽略：不操作；接受：自动入队；拒绝：自动拒绝。保存后立即对新邀请生效。" },
             { LeagueEfficiencyUiTextKeys.InvitationIgnore, "忽略" },

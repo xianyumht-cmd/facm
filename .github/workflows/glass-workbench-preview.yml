@@ -7,6 +7,8 @@ on:
       - 'src/FACM/Presentation/Glass/**'
       - 'src/FACM/FACM.csproj'
       - 'src/FACM/Program.cs'
+      - 'src/FACM/League/**'
+      - 'src/FACM/Theming/**'
       - 'scripts/Start-Glass-Preview.cmd'
       - 'scripts/Start-Compact-Preview.cmd'
       - 'scripts/Start-Compact-Browser.ps1'

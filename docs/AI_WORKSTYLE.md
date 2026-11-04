@@ -1,3 +1,7 @@
+## 2026-11-04 — Interface legibility regression rule (3.5.79 screenshot feedback)
+
+Nine native screenshots of the integrated League workbench exposed cropped multiline explanations, overlapping filter controls, native bright list headers, duplicate scrollbars and exposed protocol enum values. Every WinForms page change must budget for the actual Hub embedded viewport, text wrap and DPI; use layout measurement/flow, not narrower absolute rows, and preserve full control click targets. Require deterministic narrow/wide sizing tests and Windows four-gate CI before an online release. The owner prefers a normal signed 3.5.x online update after the batch is repaired, not detached EXE testing. Live LoL connectivity was absent in those screenshots, so no gameplay API failure can be inferred.
+
 ## 批量功能簇推进（2026-10-31）
 
 用户希望每小时自动开发的单轮尽量完成一个有实质价值的功能簇，通常合并多个相关、可验证的切片；优先功能覆盖、数据正确性和交互闭环，不再为单一像素或微小文字修补消耗整轮。用户现指定单轮约 19 分钟的有效开发目标，受平台实际运行上限约束，不以等待凑时间；完成一项改动后如有余量继续推进，不为凑数量跳过 Windows 四项 CI、真实 HEAD 复核和正式版保护。只有 CI 有对应最终可执行提交的成功证据才能标记通过，腾讯国服与 Win10 DPI 仍集中验收。

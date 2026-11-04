@@ -60,6 +60,27 @@ namespace FACM.League
         private readonly Label _invitationStatus;
         private bool _loading = true;
         private bool _loginSignatureDirty;
+        private static readonly Dictionary<string, string> RankedDisplayKeys =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "RANKED_SOLO_5x5", LeaguePresenceUiTextKeys.RankedQueueSolo },
+                { "RANKED_FLEX_SR", LeaguePresenceUiTextKeys.RankedQueueFlex },
+                { "CHERRY", LeaguePresenceUiTextKeys.RankedQueueArena },
+                { "RANKED_TFT", LeaguePresenceUiTextKeys.RankedQueueTft },
+                { "RANKED_TFT_TURBO", LeaguePresenceUiTextKeys.RankedQueueTftTurbo },
+                { "RANKED_TFT_DOUBLE_UP", LeaguePresenceUiTextKeys.RankedQueueTftDoubleUp },
+                { "RANKED_FLEX_TT", LeaguePresenceUiTextKeys.RankedQueueFlex3v3 },
+                { "IRON", LeaguePresenceUiTextKeys.RankedTierIron },
+                { "BRONZE", LeaguePresenceUiTextKeys.RankedTierBronze },
+                { "SILVER", LeaguePresenceUiTextKeys.RankedTierSilver },
+                { "GOLD", LeaguePresenceUiTextKeys.RankedTierGold },
+                { "PLATINUM", LeaguePresenceUiTextKeys.RankedTierPlatinum },
+                { "EMERALD", LeaguePresenceUiTextKeys.RankedTierEmerald },
+                { "DIAMOND", LeaguePresenceUiTextKeys.RankedTierDiamond },
+                { "MASTER", LeaguePresenceUiTextKeys.RankedTierMaster },
+                { "GRANDMASTER", LeaguePresenceUiTextKeys.RankedTierGrandmaster },
+                { "CHALLENGER", LeaguePresenceUiTextKeys.RankedTierChallenger }
+            };
 
         public LeagueEfficiencyForm(LeagueEfficiencyModule module, UiTextCatalog ui)
         {
@@ -346,6 +367,12 @@ namespace FACM.League
             _invitationGameType = AddChoiceRow(root, 27,
                 T(LeagueEfficiencyUiTextKeys.InvitationGameType),
                 T(LeagueEfficiencyUiTextKeys.InvitationGameTypeHint), LeagueInvitationPolicies.GameTypes, 0);
+            _invitationGameType.FormattingEnabled = true;
+            _invitationGameType.Format += delegate(object sender, ListControlConvertEventArgs e)
+            {
+                if (string.Equals(e.ListItem as string, "<DEFAULT>", StringComparison.OrdinalIgnoreCase))
+                    e.Value = T(LeagueEfficiencyUiTextKeys.ProfileModeDefault);
+            };
             _invitationAction = AddChoiceRow(root, 28,
                 T(LeagueEfficiencyUiTextKeys.InvitationAction),
                 T(LeagueEfficiencyUiTextKeys.InvitationActionHint), new[]
@@ -399,6 +426,8 @@ namespace FACM.League
             _loginRankTier = AddChoiceRow(root, 40, T(LeagueEfficiencyUiTextKeys.LoginRankTier),
                 T(LeagueEfficiencyUiTextKeys.LoginRankTierHint), LeaguePresenceService.RankedTiers.ToArray(),
                 RankIndex(LeaguePresenceService.RankedTiers, _module.AutoLoginRankedTier));
+            EnableLocalizedRankDisplay(_loginRankQueue);
+            EnableLocalizedRankDisplay(_loginRankTier);
             _loginRankDivision = AddChoiceRow(root, 41, T(LeagueEfficiencyUiTextKeys.LoginRankDivision),
                 T(LeagueEfficiencyUiTextKeys.LoginRankDivisionHint), LeaguePresenceService.RankedDivisions.ToArray(),
                 RankIndex(LeaguePresenceService.RankedDivisions, _module.AutoLoginRankedDivision));
@@ -452,10 +481,127 @@ namespace FACM.League
             _module.HonorStatusChanged += HandleHonorStatusChanged;
             AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;
+            InstallSectionJump(root);
             Controls.Add(root);
+            root.SizeChanged += delegate { if (Visible) ReflowSettingRows(root); };
+            Shown += delegate { BeginInvoke(new Action(delegate { ReflowSettingRows(root); })); };
             _loading = false;
             UpdateMatchmakingControlStates();
             _ = LoadChampionCatalogAsync();
+        }
+
+        internal static bool RankedDisplayCoverageForSmokeTest()
+        {
+            return LeaguePresenceService.RankedQueues.All(value => RankedDisplayKeys.ContainsKey(value)) &&
+                LeaguePresenceService.RankedTiers.All(value => RankedDisplayKeys.ContainsKey(value));
+        }
+
+        private void EnableLocalizedRankDisplay(ComboBox combo)
+        {
+            combo.FormattingEnabled = true;
+            combo.Format += delegate(object sender, ListControlConvertEventArgs e)
+            {
+                var value = e.ListItem as string;
+                string key;
+                if (string.IsNullOrWhiteSpace(value) || !RankedDisplayKeys.TryGetValue(value, out key)) return;
+                var label = LeaguePresenceText.Get(_ui, key);
+                if (string.Equals(label, value, StringComparison.OrdinalIgnoreCase))
+                    LeaguePresenceText.DefaultsForSmokeTest().TryGetValue(key, out label);
+                if (!string.IsNullOrWhiteSpace(label)) e.Value = label;
+            };
+        }
+
+        private bool _reflowingSettingRows;
+
+        private void InstallSectionJump(TableLayoutPanel root)
+        {
+            var sections = root.Controls.Cast<Control>()
+                .Select(control => new
+                {
+                    Control = control,
+                    Label = control as Label ?? (control as TableLayoutPanel)?.Controls
+                        .OfType<Label>().FirstOrDefault(label => label.Font.Bold && label.Font.Size >= 10.5F)
+                })
+                .Where(item => item.Label != null && item.Label.Font.Bold &&
+                    item.Label.Font.Size >= 10.5F && item.Label.Font.Size < 15F &&
+                    root.GetPositionFromControl(item.Control).Row >= 2)
+                .OrderBy(item => root.GetPositionFromControl(item.Control).Row)
+                .ToArray();
+            var jump = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+                Margin = Padding.Empty, BackColor = Color.Transparent
+            };
+            jump.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            jump.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 214F));
+            root.Controls.Remove(_help);
+            jump.Controls.Add(_help, 0, 0);
+            var selector = new ComboBox
+            {
+                Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = FacmDesignSystem.CanvasRaised, ForeColor = FacmDesignSystem.Text,
+                AccessibleName = T(LeagueEfficiencyUiTextKeys.Title),
+                Margin = new Padding(5, 10, 2, 10)
+            };
+            foreach (var section in sections) selector.Items.Add(section.Label.Text);
+            selector.SelectedIndexChanged += delegate
+            {
+                if (selector.SelectedIndex >= 0 && selector.SelectedIndex < sections.Length)
+                    root.ScrollControlIntoView(sections[selector.SelectedIndex].Control);
+            };
+            if (selector.Items.Count > 0) selector.SelectedIndex = 0;
+            jump.Controls.Add(selector, 1, 0);
+            root.Controls.Add(jump, 0, 1);
+        }
+
+        internal static int RequiredSettingRowHeightForSmokeTest(int titleHeight, int hintHeight)
+        {
+            return Math.Max(82, Math.Max(0, titleHeight) + Math.Max(0, hintHeight) + 30);
+        }
+
+        private static Label FindSettingHint(Control control)
+        {
+            if (control == null) return null;
+            var label = control as Label;
+            if (label != null && string.Equals(label.Tag as string, "ggman-setting-hint", StringComparison.Ordinal))
+                return label;
+            foreach (Control child in control.Controls)
+            {
+                var result = FindSettingHint(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        private void ReflowSettingRows(TableLayoutPanel root)
+        {
+            if (_reflowingSettingRows || root.IsDisposed || root.ClientSize.Width < 200) return;
+            _reflowingSettingRows = true;
+            try
+            {
+                root.SuspendLayout();
+                for (var row = 0; row < root.RowStyles.Count; row++)
+                {
+                    if (root.RowStyles[row].SizeType != SizeType.Absolute) continue;
+                    var control = root.GetControlFromPosition(0, row);
+                    var hint = FindSettingHint(control);
+                    if (hint == null || string.IsNullOrWhiteSpace(hint.Text)) continue;
+                    var hintWidth = Math.Max(100, hint.Width > 20 ? hint.Width :
+                        root.ClientSize.Width - root.Padding.Horizontal - 370);
+                    var size = TextRenderer.MeasureText(hint.Text, hint.Font,
+                        new Size(hintWidth, 4096), TextFormatFlags.WordBreak | TextFormatFlags.NoPadding);
+                    var table = hint.Parent as TableLayoutPanel;
+                    var titleHeight = table != null && table.RowStyles.Count > 0
+                        ? (int)Math.Ceiling(table.RowStyles[0].Height) : 35;
+                    root.RowStyles[row].Height = RequiredSettingRowHeightForSmokeTest(titleHeight, size.Height);
+                }
+                LeagueSoftGlassSkin.ConfigureEfficiencyScrollSurfaceForSmokeTest(root);
+            }
+            finally
+            {
+                root.ResumeLayout(true);
+                _reflowingSettingRows = false;
+            }
         }
 
         private Control CreatePostGameHeader()
@@ -527,7 +673,8 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 Font = new Font(Font.FontFamily, 9F),
                 TextAlign = ContentAlignment.MiddleLeft,
-                AutoEllipsis = true
+                AutoEllipsis = false,
+                Tag = "ggman-setting-hint"
             };
             copy.Controls.Add(heading, 0, 0);
             copy.Controls.Add(description, 0, 1);
@@ -623,6 +770,8 @@ namespace FACM.League
                 TextAlign = ContentAlignment.MiddleLeft,
                 AutoEllipsis = true
             };
+            description.AutoEllipsis = false;
+            description.Tag = "ggman-setting-hint";
             panel.Controls.Add(description, 0, 1);
             WireHelp(description, hint);
             WireHelp(panel, hint);

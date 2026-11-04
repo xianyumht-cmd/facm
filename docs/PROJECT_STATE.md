@@ -1279,6 +1279,11 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 - release_notes：GGman 3.5.79：新增原生 LOL 选人禁用、英雄交换、自动游戏流程、玩家资料与战绩分析、打野路径、SGP 区域数据、回放及复活计时等功能；保持轻量 WinForms 架构。Akari 1.5.1 的部分深度选项和玩家卡片交互仍将继续完善。此次更新不强制安装；如遇游戏内兼容问题，请反馈日志。
 <!-- FACM_RELEASE_STATE_END -->
 
+## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
+
+Nine owner-provided native screenshots (1120×674 workbench, disconnected client) showed clipped automation hints and hotkey rows, a single-line overflowed match-history filter toolbar, bright native ListView headers, a second scroll lane in Presence, and raw enum strings. Independent UI repair PR #358 starts from the signed 3.5.79 `main` release rather than the still-running stacked Akari Draft. Candidate code measures wrapped setting hints and updates real scroll extents, adds in-page section jumps, groups/wraps player filters, dark paints native list headers, restricts scroll ownership, and displays localized rank/invitation options without mutating stored protocol values. Synthetic row/wrapping checks were added; four Windows gates and real Win10/DPI screenshot outcome are separate. Next: verify exact PR head, do not merge/publish if any required CI fails, then release through the existing signed 3.5.x workflow. The final Tencent LoL/game checks remain outside this UI patch.
+
+
 ## Active continuation — verified regional Player and timeline checkpoint (Draft #357)
 
 **Latest verified executable-source commit: `02d842ee0088292737f555c355a68b2ed9e58d18`.** Remote branch and Draft #357 head were independently read back at that SHA. All four workflows passed: [Windows Build #40542644028](https://github.com/xianyumht-cmd/facm/actions/runs/40542644028), [Glass #40542644098](https://github.com/xianyumht-cmd/facm/actions/runs/40542644098), [UI Text #40542644267](https://github.com/xianyumht-cmd/facm/actions/runs/40542644267) and [Mayhem Source #40542643887](https://github.com/xianyumht-cmd/facm/actions/runs/40542643887). Windows job `122324809134` confirms League Dashboard smoke, `league-dashboard` and `league-player` performance smoke, and the complete performance contract. Its unsigned native EXE was 3,763,200 bytes before candidate signing. No production version, updater metadata or release was changed.

@@ -18,6 +18,7 @@ on:
     paths:
       - 'src/FACM/Mayhem/**'
       - 'src/FACM/Presentation/Glass/**'
+      - 'src/FACM/League/**'
       - 'src/FACM/Program.cs'
       - '.github/workflows/mayhem-source-probe.yml'
 
