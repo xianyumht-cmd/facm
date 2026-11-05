@@ -415,6 +415,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
       <button type="button" data-live-filter="their-team" aria-pressed="false">对方</button>
     </div>
     <label class="tool-search" for="liveSearch">搜索当前阵容<input id="liveSearch" type="search" maxlength="80" autocomplete="off" placeholder="玩家名称、英雄编号或位置"></label>
+    <label class="tool-search" for="liveSort">阵容排序<select id="liveSort"><option value="team">按队伍分组</option><option value="position">按位置排序</option><option value="name">按玩家名称排序</option></select></label>
     <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
     <div class="save-row">
       <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
@@ -804,6 +805,7 @@ function renderHistory(data){
 var liveRows=[];
 var liveFilter="all";
 get("liveSearch").addEventListener("input",drawLiveRows);
+get("liveSort").addEventListener("change",drawLiveRows);
 document.querySelectorAll("[data-live-filter]").forEach(function(button){
   button.addEventListener("click",function(){
     liveFilter=button.dataset.liveFilter;
@@ -823,9 +825,18 @@ function drawLiveRows(){
   var query=get("liveSearch").value.trim().toLocaleLowerCase();
   var rows=liveRows.filter(function(player){
     if(liveFilter!=="all"&&liveSide(player)!==liveFilter)return false;
-    return !query||[player.name,player.champion,player.position].some(function(value){
+    return !query||[player.name,player.champion,player.position,player.side].some(function(value){
       return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
     });
+  });
+  var order=get("liveSort").value;
+  var sideRank={"my-team":0,"their-team":1,"unknown":2};
+  var positionRank={TOP:0,JUNGLE:1,MIDDLE:2,MID:2,BOTTOM:3,BOT:3,UTILITY:4,SUPPORT:4};
+  var position=function(player){return positionRank[String(player.position||"").toUpperCase()]??9;};
+  rows.sort(function(a,b){
+    if(order==="name")return String(a.name||"").localeCompare(String(b.name||""),"zh-CN");
+    if(order==="position")return position(a)-position(b)||String(a.name||"").localeCompare(String(b.name||""),"zh-CN");
+    return sideRank[liveSide(a)]-sideRank[liveSide(b)]||position(a)-position(b);
   });
   rows.forEach(function(player){
     var row=document.createElement("div");row.className="live-player";
@@ -840,7 +851,7 @@ function drawLiveRows(){
   });
   var connected=get("liveConnection").textContent==="客户端已连接";
   get("liveSummary").textContent=!connected?"连接 LOL 客户端后可查看":
-    liveRows.length?"阵容 "+liveRows.length+" 人 · 显示 "+rows.length+" 人"+
+    liveRows.length?"阵容 "+liveRows.length+" 人（我方 "+liveRows.filter(function(p){return liveSide(p)==="my-team";}).length+" / 对方 "+liveRows.filter(function(p){return liveSide(p)==="their-team";}).length+"） · 显示 "+rows.length+" 人"+
     (rows.length===0?" · 无匹配玩家":"")+
     (get("livePlayers").dataset.sgp==="true"?" · 区域资料已补全":" · 客户端阵容"):
     "当前阶段没有可确认的阵容";
@@ -854,7 +865,7 @@ function renderLive(data){
   liveRows=(Array.isArray(data.players)?data.players:[]).slice(0,24);
   get("livePlayers").dataset.sgp=data.sgp?"true":"false";
   if(!data.connected){
-    get("liveSearch").value="";liveFilter="all";
+    get("liveSearch").value="";get("liveSort").value="team";liveFilter="all";
     document.querySelectorAll("[data-live-filter]").forEach(function(button){
       button.setAttribute("aria-pressed",button.dataset.liveFilter==="all"?"true":"false");
     });
