@@ -118,7 +118,13 @@ jobs:
         run: |
           $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
           $test = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
-          if ($test.ExitCode -ne 0) { throw 'Unified WebView2 route and embedded HTML smoke failed.' }
+          if ($test.ExitCode -ne 0) {
+            $diagnostic = 'artifacts/Unified-Workspace-Diagnostics/smoke-error.txt'
+            if (Test-Path -LiteralPath $diagnostic) {
+              Get-Content -LiteralPath $diagnostic | Write-Host
+            }
+            throw 'Unified WebView2 route and embedded HTML smoke failed.'
+          }
 
       - name: Compile intended unified default startup (candidate only)
         shell: pwsh

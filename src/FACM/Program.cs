@@ -48,7 +48,19 @@ namespace FACM
             if (HasArgument(args, "--unified-workspace-smoke"))
             {
                 try { UnifiedWorkspaceForm.ValidateForSmokeTest(); Environment.ExitCode = 0; }
-                catch (Exception exception) { AppLog.Error("Unified workspace smoke failed", exception); Environment.ExitCode = 4; }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified workspace smoke failed", exception);
+                    try
+                    {
+                        var dir = System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Unified-Workspace-Diagnostics");
+                        System.IO.Directory.CreateDirectory(dir);
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "smoke-error.txt"),
+                            exception.GetType().Name + ": " + exception.Message);
+                    }
+                    catch { }
+                    Environment.ExitCode = 4;
+                }
                 return;
             }
             if (HasArgument(args, "--compact-preview-smoke"))
