@@ -65,6 +65,8 @@ namespace FACM.AppHost.Modules
         internal LeagueDashboardModule UnifiedDashboard { get { return _dashboard; } }
         internal LeagueGameRepairService UnifiedRepair { get { return _gameRepair.ServiceForSmokeTest; } }
         internal LeagueLiveModule UnifiedLive { get { return _live; } }
+        internal MayhemModule UnifiedMayhem { get { return _mayhem; } }
+        internal LeagueBuildAdvisorModule UnifiedAdvisor { get { return _advisor; } }
         internal LeaguePlayerModule UnifiedPlayer { get { return _player; } }
 
         public string Id { get { return ModuleId; } }
