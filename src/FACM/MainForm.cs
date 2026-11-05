@@ -239,6 +239,11 @@ namespace FACM
         public async void ExitApplication()
         {
             if (_exiting) return;
+#if GLASS_WORKBENCH_PREVIEW
+            // Do not terminate the process while a confirmed filesystem cleanup is executing.
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed &&
+                _unifiedWorkspace.HasActiveCleanup) return;
+#endif
             _exiting = true;
             CloseMenu();
             try
