@@ -21,7 +21,13 @@ $cases = @(
   @{ Mode='presence'; Width=620; Height=730 },
   @{ Mode='repair'; Width=620; Height=710 },
   @{ Mode='live'; Width=680; Height=760 },
-  @{ Mode='player'; Width=680; Height=760 }
+  @{ Mode='player'; Width=680; Height=760 },
+  @{ Mode='mayhem'; Width=680; Height=760 },
+  @{ Mode='recommendation'; Width=680; Height=760 },
+  @{ Mode='cloud-sync'; Width=630; Height=740 },
+  @{ Mode='updates'; Width=640; Height=730 },
+  @{ Mode='cloud-sync'; Width=420; Height=620 },
+  @{ Mode='updates'; Width=420; Height=620 }
 )
 foreach ($scene in $cases) {
   $mode = $scene.Mode
