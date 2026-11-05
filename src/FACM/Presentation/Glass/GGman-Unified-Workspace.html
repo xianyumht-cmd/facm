@@ -351,6 +351,28 @@ body[data-mode="recommendation"] .brand-icon,body[data-mode="recommendation"] .b
 body[data-mode="mayhem"] #mayhemPage,body[data-mode="recommendation"] #recommendationPage,
 body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:block;overflow-y:auto}
 
+
+/* Cloud and version center reuse native owners; the WebView remains offline. */
+#cloudSyncPage,#updatesPage{display:none;padding:4px 2px}
+body[data-mode="cloud-sync"] #shell,body[data-mode="updates"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="cloud-sync"] #home,body[data-mode="cloud-sync"] #other,
+body[data-mode="updates"] #home,body[data-mode="updates"] #other{display:none!important}
+body[data-mode="cloud-sync"] #detail,body[data-mode="updates"] #detail{display:flex}
+body[data-mode="cloud-sync"] .brand-icon,body[data-mode="cloud-sync"] .brand-text,
+body[data-mode="updates"] .brand-icon,body[data-mode="updates"] .brand-text{display:none}
+body[data-mode="cloud-sync"] #cloudSyncPage,body[data-mode="updates"] #updatesPage,
+body[data-mode="cloud-sync"] main,body[data-mode="updates"] main{display:block;overflow-y:auto}
+#cloudSyncPage h2,#updatesPage h2{font-size:18px;margin:8px 0 5px}
+#cloudSyncPage p,#updatesPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#cloudSyncPage .tool-row{gap:12px;flex-wrap:wrap}
+#cloudSyncPage .tool-row input,#updatesPage input{accent-color:var(--accent);width:19px;height:19px;flex-shrink:0}
+#cloudSyncPage .tool-row label,#updatesPage .tool-row label{display:flex;align-items:center;gap:9px;font-size:12px}
+#cloudSyncPage .tool-row button,#updatesPage .tool-row button{min-height:38px;padding:8px 14px;background:var(--card2);border:1px solid var(--line);border-radius:9px}
+#cloudSyncPage button:disabled,#updatesPage button:disabled{opacity:.5}
+#cloudConfirm[hidden],#updateConfirm[hidden],#cloudConflictRow[hidden],#updateProgress[hidden]{display:none!important}
+#updateProgress{width:100%;accent-color:var(--accent);margin:9px 0}
+#updateNotes,#announcementBody{white-space:pre-wrap;overflow-wrap:anywhere}
+#cloudSyncPage .guide-confirm,#updatesPage .guide-confirm{margin-top:10px}
 </style>
 </head>
 <body data-mode="home">
@@ -472,6 +494,49 @@ body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:bloc
       <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
     </div>
     <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
+  </section>
+  <section id="cloudSyncPage">
+    <h2>云同步</h2>
+    <p>由现有 GGman 账号及云同步控制器管理。自动同步设置和游戏配置恢复遵循原有账号与游戏进程保护。</p>
+    <div class="guide-results">
+      <div class="guide-card"><strong>当前 GGman 账号</strong><small id="cloudAccount">未登录</small></div>
+      <div class="guide-card"><strong>云同步状态</strong><small id="cloudStatus" role="status" aria-live="polite">等待读取</small></div>
+    </div>
+    <div class="tools">
+      <div class="tool-row"><label><input id="cloudAutoSync" type="checkbox"> 自动同步应用设置与文字配置</label></div>
+      <div class="tool-row"><label><input id="cloudGameRestore" type="checkbox"> 已发布游戏配置自动恢复</label></div>
+      <div class="tool-row"><span><strong>上传当前游戏配置</strong><small>仅手动触发，游戏运行时禁止上传。上传前需确认；由原有模块校验游戏目录和账号。</small></span><button id="cloudPublish" data-action="cloud-publish">上传</button></div>
+      <div class="tool-row" id="cloudConflictRow" hidden><span><strong>同步冲突处理</strong><small>将当前本地配置上传到账号云端，可能替换远端版本，请确认本地数据正确。</small></span><button id="cloudKeepLocal" data-action="cloud-keep-local">保留本地并上传</button></div>
+    </div>
+    <div class="guide-confirm" id="cloudConfirm" hidden>
+      <p id="cloudConfirmText">确认执行此云端操作吗？</p>
+      <div class="guide-search"><button id="cloudConfirmButton" data-action="cloud-confirm">确认操作</button><button data-action="cloud-cancel">取消</button></div>
+    </div>
+    <p id="cloudResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-action="cloud-refresh">刷新当前状态</button><button data-route="updates">更新中心</button></div>
+  </section>
+  <section id="updatesPage">
+    <h2>更新中心</h2>
+    <p>通过 GGman 原有在线版本源检查更新。下载文件须通过文件哈希和数字签名校验，之后才允许启动现有更新器。</p>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">当前安装版本</span><strong id="updateCurrent">—</strong></div>
+      <div class="dashboard-card"><span class="small">已验证最新版本</span><strong id="updateLatest">未获取</strong></div>
+    </div>
+    <div class="status"><b id="updateStatus" role="status" aria-live="polite">等待读取更新信息</b><span id="updateSource"></span></div>
+    <div class="tool-row"><label><input id="updateAuto" type="checkbox"> 启用自动更新提示</label></div>
+    <div class="guide-card"><strong>更新说明</strong><small id="updateNotes">暂无可用更新说明</small></div>
+    <div class="guide-card"><strong id="announcementTitle">公告</strong><small id="announcementBody">暂无公告</small></div>
+    <progress id="updateProgress" value="0" max="100" hidden aria-label="已验证更新包下载进度"></progress>
+    <div class="save-row">
+      <button data-action="updates-refresh" id="updateRefresh">检查更新</button>
+      <button data-action="updates-install" id="updateInstall" disabled>安装已验证更新</button>
+    </div>
+    <div class="guide-confirm" id="updateConfirm" hidden>
+      <p>确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。</p>
+      <div class="guide-search"><button data-action="updates-confirm">确认安装</button><button data-action="updates-cancel">取消</button></div>
+    </div>
+    <p id="updateResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-route="cloud-sync">云同步</button><button data-action="home">返回控制中心</button></div>
   </section>
   <section id="mayhemPage">
     <h2>海斗攻略</h2>
@@ -607,6 +672,8 @@ body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:bloc
       <div class="tiles">
         <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong><small>修复异常状态</small></span></button>
         <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong><small>个人与偏好</small></span></button>
+        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true">云</span><span class="tile-copy"><strong>云同步</strong><small>账号与配置</small></span></button>
+        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true">新</span><span class="tile-copy"><strong>更新中心</strong><small>版本与公告</small></span></button>
       </div>
     </div>
     <p id="searchMessage" role="status" aria-live="polite"></p>
@@ -617,12 +684,12 @@ body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:bloc
 <script>
 (function(){
 "use strict";
-var titles={dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
+var titles={"cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
 var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -632,6 +699,34 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="cloud-refresh"){post("cloud-refresh");return;}
+  if(target.dataset.action==="cloud-publish"||target.dataset.action==="cloud-keep-local"){
+    cloudPendingAction=target.dataset.action==="cloud-publish"?"cloud-publish":"cloud-keep-local";
+    get("cloudConfirmText").textContent=cloudPendingAction==="cloud-publish"?
+      "确认把当前本地游戏配置上传到已登录账号的云端吗？游戏运行期间将拒绝上传。":
+      "确认将本地设置上传并覆盖冲突的云端版本吗？此操作不可直接撤销。";
+    get("cloudConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="cloud-cancel"){cloudPendingAction=null;get("cloudConfirm").hidden=true;return;}
+  if(target.dataset.action==="cloud-confirm"){
+    get("cloudConfirm").hidden=true;
+    if(cloudPendingAction){post(cloudPendingAction);cloudPendingAction=null;get("cloudResult").textContent="正在执行云端操作";}
+    return;
+  }
+  if(target.dataset.action==="updates-refresh"){
+    get("updateRefresh").disabled=true;get("updateInstall").disabled=true;
+    get("updateConfirm").hidden=true;get("updateResult").textContent="正在检查版本";
+    post("updates-refresh");return;
+  }
+  if(target.dataset.action==="updates-install"){
+    if(target.disabled)return;
+    get("updateConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="updates-cancel"){get("updateConfirm").hidden=true;return;}
+  if(target.dataset.action==="updates-confirm"){
+    get("updateConfirm").hidden=true;get("updateInstall").disabled=true;get("updateRefresh").disabled=true;
+    get("updateResult").textContent="正在下载并校验签名";post("updates-install");return;
+  }
   if(target.dataset.action==="mayhem-query"){
     var query=get("mayhemChampion").value.trim();
     if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
@@ -749,6 +844,33 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-state"){renderCloudState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-result"){
+    var messages={saved:"同步设置已保存",published:"游戏配置上传成功",resolved:"已按本地配置处理云端冲突",
+      invalid:"无效的同步设置",busy:"同步服务正忙，请稍后重试",unavailable:"请先登录 GGman 账号并确认服务可用",
+      "context-changed":"GGman 账号已切换，本次结果已丢弃",unsaved:"请先保存当前文字配置",
+      failed:"云端操作未成功，请检查账号和网络"};
+    get("cloudResult").textContent=(messages[e.data.status]||"操作状态待确认")+
+      (e.data.status==="published"&&Number(e.data.version)>0?" · 版本 "+e.data.version:"");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-state"){renderOnlineState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-progress"){
+    get("updateProgress").hidden=false;get("updateProgress").value=Math.max(0,Math.min(100,Number(e.data.percent)||0));
+    get("updateResult").textContent="正在下载已签名更新包："+get("updateProgress").value+"%";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-status"){
+    var messages={checking:"正在检查在线版本",unavailable:"在线版本信息不可用",saved:"更新设置已保存",
+      downloading:"正在下载并验证更新包",installing:"签名检查通过，正在启动更新器",
+      canceled:"下载已取消",failed:"更新失败，当前版本不受影响",expired:"版本检查已过期，请重新检查"};
+    get("updateStatus").textContent=messages[e.data.status]||"版本状态待确认";
+    var busy=["checking","downloading","installing"].includes(e.data.status);
+    get("updateRefresh").disabled=busy;
+    get("updateInstall").disabled=busy||!onlineCanInstall;
+    if(e.data.status==="checking"||e.data.status==="downloading"){get("updateConfirm").hidden=true;}
+    if(e.data.status==="downloading"){get("updateProgress").hidden=false;get("updateProgress").value=0;}
+    if(!busy){get("updateProgress").hidden=true;}
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-icon"){renderMayhemIcon(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
@@ -904,10 +1026,58 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:cloud-sync")setMode("cloud-sync","cloud-sync");
+  else if(value==="detail:updates")setMode("updates","updates");
   else if(value==="detail:mayhem")setMode("mayhem","mayhem");
   else if(value==="detail:recommendation")setMode("recommendation","recommendation");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+var cloudPendingAction=null;
+var cloudBusy=false;
+var onlineCanInstall=false;
+function renderCloudState(data){
+  guideText("cloudAccount",data.loggedIn?data.account:"未登录 GGman");
+  get("cloudStatus").textContent=data.status||"同步状态待确认";
+  get("cloudAutoSync").checked=!!data.autoSync;
+  get("cloudGameRestore").checked=!!data.autoGameRestore;
+  cloudBusy=!!data.busy;
+  get("cloudAutoSync").disabled=cloudBusy||!data.available;
+  get("cloudGameRestore").disabled=cloudBusy||!data.available;
+  get("cloudPublish").disabled=cloudBusy||!data.loggedIn||!data.available;
+  get("cloudConflictRow").hidden=!data.loggedIn||!data.conflict;
+  get("cloudKeepLocal").disabled=cloudBusy||!data.available;
+}
+get("cloudAutoSync").addEventListener("change",function(){
+  if(cloudBusy)return;cloudBusy=true;
+  get("cloudAutoSync").disabled=true;
+  post("cloud-toggle:config:"+(get("cloudAutoSync").checked?"true":"false"));
+});
+get("cloudGameRestore").addEventListener("change",function(){
+  if(cloudBusy)return;cloudBusy=true;
+  get("cloudGameRestore").disabled=true;
+  post("cloud-toggle:game:"+(get("cloudGameRestore").checked?"true":"false"));
+});
+get("updateAuto").addEventListener("change",function(){
+  post("updates-auto:"+(get("updateAuto").checked?"true":"false"));
+});
+function renderOnlineState(data){
+  onlineCanInstall=!!data.canInstall;
+  get("updateCurrent").textContent=data.current||"未知";
+  get("updateLatest").textContent=data.latest||"未获取";
+  get("updateAuto").checked=!!data.autoEnabled;
+  get("updateRefresh").disabled=false;
+  get("updateInstall").disabled=!onlineCanInstall;
+  get("updateSource").textContent=data.source?"来源："+data.source:"";
+  get("updateNotes").textContent=data.notes||"暂无可用更新说明";
+  get("announcementTitle").textContent=data.announcement&&data.announcement.title||"暂无公告";
+  get("announcementBody").textContent=data.announcement&&data.announcement.body||"暂无公告内容";
+  get("updateProgress").hidden=true;
+  get("updateStatus").textContent=data.error?"无法校验在线版本":
+    data.forced&&onlineCanInstall?"需要更新后才能继续使用":
+    onlineCanInstall?"已发现可安装的正式更新":
+    data.available?"发现更新，但尚未通过安装条件":
+    data.latest?"当前已是最新版本":"在线版本信息暂不可用";
+}
 var recommendationCanApply=false;
 function guideText(id,value){get(id).textContent=value==null||value===""?"—":String(value);}
 function guidePercent(value){
