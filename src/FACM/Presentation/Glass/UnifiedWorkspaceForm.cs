@@ -22,7 +22,7 @@ namespace FACM.Presentation.Glass
 {
     // Feature-gated transition host. One native OS window and one WebView2 process owner.
     // Existing native League pages remain embedded until their HTML counterparts are ready.
-    internal sealed class UnifiedWorkspaceForm : Form
+    internal sealed partial class UnifiedWorkspaceForm : Form
     {
         private const string HtmlResource = "FACM.Presentation.Glass.GGman-Unified-Workspace.html";
         private const int WmNcLButtonDown = 0x00A1;
@@ -112,6 +112,8 @@ namespace FACM.Presentation.Glass
                 CancelRepairOperation();
                 CancelLiveRead();
                 CancelHistoryRead();
+                CancelMayhemRead();
+                CancelRecommendationRead();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -183,6 +185,7 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
+                    if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -218,6 +221,28 @@ namespace FACM.Presentation.Glass
             if (message != null && message.StartsWith("repair-action:", StringComparison.Ordinal))
             {
                 ApplyRepairAction(message.Substring(14)); return;
+            }
+            if (message != null && message.StartsWith("mayhem-query:", StringComparison.Ordinal))
+            {
+                StartMayhemQuery(message.Substring(13)); return;
+            }
+            if (message == "mayhem-cancel")
+            {
+                if (_navigation.Current == LeagueHubNavigation.Mayhem)
+                {
+                    CancelMayhemRead();
+                    PostLeaguePageStatus("mayhem-failed", "canceled");
+                }
+                return;
+            }
+            if (message == "recommendation-refresh")
+            {
+                if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(true);
+                return;
+            }
+            if (message != null && message.StartsWith("recommendation-apply:", StringComparison.Ordinal))
+            {
+                ApplyUnifiedRecommendation(message.Substring(21)); return;
             }
             if (message == "history-refresh" || message == "history-more")
             {
@@ -312,6 +337,10 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
             if (route != LeagueHubNavigation.Live) CancelLiveRead();
             if (route != LeagueHubNavigation.Player) CancelHistoryRead();
+            if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
+            if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
+            if (route == LeagueHubNavigation.Mayhem) { OpenMayhemPage(pushHistory); return; }
+            if (route == LeagueHubNavigation.Recommendation) { OpenRecommendationPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Player) { OpenHistoryPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Live) { OpenLivePage(pushHistory); return; }
             if (route == LeagueHubNavigation.Repair) { OpenRepairPage(pushHistory); return; }
@@ -1456,6 +1485,8 @@ namespace FACM.Presentation.Glass
             CancelRepairOperation();
             CancelLiveRead();
             CancelHistoryRead();
+            CancelMayhemRead();
+            CancelRecommendationRead();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1470,6 +1501,8 @@ namespace FACM.Presentation.Glass
             CancelRepairOperation();
             CancelLiveRead();
             CancelHistoryRead();
+            CancelMayhemRead();
+            CancelRecommendationRead();
             _navigation.Home();
             ShowHome();
         }
@@ -1591,6 +1624,8 @@ namespace FACM.Presentation.Glass
             CancelRepairOperation();
             CancelLiveRead();
             CancelHistoryRead();
+            CancelMayhemRead();
+            CancelRecommendationRead();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -1642,6 +1677,11 @@ namespace FACM.Presentation.Glass
                 !html.Contains("id=\"repairPage\"") ||
                 !html.Contains("id=\"livePage\"") ||
                 !html.Contains("id=\"historyPage\"") ||
+                !html.Contains("id=\"mayhemPage\"") ||
+                !html.Contains("id=\"recommendationPage\"") ||
+                !html.Contains("data-action=\"mayhem-query\"") ||
+                !html.Contains("data-action=\"recommendation-refresh\"") ||
+                !html.Contains("data-action=\"recommendation-apply\"") ||
                 !html.Contains("id=\"historyRefresh\"") ||
                 !html.Contains("id=\"historyMore\"") ||
                 !html.Contains("data-route=\"player-advanced\"") ||
