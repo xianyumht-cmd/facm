@@ -81,7 +81,7 @@ namespace FACM.Services
             _timer.Tick += async delegate { await TickAsync(); };
             GgmanAccountSession.Changed += OnAccountChanged;
             AppSettings.Saved += OnSettingsSaved;
-            _timer.Start();
+            if (!_settings.LocalOnlyMode) _timer.Start();
             UpdateStatus();
         }
 
@@ -448,6 +448,8 @@ namespace FACM.Services
 
         internal async Task<long> PublishGameProfileAsync()
         {
+            if (_settings.LocalOnlyMode)
+                throw new InvalidOperationException("Cloud profile upload is disabled in local-only mode.");
             if (_disposed || _busy)
                 throw new InvalidOperationException("云同步正在执行，请稍后再试。");
             var account = GgmanEscCloudClient.RequireRegisteredSession();
@@ -623,6 +625,7 @@ namespace FACM.Services
 
         internal async Task ResolveConflictAsync(bool keepLocal)
         {
+            if (_settings.LocalOnlyMode) return;
             if (_busy || _disposed || _conflict == null || !_settings.AutoConfigSyncEnabled ||
                 !keepLocal) return;
             var kind = _conflict;
