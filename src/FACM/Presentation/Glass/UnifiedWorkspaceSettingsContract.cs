@@ -172,12 +172,12 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
-            UnifiedRecommendationApplyChange selection;
-            if (!TryParseRecommendationApply("{\"runes\":true,\"spells\":false,\"items\":true}", out selection) ||
-                !selection.Runes || selection.Spells || !selection.Items ||
-                TryParseRecommendationApply("{\"runes\":false,\"spells\":false,\"items\":false}", out selection) ||
-                TryParseRecommendationApply("{\"runes\":\"yes\",\"spells\":false,\"items\":true}", out selection) ||
-                TryParseRecommendationApply("{\"runes\":true,\"spells\":false,\"items\":true,\"other\":1}", out selection))
+            UnifiedRecommendationApplyChange applySelection;
+            if (!TryParseRecommendationApply("{\"runes\":true,\"spells\":false,\"items\":true}", out applySelection) ||
+                !applySelection.Runes || applySelection.Spells || !applySelection.Items ||
+                TryParseRecommendationApply("{\"runes\":false,\"spells\":false,\"items\":false}", out applySelection) ||
+                TryParseRecommendationApply("{\"runes\":\"yes\",\"spells\":false,\"items\":true}", out applySelection) ||
+                TryParseRecommendationApply("{\"runes\":true,\"spells\":false,\"items\":true,\"other\":1}", out applySelection))
                 throw new InvalidOperationException("Recommendation write contract must reject untyped or unrequested actions.");
             UnifiedPostgameChange postgame;
             var validPostgame = "{\"autoHonor\":true,\"autoReturn\":false,\"strategy\":\"" +
