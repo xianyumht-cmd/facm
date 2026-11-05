@@ -413,7 +413,6 @@ namespace FACM.Presentation.Glass
                 OpenUnifiedCleanupPage(pushHistory);
                 return;
             }
-            if (_cleanupPage != null && !_cleanupPage.IsDisposed && !TryCloseCurrentHub()) return;
             if (_hub == null || _hub.IsDisposed)
             {
                 _hub = LeagueHubUiBridge.CreateUnifiedEmbeddedForm(_ui);
