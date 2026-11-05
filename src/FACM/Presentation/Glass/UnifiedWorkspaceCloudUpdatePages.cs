@@ -47,7 +47,6 @@ namespace FACM.Presentation.Glass
             {
                 try { BeginInvoke(new Action(SyncCloudState)); }
                 catch (InvalidOperationException) { }
-                catch (ObjectDisposedException) { }
             }
             else SyncCloudState();
         }
