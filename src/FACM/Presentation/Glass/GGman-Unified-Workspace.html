@@ -302,6 +302,37 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
 #searchMessage{font-size:11px;color:var(--muted);min-height:16px;margin-top:8px}
 
 .history-filter{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 10px}.history-filter button{min-height:34px;padding:6px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text)}.history-filter button[aria-pressed="true"]{border-color:var(--accent);background:var(--card2);color:var(--accent)}
+
+/* Native-backed data pages share the same compact cards and single scroll owner. */
+#mayhemPage,#recommendationPage{display:none;padding:4px 2px}
+#mayhemPage h2,#recommendationPage h2{font-size:18px;margin:8px 0 5px}
+#mayhemPage p,#recommendationPage p{font-size:12px;color:var(--muted);line-height:1.7}
+.guide-results{display:grid;gap:9px;margin:12px 0;min-width:0}
+.guide-card{padding:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;min-width:0}
+.guide-card strong{font-size:13px}
+.guide-card small{display:block;font-size:11px;color:var(--muted);line-height:1.7;margin-top:5px;overflow-wrap:anywhere}
+.guide-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.guide-stats .guide-card strong{display:block;font-size:16px;color:var(--accent)}
+.guide-list{display:grid;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.guide-list li{padding:8px 10px;border:1px solid var(--line);border-radius:7px;overflow-wrap:anywhere;font-size:12px}
+.guide-checks{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}
+.guide-checks label{font-size:12px;display:flex;align-items:center;gap:7px}
+.guide-checks input{accent-color:var(--accent)}
+.guide-search{display:flex;gap:8px;flex-wrap:wrap}
+.guide-search input{flex:1 1 180px;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--text);font:inherit}
+.guide-search button,.guide-confirm button{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
+.guide-search button:disabled,.guide-confirm button:disabled{opacity:.5}
+.guide-confirm{padding:12px;border:1px solid var(--accent);border-radius:10px;margin:12px 0}
+.guide-confirm p{margin:0 0 10px}
+body[data-mode="mayhem"] #shell,body[data-mode="recommendation"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="mayhem"] #home,body[data-mode="recommendation"] #home,
+body[data-mode="mayhem"] #other,body[data-mode="recommendation"] #other{display:none!important}
+body[data-mode="mayhem"] #detail,body[data-mode="recommendation"] #detail{display:flex}
+body[data-mode="mayhem"] .brand-icon,body[data-mode="mayhem"] .brand-text,
+body[data-mode="recommendation"] .brand-icon,body[data-mode="recommendation"] .brand-text{display:none}
+body[data-mode="mayhem"] #mayhemPage,body[data-mode="recommendation"] #recommendationPage,
+body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:block;overflow-y:auto}
+
 </style>
 </head>
 <body data-mode="home">
@@ -424,6 +455,54 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
     </div>
     <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
   </section>
+  <section id="mayhemPage">
+    <h2>海斗攻略</h2>
+    <p>输入英雄名称后按需读取现有海斗排行、强化与版本平衡数据。仅展示真实来源返回的项目。</p>
+    <div class="guide-search">
+      <input id="mayhemChampion" type="search" maxlength="80" autocomplete="off" placeholder="英雄中文名、英文名或简称" aria-label="查询海斗英雄">
+      <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
+      <button data-action="mayhem-cancel" id="mayhemCancel" disabled>取消</button>
+    </div>
+    <p id="mayhemResult" role="status" aria-live="polite">输入英雄名称开始查询</p>
+    <div id="mayhemOutput" class="guide-results" hidden>
+      <div class="guide-card"><strong id="mayhemName">—</strong><small id="mayhemSource">—</small></div>
+      <div class="guide-stats">
+        <div class="guide-card"><small>英雄排行</small><strong id="mayhemRank">—</strong></div>
+        <div class="guide-card"><small>胜率</small><strong id="mayhemWinRate">—</strong></div>
+      </div>
+      <div class="guide-card"><strong>本版本平衡</strong><small id="mayhemBalance">暂无可信数据</small></div>
+      <div class="guide-card"><strong>强化推荐</strong><ul class="guide-list" id="mayhemAugments"></ul></div>
+      <div class="guide-card"><strong>核心装备</strong><ul class="guide-list" id="mayhemItems"></ul></div>
+      <div class="guide-card"><strong>技能顺序</strong><small id="mayhemSkills">暂无</small></div>
+      <div class="guide-card"><strong>前十英雄</strong><ul class="guide-list" id="mayhemTop"></ul></div>
+    </div>
+  </section>
+  <section id="recommendationPage">
+    <h2>出装推荐</h2>
+    <p>复用现有 OP.GG 缓存、选人阶段与账号会话保护；符文、召唤师技能和装备由原生服务应用。</p>
+    <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
+    <div class="guide-results" id="recommendationOutput" hidden>
+      <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
+      <div class="guide-stats">
+        <div class="guide-card"><small>版本</small><strong id="recommendationVersion">—</strong></div>
+        <div class="guide-card"><small>胜率</small><strong id="recommendationWinRate">—</strong></div>
+      </div>
+      <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
+    </div>
+    <div class="guide-checks" id="recommendationChoices">
+      <label><input id="applyRunes" type="checkbox" checked> 应用符文</label>
+      <label><input id="applySpells" type="checkbox" checked> 应用召唤师技能</label>
+      <label><input id="applyItems" type="checkbox"> 导入装备</label>
+    </div>
+    <div class="save-row">
+      <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
+      <button data-action="recommendation-apply" id="recommendationApply" disabled>选择应用内容</button>
+    </div>
+    <div class="guide-confirm" id="recommendationConfirm" hidden>
+      <p id="recommendationConfirmText">确认要将所选推荐写入当前英雄联盟客户端吗？</p>
+      <div class="guide-search"><button data-action="recommendation-confirm" id="recommendationConfirmButton">确认应用</button><button data-action="recommendation-cancel">取消</button></div>
+    </div>
+  </section>
   <section id="repairPage">
     <h2>游戏修复</h2>
     <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
@@ -524,7 +603,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -534,6 +613,38 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="mayhem-query"){
+    var query=get("mayhemChampion").value.trim();
+    if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
+    get("mayhemQuery").disabled=true;get("mayhemCancel").disabled=false;
+    get("mayhemOutput").hidden=true;get("mayhemResult").textContent="正在读取英雄攻略";
+    post("mayhem-query:"+query);return;
+  }
+  if(target.dataset.action==="mayhem-cancel"){
+    post("mayhem-cancel");get("mayhemCancel").disabled=true;get("mayhemQuery").disabled=false;return;
+  }
+  if(target.dataset.action==="recommendation-refresh"){
+    get("recommendationConfirm").hidden=true;get("recommendationApply").disabled=true;
+    get("recommendationRefresh").disabled=true;get("recommendationOutput").hidden=true;
+    get("recommendationRows").replaceChildren();
+    get("recommendationResult").textContent="正在读取当前选人推荐";
+    post("recommendation-refresh");return;
+  }
+  if(target.dataset.action==="recommendation-apply"){
+    if(target.disabled)return;
+    var selected=["applyRunes","applySpells","applyItems"].filter(function(id){return get(id).checked;});
+    if(!selected.length){get("recommendationResult").textContent="请至少选择一项";return;}
+    var names={applyRunes:"符文",applySpells:"召唤师技能",applyItems:"装备"};
+    get("recommendationConfirmText").textContent="确认写入当前英雄联盟客户端："+selected.map(function(id){return names[id];}).join("、")+"？";
+    get("recommendationConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="recommendation-cancel"){get("recommendationConfirm").hidden=true;return;}
+  if(target.dataset.action==="recommendation-confirm"){
+    get("recommendationConfirm").hidden=true;
+    get("recommendationApply").disabled=true;
+    get("recommendationResult").textContent="正在通过当前游戏会话应用所选推荐";
+    post("recommendation-apply:"+JSON.stringify({runes:get("applyRunes").checked,spells:get("applySpells").checked,items:get("applyItems").checked}));return;
+  }
   if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
     get("historyRefresh").disabled=true;get("historyMore").disabled=true;
     get("historyResult").textContent="正在读取战绩";
@@ -616,6 +727,29 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
+    get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+    get("mayhemOutput").hidden=true;
+    var err={invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
+      timeout:"查询超时，请稍后重试","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
+    get("mayhemResult").textContent=err[e.data.status]||"读取失败";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-details"){renderRecommendation(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-failed"){
+    get("recommendationRefresh").disabled=false;get("recommendationApply").disabled=true;
+    get("recommendationConfirm").hidden=true;get("recommendationOutput").hidden=true;
+    get("recommendationRows").replaceChildren();
+    get("recommendationResult").textContent=e.data.status==="context-changed"?
+      "账号或游戏会话已变化，推荐已清空，请重新读取":"读取失败，检查 LOL 客户端后重试";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-result"){
+    get("recommendationApply").disabled=!recommendationCanApply;
+    var statuses={success:"所选推荐已成功应用",partial:"部分推荐已应用，请检查当前客户端",
+      failed:"应用未成功",invalid:"无效的应用选项", "no-data":"当前没有可应用的推荐",
+      "context-changed":"当前选人或账号发生变化，未继续写入"};
+    get("recommendationResult").textContent=statuses[e.data.status]||"操作结束";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-details"){renderHistory(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-failed"){
     get("historyRefresh").disabled=false;get("historyMore").disabled=true;
@@ -741,7 +875,75 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:mayhem")setMode("mayhem","mayhem");
+  else if(value==="detail:recommendation")setMode("recommendation","recommendation");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
+});
+var recommendationCanApply=false;
+function guideText(id,value){get(id).textContent=value==null||value===""?"—":String(value);}
+function guidePercent(value){
+  var n=Number(value);if(value==null||!Number.isFinite(n))return "—";
+  return (n>=0&&n<=1?n*100:n).toFixed(1)+"%";
+}
+function fillGuideList(id,items,label){
+  var list=get(id);list.replaceChildren();
+  var safe=Array.isArray(items)?items.slice(0,12):[];
+  if(!safe.length){var empty=document.createElement("li");empty.textContent=label||"暂无可信数据";list.appendChild(empty);return;}
+  safe.forEach(function(value){var item=document.createElement("li");item.textContent=String(value);list.appendChild(item);});
+}
+function renderMayhem(data){
+  get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+  get("mayhemOutput").hidden=false;
+  guideText("mayhemName",data.champion);
+  guideText("mayhemSource",[data.patch?"版本 "+data.patch:"",data.rankingPatch?"排行 "+data.rankingPatch:"",data.source].filter(Boolean).join(" · "));
+  guideText("mayhemRank",data.rank>0?"#"+data.rank+(data.tier?" · "+data.tier:""):(data.tier||"暂无"));
+  guideText("mayhemWinRate",guidePercent(data.winRate));
+  guideText("mayhemBalance",data.balance||"暂无可信版本平衡数据");
+  guideText("mayhemSkills",data.skills||"暂无");
+  fillGuideList("mayhemAugments",data.augments,"暂无可用强化推荐");
+  fillGuideList("mayhemItems",data.items,"暂无可用核心装备");
+  fillGuideList("mayhemTop",(Array.isArray(data.top)?data.top:[]).map(function(row){
+    return "#"+row.rank+" "+(row.name||"未知英雄")+(row.tier?" · "+row.tier:"")+
+      (row.winRate==null?"":" · "+guidePercent(row.winRate));
+  }),"当前来源未提供可信的前十排行");
+  get("mayhemResult").textContent="数据读取完成";
+}
+function renderRecommendation(data){
+  get("recommendationRefresh").disabled=false;
+  get("recommendationConfirm").hidden=true;
+  recommendationCanApply=!!data.canApply;
+  get("recommendationApply").disabled=!recommendationCanApply;
+  var rows=Array.isArray(data.rows)?data.rows:[];
+  get("recommendationOutput").hidden=false;
+  guideText("recommendationChampion",data.champion|| (data.championId>0?"英雄 #"+data.championId:"当前英雄未确认"));
+  guideText("recommendationContext",[data.mode,data.position,data.source,data.cached?"缓存数据":""].filter(Boolean).join(" · "));
+  guideText("recommendationVersion",data.version);
+  guideText("recommendationWinRate",guidePercent(data.winRate));
+  var labels={"runes":"推荐符文","summoner-spells":"召唤师技能","starter-items":"出门装备",
+    "boots":"鞋类","core-items":"核心装备","skills":"技能加点","counters":"克制英雄"};
+  var list=get("recommendationRows");list.replaceChildren();
+  rows.forEach(function(row){
+    var item=document.createElement("div");item.className="guide-card";
+    var title=document.createElement("strong");title.textContent=labels[row.category]||String(row.category||"推荐");
+    var detail=document.createElement("small");detail.textContent=row.title||"来源未提供";
+    item.append(title,detail);
+    if(row.evidence){var note=document.createElement("small");note.textContent=String(row.evidence);item.appendChild(note);}
+    list.appendChild(item);
+  });
+  if(!rows.length){var empty=document.createElement("div");empty.className="guide-card";empty.textContent="当前没有可用的推荐数据";list.appendChild(empty);}
+  var statuses={"client-required":"请先连接英雄联盟客户端","waiting-champion":"等待选中英雄",
+    "waiting-champ-select":"请在选人阶段应用推荐","unsupported-mode":"当前模式不支持这项推荐",
+    "in-game-cache":"已读取当前游戏的缓存推荐，游戏中不可写入","in-game-no-cache":"游戏中暂无已缓存的推荐",
+    "opgg-unavailable":"推荐来源暂时不可用","timeout":"读取超时"};
+  get("recommendationResult").textContent=data.status==="ready"?
+    "推荐已读取，可选择应用到当前选人阶段":(statuses[data.status]||"暂时无法应用推荐");
+}
+["applyRunes","applySpells","applyItems"].forEach(function(id){
+  get(id).addEventListener("change",function(){get("recommendationConfirm").hidden=true;});
+});
+get("mayhemChampion").addEventListener("keydown",function(event){
+  if(event.isComposing||event.keyCode===229)return;
+  if(event.key==="Enter"){event.preventDefault();get("mayhemQuery").click();}
 });
 var historyRows=[];
 var historyFilter="all";
