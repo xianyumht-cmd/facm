@@ -643,6 +643,7 @@ document.addEventListener("click",function(event){
   if(target.dataset.action==="recommendation-confirm"){
     get("recommendationConfirm").hidden=true;
     get("recommendationApply").disabled=true;
+    get("recommendationRefresh").disabled=true;
     get("recommendationResult").textContent="正在通过当前游戏会话应用所选推荐";
     post("recommendation-apply:"+JSON.stringify({runes:get("applyRunes").checked,spells:get("applySpells").checked,items:get("applyItems").checked}));return;
   }
@@ -732,19 +733,22 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
     get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
     get("mayhemOutput").hidden=true;
-    var err={invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
+    var err={ready:"输入英雄名称开始查询",invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
       timeout:"查询超时，请稍后重试","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
     get("mayhemResult").textContent=err[e.data.status]||"读取失败";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-details"){renderRecommendation(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-failed"){
     get("recommendationRefresh").disabled=false;get("recommendationApply").disabled=true;
+    recommendationCanApply=false;
     get("recommendationConfirm").hidden=true;get("recommendationOutput").hidden=true;
     get("recommendationRows").replaceChildren();
-    get("recommendationResult").textContent=e.data.status==="context-changed"?
-      "账号或游戏会话已变化，推荐已清空，请重新读取":"读取失败，检查 LOL 客户端后重试";return;
+    get("recommendationResult").textContent=e.data.status==="loading"?"正在读取当前英雄推荐":
+      e.data.status==="context-changed"?"账号或游戏会话已变化，推荐已清空，请重新读取":
+      "读取失败，检查 LOL 客户端后重试";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-result"){
+    get("recommendationRefresh").disabled=false;
     get("recommendationApply").disabled=!recommendationCanApply;
     var statuses={success:"所选推荐已成功应用",partial:"部分推荐已应用，请检查当前客户端",
       failed:"应用未成功",invalid:"无效的应用选项", "no-data":"当前没有可应用的推荐",
