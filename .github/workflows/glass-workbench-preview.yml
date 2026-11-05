@@ -135,7 +135,15 @@ jobs:
           $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
           $smoke = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
           if ($smoke.ExitCode -ne 0) { throw 'Unified default-start candidate route contract failed.' }
-          Add-Content $env:GITHUB_STEP_SUMMARY '- Unified default startup candidate compiled. This is unsigned and not eligible for production deployment.'
+          $isolated = Join-Path $env:RUNNER_TEMP 'ggman-unified-oneexe'
+          New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $isolated 'GGman.exe')
+          $bundleTest = Start-Process -FilePath (Join-Path $isolated 'GGman.exe') -ArgumentList '--unified-bundle-smoke' -Wait -PassThru -NoNewWindow
+          if ($bundleTest.ExitCode -ne 0) { throw 'Isolated single-EXE WebView2 bundle smoke failed.' }
+          $size = (Get-Item (Join-Path $isolated 'GGman.exe')).Length
+          Write-Host "Isolated single-EXE bundle self-test passed; executable bytes=$size"
+          if ($size -gt 10MB) { throw 'Unified EXE exceeds existing lightweight GGman release budget.' }
+          Add-Content $env:GITHUB_STEP_SUMMARY '- Isolated single-EXE WebView2 managed and x64 loader bundle passed self-test. This is unsigned and not eligible for production deployment.'
 
       - name: Guard approved compact UI geometry
         shell: pwsh

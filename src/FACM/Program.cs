@@ -22,6 +22,19 @@ namespace FACM
         [STAThread]
         private static void Main(string[] args)
         {
+#if UNIFIED_RELEASE_CANDIDATE
+            UnifiedWebView2Bundle.Register();
+            if (HasArgument(args, "--unified-bundle-smoke"))
+            {
+                try { UnifiedWebView2Bundle.ValidateForSmokeTest(); Environment.ExitCode = 0; }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified WebView2 bundle self-test failed", exception);
+                    Environment.ExitCode = 6;
+                }
+                return;
+            }
+#endif
 #if GLASS_WORKBENCH_PREVIEW
             if (HasArgument(args, "--compact-public-source-probe"))
             {

@@ -132,6 +132,9 @@ namespace FACM.Presentation.Glass
             {
                 var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                     "FACM", "UnifiedWorkspaceWebView2");
+#if UNIFIED_RELEASE_CANDIDATE
+                UnifiedWebView2Bundle.PrepareNativeLoader();
+#endif
                 var environment = await CoreWebView2Environment.CreateAsync(null, data);
                 if (IsDisposed) return;
                 await _browser.EnsureCoreWebView2Async(environment);
