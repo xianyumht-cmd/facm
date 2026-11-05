@@ -31,6 +31,7 @@ namespace FACM.Presentation.Glass
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
+            PostLeaguePageStatus("mayhem-failed", "ready");
         }
 
         private void StartMayhemQuery(string query)
@@ -96,7 +97,11 @@ namespace FACM.Presentation.Glass
             }
             catch (OperationCanceledException)
             {
-                if (MayhemCurrent(module, null, source, generation, false))
+                // Timeout cancels the token without changing the active request generation.
+                // Do not confuse that with a user navigation or explicit Cancel.
+                if (!IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
+                    _navigation.Current == LeagueHubNavigation.Mayhem &&
+                    ReferenceEquals(_mayhemCancellation, source) && generation == _mayhemGeneration)
                     PostLeaguePageStatus("mayhem-failed", "timeout");
             }
             catch (Exception exception)
@@ -139,6 +144,7 @@ namespace FACM.Presentation.Glass
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
+            PostLeaguePageStatus("recommendation-failed", "loading");
             if (_ready) StartRecommendationRead(false);
         }
 
