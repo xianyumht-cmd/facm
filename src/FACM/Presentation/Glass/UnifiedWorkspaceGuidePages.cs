@@ -6,6 +6,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.League;
+using FACM.Performance;
 using FACM.Services;
 
 namespace FACM.Presentation.Glass
@@ -16,6 +17,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _mayhemCancellation;
         private int _mayhemGeneration;
         private CancellationTokenSource _recommendationCancellation;
+        private CancellationTokenSource _recommendationApplyCancellation;
         private int _recommendationGeneration;
         private LeagueBuildAdvisorSnapshot _recommendationSnapshot;
         private LeagueClientSession _recommendationSession;
@@ -82,9 +84,9 @@ namespace FACM.Presentation.Glass
                     pickRate = result.PickRate,
                     balance = result.BalanceSummary,
                     skills = result.SkillOrder,
-                    items = result.CoreItems.Take(5).ToArray(),
-                    augments = result.Augments.Take(8).ToArray(),
-                    top = result.TopTen.Take(10).Select(item => new
+                    items = result.CoreItems == null ? new string[0] : result.CoreItems.Take(5).ToArray(),
+                    augments = result.Augments == null ? new string[0] : result.Augments.Take(8).ToArray(),
+                    top = (result.TopTen ?? new System.Collections.Generic.List<FACM.Mayhem.MayhemTopChampion>()).Take(10).Select(item => new
                     {
                         name = item.Name, rank = item.Rank,
                         tier = item.Tier, winRate = item.WinRate
@@ -258,6 +260,7 @@ namespace FACM.Presentation.Glass
             _recommendationBusy = true;
             using (var source = new CancellationTokenSource())
             {
+                _recommendationApplyCancellation = source;
                 try
                 {
                     LeagueBuildApplyPlan original = null;
@@ -333,6 +336,8 @@ namespace FACM.Presentation.Glass
                 }
                 finally
                 {
+                    if (ReferenceEquals(_recommendationApplyCancellation, source))
+                        _recommendationApplyCancellation = null;
                     _recommendationBusy = false;
                 }
             }
@@ -341,6 +346,9 @@ namespace FACM.Presentation.Glass
         private void CancelRecommendationRead()
         {
             _recommendationGeneration++;
+            var apply = _recommendationApplyCancellation;
+            _recommendationApplyCancellation = null;
+            if (apply != null && !apply.IsCancellationRequested) apply.Cancel();
             _recommendationSnapshot = null;
             _recommendationSession = null;
             var source = _recommendationCancellation;
