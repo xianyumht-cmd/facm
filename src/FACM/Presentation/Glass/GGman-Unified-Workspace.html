@@ -373,6 +373,27 @@ body[data-mode="cloud-sync"] main,body[data-mode="updates"] main{display:block;o
 #updateProgress{width:100%;accent-color:var(--accent);margin:9px 0}
 #updateNotes,#announcementBody{white-space:pre-wrap;overflow-wrap:anywhere}
 #cloudSyncPage .guide-confirm,#updatesPage .guide-confirm{margin-top:10px}
+/* Cleanup: a review-first route, with the only scroll owner in main. */
+#cleanupPage{display:none;padding:4px 2px}
+#cleanupPage h2{font-size:18px;margin:8px 0 6px}
+#cleanupPage p{font-size:12px;color:var(--muted);line-height:1.7}
+body[data-mode="cleanup"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="cleanup"] #home,body[data-mode="cleanup"] #other{display:none!important}
+body[data-mode="cleanup"] #detail{display:flex}
+body[data-mode="cleanup"] .brand-icon,body[data-mode="cleanup"] .brand-text{display:none}
+body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:block;overflow-y:auto}
+#cleanupPage button:disabled{opacity:.5;cursor:not-allowed}
+#cleanupPage .cleanup-buttons{display:flex;gap:8px;flex-wrap:wrap}
+#cleanupPage .cleanup-buttons button{min-height:38px;padding:9px 12px;background:var(--card2);border:1px solid var(--line);border-radius:9px}
+#cleanupPath{overflow-wrap:anywhere}
+.cleanup-targets{display:grid;gap:7px;list-style:none;padding:0;margin:10px 0}
+.cleanup-targets li{padding:9px 11px;border:1px solid var(--line);background:var(--card2);border-radius:8px;min-width:0}
+.cleanup-targets strong{font-size:11px;display:block;overflow-wrap:anywhere}
+.cleanup-targets small{font-size:10px;line-height:1.6;color:var(--muted);display:block;overflow-wrap:anywhere}
+.cleanup-targets li[data-blocked="true"]{opacity:.75;border-style:dashed}
+#cleanupReview[hidden],#cleanupResultDetail[hidden]{display:none!important}
+#cleanupReview .guide-confirm{border-color:#e5b97f}
+
 </style>
 </head>
 <body data-mode="home">
@@ -587,6 +608,32 @@ body[data-mode="cloud-sync"] main,body[data-mode="updates"] main{display:block;o
       <div class="guide-search"><button data-action="recommendation-confirm" id="recommendationConfirmButton">确认应用</button><button data-action="recommendation-cancel">取消</button></div>
     </div>
   </section>
+  <section id="cleanupPage">
+    <h2>清理与修复</h2>
+    <p>游戏目录检测、驱动修复和环境清理沿用现有 C# 安全服务。执行清理前必须查看精确目标列表并确认；不会删除标记为保留或禁止的目录。</p>
+    <div class="guide-results">
+      <div class="guide-card"><strong>英雄联盟安装目录</strong><small id="cleanupPath">等待读取</small></div>
+      <div class="guide-card"><strong>当前权限</strong><small id="cleanupPrivilege">正在检测</small></div>
+    </div>
+    <div class="cleanup-buttons">
+      <button id="cleanupDetect" data-action="cleanup-detect">自动识别</button>
+      <button id="cleanupSelect" data-action="cleanup-select">选择目录</button>
+      <button id="cleanupRefresh" data-action="cleanup-refresh">刷新状态</button>
+    </div>
+    <div class="tool-row"><span><strong>驱动修复</strong><small>通过已有系统工具执行，不新增安装器</small></span><button id="cleanupDriver" data-action="cleanup-driver">启动驱动修复</button></div>
+    <div class="tool-row"><span><strong>环境清理</strong><small>先扫描并预览全部目标，禁止游戏进程运行时执行。</small></span><button id="cleanupPreviewButton" data-action="cleanup-preview">扫描清理范围</button></div>
+    <div class="tool-row" id="cleanupElevation" hidden><span><strong>需要管理员权限</strong><small>清理系统目录需要 Windows 管理员授权</small></span><button data-action="cleanup-elevate">管理员模式重启</button></div>
+    <p id="cleanupStatus" role="status" aria-live="polite">等待检查本地游戏环境</p>
+    <section id="cleanupReview" class="guide-results" hidden>
+      <div class="guide-card"><strong>清理确认预览</strong><small id="cleanupPlanSummary"></small></div>
+      <ul id="cleanupTargets" class="cleanup-targets" aria-label="将要删除和阻止删除的完整目标列表"></ul>
+      <div class="guide-confirm">
+        <p>请确认上方列出的全部路径。此操作将删除明确列出的可清理文件和目录，不可撤销，预览两分钟后失效。</p>
+        <div class="cleanup-buttons"><button data-action="cleanup-confirm" id="cleanupConfirm">我已核对，执行清理</button><button data-action="cleanup-cancel">取消本次清理</button></div>
+      </div>
+    </section>
+    <div class="guide-card" id="cleanupResultDetail" hidden><strong>本次执行结果</strong><small id="cleanupResultCounts"></small></div>
+  </section>
   <section id="repairPage">
     <h2>游戏修复</h2>
     <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
@@ -689,7 +736,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -699,6 +746,28 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="cleanup-refresh"){post("cleanup-refresh");return;}
+  if(target.dataset.action==="cleanup-select"){post("cleanup-select");return;}
+  if(target.dataset.action==="cleanup-detect"){
+    get("cleanupStatus").textContent="正在查找游戏安装位置";post("cleanup-detect");return;
+  }
+  if(target.dataset.action==="cleanup-driver"){post("cleanup-driver");return;}
+  if(target.dataset.action==="cleanup-preview"){
+    cleanupToken=null;get("cleanupReview").hidden=true;get("cleanupResultDetail").hidden=true;
+    get("cleanupStatus").textContent="正在检查安全清理范围";post("cleanup-preview");return;
+  }
+  if(target.dataset.action==="cleanup-cancel"){
+    cleanupToken=null;get("cleanupReview").hidden=true;
+    get("cleanupStatus").textContent="已关闭本次预览（未执行删除）";
+    return;
+  }
+  if(target.dataset.action==="cleanup-elevate"){post("cleanup-elevate");return;}
+  if(target.dataset.action==="cleanup-confirm"){
+    if(!cleanupToken||target.disabled)return;
+    get("cleanupConfirm").disabled=true;
+    get("cleanupStatus").textContent="正在通过安全清理引擎删除已确认目标";
+    post("cleanup-confirm:"+cleanupToken);cleanupToken=null;return;
+  }
   if(target.dataset.action==="cloud-refresh"){post("cloud-refresh");return;}
   if(target.dataset.action==="cloud-publish"||target.dataset.action==="cloud-keep-local"){
     cloudPendingAction=target.dataset.action==="cloud-publish"?"cloud-publish":"cloud-keep-local";
@@ -844,6 +913,30 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-state"){renderCleanupState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-preview"){renderCleanupPreview(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-complete"){
+    cleanupToken=null;get("cleanupReview").hidden=true;get("cleanupResultDetail").hidden=false;
+    get("cleanupResultCounts").textContent="已删除 "+(Number(e.data.deletedFiles)||0)+" 个文件、"+
+      (Number(e.data.deletedDirectories)||0)+" 个目录。失败 "+(Number(e.data.failures)||0)+" 项。";
+    get("cleanupStatus").textContent=e.data.failures>0?"清理部分完成，请查看应用日志":"安全清理已完成";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-result"){
+    var dictionary={ready:"请先确认游戏安装目录", "invalid-directory":"没有识别到有效的英雄联盟目录",
+      "directory-saved":"安装目录已保存到本地", "detect-failed":"自动检测未找到可用的游戏目录",
+      "need-admin":"请使用管理员模式授权后再扫描","game-running":"检测到英雄联盟或 Riot 客户端仍在运行；请完全退出后重试",
+      scanning:"正在扫描配置允许的清理目标",deleting:"正在安全执行清理，请不要退出程序",
+      "preview-expired":"清理预览已过期，必须重新扫描","context-changed":"游戏目录或权限发生变化，未执行删除",
+      "no-targets":"当前没有可清理的目标","too-many":"目标数量过多，为安全起见未生成执行预览",
+      "driver-started":"已启动既有驱动修复流程","elevation-failed":"未获得管理员授权",
+      failed:"操作未完成，请检查本地日志"};
+    get("cleanupStatus").textContent=dictionary[e.data.status]||"状态待确认";
+    if(e.data.status!=="scanning"&&e.data.status!=="deleting"&&e.data.status!=="driver-started"&&e.data.status!=="directory-saved"){
+      cleanupToken=null;get("cleanupReview").hidden=true;
+    }
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-state"){renderCloudState(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-result"){
     var messages={saved:"同步设置已保存",published:"游戏配置上传成功",resolved:"已按本地配置处理云端冲突",
@@ -1026,12 +1119,44 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:cleanup")setMode("cleanup","cleanup");
   else if(value==="detail:cloud-sync")setMode("cloud-sync","cloud-sync");
   else if(value==="detail:updates")setMode("updates","updates");
   else if(value==="detail:mayhem")setMode("mayhem","mayhem");
   else if(value==="detail:recommendation")setMode("recommendation","recommendation");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+var cleanupToken=null;
+function renderCleanupState(data){
+  get("cleanupPath").textContent=data.valid?data.path:"尚未设置有效的游戏安装目录";
+  get("cleanupPrivilege").textContent=data.administrator?"已获得管理员权限":"普通用户，清理需管理员权限";
+  get("cleanupElevation").hidden=!!data.administrator;
+  ["cleanupDetect","cleanupSelect","cleanupDriver","cleanupPreviewButton","cleanupRefresh"].forEach(function(id){
+    get(id).disabled=!!data.busy||!data.configured;
+  });
+  if(!data.valid){get("cleanupPreviewButton").disabled=true;}
+  if(!data.executing&&(!data.previewActive||!data.valid)){
+    cleanupToken=null;get("cleanupReview").hidden=true;
+  }
+}
+function renderCleanupPreview(data){
+  if(typeof data.token!=="string"||!/^[a-f0-9]{32}$/.test(data.token)||!Array.isArray(data.targets))return;
+  cleanupToken=data.token;
+  get("cleanupReview").hidden=false;get("cleanupConfirm").disabled=false;
+  get("cleanupPlanSummary").textContent=(Number(data.count)||0)+" 项可清理、"+
+    (Number(data.blocked)||0)+" 项受保护；约 "+((Number(data.bytes)||0)/1048576).toFixed(1)+
+    " MB，包含 "+(Number(data.files)||0)+" 个文件、"+(Number(data.directories)||0)+" 个目录";
+  var list=get("cleanupTargets");list.replaceChildren();
+  data.targets.slice(0,350).forEach(function(item){
+    var li=document.createElement("li");li.dataset.blocked=item.blocked?"true":"false";
+    var path=document.createElement("strong");path.textContent=String(item.path||"路径不可用");
+    var note=document.createElement("small");note.textContent=(item.blocked?"禁止删除":"准备删除")+
+      " · "+String(item.group||"配置目录")+" · "+String(item.detail||"")+
+      " · "+(Number(item.files)||0)+" 个文件";
+    li.append(path,note);list.append(li);
+  });
+  get("cleanupStatus").textContent="请逐一核对清理目标；只有点击确认才会真正删除";
+}
 var cloudPendingAction=null;
 var cloudBusy=false;
 var onlineCanInstall=false;
