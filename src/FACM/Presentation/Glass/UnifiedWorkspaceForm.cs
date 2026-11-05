@@ -114,6 +114,8 @@ namespace FACM.Presentation.Glass
                 CancelHistoryRead();
                 CancelMayhemRead();
                 CancelRecommendationRead();
+                CancelOnlineRead();
+                UnhookCloudEvents();
                 if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
@@ -186,6 +188,9 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
+                    HookCloudEvents();
+                    if (_navigation.Current == "cloud-sync") SyncCloudState();
+                    if (_navigation.Current == "updates") StartOnlineRead();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -235,6 +240,15 @@ namespace FACM.Presentation.Glass
                 }
                 return;
             }
+            if (message == "cloud-refresh") { SyncCloudState(); return; }
+            if (message != null && message.StartsWith("cloud-toggle:", StringComparison.Ordinal))
+            { ApplyCloudToggle(message.Substring(13)); return; }
+            if (message == "cloud-publish") { PublishCloudGameProfile(); return; }
+            if (message == "cloud-keep-local") { ResolveCloudConflict(); return; }
+            if (message == "updates-refresh") { StartOnlineRead(); return; }
+            if (message != null && message.StartsWith("updates-auto:", StringComparison.Ordinal))
+            { ApplyOnlineAutoSetting(message.Substring(13)); return; }
+            if (message == "updates-install") { BeginOnlineInstallation(); return; }
             if (message == "recommendation-refresh")
             {
                 if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(true);
@@ -339,6 +353,9 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Player) CancelHistoryRead();
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
+            if (route != "updates") CancelOnlineRead();
+            if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
+            if (route == "updates") { OpenUpdatesPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Mayhem) { OpenMayhemPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Recommendation) { OpenRecommendationPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Player) { OpenHistoryPage(pushHistory); return; }
@@ -1487,6 +1504,7 @@ namespace FACM.Presentation.Glass
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
+            CancelOnlineRead();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1503,6 +1521,7 @@ namespace FACM.Presentation.Glass
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
+            CancelOnlineRead();
             _navigation.Home();
             ShowHome();
         }
@@ -1626,6 +1645,7 @@ namespace FACM.Presentation.Glass
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
+            CancelOnlineRead();
         }
 
         internal static string ReadEmbeddedHtml()
@@ -1677,6 +1697,10 @@ namespace FACM.Presentation.Glass
                 !html.Contains("id=\"repairPage\"") ||
                 !html.Contains("id=\"livePage\"") ||
                 !html.Contains("id=\"historyPage\"") ||
+                !html.Contains("id=\"cloudSyncPage\"") ||
+                !html.Contains("id=\"updatesPage\"") ||
+                !html.Contains("data-action=\"cloud-refresh\"") ||
+                !html.Contains("data-action=\"updates-refresh\"") ||
                 !html.Contains("id=\"mayhemPage\"") ||
                 !html.Contains("id=\"recommendationPage\"") ||
                 !html.Contains("data-action=\"mayhem-query\"") ||
