@@ -392,6 +392,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
       <button type="button" data-history-filter="loss" aria-pressed="false">失败</button>
     </div>
     <label class="tool-search" for="historySearch">搜索已读取对局<input id="historySearch" type="search" maxlength="80" autocomplete="off" placeholder="英雄、模式或队列"></label>
+    <label class="tool-search" for="historySort">对局排序<select id="historySort"><option value="recent">最近对局优先</option><option value="oldest">较早对局优先</option><option value="kills">击杀数优先</option><option value="kda">KDA 优先</option></select></label>
     <div class="history-list" id="historyList" aria-label="近期对局"></div>
     <div class="save-row">
       <button data-action="history-refresh" id="historyRefresh">刷新近期战绩</button>
@@ -609,7 +610,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("historyAccount").textContent="未连接";
     get("historyLevel").textContent="—";
     get("historyList").replaceChildren();historyRows=[];historyFilter="all";
-    get("historySearch").value="";
+    get("historySearch").value="";get("historySort").value="recent";
     document.querySelectorAll("[data-history-filter]").forEach(function(item){
       item.setAttribute("aria-pressed",item.dataset.historyFilter==="all"?"true":"false");
     });return;
@@ -728,6 +729,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
 var historyRows=[];
 var historyFilter="all";
 get("historySearch").addEventListener("input",drawHistoryRows);
+get("historySort").addEventListener("change",drawHistoryRows);
 document.querySelectorAll("[data-history-filter]").forEach(function(button){
   button.addEventListener("click",function(){
     historyFilter=button.dataset.historyFilter;
@@ -747,6 +749,17 @@ function drawHistoryRows(){
       return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
     });
   });
+  var sort=get("historySort").value;
+  if(sort==="oldest")rows.reverse();
+  else if(sort==="kills"||sort==="kda"){
+    var metric=function(match){
+      if(match.outcome==="unknown")return -1;
+      var kills=Math.max(0,Number(match.kills)||0);
+      if(sort==="kills")return kills;
+      return (kills+Math.max(0,Number(match.assists)||0))/Math.max(1,Number(match.deaths)||0);
+    };
+    rows.sort(function(a,b){return metric(b)-metric(a);});
+  }
   rows.forEach(function(match){
     var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
@@ -768,7 +781,7 @@ function drawHistoryRows(){
   get("historyResult").textContent=historyRows.length?
     "已读取 "+historyRows.length+" 场 · 胜 "+wins+" / 负 "+losses+
     (decided?" · 胜率 "+Math.round(wins*100/decided)+"%":"")+
-    (historyFilter==="all"?"":" · 当前筛选 "+rows.length+" 场"):
+    (historyFilter==="all"&&!query?"":" · 当前筛选 "+rows.length+" 场"):
     "当前账号暂无可读取的历史对局";
 }
 function renderHistory(data){
