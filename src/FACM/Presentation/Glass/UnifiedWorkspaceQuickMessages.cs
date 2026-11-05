@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -30,17 +31,17 @@ namespace FACM.Presentation.Glass
                 if (!fields.TryGetValue("presets", out rawPresets) ||
                     !fields.TryGetValue("hotkeys", out rawHotkeys) ||
                     !fields.TryGetValue("intervalMs", out rawInterval)) return false;
-                var presets = rawPresets as object[];
-                var hotkeys = rawHotkeys as object[];
-                if (presets == null || presets.Length != LeagueQuickMessagePresets.SlotCount ||
-                    hotkeys == null || hotkeys.Length != LeagueQuickMessageHotkeys.Count ||
+                var presets = rawPresets as IList;
+                var hotkeys = rawHotkeys as IList;
+                if (presets == null || presets.Count != LeagueQuickMessagePresets.SlotCount ||
+                    hotkeys == null || hotkeys.Count != LeagueQuickMessageHotkeys.Count ||
                     rawInterval is bool || rawInterval is string || rawInterval == null) return false;
                 int interval;
                 if (!int.TryParse(Convert.ToString(rawInterval, CultureInfo.InvariantCulture),
                     NumberStyles.None, CultureInfo.InvariantCulture, out interval) ||
                     interval < 0 || interval > 5000) return false;
-                var normalizedPresets = new string[presets.Length];
-                for (var i = 0; i < presets.Length; i++)
+                var normalizedPresets = new string[presets.Count];
+                for (var i = 0; i < presets.Count; i++)
                 {
                     var original = presets[i] as string;
                     if (original == null || original.Length > 600) return false;
@@ -48,8 +49,8 @@ namespace FACM.Presentation.Glass
                     if (!string.IsNullOrWhiteSpace(original) && normalized.Length == 0) return false;
                     normalizedPresets[i] = normalized;
                 }
-                var normalizedHotkeys = new string[hotkeys.Length];
-                for (var i = 0; i < hotkeys.Length; i++)
+                var normalizedHotkeys = new string[hotkeys.Count];
+                for (var i = 0; i < hotkeys.Count; i++)
                 {
                     var original = hotkeys[i] as string;
                     if (original == null || original.Length > 60) return false;
