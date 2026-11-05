@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.Mayhem;
+using FACM.League;
 using FACM.Theming;
 
 namespace FACM.AppHost.Modules
