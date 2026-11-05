@@ -608,11 +608,18 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("historyResult").textContent="无法读取当前账号，请检查游戏客户端连接或重新登录";
     get("historyAccount").textContent="未连接";
     get("historyLevel").textContent="—";
-    get("historyList").replaceChildren();return;
+    get("historyList").replaceChildren();historyRows=[];historyFilter="all";
+    get("historySearch").value="";
+    document.querySelectorAll("[data-history-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item.dataset.historyFilter==="all"?"true":"false");
+    });return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
     get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=false;
+    get("liveConnection").textContent="客户端状态待确认";
+    get("livePhase").textContent="—";get("liveQueue").textContent="—";get("liveMap").textContent="—";
+    get("livePlayers").replaceChildren();
     get("liveSummary").textContent="读取失败或游戏会话已切换，请重新读取";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="repair-state"){
