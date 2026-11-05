@@ -166,6 +166,18 @@ namespace FACM
             return _online.FetchSnapshotAsync(token);
         }
 
+        internal bool UsesUnifiedWebWorkbench
+        {
+            get
+            {
+#if GLASS_WORKBENCH_PREVIEW
+                return _unifiedWorkspaceEnabled && !_exiting;
+#else
+                return false;
+#endif
+            }
+        }
+
         internal bool TryNavigateUnifiedRoute(string viewId)
         {
 #if GLASS_WORKBENCH_PREVIEW

@@ -193,6 +193,19 @@ namespace FACM.AppHost.Modules
             if (_hubForm != null && !_hubForm.IsDisposed)
                 _hubForm.UpdateGameflowContext(state);
 
+            // The unified shell owns the live companion route. Never open a second
+            // top-level assistant window over the game while it is enabled.
+            var shell = Application.OpenForms.OfType<MainForm>()
+                .FirstOrDefault(form => !form.IsDisposed && form.UsesUnifiedWebWorkbench);
+            if (shell != null)
+            {
+                CloseAutomaticLivePopup();
+                _champSelectEpisode = false;
+                _surfacePresentedForEpisode = false;
+                _dismissedForEpisode = false;
+                return;
+            }
+
             var inChampSelect = state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
 
             if (!inChampSelect)

@@ -257,9 +257,16 @@ namespace FACM
 
                     var mainForm = shell.MainForm;
 #if GLASS_WORKBENCH_PREVIEW
-                    if (HasArgument(args, "--unified-web-workbench") &&
+                    // Explicit candidate builds exercise the intended production default path.
+                    // Normal Release builds remain native until signed release gates are met.
+                    if (mainForm != null && !startCleanup &&
+#if UNIFIED_RELEASE_CANDIDATE
+                        true)
+#else
+                        HasArgument(args, "--unified-web-workbench") &&
                         string.Equals(Environment.GetEnvironmentVariable("GGMAN_UNIFIED_WEB_WORKBENCH"),
-                            "1", StringComparison.Ordinal) && mainForm != null)
+                            "1", StringComparison.Ordinal))
+#endif
                     {
                         mainForm.EnableUnifiedWebWorkbench();
                     }
