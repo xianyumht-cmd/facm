@@ -25,6 +25,11 @@ namespace FACM.Presentation.Glass
         internal string Strategy;
     }
 
+    internal sealed class UnifiedRecommendationApplyChange
+    {
+        internal bool Runes, Spells, Items;
+    }
+
     // Accept only documented, bounded settings: no generic JavaScript-to-native setter.
     internal static class UnifiedWorkspaceSettingsContract
     {
@@ -115,6 +120,28 @@ namespace FACM.Presentation.Glass
             catch (InvalidCastException) { return false; }
         }
 
+        internal static bool TryParseRecommendationApply(string json, out UnifiedRecommendationApplyChange result)
+        {
+            result = null;
+            if (string.IsNullOrWhiteSpace(json) || json.Length > 256) return false;
+            try
+            {
+                var fields = new JavaScriptSerializer { MaxJsonLength = 256 }
+                    .Deserialize<Dictionary<string, object>>(json);
+                bool runes, spells, items;
+                if (fields == null || fields.Count != 3 ||
+                    !Bool(fields, "runes", out runes) ||
+                    !Bool(fields, "spells", out spells) ||
+                    !Bool(fields, "items", out items) ||
+                    (!runes && !spells && !items)) return false;
+                result = new UnifiedRecommendationApplyChange { Runes = runes, Spells = spells, Items = items };
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+            catch (InvalidCastException) { return false; }
+        }
+
         private static bool Bool(IDictionary<string, object> fields, string key, out bool value)
         {
             value = false;
@@ -145,6 +172,13 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            UnifiedRecommendationApplyChange selection;
+            if (!TryParseRecommendationApply("{\\"runes\\":true,\\"spells\\":false,\\"items\\":true}", out selection) ||
+                !selection.Runes || selection.Spells || !selection.Items ||
+                TryParseRecommendationApply("{\\"runes\\":false,\\"spells\\":false,\\"items\\":false}", out selection) ||
+                TryParseRecommendationApply("{\\"runes\\":\\"yes\\",\\"spells\\":false,\\"items\\":true}", out selection) ||
+                TryParseRecommendationApply("{\\"runes\\":true,\\"spells\\":false,\\"items\\":true,\\"other\\":1}", out selection))
+                throw new InvalidOperationException("Recommendation write contract must reject untyped or unrequested actions.");
             UnifiedPostgameChange postgame;
             var validPostgame = "{\"autoHonor\":true,\"autoReturn\":false,\"strategy\":\"" +
                 LeagueHonorStrategy.Choices[0] + "\"}";
