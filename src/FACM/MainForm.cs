@@ -154,6 +154,18 @@ namespace FACM
             EnsureMenuOpenAndActive();
         }
 
+        internal bool UnifiedOnlineCenterAvailable
+        {
+            get { return !_onlineCenterOpen && !_exiting && !IsDisposed; }
+        }
+
+        internal Task<OnlineSnapshot> FetchUnifiedOnlineSnapshotAsync(CancellationToken token)
+        {
+            if (!UnifiedOnlineCenterAvailable)
+                throw new InvalidOperationException("Online center is already active.");
+            return _online.FetchSnapshotAsync(token);
+        }
+
         internal bool TryNavigateUnifiedRoute(string viewId)
         {
 #if GLASS_WORKBENCH_PREVIEW
