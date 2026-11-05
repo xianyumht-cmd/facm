@@ -79,6 +79,7 @@ namespace FACM.Presentation.Glass
             _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
             {
                 type = "cloud-state",
+                localOnly = _settings.LocalOnlyMode,
                 loggedIn = account != null,
                 account = account == null ? null : account.Email,
                 autoSync = _settings.AutoConfigSyncEnabled,
@@ -94,6 +95,7 @@ namespace FACM.Presentation.Glass
         private void ApplyCloudToggle(string request)
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
+            if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
             var parts = (request ?? string.Empty).Split(':');
             if (parts.Length != 2 || (parts[1] != "true" && parts[1] != "false"))
             {
@@ -120,6 +122,7 @@ namespace FACM.Presentation.Glass
         private async void PublishCloudGameProfile()
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
+            if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
             var service = GgmanAutoSyncService.Current;
             var account = GgmanAccountSession.Current;
             if (account == null || service == null || service.IsBusy)
@@ -156,6 +159,7 @@ namespace FACM.Presentation.Glass
         private async void ResolveCloudConflict()
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
+            if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
             var service = GgmanAutoSyncService.Current;
             var account = GgmanAccountSession.Current;
             if (service == null || account == null || service.IsBusy ||
