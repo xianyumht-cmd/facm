@@ -18,7 +18,9 @@ namespace FACM.Presentation.Glass
 
         internal static bool IsAllowed(string route)
         {
-            return string.Equals(route, "cleanup", StringComparison.Ordinal) ||
+            return string.Equals(route, "cloud-sync", StringComparison.Ordinal) ||
+                string.Equals(route, "updates", StringComparison.Ordinal) ||
+                string.Equals(route, "cleanup", StringComparison.Ordinal) ||
                 string.Equals(route, "appearance", StringComparison.Ordinal) ||
                 string.Equals(route, "client-status", StringComparison.Ordinal) ||
                 string.Equals(route, "presence-advanced", StringComparison.Ordinal) ||
@@ -82,6 +84,8 @@ namespace FACM.Presentation.Glass
                 case "dashboard": width = 640; height = 660; break;
                 case "matchmaking-settings": width = 620; height = 710; break;
                 case "presence": width = 590; height = 700; break;
+                case "cloud-sync": width = 600; height = 720; break;
+                case "updates": width = 610; height = 700; break;
                 case "repair": width = 590; height = 670; break;
                 case "live": width = 650; height = 730; break;
                 case "player": width = 650; height = 730; break;
