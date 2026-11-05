@@ -85,6 +85,7 @@ namespace FACM
                 }
                 return;
             }
+#if !UNIFIED_RELEASE_CANDIDATE
             if (args == null || args.Length == 0)
             {
                 MessageBox.Show(
@@ -94,6 +95,7 @@ namespace FACM
                     MessageBoxIcon.Information);
                 return;
             }
+#endif
 #endif
 
             var startCleanup = HasArgument(args, "--cleanup");
