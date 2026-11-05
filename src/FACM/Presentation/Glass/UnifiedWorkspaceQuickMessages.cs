@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Web.Script.Serialization;
@@ -33,9 +34,11 @@ namespace FACM.Presentation.Glass
                 var hotkeys = rawHotkeys as object[];
                 if (presets == null || presets.Length != LeagueQuickMessagePresets.SlotCount ||
                     hotkeys == null || hotkeys.Length != LeagueQuickMessageHotkeys.Count ||
-                    !(rawInterval is int)) return false;
-                var interval = (int)rawInterval;
-                if (interval < 0 || interval > 5000) return false;
+                    rawInterval is bool || rawInterval is string || rawInterval == null) return false;
+                int interval;
+                if (!int.TryParse(Convert.ToString(rawInterval, CultureInfo.InvariantCulture),
+                    NumberStyles.None, CultureInfo.InvariantCulture, out interval) ||
+                    interval < 0 || interval > 5000) return false;
                 var normalizedPresets = new string[presets.Length];
                 for (var i = 0; i < presets.Length; i++)
                 {
@@ -73,13 +76,16 @@ namespace FACM.Presentation.Glass
             UnifiedQuickMessageChange parsed;
             var valid = "{\"presets\":[\"准备好了\",\"\",\"\",\"\"],\"hotkeys\":[\"Ctrl+Shift+1\",\"\",\"\",\"\",\"\"],\"intervalMs\":400}";
             if (!TryParse(valid, out parsed) || parsed.IntervalMs != 400 ||
-                LeagueQuickMessagePresets.Parse(parsed.Presets)[0] != "准备好了" ||
-                TryParse(valid.Replace("\"Ctrl+Shift+1\"", "\"Ctrl+Shift+1\",\"Ctrl+Shift+1\""), out parsed) ||
-                TryParse(valid.Replace("\"intervalMs\":400", "\"intervalMs\":6000"), out parsed) ||
-                TryParse(valid.Replace("\"intervalMs\":400", "\"intervalMs\":\"400\""), out parsed) ||
-                TryParse(valid.Replace("\"准备好了\"", "\"a\\nb\\nc\\nd\\ne\""), out parsed) ||
+                LeagueQuickMessagePresets.Parse(parsed.Presets)[0] != "准备好了")
+                throw new InvalidOperationException("Quick message settings rejected valid native JSON.");
+            if (TryParse(valid.Replace("\"Ctrl+Shift+1\"", "\"Ctrl+Shift+1\",\"Ctrl+Shift+1\""), out parsed))
+                throw new InvalidOperationException("Quick message settings accepted duplicate hotkey slots.");
+            if (TryParse(valid.Replace("\"intervalMs\":400", "\"intervalMs\":6000"), out parsed) ||
+                TryParse(valid.Replace("\"intervalMs\":400", "\"intervalMs\":\"400\""), out parsed))
+                throw new InvalidOperationException("Quick message settings accepted an invalid interval.");
+            if (TryParse(valid.Replace("\"准备好了\"", "\"a\\nb\\nc\\nd\\ne\""), out parsed) ||
                 TryParse(valid.Replace("\"presets\"", "\"other\""), out parsed))
-                throw new InvalidOperationException("Quick message settings must reject malformed, duplicate or unsafe entries.");
+                throw new InvalidOperationException("Quick message settings accepted unsafe presets or unknown fields.");
         }
     }
 
