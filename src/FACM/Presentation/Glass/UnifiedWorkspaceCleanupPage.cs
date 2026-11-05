@@ -44,6 +44,7 @@ namespace FACM.Presentation.Glass
                 administrator = _cleanup.IsAdministrator,
                 busy = _cleanupBusy,
                 executing = _cleanupExecuting,
+                previewActive = !string.IsNullOrEmpty(_cleanupReviewToken),
                 driverStarted = _cleanupDriverStarted
             }));
         }
