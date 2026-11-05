@@ -87,6 +87,7 @@ namespace FACM.Presentation.Glass
                 case "cloud-sync": width = 600; height = 720; break;
                 case "updates": width = 610; height = 700; break;
                 case "repair": width = 590; height = 670; break;
+                case "cleanup": width = 650; height = 740; break;
                 case "live": width = 650; height = 730; break;
                 case "player": width = 650; height = 730; break;
                 default: width = 1000; height = 740; break;
