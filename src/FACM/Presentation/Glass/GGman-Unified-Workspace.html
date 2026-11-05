@@ -446,6 +446,23 @@ body[data-mode="quick-messages"] #quickMessagePage,body[data-mode="quick-message
 #quickMessagePage .quick-card .quick-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
 #quickMessagePage button{min-height:38px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--card2);font-family:inherit;color:var(--text)}
 #quickMessagePage button:disabled{opacity:.5}
+/* Native-owned bench picker inside the one-window WebView2 shell. */
+#benchPage{display:none;padding:4px 2px}
+body[data-mode="bench"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="bench"] #home,body[data-mode="bench"] #other{display:none!important}
+body[data-mode="bench"] #detail{display:flex}
+body[data-mode="bench"] .brand-icon,body[data-mode="bench"] .brand-text{display:none}
+body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;overflow-y:auto}
+#benchPage h2{font-size:18px;margin:8px 0 6px}
+#benchPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#benchChampions{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:9px;margin:12px 0}
+#benchChampions button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-height:72px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);font:inherit;cursor:pointer}
+#benchChampions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#benchChampions button:disabled{opacity:.6;cursor:default}
+#benchChampions img{width:36px;height:36px;object-fit:cover;border-radius:7px}
+#benchChampions .bench-champ-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--card);color:var(--accent);border-radius:7px}
+#benchChampions small{font-size:11px}
+#benchRefresh{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
 </style>
 </head>
 <body data-mode="home">
@@ -543,6 +560,21 @@ body[data-mode="quick-messages"] #quickMessagePage,body[data-mode="quick-message
       <button data-action="history-more" id="historyMore" hidden>读取更多</button>
     </div>
     <div class="actions"><button data-route="player-advanced">筛选与战绩详情</button><button data-route="live">实时对局</button></div>
+  </section>
+  <section id="benchPage">
+    <h2>ARAM 替补席 · 快速换英雄</h2>
+    <p>替补英雄仅在选人替补席开放时显示。点击后由既有 LCU 交换服务执行一次操作并回读确认，不会自动重试。</p>
+    <div class="guide-stats">
+      <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
+      <div class="guide-card"><small>对局模式</small><strong id="benchMode">—</strong></div>
+    </div>
+    <p id="benchReadStatus" role="status" aria-live="polite">等待读取替补席</p>
+    <div id="benchChampions" role="group" aria-label="可交换的英雄"></div>
+    <p id="benchActionStatus" role="status" aria-live="polite"></p>
+    <div class="actions">
+      <button id="benchRefresh" data-action="bench-refresh">刷新替补席</button>
+      <button data-route="live">返回实时对局</button>
+    </div>
   </section>
   <section id="livePage">
     <h2>实时对局</h2><p>按需读取当前选人/对局阵容。资料由已有 LCU 会话服务提供，不额外启动轮询。</p>
@@ -885,7 +917,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -895,6 +927,20 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="bench-refresh"){
+    get("benchRefresh").disabled=true;get("benchChampions").replaceChildren();
+    get("benchReadStatus").textContent="正在从当前 LCU 会话读取替补席";
+    post("bench-refresh");return;
+  }
+  if(target.dataset.benchSwap!==undefined){
+    if(target.disabled)return;
+    var id=Number(target.dataset.benchSwap);
+    if(!Number.isSafeInteger(id)||id<1||!benchIds.has(id))return;
+    get("benchChampions").querySelectorAll("button").forEach(function(b){b.disabled=true;});
+    get("benchRefresh").disabled=true;
+    get("benchActionStatus").textContent="正在通过当前 LOL 会话交换英雄 #"+id;
+    post("bench-swap:"+id);return;
+  }
   if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
   if(target.dataset.action==="quick-message-save"){
     var message=collectQuickMessageSettings();
@@ -1202,6 +1248,19 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       item.setAttribute("aria-pressed",item.dataset.historyFilter==="all"?"true":"false");
     });return;
   }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-state"){renderBenchState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-icon"){renderBenchIcon(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-swap-result"){
+    var result={Success:"换英雄成功，已通过客户端回读确认",
+      TargetUnavailable:"该英雄已被交换，请刷新替补席",BenchDisabled:"当前替补席不可用",
+      SessionUnavailable:"客户端或选人会话已断开",WriteRejected:"英雄联盟客户端拒绝本次交换",
+      VerificationFailed:"请求已提交，但没有回读确认成功，请核对游戏界面",
+      "session-changed":"账号或选人会话已变化，已丢弃操作结果",
+      "not-on-bench":"目标不在当前替补席中，请刷新","swapping":"正在交换并验证",
+      timeout:"操作等待超时，请核对游戏界面，避免重复操作",failed:"交换未完成，请核对游戏界面"};
+    get("benchActionStatus").textContent=result[e.data.status]||"交换结果待确认";
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
     get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=true;
@@ -1313,6 +1372,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:presence")setMode("presence","presence");
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
+  else if(value==="detail:live-advanced")setMode("bench","live-advanced");
   else if(value==="detail:player")setMode("player","player");
   else if(value==="detail:quick-messages")setMode("quick-messages","quick-messages");
   else if(value==="detail:efficiency-advanced")setMode("efficiency-advanced","efficiency-advanced");
@@ -1744,6 +1804,39 @@ function renderHistory(data){
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
+}
+var benchIds=new Set();
+function renderBenchState(data){
+  var list=get("benchChampions");list.replaceChildren();
+  benchIds.clear();get("benchRefresh").disabled=false;
+  get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
+  get("benchMode").textContent=data.mode|| (data.queue>0?"队列 #"+data.queue:"—");
+  var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
+    disabled:"当前游戏模式没有开放替补席",timeout:"读取超时，请稍后再试",
+    failed:"替补席读取失败，检查客户端后重试"};
+  get("benchReadStatus").textContent=status[data.status]||"正在读取替补席";
+  if(data.status!=="ready")return;
+  var ids=Array.isArray(data.championIds)?data.championIds.slice(0,32):[];
+  ids.forEach(function(raw){
+    var id=Number(raw);
+    if(!Number.isSafeInteger(id)||id<1||id>10000||benchIds.has(id))return;
+    benchIds.add(id);
+    var button=document.createElement("button");button.dataset.benchSwap=String(id);
+    button.setAttribute("aria-label","交换到英雄 "+id);
+    var icon=document.createElement("span");icon.className="bench-champ-icon";icon.textContent="英";
+    var label=document.createElement("small");label.textContent="英雄 #"+id;
+    button.append(icon,label);list.appendChild(button);
+  });
+  if(!benchIds.size)get("benchReadStatus").textContent="替补席已启用，但当前没有可交换的英雄";
+}
+function renderBenchIcon(data){
+  if(mode!=="bench"||!benchIds.has(data.id)||typeof data.image!=="string"||
+     data.image.length>35000||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image))return;
+  var button=get("benchChampions").querySelector('button[data-bench-swap="'+data.id+'"]');
+  if(!button)return;
+  var icon=button.querySelector(".bench-champ-icon");if(!icon)return;
+  var image=document.createElement("img");image.src=data.image;image.alt="";
+  icon.replaceWith(image);
 }
 var liveRows=[];
 var liveFilter="all";

@@ -110,6 +110,7 @@ namespace FACM.Presentation.Glass
                 CancelPresenceOperation();
                 CancelRepairOperation();
                 CancelLiveRead();
+                CancelLiveBenchRead();
                 CancelHistoryRead();
                 CancelMayhemRead();
                 CancelRecommendationRead();
@@ -194,6 +195,7 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
                     if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
+                    if (_navigation.Current == "live-advanced") StartLiveBenchRead();
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
                     HookCloudEvents();
@@ -294,6 +296,9 @@ namespace FACM.Presentation.Glass
                     StartHistoryRead(message == "history-more" ? 20 : 10, true);
                 return;
             }
+            if (message == "bench-refresh") { StartLiveBenchRead(); return; }
+            if (message != null && message.StartsWith("bench-swap:", StringComparison.Ordinal))
+            { SwapLiveBenchChampion(message.Substring(11)); return; }
             if (message == "live-refresh" || message == "live-sgp")
             {
                 if (_navigation.Current == LeagueHubNavigation.Live)
@@ -382,11 +387,13 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
             if (route != LeagueHubNavigation.Live) CancelLiveRead();
+            if (route != "live-advanced") CancelLiveBenchRead();
             if (route != LeagueHubNavigation.Player) CancelHistoryRead();
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
             if (route != "quick-messages") CancelQuickMessageSend();
+            if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
             if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
             if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
             if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
@@ -1502,6 +1509,7 @@ namespace FACM.Presentation.Glass
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
+            CancelLiveBenchRead();
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
@@ -1522,6 +1530,7 @@ namespace FACM.Presentation.Glass
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
+            CancelLiveBenchRead();
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
@@ -1641,6 +1650,7 @@ namespace FACM.Presentation.Glass
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
+            CancelLiveBenchRead();
             CancelHistoryRead();
             CancelMayhemRead();
             CancelRecommendationRead();
@@ -1664,6 +1674,8 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"benchPage\"") || !html.Contains("data-action=\"bench-refresh\""))
+                throw new InvalidOperationException("Advanced ARAM bench must be HTML-backed.");
             if (!html.Contains("id=\"quickMessagePage\""))
                 throw new InvalidOperationException("Unified quick message presets must be HTML-backed.");
             if (!html.Contains("id=\"advancedToolsPage\"") ||

@@ -37,6 +37,8 @@ namespace FACM.AppHost.Modules
 
         internal LeagueClientSession UnifiedLiveSession { get { return _leagueClient.CurrentSession; } }
 
+        internal LeagueBenchQuickPickService UnifiedBenchQuickPick { get { return _benchQuickPick; } }
+
         internal async Task<LeagueLiveSnapshot> ReadUnifiedLiveAsync(bool includeSgp, CancellationToken token)
         {
             if (_service == null) return null;

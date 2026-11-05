@@ -93,6 +93,7 @@ namespace FACM.Presentation.Glass
                 case "cleanup": width = 650; height = 740; break;
                 case "profile": width = 640; height = 710; break;
                 case "live": width = 650; height = 730; break;
+                case "live-advanced": width = 640; height = 700; break;
                 case "player": width = 650; height = 730; break;
                 default: width = 1000; height = 740; break;
             }
