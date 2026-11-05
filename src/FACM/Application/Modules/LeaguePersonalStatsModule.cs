@@ -266,6 +266,8 @@ namespace FACM.AppHost.Modules
 
         internal async Task ImportLegacyAsync(CancellationToken token)
         {
+            if (_settingsModule.Settings.LocalOnlyMode)
+                throw new InvalidOperationException("Cloud personal stats are disabled in local-only mode.");
             var account = GgmanAccountSession.Current;
             if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
             var summary = _store.ReadLegacySummary(DateTimeOffset.Now);
@@ -279,6 +281,8 @@ namespace FACM.AppHost.Modules
 
         internal async Task SetRegisteredRankingVisibleAsync(bool visible, CancellationToken token)
         {
+            if (_settingsModule.Settings.LocalOnlyMode)
+                throw new InvalidOperationException("Cloud personal stats are disabled in local-only mode.");
             var account = GgmanAccountSession.Current;
             if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
             await _registeredClient.SetRankingVisibleAsync(account, visible, token).ConfigureAwait(false);
