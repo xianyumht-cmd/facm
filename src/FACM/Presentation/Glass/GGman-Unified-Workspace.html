@@ -391,6 +391,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
       <button type="button" data-history-filter="win" aria-pressed="false">胜利</button>
       <button type="button" data-history-filter="loss" aria-pressed="false">失败</button>
     </div>
+    <label class="tool-search" for="historySearch">搜索已读取对局<input id="historySearch" type="search" maxlength="80" autocomplete="off" placeholder="英雄、模式或队列"></label>
     <div class="history-list" id="historyList" aria-label="近期对局"></div>
     <div class="save-row">
       <button data-action="history-refresh" id="historyRefresh">刷新近期战绩</button>
@@ -719,6 +720,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
 });
 var historyRows=[];
 var historyFilter="all";
+get("historySearch").addEventListener("input",drawHistoryRows);
 document.querySelectorAll("[data-history-filter]").forEach(function(button){
   button.addEventListener("click",function(){
     historyFilter=button.dataset.historyFilter;
@@ -730,7 +732,14 @@ document.querySelectorAll("[data-history-filter]").forEach(function(button){
 });
 function drawHistoryRows(){
   var list=get("historyList");list.replaceChildren();
-  var rows=historyRows.filter(function(match){return historyFilter==="all"||match.outcome===historyFilter;});
+  var query=get("historySearch").value.trim().toLocaleLowerCase();
+  var rows=historyRows.filter(function(match){
+    if(historyFilter!=="all"&&match.outcome!==historyFilter)return false;
+    if(!query)return true;
+    return [match.champion,match.mode,match.queueId,match.championId].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
+    });
+  });
   rows.forEach(function(match){
     var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
