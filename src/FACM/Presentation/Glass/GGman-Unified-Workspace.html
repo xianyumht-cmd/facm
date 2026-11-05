@@ -430,6 +430,22 @@ body[data-mode="advanced-tools"] #advancedToolsPage,body[data-mode="advanced-too
 #advancedToolsPage .advanced-policies label{display:block;margin:0}
 #advancedToolsPage .advanced-policies label span{display:block;margin-bottom:4px}
 #advancedToolsPage .advanced-feedback{font-size:11px;color:var(--muted);margin-top:5px;min-height:12px;overflow-wrap:anywhere}
+#quickMessagePage{display:none;padding:4px 2px}
+body[data-mode="quick-messages"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="quick-messages"] #home,body[data-mode="quick-messages"] #other{display:none!important}
+body[data-mode="quick-messages"] #detail{display:flex}
+body[data-mode="quick-messages"] .brand-icon,body[data-mode="quick-messages"] .brand-text{display:none}
+body[data-mode="quick-messages"] #quickMessagePage,body[data-mode="quick-messages"] main{display:block;overflow-y:auto}
+#quickMessagePage h2{font-size:18px;margin:8px 0 5px}
+#quickMessagePage p{font-size:12px;color:var(--muted)}
+#quickMessagePage .quick-card{padding:11px;border:1px solid var(--line);border-radius:10px;margin-bottom:9px;background:var(--card)}
+#quickMessagePage .quick-card strong{display:block;font-size:13px}
+#quickMessagePage .quick-card textarea,#quickMessagePage .quick-card input{display:block;width:100%;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--text);padding:8px;font:inherit;font-size:12px;min-width:0}
+#quickMessagePage .quick-card textarea{resize:vertical;min-height:58px;max-height:130px}
+#quickMessagePage .quick-card label{display:block;font-size:12px;color:var(--muted);margin-top:8px}
+#quickMessagePage .quick-card .quick-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+#quickMessagePage button{min-height:38px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--card2);font-family:inherit;color:var(--text)}
+#quickMessagePage button:disabled{opacity:.5}
 </style>
 </head>
 <body data-mode="home">
@@ -733,6 +749,20 @@ body[data-mode="advanced-tools"] #advancedToolsPage,body[data-mode="advanced-too
     <p>需要按游戏模式、分路设置英雄优先级，或调整抢选、延迟与交换策略，可进入高级配置。</p>
     <div class="actions"><button data-route="efficiency-advanced">编辑高级优先级</button></div>
   </section>
+  <section id="quickMessagePage">
+    <h2>快捷消息与热键</h2>
+    <p>四组预设、五组热键与发送间隔均保存到原生热键控制器；发送使用当前已连接 LOL 客户端，不需要 GGman 登录。发送前请先保存。</p>
+    <div id="quickMessageRows"></div>
+    <div class="quick-card">
+      <strong>停止快捷发送</strong>
+      <label>取消快捷键<input type="text" id="quickCancelHotkey" maxlength="60" placeholder="例如 Ctrl+Shift+0" aria-label="取消快捷发送热键"></label>
+      <label>消息间隔（毫秒）<input type="number" id="quickInterval" min="0" max="5000" step="100" value="0"></label>
+      <p>快捷键需含 Ctrl、Alt、Shift 或 Win；也可使用 F1–F12。相同快捷键不允许重复绑定。</p>
+    </div>
+    <div class="save-row"><button id="quickSave" data-action="quick-message-save">保存四组预设和热键</button><button data-action="quick-message-refresh">重新读取</button></div>
+    <p role="status" aria-live="polite" id="quickMessageStatus"></p>
+    <div class="actions"><button data-route="efficiency-advanced">高级自动化设置</button><button data-route="efficiency">快捷工具</button></div>
+  </section>
   <section id="advancedToolsPage">
     <h2>高级工具 · 自动化</h2>
     <p>设置保存给现有 LOL 自动化控制器，不引入新的游戏请求或后台服务。每组单独保存，当前游戏会话由原生模块管理。</p>
@@ -792,7 +822,7 @@ body[data-mode="advanced-tools"] #advancedToolsPage,body[data-mode="advanced-too
       <button data-action="advanced-save" data-advanced-group="respawn">保存复活提示</button>
       <div class="advanced-feedback" data-advanced-feedback="respawn" role="status"></div>
     </div>
-    <div class="actions"><button data-route="auto-selection">自动选禁设置</button><button data-route="matchmaking-settings">排队策略</button><button data-route="postgame-settings">赛后处理</button><button data-route="presence">在线状态</button></div>
+    <div class="actions"><button data-route="quick-messages">快捷消息与热键</button><button data-route="auto-selection">自动选禁设置</button><button data-route="matchmaking-settings">排队策略</button><button data-route="postgame-settings">赛后处理</button><button data-route="presence">在线状态</button></div>
   </section>
   <section id="matchmakingSettings">
     <h2>自动排队与确认对局</h2>
@@ -855,7 +885,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -865,6 +895,17 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
+  if(target.dataset.action==="quick-message-save"){
+    var message=collectQuickMessageSettings();
+    if(!message)return;
+    get("quickSave").disabled=true;get("quickMessageStatus").textContent="正在保存原生快捷键";
+    post("quick-message-save:"+JSON.stringify(message));return;
+  }
+  if(target.dataset.quickSend!==undefined){
+    get("quickMessageStatus").textContent="正在通过 LOL 当前游戏会话发送已保存的预设";
+    post("quick-message-send:"+target.dataset.quickSend);return;
+  }
   if(target.dataset.action==="advanced-refresh"){post("advanced-refresh");return;}
   if(target.dataset.action==="advanced-save"){
     var group=target.dataset.advancedGroup;
@@ -1043,6 +1084,15 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-message-settings"){renderQuickMessageSettings(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-message-result"){
+    get("quickSave").disabled=false;
+    var states={saved:"四组预设和快捷键已保存","hotkey-conflict":"快捷键已被占用或设置不合法，未修改预设",
+      invalid:"预设或快捷键不符合要求，未修改现有设置",sending:"正在发送已保存的预设",
+      sent:"消息已发送",unsaved:"请先保存该预设并连接游戏",unavailable:"LOL 客户端不可用或当前阶段不支持发送",
+      failed:"操作未成功，请检查游戏会话或程序日志"};
+    get("quickMessageStatus").textContent=states[e.data.status]||"请检查设置";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-settings"){renderAdvancedSettings(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-result"){
     var group=String(e.data.group||"");
@@ -1264,6 +1314,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:quick-messages")setMode("quick-messages","quick-messages");
   else if(value==="detail:efficiency-advanced")setMode("efficiency-advanced","efficiency-advanced");
   else if(value==="detail:profile")setMode("profile","profile");
   else if(value==="detail:cleanup")setMode("cleanup","cleanup");
@@ -1290,6 +1341,42 @@ function renderLocalProfile(data){
   });
   if(rows.length===0){var li=document.createElement("li");li.textContent="暂无本地游戏账号记录";list.appendChild(li);}
   get("profileStatus").textContent="本地使用数据已更新";
+}
+function renderQuickMessageSettings(data){
+  var rows=get("quickMessageRows");rows.replaceChildren();
+  var presets=Array.isArray(data.presets)?data.presets:[];
+  var keys=Array.isArray(data.hotkeys)?data.hotkeys:[];
+  for(var i=0;i<4;i++){
+    var card=document.createElement("div");card.className="quick-card";
+    var name=document.createElement("strong");name.textContent="预设 "+(i+1);
+    var label=document.createElement("label");label.textContent="内容（最多四行，300 字符）";
+    var text=document.createElement("textarea");text.id="quickPreset"+i;text.maxLength=600;
+    text.value=String(presets[i]||"");text.setAttribute("aria-label","快捷消息预设 "+(i+1));
+    var shortcut=document.createElement("label");shortcut.textContent="全局快捷键";
+    var key=document.createElement("input");key.id="quickHotkey"+i;key.type="text";key.maxLength=60;
+    key.value=String(keys[i]||"");key.placeholder="如 Ctrl+Shift+"+(i+1);
+    var controls=document.createElement("div");controls.className="quick-controls";
+    var send=document.createElement("button");send.dataset.quickSend=String(i);
+    send.textContent="发送已保存的预设 "+(i+1);
+    shortcut.append(key);label.append(text);controls.append(send);card.append(name,label,shortcut,controls);rows.append(card);
+  }
+  get("quickCancelHotkey").value=String(keys[4]||"");
+  get("quickInterval").value=Math.max(0,Math.min(5000,Number(data.intervalMs)||0));
+  get("quickSave").disabled=false;get("quickMessageStatus").textContent="预设已读取，可单独编辑后统一保存";
+}
+function collectQuickMessageSettings(){
+  var slots=[],keys=[];
+  for(var i=0;i<4;i++){
+    var raw=get("quickPreset"+i).value;
+    if(raw.length>600){get("quickMessageStatus").textContent="预设文本过长";return null;}
+    slots.push(raw);keys.push(get("quickHotkey"+i).value.trim());
+  }
+  keys.push(get("quickCancelHotkey").value.trim());
+  var interval=get("quickInterval").valueAsNumber;
+  if(!Number.isInteger(interval)||interval<0||interval>5000){
+    get("quickMessageStatus").textContent="消息间隔必须是 0～5000 毫秒整数";return null;
+  }
+  return {presets:slots,hotkeys:keys,intervalMs:interval};
 }
 function advancedPayload(group){
   var checked=function(id){return get(id).checked;};

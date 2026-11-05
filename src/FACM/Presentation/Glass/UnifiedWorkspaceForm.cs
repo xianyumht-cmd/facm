@@ -114,6 +114,7 @@ namespace FACM.Presentation.Glass
                 CancelMayhemRead();
                 CancelRecommendationRead();
                 CancelOnlineRead();
+                CancelQuickMessageSend();
                 UnhookCloudEvents();
                 UnhookLocalStats();
                 _browser.Dispose();
@@ -188,6 +189,7 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
                     if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
                     if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
+                    if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
@@ -224,6 +226,15 @@ namespace FACM.Presentation.Glass
                 _userMovedWindow = true;
                 ReleaseCapture();
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
+                return;
+            }
+            if (message == "quick-message-refresh") { SyncQuickMessageSettings(); return; }
+            if (message != null && message.StartsWith("quick-message-save:", StringComparison.Ordinal))
+            { SaveQuickMessageSettings(message.Substring(19)); return; }
+            if (message != null && message.StartsWith("quick-message-send:", StringComparison.Ordinal))
+            {
+                int index;
+                if (int.TryParse(message.Substring(19), out index)) SendQuickMessage(index);
                 return;
             }
             if (message == "advanced-refresh") { SyncAdvancedTools(); return; }
@@ -372,6 +383,8 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
+            if (route != "quick-messages") CancelQuickMessageSend();
+            if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
             if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
             if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
             if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
@@ -1490,6 +1503,7 @@ namespace FACM.Presentation.Glass
             CancelMayhemRead();
             CancelRecommendationRead();
             CancelOnlineRead();
+            CancelQuickMessageSend();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1509,6 +1523,7 @@ namespace FACM.Presentation.Glass
             CancelMayhemRead();
             CancelRecommendationRead();
             CancelOnlineRead();
+            CancelQuickMessageSend();
             _navigation.Home();
             ShowHome();
         }
@@ -1644,7 +1659,10 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
+            UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"quickMessagePage\""))
+                throw new InvalidOperationException("Unified quick message presets must be HTML-backed.");
             if (!html.Contains("id=\"advancedToolsPage\"") ||
                 !html.Contains("data-action=\"advanced-save\""))
                 throw new InvalidOperationException("Unified advanced settings route is not HTML-backed.");
