@@ -394,6 +394,21 @@ body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:bl
 #cleanupReview[hidden],#cleanupResultDetail[hidden],#cleanupElevation[hidden]{display:none!important}
 #cleanupReview .guide-confirm{border-color:#e5b97f}
 
+/* Local profile: no cloud login, timer or external metrics. */
+#profilePage{display:none;padding:4px 2px}
+#profilePage h2{font-size:18px;margin:8px 0 6px}
+#profilePage p{font-size:12px;line-height:1.7;color:var(--muted)}
+body[data-mode="profile"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="profile"] #home,body[data-mode="profile"] #other{display:none!important}
+body[data-mode="profile"] #detail{display:flex}
+body[data-mode="profile"] .brand-icon,body[data-mode="profile"] .brand-text{display:none}
+body[data-mode="profile"] #profilePage,body[data-mode="profile"] main{display:block;overflow-y:auto}
+#profilePage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#profilePage .actions button{padding:8px 5px}
+#profileAccountList{display:grid;gap:7px;margin:9px 0;padding:0;list-style:none}
+#profileAccountList li{padding:10px;background:var(--card);border:1px solid var(--line);border-radius:9px}
+#profileAccountList strong{display:block;overflow-wrap:anywhere;font-size:12px}
+#profileAccountList small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
 </style>
 </head>
 <body data-mode="home">
@@ -515,6 +530,28 @@ body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:bl
       <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
     </div>
     <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
+  </section>
+  <section id="profilePage">
+    <h2>我的 GGman · 本地资料</h2>
+    <p>无需 GGman 邮箱登录；仅展示当前设备已记录的使用数据。云端个人排行与验证码暂缓开放。</p>
+    <div class="status"><b>本地模式</b><span id="profileMode">保存在当前设备，不依赖 CloudBase</span></div>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">使用过的游戏账号</span><strong id="profilePlayed">—</strong></div>
+      <div class="dashboard-card"><span class="small">活跃天数</span><strong id="profileActiveDays">—</strong></div>
+      <div class="dashboard-card"><span class="small">连续活跃</span><strong id="profileStreak">—</strong></div>
+      <div class="dashboard-card"><span class="small">最近 7 天活跃</span><strong id="profileRecent7">—</strong></div>
+      <div class="dashboard-card"><span class="small">最近 30 天活跃</span><strong id="profileRecent30">—</strong></div>
+      <div class="dashboard-card"><span class="small">本月新账号</span><strong id="profileNewMonth">—</strong></div>
+    </div>
+    <div class="guide-card"><strong>本地使用记录</strong><small id="profileDates">正在读取</small></div>
+    <div class="guide-card"><strong>近期游戏账号</strong><ul id="profileAccountList"></ul></div>
+    <p id="profileStatus" role="status" aria-live="polite">正在读取本地资料</p>
+    <div class="actions">
+      <button data-action="profile-refresh">刷新本地资料</button>
+      <button data-route="appearance">外观主题</button>
+      <button data-route="cleanup">清理修复</button>
+      <button data-route="updates">更新中心</button>
+    </div>
   </section>
   <section id="cloudSyncPage">
     <h2>云同步</h2>
@@ -736,7 +773,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -746,6 +783,7 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="profile-refresh"){post("profile-refresh");return;}
   if(target.dataset.action==="cleanup-refresh"){post("cleanup-refresh");return;}
   if(target.dataset.action==="cleanup-select"){post("cleanup-select");return;}
   if(target.dataset.action==="cleanup-detect"){
@@ -913,6 +951,10 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile"){renderLocalProfile(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile-unavailable"){
+    get("profileStatus").textContent="本地统计服务尚未就绪";get("profileAccountList").replaceChildren();return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-state"){renderCleanupState(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-preview"){renderCleanupPreview(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-complete"){
@@ -1119,6 +1161,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:profile")setMode("profile","profile");
   else if(value==="detail:cleanup")setMode("cleanup","cleanup");
   else if(value==="detail:cloud-sync")setMode("cloud-sync","cloud-sync");
   else if(value==="detail:updates")setMode("updates","updates");
@@ -1126,6 +1169,24 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:recommendation")setMode("recommendation","recommendation");
   else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
 });
+function renderLocalProfile(data){
+  var numbers=[["profilePlayed","played"],["profileActiveDays","activeDays"],["profileStreak","streak"],
+    ["profileRecent7","recent7"],["profileRecent30","recent30"],["profileNewMonth","newThisMonth"]];
+  numbers.forEach(function(pair){get(pair[0]).textContent=String(Math.max(0,Number(data[pair[1]])||0));});
+  get("profileMode").textContent=data.localOnly?"全部为本机统计，不需要云端账号":"本地统计正常；可选云端功能在云同步页管理";
+  get("profileDates").textContent="首次记录："+(data.firstSeen||"暂无")+" · 最近记录："+(data.lastSeen||"暂无");
+  var list=get("profileAccountList");list.replaceChildren();
+  var rows=Array.isArray(data.accounts)?data.accounts.slice(0,30):[];
+  rows.forEach(function(account){
+    var li=document.createElement("li"),name=document.createElement("strong"),meta=document.createElement("small");
+    name.textContent=String(account.name||"未命名账号");
+    meta.textContent=[account.region||"未知区域",Math.max(0,Number(account.seen)||0)+" 次记录",
+      account.last?"最近 "+account.last:""].filter(Boolean).join(" · ");
+    li.append(name,meta);list.append(li);
+  });
+  if(rows.length===0){var li=document.createElement("li");li.textContent="暂无本地游戏账号记录";list.appendChild(li);}
+  get("profileStatus").textContent="本地使用数据已更新";
+}
 var cleanupToken=null;
 function renderCleanupState(data){
   get("cleanupPath").textContent=data.valid?data.path:"尚未设置有效的游戏安装目录";
