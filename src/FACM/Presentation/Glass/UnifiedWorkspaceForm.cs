@@ -120,6 +120,7 @@ namespace FACM.Presentation.Glass
         }
 
         internal bool HasNativeRoute { get { return _hub != null && !_hub.IsDisposed; } }
+        internal bool HasActiveCleanup { get { return _cleanupExecuting; } }
 
         private async Task InitializeAsync()
         {
@@ -227,6 +228,7 @@ namespace FACM.Presentation.Glass
             if (message == "cleanup-detect") { DetectUnifiedCleanupDirectory(); return; }
             if (message == "cleanup-driver") { OpenUnifiedDriverRepair(); return; }
             if (message == "cleanup-preview") { PreviewUnifiedCleanup(); return; }
+            if (message == "cleanup-cancel") { ResetCleanupPreview(); SyncUnifiedCleanupState(); return; }
             if (message == "cleanup-elevate") { RestartUnifiedCleanupElevated(); return; }
             if (message != null && message.StartsWith("cleanup-confirm:", StringComparison.Ordinal))
             { ConfirmUnifiedCleanup(message.Substring(16)); return; }
