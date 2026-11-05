@@ -31,7 +31,9 @@ $cases = @(
   @{ Mode='cleanup'; Width=680; Height=760 },
   @{ Mode='cleanup'; Width=420; Height=620 },
   @{ Mode='profile'; Width=660; Height=730 },
-  @{ Mode='profile'; Width=420; Height=620 }
+  @{ Mode='profile'; Width=420; Height=620 },
+  @{ Mode='advanced-tools'; Width=680; Height=760 },
+  @{ Mode='advanced-tools'; Width=420; Height=620 }
 )
 foreach ($scene in $cases) {
   $mode = $scene.Mode

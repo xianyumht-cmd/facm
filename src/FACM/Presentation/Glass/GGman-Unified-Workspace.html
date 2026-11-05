@@ -409,6 +409,27 @@ body[data-mode="profile"] #profilePage,body[data-mode="profile"] main{display:bl
 #profileAccountList li{padding:10px;background:var(--card);border:1px solid var(--line);border-radius:9px}
 #profileAccountList strong{display:block;overflow-wrap:anywhere;font-size:12px}
 #profileAccountList small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+/* The full native-backed advanced automation form lives in the same scroll owner. */
+#advancedToolsPage{display:none;padding:4px 2px}
+body[data-mode="advanced-tools"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="advanced-tools"] #home,body[data-mode="advanced-tools"] #other{display:none!important}
+body[data-mode="advanced-tools"] #detail{display:flex}
+body[data-mode="advanced-tools"] .brand-icon,body[data-mode="advanced-tools"] .brand-text{display:none}
+body[data-mode="advanced-tools"] #advancedToolsPage,body[data-mode="advanced-tools"] main{display:block;overflow-y:auto}
+#advancedToolsPage h2{font-size:18px;margin:8px 0 5px}
+#advancedToolsPage h3{font-size:13px;margin:0 0 8px}
+#advancedToolsPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#advancedToolsPage .advanced-section{padding:12px;border:1px solid var(--line);background:var(--card);border-radius:12px;margin:0 0 10px}
+#advancedToolsPage .advanced-section label{display:flex;align-items:center;gap:9px;margin:8px 0;font-size:12px;min-width:0}
+#advancedToolsPage .advanced-section input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent);flex-shrink:0}
+#advancedToolsPage .advanced-section input[type=text],#advancedToolsPage .advanced-section select{width:100%;min-width:0;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:8px;padding:9px;font-size:12px;font-family:inherit}
+#advancedToolsPage .advanced-section .advanced-stack{display:grid;gap:7px}
+#advancedToolsPage .advanced-section button{min-height:38px;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:var(--card2);font-family:inherit;color:var(--text)}
+#advancedToolsPage .advanced-section button:disabled{opacity:.5}
+#advancedToolsPage .advanced-policies{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+#advancedToolsPage .advanced-policies label{display:block;margin:0}
+#advancedToolsPage .advanced-policies label span{display:block;margin-bottom:4px}
+#advancedToolsPage .advanced-feedback{font-size:11px;color:var(--muted);margin-top:5px;min-height:12px;overflow-wrap:anywhere}
 </style>
 </head>
 <body data-mode="home">
@@ -712,6 +733,67 @@ body[data-mode="profile"] #profilePage,body[data-mode="profile"] main{display:bl
     <p>需要按游戏模式、分路设置英雄优先级，或调整抢选、延迟与交换策略，可进入高级配置。</p>
     <div class="actions"><button data-route="efficiency-advanced">编辑高级优先级</button></div>
   </section>
+  <section id="advancedToolsPage">
+    <h2>高级工具 · 自动化</h2>
+    <p>设置保存给现有 LOL 自动化控制器，不引入新的游戏请求或后台服务。每组单独保存，当前游戏会话由原生模块管理。</p>
+    <div class="advanced-section" data-advanced-group="reply">
+      <h3>私聊自动回复</h3>
+      <label><input type="checkbox" id="advancedReplyEnabled"> 启用私聊自动回复</label>
+      <label><input type="checkbox" id="advancedReplyAway"> 只在离开状态回复</label>
+      <div class="advanced-stack"><input type="text" id="advancedReplyText" maxlength="500" placeholder="请输入自动回复内容" aria-label="自动回复文本"></div>
+      <button data-action="advanced-save" data-advanced-group="reply">保存自动回复</button>
+      <div class="advanced-feedback" data-advanced-feedback="reply" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="invitations">
+      <h3>大厅邀请处理</h3>
+      <label><input type="checkbox" id="advancedInviteEnabled"> 自动处理收到的邀请</label>
+      <label><input type="checkbox" id="advancedInviteAway"> 离开状态跳过邀请</label>
+      <label><input type="checkbox" id="advancedInviteLeader"> 自动让出队长</label>
+      <p>为各游戏模式设置接受、拒绝或忽略邀请。不同模式独立保存。</p>
+      <div id="advancedInvitationPolicies" class="advanced-policies"></div>
+      <button data-action="advanced-save" data-advanced-group="invitations">保存邀请规则</button>
+      <div class="advanced-feedback" data-advanced-feedback="invitations" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="aram">
+      <h3>极地大乱斗队伍信息</h3>
+      <label><input type="checkbox" id="advancedAramEnabled"> 启用队伍侧信息辅助</label>
+      <label><input type="checkbox" id="advancedAramVisible"> 允许向队友显示信息</label>
+      <button data-action="advanced-save" data-advanced-group="aram">保存 ARAM 设置</button>
+      <div class="advanced-feedback" data-advanced-feedback="aram" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="signature">
+      <h3>登录后恢复个性签名</h3>
+      <label><input type="checkbox" id="advancedSignatureEnabled"> 登录后自动恢复签名</label>
+      <div class="advanced-stack"><input type="text" id="advancedSignatureText" maxlength="512" placeholder="需要恢复的签名" aria-label="自动恢复签名"></div>
+      <button data-action="advanced-save" data-advanced-group="signature">保存签名恢复</button>
+      <div class="advanced-feedback" data-advanced-feedback="signature" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="rank">
+      <h3>登录后恢复展示段位</h3>
+      <label><input type="checkbox" id="advancedRankEnabled"> 登录后自动恢复段位展示</label>
+      <div class="setting-grid">
+        <label>排位模式<select id="advancedRankQueue" aria-label="恢复段位模式"></select></label>
+        <label>段位<select id="advancedRankTier" aria-label="恢复段位等级"></select></label>
+        <label>分段<select id="advancedRankDivision" aria-label="恢复段位分段"></select></label>
+      </div>
+      <button data-action="advanced-save" data-advanced-group="rank">保存段位恢复</button>
+      <div class="advanced-feedback" data-advanced-feedback="rank" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="offline">
+      <h3>离线状态锁定</h3>
+      <label><input type="checkbox" id="advancedOffline"> 保持对好友不可见</label>
+      <p>复用现有好友状态事件观察者，与自动回复策略共用连接状态。</p>
+      <button data-action="advanced-save" data-advanced-group="offline">保存离线锁定</button>
+      <div class="advanced-feedback" data-advanced-feedback="offline" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="respawn">
+      <h3>复活提示</h3>
+      <label><input type="checkbox" id="advancedRespawn"> 启用复活倒计时提示</label>
+      <button data-action="advanced-save" data-advanced-group="respawn">保存复活提示</button>
+      <div class="advanced-feedback" data-advanced-feedback="respawn" role="status"></div>
+    </div>
+    <div class="actions"><button data-route="auto-selection">自动选禁设置</button><button data-route="matchmaking-settings">排队策略</button><button data-route="postgame-settings">赛后处理</button><button data-route="presence">在线状态</button></div>
+  </section>
   <section id="matchmakingSettings">
     <h2>自动排队与确认对局</h2>
     <p>这些选项直接使用现有的 LOL 自动匹配控制器。保存后会沿用同一游戏会话，无额外后台轮询。</p>
@@ -773,7 +855,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -783,6 +865,16 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="advanced-refresh"){post("advanced-refresh");return;}
+  if(target.dataset.action==="advanced-save"){
+    var group=target.dataset.advancedGroup;
+    var payload=advancedPayload(group);
+    if(!payload)return;
+    target.disabled=true;
+    document.querySelector('[data-advanced-feedback="'+group+'"]').textContent="正在保存";
+    post("advanced-save:"+group+":"+JSON.stringify(payload));
+    return;
+  }
   if(target.dataset.action==="profile-refresh"){post("profile-refresh");return;}
   if(target.dataset.action==="cleanup-refresh"){post("cleanup-refresh");return;}
   if(target.dataset.action==="cleanup-select"){post("cleanup-select");return;}
@@ -951,6 +1043,17 @@ document.addEventListener("keydown",function(event){
 });
 if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
   var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-settings"){renderAdvancedSettings(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-result"){
+    var group=String(e.data.group||"");
+    var button=document.querySelector('#advancedToolsPage button[data-advanced-group="'+group+'"]');
+    var status=document.querySelector('#advancedToolsPage [data-advanced-feedback="'+group+'"]');
+    if(button)button.disabled=false;
+    if(status)status.textContent=e.data.status==="saved"?"已保存并应用":e.data.status==="invalid"?
+      "输入不符合允许范围，未修改原有设置":e.data.status==="unavailable"?
+      "自动化模块暂时不可用":"保存失败，原有配置未被确认修改";
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile"){renderLocalProfile(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile-unavailable"){
     get("profileStatus").textContent="本地统计服务尚未就绪";get("profileAccountList").replaceChildren();return;
@@ -1161,6 +1264,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:efficiency-advanced")setMode("efficiency-advanced","efficiency-advanced");
   else if(value==="detail:profile")setMode("profile","profile");
   else if(value==="detail:cleanup")setMode("cleanup","cleanup");
   else if(value==="detail:cloud-sync")setMode("cloud-sync","cloud-sync");
@@ -1187,6 +1291,71 @@ function renderLocalProfile(data){
   if(rows.length===0){var li=document.createElement("li");li.textContent="暂无本地游戏账号记录";list.appendChild(li);}
   get("profileStatus").textContent="本地使用数据已更新";
 }
+function advancedPayload(group){
+  var checked=function(id){return get(id).checked;};
+  if(group==="reply"){
+    var text=get("advancedReplyText").value.trim();
+    if(checked("advancedReplyEnabled")&&!text){advancedError(group,"启用后请填写回复文字");return null;}
+    return {enabled:checked("advancedReplyEnabled"),awayOnly:checked("advancedReplyAway"),text:text};
+  }
+  if(group==="invitations"){
+    var policies={};
+    document.querySelectorAll("#advancedInvitationPolicies select[data-game-type]").forEach(function(item){
+      policies[item.dataset.gameType]=item.value;
+    });
+    return {enabled:checked("advancedInviteEnabled"),skipAway:checked("advancedInviteAway"),
+      skipLeader:checked("advancedInviteLeader"),policies:policies};
+  }
+  if(group==="aram")return {enabled:checked("advancedAramEnabled"),visible:checked("advancedAramVisible")};
+  if(group==="signature")return {enabled:checked("advancedSignatureEnabled"),message:get("advancedSignatureText").value.trim()};
+  if(group==="rank")return {enabled:checked("advancedRankEnabled"),queue:get("advancedRankQueue").value,
+    tier:get("advancedRankTier").value,division:get("advancedRankDivision").value};
+  if(group==="offline")return {enabled:checked("advancedOffline")};
+  if(group==="respawn")return {enabled:checked("advancedRespawn")};
+  return null;
+}
+function advancedError(group,message){
+  var target=document.querySelector('[data-advanced-feedback="'+group+'"]');
+  if(target)target.textContent=message;
+}
+function fillAdvancedChoices(id,values,selected){
+  var control=get(id);control.replaceChildren();
+  (Array.isArray(values)?values:[]).forEach(function(value){
+    var item=document.createElement("option");item.value=String(value);item.textContent=String(value);
+    control.appendChild(item);
+  });control.value=String(selected||"");
+  if(!control.value&&control.options.length)control.selectedIndex=0;
+}
+function renderAdvancedSettings(data){
+  [["advancedReplyEnabled","replyEnabled"],["advancedReplyAway","replyAway"],
+    ["advancedInviteEnabled","inviteEnabled"],["advancedInviteAway","inviteAway"],
+    ["advancedInviteLeader","inviteLeader"],["advancedAramEnabled","aramEnabled"],
+    ["advancedAramVisible","aramVisible"],["advancedSignatureEnabled","loginSignatureEnabled"],
+    ["advancedRankEnabled","loginRankEnabled"],["advancedOffline","offlineLocked"],
+    ["advancedRespawn","respawnEnabled"]].forEach(function(item){get(item[0]).checked=!!data[item[1]];});
+  get("advancedReplyText").value=String(data.replyText||"");
+  get("advancedSignatureText").value=String(data.loginSignature||"");
+  fillAdvancedChoices("advancedRankQueue",data.rankedQueues,data.loginRankQueue);
+  fillAdvancedChoices("advancedRankTier",data.rankedTiers,data.loginRankTier);
+  fillAdvancedChoices("advancedRankDivision",data.rankedDivisions,data.loginRankDivision);
+  var policies=get("advancedInvitationPolicies");policies.replaceChildren();
+  (Array.isArray(data.invitationTypes)?data.invitationTypes:[]).forEach(function(entry){
+    var label=document.createElement("label"),name=document.createElement("span"),select=document.createElement("select");
+    name.textContent=String(entry.label||entry.value);
+    select.dataset.gameType=String(entry.value);
+    [["ignore","忽略"],["accept","自动接受"],["decline","自动拒绝"]].forEach(function(choice){
+      var opt=document.createElement("option");opt.value=choice[0];opt.textContent=choice[1];select.appendChild(opt);
+    });
+    select.value=String(entry.action||"ignore");label.append(name,select);policies.appendChild(label);
+  });
+  document.querySelectorAll("#advancedToolsPage [data-advanced-feedback]").forEach(function(node){node.textContent="";});
+  document.querySelectorAll("#advancedToolsPage button[data-advanced-group]").forEach(function(node){node.disabled=false;});
+}
+get("advancedRankTier").addEventListener("change",function(){
+  var tier=this.value;
+  var rank=get("advancedRankDivision");
+  if(["MASTER","GRANDMASTER","CHALLENGER"].includes(tier))rank.value="";
+});
 var cleanupToken=null;
 function renderCleanupState(data){
   get("cleanupPath").textContent=data.valid?data.path:"尚未设置有效的游戏安装目录";

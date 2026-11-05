@@ -79,6 +79,7 @@ namespace FACM.Presentation.Glass
                 case "client-status": width = 460; height = 420; break;
                 case "appearance": width = 590; height = 650; break;
                 case "efficiency": width = 610; height = 640; break;
+                case "efficiency-advanced": width = 650; height = 760; break;
                 case "auto-selection": width = 580; height = 650; break;
                 case "postgame-settings": width = 550; height = 590; break;
                 case "dashboard": width = 640; height = 660; break;

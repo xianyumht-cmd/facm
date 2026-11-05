@@ -187,6 +187,7 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
                     if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
                     if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
+                    if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
@@ -225,6 +226,9 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (message == "advanced-refresh") { SyncAdvancedTools(); return; }
+            if (message != null && message.StartsWith("advanced-save:", StringComparison.Ordinal))
+            { ApplyAdvancedTools(message.Substring(14)); return; }
             if (message == "profile-refresh") { SyncLocalProfile(); return; }
             if (message == "cleanup-refresh") { SyncUnifiedCleanupState(); return; }
             if (message == "cleanup-select") { SelectUnifiedCleanupDirectory(); return; }
@@ -368,6 +372,7 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
+            if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
             if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
             if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
             if (route == "updates") { OpenUpdatesPage(pushHistory); return; }
@@ -1638,7 +1643,11 @@ namespace FACM.Presentation.Glass
         {
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
+            UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"advancedToolsPage\"") ||
+                !html.Contains("data-action=\"advanced-save\""))
+                throw new InvalidOperationException("Unified advanced settings route is not HTML-backed.");
             if (!html.Contains("id=\"profilePage\""))
                 throw new InvalidOperationException("Unified local profile page is missing.");
             if (!html.Contains("id=\"cleanupPage\"") ||
