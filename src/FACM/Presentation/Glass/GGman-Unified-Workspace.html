@@ -391,7 +391,7 @@ body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:bl
 .cleanup-targets strong{font-size:11px;display:block;overflow-wrap:anywhere}
 .cleanup-targets small{font-size:10px;line-height:1.6;color:var(--muted);display:block;overflow-wrap:anywhere}
 .cleanup-targets li[data-blocked="true"]{opacity:.75;border-style:dashed}
-#cleanupReview[hidden],#cleanupResultDetail[hidden]{display:none!important}
+#cleanupReview[hidden],#cleanupResultDetail[hidden],#cleanupElevation[hidden]{display:none!important}
 #cleanupReview .guide-confirm{border-color:#e5b97f}
 
 </style>
@@ -758,7 +758,7 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.action==="cleanup-cancel"){
     cleanupToken=null;get("cleanupReview").hidden=true;
-    get("cleanupStatus").textContent="已关闭本次预览（未执行删除）";
+    post("cleanup-cancel");get("cleanupStatus").textContent="已取消本次预览（未执行删除）";
     return;
   }
   if(target.dataset.action==="cleanup-elevate"){post("cleanup-elevate");return;}
