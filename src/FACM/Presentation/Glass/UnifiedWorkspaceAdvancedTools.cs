@@ -5,6 +5,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
 using FACM.AppHost.Modules;
+using FACM.Services;
 
 namespace FACM.Presentation.Glass
 {
