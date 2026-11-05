@@ -593,7 +593,12 @@ document.addEventListener("keydown",function(event){
   var editing=!!(target&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)));
   if(event.key==="Escape"){
     if(editing&&target.tagName==="INPUT"&&target.type==="search"&&target.value){
-      target.value="";filterToolCards();event.preventDefault();return;
+      target.value="";
+      if(target.id==="historySearch")drawHistoryRows();
+      else if(target.id==="liveSearch")drawLiveRows();
+      else if(target.id==="toolSearch")filterToolCards();
+      target.dispatchEvent(new Event("input",{bubbles:true}));
+      event.preventDefault();return;
     }
     event.preventDefault();navigateBack();return;
   }
@@ -618,6 +623,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("historyAccount").textContent="未连接";
     get("historyLevel").textContent="—";
     get("historyList").replaceChildren();historyRows=[];historyFilter="all";
+    get("historyMore").hidden=true;
     get("historySearch").value="";get("historySort").value="recent";
     document.querySelectorAll("[data-history-filter]").forEach(function(item){
       item.setAttribute("aria-pressed",item.dataset.historyFilter==="all"?"true":"false");
@@ -625,7 +631,8 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
-    get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=false;
+    get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=true;
+    get("livePlayers").dataset.sgp="false";
     get("liveConnection").textContent="客户端状态待确认";
     get("livePhase").textContent="—";get("liveQueue").textContent="—";get("liveMap").textContent="—";
     get("livePlayers").replaceChildren();get("liveBans").replaceChildren();get("liveBans").hidden=true;
