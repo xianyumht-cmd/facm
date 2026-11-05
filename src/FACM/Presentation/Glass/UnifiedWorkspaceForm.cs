@@ -42,7 +42,6 @@ namespace FACM.Presentation.Glass
         private readonly WebView2 _browser;
         private readonly Panel _content;
         private LeagueHubForm _hub;
-        private CleanupRepairForm _cleanupPage;
         private bool _starting;
         private bool _ready;
         private bool _closing;
@@ -116,7 +115,6 @@ namespace FACM.Presentation.Glass
                 CancelRecommendationRead();
                 CancelOnlineRead();
                 UnhookCloudEvents();
-                if (_cleanupPage != null && !_cleanupPage.IsDisposed) _cleanupPage.Dispose();
                 _browser.Dispose();
             };
         }
@@ -185,6 +183,7 @@ namespace FACM.Presentation.Glass
                         StartDashboardRead();
                     if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
+                    if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
@@ -223,6 +222,14 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (message == "cleanup-refresh") { SyncUnifiedCleanupState(); return; }
+            if (message == "cleanup-select") { SelectUnifiedCleanupDirectory(); return; }
+            if (message == "cleanup-detect") { DetectUnifiedCleanupDirectory(); return; }
+            if (message == "cleanup-driver") { OpenUnifiedDriverRepair(); return; }
+            if (message == "cleanup-preview") { PreviewUnifiedCleanup(); return; }
+            if (message == "cleanup-elevate") { RestartUnifiedCleanupElevated(); return; }
+            if (message != null && message.StartsWith("cleanup-confirm:", StringComparison.Ordinal))
+            { ConfirmUnifiedCleanup(message.Substring(16)); return; }
             if (message != null && message.StartsWith("repair-action:", StringComparison.Ordinal))
             {
                 ApplyRepairAction(message.Substring(14)); return;
@@ -345,6 +352,8 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
+            if (route != "cleanup") ResetCleanupPreview();
             if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
             if (!string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal)) CancelDashboardRead();
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
@@ -399,7 +408,7 @@ namespace FACM.Presentation.Glass
             }
             if (string.Equals(route, "cleanup", StringComparison.Ordinal))
             {
-                OpenCleanupPage(pushHistory);
+                OpenUnifiedCleanupPage(pushHistory);
                 return;
             }
             if (_cleanupPage != null && !_cleanupPage.IsDisposed && !TryCloseCurrentHub()) return;
@@ -1457,45 +1466,11 @@ namespace FACM.Presentation.Glass
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
-        private void OpenCleanupPage(bool pushHistory)
-        {
-            if (_hub != null && !_hub.IsDisposed && !TryCloseCurrentHub()) return;
-            if (_cleanupPage == null || _cleanupPage.IsDisposed)
-            {
-                _cleanupPage = new CleanupRepairForm(_ownerBall, _settings, _cleanup);
-                _cleanupPage.TopLevel = false;
-                _cleanupPage.FormBorderStyle = FormBorderStyle.None;
-                _cleanupPage.Dock = DockStyle.Fill;
-                _cleanupPage.MinimumSize = Size.Empty;
-                _cleanupPage.MaximumSize = Size.Empty;
-                _cleanupPage.ShowInTaskbar = false;
-                _cleanupPage.TopMost = false;
-                _content.Controls.Add(_cleanupPage);
-                var page = _cleanupPage;
-                page.FormClosed += delegate
-                {
-                    if (_explicitlyClosingHub || _closing || IsDisposed) return;
-                    if (ReferenceEquals(_cleanupPage, page))
-                    {
-                        _content.Controls.Remove(page);
-                        _cleanupPage = null;
-                        _navigation.Home();
-                        ShowHome();
-                    }
-                };
-            }
-            if (pushHistory) _navigation.Open("cleanup");
-            _browser.Dock = DockStyle.Top;
-            _browser.Height = 58;
-            _content.Visible = true;
-            ResizeForRoute(true);
-            _cleanupPage.Show();
-            SyncWebNavigation();
-        }
-
         private void NavigateBack()
         {
+            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             if (_navigation.IsHome || !TryCloseCurrentHub()) return;
+            ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelPresenceOperation();
@@ -1512,7 +1487,9 @@ namespace FACM.Presentation.Glass
 
         private void ReturnHome()
         {
+            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             if (!TryCloseCurrentHub()) return;
+            ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelPresenceOperation();
@@ -1528,19 +1505,6 @@ namespace FACM.Presentation.Glass
 
         private bool TryCloseCurrentHub()
         {
-            if (_cleanupPage != null && !_cleanupPage.IsDisposed)
-            {
-                _explicitlyClosingHub = true;
-                try
-                {
-                    var cleanup = _cleanupPage;
-                    cleanup.Close();
-                    if (!cleanup.IsDisposed) return false;
-                    _content.Controls.Remove(cleanup);
-                    if (ReferenceEquals(_cleanupPage, cleanup)) _cleanupPage = null;
-                }
-                finally { _explicitlyClosingHub = false; }
-            }
             if (_hub == null || _hub.IsDisposed) return true;
             _explicitlyClosingHub = true;
             try
@@ -1630,7 +1594,14 @@ namespace FACM.Presentation.Glass
 
         private void HandleClosing(object sender, FormClosingEventArgs e)
         {
+            if (_cleanupExecuting)
+            {
+                e.Cancel = true;
+                PostUnifiedCleanupStatus("deleting");
+                return;
+            }
             if (_closing) return;
+            ResetCleanupPreview();
             if (!TryCloseCurrentHub())
             {
                 e.Cancel = true;
@@ -1663,6 +1634,10 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"cleanupPage\"") ||
+                !html.Contains("data-action=\"cleanup-preview\"") ||
+                !html.Contains("data-action=\"cleanup-confirm\""))
+                throw new InvalidOperationException("Unified cleanup route must preserve plan review and confirmation.");
             if (!html.Contains("Microsoft YaHei UI") ||
                 !html.Contains("class=\"status status-home\"") ||
                 !html.Contains("class=\"section-caption\"") ||
