@@ -139,6 +139,18 @@ namespace FACM.Presentation.Glass
                 !router.Open("postgame-settings") || !router.Back() ||
                 !router.Open("dashboard-advanced") || !router.Back())
                 throw new InvalidOperationException("Unified shell cleanup navigation did not return home.");
+            foreach (var scale in new[] { 1F, 1.25F, 1.5F, 2F })
+            {
+                var narrowWorkArea = new Rectangle(0, 0, 420, 620);
+                foreach (var id in new[] { "", "live-advanced", "cleanup", "quick-messages", "efficiency-advanced" })
+                {
+                    var bounded = ResolveClientSize(narrowWorkArea, id, scale);
+                    if (bounded.Width > narrowWorkArea.Width - 24 ||
+                        bounded.Height > narrowWorkArea.Height - 24 ||
+                        bounded.Width < 260 || bounded.Height < 260)
+                        throw new InvalidOperationException("Unified window exceeds DPI-clamped work area: " + id);
+                }
+            }
             for (var index = 0; index < 100; index++) router.Open(routes[index % routes.Length]);
             if (router.Depth > 16) throw new InvalidOperationException("Unified shell history is unbounded.");
             router.Home();

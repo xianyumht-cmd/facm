@@ -37,12 +37,22 @@ $cases = @(
   @{ Mode='quick-messages'; Width=680; Height=760 },
   @{ Mode='quick-messages'; Width=420; Height=620 },
   @{ Mode='bench'; Width=660; Height=730 },
-  @{ Mode='bench'; Width=420; Height=620 }
+  @{ Mode='bench'; Width=420; Height=620 },
+  # Emulate Windows display scale factors. Physical window dimensions remain
+  # realistic while the Chromium CSS viewport is reduced at 125–200% DPI.
+  @{ Mode='home'; Width=525; Height=500; Dpi=1.25; Tag='home-dpi125' },
+  @{ Mode='home'; Width=630; Height=600; Dpi=1.50; Tag='home-dpi150' },
+  @{ Mode='home'; Width=840; Height=800; Dpi=2.00; Tag='home-dpi200' },
+  @{ Mode='bench'; Width=525; Height=775; Dpi=1.25; Tag='bench-dpi125' },
+  @{ Mode='advanced-tools'; Width=630; Height=900; Dpi=1.50; Tag='advanced-dpi150' },
+  @{ Mode='cleanup'; Width=840; Height=840; Dpi=2.00; Tag='cleanup-dpi200' },
+  @{ Mode='quick-messages'; Width=840; Height=840; Dpi=2.00; Tag='quick-dpi200' }
 )
 foreach ($scene in $cases) {
   $mode = $scene.Mode
-  $htmlPath = Join-Path $target.FullName "unified-$mode.html"
-  $imagePath = Join-Path $target.FullName "unified-$mode.png"
+  $caseName = if ($scene.Tag) { [string]$scene.Tag } else { "$mode-w$($scene.Width)-h$($scene.Height)" }
+  $htmlPath = Join-Path $target.FullName "unified-$caseName.html"
+  $imagePath = Join-Path $target.FullName "unified-$caseName.png"
   $visualProbe = @'
 <script>
 window.GGmanUnifiedShell.setMode('SCENE','SCENE');
@@ -59,9 +69,11 @@ document.body.appendChild(marker);
   $page = $source.Replace('</body>', $visualProbe + '</body>')
   Set-Content -LiteralPath $htmlPath -Value $page -Encoding utf8 -NoNewline
   $uri = ([System.Uri]::new($htmlPath)).AbsoluteUri
-  $profile = Join-Path $env:RUNNER_TEMP "ggman-unified-$mode"
+  $profile = Join-Path $env:RUNNER_TEMP "ggman-unified-$caseName"
   $windowSize = "$($scene.Width),$($scene.Height)"
-  $edgeArgs = @('--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--hide-scrollbars',"--user-data-dir=$profile","--screenshot=$imagePath","--window-size=$windowSize",$uri)
+  $edgeArgs = @('--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--hide-scrollbars',"--user-data-dir=$profile","--screenshot=$imagePath","--window-size=$windowSize")
+  if ($scene.Dpi) { $edgeArgs += "--force-device-scale-factor=$($scene.Dpi.ToString([System.Globalization.CultureInfo]::InvariantCulture))" }
+  $edgeArgs += $uri
   & $edge @edgeArgs
   $previousSize = -1
   $stable = $false
@@ -79,6 +91,6 @@ document.body.appendChild(marker);
     $layout = $image.GetPixel(4,4)
     if ($layout.G -lt 180 -or $layout.R -gt 140) { throw "Unified view horizontal overflow or inactive script: $mode" }
   } finally { $image.Dispose() }
-  Write-Host "Unified browser rendered: $mode"
+  Write-Host "Unified browser rendered: $caseName"
 }
 exit 0
