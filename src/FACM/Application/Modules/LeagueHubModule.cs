@@ -67,6 +67,7 @@ namespace FACM.AppHost.Modules
         internal LeagueLiveModule UnifiedLive { get { return _live; } }
         internal MayhemModule UnifiedMayhem { get { return _mayhem; } }
         internal LeagueBuildAdvisorModule UnifiedAdvisor { get { return _advisor; } }
+        internal LeaguePersonalStatsModule UnifiedPersonalStats { get { return _personalStats; } }
         internal LeaguePlayerModule UnifiedPlayer { get { return _player; } }
 
         public string Id { get { return ModuleId; } }
