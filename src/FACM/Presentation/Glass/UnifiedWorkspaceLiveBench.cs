@@ -58,7 +58,12 @@ namespace FACM.Presentation.Glass
             try
             {
                 var state = await module.UnifiedBenchQuickPick.RefreshAsync(source.Token);
-                if (!LiveBenchCurrent(module, session, source, generation)) return;
+                if (!LiveBenchCurrent(module, session, source, generation))
+                {
+                    if (LiveBenchCurrentIgnoringTimeout(module, session, source, generation, false))
+                        PostBenchMessage("bench-state", "session-changed");
+                    return;
+                }
                 var ids = state == null || !state.SessionAvailable || !state.BenchEnabled
                     ? new int[0] : state.ChampionIds.Where(id => id > 0 && id <= 10000)
                         .Distinct().Take(32).ToArray();
@@ -81,7 +86,13 @@ namespace FACM.Presentation.Glass
                 // bounded, optional and never block showing the selectable champions.
                 foreach (var championId in ids.Take(16))
                 {
-                    if (!LiveBenchCurrent(module, session, source, generation)) break;
+                    if (!LiveBenchCurrent(module, session, source, generation))
+                    {
+                        if (LiveBenchCurrentIgnoringTimeout(module, session, source, generation, false) &&
+                            !source.IsCancellationRequested)
+                            PostBenchMessage("bench-state", "session-changed");
+                        break;
+                    }
                     var bytes = await module.UnifiedBenchQuickPick.LoadChampionIconAsync(championId, source.Token);
                     if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024 ||
                         !LiveBenchCurrent(module, session, source, generation)) continue;
@@ -127,13 +138,13 @@ namespace FACM.Presentation.Glass
         }
 
         private bool LiveBenchCurrentIgnoringTimeout(LeagueLiveModule module, LeagueClientSession session,
-            CancellationTokenSource source, int generation)
+            CancellationTokenSource source, int generation, bool checkSession = true)
         {
             return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
                 _navigation.Current == "live-advanced" &&
                 ReferenceEquals(source, _liveBenchRead) && generation == _liveBenchGeneration &&
-                (session == null ? module.UnifiedLiveSession == null :
-                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLiveSession));
+                (!checkSession || (session == null ? module.UnifiedLiveSession == null :
+                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLiveSession)));
         }
 
         private bool LiveBenchCurrent(LeagueLiveModule module, LeagueClientSession session,

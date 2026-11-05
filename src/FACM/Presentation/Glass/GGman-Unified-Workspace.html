@@ -912,7 +912,7 @@ body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;ov
 <script>
 (function(){
 "use strict";
-var titles={"cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
+var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
 var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
@@ -1812,7 +1812,7 @@ function renderBenchState(data){
   get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
   get("benchMode").textContent=data.mode|| (data.queue>0?"队列 #"+data.queue:"—");
   var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
-    disabled:"当前游戏模式没有开放替补席",timeout:"读取超时，请稍后再试",
+    disabled:"当前游戏模式没有开放替补席","session-changed":"游戏账号或选人会话已切换，请重新读取",timeout:"读取超时，请稍后再试",
     failed:"替补席读取失败，检查客户端后重试"};
   get("benchReadStatus").textContent=status[data.status]||"正在读取替补席";
   if(data.status!=="ready")return;
