@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.Mayhem;
@@ -34,6 +36,19 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
+        }
+
+        internal LeagueClientSession UnifiedLookupSession { get { return _leagueClient.CurrentSession; } }
+
+        // Reuse the same lookup and enrichment chain as the native Mayhem form.
+        internal async Task<MayhemChampionResult> ReadUnifiedGuideAsync(string champion, CancellationToken token)
+        {
+            var result = await OpggMayhemService.QueryAsync(champion, token);
+            if (result == null || !string.IsNullOrWhiteSpace(result.ErrorMessage)) return result;
+            await RiotGameDataService.EnrichAsync(result, _leagueClient, token);
+            await MayhemRankedAugmentService.EnrichAsync(result, token);
+            await MayhemDecisionLocalizationService.EnrichAsync(result, _leagueClient, token);
+            return result;
         }
 
         public Form CreateLookupForm()
