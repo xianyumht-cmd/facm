@@ -80,6 +80,16 @@ namespace FACM.League
             get { return _module == null ? null : _module.UnifiedPlayer; }
         }
 
+        internal static MayhemModule UnifiedMayhem
+        {
+            get { return _module == null ? null : _module.UnifiedMayhem; }
+        }
+
+        internal static LeagueBuildAdvisorModule UnifiedAdvisor
+        {
+            get { return _module == null ? null : _module.UnifiedAdvisor; }
+        }
+
         internal static LeagueEfficiencyModule UnifiedEfficiency
         {
             get { return _module == null ? null : _module.UnifiedEfficiency; }
