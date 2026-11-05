@@ -55,12 +55,12 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
-            _enabled = _consentStore.Load();
+            _enabled = _consentStore.Load() && _cloudSync.IsReady;
             Current = this;
             _cancellation = new CancellationTokenSource();
             _flushTimer = new System.Windows.Forms.Timer { Interval = 30000 };
             _flushTimer.Tick += HandleFlushTimerTick;
-            _flushTimer.Start();
+            if (_cloudSync.IsReady) _flushTimer.Start();
         }
 
         internal static void Record(string eventName)
