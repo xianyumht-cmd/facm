@@ -76,9 +76,12 @@ namespace FACM.Presentation.Glass
         {
             UnifiedQuickMessageChange parsed;
             var valid = "{\"presets\":[\"准备好了\",\"\",\"\",\"\"],\"hotkeys\":[\"Ctrl+Shift+1\",\"\",\"\",\"\",\"\"],\"intervalMs\":400}";
-            if (!TryParse(valid, out parsed) || parsed.IntervalMs != 400 ||
-                LeagueQuickMessagePresets.Parse(parsed.Presets)[0] != "准备好了")
-                throw new InvalidOperationException("Quick message settings rejected valid native JSON.");
+            if (!TryParse(valid, out parsed))
+                throw new InvalidOperationException("Quick message settings rejected a valid JSON array payload.");
+            if (parsed.IntervalMs != 400)
+                throw new InvalidOperationException("Quick message interval changed during strict JSON parsing.");
+            if (LeagueQuickMessagePresets.Parse(parsed.Presets)[0] != "准备好了")
+                throw new InvalidOperationException("Quick message preset changed during native normalization.");
             if (TryParse(valid.Replace("\"Ctrl+Shift+1\"", "\"Ctrl+Shift+1\",\"Ctrl+Shift+1\""), out parsed))
                 throw new InvalidOperationException("Quick message settings accepted duplicate hotkey slots.");
             if (TryParse(valid.Replace("\"intervalMs\":400", "\"intervalMs\":6000"), out parsed) ||
