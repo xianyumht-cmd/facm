@@ -90,6 +90,11 @@ namespace FACM.League
             get { return _module == null ? null : _module.UnifiedAdvisor; }
         }
 
+        internal static LeaguePersonalStatsModule UnifiedPersonalStats
+        {
+            get { return _module == null ? null : _module.UnifiedPersonalStats; }
+        }
+
         internal static LeagueEfficiencyModule UnifiedEfficiency
         {
             get { return _module == null ? null : _module.UnifiedEfficiency; }
