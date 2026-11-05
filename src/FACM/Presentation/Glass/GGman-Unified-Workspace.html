@@ -775,13 +775,15 @@ function drawHistoryRows(){
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
     card.append(top,meta,score);list.appendChild(card);
   });
-  var wins=historyRows.filter(function(match){return match.outcome==="win";}).length;
-  var losses=historyRows.filter(function(match){return match.outcome==="loss";}).length;
+  var wins=rows.filter(function(match){return match.outcome==="win";}).length;
+  var losses=rows.filter(function(match){return match.outcome==="loss";}).length;
   var decided=wins+losses;
+  var filtered=historyFilter!=="all"||!!query;
   get("historyResult").textContent=historyRows.length?
-    "已读取 "+historyRows.length+" 场 · 胜 "+wins+" / 负 "+losses+
+    (filtered?"筛选 "+rows.length+" / "+historyRows.length+" 场":"已读取 "+historyRows.length+" 场")+
+    " · 胜 "+wins+" / 负 "+losses+
     (decided?" · 胜率 "+Math.round(wins*100/decided)+"%":"")+
-    (historyFilter==="all"&&!query?"":" · 当前筛选 "+rows.length+" 场"):
+    (!rows.length?" · 无匹配对局":""):
     "当前账号暂无可读取的历史对局";
 }
 function renderHistory(data){
