@@ -520,7 +520,11 @@ namespace FACM.Presentation.Glass
             {
                 var session = module.UnifiedHistorySession;
                 var result = await module.ReadUnifiedHistoryAsync(count, force, source.Token);
-                if (!HistoryReadIsCurrent(module, session, source, generation)) return;
+                if (!HistoryReadIsCurrent(module, session, source, generation))
+                {
+                    if (HistoryReadIsCurrent(module, null, source, generation, false)) PostHistoryError();
+                    return;
+                }
                 if (result == null || result.Profile == null) { PostHistoryError(); return; }
                 var page = result.Page;
                 var payload = new JavaScriptSerializer().Serialize(new
@@ -615,7 +619,11 @@ namespace FACM.Presentation.Glass
             {
                 var session = module.UnifiedLiveSession;
                 var snapshot = await module.ReadUnifiedLiveAsync(includeSgp, source.Token);
-                if (!LiveReadIsCurrent(module, session, source, generation)) return;
+                if (!LiveReadIsCurrent(module, session, source, generation))
+                {
+                    if (LiveReadIsCurrent(module, null, source, generation, false)) PostLiveError();
+                    return;
+                }
                 if (snapshot == null) { PostLiveError(); return; }
                 var payload = new JavaScriptSerializer().Serialize(new
                 {
