@@ -278,7 +278,9 @@ namespace FACM.Presentation.Glass
                         scoped = new LeagueBuildApplyPlan
                         {
                             ChampionId = original.ChampionId, ChampionName = original.ChampionName,
-                            QueueId = original.QueueId, Mode = original.Mode, Position = original.Position,
+                            TraceId = original.TraceId, QueueId = original.QueueId,
+                            QueueType = original.QueueType, PresetGroup = original.PresetGroup,
+                            Mode = original.Mode, Position = original.Position,
                             Version = original.Version, RunePreview = original.RunePreview,
                             SpellPreview = original.SpellPreview
                         };
@@ -291,6 +293,7 @@ namespace FACM.Presentation.Glass
                         {
                             scoped.PrimaryStyleId = original.PrimaryStyleId;
                             scoped.SecondaryStyleId = original.SecondaryStyleId;
+                            scoped.PresetPerkIds.AddRange(original.PresetPerkIds);
                             scoped.PrimaryRuneIds.AddRange(original.PrimaryRuneIds);
                             scoped.SecondaryRuneIds.AddRange(original.SecondaryRuneIds);
                             scoped.StatModIds.AddRange(original.StatModIds);
