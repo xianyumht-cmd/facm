@@ -409,6 +409,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
       <div><small>地图</small><strong id="liveMap">—</strong></div>
     </div>
     <p id="liveSummary" role="status" aria-live="polite">等待当前客户端阵容</p>
+    <div id="liveBans" class="status" aria-label="当前禁用英雄" hidden></div>
     <div class="history-filter" role="group" aria-label="筛选当前阵容">
       <button type="button" data-live-filter="all" aria-pressed="true">全部</button>
       <button type="button" data-live-filter="my-team" aria-pressed="false">我方</button>
@@ -627,7 +628,9 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=false;
     get("liveConnection").textContent="客户端状态待确认";
     get("livePhase").textContent="—";get("liveQueue").textContent="—";get("liveMap").textContent="—";
-    get("livePlayers").replaceChildren();
+    get("livePlayers").replaceChildren();get("liveBans").replaceChildren();get("liveBans").hidden=true;
+    liveRows=[];liveFilter="all";get("liveSearch").value="";get("liveSort").value="team";
+    document.querySelectorAll("[data-live-filter]").forEach(function(item){item.setAttribute("aria-pressed",item.dataset.liveFilter==="all"?"true":"false");});
     get("liveSummary").textContent="读取失败或游戏会话已切换，请重新读取";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="repair-state"){
@@ -857,6 +860,15 @@ function drawLiveRows(){
     "当前阶段没有可确认的阵容";
 }
 function renderLive(data){
+  var bans=get("liveBans");bans.replaceChildren();bans.hidden=true;
+  if(data.connected){
+    [["我方禁用",data.allyBans],["对方禁用",data.enemyBans]].forEach(function(group){
+      var ids=(Array.isArray(group[1])?group[1]:[]).filter(function(id){return Number.isSafeInteger(Number(id))&&Number(id)>0;}).slice(0,10);
+      if(!ids.length)return;
+      var line=document.createElement("span");line.textContent=group[0]+"："+ids.map(function(id){return "英雄 #"+Number(id);}).join(" · ");
+      bans.appendChild(line);bans.hidden=false;
+    });
+  }
   get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
   get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
   get("livePhase").textContent=phaseLabel(data.phase);
