@@ -518,7 +518,7 @@ body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:bl
   </section>
   <section id="cloudSyncPage">
     <h2>云同步</h2>
-    <p>由现有 GGman 账号及云同步控制器管理。自动同步设置和游戏配置恢复遵循原有账号与游戏进程保护。</p>
+    <p id="cloudModeNote">云账号同步属于可选功能，不影响本地游戏工具与单独的正式在线更新。</p>
     <div class="guide-results">
       <div class="guide-card"><strong>当前 GGman 账号</strong><small id="cloudAccount">未登录</small></div>
       <div class="guide-card"><strong>云同步状态</strong><small id="cloudStatus" role="status" aria-live="polite">等待读取</small></div>
@@ -942,7 +942,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var messages={saved:"同步设置已保存",published:"游戏配置上传成功",resolved:"已按本地配置处理云端冲突",
       invalid:"无效的同步设置",busy:"同步服务正忙，请稍后重试",unavailable:"请先登录 GGman 账号并确认服务可用",
       "context-changed":"GGman 账号已切换，本次结果已丢弃",unsaved:"请先保存当前文字配置",
-      failed:"云端操作未成功，请检查账号和网络"};
+      "local-only":"当前为免登录本地模式，云端功能已暂停",failed:"云端操作未成功，请检查账号和网络"};
     get("cloudResult").textContent=(messages[e.data.status]||"操作状态待确认")+
       (e.data.status==="published"&&Number(e.data.version)>0?" · 版本 "+e.data.version:"");return;
   }
@@ -1161,16 +1161,19 @@ var cloudPendingAction=null;
 var cloudBusy=false;
 var onlineCanInstall=false;
 function renderCloudState(data){
-  guideText("cloudAccount",data.loggedIn?data.account:"未登录 GGman");
-  get("cloudStatus").textContent=data.status||"同步状态待确认";
-  get("cloudAutoSync").checked=!!data.autoSync;
-  get("cloudGameRestore").checked=!!data.autoGameRestore;
+  guideText("cloudAccount",data.localOnly?"本地模式（无需登录）":(data.loggedIn?data.account:"未登录 GGman"));
+  get("cloudModeNote").textContent=data.localOnly?
+    "目前免费云服务额度已耗尽，GGman 已进入免登录本地模式；云同步和验证码功能暂缓，所有本地游戏功能继续可用。":
+    "已启用云端模式，账号验证和自动同步使用已有服务.";
+  get("cloudStatus").textContent=data.localOnly?"本地模式运行中 · 不访问 CloudBase":(data.status||"同步状态待确认");
+  get("cloudAutoSync").checked=!data.localOnly&&!!data.autoSync;
+  get("cloudGameRestore").checked=!data.localOnly&&!!data.autoGameRestore;
   cloudBusy=!!data.busy;
-  get("cloudAutoSync").disabled=cloudBusy||!data.available;
-  get("cloudGameRestore").disabled=cloudBusy||!data.available;
-  get("cloudPublish").disabled=cloudBusy||!data.loggedIn||!data.available;
-  get("cloudConflictRow").hidden=!data.loggedIn||!data.conflict;
-  get("cloudKeepLocal").disabled=cloudBusy||!data.available;
+  get("cloudAutoSync").disabled=!!data.localOnly||cloudBusy||!data.available;
+  get("cloudGameRestore").disabled=!!data.localOnly||cloudBusy||!data.available;
+  get("cloudPublish").disabled=!!data.localOnly||cloudBusy||!data.loggedIn||!data.available;
+  get("cloudConflictRow").hidden=!!data.localOnly||!data.loggedIn||!data.conflict;
+  get("cloudKeepLocal").disabled=!!data.localOnly||cloudBusy||!data.available;
 }
 get("cloudAutoSync").addEventListener("change",function(){
   if(cloudBusy)return;cloudBusy=true;
