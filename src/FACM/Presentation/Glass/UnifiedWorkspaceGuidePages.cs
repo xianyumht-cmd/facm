@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
+using FACM.Mayhem;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -72,6 +74,8 @@ namespace FACM.Presentation.Glass
                     PostLeaguePageStatus("mayhem-failed", "no-data");
                     return;
                 }
+                var rankedAugments = (result.AugmentRows ?? new List<MayhemAugmentRow>())
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name)).Take(8).ToArray();
                 var payload = new JavaScriptSerializer().Serialize(new
                 {
                     type = "mayhem-details",
@@ -87,6 +91,15 @@ namespace FACM.Presentation.Glass
                     skills = result.SkillOrder,
                     items = result.CoreItems == null ? new string[0] : result.CoreItems.Take(5).ToArray(),
                     augments = result.Augments == null ? new string[0] : result.Augments.Take(8).ToArray(),
+                    augmentSource = result.AugmentSourceRoute,
+                    augmentStale = result.AugmentSourceStale,
+                    augmentDetails = rankedAugments.Select(row => new
+                    {
+                        name = row.Name, rank = row.Rank,
+                        rarity = row.Rarity, rarityKind = row.RarityKind,
+                        winRate = row.WinRate, pickRate = row.PickRate,
+                        games = row.Games, description = row.Description
+                    }).ToArray(),
                     top = (result.TopTen ?? new System.Collections.Generic.List<FACM.Mayhem.MayhemTopChampion>()).Take(10).Select(item => new
                     {
                         name = item.Name, rank = item.Rank,
@@ -94,6 +107,9 @@ namespace FACM.Presentation.Glass
                     }).ToArray()
                 });
                 _browser.CoreWebView2.PostWebMessageAsJson(payload);
+                // Text arrives first. Icons use the same image-cache owner and are optional.
+                // Slow or unavailable icon sources must never block the result page.
+                await PostMayhemIconsAsync(module, result, rankedAugments, session, source, generation);
             }
             catch (OperationCanceledException)
             {
@@ -115,6 +131,47 @@ namespace FACM.Presentation.Glass
                 if (ReferenceEquals(_mayhemCancellation, source)) _mayhemCancellation = null;
                 source.Dispose();
             }
+        }
+
+        private async Task PostMayhemIconsAsync(MayhemModule module, MayhemChampionResult result,
+            MayhemAugmentRow[] rows, LeagueClientSession session,
+            CancellationTokenSource source, int generation)
+        {
+            if (!MayhemCurrent(module, session, source, generation)) return;
+            await PostMayhemIconAsync(module, "champion", 0, result.ChampionIconUrl, session, source, generation);
+            for (var index = 0; index < Math.Min(8, rows.Length); index++)
+            {
+                if (!MayhemCurrent(module, session, source, generation)) return;
+                await PostMayhemIconAsync(module, "augment", index, rows[index].IconUrl, session, source, generation);
+            }
+            if (rows.Length == 0 && result.AugmentIconUrls != null)
+            {
+                for (var index = 0; index < Math.Min(8, result.AugmentIconUrls.Count); index++)
+                {
+                    if (!MayhemCurrent(module, session, source, generation)) return;
+                    await PostMayhemIconAsync(module, "augment", index, result.AugmentIconUrls[index], session, source, generation);
+                }
+            }
+            if (result.CoreItemIconUrls != null)
+            {
+                for (var index = 0; index < Math.Min(5, result.CoreItemIconUrls.Count); index++)
+                {
+                    if (!MayhemCurrent(module, session, source, generation)) return;
+                    await PostMayhemIconAsync(module, "item", index, result.CoreItemIconUrls[index], session, source, generation);
+                }
+            }
+        }
+
+        private async Task PostMayhemIconAsync(MayhemModule module, string kind, int index, string reference,
+            LeagueClientSession session, CancellationTokenSource source, int generation)
+        {
+            if (string.IsNullOrWhiteSpace(reference)) return;
+            var image = await module.ReadUnifiedIconAsync(reference, source.Token);
+            if (string.IsNullOrEmpty(image) || !MayhemCurrent(module, session, source, generation)) return;
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            {
+                type = "mayhem-icon", kind, index, image
+            }));
         }
 
         private bool MayhemCurrent(MayhemModule module, LeagueClientSession session,
@@ -328,7 +385,7 @@ namespace FACM.Presentation.Glass
                         (request.Items && itemResult != null && itemResult.Succeeded ? 1 : 0);
                     var blocked = (loadoutResult != null && loadoutResult.Status == "blocked") ||
                         (itemResult != null && itemResult.Status == "blocked");
-                    PostLeaguePageStatus("recommendation-result",
+                    PostRecommendationApplyResult(request, loadoutResult, itemResult,
                         succeeded == selected ? "success" : succeeded > 0 ? "partial" :
                         blocked ? "context-changed" : "failed");
                 }
@@ -350,6 +407,29 @@ namespace FACM.Presentation.Glass
                     _recommendationBusy = false;
                 }
             }
+        }
+
+        private void PostRecommendationApplyResult(UnifiedRecommendationApplyChange request,
+            LeagueBuildApplyResult loadout, LeagueItemSetWriteResult items, string status)
+        {
+            if (!_ready || IsDisposed || _browser.CoreWebView2 == null ||
+                _navigation.Current != LeagueHubNavigation.Recommendation) return;
+            Func<bool, bool, bool, string> outcome = (selected, available, applied) =>
+                !selected ? "not-selected" : !available ? "unavailable" :
+                applied ? "success" : "failed";
+            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            {
+                type = "recommendation-apply-result",
+                status,
+                runes = outcome(request.Runes, loadout != null,
+                    loadout != null && loadout.RunesApplied),
+                spells = outcome(request.Spells, loadout != null,
+                    loadout != null && loadout.SpellsApplied),
+                items = outcome(request.Items, items != null,
+                    items != null && items.Succeeded),
+                runeSlotFull = loadout != null && loadout.RuneSkippedNoCapacity,
+                itemCleanupWarning = items != null && items.CleanupWarning
+            }));
         }
 
         private void CancelRecommendationRead()
