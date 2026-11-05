@@ -409,6 +409,12 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
       <div><small>地图</small><strong id="liveMap">—</strong></div>
     </div>
     <p id="liveSummary" role="status" aria-live="polite">等待当前客户端阵容</p>
+    <div class="history-filter" role="group" aria-label="筛选当前阵容">
+      <button type="button" data-live-filter="all" aria-pressed="true">全部</button>
+      <button type="button" data-live-filter="my-team" aria-pressed="false">我方</button>
+      <button type="button" data-live-filter="their-team" aria-pressed="false">对方</button>
+    </div>
+    <label class="tool-search" for="liveSearch">搜索当前阵容<input id="liveSearch" type="search" maxlength="80" autocomplete="off" placeholder="玩家名称、英雄编号或位置"></label>
     <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
     <div class="save-row">
       <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
@@ -795,27 +801,65 @@ function renderHistory(data){
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
 }
-function renderLive(data){
-  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
-  get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
-  get("livePhase").textContent=phaseLabel(data.phase);
-  get("liveQueue").textContent=data.queue||data.mode||"—";
-  get("liveMap").textContent=data.map||"—";
+var liveRows=[];
+var liveFilter="all";
+get("liveSearch").addEventListener("input",drawLiveRows);
+document.querySelectorAll("[data-live-filter]").forEach(function(button){
+  button.addEventListener("click",function(){
+    liveFilter=button.dataset.liveFilter;
+    document.querySelectorAll("[data-live-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item===button?"true":"false");
+    });
+    drawLiveRows();
+  });
+});
+function liveSide(player){
+  if(player.local||player.side==="my-team"||player.side==="team-1")return "my-team";
+  if(player.side==="their-team"||player.side==="team-2")return "their-team";
+  return "unknown";
+}
+function drawLiveRows(){
   var roster=get("livePlayers");roster.replaceChildren();
-  var rows=Array.isArray(data.players)?data.players:[];
-  rows.slice(0,24).forEach(function(player){
+  var query=get("liveSearch").value.trim().toLocaleLowerCase();
+  var rows=liveRows.filter(function(player){
+    if(liveFilter!=="all"&&liveSide(player)!==liveFilter)return false;
+    return !query||[player.name,player.champion,player.position].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
+    });
+  });
+  rows.forEach(function(player){
     var row=document.createElement("div");row.className="live-player";
     var side=document.createElement("span");side.className="live-mark";
-    side.textContent=player.local?"自己":player.side==="my-team"||player.side==="team-1"?"队友":player.side==="their-team"||player.side==="team-2"?"对手":String(player.side||"玩家").slice(0,20);
+    var team=liveSide(player);
+    side.textContent=player.local?"自己":team==="my-team"?"队友":team==="their-team"?"对手":String(player.side||"玩家").slice(0,20);
     var body=document.createElement("div");var title=document.createElement("strong");
     title.textContent=player.name||"身份未公开";
     var detail=document.createElement("small");
     detail.textContent=[player.champion>0?"英雄 #"+player.champion:"英雄未确认",player.position||""].filter(Boolean).join(" · ");
     body.append(title,detail);row.append(side,body);roster.appendChild(row);
   });
-  get("liveSummary").textContent=!data.connected?"连接 LOL 客户端后可查看":
-    rows.length?"阵容 "+rows.length+" 人 · "+(data.sgp?"区域资料已补全":"客户端阵容") :
+  var connected=get("liveConnection").textContent==="客户端已连接";
+  get("liveSummary").textContent=!connected?"连接 LOL 客户端后可查看":
+    liveRows.length?"阵容 "+liveRows.length+" 人 · 显示 "+rows.length+" 人"+
+    (rows.length===0?" · 无匹配玩家":"")+
+    (get("livePlayers").dataset.sgp==="true"?" · 区域资料已补全":" · 客户端阵容"):
     "当前阶段没有可确认的阵容";
+}
+function renderLive(data){
+  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
+  get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
+  get("livePhase").textContent=phaseLabel(data.phase);
+  get("liveQueue").textContent=data.queue||data.mode||"—";
+  get("liveMap").textContent=data.map||"—";
+  liveRows=(Array.isArray(data.players)?data.players:[]).slice(0,24);
+  get("livePlayers").dataset.sgp=data.sgp?"true":"false";
+  if(!data.connected){
+    get("liveSearch").value="";liveFilter="all";
+    document.querySelectorAll("[data-live-filter]").forEach(function(button){
+      button.setAttribute("aria-pressed",button.dataset.liveFilter==="all"?"true":"false");
+    });
+  }
+  drawLiveRows();
 }
 function renderPresence(data){
   var connected=!!data.connected,state=String(data.availability||"").toLowerCase();
