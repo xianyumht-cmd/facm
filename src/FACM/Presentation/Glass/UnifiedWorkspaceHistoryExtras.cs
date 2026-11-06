@@ -54,10 +54,11 @@ namespace FACM.Presentation.Glass
         }
 
         private bool ExtraReadCurrent(LeaguePlayerModule module, CancellationTokenSource source,
-            int generation, bool checkSession = true)
+            int generation, bool checkSession = true, bool checkCancellation = true)
         {
             return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
-                _navigation.Current == "player-advanced" && !source.IsCancellationRequested &&
+                _navigation.Current == "player-advanced" &&
+                (!checkCancellation || !source.IsCancellationRequested) &&
                 generation == _advancedExtraGeneration &&
                 ReferenceEquals(source, _advancedExtraCancellation) &&
                 (!checkSession || SelectedDetailCurrent(module));
@@ -123,7 +124,7 @@ namespace FACM.Presentation.Glass
                 var timeline = await detail.LoadTimeline(source.Token);
                 if (!ExtraReadCurrent(module, source, generation))
                 {
-                    if (ExtraReadCurrent(module, source, generation, false))
+                    if (ExtraReadCurrent(module, source, generation, false, false))
                         PostAdvancedExtra("timeline", "session-changed");
                     return;
                 }
@@ -166,13 +167,13 @@ namespace FACM.Presentation.Glass
             }
             catch (OperationCanceledException)
             {
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("timeline", "unavailable");
             }
             catch (Exception error)
             {
                 AppLog.Info("Advanced timeline unavailable: " + error.GetType().Name);
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("timeline", "unavailable");
             }
             finally
@@ -212,7 +213,7 @@ namespace FACM.Presentation.Glass
                     session, loaded.Profile.PuuId, match, source.Token);
                 if (!ExtraReadCurrent(module, source, generation))
                 {
-                    if (ExtraReadCurrent(module, source, generation, false))
+                    if (ExtraReadCurrent(module, source, generation, false, false))
                         PostAdvancedExtra("replay", "WrongAccount");
                     return;
                 }
@@ -225,13 +226,13 @@ namespace FACM.Presentation.Glass
             }
             catch (OperationCanceledException)
             {
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("replay", "Unavailable");
             }
             catch (Exception error)
             {
                 AppLog.Info("Advanced replay failed: " + error.GetType().Name);
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("replay", "Unavailable");
             }
             finally
@@ -267,13 +268,13 @@ namespace FACM.Presentation.Glass
             }
             catch (OperationCanceledException)
             {
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("replay", "Unavailable");
             }
             catch (Exception error)
             {
                 AppLog.Info("Advanced replay directory unavailable: " + error.GetType().Name);
-                if (ExtraReadCurrent(module, source, generation, false))
+                if (ExtraReadCurrent(module, source, generation, false, false))
                     PostAdvancedExtra("replay", "Unavailable");
             }
             finally
