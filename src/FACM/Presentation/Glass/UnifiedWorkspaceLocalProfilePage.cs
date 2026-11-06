@@ -41,9 +41,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenLocalProfilePage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Profile);
-            _content.Visible = false;
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

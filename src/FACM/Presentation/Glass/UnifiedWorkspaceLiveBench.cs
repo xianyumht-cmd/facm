@@ -28,9 +28,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenLiveBenchPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("live-advanced");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

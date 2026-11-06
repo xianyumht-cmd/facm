@@ -19,9 +19,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenAdvancedHistoryPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("player-advanced");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

@@ -27,9 +27,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenMayhemPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Mayhem);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -195,9 +193,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenRecommendationPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Recommendation);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
