@@ -54,7 +54,7 @@ namespace FACM.Presentation.Glass
                     module.UnifiedHistorySession))
             {
                 _browser.CoreWebView2.PostWebMessageAsJson(
-                    "{\\"type\\":\\"history-advanced-list\\",\\"error\\":true,\\"rows\\":[]}");
+                    "{\"type\":\"history-advanced-list\",\"error\":true,\"rows\":[]}");
                 return;
             }
             var payload = new JavaScriptSerializer().Serialize(new
