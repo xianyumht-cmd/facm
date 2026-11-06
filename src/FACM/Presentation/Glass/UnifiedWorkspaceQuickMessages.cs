@@ -100,9 +100,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenQuickMessagePage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("quick-messages");
-            _content.Visible = false;
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

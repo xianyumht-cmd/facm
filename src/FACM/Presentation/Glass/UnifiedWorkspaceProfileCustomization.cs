@@ -22,9 +22,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenProfileCustomizationPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("presence-advanced");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
