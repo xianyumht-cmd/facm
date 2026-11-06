@@ -40,6 +40,8 @@ namespace FACM.AppHost.Modules
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
+        internal LeagueClientSession UnifiedRecommendationSession { get { return _leagueClient.CurrentSession; } }
+
         internal LeagueBuildAdvisorDataService RuntimeCompanionReadService
         {
             get

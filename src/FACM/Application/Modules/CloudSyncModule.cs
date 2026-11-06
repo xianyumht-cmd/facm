@@ -84,6 +84,11 @@ namespace FACM.AppHost.Modules
 
         public void Initialize()
         {
+            if (_settingsModule.Settings == null || _settingsModule.Settings.LocalOnlyMode)
+            {
+                AppLog.Info("CloudBase initialization skipped: local-only mode.");
+                return;
+            }
             try
             {
                 _store = CloudIdentityStore.CreateDefault();

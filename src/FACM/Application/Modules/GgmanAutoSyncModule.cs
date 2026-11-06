@@ -51,6 +51,7 @@ namespace FACM.AppHost.Modules
             var service = _service;
             if (service == null || state == null || _lifetime == null ||
                 _lifetime.IsCancellationRequested) return;
+            if (_settings.Settings.LocalOnlyMode) return;
             service.NotifyGameflowPhase(state.Phase);
             if (!state.Connected || GgmanAccountSession.Current == null ||
                 !_settings.Settings.GameAutoRestoreEnabled ||

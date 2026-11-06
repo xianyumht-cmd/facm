@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 using FACM.AppHost;
 using FACM.League;
@@ -61,6 +62,15 @@ namespace FACM.AppHost.Modules
         }
 
         public const string ModuleId = "league-hub";
+        internal LeagueEfficiencyModule UnifiedEfficiency { get { return _efficiency; } }
+        internal LeagueDashboardModule UnifiedDashboard { get { return _dashboard; } }
+        internal LeagueGameRepairService UnifiedRepair { get { return _gameRepair.ServiceForSmokeTest; } }
+        internal LeagueLiveModule UnifiedLive { get { return _live; } }
+        internal MayhemModule UnifiedMayhem { get { return _mayhem; } }
+        internal LeagueBuildAdvisorModule UnifiedAdvisor { get { return _advisor; } }
+        internal LeaguePersonalStatsModule UnifiedPersonalStats { get { return _personalStats; } }
+        internal LeaguePlayerModule UnifiedPlayer { get { return _player; } }
+
         public string Id { get { return ModuleId; } }
         public IReadOnlyList<string> Dependencies { get { return ModuleDependencies; } }
 
@@ -183,6 +193,19 @@ namespace FACM.AppHost.Modules
             var state = _dashboard.CurrentGameflowState;
             if (_hubForm != null && !_hubForm.IsDisposed)
                 _hubForm.UpdateGameflowContext(state);
+
+            // The unified shell owns the live companion route. Never open a second
+            // top-level assistant window over the game while it is enabled.
+            var shell = Application.OpenForms.OfType<MainForm>()
+                .FirstOrDefault(form => !form.IsDisposed && form.UsesUnifiedWebWorkbench);
+            if (shell != null)
+            {
+                CloseAutomaticLivePopup();
+                _champSelectEpisode = false;
+                _surfacePresentedForEpisode = false;
+                _dismissedForEpisode = false;
+                return;
+            }
 
             var inChampSelect = state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
 

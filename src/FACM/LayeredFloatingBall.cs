@@ -279,75 +279,62 @@ namespace FACM
                 graphics.CompositingQuality = CompositingQuality.HighQuality;
                 graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
-                var margin = Math.Max(5f, size * 0.09f);
-                var bodyRect = new RectangleF(margin, margin - 1f, size - margin * 2f, size - margin * 2f);
-                var radius = Math.Max(12f, bodyRect.Width * 0.29f);
+                // Circular, quiet floating identity inspired by system utility launchers.
+                // The accent ring is decorative: it never claims CPU, memory or game status.
+                var inset = Math.Max(5f, size * 0.09f);
+                var diameter = size - inset * 2f;
+                var circle = new RectangleF(inset, inset - 0.6f, diameter, diameter);
+                var surface = theme.IsLight
+                    ? Blend(theme.Surface, Color.White, 0.1f)
+                    : Blend(theme.Surface, Color.FromArgb(6, 17, 37), 0.4f);
+                var hoverSurface = Blend(surface, theme.Accent, theme.IsLight ? 0.06f : 0.11f);
+                surface = Blend(surface, hoverSurface, hover);
 
-                // Soft separation shadow only. No neon halo, orbiting dot or breathing animation.
                 for (var index = 3; index >= 1; index--)
                 {
-                    var expand = index * 1.2f;
-                    var shadowRect = new RectangleF(
-                        bodyRect.X - expand,
-                        bodyRect.Y - expand + 2.2f,
-                        bodyRect.Width + expand * 2f,
-                        bodyRect.Height + expand * 2f);
-                    using (var shadowPath = CreateRoundedPath(shadowRect, radius + expand))
-                    using (var shadow = new SolidBrush(Color.FromArgb(8 + index * 6, 0, 0, 0)))
-                        graphics.FillPath(shadow, shadowPath);
+                    var shadowRect = RectangleF.Inflate(circle, index * 1.25f, index * 1.25f);
+                    shadowRect.Y += 1.8f;
+                    using (var shadow = new SolidBrush(Color.FromArgb(7 + index * 7, 0, 0, 0)))
+                        graphics.FillEllipse(shadow, shadowRect);
                 }
 
-                var baseSurface = theme.IsLight
-                    ? Blend(theme.Surface, Color.White, 0.12f)
-                    : Blend(theme.Surface, Color.Black, 0.16f);
-                var hoverSurface = theme.IsLight
-                    ? Blend(baseSurface, Color.Black, 0.035f)
-                    : Blend(baseSurface, Color.White, 0.075f);
-                var surface = Blend(baseSurface, hoverSurface, hover);
-
-                using (var bodyPath = CreateRoundedPath(bodyRect, radius))
-                using (var body = new SolidBrush(Color.FromArgb(244, surface)))
-                using (var border = new Pen(
-                    Color.FromArgb(
-                        76 + (int)(74 * hover),
-                        hover > 0.02f ? theme.Accent : theme.Border),
-                    1f + hover * 0.18f))
+                using (var body = new SolidBrush(Color.FromArgb(250, surface)))
+                using (var edge = new Pen(Color.FromArgb(110, theme.Border), 1.2f))
                 {
-                    graphics.FillPath(body, bodyPath);
-                    graphics.DrawPath(border, bodyPath);
+                    graphics.FillEllipse(body, circle);
+                    graphics.DrawEllipse(edge, circle);
                 }
 
-                // A single restrained top highlight gives depth without making the entry look glossy.
-                var highlightRect = RectangleF.Inflate(bodyRect, -3.2f, -3.2f);
-                using (var highlightPath = CreateRoundedPath(highlightRect, Math.Max(8f, radius - 3f)))
-                using (var highlight = new Pen(Color.FromArgb(theme.IsLight ? 38 : 24, Color.White), 1f))
-                    graphics.DrawPath(highlight, highlightPath);
-
-                // Tiny theme accent doubles as the shell's status/identity mark.
-                var accentWidth = bodyRect.Width * 0.23f;
-                var accentRect = new RectangleF(
-                    bodyRect.X + (bodyRect.Width - accentWidth) / 2f,
-                    bodyRect.Bottom - 6.2f,
-                    accentWidth,
-                    2.2f);
-                using (var accentPath = CreateRoundedPath(accentRect, 1.2f))
-                using (var accent = new SolidBrush(Color.FromArgb(185 + (int)(55 * hover), theme.Accent)))
-                    graphics.FillPath(accent, accentPath);
-
-                var logoColor = theme.IsLight
-                    ? Blend(theme.TextPrimary, Color.Black, 0.06f)
-                    : Blend(theme.TextPrimary, Color.White, 0.08f);
-                using (var font = new Font("Segoe UI", Math.Max(18f, size * 0.32f), FontStyle.Bold, GraphicsUnit.Pixel))
-                using (var textBrush = new SolidBrush(Color.FromArgb(245, logoColor)))
+                var ring = RectangleF.Inflate(circle, -2.4f, -2.4f);
+                using (var quietRing = new Pen(Color.FromArgb(68, theme.Accent), 1.75f))
+                    graphics.DrawEllipse(quietRing, ring);
+                using (var activeRing = new Pen(Color.FromArgb(195 + (int)(60 * hover), theme.Accent),
+                    2.5f + hover * 0.35f))
                 {
-                    const string logo = "F";
-                    var measured = graphics.MeasureString(logo, font);
-                    graphics.DrawString(
-                        logo,
-                        font,
-                        textBrush,
-                        (size - measured.Width) / 2f - 0.2f,
-                        (size - measured.Height) / 2f - 2.4f);
+                    activeRing.StartCap = LineCap.Round;
+                    activeRing.EndCap = LineCap.Round;
+                    graphics.DrawArc(activeRing, ring, -118f, 286f);
+                }
+
+                var accentDotSize = Math.Max(4f, size * 0.085f);
+                var dot = new RectangleF(
+                    circle.Right - accentDotSize * 1.7f,
+                    circle.Bottom - accentDotSize * 1.7f,
+                    accentDotSize, accentDotSize);
+                using (var dotOutline = new SolidBrush(surface))
+                    graphics.FillEllipse(dotOutline, RectangleF.Inflate(dot, 1.4f, 1.4f));
+                using (var dotBrush = new SolidBrush(theme.Accent))
+                    graphics.FillEllipse(dotBrush, dot);
+
+                var logoColor = theme.IsLight ? theme.TextPrimary : Blend(theme.TextPrimary, Color.White, 0.12f);
+                using (var logo = new Font("Microsoft YaHei UI", Math.Max(17f, size * 0.32f),
+                    FontStyle.Bold, GraphicsUnit.Pixel))
+                using (var brush = new SolidBrush(Color.FromArgb(252, logoColor)))
+                {
+                    var measured = graphics.MeasureString("G", logo);
+                    graphics.DrawString("G", logo, brush, // ui-text-contract: allow
+                        (size - measured.Width) / 2f - 0.4f,
+                        (size - measured.Height) / 2f - 1.2f);
                 }
             }
             return bitmap;

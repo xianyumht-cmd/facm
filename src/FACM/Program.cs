@@ -22,6 +22,33 @@ namespace FACM
         [STAThread]
         private static void Main(string[] args)
         {
+#if UNIFIED_RELEASE_CANDIDATE
+            UnifiedWebView2Bundle.Register();
+            if (HasArgument(args, "--unified-runtime-fallback-smoke"))
+            {
+                try
+                {
+                    UnifiedWebView2Bundle.ValidateRuntimeFallbackForSmokeTest();
+                    Environment.ExitCode = 0;
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified runtime fallback self-test failed", exception);
+                    Environment.ExitCode = 7;
+                }
+                return;
+            }
+            if (HasArgument(args, "--unified-bundle-smoke"))
+            {
+                try { UnifiedWebView2Bundle.ValidateForSmokeTest(); Environment.ExitCode = 0; }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified WebView2 bundle self-test failed", exception);
+                    Environment.ExitCode = 6;
+                }
+                return;
+            }
+#endif
 #if GLASS_WORKBENCH_PREVIEW
             if (HasArgument(args, "--compact-public-source-probe"))
             {
@@ -43,6 +70,24 @@ namespace FACM
                 catch { Environment.ExitCode = 4; return; }
                 Environment.ExitCode = CompactApprovedLivePanelForm.RunSmokeTest(
                     System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Live-Compact-Checks"));
+                return;
+            }
+            if (HasArgument(args, "--unified-workspace-smoke"))
+            {
+                try { UnifiedWorkspaceForm.ValidateForSmokeTest(); Environment.ExitCode = 0; }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified workspace smoke failed", exception);
+                    try
+                    {
+                        var dir = System.IO.Path.Combine(Environment.CurrentDirectory, "artifacts", "Unified-Workspace-Diagnostics");
+                        System.IO.Directory.CreateDirectory(dir);
+                        System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "smoke-error.txt"),
+                            exception.GetType().Name + ": " + exception.Message);
+                    }
+                    catch { }
+                    Environment.ExitCode = 4;
+                }
                 return;
             }
             if (HasArgument(args, "--compact-preview-smoke"))
@@ -67,6 +112,7 @@ namespace FACM
                 }
                 return;
             }
+#if !UNIFIED_RELEASE_CANDIDATE
             if (args == null || args.Length == 0)
             {
                 MessageBox.Show(
@@ -76,6 +122,7 @@ namespace FACM
                     MessageBoxIcon.Information);
                 return;
             }
+#endif
 #endif
 
             var startCleanup = HasArgument(args, "--cleanup");
@@ -251,6 +298,20 @@ namespace FACM
 
                     var mainForm = shell.MainForm;
 #if GLASS_WORKBENCH_PREVIEW
+                    // Explicit candidate builds exercise the intended production default path.
+                    // Normal Release builds remain native until signed release gates are met.
+                    if (mainForm != null &&
+#if UNIFIED_RELEASE_CANDIDATE
+                        true)
+#else
+                        !startCleanup &&
+                        HasArgument(args, "--unified-web-workbench") &&
+                        string.Equals(Environment.GetEnvironmentVariable("GGMAN_UNIFIED_WEB_WORKBENCH"),
+                            "1", StringComparison.Ordinal))
+#endif
+                    {
+                        mainForm.EnableUnifiedWebWorkbench();
+                    }
                     if (HasArgument(args, "--compact-live-pilot") &&
                         string.Equals(Environment.GetEnvironmentVariable("GGMAN_COMPACT_LIVE_PILOT"),
                             "1", StringComparison.Ordinal) && mainForm != null)

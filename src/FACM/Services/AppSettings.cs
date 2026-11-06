@@ -29,6 +29,9 @@ namespace FACM.Services
         public int BallY { get; set; } = int.MinValue;
         public string GamePath { get; set; } = string.Empty;
         public bool AutoUpdateEnabled { get; set; } = true;
+        // CloudBase free quota is currently unavailable. Keep all game features local-first;
+        // this flag does not disable the independent signed online updater.
+        public bool LocalOnlyMode { get; set; } = true;
         public string LastAnnouncementId { get; set; } = string.Empty;
         public string ThemeId { get; set; } = ThemeCatalog.DefaultThemeId;
         public string PetStyleId { get; set; } = AnimalPetCatalog.DefaultPetId;
@@ -223,6 +226,7 @@ namespace FACM.Services
                 "LeagueRuntimeCompanionCollapsed=" + LeagueRuntimeCompanionCollapsed,
                 "LeaguePersonalStatsEnabled=" + LeaguePersonalStatsEnabled,
                 "LeagueCloudRankingEnabled=" + LeagueCloudRankingEnabled,
+                "LocalOnlyMode=" + LocalOnlyMode,
                 "AutoConfigSyncEnabled=" + AutoConfigSyncEnabled,
                 "GameAutoRestoreEnabled=" + GameAutoRestoreEnabled
             };
@@ -484,6 +488,7 @@ namespace FACM.Services
             else if (key.Equals("LeagueRuntimeCompanionCollapsed", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueRuntimeCompanionCollapsed = flag;
             else if (key.Equals("LeaguePersonalStatsEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeaguePersonalStatsEnabled = flag;
             else if (key.Equals("LeagueCloudRankingEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LeagueCloudRankingEnabled = flag;
+            else if (key.Equals("LocalOnlyMode", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.LocalOnlyMode = flag;
             else if (key.Equals("AutoConfigSyncEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.AutoConfigSyncEnabled = flag;
             else if (key.Equals("GameAutoRestoreEnabled", StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out flag)) result.GameAutoRestoreEnabled = flag;
         }

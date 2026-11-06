@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
+using System.Threading;
+using System.Threading.Tasks;
 using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
@@ -67,9 +69,84 @@ namespace FACM.AppHost.Modules
             LeagueGameflowEventDispatcher.DispatchSafely(GameflowStateChanged, state, "dashboard-module");
         }
 
+        internal async Task<LeagueDashboardSnapshot> ReadUnifiedDashboardAsync(CancellationToken cancellationToken)
+        {
+            var state = CurrentGameflowState;
+            if (state == null || !state.Connected)
+                return new LeagueDashboardSnapshot
+                {
+                    Connected = state != null && state.Connected,
+                    ClientProcessDetected = state != null && state.ClientProcessDetected,
+                    GameProcessDetected = state != null && state.GameProcessDetected,
+                    Phase = state == null ? null : state.Phase,
+                    UpdatedAtUtc = state == null ? DateTime.UtcNow : state.UpdatedAtUtc
+                };
+            var session = _leagueClient.CurrentSession;
+            if (session == null) return null;
+            var service = new LeagueDashboardDetailsService(_leagueClient, _performance.Budgets);
+            var snapshot = await service.LoadAsync(state, cancellationToken);
+            return LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession)
+                ? snapshot : null;
+        }
+
+        // An explicit UI request reads the existing Live Client Data endpoint.
+        // Do not add a competing Gameflow/respawn polling loop to WebView2.
+        internal async Task<LeagueRespawnTimerSample> ReadUnifiedRespawnAsync(
+            CancellationToken cancellationToken)
+        {
+            var phase = CurrentGameflowState;
+            if (phase == null || !phase.Connected ||
+                !string.Equals(phase.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+                return null;
+            var session = _leagueClient.CurrentSession;
+            if (session == null) return null;
+            var snapshot = await ReadUnifiedDashboardAsync(cancellationToken);
+            if (snapshot == null || !snapshot.Connected ||
+                string.IsNullOrWhiteSpace(snapshot.AccountName) ||
+                !LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession))
+                return null;
+            using (var reader = new LeagueRespawnTimerReader())
+            {
+                var payload = await reader.ReadAsync(cancellationToken);
+                if (cancellationToken.IsCancellationRequested ||
+                    !LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession) ||
+                    CurrentGameflowState == null ||
+                    !string.Equals(CurrentGameflowState.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                return LeagueRespawnTimerProjection.Project(payload, snapshot.AccountName, null);
+            }
+        }
+
         public Form CreateDashboardForm(UiTextCatalog ui)
         {
             return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui);
+        }
+
+        internal LeagueClientSession UnifiedPresenceSession { get { return _leagueClient.CurrentSession; } }
+        internal LeaguePresenceService CreateUnifiedPresenceService()
+        {
+            return new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient);
+        }
+
+        // One League-client owner: profile reads and writes reuse the same existing services.
+        internal LeagueProfileCustomizationService CreateUnifiedProfileCustomizationService()
+        {
+            return new LeagueProfileCustomizationService(_leagueClient, (ILeagueProfileWriteApi)_leagueClient);
+        }
+
+        internal LeagueRegaliaCustomizationService CreateUnifiedRegaliaService()
+        {
+            return new LeagueRegaliaCustomizationService(_leagueClient, (ILeagueRegaliaWriteApi)_leagueClient);
+        }
+
+        internal LeagueChallengePreferencesService CreateUnifiedChallengePreferencesService()
+        {
+            return new LeagueChallengePreferencesService(_leagueClient, (ILeagueChallengePreferencesWriteApi)_leagueClient);
+        }
+
+        internal LeagueEmoteLoadoutService CreateUnifiedEmoteService()
+        {
+            return new LeagueEmoteLoadoutService(_leagueClient, (ILeagueEmoteLoadoutWriteApi)_leagueClient);
         }
 
         public Form CreatePresenceForm(UiTextCatalog ui, ThemeDefinition theme)

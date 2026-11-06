@@ -1,0 +1,2831 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>GGman</title>
+<style>
+:root{color-scheme:dark;--canvas:#040c20;--card:#112349;--card2:#153151;--text:#f1f7ff;--muted:#a9bcda;--accent:#08bad6;--line:#243653;font-family:"Microsoft YaHei UI","Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--canvas);color:var(--text);font-size:13px;overflow:hidden}
+button{font:inherit;color:inherit;border:0;cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+#shell{height:100dvh;min-height:180px;display:flex;flex-direction:column;padding:16px;gap:14px}
+.header{height:42px;flex-shrink:0;display:flex;align-items:center;gap:12px;user-select:none}
+.brand-icon{height:40px;width:40px;flex:0 0 40px;display:grid;place-items:center;background:var(--accent);border-radius:10px;color:#fff;font-size:19px;font-weight:800}
+.brand-name{font-size:18px;font-weight:750;letter-spacing:.2px}.subhead{font-size:11px;color:var(--muted);margin-top:2px}
+.close,.back,.home{background:transparent;color:#c5d8f1;min-width:31px;min-height:31px;border-radius:8px}
+.close:hover,.back:hover,.home:hover{background:var(--card2)}.close{margin-left:auto;font-size:21px}
+main{min-height:0;flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#263b59 transparent}
+.status{padding:12px 13px;background:var(--card);border-radius:11px;display:flex;flex-direction:column;gap:4px}
+.status b{font-size:14px}.status span{color:var(--muted);font-size:12px}.status .hint{color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:11px}
+.tile{display:flex;align-items:center;gap:9px;text-align:left;min-width:0;min-height:57px;padding:9px;background:var(--card);border-radius:11px;font-weight:650}
+.tile:hover{background:#1a365a}.tile .glyph{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;font-size:19px;color:var(--accent);background:#113c61;border-radius:8px}
+.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:13px}
+.actions button{min-height:34px;background:var(--card2);border-radius:7px;color:#e0ebf9;font-size:12px}
+.actions button:hover{background:#205175}
+#dashboardPage{display:none;padding:4px 2px}
+#dashboardPage h2{font-size:18px;margin:8px 0 5px}
+#dashboardPage p{font-size:12px;color:var(--muted);line-height:1.65}
+.dashboard-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:13px 0}
+.dashboard-card{padding:13px;background:var(--card);border-radius:10px;min-width:0}
+.dashboard-card .small{display:block;font-size:11px;color:var(--muted);margin-bottom:8px}
+.dashboard-card strong{font-size:14px;display:block;overflow-wrap:anywhere}
+@media(max-width:420px){.dashboard-cards{grid-template-columns:1fr}}
+body[data-mode="dashboard"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="dashboard"] #home,body[data-mode="dashboard"] #other{display:none!important}
+body[data-mode="dashboard"] #detail{display:flex}
+body[data-mode="dashboard"] .brand-icon,body[data-mode="dashboard"] .brand-text{display:none}
+body[data-mode="dashboard"] #dashboardPage,body[data-mode="dashboard"] main{display:block;overflow-y:auto}
+#presencePage{display:none;padding:4px 2px}
+#presencePage h2{font-size:18px;margin:8px 0 5px}
+#presencePage p{color:var(--muted);font-size:12px;line-height:1.65}
+.presence-modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:12px}
+.presence-modes button{min-height:42px;border:1px solid var(--line);background:var(--card);border-radius:9px}
+.presence-modes button.selected{border-color:var(--accent);color:var(--accent)}
+.presence-modes button:disabled{opacity:.55}
+body[data-mode="presence"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="presence"] #home,body[data-mode="presence"] #other{display:none!important}
+body[data-mode="presence"] #detail{display:flex}
+body[data-mode="presence"] .brand-icon,body[data-mode="presence"] .brand-text{display:none}
+body[data-mode="presence"] #presencePage,body[data-mode="presence"] main{display:block;overflow-y:auto}
+#historyPage{display:none;padding:4px 2px}
+#historyPage h2{font-size:18px;margin:8px 0 5px}
+#historyPage p{font-size:12px;line-height:1.7;color:var(--muted)}
+.history-profile{display:flex;justify-content:space-between;gap:12px;align-items:center;background:var(--card);padding:13px;border-radius:11px}
+.history-profile strong{overflow-wrap:anywhere}
+.history-list{display:grid;gap:9px;margin-top:12px}
+.history-match{padding:12px;background:var(--card);border-radius:10px;border-left:3px solid var(--line);min-width:0}
+.history-match.win{border-left-color:var(--accent)}
+.history-match .top{display:flex;justify-content:space-between;gap:9px;flex-wrap:wrap}
+.history-match small{display:block;color:var(--muted);font-size:11px;line-height:1.7;margin-top:5px}
+#historyPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+body[data-mode="player"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="player"] #home,body[data-mode="player"] #other{display:none!important}
+body[data-mode="player"] #detail{display:flex}
+body[data-mode="player"] .brand-icon,body[data-mode="player"] .brand-text{display:none}
+body[data-mode="player"] #historyPage,body[data-mode="player"] main{display:block;overflow-y:auto}
+#livePage{display:none;padding:4px 2px}
+#livePage h2{font-size:18px;margin:8px 0 5px}
+#livePage p{color:var(--muted);font-size:12px;line-height:1.7}
+.live-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:11px 0}
+.live-summary>div{background:var(--card);padding:12px;border-radius:10px;min-width:0}
+.live-summary small{display:block;color:var(--muted);font-size:11px}
+.live-summary strong{display:block;margin-top:6px;overflow-wrap:anywhere}
+.live-roster{display:grid;gap:7px;margin-top:12px}
+.live-player{display:flex;align-items:center;gap:10px;padding:11px;background:var(--card);border-radius:9px}
+.live-player .live-mark{color:var(--accent);font-weight:700;min-width:56px}
+.live-player strong{overflow-wrap:anywhere}
+.live-player small{display:block;color:var(--muted);margin-top:3px}
+#livePage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:420px){.live-summary{grid-template-columns:1fr}}
+body[data-mode="live"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="live"] #home,body[data-mode="live"] #other{display:none!important}
+body[data-mode="live"] #detail{display:flex}
+body[data-mode="live"] .brand-icon,body[data-mode="live"] .brand-text{display:none}
+body[data-mode="live"] #livePage,body[data-mode="live"] main{display:block;overflow-y:auto}
+#repairPage{display:none;padding:4px 2px}
+#repairPage h2{font-size:18px;margin:8px 0 5px}
+#repairPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#repairPage .tool-row{flex-wrap:wrap;gap:9px}
+#repairPage .tool-row button{padding:9px 12px;border-radius:8px;background:var(--card2);min-height:38px;white-space:nowrap}
+#repairPage .tool-row button:disabled{opacity:.55}
+#repairExitConfirm{padding:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:12px}
+#repairExitConfirm[hidden]{display:none!important}
+#repairExitConfirm button{background:var(--card2);border-radius:8px;padding:10px;min-height:38px;margin-right:8px}
+#repairExitConfirm button[data-action="repair-confirm"]{background:var(--accent);color:var(--canvas)}
+body[data-mode="repair"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="repair"] #home,body[data-mode="repair"] #other{display:none!important}
+body[data-mode="repair"] #detail{display:flex}
+body[data-mode="repair"] .brand-icon,body[data-mode="repair"] .brand-text{display:none}
+body[data-mode="repair"] #repairPage,body[data-mode="repair"] main{display:block;overflow-y:auto}
+#postgameSettings{display:none;padding:4px 2px}
+#postgameSettings h2{font-size:18px;margin:8px 0 5px}
+#postgameSettings p{color:var(--muted);font-size:12px;line-height:1.65}
+body[data-mode="postgame-settings"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="postgame-settings"] #home,body[data-mode="postgame-settings"] #other{display:none!important}
+body[data-mode="postgame-settings"] #detail{display:flex}
+body[data-mode="postgame-settings"] .brand-icon,body[data-mode="postgame-settings"] .brand-text{display:none}
+body[data-mode="postgame-settings"] #postgameSettings,body[data-mode="postgame-settings"] main{display:block;overflow-y:auto}
+#autoSelection{display:none;padding:4px 2px}
+#autoSelection h2{font-size:18px;margin:8px 0 5px}
+#autoSelection p{color:var(--muted);font-size:12px;line-height:1.65}
+body[data-mode="auto-selection"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="auto-selection"] #home,body[data-mode="auto-selection"] #other{display:none!important}
+body[data-mode="auto-selection"] #detail{display:flex}
+body[data-mode="auto-selection"] .brand-icon,body[data-mode="auto-selection"] .brand-text{display:none}
+body[data-mode="auto-selection"] #autoSelection,body[data-mode="auto-selection"] main{display:block;overflow-y:auto}
+#matchmakingSettings{display:none;padding:4px 2px}
+#matchmakingSettings h2{font-size:18px;margin:8px 0 4px}
+#matchmakingSettings p{color:var(--muted);font-size:12px;line-height:1.7}
+.setting-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin:12px 0}
+.setting-grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+.setting-grid input,.setting-grid select{font:inherit;background:var(--card);color:var(--text);border:1px solid var(--line);height:38px;border-radius:8px;padding:0 10px;min-width:0;width:100%}
+.setting-grid input:focus-visible,.setting-grid select:focus-visible{outline:2px solid var(--accent)}
+.setting-checks{display:grid;gap:9px;margin:12px 0}.setting-checks label{background:var(--card);padding:11px 13px;border-radius:9px;display:flex;gap:10px;align-items:center}
+.setting-checks input{accent-color:var(--accent);width:17px;height:17px}
+.save-row{display:flex;gap:8px;align-items:center;margin-top:12px}.save-row button{border-radius:9px;background:var(--accent);color:#002235;font-weight:750;padding:11px 17px}.save-row button:disabled{opacity:.5}
+@media(max-width:450px){.setting-grid{grid-template-columns:1fr}}
+body[data-mode="matchmaking-settings"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="matchmaking-settings"] #home,body[data-mode="matchmaking-settings"] #other{display:none!important}
+body[data-mode="matchmaking-settings"] #detail{display:flex}
+body[data-mode="matchmaking-settings"] .brand-icon,body[data-mode="matchmaking-settings"] .brand-text{display:none}
+body[data-mode="matchmaking-settings"] #matchmakingSettings,body[data-mode="matchmaking-settings"] main{display:block;overflow-y:auto}
+#appearance{display:none;padding:4px 2px}
+#clientStatus{display:none;padding:4px 2px}
+#clientStatus h2{font-size:18px;margin:10px 0 8px}
+#clientStatus p{color:var(--muted);line-height:1.7}
+#clientStatus .status{margin:12px 0}
+body[data-mode="client-status"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="client-status"] #home,body[data-mode="client-status"] #other{display:none!important}
+body[data-mode="client-status"] #detail{display:flex}
+body[data-mode="client-status"] .brand-icon,body[data-mode="client-status"] .brand-text{display:none}
+body[data-mode="client-status"] #clientStatus{display:block}
+body[data-mode="client-status"] main{display:block;overflow-y:auto}
+#appearance h2{font-size:18px;margin:10px 0 6px}
+#appearance p{color:var(--muted);font-size:12px;line-height:1.8;margin:0 0 15px}
+.tools{display:grid;gap:10px;margin-top:10px}.tool-row{display:flex;gap:16px;justify-content:space-between;align-items:center;padding:14px;background:var(--card);border-radius:11px}
+.tool-row strong{font-size:14px}.tool-row small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:5px}
+.toggle{min-width:52px;height:30px;border-radius:17px;background:#2a4360;flex-shrink:0;position:relative}
+.toggle:after{content:"";position:absolute;top:5px;left:5px;width:20px;height:20px;background:white;border-radius:50%;transition:transform .15s ease}
+.toggle[aria-pressed="true"]{background:var(--accent)}.toggle[aria-pressed="true"]:after{transform:translateX(22px)}
+#quicktools{display:none;padding:4px 2px}#quicktools h2{font-size:18px;margin:10px 0 6px}#quicktools p{color:var(--muted);font-size:12px;line-height:1.7}
+body[data-mode="quicktools"] #shell{padding:9px 13px;gap:6px}body[data-mode="quicktools"] #home,body[data-mode="quicktools"] #other{display:none!important}
+body[data-mode="quicktools"] #detail{display:flex}body[data-mode="quicktools"] .brand-icon,body[data-mode="quicktools"] .brand-text{display:none}
+body[data-mode="quicktools"] .header{height:40px}body[data-mode="quicktools"] #quicktools,body[data-mode="quicktools"] main{display:block;overflow-y:auto}
+.themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-bottom:8px}
+.theme-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;min-height:110px;display:flex;align-items:flex-start;gap:10px}
+.theme-card:hover{background:var(--card2)}.theme-card.selected{border-color:var(--accent)}
+.theme-swatch{flex:0 0 26px;height:26px;border-radius:8px;border:1px solid #ffffff30}
+.theme-card strong{display:block;font-size:13px}.theme-card small{color:var(--muted);font-size:11px;line-height:1.6;display:block;margin-top:5px}
+@media(max-width:500px){.themes{grid-template-columns:1fr}.theme-card{min-height:70px}}
+body[data-mode="appearance"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="appearance"] #home,body[data-mode="appearance"] #other{display:none!important}
+body[data-mode="appearance"] #detail{display:flex}
+body[data-mode="appearance"] .brand-icon,body[data-mode="appearance"] .brand-text{display:none}
+body[data-mode="appearance"] #appearance{display:block}
+body[data-mode="appearance"] .header{height:40px}
+body[data-mode="appearance"] main{display:block;overflow-y:auto}
+#other{display:none}#other.open{display:block}
+#other .tiles{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:6px}
+#other h2{font-size:15px;margin:2px 0 12px}.muted{color:var(--muted);font-size:11px;line-height:1.6}
+#detail{display:none;align-items:center;gap:10px;width:100%;min-width:0}
+#detail .title{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+body[data-mode="detail"] #shell{padding:9px 13px;gap:0}
+body[data-mode="detail"] #home,body[data-mode="detail"] #other{display:none!important}
+body[data-mode="detail"] .header{height:40px}body[data-mode="detail"] .brand-icon,body[data-mode="detail"] .brand-text{display:none}
+body[data-mode="detail"] #detail{display:flex}
+body[data-mode="detail"] main{display:none}
+body[data-mode="detail"] .close{font-size:18px}
+@media(max-width:350px){#shell{padding:10px;gap:8px}.tile{padding:7px;min-height:52px}.tile .glyph{width:32px;height:32px;flex-basis:32px}}
+@media(prefers-reduced-motion:no-preference){.tile,.actions button{transition:background .14s ease}}
+
+/* Floating control center design tokens. Native themes override the seven core surface colors. */
+:root {
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","微软雅黑",sans-serif;
+  --canvas:#071425;--card:#112843;--card2:#1a3553;--text:#f4f9ff;
+  --muted:#adc3d8;--accent:#2ccae8;--line:#314a67;
+  --focus-ring:var(--accent);
+}
+html,body{width:100%;height:100%;font-family:"Microsoft YaHei UI","Microsoft YaHei","微软雅黑",sans-serif}
+body{background:var(--canvas);overflow:hidden;-webkit-font-smoothing:antialiased}
+#shell{height:100dvh;min-height:0;padding:12px 14px;gap:9px;
+  background:radial-gradient(95% 48% at 18% -24%,color-mix(in srgb,var(--accent) 13%,transparent),transparent 85%),var(--canvas);
+}
+.header{height:43px;min-height:43px;gap:9px}
+.brand-icon{width:37px;height:37px;flex-basis:37px;border-radius:50%;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 38%,var(--card)),var(--card));
+  border:2px solid var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 10%,transparent);
+  color:var(--text);font-size:17px;font-weight:750;
+}
+.brand-name{font-size:16px;font-weight:750;letter-spacing:.15px;line-height:1.3}
+.subhead{font-size:10.5px;margin-top:2px}
+.close,.back,.home{width:35px;min-width:35px;height:35px;min-height:35px;border-radius:10px;color:var(--muted)}
+.close{font-size:22px}.close:hover,.back:hover,.home:hover{color:var(--text);background:var(--card2)}
+main{overflow-x:hidden;overflow-y:auto;scrollbar-color:var(--line) transparent;scrollbar-width:thin}
+main::-webkit-scrollbar{width:6px}
+main::-webkit-scrollbar-thumb{background:var(--line);border-radius:12px}
+button{font-family:inherit;transition:background-color .12s ease,border-color .12s ease}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+button:disabled{cursor:default}
+#home .status-home{width:100%;display:block;text-align:left;min-height:66px;padding:10px 12px;
+  background:linear-gradient(120deg,var(--card),color-mix(in srgb,var(--accent) 8%,var(--card)));
+  border:1px solid var(--line);border-radius:13px;
+}
+#home .status-heading{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:4px}
+#home .status-heading b{font-size:12.8px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+#home .status-indicator{display:inline-block;width:8px;height:8px;flex:0 0 8px;border-radius:50%;
+  background:#8296a9;box-shadow:0 0 0 3px color-mix(in srgb,#8296a9 15%,transparent)}
+body[data-connected="true"] #home .status-indicator{background:var(--accent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+#home .status-chevron{margin-left:auto;font-size:18px;color:var(--muted)}
+#home .status-home #clientPhase{display:block;padding-left:16px;font-size:11.2px;line-height:1.35}
+#home .status-home .hint{display:none}
+#home .status-home:hover{border-color:var(--accent)}
+.section-caption{display:flex;align-items:center;justify-content:space-between;gap:9px;
+  font-size:11px;font-weight:650;color:var(--muted);margin:10px 0 2px}
+.section-caption span:last-child{font-size:10px;font-weight:400;color:var(--accent)}
+#home .tiles{margin-top:6px;gap:8px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  min-height:62px;padding:8px 9px;gap:10px}
+.tile:hover,.tile:focus-visible{background:var(--card2);border-color:var(--accent)}
+.tile .glyph{width:37px;height:37px;flex-basis:37px;border-radius:11px;
+  background:color-mix(in srgb,var(--accent) 11%,var(--card2));color:var(--accent)}
+.tile .glyph svg{width:23px;height:23px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.tile .tile-copy{min-width:0;flex:1}
+.tile strong{display:block;font-size:12.6px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile small{display:block;margin-top:2px;font-size:10px;font-weight:400;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#home .actions{margin-top:9px;gap:7px}
+.actions button{min-height:37px;border-radius:9px;border:1px solid var(--line);
+  background:var(--card2);color:var(--text);font-size:11.5px;font-weight:550;line-height:1.2;padding:7px 8px}
+.actions button:hover{background:color-mix(in srgb,var(--accent) 14%,var(--card2));border-color:var(--accent)}
+#detail .title{font-size:14px;line-height:1.25;color:var(--text)}
+body:not([data-mode="home"]):not([data-mode="more"]) #shell{padding:9px 13px;gap:7px}
+body:not([data-mode="home"]):not([data-mode="more"]) .header{height:42px;min-height:42px}
+body:not([data-mode="home"]):not([data-mode="more"]) main{padding-right:2px}
+body:not([data-mode="home"]):not([data-mode="more"]) h2{font-size:17px;letter-spacing:0;margin:10px 0 6px}
+body:not([data-mode="home"]):not([data-mode="more"]) p{font-size:11.5px;line-height:1.7}
+.dashboard-card,.tool-row,.setting-checks label,.theme-card{border:1px solid var(--line);border-radius:11px}
+.dashboard-card{padding:13px}.dashboard-card .small{font-size:11px}
+.dashboard-card strong{font-size:14px}
+.tool-row{padding:13px 14px;gap:14px}
+.toggle{background:color-mix(in srgb,var(--muted) 20%,var(--card2))}
+.toggle[aria-pressed="true"]{background:var(--accent)}
+.setting-grid input,.setting-grid select{height:40px;border-radius:9px;min-width:0}
+.setting-checks label{cursor:pointer}
+.theme-card{min-height:94px}.theme-card.selected{box-shadow:inset 0 0 0 1px var(--accent)}
+.save-row button{min-height:38px;border-radius:9px;background:var(--accent);color:#032735}
+@media(max-width:380px){
+  #shell{padding:10px 11px;gap:7px}
+  .header{height:39px;min-height:39px}
+  .tile{min-height:55px;padding:6px;gap:7px}
+  .tile .glyph{width:32px;height:32px;flex-basis:32px}
+  .tile .glyph svg{width:20px;height:20px}
+  .tile strong{font-size:11.5px}
+  .tile small{font-size:9.3px}
+  #home .status-home{padding:8px 10px;min-height:60px}
+}
+@media(max-height:370px){
+  #shell{padding-top:9px;padding-bottom:9px;gap:6px}
+  .header{height:38px;min-height:38px}
+  #home .status-home{min-height:56px;padding:7px 11px}
+  .section-caption{margin-top:5px;margin-bottom:0}
+  #home .tile{min-height:54px}
+  #home .actions{margin-top:6px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+
+/* Browse page uses the same compact card grammar and native route allowlist. */
+body[data-mode="more"] #shell{padding:10px 14px;gap:8px}
+body[data-mode="more"] #detail{display:flex}
+body[data-mode="more"] .brand-icon,body[data-mode="more"] .brand-text{display:none}
+body[data-mode="more"] .header{min-height:42px;height:42px}
+#other h2{font-size:17px;margin:4px 0}
+#other .more-caption{font-size:11px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+#other .tool-search{display:flex;align-items:center;gap:9px;padding:0 12px;border-radius:11px;
+  height:41px;min-height:41px;background:var(--card);border:1px solid var(--line);color:var(--muted)}
+#other .tool-search:focus-within{border-color:var(--accent)}
+#other .tool-search svg{height:18px;width:18px;flex:0 0 18px;fill:none;stroke:var(--muted);stroke-width:1.8}
+#other #toolSearch{border:0;outline:0;background:transparent;color:var(--text);width:100%;
+  font:12.5px "Microsoft YaHei UI","Microsoft YaHei","微软雅黑",sans-serif}
+#other #toolSearch::placeholder{color:var(--muted);opacity:.8}
+#other .tool-section{margin:16px 0 4px}
+#other .tool-section h3{margin:0 0 8px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.2px}
+#other .tiles{margin-top:0;gap:8px}
+#other .tile{min-height:55px}
+#other .tile .glyph{height:32px;width:32px;flex-basis:32px;font-size:14px}
+#other .tile .tile-copy strong{font-size:12px}
+#other .tile .tile-copy small{font-size:10px}
+#other [hidden]{display:none!important}
+#searchMessage{font-size:11px;color:var(--muted);min-height:16px;margin-top:8px}
+
+.history-filter{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0 10px}.history-filter button{min-height:34px;padding:6px 13px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text)}.history-filter button[aria-pressed="true"]{border-color:var(--accent);background:var(--card2);color:var(--accent)}
+
+/* Native-backed data pages share the same compact cards and single scroll owner. */
+#mayhemPage,#recommendationPage{display:none;padding:4px 2px}
+#mayhemOutput[hidden],#recommendationOutput[hidden],#recommendationConfirm[hidden],#recommendationFeedback[hidden]{display:none!important}
+.guide-icon-row{display:flex;align-items:center;gap:9px;min-width:0}
+.guide-thumb{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--accent);font-weight:700;overflow:hidden}
+.guide-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.guide-icon-row .guide-copy{min-width:0;flex:1}
+.guide-icon-row .guide-copy strong{display:block;overflow-wrap:anywhere}
+.guide-icon-row .guide-copy small{display:block;font-size:11px;color:var(--muted);line-height:1.5;margin-top:2px}
+.guide-source{font-size:11px;color:var(--muted);line-height:1.5}
+.guide-source[data-stale="true"]{color:#f0bd74}
+.guide-rarity{display:inline-block;min-width:37px;text-align:center;font-size:10px;border-radius:5px;padding:2px 4px;margin-right:5px;border:1px solid var(--line)}
+.guide-rarity[data-kind="prism"]{color:#d6a8ff}
+.guide-rarity[data-kind="gold"]{color:#f7cb73}
+.guide-rarity[data-kind="silver"]{color:#b7d2e8}
+.guide-feedback{display:grid;gap:7px;margin:10px 0}
+.guide-feedback .guide-card{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.guide-feedback .guide-card span{font-size:12px;color:var(--muted)}
+.guide-feedback .guide-card[data-result="success"] span{color:var(--accent)}
+.guide-feedback .guide-card[data-result="failed"] span{color:#ffc59c}
+#mayhemPage h2,#recommendationPage h2{font-size:18px;margin:8px 0 5px}
+#mayhemPage p,#recommendationPage p{font-size:12px;color:var(--muted);line-height:1.7}
+.guide-results{display:grid;gap:9px;margin:12px 0;min-width:0}
+.guide-card{padding:12px;background:var(--card);border:1px solid var(--line);border-radius:10px;min-width:0}
+.guide-card strong{font-size:13px}
+.guide-card small{display:block;font-size:11px;color:var(--muted);line-height:1.7;margin-top:5px;overflow-wrap:anywhere}
+.guide-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.guide-stats .guide-card strong{display:block;font-size:16px;color:var(--accent)}
+.guide-list{display:grid;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.guide-list li{padding:8px 10px;border:1px solid var(--line);border-radius:7px;overflow-wrap:anywhere;font-size:12px}
+.guide-checks{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0}
+.guide-checks label{font-size:12px;display:flex;align-items:center;gap:7px}
+.guide-checks input{accent-color:var(--accent)}
+.guide-search{display:flex;gap:8px;flex-wrap:wrap}
+.guide-search input{flex:1 1 180px;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--text);font:inherit}
+.guide-search button,.guide-confirm button{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
+.guide-search button:disabled,.guide-confirm button:disabled{opacity:.5}
+.guide-confirm{padding:12px;border:1px solid var(--accent);border-radius:10px;margin:12px 0}
+.guide-confirm p{margin:0 0 10px}
+body[data-mode="mayhem"] #shell,body[data-mode="recommendation"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="mayhem"] #home,body[data-mode="recommendation"] #home,
+body[data-mode="mayhem"] #other,body[data-mode="recommendation"] #other{display:none!important}
+body[data-mode="mayhem"] #detail,body[data-mode="recommendation"] #detail{display:flex}
+body[data-mode="mayhem"] .brand-icon,body[data-mode="mayhem"] .brand-text,
+body[data-mode="recommendation"] .brand-icon,body[data-mode="recommendation"] .brand-text{display:none}
+body[data-mode="mayhem"] #mayhemPage,body[data-mode="recommendation"] #recommendationPage,
+body[data-mode="mayhem"] main,body[data-mode="recommendation"] main{display:block;overflow-y:auto}
+
+
+/* Cloud and version center reuse native owners; the WebView remains offline. */
+#cloudSyncPage,#updatesPage{display:none;padding:4px 2px}
+body[data-mode="cloud-sync"] #shell,body[data-mode="updates"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="cloud-sync"] #home,body[data-mode="cloud-sync"] #other,
+body[data-mode="updates"] #home,body[data-mode="updates"] #other{display:none!important}
+body[data-mode="cloud-sync"] #detail,body[data-mode="updates"] #detail{display:flex}
+body[data-mode="cloud-sync"] .brand-icon,body[data-mode="cloud-sync"] .brand-text,
+body[data-mode="updates"] .brand-icon,body[data-mode="updates"] .brand-text{display:none}
+body[data-mode="cloud-sync"] #cloudSyncPage,body[data-mode="updates"] #updatesPage,
+body[data-mode="cloud-sync"] main,body[data-mode="updates"] main{display:block;overflow-y:auto}
+#cloudSyncPage h2,#updatesPage h2{font-size:18px;margin:8px 0 5px}
+#cloudSyncPage p,#updatesPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#cloudSyncPage .tool-row{gap:12px;flex-wrap:wrap}
+#cloudSyncPage .tool-row input,#updatesPage input{accent-color:var(--accent);width:19px;height:19px;flex-shrink:0}
+#cloudSyncPage .tool-row label,#updatesPage .tool-row label{display:flex;align-items:center;gap:9px;font-size:12px}
+#cloudSyncPage .tool-row button,#updatesPage .tool-row button{min-height:38px;padding:8px 14px;background:var(--card2);border:1px solid var(--line);border-radius:9px}
+#cloudSyncPage button:disabled,#updatesPage button:disabled{opacity:.5}
+#updateExit{margin-top:8px;padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--text)}
+#cloudConfirm[hidden],#updateConfirm[hidden],#cloudConflictRow[hidden],#updateProgress[hidden]{display:none!important}
+#updateForcedBanner[hidden],#updateExit[hidden],#announcementLink[hidden],#updateCancelDownload[hidden]{display:none!important}
+body[data-force-update="true"] #detail .back,body[data-force-update="true"] #detail .home,
+body[data-force-update="true"] .header .close,body[data-force-update="true"] #updatesPage .actions{display:none!important}
+#updateProgress{width:100%;accent-color:var(--accent);margin:9px 0}
+#updateNotes,#announcementBody{white-space:pre-wrap;overflow-wrap:anywhere}
+#cloudSyncPage .guide-confirm,#updatesPage .guide-confirm{margin-top:10px}
+/* Cleanup: a review-first route, with the only scroll owner in main. */
+#cleanupPage{display:none;padding:4px 2px}
+#cleanupPage h2{font-size:18px;margin:8px 0 6px}
+#cleanupPage p{font-size:12px;color:var(--muted);line-height:1.7}
+body[data-mode="cleanup"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="cleanup"] #home,body[data-mode="cleanup"] #other{display:none!important}
+body[data-mode="cleanup"] #detail{display:flex}
+body[data-mode="cleanup"] .brand-icon,body[data-mode="cleanup"] .brand-text{display:none}
+body[data-mode="cleanup"] #cleanupPage,body[data-mode="cleanup"] main{display:block;overflow-y:auto}
+#cleanupPage button:disabled{opacity:.5;cursor:not-allowed}
+#cleanupPage .cleanup-buttons{display:flex;gap:8px;flex-wrap:wrap}
+#cleanupPage .cleanup-buttons button{min-height:38px;padding:9px 12px;background:var(--card2);border:1px solid var(--line);border-radius:9px}
+#cleanupPath{overflow-wrap:anywhere}
+.cleanup-targets{display:grid;gap:7px;list-style:none;padding:0;margin:10px 0}
+.cleanup-targets li{padding:9px 11px;border:1px solid var(--line);background:var(--card2);border-radius:8px;min-width:0}
+.cleanup-targets strong{font-size:11px;display:block;overflow-wrap:anywhere}
+.cleanup-targets small{font-size:10px;line-height:1.6;color:var(--muted);display:block;overflow-wrap:anywhere}
+.cleanup-targets li[data-blocked="true"]{opacity:.75;border-style:dashed}
+#cleanupReview[hidden],#cleanupResultDetail[hidden],#cleanupElevation[hidden]{display:none!important}
+#cleanupReview .guide-confirm{border-color:#e5b97f}
+
+/* Local profile: no cloud login, timer or external metrics. */
+#profilePage{display:none;padding:4px 2px}
+#profilePage h2{font-size:18px;margin:8px 0 6px}
+#profilePage p{font-size:12px;line-height:1.7;color:var(--muted)}
+body[data-mode="profile"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="profile"] #home,body[data-mode="profile"] #other{display:none!important}
+body[data-mode="profile"] #detail{display:flex}
+body[data-mode="profile"] .brand-icon,body[data-mode="profile"] .brand-text{display:none}
+body[data-mode="profile"] #profilePage,body[data-mode="profile"] main{display:block;overflow-y:auto}
+#profilePage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#profilePage .actions button{padding:8px 5px}
+#profileAccountList{display:grid;gap:7px;margin:9px 0;padding:0;list-style:none}
+#profileAccountList li{padding:10px;background:var(--card);border:1px solid var(--line);border-radius:9px}
+#profileAccountList strong{display:block;overflow-wrap:anywhere;font-size:12px}
+#profileAccountList small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+/* The full native-backed advanced automation form lives in the same scroll owner. */
+#advancedToolsPage{display:none;padding:4px 2px}
+body[data-mode="advanced-tools"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="advanced-tools"] #home,body[data-mode="advanced-tools"] #other{display:none!important}
+body[data-mode="advanced-tools"] #detail{display:flex}
+body[data-mode="advanced-tools"] .brand-icon,body[data-mode="advanced-tools"] .brand-text{display:none}
+body[data-mode="advanced-tools"] #advancedToolsPage,body[data-mode="advanced-tools"] main{display:block;overflow-y:auto}
+#advancedToolsPage h2{font-size:18px;margin:8px 0 5px}
+#advancedToolsPage h3{font-size:13px;margin:0 0 8px}
+#advancedToolsPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#advancedToolsPage .advanced-section{padding:12px;border:1px solid var(--line);background:var(--card);border-radius:12px;margin:0 0 10px}
+#advancedToolsPage .advanced-section label{display:flex;align-items:center;gap:9px;margin:8px 0;font-size:12px;min-width:0}
+#advancedToolsPage .advanced-section input[type=checkbox]{width:19px;height:19px;accent-color:var(--accent);flex-shrink:0}
+#advancedToolsPage .advanced-section input[type=text],#advancedToolsPage .advanced-section select{width:100%;min-width:0;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:8px;padding:9px;font-size:12px;font-family:inherit}
+#advancedToolsPage .advanced-section .advanced-stack{display:grid;gap:7px}
+#advancedToolsPage .advanced-section button{min-height:38px;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:var(--card2);font-family:inherit;color:var(--text)}
+#advancedToolsPage .advanced-section button:disabled{opacity:.5}
+#advancedToolsPage .advanced-policies{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+#advancedToolsPage .advanced-policies label{display:block;margin:0}
+#advancedToolsPage .advanced-policies label span{display:block;margin-bottom:4px}
+#advancedToolsPage .advanced-feedback{font-size:11px;color:var(--muted);margin-top:5px;min-height:12px;overflow-wrap:anywhere}
+#quickMessagePage{display:none;padding:4px 2px}
+body[data-mode="quick-messages"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="quick-messages"] #home,body[data-mode="quick-messages"] #other{display:none!important}
+body[data-mode="quick-messages"] #detail{display:flex}
+body[data-mode="quick-messages"] .brand-icon,body[data-mode="quick-messages"] .brand-text{display:none}
+body[data-mode="quick-messages"] #quickMessagePage,body[data-mode="quick-messages"] main{display:block;overflow-y:auto}
+#quickMessagePage h2{font-size:18px;margin:8px 0 5px}
+#quickMessagePage p{font-size:12px;color:var(--muted)}
+#quickMessagePage .quick-card{padding:11px;border:1px solid var(--line);border-radius:10px;margin-bottom:9px;background:var(--card)}
+#quickMessagePage .quick-card strong{display:block;font-size:13px}
+#quickMessagePage .quick-card textarea,#quickMessagePage .quick-card input{display:block;width:100%;border-radius:8px;border:1px solid var(--line);background:var(--card2);color:var(--text);padding:8px;font:inherit;font-size:12px;min-width:0}
+#quickMessagePage .quick-card textarea{resize:vertical;min-height:58px;max-height:130px}
+#quickMessagePage .quick-card label{display:block;font-size:12px;color:var(--muted);margin-top:8px}
+#quickMessagePage .quick-card .quick-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
+#quickMessagePage button{min-height:38px;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--card2);font-family:inherit;color:var(--text)}
+#quickMessagePage button:disabled{opacity:.5}
+/* Native-owned bench picker inside the one-window WebView2 shell. */
+#benchPage{display:none;padding:4px 2px}
+body[data-mode="bench"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="bench"] #home,body[data-mode="bench"] #other{display:none!important}
+body[data-mode="bench"] #detail{display:flex}
+body[data-mode="bench"] .brand-icon,body[data-mode="bench"] .brand-text{display:none}
+body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;overflow-y:auto}
+#benchPage h2{font-size:18px;margin:8px 0 6px}
+#benchPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#benchChampions{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:9px;margin:12px 0}
+#benchChampions button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-height:72px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);font:inherit;cursor:pointer}
+#benchChampions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#benchChampions button:disabled{opacity:.6;cursor:default}
+#benchChampions img{width:36px;height:36px;object-fit:cover;border-radius:7px}
+#benchChampions .bench-champ-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--card);color:var(--accent);border-radius:7px}
+#benchChampions small{font-size:11px}
+#benchRefresh{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
+#advancedDashboardPage{display:none;padding:4px 2px}
+body[data-mode="dashboard-advanced"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="dashboard-advanced"] #home,body[data-mode="dashboard-advanced"] #other{display:none!important}
+body[data-mode="dashboard-advanced"] #detail{display:flex}
+body[data-mode="dashboard-advanced"] .brand-icon,body[data-mode="dashboard-advanced"] .brand-text{display:none}
+body[data-mode="dashboard-advanced"] #advancedDashboardPage,body[data-mode="dashboard-advanced"] main{display:block;overflow-y:auto}
+#advancedDashboardPage h2{font-size:18px;margin:8px 0 6px}
+#advancedDashboardPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#advancedDashboardPage .dashboard-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+#advancedDashboardPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedDashboardPage button{min-height:38px}
+#profileCustomizationPage{display:none;padding:4px 2px}
+body[data-mode="profile-customization"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="profile-customization"] #home,body[data-mode="profile-customization"] #other{display:none!important}
+body[data-mode="profile-customization"] #detail{display:flex}
+body[data-mode="profile-customization"] .brand-icon,body[data-mode="profile-customization"] .brand-text{display:none}
+body[data-mode="profile-customization"] #profileCustomizationPage,body[data-mode="profile-customization"] main{display:block;overflow-y:auto}
+#profileCustomizationPage h2{font-size:18px;margin:8px 0 5px}
+#profileCustomizationPage p{color:var(--muted);font-size:12px;line-height:1.65}
+#profileCustomizationPage .profile-control{padding:11px;border:1px solid var(--line);background:var(--card);border-radius:11px;margin:9px 0}
+#profileCustomizationPage .profile-control h3{font-size:13px;margin:0 0 7px}
+#profileCustomizationPage .profile-control select{width:100%;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+#profileCustomizationPage .profile-control label{display:block;font-size:12px;color:var(--muted);margin:8px 0}
+#profileCustomizationPage .profile-control button{min-height:38px;margin-top:6px;padding:8px 11px;border-radius:8px;background:var(--card2);color:var(--text)}
+#profileCustomizationPage .profile-control button:disabled{opacity:.5}
+#profileCustomizationPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedHistoryPage{display:none;padding:4px 2px}
+body[data-mode="player-advanced"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="player-advanced"] #home,body[data-mode="player-advanced"] #other{display:none!important}
+body[data-mode="player-advanced"] #detail{display:flex}
+body[data-mode="player-advanced"] .brand-icon,body[data-mode="player-advanced"] .brand-text{display:none}
+body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-advanced"] main{display:block;overflow-y:auto}
+#advancedHistoryPage h2{font-size:18px;margin:8px 0 5px}
+#advancedHistoryPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#advancedHistoryPage .advanced-history-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:9px}
+#advancedHistoryPage label{font-size:12px;color:var(--muted)}
+#advancedHistoryPage input,#advancedHistoryPage select{display:block;width:100%;padding:9px;margin-top:5px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px}
+#advancedHistoryPage .history-advanced-row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;padding:11px;margin-top:8px;background:var(--card);border-radius:10px}
+#advancedHistoryPage .history-advanced-row strong,#advancedHistoryPage .history-advanced-row small{display:block;min-width:0;overflow-wrap:anywhere}
+#advancedHistoryPage .history-advanced-row small{color:var(--muted);font-size:11px;margin-top:5px}
+#advancedHistoryPage button{min-height:36px;padding:7px 11px;border-radius:8px;background:var(--card2);color:var(--text)}
+#advancedHistoryPage button:disabled{opacity:.5}
+#advancedHistoryPage .advanced-player{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px;align-items:center;background:var(--card);padding:10px;margin-top:7px;border-radius:9px}
+#advancedHistoryPage .advanced-player small{font-size:11px;color:var(--muted);display:block;overflow-wrap:anywhere;margin-top:5px}
+#advancedHistoryPage .advanced-player strong{font-size:12px;overflow-wrap:anywhere}
+#advancedHistoryPage .advanced-player .score{text-align:right}
+#advancedHistoryPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedHistoryPage .history-extra{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin:9px 0}
+#advancedHistoryPage .history-extra h3{font-size:13px;margin:0 0 7px}
+#advancedHistoryPage .history-extra svg{display:block;width:100%;max-width:380px;max-height:250px;margin:auto;overflow:visible}
+#advancedHistoryPage .history-extra svg text{fill:var(--muted);font-size:10px;font-family:"Microsoft YaHei UI",sans-serif}
+#advancedHistoryPage .history-extra svg .axis{stroke:var(--line);stroke-width:1;fill:none}
+#advancedHistoryPage .history-extra svg .player{stroke:var(--accent);stroke-width:2;fill:rgba(8,186,214,.13)}
+#advancedHistoryPage .history-extra svg .team{stroke:#94a8ff;stroke-width:1.5;fill:rgba(148,168,255,.08)}
+#advancedHistoryPage .history-extra .history-chart-note{font-size:11px;color:var(--muted);line-height:1.6}
+#advancedHistoryPage .history-extra .history-event{font-size:11px;border-bottom:1px solid var(--line);padding:5px 2px;overflow-wrap:anywhere}
+#advancedHistoryPage .history-extra .history-event:last-child{border-bottom:0}
+#advancedHistoryPage .history-extra .actions{margin-top:7px}
+#advancedHistoryPage #advancedRegionalResults{display:grid;gap:7px}
+#advancedHistoryPage .history-region-header{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:9px}
+#advancedHistoryPage .history-region-header input,#advancedHistoryPage .history-region-header select{width:100%;min-width:0}
+#appearance .pet-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:10px 0}
+#appearance .pet-card{text-align:left;min-height:66px;padding:10px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+#appearance .pet-card strong{display:block;font-size:12px}
+#appearance .pet-card small{display:block;font-size:11px;line-height:1.55;color:var(--muted);margin-top:5px}
+#appearance .pet-card.selected{border-color:var(--accent)}
+#appearance .pet-commands{display:flex;flex-wrap:wrap;gap:8px}
+#appearance .pet-commands button{min-height:38px;padding:9px 12px;border-radius:8px;background:var(--card2)}
+/* Only main owns viewport scrolling; page sections are never independent scroll panes. */
+html,body{height:100%;overflow:hidden}
+#shell{max-height:100dvh;overflow:hidden}
+main{min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+body[data-mode] main>section{max-height:none;overflow:visible}
+</style>
+</head>
+<body data-mode="home">
+<div id="shell">
+<header class="header" id="dragHandle">
+  <div class="brand-icon" aria-hidden="true">G</div>
+  <div class="brand-text"><div class="brand-name">GGman</div><div class="subhead">轻巧常驻 · 随时掌控游戏</div></div>
+  <div id="detail"><button class="back" aria-label="返回上一页" data-action="back">‹</button><span class="title" id="routeTitle">LOL 工作台</span><button class="home" title="返回控制中心" data-action="home">⌂</button></div>
+  <button class="close" aria-label="关闭控制中心" data-action="close">×</button>
+</header>
+<main id="pages">
+  <section id="home">
+    <button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
+      <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 等待连接</b><span class="status-chevron" aria-hidden="true">›</span></span>
+      <span id="clientPhase">正在等候当前客户端状态</span><span class="hint">打开 LOL 客户端后会自动显示当前场景</span>
+    </button>
+    <div class="section-caption"><span>常用功能</span><span>轻触即可进入</span></div>
+    <div class="tiles">
+      <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong><small>当前阶段与账号</small></span></button>
+      <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong><small>历史与英雄分析</small></span></button>
+      <button class="tile" data-route="mayhem"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 2.1 6.5L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.5Z"/><path d="m19 17 1 2.5 2 1-2 .7-.7 2-1-2-.8-.7"/></svg></span><span class="tile-copy"><strong>海斗攻略</strong><small>强化推荐与排行</small></span></button>
+      <button class="tile" data-route="efficiency"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--card2)"/><circle cx="16" cy="12" r="2.2" fill="var(--card2)"/><circle cx="10" cy="18" r="2.2" fill="var(--card2)"/></svg></span><span class="tile-copy"><strong>快捷工具</strong><small>自动匹配与选禁</small></span></button>
+    </div>
+    <div class="actions">
+      <button data-route="cleanup">清理修复</button>
+      <button data-route="appearance">外观主题</button>
+      <button data-action="more">全部功能</button>
+    </div>
+  </section>
+  <section id="clientStatus">
+    <h2>LOL 客户端状态</h2>
+    <p>状态来自 GGman 现有 Gameflow 观察者，不会创建新的网络请求或轮询。</p>
+    <div class="status"><b id="statusConnection">未连接</b><span id="statusPhase">等待客户端连接</span><span id="statusHint">启动英雄联盟后自动同步</span></div>
+    <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
+  </section>
+  <section id="quicktools">
+    <h2>快捷工具</h2><p>开关实时保存到现有 GGman 设置，继续由原生游戏流程控制器执行操作。</p>
+    <div class="tools" id="quickSettings">
+      <div class="tool-row"><span><strong>自动开始排队</strong><small>符合组队条件时自动寻找对局</small></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
+      <div class="tool-row"><span><strong>自动接受对局</strong><small>匹配成功时自动接受一次</small></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
+      <div class="tool-row"><span><strong>断线自动重连</strong><small>仅在可确认重连状态后执行</small></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
+      <div class="tool-row"><span><strong>赛后自动点赞</strong><small>延续已保存的点赞优先级</small></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
+      <div class="tool-row"><span><strong>赛后返回大厅</strong><small>结束点赞流程后再返回</small></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
+    </div>
+    <p id="toolResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-route="matchmaking-settings">排队详细设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
+  </section>
+  <section id="advancedDashboardPage">
+    <h2>完整 LOL 工作台</h2>
+    <p>来自 GGman 同一个客户端与 Gameflow 观察者的详细快照。账号、服务器、连接和性能预算均显示真实结果，不添加刷新轮询。</p>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="advancedDbConnection">等待读取</strong></div>
+      <div class="dashboard-card"><span class="small">游戏进程</span><strong id="advancedDbGameProcess">—</strong></div>
+      <div class="dashboard-card"><span class="small">当前阶段</span><strong id="advancedDbPhase">—</strong></div>
+      <div class="dashboard-card"><span class="small">活动分组</span><strong id="advancedDbActivity">—</strong></div>
+      <div class="dashboard-card"><span class="small">召唤师</span><strong id="advancedDbAccount">—</strong></div>
+      <div class="dashboard-card"><span class="small">等级 / 头像编号</span><strong id="advancedDbIdentity">—</strong></div>
+      <div class="dashboard-card"><span class="small">所在平台</span><strong id="advancedDbPlatform">—</strong></div>
+      <div class="dashboard-card"><span class="small">平台代码</span><strong id="advancedDbPlatformId">—</strong></div>
+      <div class="dashboard-card"><span class="small">性能预算（实际配置）</span><strong id="advancedDbBudget">—</strong></div>
+      <div class="dashboard-card"><span class="small">最新状态记录</span><strong id="advancedDbUpdated">—</strong></div>
+    </div>
+    <div class="guide-card">
+      <strong>当前游戏复活状态</strong>
+      <small>只在游戏进行中按需读取现有 Live Client Data；不会新增每秒计时器。</small>
+      <p id="advancedRespawn" role="status" aria-live="polite">尚未读取</p>
+      <button data-action="dashboard-respawn-refresh" id="advancedRespawnRefresh">读取当前复活状态</button>
+    </div>
+    <p id="advancedDbStatus" role="status" aria-live="polite">等待读取状态</p>
+    <div class="actions">
+      <button data-action="refresh-dashboard">刷新全部工作台信息</button>
+      <button data-route="dashboard">返回简洁工作台</button>
+      <button data-route="live">实时对局</button>
+      <button data-route="player">我的战绩</button>
+    </div>
+  </section>
+  <section id="dashboardPage">
+    <h2>LOL 工作台</h2><p>按需读取当前已连接客户端的账号和对局信息，使用 GGman 原有游戏会话。</p>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="dbConnection">等待连接</strong></div>
+      <div class="dashboard-card"><span class="small">当前阶段</span><strong id="dbPhase">未连接</strong></div>
+      <div class="dashboard-card"><span class="small">登录账号</span><strong id="dbAccount">—</strong></div>
+      <div class="dashboard-card"><span class="small">所在服务器</span><strong id="dbServer">—</strong></div>
+      <div class="dashboard-card"><span class="small">召唤师等级</span><strong id="dbLevel">—</strong></div>
+      <div class="dashboard-card"><span class="small">性能预算</span><strong id="dbBudget">—</strong></div>
+    </div>
+    <div class="save-row"><button data-action="refresh-dashboard" id="refreshDashboard">读取最新状态</button><span class="muted" id="dashboardResult" role="status"></span></div>
+    <div class="actions"><button data-route="player">我的战绩</button><button data-route="live">实时对局</button><button data-route="dashboard-advanced">完整工作台</button></div>
+  </section>
+  <section id="profileCustomizationPage">
+    <h2>LOL 个性资料定制</h2>
+    <p>通过现有 LCU 服务读取并修改当前召唤师资料。写入会回读校验，切换账号后丢弃旧结果；不需要 GGman 云登录。</p>
+    <div class="profile-control">
+      <h3>个人背景英雄皮肤</h3>
+      <label>背景英雄<select id="profileChampion" aria-label="选择背景英雄"></select></label>
+      <label>背景皮肤<select id="profileSkin" aria-label="选择背景皮肤"></select></label>
+      <div class="actions">
+        <button data-action="profile-customization-refresh">读取英雄目录</button>
+        <button id="profileSkinApply" data-profile-action="skin" disabled>应用选中背景</button>
+      </div>
+    </div>
+    <div class="profile-control">
+      <h3>个性展示清理与恢复</h3>
+      <p>以下动作会更新当前 LOL 账号对应项目；先选择操作，再确认。</p>
+      <div class="actions">
+        <button data-profile-action="crest">移除段位徽章</button>
+        <button data-profile-action="tokens">清除挑战代币</button>
+        <button data-profile-action="emotes">清除表情配置</button>
+        <button data-profile-action="banner">恢复上赛季旗帜</button>
+      </div>
+    </div>
+    <div class="guide-card" id="profileCustomizationConfirm" hidden>
+      <strong>确认修改当前 LOL 账号资料？</strong>
+      <small id="profileCustomizationConfirmText"></small>
+      <div class="actions">
+        <button data-action="profile-customization-confirm">确认修改</button>
+        <button data-action="profile-customization-cancel">取消</button>
+      </div>
+    </div>
+    <p id="profileCustomizationStatus" role="status" aria-live="polite">尚未读取英雄目录</p>
+    <div class="actions">
+      <button data-route="presence">返回在线状态</button>
+      <button data-route="dashboard-advanced">完整工作台</button>
+    </div>
+  </section>
+  <section id="presencePage">
+    <h2>在线状态</h2><p>读取当前 LOL 客户端的聊天状态。保存后由原有 C# 服务回读校验，客户端可能覆盖游戏中状态。</p>
+    <div class="status"><b id="presenceCurrent">等待读取</b><span id="presenceName">请先连接英雄联盟</span></div>
+    <div class="presence-modes" id="presenceModes">
+      <button data-presence-mode="Online">在线</button><button data-presence-mode="Away">离开</button>
+      <button data-presence-mode="DoNotDisturb">勿扰</button><button data-presence-mode="Mobile">手机在线</button>
+      <button data-presence-mode="Offline">离线</button><button data-presence-mode="DisplayInGame">游戏中</button>
+    </div>
+    <div class="setting-grid"><label>个性签名<input id="presenceSignature" maxlength="512" autocomplete="off" placeholder="输入展示给好友的签名"></label></div>
+    <div class="save-row"><button id="presenceSaveSignature" data-action="presence-signature">保存签名</button></div>
+    <div class="setting-grid">
+      <label>展示队列<select id="presenceQueue"></select></label>
+      <label>展示段位<select id="presenceTier"></select></label>
+      <label>分段<select id="presenceDivision"><option value="I">I</option><option value="II">II</option><option value="III">III</option><option value="IV">IV</option></select></label>
+    </div>
+    <div class="save-row"><button id="presenceSaveRank" data-action="presence-rank">保存展示段位</button></div>
+    <p id="presenceResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
+  </section>
+  <section id="advancedHistoryPage">
+    <h2>高级战绩与对局详情</h2>
+    <p>从当前游戏账号按需读取最多 20 场对局；下面的筛选只针对已读取记录，不伪称查询服务器全部战绩。选中对局后由原来的 LCU/SGP 明细服务读取真实记分板。</p>
+    <div class="advanced-history-filters">
+      <label>搜索英雄或模式<input id="advancedHistorySearch" type="search" autocomplete="off" maxlength="80" placeholder="英雄、模式、队列"></label>
+      <label>比赛结果<select id="advancedHistoryOutcome"><option value="all">全部结果</option><option value="win">胜利</option><option value="loss">失败</option><option value="unknown">结果未确认</option></select></label>
+      <label>队列模式<select id="advancedHistoryQueue"><option value="all">全部已读取队列</option></select></label>
+      <label>排序<select id="advancedHistorySort"><option value="recent">最近优先</option><option value="oldest">较早优先</option><option value="kills">击杀优先</option><option value="kda">KDA 优先</option></select></label>
+    </div>
+    <div class="history-extra">
+      <h3>Riot ID 跨区战绩查询</h3>
+      <p>仅查询客户端当前账号可授权访问的区域服务器。国服可选择其他腾讯大区，其他地区按原有 SGP 授权目录限制；不会绕过账号或服务端权限。</p>
+      <div class="history-region-header">
+        <label>Riot ID<input type="text" id="advancedRegionalRiotId" maxlength="52" autocomplete="off" placeholder="召唤师名称#编号"></label>
+        <label>服务器<select id="advancedRegionalServer" aria-label="战绩查询服务器"></select></label>
+      </div>
+      <div class="actions"><button data-action="history-region-search">搜索玩家并读取 20 场</button>
+        <button data-action="history-region-catalog">更新服务器列表</button></div>
+      <p id="advancedRegionalStatus" role="status">等待选择服务器和输入 Riot ID</p>
+      <div id="advancedRegionalResults"></div>
+    </div>
+    <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
+    <div id="advancedHistoryRows"></div>
+    <div class="guide-card" id="advancedHistoryDetail" hidden>
+      <strong id="advancedHistoryDetailTitle">对局详情</strong>
+      <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
+      <div id="advancedHistoryTeams"></div>
+      <div id="advancedHistoryParticipants"></div>
+      <div id="advancedHistoryExtras" hidden>
+        <div class="history-extra">
+          <h3>七维雷达分析</h3>
+          <p>指标由既有 C# 雷达模型计算；缺失统计保持空值，不补造排名。</p>
+          <label>选择对比玩家<select id="advancedHistoryRadarPlayer" aria-label="选择雷达图玩家"></select></label>
+          <svg id="advancedHistoryRadar" viewBox="0 0 300 260" role="img" aria-label="玩家与队伍平均七维雷达图"></svg>
+          <p id="advancedRadarStatus" class="history-chart-note" role="status">请选择有统计信息的玩家</p>
+        </div>
+        <div class="history-extra">
+          <h3>对局时间线</h3>
+          <p>按需读取同一场对局的真实时间线，最多展示 160 帧与 120 个事件。</p>
+          <label>曲线指标<select id="advancedTimelineMetric">
+            <option value="gold">总经济</option><option value="cs">补刀</option>
+            <option value="xp">经验</option><option value="damage">英雄伤害</option>
+            <option value="taken">承受伤害</option>
+          </select></label>
+          <div class="actions"><button data-action="history-timeline">读取时间线</button></div>
+          <p id="advancedTimelineStatus" role="status">尚未读取时间线</p>
+          <svg id="advancedHistoryTimeline" viewBox="0 0 320 180" role="img" aria-label="按真实比赛时间绘制的成长曲线"></svg>
+          <div id="advancedTimelineEvents"></div>
+        </div>
+        <div class="history-extra">
+          <h3>本地回放</h3>
+          <p>由客户端决定下载或观看；已请求不代表已下载完成。回放可能受版本及区域限制。</p>
+          <div class="actions">
+            <button data-action="history-replay-folder">查看本机回放目录</button>
+            <button data-action="history-replay-confirm">下载或观看本场回放</button>
+          </div>
+          <div id="advancedReplayConfirm" hidden>
+            <p>确认向当前 LOL 客户端请求本场回放？可能开始下载或打开回放。</p>
+            <div class="actions"><button data-action="history-replay">确认请求</button>
+              <button data-action="history-replay-cancel">取消</button></div>
+          </div>
+          <p id="advancedReplayStatus" role="status">等待操作</p>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button data-action="history-advanced-refresh">重新读取 20 场</button>
+      <button data-route="player">返回近期战绩</button>
+    </div>
+  </section>
+  <section id="historyPage">
+    <h2>我的战绩</h2>
+    <p>当前登录账号的近期战绩，按需从现有 LCU/SGP 历史服务读取，换号时会取消并丢弃旧结果。</p>
+    <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
+    <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
+    <div class="history-filter" role="group" aria-label="筛选已读取战绩">
+      <button type="button" data-history-filter="all" aria-pressed="true">全部</button>
+      <button type="button" data-history-filter="win" aria-pressed="false">胜利</button>
+      <button type="button" data-history-filter="loss" aria-pressed="false">失败</button>
+    </div>
+    <label class="tool-search" for="historySearch">搜索已读取对局<input id="historySearch" type="search" maxlength="80" autocomplete="off" placeholder="英雄、模式或队列"></label>
+    <label class="tool-search" for="historySort">对局排序<select id="historySort"><option value="recent">最近对局优先</option><option value="oldest">较早对局优先</option><option value="kills">击杀数优先</option><option value="kda">KDA 优先</option></select></label>
+    <div class="history-list" id="historyList" aria-label="近期对局"></div>
+    <div class="save-row">
+      <button data-action="history-refresh" id="historyRefresh">刷新近期战绩</button>
+      <button data-action="history-more" id="historyMore" hidden>读取更多</button>
+    </div>
+    <div class="actions"><button data-route="player-advanced">筛选与战绩详情</button><button data-route="live">实时对局</button></div>
+  </section>
+  <section id="benchPage">
+    <h2>ARAM 替补席 · 快速换英雄</h2>
+    <p>替补英雄仅在选人替补席开放时显示。点击后由既有 LCU 交换服务执行一次操作并回读确认，不会自动重试。</p>
+    <div class="guide-stats">
+      <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
+      <div class="guide-card"><small>对局模式</small><strong id="benchMode">—</strong></div>
+    </div>
+    <p id="benchReadStatus" role="status" aria-live="polite">等待读取替补席</p>
+    <div id="benchChampions" role="group" aria-label="可交换的英雄"></div>
+    <p id="benchActionStatus" role="status" aria-live="polite"></p>
+    <div class="actions">
+      <button id="benchRefresh" data-action="bench-refresh">刷新替补席</button>
+      <button data-route="live">返回实时对局</button>
+    </div>
+  </section>
+  <section id="livePage">
+    <h2>实时对局</h2><p>按需读取当前选人/对局阵容。资料由已有 LCU 会话服务提供，不额外启动轮询。</p>
+    <div class="live-summary">
+      <div><small>连接状态</small><strong id="liveConnection">等待读取</strong></div>
+      <div><small>对局阶段</small><strong id="livePhase">—</strong></div>
+      <div><small>队列与模式</small><strong id="liveQueue">—</strong></div>
+      <div><small>地图</small><strong id="liveMap">—</strong></div>
+    </div>
+    <p id="liveSummary" role="status" aria-live="polite">等待当前客户端阵容</p>
+    <div id="liveBans" class="status" aria-label="当前禁用英雄" hidden></div>
+    <div class="history-filter" role="group" aria-label="筛选当前阵容">
+      <button type="button" data-live-filter="all" aria-pressed="true">全部</button>
+      <button type="button" data-live-filter="my-team" aria-pressed="false">我方</button>
+      <button type="button" data-live-filter="their-team" aria-pressed="false">对方</button>
+    </div>
+    <label class="tool-search" for="liveSearch">搜索当前阵容<input id="liveSearch" type="search" maxlength="80" autocomplete="off" placeholder="玩家名称、英雄编号或位置"></label>
+    <label class="tool-search" for="liveSort">阵容排序<select id="liveSort"><option value="team">按队伍分组</option><option value="position">按位置排序</option><option value="name">按玩家名称排序</option></select></label>
+    <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
+    <div class="save-row">
+      <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
+      <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
+    </div>
+    <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
+  </section>
+  <section id="profilePage">
+    <h2>我的 GGman · 本地资料</h2>
+    <p>无需 GGman 邮箱登录；仅展示当前设备已记录的使用数据。云端个人排行与验证码暂缓开放。</p>
+    <div class="status"><b>本地模式</b><span id="profileMode">保存在当前设备，不依赖 CloudBase</span></div>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">使用过的游戏账号</span><strong id="profilePlayed">—</strong></div>
+      <div class="dashboard-card"><span class="small">活跃天数</span><strong id="profileActiveDays">—</strong></div>
+      <div class="dashboard-card"><span class="small">连续活跃</span><strong id="profileStreak">—</strong></div>
+      <div class="dashboard-card"><span class="small">最近 7 天活跃</span><strong id="profileRecent7">—</strong></div>
+      <div class="dashboard-card"><span class="small">最近 30 天活跃</span><strong id="profileRecent30">—</strong></div>
+      <div class="dashboard-card"><span class="small">本月新账号</span><strong id="profileNewMonth">—</strong></div>
+    </div>
+    <div class="guide-card"><strong>本地使用记录</strong><small id="profileDates">正在读取</small></div>
+    <div class="guide-card"><strong>近期游戏账号</strong><ul id="profileAccountList"></ul></div>
+    <p id="profileStatus" role="status" aria-live="polite">正在读取本地资料</p>
+    <div class="actions">
+      <button data-action="profile-refresh">刷新本地资料</button>
+      <button data-route="appearance">外观主题</button>
+      <button data-route="cleanup">清理修复</button>
+      <button data-route="updates">更新中心</button>
+    </div>
+  </section>
+  <section id="cloudSyncPage">
+    <h2>云同步</h2>
+    <p id="cloudModeNote">云账号同步属于可选功能，不影响本地游戏工具与单独的正式在线更新。</p>
+    <div class="guide-results">
+      <div class="guide-card"><strong>当前 GGman 账号</strong><small id="cloudAccount">未登录</small></div>
+      <div class="guide-card"><strong>云同步状态</strong><small id="cloudStatus" role="status" aria-live="polite">等待读取</small></div>
+    </div>
+    <div class="tools">
+      <div class="tool-row"><label><input id="cloudAutoSync" type="checkbox"> 自动同步应用设置与文字配置</label></div>
+      <div class="tool-row"><label><input id="cloudGameRestore" type="checkbox"> 已发布游戏配置自动恢复</label></div>
+      <div class="tool-row"><span><strong>上传当前游戏配置</strong><small>仅手动触发，游戏运行时禁止上传。上传前需确认；由原有模块校验游戏目录和账号。</small></span><button id="cloudPublish" data-action="cloud-publish">上传</button></div>
+      <div class="tool-row" id="cloudConflictRow" hidden><span><strong>同步冲突处理</strong><small>将当前本地配置上传到账号云端，可能替换远端版本，请确认本地数据正确。</small></span><button id="cloudKeepLocal" data-action="cloud-keep-local">保留本地并上传</button></div>
+    </div>
+    <div class="guide-confirm" id="cloudConfirm" hidden>
+      <p id="cloudConfirmText">确认执行此云端操作吗？</p>
+      <div class="guide-search"><button id="cloudConfirmButton" data-action="cloud-confirm">确认操作</button><button data-action="cloud-cancel">取消</button></div>
+    </div>
+    <p id="cloudResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-action="cloud-refresh">刷新当前状态</button><button data-route="updates">更新中心</button></div>
+  </section>
+  <section id="updatesPage">
+    <h2>更新中心</h2>
+    <p>通过 GGman 原有在线版本源检查更新。下载文件须通过文件哈希和数字签名校验，之后才允许启动现有更新器。</p>
+    <div class="guide-card" id="updateForcedBanner" hidden role="alert"><strong>必须更新才能继续使用</strong><small>当前版本已不再支持。可以安装已验证的新版本，或退出 GGman；不能跳过此更新继续操作。</small></div>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">当前安装版本</span><strong id="updateCurrent">—</strong></div>
+      <div class="dashboard-card"><span class="small">已验证最新版本</span><strong id="updateLatest">未获取</strong></div>
+    </div>
+    <div class="status"><b id="updateStatus" role="status" aria-live="polite">等待读取更新信息</b><span id="updateSource"></span></div>
+    <div class="tool-row"><label><input id="updateAuto" type="checkbox"> 启用自动更新提示</label></div>
+    <div class="guide-card"><strong>更新说明</strong><small id="updateNotes">暂无可用更新说明</small></div>
+    <div class="guide-card"><strong id="announcementTitle">公告</strong><small id="announcementBody">暂无公告</small><button data-action="updates-link" id="announcementLink" hidden>打开公告链接</button></div>
+    <progress id="updateProgress" value="0" max="100" hidden aria-label="已验证更新包下载进度"></progress>
+    <button id="updateCancelDownload" data-action="updates-stop" hidden>取消当前下载</button>
+    <div class="save-row">
+      <button data-action="updates-refresh" id="updateRefresh">检查更新</button>
+      <button data-action="updates-install" id="updateInstall" disabled>安装已验证更新</button>
+    </div>
+    <div class="guide-confirm" id="updateConfirm" hidden>
+      <p id="updateConfirmText">确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。</p>
+      <div class="guide-search"><button data-action="updates-confirm">确认安装</button><button data-action="updates-cancel">取消</button></div>
+    </div>
+    <button id="updateExit" data-action="updates-exit" hidden>退出 GGman</button>
+    <p id="updateResult" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-route="cloud-sync">云同步</button><button data-action="home">返回控制中心</button></div>
+  </section>
+  <section id="mayhemPage">
+    <h2>海斗攻略</h2>
+    <p>输入英雄名称后按需读取现有海斗排行、强化与版本平衡数据。仅展示真实来源返回的项目。</p>
+    <div class="guide-search">
+      <input id="mayhemChampion" type="search" maxlength="80" autocomplete="off" placeholder="英雄中文名、英文名或简称" aria-label="查询海斗英雄">
+      <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
+      <button data-action="mayhem-cancel" id="mayhemCancel" disabled>取消</button>
+    </div>
+    <p id="mayhemResult" role="status" aria-live="polite">输入英雄名称开始查询</p>
+    <div id="mayhemOutput" class="guide-results" hidden>
+      <div class="guide-card"><div class="guide-icon-row"><div class="guide-thumb" id="mayhemChampionIcon">英</div><div class="guide-copy"><strong id="mayhemName">—</strong><small id="mayhemSource">—</small></div></div></div>
+      <div class="guide-stats">
+        <div class="guide-card"><small>英雄排行</small><strong id="mayhemRank">—</strong></div>
+        <div class="guide-card"><small>胜率</small><strong id="mayhemWinRate">—</strong></div>
+      </div>
+      <div class="guide-card"><strong>本版本平衡</strong><small id="mayhemBalance">暂无可信数据</small></div>
+      <div class="guide-card"><strong>强化推荐</strong><small class="guide-source" id="mayhemAugmentSource"></small><ul class="guide-list" id="mayhemAugments"></ul></div>
+      <div class="guide-card"><strong>核心装备</strong><ul class="guide-list" id="mayhemItems"></ul></div>
+      <div class="guide-card"><strong>技能顺序</strong><small id="mayhemSkills">暂无</small></div>
+      <div class="guide-card"><strong>前十英雄</strong><ul class="guide-list" id="mayhemTop"></ul></div>
+    </div>
+  </section>
+  <section id="recommendationPage">
+    <h2>出装推荐</h2>
+    <p>复用现有 OP.GG 缓存、选人阶段与账号会话保护；符文、召唤师技能和装备由原生服务应用。</p>
+    <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
+    <div class="guide-results" id="recommendationOutput" hidden>
+      <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
+      <div class="guide-stats">
+        <div class="guide-card"><small>版本</small><strong id="recommendationVersion">—</strong></div>
+        <div class="guide-card"><small>胜率</small><strong id="recommendationWinRate">—</strong></div>
+      </div>
+      <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
+    </div>
+    <div class="guide-checks" id="recommendationChoices">
+      <label><input id="applyRunes" type="checkbox" checked> 应用符文</label>
+      <label><input id="applySpells" type="checkbox" checked> 应用召唤师技能</label>
+      <label><input id="applyItems" type="checkbox"> 导入装备</label>
+    </div>
+    <div class="save-row">
+      <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
+      <button data-action="recommendation-apply" id="recommendationApply" disabled>选择应用内容</button>
+    </div>
+    <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
+    <div class="guide-confirm" id="recommendationConfirm" hidden>
+      <p id="recommendationConfirmText">确认要将所选推荐写入当前英雄联盟客户端吗？</p>
+      <div class="guide-search"><button data-action="recommendation-confirm" id="recommendationConfirmButton">确认应用</button><button data-action="recommendation-cancel">取消</button></div>
+    </div>
+  </section>
+  <section id="cleanupPage">
+    <h2>清理与修复</h2>
+    <p>游戏目录检测、驱动修复和环境清理沿用现有 C# 安全服务。执行清理前必须查看精确目标列表并确认；不会删除标记为保留或禁止的目录。</p>
+    <div class="guide-results">
+      <div class="guide-card"><strong>英雄联盟安装目录</strong><small id="cleanupPath">等待读取</small></div>
+      <div class="guide-card"><strong>当前权限</strong><small id="cleanupPrivilege">正在检测</small></div>
+    </div>
+    <div class="cleanup-buttons">
+      <button id="cleanupDetect" data-action="cleanup-detect">自动识别</button>
+      <button id="cleanupSelect" data-action="cleanup-select">选择目录</button>
+      <button id="cleanupRefresh" data-action="cleanup-refresh">刷新状态</button>
+    </div>
+    <div class="tool-row"><span><strong>驱动修复</strong><small>通过已有系统工具执行，不新增安装器</small></span><button id="cleanupDriver" data-action="cleanup-driver">启动驱动修复</button></div>
+    <div class="tool-row"><span><strong>环境清理</strong><small>先扫描并预览全部目标，禁止游戏进程运行时执行。</small></span><button id="cleanupPreviewButton" data-action="cleanup-preview">扫描清理范围</button></div>
+    <div class="tool-row" id="cleanupElevation" hidden><span><strong>需要管理员权限</strong><small>清理系统目录需要 Windows 管理员授权</small></span><button data-action="cleanup-elevate">管理员模式重启</button></div>
+    <p id="cleanupStatus" role="status" aria-live="polite">等待检查本地游戏环境</p>
+    <section id="cleanupReview" class="guide-results" hidden>
+      <div class="guide-card"><strong>清理确认预览</strong><small id="cleanupPlanSummary"></small></div>
+      <ul id="cleanupTargets" class="cleanup-targets" aria-label="将要删除和阻止删除的完整目标列表"></ul>
+      <div class="guide-confirm">
+        <p>请确认上方列出的全部路径。此操作将删除明确列出的可清理文件和目录，不可撤销，预览两分钟后失效。</p>
+        <div class="cleanup-buttons"><button data-action="cleanup-confirm" id="cleanupConfirm">我已核对，执行清理</button><button data-action="cleanup-cancel">取消本次清理</button></div>
+      </div>
+    </section>
+    <div class="guide-card" id="cleanupResultDetail" hidden><strong>本次执行结果</strong><small id="cleanupResultCounts"></small></div>
+  </section>
+  <section id="repairPage">
+    <h2>游戏修复</h2>
+    <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
+    <div class="tools">
+      <div class="tool-row"><span><strong>窗口恢复</strong><small>将异常大小或屏幕外的 LOL 客户端窗口恢复到可见位置</small></span><button data-repair-action="window">立即修复</button></div>
+      <div class="tool-row"><span><strong>自动窗口修复</strong><small>沿用已有客户端窗口事件，不添加后台服务</small></span><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
+      <div class="tool-row"><span><strong>跳过卡住的结算</strong><small>使用已有 LCU 赛后写入接口</small></span><button data-repair-action="settlement">跳过结算</button></div>
+      <div class="tool-row"><span><strong>重启客户端界面</strong><small>仅重启 Riot 客户端的 UX 进程，可能关闭当前界面</small></span><button data-repair-action="restart">重启界面</button></div>
+      <div class="tool-row"><span><strong>退出当前游戏</strong><small>仅针对当前正在运行的游戏进程，请先保存必要内容</small></span><button data-repair-action="exit">退出游戏</button></div>
+    </div>
+    <div id="repairExitConfirm" hidden>
+      <p>确定退出当前运行的游戏吗？此操作可能中断对局。</p>
+      <button data-action="repair-confirm">确认退出</button><button data-action="repair-cancel">取消</button>
+    </div>
+    <p id="repairResult" role="status" aria-live="polite"></p>
+  </section>
+  <section id="postgameSettings">
+    <h2>赛后处理</h2><p>结束对局后自动点赞，并按需返回大厅。偏好与进度由现有赛后控制器负责。</p>
+    <div class="setting-checks">
+      <label><input type="checkbox" id="postgameHonor"> 自动点赞</label>
+      <label><input type="checkbox" id="postgameReturn"> 完成后返回大厅</label>
+    </div>
+    <div class="setting-grid"><label>点赞对象优先级<select id="postgameStrategy" aria-label="点赞对象优先级"></select></label></div>
+    <div class="save-row"><button data-save="postgame" id="savePostgame">保存赛后设置</button><span class="muted" id="postgameResult" role="status" aria-live="polite"></span></div>
+  </section>
+  <section id="autoSelection">
+    <h2>自动选禁英雄</h2>
+    <p>选择英雄后保存，自动选禁只在选人阶段由 GGman 原有控制器执行。可随时临时暂停。</p>
+    <div class="setting-checks">
+      <label><input type="checkbox" id="selectionPickEnabled"> 自动选择英雄</label>
+      <label><input type="checkbox" id="selectionBanEnabled"> 自动禁用英雄</label>
+      <label><input type="checkbox" id="selectionPaused"> 临时暂停本次自动选禁（重启后恢复）</label>
+    </div>
+    <div class="setting-grid">
+      <label>优先选择英雄<select id="selectionPickChampion" aria-label="优先选择英雄"><option value="0">未设置英雄</option></select></label>
+      <label>优先禁用英雄<select id="selectionBanChampion" aria-label="优先禁用英雄"><option value="0">未设置英雄</option></select></label>
+    </div>
+    <div class="save-row"><button data-save="auto-selection" id="saveAutoSelection">保存自动选禁</button><span class="muted" id="selectionResult" role="status" aria-live="polite"></span></div>
+    <p>需要按游戏模式、分路设置英雄优先级，或调整抢选、延迟与交换策略，可进入高级配置。</p>
+    <div class="actions"><button data-route="efficiency-advanced">编辑高级优先级</button></div>
+  </section>
+  <section id="quickMessagePage">
+    <h2>快捷消息与热键</h2>
+    <p>四组预设、五组热键与发送间隔均保存到原生热键控制器；发送使用当前已连接 LOL 客户端，不需要 GGman 登录。发送前请先保存。</p>
+    <div id="quickMessageRows"></div>
+    <div class="quick-card">
+      <strong>停止快捷发送</strong>
+      <label>取消快捷键<input type="text" id="quickCancelHotkey" maxlength="60" placeholder="例如 Ctrl+Shift+0" aria-label="取消快捷发送热键"></label>
+      <label>消息间隔（毫秒）<input type="number" id="quickInterval" min="0" max="5000" step="100" value="0"></label>
+      <p>快捷键需含 Ctrl、Alt、Shift 或 Win；也可使用 F1–F12。相同快捷键不允许重复绑定。</p>
+    </div>
+    <div class="save-row"><button id="quickSave" data-action="quick-message-save">保存四组预设和热键</button><button data-action="quick-message-refresh">重新读取</button></div>
+    <p role="status" aria-live="polite" id="quickMessageStatus"></p>
+    <div class="actions"><button data-route="efficiency-advanced">高级自动化设置</button><button data-route="efficiency">快捷工具</button></div>
+  </section>
+  <section id="advancedToolsPage">
+    <h2>高级工具 · 自动化</h2>
+    <p>设置保存给现有 LOL 自动化控制器，不引入新的游戏请求或后台服务。每组单独保存，当前游戏会话由原生模块管理。</p>
+    <div class="advanced-section" data-advanced-group="reply">
+      <h3>私聊自动回复</h3>
+      <label><input type="checkbox" id="advancedReplyEnabled"> 启用私聊自动回复</label>
+      <label><input type="checkbox" id="advancedReplyAway"> 只在离开状态回复</label>
+      <div class="advanced-stack"><input type="text" id="advancedReplyText" maxlength="500" placeholder="请输入自动回复内容" aria-label="自动回复文本"></div>
+      <button data-action="advanced-save" data-advanced-group="reply">保存自动回复</button>
+      <div class="advanced-feedback" data-advanced-feedback="reply" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="invitations">
+      <h3>大厅邀请处理</h3>
+      <label><input type="checkbox" id="advancedInviteEnabled"> 自动处理收到的邀请</label>
+      <label><input type="checkbox" id="advancedInviteAway"> 离开状态跳过邀请</label>
+      <label><input type="checkbox" id="advancedInviteLeader"> 自动让出队长</label>
+      <p>为各游戏模式设置接受、拒绝或忽略邀请。不同模式独立保存。</p>
+      <div id="advancedInvitationPolicies" class="advanced-policies"></div>
+      <button data-action="advanced-save" data-advanced-group="invitations">保存邀请规则</button>
+      <div class="advanced-feedback" data-advanced-feedback="invitations" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="aram">
+      <h3>极地大乱斗队伍信息</h3>
+      <label><input type="checkbox" id="advancedAramEnabled"> 启用队伍侧信息辅助</label>
+      <label><input type="checkbox" id="advancedAramVisible"> 允许向队友显示信息</label>
+      <button data-action="advanced-save" data-advanced-group="aram">保存 ARAM 设置</button>
+      <div class="advanced-feedback" data-advanced-feedback="aram" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="signature">
+      <h3>登录后恢复个性签名</h3>
+      <label><input type="checkbox" id="advancedSignatureEnabled"> 登录后自动恢复签名</label>
+      <div class="advanced-stack"><input type="text" id="advancedSignatureText" maxlength="512" placeholder="需要恢复的签名" aria-label="自动恢复签名"></div>
+      <button data-action="advanced-save" data-advanced-group="signature">保存签名恢复</button>
+      <div class="advanced-feedback" data-advanced-feedback="signature" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="rank">
+      <h3>登录后恢复展示段位</h3>
+      <label><input type="checkbox" id="advancedRankEnabled"> 登录后自动恢复段位展示</label>
+      <div class="setting-grid">
+        <label>排位模式<select id="advancedRankQueue" aria-label="恢复段位模式"></select></label>
+        <label>段位<select id="advancedRankTier" aria-label="恢复段位等级"></select></label>
+        <label>分段<select id="advancedRankDivision" aria-label="恢复段位分段"></select></label>
+      </div>
+      <button data-action="advanced-save" data-advanced-group="rank">保存段位恢复</button>
+      <div class="advanced-feedback" data-advanced-feedback="rank" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="offline">
+      <h3>离线状态锁定</h3>
+      <label><input type="checkbox" id="advancedOffline"> 保持对好友不可见</label>
+      <p>复用现有好友状态事件观察者，与自动回复策略共用连接状态。</p>
+      <button data-action="advanced-save" data-advanced-group="offline">保存离线锁定</button>
+      <div class="advanced-feedback" data-advanced-feedback="offline" role="status"></div>
+    </div>
+    <div class="advanced-section" data-advanced-group="respawn">
+      <h3>复活提示</h3>
+      <label><input type="checkbox" id="advancedRespawn"> 启用复活倒计时提示</label>
+      <button data-action="advanced-save" data-advanced-group="respawn">保存复活提示</button>
+      <div class="advanced-feedback" data-advanced-feedback="respawn" role="status"></div>
+    </div>
+    <div class="actions"><button data-route="quick-messages">快捷消息与热键</button><button data-route="auto-selection">自动选禁设置</button><button data-route="matchmaking-settings">排队策略</button><button data-route="postgame-settings">赛后处理</button><button data-route="presence">在线状态</button></div>
+  </section>
+  <section id="matchmakingSettings">
+    <h2>自动排队与确认对局</h2>
+    <p>这些选项直接使用现有的 LOL 自动匹配控制器。保存后会沿用同一游戏会话，无额外后台轮询。</p>
+    <div class="setting-checks">
+      <label><input type="checkbox" id="queueEnabled"> 自动开始寻找对局</label>
+      <label><input type="checkbox" id="acceptEnabled"> 自动接受对局</label>
+      <label><input type="checkbox" id="waitInvitees"> 等待队友加入后再排队</label>
+      <label><input type="checkbox" id="roomNotices"> 在组队房间提示排队状态</label>
+    </div>
+    <div class="setting-grid">
+      <label>最少组队人数<input id="minParty" type="number" inputmode="numeric" min="1" max="5" step="1"></label>
+      <label>排队前等待（秒）<input id="queueDelay" type="number" inputmode="decimal" min="0" max="60" step="0.1"></label>
+      <label>自动接受延迟（秒）<input id="acceptDelay" type="number" inputmode="decimal" min="0" max="15" step="0.1"></label>
+      <label>停止匹配策略<select id="stopPolicy"></select></label>
+      <label>固定停止时间（秒）<input id="stopAfter" type="number" inputmode="decimal" min="1" max="600" step="0.1"></label>
+    </div>
+    <div class="save-row"><button data-save="matchmaking" id="saveMatchmaking">保存设置</button><span class="muted" id="matchmakingResult" role="status" aria-live="polite"></span></div>
+  </section>
+  <section id="appearance">
+    <h2>外观与主题</h2><p>选择喜欢的配色，点击即应用并保存。所有设置仍由 GGman 本地管理。</p>
+    <div class="themes" id="themeList" aria-label="可选择的主题"></div>
+    <p id="themeResult" role="status" aria-live="polite"></p>
+    <div class="guide-card">
+      <strong>桌宠与悬浮球</strong>
+      <small>选择本机内置的桌宠样式；桌宠启用后可随时恢复轻量 GG 悬浮球。</small>
+    </div>
+    <div id="petList" class="pet-list" aria-label="可选桌宠"></div>
+    <div class="pet-commands">
+      <button data-action="pet-disable">关闭桌宠，恢复悬浮球</button>
+      <button data-action="pet-reset">重置桌面位置</button>
+      <button data-action="pet-refresh">刷新桌宠状态</button>
+    </div>
+    <p id="petResult" role="status" aria-live="polite"></p>
+  </section>
+  <section id="other">
+    <h2>全部功能</h2>
+    <p class="more-caption">按照你要做的事情查找工具，所有页面都在当前小窗中切换。</p>
+    <label class="tool-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <input id="toolSearch" type="search" inputmode="search" placeholder="搜索功能名称" aria-label="搜索功能" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="tool-section">
+      <h3>对局与数据</h3>
+      <div class="tiles">
+        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true">连</span><span class="tile-copy"><strong>客户端状态</strong><small>连接与阶段</small></span></button>
+        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true">实</span><span class="tile-copy"><strong>实时对局</strong><small>查看队友和对手</small></span></button>
+        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true">荐</span><span class="tile-copy"><strong>出装推荐</strong><small>符文和装备</small></span></button>
+        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true">在</span><span class="tile-copy"><strong>在线状态</strong><small>好友展示设置</small></span></button>
+      </div>
+    </div>
+    <div class="tool-section">
+      <h3>维护与个人设置</h3>
+      <div class="tiles">
+        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong><small>修复异常状态</small></span></button>
+        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong><small>个人与偏好</small></span></button>
+        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true">云</span><span class="tile-copy"><strong>云同步</strong><small>账号与配置</small></span></button>
+        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true">新</span><span class="tile-copy"><strong>更新中心</strong><small>版本与公告</small></span></button>
+      </div>
+    </div>
+    <p id="searchMessage" role="status" aria-live="polite"></p>
+    <div class="actions"><button data-action="back">返回控制中心</button></div>
+  </section>
+</main>
+</div>
+<script>
+(function(){
+"use strict";
+var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
+var mode="home";
+var updateForced=false;
+function get(id){return document.getElementById(id);}
+function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
+function setMode(next,title){
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="player-advanced"?"player-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
+  document.body.dataset.mode=mode;
+  document.getElementById("other").classList.toggle("open",mode==="more");
+  document.getElementById("home").style.display=mode==="home"?"block":"none";
+  document.getElementById("routeTitle").textContent=mode==="more"?"全部功能":(titles[title]||"LOL 工作台");
+  if(mode==="more")requestAnimationFrame(function(){document.getElementById("toolSearch").focus();});
+}
+document.addEventListener("click",function(event){
+  var target=event.target.closest("button");
+  if(!target)return;
+  if(updateForced&&!["updates-refresh","updates-install","updates-stop","updates-confirm","updates-cancel","updates-exit","updates-link"].includes(target.dataset.action))return;
+  if(target.dataset.action==="history-region-catalog"){
+    get("advancedRegionalStatus").textContent="正在刷新可授权访问的区域目录";
+    post("history-region-catalog");return;
+  }
+  if(target.dataset.action==="history-region-search"){
+    var query=get("advancedRegionalRiotId").value.trim(),server=get("advancedRegionalServer").value;
+    if(query.length>52||query.indexOf("#")<1||!/^.{1,32}#[^#]{1,16}$/.test(query)){
+      get("advancedRegionalStatus").textContent="请输入有效的 Riot ID（名称#编号）";return;
+    }
+    get("advancedRegionalStatus").textContent="正在查找账号并读取目标区域战绩";
+    get("advancedRegionalResults").replaceChildren();
+    remoteHistoryIds.clear();
+    selectedAdvancedMatch="";
+    get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
+    post("history-region-search:"+JSON.stringify({riotId:query,serverId:server}));return;
+  }
+  if(target.dataset.remoteGameId!==undefined){
+    var remoteId=target.dataset.remoteGameId;
+    if(!remoteHistoryIds.has(remoteId))return;
+    selectedAdvancedMatch=remoteId;
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryDetailTitle").textContent="跨区对局 #"+remoteId;
+    get("advancedHistoryDetailStatus").textContent="通过当前账号权限读取目标区域比赛明细";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    post("history-region-detail:"+remoteId);return;
+  }
+  if(target.dataset.action==="history-timeline"){
+    if(selectedAdvancedMatch && (advancedHistoryIds.has(selectedAdvancedMatch) ||
+        remoteHistoryIds.has(selectedAdvancedMatch))){
+      get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
+      post("history-advanced-timeline:"+selectedAdvancedMatch);
+    }return;
+  }
+  if(target.dataset.action==="history-replay-folder"){post("history-advanced-replay-folder");return;}
+  if(target.dataset.action==="history-replay-confirm"){
+    if(!selectedAdvancedMatch||!advancedHistoryIds.has(selectedAdvancedMatch))return;
+    get("advancedReplayConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="history-replay-cancel"){get("advancedReplayConfirm").hidden=true;return;}
+  if(target.dataset.action==="history-replay"){
+    get("advancedReplayConfirm").hidden=true;
+    if(selectedAdvancedMatch&&advancedHistoryIds.has(selectedAdvancedMatch)){
+      get("advancedReplayStatus").textContent="正在检查当前客户端回放能力";
+      post("history-advanced-replay:"+selectedAdvancedMatch);
+    }return;
+  }
+  if(target.dataset.action==="history-advanced-refresh"){
+    get("advancedHistoryStatus").textContent="正在读取当前账号最多 20 场历史对局";
+    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedRegionalResults").replaceChildren();
+    remoteHistoryIds.clear();
+    get("advancedRegionalStatus").textContent="当前账号战绩已刷新，跨区记录需重新查询";
+    post("history-advanced-refresh");return;
+  }
+  if(target.dataset.advancedGameId!==undefined){
+    var gameId=target.dataset.advancedGameId;
+    if(!advancedHistoryIds.has(gameId))return;
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
+    get("advancedHistoryDetailStatus").textContent="正在读取原生 LCU/SGP 对局明细";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryRadar").replaceChildren();
+    get("advancedHistoryTimeline").replaceChildren();
+    get("advancedTimelineEvents").replaceChildren();
+    advancedTimelineFrames=[];
+    selectedAdvancedMatch=gameId;
+    post("history-advanced-detail:"+gameId);return;
+  }
+  if(target.dataset.action==="profile-customization-refresh"){
+    get("profileCustomizationStatus").textContent="正在读取当前客户端英雄目录";
+    post("profile-customization-refresh");return;
+  }
+  if(target.dataset.profileAction!==undefined){
+    if(target.disabled)return;
+    var action=target.dataset.profileAction;
+    var skin=action==="skin"?get("profileSkin").value:null;
+    if(action==="skin"&&(!skin||!/^\d{1,8}$/.test(skin)))return;
+    if(!["skin","crest","tokens","emotes","banner"].includes(action))return;
+    pendingProfileAction={action:action,value:skin};
+    get("profileCustomizationConfirmText").textContent=
+      action==="skin"?"将当前 LOL 账号背景更换为选中皮肤 #"+skin:
+      ({crest:"移除当前段位徽章",tokens:"清空当前展示的挑战代币",
+        emotes:"清除当前全部表情槽",banner:"将旗帜恢复为上赛季样式"}[action]||"");
+    get("profileCustomizationConfirm").hidden=false;
+    get("profileCustomizationStatus").textContent="确认后执行，仅影响当前 LOL 账号";return;
+  }
+  if(target.dataset.action==="profile-customization-cancel"){
+    pendingProfileAction=null;get("profileCustomizationConfirm").hidden=true;return;
+  }
+  if(target.dataset.action==="profile-customization-confirm"){
+    if(!pendingProfileAction)return;
+    var request=pendingProfileAction;pendingProfileAction=null;
+    get("profileCustomizationConfirm").hidden=true;
+    get("profileCustomizationStatus").textContent="正在写入并回读校验当前账号";
+    document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=true;});
+    post(request.action==="skin"?"profile-customization-skin:"+request.value:
+      "profile-customization-action:"+request.action);return;
+  }
+  if(target.dataset.action==="dashboard-respawn-refresh"){
+    get("advancedRespawnRefresh").disabled=true;
+    get("advancedRespawn").textContent="正在读取当前游戏复活状态";
+    post("dashboard-respawn-refresh");return;
+  }
+  if(target.dataset.action==="bench-refresh"){
+    get("benchRefresh").disabled=true;get("benchChampions").replaceChildren();
+    get("benchReadStatus").textContent="正在从当前 LCU 会话读取替补席";
+    post("bench-refresh");return;
+  }
+  if(target.dataset.benchSwap!==undefined){
+    if(target.disabled)return;
+    var id=Number(target.dataset.benchSwap);
+    if(!Number.isSafeInteger(id)||id<1||!benchIds.has(id))return;
+    get("benchChampions").querySelectorAll("button").forEach(function(b){b.disabled=true;});
+    get("benchRefresh").disabled=true;
+    get("benchActionStatus").textContent="正在通过当前 LOL 会话交换英雄 #"+id;
+    post("bench-swap:"+id);return;
+  }
+  if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
+  if(target.dataset.action==="quick-message-save"){
+    var message=collectQuickMessageSettings();
+    if(!message)return;
+    get("quickSave").disabled=true;get("quickMessageStatus").textContent="正在保存原生快捷键";
+    post("quick-message-save:"+JSON.stringify(message));return;
+  }
+  if(target.dataset.quickSend!==undefined){
+    get("quickMessageStatus").textContent="正在通过 LOL 当前游戏会话发送已保存的预设";
+    post("quick-message-send:"+target.dataset.quickSend);return;
+  }
+  if(target.dataset.action==="advanced-refresh"){post("advanced-refresh");return;}
+  if(target.dataset.action==="advanced-save"){
+    var group=target.dataset.advancedGroup;
+    var payload=advancedPayload(group);
+    if(!payload)return;
+    target.disabled=true;
+    document.querySelector('[data-advanced-feedback="'+group+'"]').textContent="正在保存";
+    post("advanced-save:"+group+":"+JSON.stringify(payload));
+    return;
+  }
+  if(target.dataset.action==="profile-refresh"){post("profile-refresh");return;}
+  if(target.dataset.action==="cleanup-refresh"){post("cleanup-refresh");return;}
+  if(target.dataset.action==="cleanup-select"){post("cleanup-select");return;}
+  if(target.dataset.action==="cleanup-detect"){
+    get("cleanupStatus").textContent="正在查找游戏安装位置";post("cleanup-detect");return;
+  }
+  if(target.dataset.action==="cleanup-driver"){post("cleanup-driver");return;}
+  if(target.dataset.action==="cleanup-preview"){
+    cleanupToken=null;get("cleanupReview").hidden=true;get("cleanupResultDetail").hidden=true;
+    get("cleanupStatus").textContent="正在检查安全清理范围";post("cleanup-preview");return;
+  }
+  if(target.dataset.action==="cleanup-cancel"){
+    cleanupToken=null;get("cleanupReview").hidden=true;
+    post("cleanup-cancel");get("cleanupStatus").textContent="已取消本次预览（未执行删除）";
+    return;
+  }
+  if(target.dataset.action==="cleanup-elevate"){post("cleanup-elevate");return;}
+  if(target.dataset.action==="cleanup-confirm"){
+    if(!cleanupToken||target.disabled)return;
+    get("cleanupConfirm").disabled=true;
+    get("cleanupStatus").textContent="正在通过安全清理引擎删除已确认目标";
+    post("cleanup-confirm:"+cleanupToken);cleanupToken=null;return;
+  }
+  if(target.dataset.action==="cloud-refresh"){post("cloud-refresh");return;}
+  if(target.dataset.action==="cloud-publish"||target.dataset.action==="cloud-keep-local"){
+    cloudPendingAction=target.dataset.action==="cloud-publish"?"cloud-publish":"cloud-keep-local";
+    get("cloudConfirmText").textContent=cloudPendingAction==="cloud-publish"?
+      "确认把当前本地游戏配置上传到已登录账号的云端吗？游戏运行期间将拒绝上传。":
+      "确认将本地设置上传并覆盖冲突的云端版本吗？此操作不可直接撤销。";
+    get("cloudConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="cloud-cancel"){cloudPendingAction=null;get("cloudConfirm").hidden=true;return;}
+  if(target.dataset.action==="cloud-confirm"){
+    get("cloudConfirm").hidden=true;
+    if(cloudPendingAction){post(cloudPendingAction);cloudPendingAction=null;get("cloudResult").textContent="正在执行云端操作";}
+    return;
+  }
+  if(target.dataset.action==="updates-refresh"){
+    get("updateRefresh").disabled=true;get("updateInstall").disabled=true;
+    get("updateConfirm").hidden=true;get("updateResult").textContent="正在检查版本";
+    post("updates-refresh");return;
+  }
+  if(target.dataset.action==="updates-install"){
+    if(target.disabled)return;
+    get("updateConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="updates-cancel"){get("updateConfirm").hidden=true;return;}
+  if(target.dataset.action==="updates-exit"){post("updates-exit");return;}
+  if(target.dataset.action==="updates-link"){post("updates-link");return;}
+  if(target.dataset.action==="updates-stop"){get("updateCancelDownload").disabled=true;post("updates-stop");return;}
+  if(target.dataset.action==="updates-confirm"){
+    get("updateConfirm").hidden=true;get("updateInstall").disabled=true;get("updateRefresh").disabled=true;
+    get("updateResult").textContent="正在下载并校验签名";post("updates-install");return;
+  }
+  if(target.dataset.action==="mayhem-query"){
+    var query=get("mayhemChampion").value.trim();
+    if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
+    get("mayhemQuery").disabled=true;get("mayhemCancel").disabled=false;
+    get("mayhemOutput").hidden=true;get("mayhemChampionIcon").replaceChildren();
+    get("mayhemResult").textContent="正在读取英雄攻略";
+    post("mayhem-query:"+query);return;
+  }
+  if(target.dataset.action==="mayhem-cancel"){
+    post("mayhem-cancel");get("mayhemCancel").disabled=true;get("mayhemQuery").disabled=false;return;
+  }
+  if(target.dataset.action==="recommendation-refresh"){
+    get("recommendationConfirm").hidden=true;get("recommendationApply").disabled=true;
+    get("recommendationRefresh").disabled=true;get("recommendationOutput").hidden=true;
+    get("recommendationRows").replaceChildren();
+    get("recommendationFeedback").hidden=true;
+    get("recommendationResult").textContent="正在读取当前选人推荐";
+    post("recommendation-refresh");return;
+  }
+  if(target.dataset.action==="recommendation-apply"){
+    if(target.disabled)return;
+    var selected=["applyRunes","applySpells","applyItems"].filter(function(id){return get(id).checked;});
+    if(!selected.length){get("recommendationResult").textContent="请至少选择一项";return;}
+    var names={applyRunes:"符文",applySpells:"召唤师技能",applyItems:"装备"};
+    get("recommendationConfirmText").textContent="确认写入当前英雄联盟客户端："+selected.map(function(id){return names[id];}).join("、")+"？";
+    get("recommendationConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="recommendation-cancel"){get("recommendationConfirm").hidden=true;return;}
+  if(target.dataset.action==="recommendation-confirm"){
+    get("recommendationConfirm").hidden=true;
+    get("recommendationApply").disabled=true;
+    get("recommendationRefresh").disabled=true;
+    get("recommendationResult").textContent="正在通过当前游戏会话应用所选推荐";
+    post("recommendation-apply:"+JSON.stringify({runes:get("applyRunes").checked,spells:get("applySpells").checked,items:get("applyItems").checked}));return;
+  }
+  if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
+    get("historyRefresh").disabled=true;get("historyMore").disabled=true;
+    get("historyResult").textContent="正在读取战绩";
+    post(target.dataset.action==="history-more"?"history-more":"history-refresh");return;
+  }
+  if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
+    get("liveRefresh").disabled=true;get("liveSgpRefresh").disabled=true;
+    get("liveSummary").textContent="正在读取当前游戏会话";
+    post(target.dataset.action==="live-sgp"?"live-sgp":"live-refresh");return;
+  }
+  if(target.dataset.repairAction){
+    if(target.disabled)return;
+    if(target.dataset.repairAction==="exit"){get("repairExitConfirm").hidden=false;return;}
+    get("repairResult").textContent="正在执行";
+    post("repair-action:"+target.dataset.repairAction);return;
+  }
+  if(target.dataset.action==="repair-confirm"){
+    get("repairExitConfirm").hidden=true;get("repairResult").textContent="正在退出";
+    post("repair-action:exit");return;
+  }
+  if(target.dataset.action==="repair-cancel"){get("repairExitConfirm").hidden=true;return;}
+  if(target.dataset.presenceMode){post("presence-mode:"+target.dataset.presenceMode);get("presenceResult").textContent="正在保存";return;}
+  if(target.dataset.action==="presence-refresh"){post("presence-refresh");get("presenceResult").textContent="正在读取";return;}
+  if(target.dataset.action==="presence-signature"){post("presence-signature:"+JSON.stringify({message:get("presenceSignature").value}));get("presenceResult").textContent="正在保存";return;}
+  if(target.dataset.action==="presence-rank"){post("presence-rank:"+JSON.stringify({queue:get("presenceQueue").value,tier:get("presenceTier").value,division:get("presenceDivision").value}));get("presenceResult").textContent="正在保存";return;}
+  if(target.dataset.action==="refresh-dashboard"){
+    target.disabled=true;document.getElementById("dashboardResult").textContent="正在读取";
+    post("dashboard-refresh");return;
+  }
+  if(target.dataset.save==="matchmaking"){saveMatchmaking();return;}
+  if(target.dataset.save==="auto-selection"){saveAutoSelection();return;}
+  if(target.dataset.save==="postgame"){savePostgame();return;}
+  if(target.dataset.petId!==undefined){
+    if(target.disabled)return;
+    get("petResult").textContent="正在应用所选桌宠";
+    post("pet-select:"+target.dataset.petId);return;
+  }
+  if(target.dataset.action==="pet-disable"||target.dataset.action==="pet-reset"||
+     target.dataset.action==="pet-refresh"){
+    get("petResult").textContent="正在处理桌宠设置";
+    post(target.dataset.action);return;
+  }
+  if(target.dataset.theme){post("theme:"+target.dataset.theme);return;}
+  if(target.dataset.setting){
+    if(target.disabled)return;
+    var enabled=target.getAttribute("aria-pressed")==="true";
+    target.disabled=true;
+    post("toggle:"+target.dataset.setting+":"+(!enabled?"true":"false"));
+    return;
+  }
+  if(target.dataset.route&&titles[target.dataset.route]){post("open:"+target.dataset.route);return;}
+  var action=target.dataset.action;
+  if(action==="close")post("close");
+  else if(action==="back"){if(mode==="more")setMode("home");else post("back");}
+  else if(action==="home"){post("home");}
+  else if(action==="more")setMode("more");
+});
+// Keyboard navigation must not steal keys from Chinese IME composition or form editing.
+function navigateBack(){
+  if(updateForced)return;
+  if(mode==="more")setMode("home");
+  else if(mode==="home")post("close");
+  else post("back");
+}
+document.addEventListener("keydown",function(event){
+  if(event.isComposing||event.keyCode===229||event.defaultPrevented)return;
+  var target=event.target;
+  var editing=!!(target&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)));
+  if(event.key==="Escape"){
+    if(editing&&target.tagName==="INPUT"&&target.type==="search"&&target.value){
+      target.value="";
+      if(target.id==="historySearch")drawHistoryRows();
+      else if(target.id==="liveSearch")drawLiveRows();
+      else if(target.id==="toolSearch")filterToolCards();
+      target.dispatchEvent(new Event("input",{bubbles:true}));
+      event.preventDefault();return;
+    }
+    event.preventDefault();navigateBack();return;
+  }
+  if(event.altKey&&!event.ctrlKey&&!event.metaKey&&event.key==="ArrowLeft"){
+    event.preventDefault();navigateBack();return;
+  }
+  if(event.ctrlKey&&!event.altKey&&!event.metaKey&&event.key==="Home"){
+    event.preventDefault();post("home");return;
+  }
+  if(!editing&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&event.key==="/"){
+    event.preventDefault();
+    if(mode!=="more")setMode("more");
+    get("toolSearch").focus();
+  }
+});
+if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("message",function(e){
+  var value=String(e.data||"");
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-message-settings"){renderQuickMessageSettings(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-message-result"){
+    get("quickSave").disabled=false;
+    var states={saved:"四组预设和快捷键已保存","hotkey-conflict":"快捷键已被占用或设置不合法，未修改预设",
+      invalid:"预设或快捷键不符合要求，未修改现有设置",sending:"正在发送已保存的预设",
+      sent:"消息已发送",unsaved:"请先保存该预设并连接游戏",unavailable:"LOL 客户端不可用或当前阶段不支持发送",
+      failed:"操作未成功，请检查游戏会话或程序日志"};
+    get("quickMessageStatus").textContent=states[e.data.status]||"请检查设置";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-settings"){renderAdvancedSettings(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-result"){
+    var group=String(e.data.group||"");
+    var button=document.querySelector('#advancedToolsPage button[data-advanced-group="'+group+'"]');
+    var status=document.querySelector('#advancedToolsPage [data-advanced-feedback="'+group+'"]');
+    if(button)button.disabled=false;
+    if(status)status.textContent=e.data.status==="saved"?"已保存并应用":e.data.status==="invalid"?
+      "输入不符合允许范围，未修改原有设置":e.data.status==="unavailable"?
+      "自动化模块暂时不可用":"保存失败，原有配置未被确认修改";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile"){renderLocalProfile(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="local-profile-unavailable"){
+    get("profileStatus").textContent="本地统计服务尚未就绪";get("profileAccountList").replaceChildren();return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-state"){renderCleanupState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-preview"){renderCleanupPreview(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-complete"){
+    cleanupToken=null;get("cleanupReview").hidden=true;get("cleanupResultDetail").hidden=false;
+    get("cleanupResultCounts").textContent="已删除 "+(Number(e.data.deletedFiles)||0)+" 个文件、"+
+      (Number(e.data.deletedDirectories)||0)+" 个目录。失败 "+(Number(e.data.failures)||0)+" 项。";
+    get("cleanupStatus").textContent=e.data.failures>0?"清理部分完成，请查看应用日志":"安全清理已完成";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cleanup-result"){
+    var dictionary={ready:"请先确认游戏安装目录", "invalid-directory":"没有识别到有效的英雄联盟目录",
+      "directory-saved":"安装目录已保存到本地", "detect-failed":"自动检测未找到可用的游戏目录",
+      "need-admin":"请使用管理员模式授权后再扫描","game-running":"检测到英雄联盟或 Riot 客户端仍在运行；请完全退出后重试",
+      scanning:"正在扫描配置允许的清理目标",deleting:"正在安全执行清理，请不要退出程序",
+      "preview-expired":"清理预览已过期，必须重新扫描","context-changed":"游戏目录或权限发生变化，未执行删除",
+      "no-targets":"当前没有可清理的目标","too-many":"目标数量过多，为安全起见未生成执行预览",
+      "driver-started":"已启动既有驱动修复流程","elevation-failed":"未获得管理员授权",
+      failed:"操作未完成，请检查本地日志"};
+    get("cleanupStatus").textContent=dictionary[e.data.status]||"状态待确认";
+    if(e.data.status!=="scanning"&&e.data.status!=="deleting"&&e.data.status!=="driver-started"&&e.data.status!=="directory-saved"){
+      cleanupToken=null;get("cleanupReview").hidden=true;
+    }
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-state"){renderCloudState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="cloud-result"){
+    var messages={saved:"同步设置已保存",published:"游戏配置上传成功",resolved:"已按本地配置处理云端冲突",
+      invalid:"无效的同步设置",busy:"同步服务正忙，请稍后重试",unavailable:"请先登录 GGman 账号并确认服务可用",
+      "context-changed":"GGman 账号已切换，本次结果已丢弃",unsaved:"请先保存当前文字配置",
+      "local-only":"当前为免登录本地模式，云端功能已暂停",failed:"云端操作未成功，请检查账号和网络"};
+    get("cloudResult").textContent=(messages[e.data.status]||"操作状态待确认")+
+      (e.data.status==="published"&&Number(e.data.version)>0?" · 版本 "+e.data.version:"");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-state"){renderOnlineState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-progress"){
+    get("updateProgress").hidden=false;get("updateProgress").value=Math.max(0,Math.min(100,Number(e.data.percent)||0));
+    get("updateResult").textContent="正在下载已签名更新包："+get("updateProgress").value+"%";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="online-status"){
+    var messages={checking:"正在检查在线版本",unavailable:"在线版本信息不可用",saved:"更新设置已保存",
+      downloading:"正在下载并验证更新包",installing:"签名检查通过，正在启动更新器",
+      canceled:"下载已取消",failed:"更新失败，当前版本不受影响",expired:"版本检查已过期，请重新检查"};
+    get("updateStatus").textContent=messages[e.data.status]||"版本状态待确认";
+    var busy=["checking","downloading","installing"].includes(e.data.status);
+    get("updateRefresh").disabled=busy;
+    get("updateInstall").disabled=busy||!onlineCanInstall;
+    if(e.data.status==="checking"||e.data.status==="downloading"){get("updateConfirm").hidden=true;}
+    if(e.data.status==="downloading"){get("updateProgress").hidden=false;get("updateProgress").value=0;}
+    if(!busy){get("updateProgress").hidden=true;}
+    get("updateCancelDownload").hidden=e.data.status!=="downloading";
+    get("updateCancelDownload").disabled=false;
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-icon"){renderMayhemIcon(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
+    get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+    get("mayhemOutput").hidden=true;
+    var err={ready:"输入英雄名称开始查询",invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
+      timeout:"查询超时，请稍后重试","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
+    get("mayhemResult").textContent=err[e.data.status]||"读取失败";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-details"){renderRecommendation(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-failed"){
+    get("recommendationRefresh").disabled=false;get("recommendationApply").disabled=true;
+    recommendationCanApply=false;
+    get("recommendationConfirm").hidden=true;get("recommendationOutput").hidden=true;
+    get("recommendationFeedback").hidden=true;get("recommendationRows").replaceChildren();
+    get("recommendationResult").textContent=e.data.status==="loading"?"正在读取当前英雄推荐":
+      e.data.status==="context-changed"?"账号或游戏会话已变化，推荐已清空，请重新读取":
+      "读取失败，检查 LOL 客户端后重试";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-apply-result"){
+    renderRecommendationFeedback(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-result"){
+    get("recommendationRefresh").disabled=false;
+    get("recommendationApply").disabled=!recommendationCanApply;
+    var statuses={success:"所选推荐已成功应用",partial:"部分推荐已应用，请检查当前客户端",
+      failed:"应用未成功",invalid:"无效的应用选项", "no-data":"当前没有可应用的推荐",
+      "context-changed":"当前选人或账号发生变化，未继续写入"};
+    get("recommendationResult").textContent=statuses[e.data.status]||"操作结束";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-details"){renderHistory(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-failed"){
+    get("historyRefresh").disabled=false;get("historyMore").disabled=true;
+    get("historyResult").textContent="无法读取当前账号，请检查游戏客户端连接或重新登录";
+    get("historyAccount").textContent="未连接";
+    get("historyLevel").textContent="—";
+    get("historyList").replaceChildren();historyRows=[];historyFilter="all";
+    get("historyMore").hidden=true;
+    get("historySearch").value="";get("historySort").value="recent";
+    document.querySelectorAll("[data-history-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item.dataset.historyFilter==="all"?"true":"false");
+    });return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-state"){renderBenchState(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-icon"){renderBenchIcon(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="bench-swap-result"){
+    var result={Success:"换英雄成功，已通过客户端回读确认",
+      TargetUnavailable:"该英雄已被交换，请刷新替补席",BenchDisabled:"当前替补席不可用",
+      SessionUnavailable:"客户端或选人会话已断开",WriteRejected:"英雄联盟客户端拒绝本次交换",
+      VerificationFailed:"请求已提交，但没有回读确认成功，请核对游戏界面",
+      "session-changed":"账号或选人会话已变化，已丢弃操作结果",
+      "not-on-bench":"目标不在当前替补席中，请刷新","swapping":"正在交换并验证",
+      timeout:"操作等待超时，请核对游戏界面，避免重复操作",failed:"交换未完成，请核对游戏界面"};
+    get("benchActionStatus").textContent=result[e.data.status]||"交换结果待确认";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="live-details"){renderLive(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="live-failed"){
+    get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=true;
+    get("livePlayers").dataset.sgp="false";
+    get("liveConnection").textContent="客户端状态待确认";
+    get("livePhase").textContent="—";get("liveQueue").textContent="—";get("liveMap").textContent="—";
+    get("livePlayers").replaceChildren();get("liveBans").replaceChildren();get("liveBans").hidden=true;
+    liveRows=[];liveFilter="all";get("liveSearch").value="";get("liveSort").value="team";
+    document.querySelectorAll("[data-live-filter]").forEach(function(item){item.setAttribute("aria-pressed",item.dataset.liveFilter==="all"?"true":"false");});
+    get("liveSummary").textContent="读取失败或游戏会话已切换，请重新读取";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="repair-state"){
+    get("repairAuto").textContent=e.data.auto?"关闭自动修复":"启用自动修复";
+    document.querySelectorAll("[data-repair-action]").forEach(function(b){b.disabled=!e.data.available;});
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="repair-result"){
+    var labels={success:"操作完成",failed:"执行失败","no-target":"没有可退出的游戏",unavailable:"修复服务不可用"};
+    get("repairResult").textContent=e.data.message||labels[e.data.status]||"操作未完成";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="presence-state"){renderPresence(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="presence-result"){
+    var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
+    get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
+    renderAdvancedHistoryList(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-region-options"){
+    renderRegionalOptions(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-region-results"){
+    renderRegionalHistory(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-radar"){
+    renderAdvancedRadar(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-timeline"){
+    renderAdvancedTimeline(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-replay-result"){
+    renderAdvancedReplayResult(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-detail"){
+    renderAdvancedMatchDetail(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-options"){
+    renderProfileCustomizationOptions(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-result"){
+    var messages={loading:"正在读取当前账号",success:"操作成功，客户端回读确认",
+      overridden:"客户端已覆盖修改，未确认成功",unverified:"已提交，但未能回读确认",
+      invalid:"输入不符合要求或皮肤不在已读取目录中",unavailable:"当前客户端不支持此操作",
+      "write-failed":"操作失败，客户端拒绝写入",failed:"请求未完成，请检查客户端",
+      "session-changed":"账号或客户端会话发生变化，旧结果已丢弃",
+      busy:"前一个请求尚未完成，请稍后重选英雄"};
+    get("profileCustomizationStatus").textContent=messages[e.data.status]||"操作状态待确认";
+    if(e.data.status!=="loading"){
+      document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=false;});
+      get("profileSkinApply").disabled=!profileSkinIds.has(Number(get("profileSkin").value));
+    }
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-respawn"){
+    get("advancedRespawnRefresh").disabled=false;
+    var status={dead:"已阵亡，剩余 "+Math.ceil(Number(e.data.seconds)||0)+" 秒",
+      alive:"当前未阵亡",unavailable:"游戏内数据暂不可用或尚未进入对局",
+      "session-changed":"游戏账号或会话已变化，请重新读取",
+      failed:"读取失败，请确认游戏内数据服务可访问"};
+    get("advancedRespawn").textContent=status[e.data.status]||"未取得当前状态";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-details"){
+    document.getElementById("refreshDashboard").disabled=false;
+    document.getElementById("dbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"客户端运行中":"未连接";
+    document.getElementById("dbPhase").textContent=phaseLabel(e.data.phase);
+    document.getElementById("dbAccount").textContent=e.data.account||"—";
+    document.getElementById("dbServer").textContent=e.data.server||"—";
+    document.getElementById("dbLevel").textContent=e.data.level>0?String(e.data.level):"—";
+    document.getElementById("dbBudget").textContent=e.data.budget||"—";
+    var labels={None:"未启动",Client:"客户端大厅",Queueing:"正在匹配",
+      ChampSelect:"英雄选择",InGame:"游戏中"};
+    get("advancedDbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"游戏客户端已启动":"未连接";
+    get("advancedDbGameProcess").textContent=e.data.gameProcess?"检测到游戏进程":"未检测到游戏进程";
+    get("advancedDbPhase").textContent=phaseLabel(e.data.phase);
+    get("advancedDbActivity").textContent=labels[e.data.activity]||"未知";
+    get("advancedDbAccount").textContent=e.data.connected?(e.data.account||"未取得账号"):"—";
+    get("advancedDbIdentity").textContent=e.data.connected?
+      ((e.data.level>0?"等级 "+e.data.level:"等级未知")+
+      (e.data.profileIconId>0?" · 头像 #"+e.data.profileIconId:"")):"—";
+    get("advancedDbPlatform").textContent=e.data.connected?(e.data.platformName||e.data.server||"—"):"—";
+    get("advancedDbPlatformId").textContent=e.data.connected?(e.data.platformId||"—"):"—";
+    get("advancedDbBudget").textContent=e.data.budget||"—";
+    get("advancedDbUpdated").textContent=e.data.observedAt||"—";
+    get("advancedDbStatus").textContent=e.data.connected?"已读取当前客户端快照":"当前没有可读取的客户端资料";
+    document.getElementById("dashboardResult").textContent=e.data.message||"";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-failed"){
+    document.getElementById("refreshDashboard").disabled=false;
+    document.getElementById("dashboardResult").textContent="读取失败，请确认游戏客户端连接";
+    get("advancedDbStatus").textContent="当前客户端读取失败，请稍后重试";
+    ["advancedDbAccount","advancedDbIdentity","advancedDbPlatform","advancedDbPlatformId",
+      "advancedDbBudget","advancedDbUpdated"].forEach(function(id){get(id).textContent="—";});return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="postgame-settings"){
+    document.getElementById("postgameHonor").checked=!!e.data.autoHonor;
+    document.getElementById("postgameReturn").checked=!!e.data.autoReturn;
+    var combo=document.getElementById("postgameStrategy");combo.replaceChildren();
+    (e.data.strategies||[]).forEach(function(item){var option=document.createElement("option");
+      option.value=String(item.value||"");option.textContent=String(item.label||"");combo.appendChild(option);});
+    combo.value=e.data.strategy;document.getElementById("savePostgame").disabled=false;
+    document.getElementById("postgameResult").textContent="";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="postgame-result"){
+    document.getElementById("savePostgame").disabled=false;
+    document.getElementById("postgameResult").textContent=String(e.data.message||"");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="auto-selection"){
+    document.getElementById("selectionPickEnabled").checked=!!e.data.autoPick;
+    document.getElementById("selectionBanEnabled").checked=!!e.data.autoBan;
+    document.getElementById("selectionPaused").checked=!!e.data.paused;
+    renderChampionChoices(e.data.champions||[],Number(e.data.pickId)||0,Number(e.data.banId)||0);
+    document.getElementById("saveAutoSelection").disabled=false;
+    document.getElementById("selectionResult").textContent="";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="auto-selection-catalog"){
+    renderChampionChoices(e.data.champions||[], Number(document.getElementById("selectionPickChampion").value)||0,
+      Number(document.getElementById("selectionBanChampion").value)||0);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="selection-result"){
+    document.getElementById("saveAutoSelection").disabled=false;
+    document.getElementById("selectionResult").textContent=String(e.data.message||"");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-settings"){renderMatchmaking(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-result"){
+    document.getElementById("saveMatchmaking").disabled=false;
+    document.getElementById("matchmakingResult").textContent=e.data.ok?"设置已保存":String(e.data.message||"设置保存失败");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-tools"){
+    Object.keys(e.data.values||{}).forEach(function(key){
+      var button=document.querySelector("[data-setting=\""+key+"\"]");
+      if(button){button.setAttribute("aria-pressed",e.data.values[key]?"true":"false");button.disabled=false;}
+    });
+    document.getElementById("toolResult").textContent=e.data.message||"";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="tool-error"){
+    document.querySelectorAll("[data-setting]").forEach(function(button){button.disabled=false;});
+    document.getElementById("toolResult").textContent="保存失败，请检查程序日志";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="pets"){renderPetChoices(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="pet-result"){
+    var messages={enabled:"桌宠样式已保存并启用",disabled:"已恢复 GG 轻量悬浮球",
+      reset:"已执行桌宠或悬浮球位置重置",failed:"桌宠启动失败，已保留轻量悬浮球",
+      invalid:"未选择允许的桌宠样式",unavailable:"当前没有可操作的桌宠宿主"};
+    get("petResult").textContent=messages[e.data.status]||"桌宠状态待确认";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="themes"){renderThemes(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="theme-error"){
+    document.getElementById("themeResult").textContent="保存主题失败，请查看程序日志";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
+    document.body.dataset.connected=e.data.connected?"true":"false";
+    document.getElementById("clientConnection").textContent=e.data.connected?"LOL · 已连接":"LOL · 未连接";
+    document.getElementById("statusConnection").textContent=e.data.connected?"客户端已连接":"客户端未连接";
+    document.getElementById("statusPhase").textContent=e.data.connected?("当前阶段 · "+phaseLabel(e.data.phase)):"等待英雄联盟客户端";
+    document.getElementById("statusHint").textContent=e.data.connected?"状态由当前游戏会话同步":"启动客户端后自动同步，无需手动刷新";
+    document.getElementById("clientPhase").textContent=e.data.connected?
+      ("当前阶段 · "+phaseLabel(e.data.phase)):"请先启动英雄联盟客户端";
+    return;
+  }
+  if(value==="home"||value==="more")setMode(value);
+  else if(value==="detail:client-status")setMode("client-status","client-status");
+  else if(value==="detail:appearance")setMode("appearance","appearance");
+  else if(value==="detail:efficiency")setMode("quicktools","efficiency");
+  else if(value==="detail:matchmaking-settings")setMode("matchmaking-settings","matchmaking-settings");
+  else if(value==="detail:auto-selection")setMode("auto-selection","auto-selection");
+  else if(value==="detail:postgame-settings")setMode("postgame-settings","postgame-settings");
+  else if(value==="detail:dashboard")setMode("dashboard","dashboard");
+  else if(value==="detail:dashboard-advanced")setMode("dashboard-advanced","dashboard-advanced");
+  else if(value==="detail:presence")setMode("presence","presence");
+  else if(value==="detail:presence-advanced")setMode("profile-customization","presence-advanced");
+  else if(value==="detail:repair")setMode("repair","repair");
+  else if(value==="detail:live")setMode("live","live");
+  else if(value==="detail:live-advanced")setMode("bench","live-advanced");
+  else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:player-advanced")setMode("player-advanced","player-advanced");
+  else if(value==="detail:quick-messages")setMode("quick-messages","quick-messages");
+  else if(value==="detail:efficiency-advanced")setMode("efficiency-advanced","efficiency-advanced");
+  else if(value==="detail:profile")setMode("profile","profile");
+  else if(value==="detail:cleanup")setMode("cleanup","cleanup");
+  else if(value==="detail:cloud-sync")setMode("cloud-sync","cloud-sync");
+  else if(value==="detail:updates")setMode("updates","updates");
+  else if(value==="detail:mayhem")setMode("mayhem","mayhem");
+  else if(value==="detail:recommendation")setMode("recommendation","recommendation");
+  else if(value.indexOf("detail:")===0)setMode("detail",value.substring(7));
+});
+function renderLocalProfile(data){
+  var numbers=[["profilePlayed","played"],["profileActiveDays","activeDays"],["profileStreak","streak"],
+    ["profileRecent7","recent7"],["profileRecent30","recent30"],["profileNewMonth","newThisMonth"]];
+  numbers.forEach(function(pair){get(pair[0]).textContent=String(Math.max(0,Number(data[pair[1]])||0));});
+  get("profileMode").textContent=data.localOnly?"全部为本机统计，不需要云端账号":"本地统计正常；可选云端功能在云同步页管理";
+  get("profileDates").textContent="首次记录："+(data.firstSeen||"暂无")+" · 最近记录："+(data.lastSeen||"暂无");
+  var list=get("profileAccountList");list.replaceChildren();
+  var rows=Array.isArray(data.accounts)?data.accounts.slice(0,30):[];
+  rows.forEach(function(account){
+    var li=document.createElement("li"),name=document.createElement("strong"),meta=document.createElement("small");
+    name.textContent=String(account.name||"未命名账号");
+    meta.textContent=[account.region||"未知区域",Math.max(0,Number(account.seen)||0)+" 次记录",
+      account.last?"最近 "+account.last:""].filter(Boolean).join(" · ");
+    li.append(name,meta);list.append(li);
+  });
+  if(rows.length===0){var li=document.createElement("li");li.textContent="暂无本地游戏账号记录";list.appendChild(li);}
+  get("profileStatus").textContent="本地使用数据已更新";
+}
+function renderQuickMessageSettings(data){
+  var rows=get("quickMessageRows");rows.replaceChildren();
+  var presets=Array.isArray(data.presets)?data.presets:[];
+  var keys=Array.isArray(data.hotkeys)?data.hotkeys:[];
+  for(var i=0;i<4;i++){
+    var card=document.createElement("div");card.className="quick-card";
+    var name=document.createElement("strong");name.textContent="预设 "+(i+1);
+    var label=document.createElement("label");label.textContent="内容（最多四行，300 字符）";
+    var text=document.createElement("textarea");text.id="quickPreset"+i;text.maxLength=600;
+    text.value=String(presets[i]||"");text.setAttribute("aria-label","快捷消息预设 "+(i+1));
+    var shortcut=document.createElement("label");shortcut.textContent="全局快捷键";
+    var key=document.createElement("input");key.id="quickHotkey"+i;key.type="text";key.maxLength=60;
+    key.value=String(keys[i]||"");key.placeholder="如 Ctrl+Shift+"+(i+1);
+    var controls=document.createElement("div");controls.className="quick-controls";
+    var send=document.createElement("button");send.dataset.quickSend=String(i);
+    send.textContent="发送已保存的预设 "+(i+1);
+    shortcut.append(key);label.append(text);controls.append(send);card.append(name,label,shortcut,controls);rows.append(card);
+  }
+  get("quickCancelHotkey").value=String(keys[4]||"");
+  get("quickInterval").value=Math.max(0,Math.min(5000,Number(data.intervalMs)||0));
+  get("quickSave").disabled=false;get("quickMessageStatus").textContent="预设已读取，可单独编辑后统一保存";
+}
+function collectQuickMessageSettings(){
+  var slots=[],keys=[];
+  for(var i=0;i<4;i++){
+    var raw=get("quickPreset"+i).value;
+    if(raw.length>600){get("quickMessageStatus").textContent="预设文本过长";return null;}
+    slots.push(raw);keys.push(get("quickHotkey"+i).value.trim());
+  }
+  keys.push(get("quickCancelHotkey").value.trim());
+  var interval=get("quickInterval").valueAsNumber;
+  if(!Number.isInteger(interval)||interval<0||interval>5000){
+    get("quickMessageStatus").textContent="消息间隔必须是 0～5000 毫秒整数";return null;
+  }
+  return {presets:slots,hotkeys:keys,intervalMs:interval};
+}
+function advancedPayload(group){
+  var checked=function(id){return get(id).checked;};
+  if(group==="reply"){
+    var text=get("advancedReplyText").value.trim();
+    if(checked("advancedReplyEnabled")&&!text){advancedError(group,"启用后请填写回复文字");return null;}
+    return {enabled:checked("advancedReplyEnabled"),awayOnly:checked("advancedReplyAway"),text:text};
+  }
+  if(group==="invitations"){
+    var policies={};
+    document.querySelectorAll("#advancedInvitationPolicies select[data-game-type]").forEach(function(item){
+      policies[item.dataset.gameType]=item.value;
+    });
+    return {enabled:checked("advancedInviteEnabled"),skipAway:checked("advancedInviteAway"),
+      skipLeader:checked("advancedInviteLeader"),policies:policies};
+  }
+  if(group==="aram")return {enabled:checked("advancedAramEnabled"),visible:checked("advancedAramVisible")};
+  if(group==="signature")return {enabled:checked("advancedSignatureEnabled"),message:get("advancedSignatureText").value.trim()};
+  if(group==="rank")return {enabled:checked("advancedRankEnabled"),queue:get("advancedRankQueue").value,
+    tier:get("advancedRankTier").value,division:get("advancedRankDivision").value};
+  if(group==="offline")return {enabled:checked("advancedOffline")};
+  if(group==="respawn")return {enabled:checked("advancedRespawn")};
+  return null;
+}
+function advancedError(group,message){
+  var target=document.querySelector('[data-advanced-feedback="'+group+'"]');
+  if(target)target.textContent=message;
+}
+function fillAdvancedChoices(id,values,selected){
+  var control=get(id);control.replaceChildren();
+  (Array.isArray(values)?values:[]).forEach(function(value){
+    var item=document.createElement("option");item.value=String(value);item.textContent=String(value);
+    control.appendChild(item);
+  });control.value=String(selected||"");
+  if(!control.value&&control.options.length)control.selectedIndex=0;
+}
+function renderAdvancedSettings(data){
+  [["advancedReplyEnabled","replyEnabled"],["advancedReplyAway","replyAway"],
+    ["advancedInviteEnabled","inviteEnabled"],["advancedInviteAway","inviteAway"],
+    ["advancedInviteLeader","inviteLeader"],["advancedAramEnabled","aramEnabled"],
+    ["advancedAramVisible","aramVisible"],["advancedSignatureEnabled","loginSignatureEnabled"],
+    ["advancedRankEnabled","loginRankEnabled"],["advancedOffline","offlineLocked"],
+    ["advancedRespawn","respawnEnabled"]].forEach(function(item){get(item[0]).checked=!!data[item[1]];});
+  get("advancedReplyText").value=String(data.replyText||"");
+  get("advancedSignatureText").value=String(data.loginSignature||"");
+  fillAdvancedChoices("advancedRankQueue",data.rankedQueues,data.loginRankQueue);
+  fillAdvancedChoices("advancedRankTier",data.rankedTiers,data.loginRankTier);
+  fillAdvancedChoices("advancedRankDivision",data.rankedDivisions,data.loginRankDivision);
+  var policies=get("advancedInvitationPolicies");policies.replaceChildren();
+  (Array.isArray(data.invitationTypes)?data.invitationTypes:[]).forEach(function(entry){
+    var label=document.createElement("label"),name=document.createElement("span"),select=document.createElement("select");
+    name.textContent=String(entry.label||entry.value);
+    select.dataset.gameType=String(entry.value);
+    [["ignore","忽略"],["accept","自动接受"],["decline","自动拒绝"]].forEach(function(choice){
+      var opt=document.createElement("option");opt.value=choice[0];opt.textContent=choice[1];select.appendChild(opt);
+    });
+    select.value=String(entry.action||"ignore");label.append(name,select);policies.appendChild(label);
+  });
+  document.querySelectorAll("#advancedToolsPage [data-advanced-feedback]").forEach(function(node){node.textContent="";});
+  document.querySelectorAll("#advancedToolsPage button[data-advanced-group]").forEach(function(node){node.disabled=false;});
+}
+get("advancedRankTier").addEventListener("change",function(){
+  var tier=this.value;
+  var rank=get("advancedRankDivision");
+  if(["MASTER","GRANDMASTER","CHALLENGER"].includes(tier))rank.value="";
+});
+var cleanupToken=null;
+function renderCleanupState(data){
+  get("cleanupPath").textContent=data.valid?data.path:"尚未设置有效的游戏安装目录";
+  get("cleanupPrivilege").textContent=data.administrator?"已获得管理员权限":"普通用户，清理需管理员权限";
+  get("cleanupElevation").hidden=!!data.administrator;
+  ["cleanupDetect","cleanupSelect","cleanupDriver","cleanupPreviewButton","cleanupRefresh"].forEach(function(id){
+    get(id).disabled=!!data.busy||!data.configured;
+  });
+  if(!data.valid){get("cleanupPreviewButton").disabled=true;}
+  if(!data.executing&&(!data.previewActive||!data.valid)){
+    cleanupToken=null;get("cleanupReview").hidden=true;
+  }
+}
+function renderCleanupPreview(data){
+  if(typeof data.token!=="string"||!/^[a-f0-9]{32}$/.test(data.token)||!Array.isArray(data.targets))return;
+  cleanupToken=data.token;
+  get("cleanupReview").hidden=false;get("cleanupConfirm").disabled=false;
+  get("cleanupPlanSummary").textContent=(Number(data.count)||0)+" 项可清理、"+
+    (Number(data.blocked)||0)+" 项受保护；约 "+((Number(data.bytes)||0)/1048576).toFixed(1)+
+    " MB，包含 "+(Number(data.files)||0)+" 个文件、"+(Number(data.directories)||0)+" 个目录";
+  var list=get("cleanupTargets");list.replaceChildren();
+  data.targets.slice(0,350).forEach(function(item){
+    var li=document.createElement("li");li.dataset.blocked=item.blocked?"true":"false";
+    var path=document.createElement("strong");path.textContent=String(item.path||"路径不可用");
+    var note=document.createElement("small");note.textContent=(item.blocked?"禁止删除":"准备删除")+
+      " · "+String(item.group||"配置目录")+" · "+String(item.detail||"")+
+      " · "+(Number(item.files)||0)+" 个文件";
+    li.append(path,note);list.append(li);
+  });
+  get("cleanupStatus").textContent="请逐一核对清理目标；只有点击确认才会真正删除";
+}
+var cloudPendingAction=null;
+var cloudBusy=false;
+var onlineCanInstall=false;
+function renderCloudState(data){
+  guideText("cloudAccount",data.localOnly?"本地模式（无需登录）":(data.loggedIn?data.account:"未登录 GGman"));
+  get("cloudModeNote").textContent=data.localOnly?
+    "目前免费云服务额度已耗尽，GGman 已进入免登录本地模式；云同步和验证码功能暂缓，所有本地游戏功能继续可用。":
+    "已启用云端模式，账号验证和自动同步使用已有服务.";
+  get("cloudStatus").textContent=data.localOnly?"本地模式运行中 · 不访问 CloudBase":(data.status||"同步状态待确认");
+  get("cloudAutoSync").checked=!data.localOnly&&!!data.autoSync;
+  get("cloudGameRestore").checked=!data.localOnly&&!!data.autoGameRestore;
+  cloudBusy=!!data.busy;
+  get("cloudAutoSync").disabled=!!data.localOnly||cloudBusy||!data.available;
+  get("cloudGameRestore").disabled=!!data.localOnly||cloudBusy||!data.available;
+  get("cloudPublish").disabled=!!data.localOnly||cloudBusy||!data.loggedIn||!data.available;
+  get("cloudConflictRow").hidden=!!data.localOnly||!data.loggedIn||!data.conflict;
+  get("cloudKeepLocal").disabled=!!data.localOnly||cloudBusy||!data.available;
+}
+get("cloudAutoSync").addEventListener("change",function(){
+  if(cloudBusy)return;cloudBusy=true;
+  get("cloudAutoSync").disabled=true;
+  post("cloud-toggle:config:"+(get("cloudAutoSync").checked?"true":"false"));
+});
+get("cloudGameRestore").addEventListener("change",function(){
+  if(cloudBusy)return;cloudBusy=true;
+  get("cloudGameRestore").disabled=true;
+  post("cloud-toggle:game:"+(get("cloudGameRestore").checked?"true":"false"));
+});
+get("updateAuto").addEventListener("change",function(){
+  post("updates-auto:"+(get("updateAuto").checked?"true":"false"));
+});
+function renderOnlineState(data){
+  updateForced=!!data.forced;
+  document.body.dataset.forceUpdate=updateForced?"true":"false";
+  onlineCanInstall=!!data.canInstall;
+  get("updateForcedBanner").hidden=!updateForced;
+  get("updateExit").hidden=!updateForced;
+  get("announcementLink").hidden=!data.announcementLink;
+  get("updateConfirmText").textContent=updateForced?
+    "确认下载并安装必须更新的签名版本吗？如果不更新，只能退出 GGman。":
+    "确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。";
+  get("updateConfirm").hidden=!data.automaticPrompt;
+  get("updateCurrent").textContent=data.current||"未知";
+  get("updateLatest").textContent=data.latest||"未获取";
+  get("updateAuto").checked=!!data.autoEnabled;
+  get("updateAuto").disabled=updateForced;
+  get("updateRefresh").disabled=false;
+  get("updateInstall").disabled=!onlineCanInstall;
+  get("updateSource").textContent=data.source?"来源："+data.source:"";
+  get("updateNotes").textContent=data.notes||"暂无可用更新说明";
+  get("announcementTitle").textContent=data.announcement&&data.announcement.title||"暂无公告";
+  get("announcementBody").textContent=data.announcement&&data.announcement.body||"暂无公告内容";
+  get("updateProgress").hidden=true;
+  get("updateStatus").textContent=data.error?"无法校验在线版本":
+    data.forced&&onlineCanInstall?"需要更新后才能继续使用":
+    onlineCanInstall?"已发现可安装的正式更新":
+    data.available?"发现更新，但尚未通过安装条件":
+    data.latest?"当前已是最新版本":"在线版本信息暂不可用";
+}
+var recommendationCanApply=false;
+function guideText(id,value){get(id).textContent=value==null||value===""?"—":String(value);}
+function guidePercent(value){
+  var n=Number(value);if(value==null||!Number.isFinite(n))return "—";
+  return (n>=0&&n<=1?n*100:n).toFixed(1)+"%";
+}
+function fillGuideList(id,items,label){
+  var list=get(id);list.replaceChildren();
+  var safe=Array.isArray(items)?items.slice(0,12):[];
+  if(!safe.length){var empty=document.createElement("li");empty.textContent=label||"暂无可信数据";list.appendChild(empty);return;}
+  safe.forEach(function(value){var item=document.createElement("li");item.textContent=String(value);list.appendChild(item);});
+}
+function iconPlaceholder(label){
+  var icon=document.createElement("span");icon.className="guide-thumb";
+  icon.textContent=String(label||"荐").trim().slice(0,1)||"荐";return icon;
+}
+function renderRankedAugments(data){
+  var list=get("mayhemAugments");list.replaceChildren();
+  var rows=Array.isArray(data.augmentDetails)?data.augmentDetails:[];
+  if(!rows.length){
+    (Array.isArray(data.augments)?data.augments:[]).slice(0,8).forEach(function(name,index){
+      var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
+      var icon=iconPlaceholder(name),copy=document.createElement("div");copy.className="guide-copy";
+      var title=document.createElement("strong");title.textContent=String(name);copy.append(title);li.append(icon,copy);list.append(li);
+    });
+  }else{
+    rows.forEach(function(row,index){
+      var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
+      var icon=iconPlaceholder(row.name);
+      var copy=document.createElement("div");copy.className="guide-copy";
+      var title=document.createElement("strong");
+      if(row.rarity){
+        var rarity=document.createElement("span");rarity.className="guide-rarity";
+        rarity.dataset.kind=["prism","gold","silver"].includes(row.rarityKind)?row.rarityKind:"other";
+        rarity.textContent=String(row.rarity);title.appendChild(rarity);
+      }
+      title.appendChild(document.createTextNode(String(row.name||"未知强化")));
+      copy.appendChild(title);
+      var evidence=[Number(row.rank)>0?"第 "+row.rank+" 名":"",
+        row.winRate==null?"":"胜率 "+guidePercent(row.winRate),
+        row.pickRate==null?"":"选取率 "+guidePercent(row.pickRate),
+        row.games>0?"样本 "+row.games:""].filter(Boolean).join(" · ");
+      if(evidence){var meta=document.createElement("small");meta.textContent=evidence;copy.appendChild(meta);}
+      if(row.description){var desc=document.createElement("small");desc.textContent=String(row.description);copy.appendChild(desc);}
+      li.append(icon,copy);list.append(li);
+    });
+  }
+  if(!list.children.length){var empty=document.createElement("li");empty.textContent="暂无来源确认的强化推荐";list.appendChild(empty);}
+  var route=String(data.augmentSource||"");
+  get("mayhemAugmentSource").dataset.stale=data.augmentStale?"true":"false";
+  get("mayhemAugmentSource").textContent=data.augmentStale?"当前为历史缓存数据，需注意版本差异":
+    route==="fresh-cache"?"强化数据来自近期缓存":"强化信息来自当前已读取的数据源";
+}
+function renderItemIcons(items){
+  var list=get("mayhemItems");list.replaceChildren();
+  var rows=Array.isArray(items)?items.slice(0,5):[];
+  rows.forEach(function(name,index){
+    var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="item";li.dataset.iconIndex=String(index);
+    var icon=iconPlaceholder(name),copy=document.createElement("div");copy.className="guide-copy";
+    var title=document.createElement("strong");title.textContent=String(name||"未知装备");copy.appendChild(title);
+    li.append(icon,copy);list.append(li);
+  });
+  if(!rows.length){var empty=document.createElement("li");empty.textContent="暂无可用核心装备";list.appendChild(empty);}
+}
+function renderMayhemIcon(data){
+  if(mode!=="mayhem"||typeof data.image!=="string"||
+      !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image)||data.image.length>35000)return;
+  var holder=null;
+  if(data.kind==="champion")holder=get("mayhemChampionIcon");
+  else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<8){
+    var list=get(data.kind==="augment"?"mayhemAugments":"mayhemItems");
+    var row=list.querySelector('[data-icon-index="'+data.index+'"]');
+    if(row)holder=row.querySelector(".guide-thumb");
+  }
+  if(holder){var img=document.createElement("img");img.src=data.image;img.alt="";img.decoding="async";holder.replaceChildren(img);}
+}
+function renderMayhem(data){
+  get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+  get("mayhemOutput").hidden=false;
+  get("mayhemChampionIcon").textContent=String(data.champion||"英").slice(0,1);
+  guideText("mayhemName",data.champion);
+  guideText("mayhemSource",[data.patch?"版本 "+data.patch:"",data.rankingPatch?"排行 "+data.rankingPatch:"",data.source].filter(Boolean).join(" · "));
+  guideText("mayhemRank",data.rank>0?"#"+data.rank+(data.tier?" · "+data.tier:""):(data.tier||"暂无"));
+  guideText("mayhemWinRate",guidePercent(data.winRate));
+  guideText("mayhemBalance",data.balance||"暂无可信版本平衡数据");
+  guideText("mayhemSkills",data.skills||"暂无");
+  renderRankedAugments(data);
+  renderItemIcons(data.items);
+  fillGuideList("mayhemTop",(Array.isArray(data.top)?data.top:[]).map(function(row){
+    return "#"+row.rank+" "+(row.name||"未知英雄")+(row.tier?" · "+row.tier:"")+
+      (row.winRate==null?"":" · "+guidePercent(row.winRate));
+  }),"当前来源未提供可信的前十排行");
+  get("mayhemResult").textContent="数据读取完成";
+}
+function renderRecommendationFeedback(data){
+  get("recommendationRefresh").disabled=false;
+  get("recommendationApply").disabled=!recommendationCanApply;
+  var labels={runes:"符文",spells:"召唤师技能",items:"装备"};
+  var statuses={"success":"已成功","failed":"执行未成功","unavailable":"无可应用内容","not-selected":"未选择"};
+  var box=get("recommendationFeedback");box.replaceChildren();box.hidden=false;
+  ["runes","spells","items"].forEach(function(key){
+    var card=document.createElement("div");card.className="guide-card";card.dataset.result=String(data[key]||"unavailable");
+    var name=document.createElement("strong");name.textContent=labels[key];
+    var state=document.createElement("span");state.textContent=statuses[data[key]]||"结果待确认";
+    card.append(name,state);box.append(card);
+  });
+  if(data.runeSlotFull){
+    var hint=document.createElement("div");hint.className="guide-card";hint.textContent="符文页容量已满，没有额外创建符文页";box.append(hint);
+  }
+  if(data.itemCleanupWarning){
+    var warn=document.createElement("div");warn.className="guide-card";warn.textContent="装备写入完成，但旧装备配置清理存在警告";box.append(warn);
+  }
+  var statuses2={success:"所选推荐已全部应用",partial:"部分内容已应用，请查看各项结果",
+    failed:"所选推荐未成功应用","context-changed":"游戏状态已变化，未继续写入"};
+  get("recommendationResult").textContent=statuses2[data.status]||"请查看各项执行结果";
+}
+function renderRecommendation(data){
+  get("recommendationRefresh").disabled=false;
+  get("recommendationConfirm").hidden=true;
+  recommendationCanApply=!!data.canApply;
+  get("recommendationApply").disabled=!recommendationCanApply;
+  var rows=Array.isArray(data.rows)?data.rows:[];
+  get("recommendationOutput").hidden=false;
+  guideText("recommendationChampion",data.champion|| (data.championId>0?"英雄 #"+data.championId:"当前英雄未确认"));
+  guideText("recommendationContext",[data.mode,data.position,data.source,data.cached?"缓存数据":""].filter(Boolean).join(" · "));
+  guideText("recommendationVersion",data.version);
+  guideText("recommendationWinRate",guidePercent(data.winRate));
+  var labels={"runes":"推荐符文","summoner-spells":"召唤师技能","starter-items":"出门装备",
+    "boots":"鞋类","core-items":"核心装备","skills":"技能加点","counters":"克制英雄"};
+  var list=get("recommendationRows");list.replaceChildren();
+  rows.forEach(function(row){
+    var item=document.createElement("div");item.className="guide-card";
+    var title=document.createElement("strong");title.textContent=labels[row.category]||String(row.category||"推荐");
+    var detail=document.createElement("small");detail.textContent=row.title||"来源未提供";
+    item.append(title,detail);
+    if(row.evidence){var note=document.createElement("small");note.textContent=String(row.evidence);item.appendChild(note);}
+    list.appendChild(item);
+  });
+  if(!rows.length){var empty=document.createElement("div");empty.className="guide-card";empty.textContent="当前没有可用的推荐数据";list.appendChild(empty);}
+  var statuses={"client-required":"请先连接英雄联盟客户端","waiting-champion":"等待选中英雄",
+    "waiting-champ-select":"请在选人阶段应用推荐","unsupported-mode":"当前模式不支持这项推荐",
+    "in-game-cache":"已读取当前游戏的缓存推荐，游戏中不可写入","in-game-no-cache":"游戏中暂无已缓存的推荐",
+    "opgg-unavailable":"推荐来源暂时不可用","timeout":"读取超时"};
+  get("recommendationResult").textContent=data.status==="ready"?
+    "推荐已读取，可选择应用到当前选人阶段":(statuses[data.status]||"暂时无法应用推荐");
+}
+["applyRunes","applySpells","applyItems"].forEach(function(id){
+  get(id).addEventListener("change",function(){get("recommendationConfirm").hidden=true;});
+});
+get("mayhemChampion").addEventListener("keydown",function(event){
+  if(event.isComposing||event.keyCode===229)return;
+  if(event.key==="Enter"){event.preventDefault();get("mayhemQuery").click();}
+});
+var historyRows=[];
+var historyFilter="all";
+get("historySearch").addEventListener("input",drawHistoryRows);
+get("historySort").addEventListener("change",drawHistoryRows);
+document.querySelectorAll("[data-history-filter]").forEach(function(button){
+  button.addEventListener("click",function(){
+    historyFilter=button.dataset.historyFilter;
+    document.querySelectorAll("[data-history-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item===button?"true":"false");
+    });
+    drawHistoryRows();
+  });
+});
+function drawHistoryRows(){
+  var list=get("historyList");list.replaceChildren();
+  var query=get("historySearch").value.trim().toLocaleLowerCase();
+  var rows=historyRows.filter(function(match){
+    if(historyFilter!=="all"&&match.outcome!==historyFilter)return false;
+    if(!query)return true;
+    return [match.champion,match.mode,match.queueId,match.championId].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
+    });
+  });
+  var sort=get("historySort").value;
+  if(sort==="oldest")rows.reverse();
+  else if(sort==="kills"||sort==="kda"){
+    var metric=function(match){
+      if(match.outcome==="unknown")return -1;
+      var kills=Math.max(0,Number(match.kills)||0);
+      if(sort==="kills")return kills;
+      return (kills+Math.max(0,Number(match.assists)||0))/Math.max(1,Number(match.deaths)||0);
+    };
+    rows.sort(function(a,b){return metric(b)-metric(a);});
+  }
+  rows.forEach(function(match){
+    var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
+    var top=document.createElement("div");top.className="top";
+    var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
+    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",unknown:"结果待补全"}[match.outcome]||"结果待补全");
+    top.append(champ,outcome);
+    var meta=document.createElement("small");
+    var duration=Number(match.duration)||0;
+    meta.textContent=[match.played,match.mode||"队列 "+match.queueId,
+      duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
+    var score=document.createElement("small");
+    score.textContent=match.outcome==="unknown"?"对局数据待补全":
+      "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
+    card.append(top,meta,score);list.appendChild(card);
+  });
+  var wins=rows.filter(function(match){return match.outcome==="win";}).length;
+  var losses=rows.filter(function(match){return match.outcome==="loss";}).length;
+  var decided=wins+losses;
+  var filtered=historyFilter!=="all"||!!query;
+  get("historyResult").textContent=historyRows.length?
+    (filtered?"筛选 "+rows.length+" / "+historyRows.length+" 场":"已读取 "+historyRows.length+" 场")+
+    " · 胜 "+wins+" / 负 "+losses+
+    (decided?" · 胜率 "+Math.round(wins*100/decided)+"%":"")+
+    (!rows.length?" · 无匹配对局":""):
+    "当前账号暂无可读取的历史对局";
+}
+function renderHistory(data){
+  get("historyRefresh").disabled=false;
+  get("historyMore").disabled=!data.hasMore;
+  get("historyMore").hidden=!data.hasMore;
+  get("historyAccount").textContent=data.name||"当前召唤师";
+  get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
+  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
+  drawHistoryRows();
+}
+var remoteHistoryIds=new Set();
+function renderRegionalOptions(data){
+  var control=get("advancedRegionalServer"),prior=control.value;control.replaceChildren();
+  var current=document.createElement("option");current.value="";
+  current.textContent="当前客户端大区（自动）";control.append(current);
+  (Array.isArray(data.servers)?data.servers:[]).slice(0,64).forEach(function(item){
+    if(!item||typeof item.id!=="string"||item.id.length>45)return;
+    var option=document.createElement("option");option.value=item.id;
+    option.textContent=String(item.name||item.id)+" ("+item.id+")";
+    control.append(option);
+  });
+  if(Array.from(control.options).some(function(x){return x.value===prior;}))control.value=prior;
+  get("advancedRegionalStatus").textContent=data.available?
+    "已加载当前账号授权的服务器目录；其他大区可能需要 SGP 权限":
+    "无法识别当前客户端区域，跨区查询不可用";
+}
+function renderRegionalHistory(data){
+  var status=get("advancedRegionalStatus"),list=get("advancedRegionalResults");
+  list.replaceChildren();remoteHistoryIds.clear();
+  var labels={Found:"已读取目标玩家当前区域记录",InvalidQuery:"Riot ID 格式不正确",
+    NotFound:"未找到对应玩家，请核对 Riot ID 和区域",
+    AccountChanged:"本机 LOL 账号已切换，请重新读取",
+    Unavailable:"所选区域无授权、客户端不可用或数据源暂时不可用"};
+  status.textContent=labels[data.status]||"未取得跨区战绩";
+  if(data.status!=="Found"){
+    get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
+    return;
+  }
+  var rows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  status.textContent="玩家 "+String(data.name||"")+" · "+String(data.region||"当前大区")+
+    " · 已读取 "+rows.length+" 场（仅查询服务器已返回记录）";
+  rows.forEach(function(item){
+    var id=String(item.id||"");
+    if(!/^[1-9]\d{0,18}$/.test(id)||remoteHistoryIds.has(id))return;
+    remoteHistoryIds.add(id);
+    var card=document.createElement("div");card.className="history-advanced-row";
+    var summary=document.createElement("div"),heading=document.createElement("strong"),detail=document.createElement("small");
+    heading.textContent=String(item.champion||"英雄 #"+item.championId)+
+      " · "+(item.outcome==="win"?"胜利":item.outcome==="loss"?"失败":"结果未知");
+    detail.textContent=[item.played,item.mode||"队列 #"+item.queue,
+      "K/D/A "+(item.kills||0)+"/"+(item.deaths||0)+"/"+(item.assists||0)].filter(Boolean).join(" · ");
+    summary.append(heading,detail);
+    var button=document.createElement("button");button.dataset.remoteGameId=id;
+    button.textContent="查看跨区对局";card.append(summary,button);list.append(card);
+  });
+  if(!remoteHistoryIds.size){var empty=document.createElement("p");empty.textContent="当前区域没有返回可查询的对局";list.append(empty);}
+}
+var advancedTimelineFrames=[];
+get("advancedHistoryRadarPlayer").addEventListener("change",function(){
+  var id=Number(this.value);
+  if(selectedAdvancedMatch&&Number.isInteger(id)&&id>0&&id<=20)
+    post("history-advanced-radar:"+id);
+});
+get("advancedTimelineMetric").addEventListener("change",function(){drawAdvancedTimeline();});
+function historySvgElement(name,attributes,textContent){
+  var node=document.createElementNS("http://www.w3.org/2000/svg",name);
+  Object.keys(attributes||{}).forEach(function(key){node.setAttribute(key,String(attributes[key]));});
+  if(textContent!==undefined)node.textContent=String(textContent);
+  return node;
+}
+function renderAdvancedRadar(data){
+  if(data.id!==selectedAdvancedMatch)return;
+  var svg=get("advancedHistoryRadar");svg.replaceChildren();
+  if(data.status!=="ready"||!Array.isArray(data.player)){
+    get("advancedRadarStatus").textContent="当前对局没有可核实的雷达统计";return;
+  }
+  var labels=["英雄伤害","承受伤害","经济","补刀","KDA","参团率","治疗"];
+  var point=function(axis,ratio){
+    var a=-Math.PI/2+2*Math.PI*axis/7;
+    return [150+90*ratio*Math.cos(a),125+88*ratio*Math.sin(a)];
+  };
+  for(var ring=1;ring<=4;ring++){
+    var pts=labels.map(function(_,i){return point(i,ring/4).join(",");}).join(" ");
+    svg.appendChild(historySvgElement("polygon",{points:pts,class:"axis"}));
+  }
+  labels.forEach(function(label,i){
+    var end=point(i,1.04),caption=point(i,1.30);
+    svg.appendChild(historySvgElement("line",{x1:150,y1:125,x2:end[0],y2:end[1],class:"axis"}));
+    svg.appendChild(historySvgElement("text",{x:caption[0],y:caption[1],"text-anchor":"middle"},label));
+  });
+  var poly=function(values,cls){
+    if(!Array.isArray(values)||values.length!==7||values.some(function(x){return x===null||!Number.isFinite(Number(x));}))return false;
+    svg.appendChild(historySvgElement("polygon",{points:values.map(function(v,i){
+      return point(i,Math.max(0,Math.min(1,Number(v)))).join(",");
+    }).join(" "),class:cls}));return true;
+  };
+  var team=poly(data.team,"team"),player=poly(data.player,"player");
+  get("advancedRadarStatus").textContent=player?
+    "青色为所选玩家"+(team?"；淡紫色为所在队伍平均":"；队伍完整统计不可用")+
+    "。每个轴相对本场已知最大值归一化。":"部分必需指标缺失，无法绘制完整多边形";
+}
+function renderAdvancedTimeline(data){
+  if(data.id!==selectedAdvancedMatch)return;
+  get("advancedTimelineEvents").replaceChildren();
+  advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
+  if(data.status!=="ready"){
+    get("advancedTimelineStatus").textContent=data.status==="session-changed"?
+      "当前 LOL 账号或对局已切换，请重新选择比赛":"当前比赛没有可用的完整时间线";
+    drawAdvancedTimeline();return;
+  }
+  get("advancedTimelineStatus").textContent=
+    "真实时间线 "+(data.frameCount||0)+" 帧、"+(data.eventCount||0)+
+    " 个事件（图表按间隔采样，事件至多展示 120 个）";
+  (Array.isArray(data.events)?data.events:[]).slice(0,120).forEach(function(e){
+    var line=document.createElement("div");line.className="history-event";
+    line.textContent=Math.floor(Math.max(0,Number(e.time)||0)/60000)+
+      " 分钟 · "+String(e.type||"事件")+" · 参与者 #"+(e.participant||"—");
+    get("advancedTimelineEvents").append(line);
+  });
+  drawAdvancedTimeline();
+}
+function drawAdvancedTimeline(){
+  var svg=get("advancedHistoryTimeline");svg.replaceChildren();
+  var key=get("advancedTimelineMetric").value;
+  var data=advancedTimelineFrames.filter(function(p){return Number.isFinite(Number(p[key]))&&p[key]!==null;});
+  if(!data.length)return;
+  var min=0,max=Math.max(1,...data.map(function(p){return Number(p[key]);}));
+  var first=Number(data[0].time)||0,last=Number(data[data.length-1].time)||first+1;
+  svg.appendChild(historySvgElement("line",{x1:28,y1:155,x2:307,y2:155,class:"axis"}));
+  svg.appendChild(historySvgElement("line",{x1:28,y1:12,x2:28,y2:155,class:"axis"}));
+  var points=data.map(function(p){
+    var t=Number(p.time)||0, x=28+278*(t-first)/Math.max(1,last-first);
+    return [x,155-140*(Number(p[key])-min)/(max-min)].join(",");
+  }).join(" ");
+  svg.appendChild(historySvgElement("polyline",{points:points,fill:"none",stroke:"var(--accent)","stroke-width":2}));
+  svg.appendChild(historySvgElement("text",{x:28,y:171},"0"));
+  svg.appendChild(historySvgElement("text",{x:296,y:171,"text-anchor":"end"},Math.round(last/60000)+"分"));
+  svg.appendChild(historySvgElement("text",{x:30,y:15},Math.round(max)));
+}
+function renderAdvancedReplayResult(data){
+  if(data.id&&data.id!==selectedAdvancedMatch)return;
+  var messages={DownloadRequested:"客户端已接受下载请求，等待其自行完成",
+    WatchRequested:"客户端已接受播放请求，正在尝试启动回放",
+    Checking:"客户端正在检查回放状态",Downloading:"客户端回放下载中",
+    Incompatible:"本场回放与客户端版本不兼容",Unavailable:"当前回放暂不可用",
+    NoClient:"未检测到可用客户端",WrongAccount:"LOL 账号已变化，已中止操作",
+    Ready:"本地回放可用"};
+  if(data.kind==="folder"){
+    get("advancedReplayStatus").textContent=data.status==="Ready"?
+      "目录 "+(data.path||"（不可读取）")+
+      (data.playingGame?" · 游戏正在进行，可能无法播放":"") :
+      messages[data.status]||"本机回放目录不可用";
+  }else get("advancedReplayStatus").textContent=
+    (messages[data.status]||"未确认回放执行结果")+
+    (data.status==="Downloading"?"（"+Math.max(0,Math.min(100,Number(data.progress)||0))+"%）":"");
+}
+var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch="";
+["advancedHistorySearch","advancedHistoryOutcome","advancedHistoryQueue","advancedHistorySort"].forEach(function(id){
+  get(id).addEventListener(id==="advancedHistorySearch"?"input":"change",drawAdvancedHistoryRows);
+});
+function renderAdvancedHistoryList(data){
+  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  advancedHistoryIds=new Set(advancedHistoryRows.map(function(item){return String(item.id);}));
+  remoteHistoryIds.clear();
+  get("advancedRegionalResults").replaceChildren();
+  selectedAdvancedMatch="";get("advancedHistoryDetail").hidden=true;
+  var queue=get("advancedHistoryQueue"),before=queue.value;queue.replaceChildren();
+  var all=document.createElement("option");all.value="all";all.textContent="全部已读取队列";queue.append(all);
+  var available=new Set();
+  advancedHistoryRows.forEach(function(item){
+    var id=String(item.queue||0);
+    if(available.has(id))return;available.add(id);
+    var option=document.createElement("option");option.value=id;
+    option.textContent=item.mode?String(item.mode)+" (#"+id+")":"队列 #"+id;queue.appendChild(option);
+  });
+  if(Array.from(queue.options).some(function(o){return o.value===before;}))queue.value=before;
+  get("advancedHistoryStatus").textContent=data.error?"读取失败或当前游戏账号已切换":
+    "当前账号 "+(data.name||"")+" · 已读取 "+advancedHistoryRows.length+" 场"+
+    (data.hasMore?"（还有历史对局未读取）":"");
+  drawAdvancedHistoryRows();
+}
+function drawAdvancedHistoryRows(){
+  var list=get("advancedHistoryRows");list.replaceChildren();
+  var search=get("advancedHistorySearch").value.trim().toLocaleLowerCase();
+  var outcome=get("advancedHistoryOutcome").value,queue=get("advancedHistoryQueue").value;
+  var rows=advancedHistoryRows.filter(function(match){
+    if(outcome!=="all"&&match.outcome!==outcome)return false;
+    if(queue!=="all"&&String(match.queue)!==queue)return false;
+    return !search||[match.champion,match.mode,match.queue].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().includes(search);
+    });
+  });
+  var sort=get("advancedHistorySort").value;
+  if(sort==="oldest")rows.reverse();
+  if(sort==="kills"||sort==="kda"){
+    rows.sort(function(a,b){
+      var metric=function(x){return sort==="kills"?Number(x.kills)||0:
+        ((Number(x.kills)||0)+(Number(x.assists)||0))/Math.max(1,Number(x.deaths)||0);};
+      return metric(b)-metric(a);
+    });
+  }
+  rows.forEach(function(match){
+    var card=document.createElement("div");card.className="history-advanced-row";
+    var left=document.createElement("div"),heading=document.createElement("strong"),meta=document.createElement("small");
+    heading.textContent=String(match.champion||"英雄 #"+match.championId)+" · "+(
+      {win:"胜利",loss:"失败",unknown:"结果未确认"}[match.outcome]||"未确认");
+    meta.textContent=[match.played,match.mode||"队列 #"+match.queue,
+      "K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
+    left.append(heading,meta);
+    var button=document.createElement("button");button.dataset.advancedGameId=String(match.id);
+    button.textContent="查看完整对局";button.setAttribute("aria-label","读取对局 "+match.id+" 的真实明细");
+    card.append(left,button);list.appendChild(card);
+  });
+  if(!rows.length){var empty=document.createElement("p");empty.textContent="已读取记录中没有符合条件的对局";list.append(empty);}
+}
+function renderAdvancedMatchDetail(data){
+  if(String(data.id)!==selectedAdvancedMatch)return;
+  var panel=get("advancedHistoryDetail");panel.hidden=false;
+  var labels={Ready:"对局明细已读取",NoClient:"游戏客户端不可用",
+    WrongAccount:"游戏账号已变化，旧对局明细已丢弃",Unavailable:"对局详细信息暂不可用"};
+  get("advancedHistoryDetailStatus").textContent=labels[data.status]||"读取状态待确认";
+  if(data.status==="WrongAccount"){
+    advancedHistoryRows=[];advancedHistoryIds.clear();
+    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryStatus").textContent="游戏账号已切换，旧记录已清空，请重新读取";
+  }
+  var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
+  if(data.status!=="Ready"){
+    get("advancedHistoryExtras").hidden=true;
+    return;
+  }
+  get("advancedHistoryExtras").hidden=false;
+  get("advancedTimelineStatus").textContent="尚未读取时间线";
+  get("advancedRadarStatus").textContent="正在读取雷达指标";
+  get("advancedReplayStatus").textContent="等待操作";
+  get("advancedReplayConfirm").hidden=true;
+  get("advancedHistoryTimeline").replaceChildren();
+  get("advancedHistoryRadar").replaceChildren();
+  advancedTimelineFrames=[];
+  var select=get("advancedHistoryRadarPlayer");select.replaceChildren();
+  var roster=Array.isArray(data.players)?data.players:[];
+  roster.forEach(function(player){
+    if(!Number.isInteger(player.participantId)||player.participantId<1||player.participantId>20)return;
+    var option=document.createElement("option");option.value=String(player.participantId);
+    option.textContent=(player.name||"玩家 "+player.participantId)+" · "+(player.champion||"");
+    select.appendChild(option);
+    if(player.local)select.value=String(player.participantId);
+  });
+  if(select.options.length&&!select.value)select.selectedIndex=0;
+  if(select.value)post("history-advanced-radar:"+select.value);
+  get("advancedHistoryDetailTitle").textContent=
+    "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知")+
+    (data.source?" · 来源 "+({Lcu:"客户端",Sgp:"区域服务",Automatic:"自动选择"}[data.source]||"已确认"):"");
+  (Array.isArray(data.teams)?data.teams:[]).slice(0,12).forEach(function(team){
+    var item=document.createElement("div");item.className="history-advanced-row";
+    var heading=document.createElement("strong");heading.textContent="队伍 "+team.id+
+      (team.placement!=null?" · 排名 "+team.placement:"");
+    var meta=document.createElement("small");meta.textContent=
+      "击杀 "+team.kills+" · 死亡 "+team.deaths+" · 助攻 "+team.assists+
+      (team.damage!=null?" · 英雄伤害 "+team.damage:"")+
+      (team.towers!=null?" · 推塔 "+team.towers:"")+
+      (team.dragons!=null?" · 小龙 "+team.dragons:"")+
+      (team.barons!=null?" · 大龙 "+team.barons:"");
+    item.append(heading,meta);teams.append(item);
+  });
+  (Array.isArray(data.players)?data.players:[]).slice(0,30).forEach(function(player){
+    var item=document.createElement("div");item.className="advanced-player";
+    var left=document.createElement("div"),heading=document.createElement("strong"),more=document.createElement("small");
+    heading.textContent=(player.local?"★ ":"")+(player.name||"未知玩家")+
+      " · "+(player.champion||"英雄 #"+player.championId);
+    more.textContent="队伍 "+player.team+" · "+(player.position||"位置未知")+
+      (player.cs!=null?" · 补刀 "+player.cs:"")+
+      (player.vision!=null?" · 视野 "+player.vision:"")+
+      " · 装备 "+(player.items||[]).join("/")+
+      " · 召唤师技能 "+(player.spells||[]).join("/")+
+      " · 符文 "+(player.perks||[]).join("/")+
+      " · 强化 "+(player.augments||[]).join("/");
+    left.append(heading,more);
+    var right=document.createElement("div");right.className="score";
+    var score=document.createElement("strong");score.textContent=player.kills+"/"+player.deaths+"/"+player.assists;
+    var damage=document.createElement("small");damage.textContent=
+      (player.damage!=null?"伤害 "+player.damage:"伤害未提供")+
+      (player.gold!=null?" · "+player.gold+" 金币":" · 金币未提供");
+    right.append(score,damage);item.append(left,right);players.append(item);
+  });
+  if(!data.players||!data.players.length)get("advancedHistoryDetailStatus").textContent=
+    "对局仅返回基础资料；当前数据源未提供可核实的玩家记分板";
+}
+var pendingProfileAction=null,profileChampionIds=new Set(),profileSkinIds=new Set();
+function renderProfileCustomizationOptions(data){
+  var select,items;
+  if(data.kind==="champions"){
+    profileChampionIds.clear();profileSkinIds.clear();
+    select=get("profileChampion");select.replaceChildren();
+    get("profileSkin").replaceChildren();get("profileSkinApply").disabled=true;
+    items=Array.isArray(data.items)?data.items.slice(0,300):[];
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0||id>10000)return;
+      var opt=document.createElement("option");opt.value=String(id);opt.textContent=String(item.name||"#"+id);
+      select.appendChild(opt);profileChampionIds.add(id);
+    });
+    if(select.options.length)select.selectedIndex=0;
+    get("profileCustomizationStatus").textContent=profileChampionIds.size?
+      "请选择英雄，随后读取该英雄可用的皮肤":"没有可用的英雄目录";
+    return;
+  }
+  if(data.kind==="skins"){
+    profileSkinIds.clear();select=get("profileSkin");select.replaceChildren();
+    items=Array.isArray(data.items)?data.items.slice(0,200):[];
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0||id>99999999)return;
+      var opt=document.createElement("option");opt.value=String(id);opt.textContent=String(item.name||"#"+id);
+      select.appendChild(opt);profileSkinIds.add(id);
+    });
+    if(select.options.length)select.selectedIndex=0;
+    get("profileSkinApply").disabled=!profileSkinIds.size;
+    get("profileCustomizationStatus").textContent=profileSkinIds.size?
+      "已读取 "+profileSkinIds.size+" 个背景皮肤，可选择后应用":"当前英雄没有可用的背景皮肤";
+  }
+}
+get("profileChampion").addEventListener("change",function(){
+  var id=Number(this.value);
+  profileSkinIds.clear();get("profileSkin").replaceChildren();get("profileSkinApply").disabled=true;
+  if(!profileChampionIds.has(id))return;
+  get("profileCustomizationStatus").textContent="正在读取选中英雄的背景皮肤";
+  post("profile-customization-champion:"+id);
+});
+var benchIds=new Set();
+function renderBenchState(data){
+  var list=get("benchChampions");list.replaceChildren();
+  benchIds.clear();get("benchRefresh").disabled=false;
+  get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
+  get("benchMode").textContent=data.mode|| (data.queue>0?"队列 #"+data.queue:"—");
+  var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
+    disabled:"当前游戏模式没有开放替补席","session-changed":"游戏账号或选人会话已切换，请重新读取",timeout:"读取超时，请稍后再试",
+    failed:"替补席读取失败，检查客户端后重试"};
+  get("benchReadStatus").textContent=status[data.status]||"正在读取替补席";
+  if(data.status!=="ready")return;
+  var ids=Array.isArray(data.championIds)?data.championIds.slice(0,32):[];
+  ids.forEach(function(raw){
+    var id=Number(raw);
+    if(!Number.isSafeInteger(id)||id<1||id>10000||benchIds.has(id))return;
+    benchIds.add(id);
+    var button=document.createElement("button");button.dataset.benchSwap=String(id);
+    button.setAttribute("aria-label","交换到英雄 "+id);
+    var icon=document.createElement("span");icon.className="bench-champ-icon";icon.textContent="英";
+    var label=document.createElement("small");label.textContent="英雄 #"+id;
+    button.append(icon,label);list.appendChild(button);
+  });
+  if(!benchIds.size)get("benchReadStatus").textContent="替补席已启用，但当前没有可交换的英雄";
+}
+function renderBenchIcon(data){
+  if(mode!=="bench"||!benchIds.has(data.id)||typeof data.image!=="string"||
+     data.image.length>35000||!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image))return;
+  var button=get("benchChampions").querySelector('button[data-bench-swap="'+data.id+'"]');
+  if(!button)return;
+  var icon=button.querySelector(".bench-champ-icon");if(!icon)return;
+  var image=document.createElement("img");image.src=data.image;image.alt="";
+  icon.replaceWith(image);
+}
+var liveRows=[];
+var liveFilter="all";
+get("liveSearch").addEventListener("input",drawLiveRows);
+get("liveSort").addEventListener("change",drawLiveRows);
+document.querySelectorAll("[data-live-filter]").forEach(function(button){
+  button.addEventListener("click",function(){
+    liveFilter=button.dataset.liveFilter;
+    document.querySelectorAll("[data-live-filter]").forEach(function(item){
+      item.setAttribute("aria-pressed",item===button?"true":"false");
+    });
+    drawLiveRows();
+  });
+});
+function liveSide(player){
+  if(player.local||player.side==="my-team"||player.side==="team-1")return "my-team";
+  if(player.side==="their-team"||player.side==="team-2")return "their-team";
+  return "unknown";
+}
+function drawLiveRows(){
+  var roster=get("livePlayers");roster.replaceChildren();
+  var query=get("liveSearch").value.trim().toLocaleLowerCase();
+  var rows=liveRows.filter(function(player){
+    if(liveFilter!=="all"&&liveSide(player)!==liveFilter)return false;
+    return !query||[player.name,player.champion,player.position,player.side].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().indexOf(query)>=0;
+    });
+  });
+  var order=get("liveSort").value;
+  var sideRank={"my-team":0,"their-team":1,"unknown":2};
+  var positionRank={TOP:0,JUNGLE:1,MIDDLE:2,MID:2,BOTTOM:3,BOT:3,UTILITY:4,SUPPORT:4};
+  var position=function(player){return positionRank[String(player.position||"").toUpperCase()]??9;};
+  rows.sort(function(a,b){
+    if(order==="name")return String(a.name||"").localeCompare(String(b.name||""),"zh-CN");
+    if(order==="position")return position(a)-position(b)||String(a.name||"").localeCompare(String(b.name||""),"zh-CN");
+    return sideRank[liveSide(a)]-sideRank[liveSide(b)]||position(a)-position(b);
+  });
+  rows.forEach(function(player){
+    var row=document.createElement("div");row.className="live-player";
+    var side=document.createElement("span");side.className="live-mark";
+    var team=liveSide(player);
+    side.textContent=player.local?"自己":team==="my-team"?"队友":team==="their-team"?"对手":String(player.side||"玩家").slice(0,20);
+    var body=document.createElement("div");var title=document.createElement("strong");
+    title.textContent=player.name||"身份未公开";
+    var detail=document.createElement("small");
+    detail.textContent=[player.champion>0?"英雄 #"+player.champion:"英雄未确认",player.position||""].filter(Boolean).join(" · ");
+    body.append(title,detail);row.append(side,body);roster.appendChild(row);
+  });
+  var connected=get("liveConnection").textContent==="客户端已连接";
+  get("liveSummary").textContent=!connected?"连接 LOL 客户端后可查看":
+    liveRows.length?"阵容 "+liveRows.length+" 人（我方 "+liveRows.filter(function(p){return liveSide(p)==="my-team";}).length+" / 对方 "+liveRows.filter(function(p){return liveSide(p)==="their-team";}).length+"） · 显示 "+rows.length+" 人"+
+    (rows.length===0?" · 无匹配玩家":"")+
+    (get("livePlayers").dataset.sgp==="true"?" · 区域资料已补全":" · 客户端阵容"):
+    "当前阶段没有可确认的阵容";
+}
+function renderLive(data){
+  var bans=get("liveBans");bans.replaceChildren();bans.hidden=true;
+  if(data.connected){
+    [["我方禁用",data.allyBans],["对方禁用",data.enemyBans]].forEach(function(group){
+      var ids=(Array.isArray(group[1])?group[1]:[]).filter(function(id){return Number.isSafeInteger(Number(id))&&Number(id)>0;}).slice(0,10);
+      if(!ids.length)return;
+      var line=document.createElement("span");line.textContent=group[0]+"："+ids.map(function(id){return "英雄 #"+Number(id);}).join(" · ");
+      bans.appendChild(line);bans.hidden=false;
+    });
+  }
+  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
+  get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
+  get("livePhase").textContent=phaseLabel(data.phase);
+  get("liveQueue").textContent=data.queue||data.mode||"—";
+  get("liveMap").textContent=data.map||"—";
+  liveRows=(Array.isArray(data.players)?data.players:[]).slice(0,24);
+  get("livePlayers").dataset.sgp=data.sgp?"true":"false";
+  if(!data.connected){
+    get("liveSearch").value="";get("liveSort").value="team";liveFilter="all";
+    document.querySelectorAll("[data-live-filter]").forEach(function(button){
+      button.setAttribute("aria-pressed",button.dataset.liveFilter==="all"?"true":"false");
+    });
+  }
+  drawLiveRows();
+}
+function renderPresence(data){
+  var connected=!!data.connected,state=String(data.availability||"").toLowerCase();
+  var inGame=String(data.gameStatus||"").toLowerCase()==="ingame";
+  var labels={chat:"在线",online:"在线",away:"离开",dnd:"勿扰",mobile:"手机在线",offline:"离线"};
+  get("presenceName").textContent=connected?(data.name||"当前账号"):"请先连接英雄联盟";
+  get("presenceCurrent").textContent=connected?(inGame?"游戏中":(labels[state]||"已连接")):"客户端未连接";
+  get("presenceSignature").value=connected?String(data.message||""):"";
+  ["presenceSignature","presenceSaveSignature","presenceSaveRank","presenceQueue","presenceTier","presenceDivision"].forEach(function(id){get(id).disabled=!connected;});
+  get("presenceQueue").value=data.queue||"RANKED_SOLO_5x5";
+  get("presenceTier").value=data.tier||"GOLD";
+  get("presenceDivision").value=data.division||"II";
+  if(["MASTER","GRANDMASTER","CHALLENGER"].indexOf(get("presenceTier").value)>=0)get("presenceDivision").disabled=true;
+  document.querySelectorAll("[data-presence-mode]").forEach(function(button){
+    var chosen=button.dataset.presenceMode;
+    var selected=connected&&(chosen==="DisplayInGame"?inGame:!inGame&&
+      (({Online:"chat",Away:"away",DoNotDisturb:"dnd",Mobile:"mobile",Offline:"offline"}[chosen]===state)||
+       (chosen==="Online"&&state==="online")));
+    button.classList.toggle("selected",selected);button.disabled=!connected;
+  });
+  get("presenceResult").textContent=connected?"":"连接 LOL 后可使用状态设置";
+}
+function initPresenceOptions(){
+  var queues=[["单双排","RANKED_SOLO_5x5"],["灵活排位","RANKED_FLEX_SR"],["斗魂竞技场","CHERRY"],
+    ["云顶之弈","RANKED_TFT"],["云顶狂暴","RANKED_TFT_TURBO"],["双人作战","RANKED_TFT_DOUBLE_UP"],["三人排位","RANKED_FLEX_TT"]];
+  var tiers=[["黑铁","IRON"],["青铜","BRONZE"],["白银","SILVER"],["黄金","GOLD"],["铂金","PLATINUM"],["翡翠","EMERALD"],["钻石","DIAMOND"],["大师","MASTER"],["宗师","GRANDMASTER"],["最强王者","CHALLENGER"]];
+  [["presenceQueue",queues],["presenceTier",tiers]].forEach(function(entry){
+    var select=get(entry[0]);entry[1].forEach(function(item){var option=document.createElement("option");option.textContent=item[0];option.value=item[1];select.appendChild(option);});
+  });
+  get("presenceTier").addEventListener("change",function(){
+    get("presenceDivision").disabled=["MASTER","GRANDMASTER","CHALLENGER"].indexOf(get("presenceTier").value)>=0;
+  });
+}
+initPresenceOptions();
+function savePostgame(){
+  var payload={autoHonor:document.getElementById("postgameHonor").checked,
+    autoReturn:document.getElementById("postgameReturn").checked,
+    strategy:document.getElementById("postgameStrategy").value};
+  document.getElementById("savePostgame").disabled=true;
+  document.getElementById("postgameResult").textContent="正在保存";
+  post("save-postgame:"+JSON.stringify(payload));
+}
+function renderChampionChoices(champions,pickId,banId){
+  ["selectionPickChampion","selectionBanChampion"].forEach(function(id,index){
+    var select=document.getElementById(id),selected=index===0?pickId:banId;
+    select.replaceChildren();
+    var none=document.createElement("option");none.value="0";none.textContent="未设置英雄";select.appendChild(none);
+    (Array.isArray(champions)?champions:[]).forEach(function(champion){
+      if(!Number.isInteger(champion.id)||champion.id<=0||champion.id>10000)return;
+      var option=document.createElement("option");option.value=String(champion.id);
+      option.textContent=String(champion.name||("#"+champion.id));select.appendChild(option);
+    });
+    if(selected>0&&!Array.from(select.options).some(function(o){return o.value===String(selected);})){var previous=document.createElement("option");
+      previous.value=String(selected);previous.textContent="#"+selected+"（已保存）";select.appendChild(previous);}
+    select.value=String(selected);
+  });
+}
+function saveAutoSelection(){
+  var get=function(id){return document.getElementById(id);};
+  var payload={autoPick:get("selectionPickEnabled").checked,autoBan:get("selectionBanEnabled").checked,
+    pickId:Number(get("selectionPickChampion").value),banId:Number(get("selectionBanChampion").value)};
+  get("saveAutoSelection").disabled=true;
+  get("selectionResult").textContent="正在保存";post("save-selection:"+JSON.stringify(payload));
+}
+function renderMatchmaking(data){
+  var fields={queueEnabled:"autoSearch",acceptEnabled:"autoAccept",waitInvitees:"waitForInvitees",roomNotices:"roomNotices"};
+  Object.keys(fields).forEach(function(key){document.getElementById(key).checked=!!data[fields[key]];});
+  document.getElementById("minParty").value=String(data.minParty||1);
+  document.getElementById("queueDelay").value=String((Number(data.queueDelayMs)||0)/1000);
+  document.getElementById("acceptDelay").value=String((Number(data.acceptDelayMs)||0)/1000);
+  document.getElementById("stopAfter").value=String((Number(data.stopAfterMs)||1000)/1000);
+  var selector=document.getElementById("stopPolicy");selector.replaceChildren();
+  (Array.isArray(data.policies)?data.policies:[]).forEach(function(item){
+    var option=document.createElement("option");option.value=item.value;option.textContent=item.label;
+    selector.appendChild(option);
+  });selector.value=data.stopPolicy||"";
+  document.getElementById("saveMatchmaking").disabled=false;
+  document.getElementById("matchmakingResult").textContent="";
+}
+function saveMatchmaking(){
+  var get=function(id){return document.getElementById(id);};
+  var checks=["minParty","queueDelay","acceptDelay","stopAfter"];
+  if(checks.some(function(id){return !get(id).checkValidity()||get(id).value.trim()==="";})){
+    get("matchmakingResult").textContent="请检查人数和延迟范围";return;
+  }
+  var payload={autoSearch:get("queueEnabled").checked,autoAccept:get("acceptEnabled").checked,
+    waitForInvitees:get("waitInvitees").checked,roomNotices:get("roomNotices").checked,
+    minParty:Number(get("minParty").value),queueDelayMs:Math.round(Number(get("queueDelay").value)*1000),
+    acceptDelayMs:Math.round(Number(get("acceptDelay").value)*1000),
+    stopAfterMs:Math.round(Number(get("stopAfter").value)*1000),stopPolicy:get("stopPolicy").value};
+  get("saveMatchmaking").disabled=true;get("matchmakingResult").textContent="正在保存";
+  post("save-matchmaking:"+JSON.stringify(payload));
+}
+function filterToolCards(){
+  var query=(document.getElementById("toolSearch").value||"").trim().toLocaleLowerCase();
+  var count=0;
+  document.querySelectorAll("#other .tool-section .tile").forEach(function(tile){
+    var visible=tile.textContent.toLocaleLowerCase().indexOf(query)>=0;
+    tile.hidden=!visible;if(visible)count++;
+  });
+  document.querySelectorAll("#other .tool-section").forEach(function(section){
+    section.hidden=!Array.from(section.querySelectorAll(".tile")).some(function(tile){return !tile.hidden;});
+  });
+  document.getElementById("searchMessage").textContent=query?(count?"已找到 "+count+" 项功能":"没有匹配的功能"):"";
+}
+document.getElementById("toolSearch").addEventListener("input",filterToolCards);
+function phaseLabel(phase){
+  var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
+  return labels[String(phase||"")]||"已连接";
+}
+function renderPetChoices(data){
+  var list=get("petList");list.replaceChildren();
+  (Array.isArray(data.items)?data.items:[]).forEach(function(item){
+    if(!item||typeof item.id!=="string")return;
+    var btn=document.createElement("button");btn.className="pet-card"+
+      (item.id===data.selected&&data.enabled?" selected":"");
+    btn.dataset.petId=item.id;
+    var name=document.createElement("strong");name.textContent=String(item.name||item.id);
+    var desc=document.createElement("small");desc.textContent=String(item.description||"");
+    btn.append(name,desc);list.append(btn);
+  });
+  get("petResult").textContent=data.enabled?"当前已启用桌宠："+(data.name||data.selected):
+    "当前使用轻量 GG 悬浮球";
+}
+function renderThemes(data){
+  var container=document.getElementById("themeList");container.replaceChildren();
+  (Array.isArray(data.items)?data.items:[]).forEach(function(item){
+    var button=document.createElement("button");button.className="theme-card"+(item.id===data.selected?" selected":"");
+    button.setAttribute("data-theme",String(item.id||""));
+    var swatch=document.createElement("span");swatch.className="theme-swatch";swatch.style.background=String(item.accent||"");
+    var text=document.createElement("span");var title=document.createElement("strong");title.textContent=String(item.name||"");
+    var caption=document.createElement("small");caption.textContent=String(item.description||"");
+    text.append(title,caption);button.append(swatch,text);container.appendChild(button);
+  });
+  var current=(Array.isArray(data.items)?data.items:[]).find(function(item){return item.id===data.selected;});
+  if(current){
+    var css=document.documentElement.style;
+    [["--canvas",current.background],["--card",current.surface],["--card2",current.surfaceRaised],
+     ["--text",current.text],["--muted",current.muted],["--accent",current.accent],["--line",current.border]]
+      .forEach(function(pair){if(pair[1])css.setProperty(pair[0],String(pair[1]));});
+    document.documentElement.style.colorScheme=current.light?"light":"dark";
+  }
+  if(data.selected){document.getElementById("themeResult").textContent="当前主题已保存";}
+}
+document.getElementById("selectionPaused").addEventListener("change",function(e){
+  post("selection-pause:"+(e.target.checked?"true":"false"));
+});
+document.getElementById("dragHandle").addEventListener("mousedown",function(e){
+  if(e.button===0&&!e.target.closest("button"))post("drag");
+});
+window.GGmanUnifiedShell={setMode:setMode,knownRoutes:Object.keys(titles)};
+})();
+</script>
+</body></html>

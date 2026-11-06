@@ -4,6 +4,7 @@
     <TargetFramework>net48</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <DefineConstants Condition="'$(UseGlassWorkbenchPreview)' == 'true'">$(DefineConstants);GLASS_WORKBENCH_PREVIEW</DefineConstants>
+    <DefineConstants Condition="'$(UseUnifiedReleaseCandidate)' == 'true'">$(DefineConstants);GLASS_WORKBENCH_PREVIEW;UNIFIED_RELEASE_CANDIDATE</DefineConstants>
     <RootNamespace>FACM</RootNamespace>
     <AssemblyName>GGman</AssemblyName>
     <Platforms>AnyCPU</Platforms>
@@ -24,11 +25,11 @@
     <IncludePetHostBundle Condition="'$(IncludePetHostBundle)' == ''">false</IncludePetHostBundle>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' != 'true'">
+  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' != 'true' and '$(UseUnifiedReleaseCandidate)' != 'true'">
     <Compile Remove="Presentation\Glass\**\*.cs" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' == 'true'">
+  <ItemGroup Condition="'$(UseGlassWorkbenchPreview)' == 'true' or '$(UseUnifiedReleaseCandidate)' == 'true'">
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
     <EmbeddedResource Include="Presentation\Glass\GGman-Glass-Prototype.html"
                       LogicalName="FACM.Presentation.Glass.GGman-Glass-Prototype.html"
@@ -38,7 +39,30 @@
                       LogicalName="FACM.Presentation.Glass.GGman-Compact-Preview.html"
                       Type="Non-Resx"
                       WithCulture="false" />
+    <EmbeddedResource Include="Presentation\Glass\GGman-Unified-Workspace.html"
+                      LogicalName="FACM.Presentation.Glass.GGman-Unified-Workspace.html"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
+
+  <ItemGroup Condition="'$(UseUnifiedReleaseCandidate)' == 'true'">
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\lib\net462\Microsoft.Web.WebView2.Core.dll"
+                      LogicalName="FACM.Resources.WebView2.Core.dll" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\lib\net462\Microsoft.Web.WebView2.WinForms.dll"
+                      LogicalName="FACM.Resources.WebView2.WinForms.dll" />
+    <EmbeddedResource Include="$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\runtimes\win-x64\native\WebView2Loader.dll"
+                      LogicalName="FACM.Resources.WebView2.Loader.x64.dll" />
+  </ItemGroup>
+
+  <Target Name="VerifyUnifiedCandidateBundle" BeforeTargets="AssignTargetPaths"
+          Condition="'$(UseUnifiedReleaseCandidate)' == 'true'">
+    <Error Condition="!Exists('$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\lib\net462\Microsoft.Web.WebView2.Core.dll')"
+           Text="Pinned Core WebView2 managed asset missing." />
+    <Error Condition="!Exists('$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\lib\net462\Microsoft.Web.WebView2.WinForms.dll')"
+           Text="Pinned WinForms WebView2 managed asset missing." />
+    <Error Condition="!Exists('$(NuGetPackageRoot)microsoft.web.webview2\1.0.4258.31\runtimes\win-x64\native\WebView2Loader.dll')"
+           Text="Pinned x64 WebView2 native loader missing." />
+  </Target>
 
   <ItemGroup>
     <Reference Include="System" />

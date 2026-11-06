@@ -213,6 +213,24 @@ namespace FACM.League
                 : LeagueHubNavigation.Dashboard;
         }
 
+        internal void UseUnifiedWorkspaceHost()
+        {
+            _sidebar.Visible = false;
+            Padding = Padding.Empty;
+        }
+
+        internal bool NavigateInUnifiedWorkspace(string viewId)
+        {
+            if (!UnifiedRouteAllowed(viewId)) return false;
+            ShowView(viewId, true);
+            return string.Equals(_currentViewId, viewId, StringComparison.Ordinal);
+        }
+
+        private static bool UnifiedRouteAllowed(string viewId)
+        {
+            return VisibleRoutes.Contains(viewId, StringComparer.Ordinal);
+        }
+
         internal void SetInitialView(string viewId)
         {
             if (Visible || IsDisposed) return;

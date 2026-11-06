@@ -154,12 +154,28 @@ jobs:
           if (Test-Path 'out\PetHostBundle.zip') {
             Remove-Item 'out\PetHostBundle.zip' -Force
           }
-          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:ContinuousIntegrationBuild=true /v:minimal
+          msbuild $env:SOLUTION /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseUnifiedReleaseCandidate=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) {
             throw "Lightweight Release build failed with exit code $LASTEXITCODE"
           }
           if (-not (Test-Path $env:OUTPUT_EXE -PathType Leaf)) {
             throw "GGman.exe was not produced: $env:OUTPUT_EXE"
+          }
+
+      - name: Verify unified workspace and isolated single-EXE dependencies
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          $routeSmoke = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
+          if ($routeSmoke.ExitCode -ne 0) { throw 'Unified workspace route smoke failed.' }
+
+          $isolated = Join-Path $env:RUNNER_TEMP 'ggman-unified-release-oneexe'
+          New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+          $standalone = Join-Path $isolated 'GGman.exe'
+          Copy-Item -LiteralPath $exe -Destination $standalone
+          foreach ($argument in @('--unified-bundle-smoke', '--unified-runtime-fallback-smoke')) {
+            $result = Start-Process -FilePath $standalone -ArgumentList $argument -Wait -PassThru -NoNewWindow
+            if ($result.ExitCode -ne 0) { throw "Unified release one-EXE gate failed: $argument" }
           }
 
       - name: Verify lightweight identity and resources
@@ -197,6 +213,16 @@ jobs:
           }
           if ($resources -contains 'FACM.Resources.PetHost.zip') {
             throw 'Large PetHost runtime was unexpectedly embedded in the 3.5 EXE.'
+          }
+          foreach ($resource in @(
+            'FACM.Resources.WebView2.Core.dll',
+            'FACM.Resources.WebView2.WinForms.dll',
+            'FACM.Resources.WebView2.Loader.x64.dll',
+            'FACM.Presentation.Glass.GGman-Unified-Workspace.html'
+          )) {
+            if ($resources -notcontains $resource) {
+              throw "Unified release resource missing: $resource"
+            }
           }
           Write-Host "Lightweight GGman identity verified: $expectedFileVersion; $($bytes.Length) bytes"
 

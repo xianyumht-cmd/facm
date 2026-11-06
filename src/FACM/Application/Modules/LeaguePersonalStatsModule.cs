@@ -64,7 +64,8 @@ namespace FACM.AppHost.Modules
         {
             _store = PersonalStatsStore.CreateDefault();
             _lifetime = new CancellationTokenSource();
-            _registeredClient = new GgmanRegisteredStatsClient();
+            if (!_settingsModule.Settings.LocalOnlyMode)
+                _registeredClient = new GgmanRegisteredStatsClient();
             _localDeviceId = CloudIdentityStore.CreateDefault().LoadOrCreate().DeviceId;
             _localSnapshot = _store.RecordLaunch(DateTimeOffset.Now);
 
@@ -75,7 +76,7 @@ namespace FACM.AppHost.Modules
         private void HandleIdle(object sender, EventArgs e)
         {
             Application.Idle -= HandleIdle;
-            if (GgmanAccountSession.Current != null)
+            if (!_settingsModule.Settings.LocalOnlyMode && GgmanAccountSession.Current != null)
                 _ = RefreshCloudStateAsync(_lifetime.Token);
         }
 
@@ -112,7 +113,8 @@ namespace FACM.AppHost.Modules
                     if (current == null || string.IsNullOrWhiteSpace(current.Puuid)) return;
 
                     var hash = PersonalStatsStore.CreateAccountKeyHash(_localDeviceId, current.Puuid);
-                    var registered = GgmanAccountSession.Current;
+                    var registered = _settingsModule.Settings.LocalOnlyMode
+                        ? null : GgmanAccountSession.Current;
                     var localCaptured = string.Equals(hash, _lastCapturedAccountHash, StringComparison.OrdinalIgnoreCase);
                     var registeredCaptured = registered == null ||
                         (registered.UserId == _lastRegisteredOwner &&
@@ -167,7 +169,7 @@ namespace FACM.AppHost.Modules
                 ? new PersonalStatsSnapshot()
                 : _store.ReadSnapshot(DateTimeOffset.Now));
             var settings = _settingsModule.Settings;
-            var currentAccount = GgmanAccountSession.Current;
+            var currentAccount = settings.LocalOnlyMode ? null : GgmanAccountSession.Current;
             var registered = currentAccount != null && currentAccount.UserId == _registeredStatsOwner
                 ? _registeredStats : null;
             return new LeaguePersonalStatsViewSnapshot
@@ -198,6 +200,13 @@ namespace FACM.AppHost.Modules
 
         internal async Task RefreshCloudStateAsync(CancellationToken cancellationToken)
         {
+            if (_settingsModule.Settings.LocalOnlyMode)
+            {
+                _registeredStatsOwner = null;
+                _registeredStats = null;
+                RaiseStatsChanged();
+                return;
+            }
             var account = GgmanAccountSession.Current;
             if (account == null)
             {
@@ -235,7 +244,7 @@ namespace FACM.AppHost.Modules
         internal async Task RefreshAfterSessionChangedAsync(CancellationToken cancellationToken)
         {
             await RefreshCloudStateAsync(cancellationToken).ConfigureAwait(false);
-            if (GgmanAccountSession.Current == null) return;
+            if (_settingsModule.Settings.LocalOnlyMode || GgmanAccountSession.Current == null) return;
             if (Interlocked.CompareExchange(ref _captureInProgress, 1, 0) != 0) return;
             await CaptureCurrentAccountAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -245,7 +254,7 @@ namespace FACM.AppHost.Modules
             get
             {
                 var session = GgmanAccountSession.Current;
-                return session != null && _registeredStats != null &&
+                return !_settingsModule.Settings.LocalOnlyMode && session != null && _registeredStats != null &&
                     string.Equals(_registeredStatsOwner, session.UserId, StringComparison.Ordinal);
             }
         }
@@ -257,6 +266,8 @@ namespace FACM.AppHost.Modules
 
         internal async Task ImportLegacyAsync(CancellationToken token)
         {
+            if (_settingsModule.Settings.LocalOnlyMode)
+                throw new InvalidOperationException("Cloud personal stats are disabled in local-only mode.");
             var account = GgmanAccountSession.Current;
             if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
             var summary = _store.ReadLegacySummary(DateTimeOffset.Now);
@@ -270,6 +281,8 @@ namespace FACM.AppHost.Modules
 
         internal async Task SetRegisteredRankingVisibleAsync(bool visible, CancellationToken token)
         {
+            if (_settingsModule.Settings.LocalOnlyMode)
+                throw new InvalidOperationException("Cloud personal stats are disabled in local-only mode.");
             var account = GgmanAccountSession.Current;
             if (account == null) throw new InvalidOperationException("请先登录 GGman 邮箱账号。");
             await _registeredClient.SetRankingVisibleAsync(account, visible, token).ConfigureAwait(false);

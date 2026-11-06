@@ -1,3 +1,15 @@
+## 2026-11-07 — v3.5.81 post-release operator acceptance
+
+For the unified WebView2 3.5.81 update, the owner explicitly changed the acceptance sequence: finish automatic/forced update and announcement HTML parity, pass the exact-head Windows CI and signed release/asset/updater gates, then publish the official online update **before** the owner performs Windows 10 DPI, IME, live Chinese LOL and user-facing interaction acceptance. Preserve all code, security, signing and updater-integrity gates; report unverified real-device behavior as post-release risk, not as passed. This supersedes earlier instructions requiring operator screenshots before this particular release.
+
+## 2026-11-04 — Version 3.5.81 UI design authority
+
+Owner wants the whole GGman UI to be visually rebuilt in a lightweight floating-ball system: look to 360 speed-ball for circular resident entry + quick view, open-source Flow Launcher for readable compact theme/focus, Droptop Four for grouped navigation, and HGFloater for edge-safe expansion. Do not replicate their branding/assets. The owner specifically requests **微软雅黑** (`Microsoft YaHei UI` / `Microsoft YaHei`), adaptive DPI/width/height, a consistent compact navy-cyan visual language and native C# backend; avoid pink and the old broad WinForms workbench. Apply this to real actions throughout the single WebView2 window, not just a mock home. Deliver the **signed 3.5.81 online update only once all UI actions and release CI/runtime/signature tests are safe**, not a standalone test package. The existing hourly automation should remain enabled with its schedule unchanged unless explicitly reconfigured.
+
+## 2026-11-04 — One adaptive WebView2 workbench, not independent WinForms pages
+
+For GGman, the small floating-ball control center in the owner's screenshot is the canonical home. New development must use an HTML/CSS responsive workbench with a typed C# bridge. Route/back/history/resize must remain within one window; nested modal windows are a temporary migration compatibility step, never a final state. Backend performance/session fences, launcher/tray behavior and Cloud/Updater safety stay native. Finish complete functional navigation and source-parity actions before requesting a signed online update; record incomplete routes explicitly instead of shipping a beautiful empty shell.
+
 ## 2026-11-04 — Interface legibility regression rule (3.5.79 screenshot feedback)
 
 Nine native screenshots of the integrated League workbench exposed cropped multiline explanations, overlapping filter controls, native bright list headers, duplicate scrollbars and exposed protocol enum values. Every WinForms page change must budget for the actual Hub embedded viewport, text wrap and DPI; use layout measurement/flow, not narrower absolute rows, and preserve full control click targets. Require deterministic narrow/wide sizing tests and Windows four-gate CI before an online release. The owner prefers a normal signed 3.5.x online update after the batch is repaired, not detached EXE testing. Live LoL connectivity was absent in those screenshots, so no gameplay API failure can be inferred.

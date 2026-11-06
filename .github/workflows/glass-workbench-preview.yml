@@ -13,6 +13,7 @@ on:
       - 'scripts/Start-Compact-Preview.cmd'
       - 'scripts/Start-Compact-Browser.ps1'
       - 'scripts/Start-Compact-WebView2.cmd'
+      - 'scripts/Test-UnifiedWorkspaceBrowser.ps1'
       - '.github/workflows/glass-workbench-preview.yml'
   workflow_dispatch:
 
@@ -54,6 +55,30 @@ jobs:
             (Resolve-Path 'scripts/Start-Compact-Browser.ps1').Path,
             [ref] $tokens, [ref] $parseErrors) | Out-Null
           if ($parseErrors.Count -gt 0) { throw "Browser launcher PowerShell syntax error: $parseErrors" }
+      - name: Enforce HTML-only business route ownership
+        shell: pwsh
+        run: |
+          $owner = Get-Content 'src/FACM/Presentation/Glass/UnifiedWorkspaceForm.cs' -Raw -Encoding utf8
+          foreach ($legacy in @('CreateUnifiedEmbeddedForm', 'LeagueHubForm _hub', 'Controls.Add(_content)', 'TryCloseCurrentHub')) {
+            if ($owner.Contains($legacy)) { throw "Unified window still embeds native workbench: $legacy" }
+          }
+          $partials = Get-ChildItem 'src/FACM/Presentation/Glass' -Filter 'UnifiedWorkspace*.cs' -File
+          foreach ($partial in $partials) {
+            $source = Get-Content -LiteralPath $partial.FullName -Raw -Encoding utf8
+            if ($source.Contains('_content.Visible =') -or $source.Contains('TryCloseCurrentHub()')) {
+              throw "Legacy embedded panel is still referenced: $($partial.Name)"
+            }
+          }
+          $main = Get-Content 'src/FACM/MainForm.cs' -Raw -Encoding utf8
+          foreach ($required in @('TryNavigateUnifiedRoute("appearance")', 'TryNavigateUnifiedRoute(LeagueHubNavigation.Mayhem)', 'TryNavigateUnifiedRoute("updates")', 'ApplyUnifiedPetSelection', '_gameflowVisibility.IsSuppressed')) {
+            if (-not $main.Contains($required)) { throw "Native shell integration missing: $required" }
+          }
+          $html = Get-Content 'src/FACM/Presentation/Glass/GGman-Unified-Workspace.html' -Raw -Encoding utf8
+          foreach ($required in @('id="petList"', 'id="cleanupPage"', 'id="profileCustomizationPage"', 'id="advancedHistoryPage"')) {
+            if (-not $html.Contains($required)) { throw "HTML business route missing: $required" }
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY '- Audited HTML-only navigation and tray business entrypoints; original WinForms compact fallback remains separate.'
+
       - name: Check browser fallback renders visible offline HTML
         shell: pwsh
         run: |
@@ -100,11 +125,51 @@ jobs:
               $image.Dispose()
             }
           }
+      - name: Render six HTML workbench routes
+        shell: pwsh
+        run: |
+          & .\scripts\Test-UnifiedWorkspaceBrowser.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Unified browser render smoke failed.' }
+
       - name: Build optional Glass workbench
         shell: pwsh
         run: |
           msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseGlassWorkbenchPreview=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Glass candidate build failed.' }
+
+      - name: Validate unified single-window route and back contract
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $test = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
+          if ($test.ExitCode -ne 0) {
+            $diagnostic = 'artifacts/Unified-Workspace-Diagnostics/smoke-error.txt'
+            if (Test-Path -LiteralPath $diagnostic) {
+              Get-Content -LiteralPath $diagnostic | Write-Host
+            }
+            throw 'Unified WebView2 route and embedded HTML smoke failed.'
+          }
+
+      - name: Compile intended unified default startup (candidate only)
+        shell: pwsh
+        run: |
+          # This step deliberately does NOT alter the published 3.5.x release workflow.
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseUnifiedReleaseCandidate=true /p:ContinuousIntegrationBuild=true /v:minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Unified default-start candidate build failed.' }
+          $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
+          $smoke = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
+          if ($smoke.ExitCode -ne 0) { throw 'Unified default-start candidate route contract failed.' }
+          $isolated = Join-Path $env:RUNNER_TEMP 'ggman-unified-oneexe'
+          New-Item -ItemType Directory -Path $isolated -Force | Out-Null
+          Copy-Item -LiteralPath $exe -Destination (Join-Path $isolated 'GGman.exe')
+          $bundleTest = Start-Process -FilePath (Join-Path $isolated 'GGman.exe') -ArgumentList '--unified-bundle-smoke' -Wait -PassThru -NoNewWindow
+          if ($bundleTest.ExitCode -ne 0) { throw 'Isolated single-EXE WebView2 bundle smoke failed.' }
+          $fallbackTest = Start-Process -FilePath (Join-Path $isolated 'GGman.exe') -ArgumentList '--unified-runtime-fallback-smoke' -Wait -PassThru -NoNewWindow
+          if ($fallbackTest.ExitCode -ne 0) { throw 'Missing WebView2 runtime must select native fallback.' }
+          $size = (Get-Item (Join-Path $isolated 'GGman.exe')).Length
+          Write-Host "Isolated single-EXE bundle self-test passed; executable bytes=$size"
+          if ($size -gt 10MB) { throw 'Unified EXE exceeds existing lightweight GGman release budget.' }
+          Add-Content $env:GITHUB_STEP_SUMMARY '- Isolated single-EXE WebView2 managed and x64 loader bundle plus missing-runtime decision passed smoke tests. This does not replace a Windows 10 GUI fallback test and is unsigned.'
 
       - name: Guard approved compact UI geometry
         shell: pwsh

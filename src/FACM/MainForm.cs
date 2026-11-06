@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -35,10 +36,19 @@ namespace FACM
         private CompactMenuForm _menu;
 #if GLASS_WORKBENCH_PREVIEW
         private CompactLivePilotController _compactPilot;
+        private UnifiedWorkspaceForm _unifiedWorkspace;
+        private bool _unifiedWorkspaceEnabled;
+        private LeagueDashboardPhaseState _lastUnifiedGameflowState;
+        private OnlineSnapshot _unifiedPromptSnapshot;
+        private bool _unifiedPromptForce;
+        private bool _unifiedPromptAutomatic;
 #endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
+        private OnlineSnapshot _deferredOnlineSnapshot;
+        private bool _deferredOnlineForce;
+        private bool _deferredOnlineAutomatic;
         private bool _petPickerOpen;
         private bool _themePickerOpen;
         private bool _mayhemOpen;
@@ -151,10 +161,53 @@ namespace FACM
             EnsureMenuOpenAndActive();
         }
 
+        internal bool UnifiedOnlineCenterAvailable
+        {
+            get { return !_onlineCenterOpen && !_exiting && !IsDisposed; }
+        }
+
+        internal bool IsExiting { get { return _exiting; } }
+
+        internal Task<OnlineSnapshot> FetchUnifiedOnlineSnapshotAsync(CancellationToken token)
+        {
+            if (!UnifiedOnlineCenterAvailable)
+                throw new InvalidOperationException("Online center is already active.");
+            return _online.FetchSnapshotAsync(token);
+        }
+
+        internal bool UsesUnifiedWebWorkbench
+        {
+            get
+            {
+#if GLASS_WORKBENCH_PREVIEW
+                return _unifiedWorkspaceEnabled && !_exiting;
+#else
+                return false;
+#endif
+            }
+        }
+
+        internal bool TryNavigateUnifiedRoute(string viewId)
+        {
+#if GLASS_WORKBENCH_PREVIEW
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return false;
+            if (!string.IsNullOrWhiteSpace(viewId) && !UnifiedWorkspaceNavigation.IsAllowed(viewId))
+                return false;
+            ShowUnifiedWebWorkbench();
+            if (!string.IsNullOrWhiteSpace(viewId) && _unifiedWorkspace != null)
+                _unifiedWorkspace.OpenFromNativeRoute(viewId);
+            return true;
+#else
+            return false;
+#endif
+        }
+
         public void CloseMenu()
         {
 #if GLASS_WORKBENCH_PREVIEW
             if (_compactPilot != null) _compactPilot.Hide();
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                _unifiedWorkspace.Close();
 #endif
             if (_menu == null) return;
             var menu = _menu;
@@ -163,6 +216,106 @@ namespace FACM
         }
 
 #if GLASS_WORKBENCH_PREVIEW
+        internal void EnableUnifiedWebWorkbench()
+        {
+            _unifiedWorkspaceEnabled = true;
+        }
+
+        private void ShowUnifiedWebWorkbench()
+        {
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+            {
+                if (!_unifiedWorkspace.Visible) _unifiedWorkspace.Show();
+                _unifiedWorkspace.BringToFront();
+                _unifiedWorkspace.Activate();
+                _unifiedWorkspace.UpdateGameflowState(_lastUnifiedGameflowState);
+                return;
+            }
+            _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui, _settings, _cleanup);
+            _unifiedWorkspace.WorkspaceReady += delegate
+            {
+                if (_startCleanup) _startCleanup = false;
+            };
+            _unifiedWorkspace.BrowserUnavailable += delegate
+            {
+                var elevatedCleanup = _startCleanup;
+                var onlineSnapshot = _unifiedPromptSnapshot;
+                var forceUpdate = _unifiedPromptForce;
+                var automaticUpdate = _unifiedPromptAutomatic;
+                _unifiedPromptSnapshot = null;
+                _unifiedPromptForce = false;
+                _unifiedPromptAutomatic = false;
+                _unifiedWorkspaceEnabled = false;
+                try
+                {
+                    BeginInvoke(new Action(async delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        if (onlineSnapshot != null)
+                        {
+                            await ShowOnlineCenterAsync(onlineSnapshot, forceUpdate, automaticUpdate);
+                            return;
+                        }
+                        EnsureMenuOpenAndActive();
+                        if (elevatedCleanup && _menu != null && !_menu.IsDisposed)
+                        {
+                            _startCleanup = false;
+                            _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                        }
+                    }));
+                }
+                catch (InvalidOperationException) { }
+            };
+            _unifiedWorkspace.FormClosed += delegate { _unifiedWorkspace = null; };
+            PositionMenu(_unifiedWorkspace);
+            _unifiedWorkspace.Show();
+            _unifiedWorkspace.UpdateGameflowState(_lastUnifiedGameflowState);
+            _unifiedWorkspace.Activate();
+        }
+
+        internal string ApplyUnifiedPetSelection(string id)
+        {
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return "unavailable";
+            var selected = AnimalPetCatalog.Visible.FirstOrDefault(item =>
+                string.Equals(item.Id, id, StringComparison.Ordinal));
+            if (selected == null) return "invalid";
+            var oldId = _settings.PetStyleId;
+            var oldEnabled = _settings.AnimalPetEnabled;
+            try
+            {
+                _settings.PetStyleId = selected.Id;
+                _settings.AnimalPetEnabled = true;
+                _settings.Save();
+                ActivateAnimalPet();
+                if (!_settings.AnimalPetEnabled) return "failed";
+                return "enabled";
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Native desktop pet selection failed: " + exception.GetType().Name);
+                _settings.PetStyleId = oldId;
+                _settings.AnimalPetEnabled = oldEnabled;
+                try { _settings.Save(); } catch { }
+                return "failed";
+            }
+        }
+
+        internal string ApplyUnifiedPetAction(string action)
+        {
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return "unavailable";
+            if (action == "disable")
+            {
+                RestoreDefaultBall();
+                return "disabled";
+            }
+            if (action == "reset")
+            {
+                ResetAnimalPet();
+                return "reset";
+            }
+            return "invalid";
+        }
+
         internal void EnableCompactLivePilot(ILeagueClientApi league)
         {
             if (_compactPilot != null) return;
@@ -179,6 +332,11 @@ namespace FACM
         public async void ExitApplication()
         {
             if (_exiting) return;
+#if GLASS_WORKBENCH_PREVIEW
+            // Do not terminate the process while a confirmed filesystem cleanup is executing.
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed &&
+                _unifiedWorkspace.HasActiveCleanup) return;
+#endif
             _exiting = true;
             CloseMenu();
             try
@@ -234,7 +392,10 @@ namespace FACM
             }
 
 #if GLASS_WORKBENCH_PREVIEW
+            _lastUnifiedGameflowState = state;
             if (_compactPilot != null) _compactPilot.ObserveGameflowState(state);
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                _unifiedWorkspace.UpdateGameflowState(state);
 #endif
             var action = _gameflowVisibility.Observe(state, IsDesktopEntryVisible());
             if (action == DesktopEntryGameflowAction.Hide)
@@ -256,6 +417,24 @@ namespace FACM
             if (action == DesktopEntryGameflowAction.Restore)
             {
                 RestoreDesktopEntryAfterGameflow();
+                if (_deferredOnlineSnapshot != null)
+                {
+                    var pending = _deferredOnlineSnapshot;
+                    var forced = _deferredOnlineForce;
+                    var automatic = _deferredOnlineAutomatic;
+                    _deferredOnlineSnapshot = null;
+                    _deferredOnlineForce = false;
+                    _deferredOnlineAutomatic = false;
+                    try
+                    {
+                        BeginInvoke(new Action(async delegate
+                        {
+                            if (IsDisposed || _exiting) return;
+                            await ShowOnlineCenterAsync(pending, forced, automatic);
+                        }));
+                    }
+                    catch (InvalidOperationException) { }
+                }
                 AppLog.Info("GGman desktop entry restored after in-game Gameflow.");
             }
         }
@@ -272,6 +451,9 @@ namespace FACM
 
         public void OpenPanelThemeSelector()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("appearance")) return;
+#endif
             if (_themePickerOpen || IsDisposed) return;
             _themePickerOpen = true;
             try
@@ -294,6 +476,9 @@ namespace FACM
 
         public void OpenPetSelector()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("appearance")) return;
+#endif
             if (_petPickerOpen || IsDisposed) return;
             _petPickerOpen = true;
             try
@@ -361,6 +546,9 @@ namespace FACM
 
         public void OpenMayhemLookup()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute(LeagueHubNavigation.Mayhem)) return;
+#endif
             if (_mayhemOpen || IsDisposed) return;
             _mayhemOpen = true;
             try
@@ -406,6 +594,9 @@ namespace FACM
 
         public async void OpenUpdateCenter()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("updates")) return;
+#endif
             await OpenOnlineCenterAsync();
         }
 
@@ -470,6 +661,19 @@ namespace FACM
 
             if (_startCleanup)
             {
+#if GLASS_WORKBENCH_PREVIEW
+                if (_unifiedWorkspaceEnabled)
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        ShowUnifiedWebWorkbench();
+                        if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                            _unifiedWorkspace.OpenFromNativeRoute("cleanup");
+                    }));
+                    return;
+                }
+#endif
                 BeginInvoke(new Action(delegate
                 {
                     if (IsDisposed) return;
@@ -526,6 +730,9 @@ namespace FACM
             _tray.Dispose();
             if (trayMenu != null) trayMenu.Dispose();
             if (_menu != null) _menu.Dispose();
+#if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed) _unifiedWorkspace.Dispose();
+#endif
             _appIcon.Dispose();
         }
 
@@ -806,8 +1013,6 @@ namespace FACM
                     snapshot.Announcement = await snapshot.AnnouncementPending;
                     snapshot.AnnouncementPending = null;
                     if (IsDisposed || _exiting) return;
-                    if (snapshot.Announcement != null)
-                        snapshot.Announcement.Popup = false;
                 }
 
                 var announcement = snapshot.Announcement;
@@ -878,7 +1083,31 @@ namespace FACM
 
         private Task ShowOnlineCenterAsync(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
         {
-            if (_onlineCenterOpen || IsDisposed) return Task.CompletedTask;
+            if (_onlineCenterOpen || IsDisposed || _exiting) return Task.CompletedTask;
+            if (_gameflowVisibility.IsSuppressed)
+            {
+                // No automatic update, forced-update or announcement modal may
+                // steal foreground from an ongoing match. Preserve the validated
+                // online snapshot and reopen after desktop entry restoration.
+                _deferredOnlineSnapshot = snapshot;
+                _deferredOnlineForce = forceMode;
+                _deferredOnlineAutomatic = automaticPrompt;
+                return Task.CompletedTask;
+            }
+#if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                if (_unifiedPromptForce && !forceMode && _unifiedPromptSnapshot != null)
+                    snapshot = _unifiedPromptSnapshot;
+                _unifiedPromptSnapshot = snapshot;
+                _unifiedPromptForce |= forceMode;
+                _unifiedPromptAutomatic = !_unifiedPromptForce && automaticPrompt;
+                ShowUnifiedWebWorkbench();
+                if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                    _unifiedWorkspace.PresentOnlineSnapshot(snapshot, _unifiedPromptForce, _unifiedPromptAutomatic);
+                return Task.CompletedTask;
+            }
+#endif
             _onlineCenterOpen = true;
             try
             {
@@ -908,6 +1137,11 @@ namespace FACM
             if (IsDisposed || _exiting) return;
 
 #if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                ShowUnifiedWebWorkbench();
+                return;
+            }
             if (_compactPilot != null)
             {
                 _compactPilot.Show();
@@ -939,6 +1173,19 @@ namespace FACM
         private void ToggleMenu()
         {
 #if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed &&
+                    _unifiedWorkspace.RequiresForcedOnlineUpdate)
+                {
+                    _unifiedWorkspace.BringToFront();
+                    _unifiedWorkspace.Activate();
+                    return;
+                }
+                if (_unifiedWorkspace != null && _unifiedWorkspace.Visible) _unifiedWorkspace.Close();
+                else ShowUnifiedWebWorkbench();
+                return;
+            }
             if (_compactPilot != null)
             {
                 if (_compactPilot.Visible) _compactPilot.Hide();
@@ -953,6 +1200,12 @@ namespace FACM
             }
 
             EnsureMenuOpenAndActive();
+        }
+
+        internal void PositionUnifiedWorkspace(Form window)
+        {
+            if (window == null || window.IsDisposed) return;
+            PositionMenu(window);
         }
 
         private void PositionMenu(Form menu)
