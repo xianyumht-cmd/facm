@@ -43,6 +43,9 @@ namespace FACM
         private bool _startCleanup;
         private bool _onlineCheckStarted;
         private bool _onlineCenterOpen;
+        private OnlineSnapshot _deferredOnlineSnapshot;
+        private bool _deferredOnlineForce;
+        private bool _deferredOnlineAutomatic;
         private bool _petPickerOpen;
         private bool _themePickerOpen;
         private bool _mayhemOpen;
@@ -398,6 +401,24 @@ namespace FACM
             if (action == DesktopEntryGameflowAction.Restore)
             {
                 RestoreDesktopEntryAfterGameflow();
+                if (_deferredOnlineSnapshot != null)
+                {
+                    var pending = _deferredOnlineSnapshot;
+                    var forced = _deferredOnlineForce;
+                    var automatic = _deferredOnlineAutomatic;
+                    _deferredOnlineSnapshot = null;
+                    _deferredOnlineForce = false;
+                    _deferredOnlineAutomatic = false;
+                    try
+                    {
+                        BeginInvoke(new Action(async delegate
+                        {
+                            if (IsDisposed || _exiting) return;
+                            await ShowOnlineCenterAsync(pending, forced, automatic);
+                        }));
+                    }
+                    catch (InvalidOperationException) { }
+                }
                 AppLog.Info("GGman desktop entry restored after in-game Gameflow.");
             }
         }
@@ -1048,7 +1069,17 @@ namespace FACM
 
         private Task ShowOnlineCenterAsync(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
         {
-            if (_onlineCenterOpen || IsDisposed) return Task.CompletedTask;
+            if (_onlineCenterOpen || IsDisposed || _exiting) return Task.CompletedTask;
+            if (_gameflowVisibility.IsSuppressed)
+            {
+                // No automatic update, forced-update or announcement modal may
+                // steal foreground from an ongoing match. Preserve the validated
+                // online snapshot and reopen after desktop entry restoration.
+                _deferredOnlineSnapshot = snapshot;
+                _deferredOnlineForce = forceMode;
+                _deferredOnlineAutomatic = automaticPrompt;
+                return Task.CompletedTask;
+            }
             _onlineCenterOpen = true;
             try
             {
