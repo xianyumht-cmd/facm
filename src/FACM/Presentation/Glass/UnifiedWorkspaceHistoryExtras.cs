@@ -131,7 +131,7 @@ namespace FACM.Presentation.Glass
                 var samples = frames.Where((frame, index) => index % stride == 0)
                     .Take(160).Select(frame =>
                     {
-                        System.Collections.Generic.Dictionary<string, object> stats;
+                        System.Collections.Generic.Dictionary<string, object> stats = null;
                         var found = participantId > 0 &&
                             frame.Participants.TryGetValue(participantId, out stats);
                         if (!found) stats = null;
