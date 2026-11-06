@@ -107,6 +107,7 @@ namespace FACM.Presentation.Glass
                 if (_hub != null && !_hub.IsDisposed) _hub.Dispose();
                 CancelChampionCatalog();
                 CancelDashboardRead();
+                CancelAdvancedRespawnRead();
                 CancelPresenceOperation();
                 CancelRepairOperation();
                 CancelLiveRead();
@@ -186,7 +187,8 @@ namespace FACM.Presentation.Glass
                         SyncAutoSelection();
                         StartAutoSelectionCatalog();
                     }
-                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
+                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                        string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
                         StartDashboardRead();
                     if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
@@ -316,9 +318,11 @@ namespace FACM.Presentation.Glass
             { ApplyPresenceChange("signature", message.Substring(19)); return; }
             if (message != null && message.StartsWith("presence-rank:", StringComparison.Ordinal))
             { ApplyPresenceChange("rank", message.Substring(14)); return; }
+            if (message == "dashboard-respawn-refresh") { StartAdvancedRespawnRead(); return; }
             if (message == "dashboard-refresh")
             {
-                if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
+                if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                    string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
                     StartDashboardRead();
                 return;
             }
@@ -383,7 +387,8 @@ namespace FACM.Presentation.Glass
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             if (route != "cleanup") ResetCleanupPreview();
             if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
-            if (!string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal)) CancelDashboardRead();
+            if (route != LeagueHubNavigation.Dashboard && route != "dashboard-advanced") CancelDashboardRead();
+            if (route != "dashboard-advanced") CancelAdvancedRespawnRead();
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
             if (route != LeagueHubNavigation.Live) CancelLiveRead();
@@ -393,6 +398,7 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
             if (route != "quick-messages") CancelQuickMessageSend();
+            if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
             if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
             if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
             if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
@@ -532,7 +538,8 @@ namespace FACM.Presentation.Glass
                 var snapshot = await module.ReadUnifiedDashboardAsync(cancellation.Token);
                 if (IsDisposed || cancellation.IsCancellationRequested ||
                     generation != _dashboardReadGeneration ||
-                    !string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                    (_navigation.Current != LeagueHubNavigation.Dashboard &&
+                     _navigation.Current != "dashboard-advanced") ||
                     _browser.CoreWebView2 == null) return;
                 if (snapshot == null)
                 {
@@ -549,7 +556,15 @@ namespace FACM.Presentation.Glass
                     server = !string.IsNullOrWhiteSpace(snapshot.PlatformName)
                         ? snapshot.PlatformName : snapshot.PlatformId,
                     level = snapshot.SummonerLevel,
-                    budget = snapshot.BudgetName
+                    budget = snapshot.BudgetName,
+                    gameProcess = snapshot.GameProcessDetected,
+                    platformId = snapshot.PlatformId,
+                    platformName = snapshot.PlatformName,
+                    profileIconId = snapshot.ProfileIconId,
+                    activity = snapshot.Activity.ToString(),
+                    observedAt = snapshot.UpdatedAtUtc == DateTime.MinValue ? null
+                        : snapshot.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
+                    ranked = snapshot.IsRankedQueue
                 });
                 _browser.CoreWebView2.PostWebMessageAsJson(payload);
             }
@@ -1506,6 +1521,7 @@ namespace FACM.Presentation.Glass
             ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
+            CancelAdvancedRespawnRead();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1527,6 +1543,7 @@ namespace FACM.Presentation.Glass
             ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
+            CancelAdvancedRespawnRead();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1647,6 +1664,7 @@ namespace FACM.Presentation.Glass
             _closing = true;
             CancelChampionCatalog();
             CancelDashboardRead();
+            CancelAdvancedRespawnRead();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1674,6 +1692,9 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"advancedDashboardPage\"") ||
+                !html.Contains("data-action=\"dashboard-respawn-refresh\""))
+                throw new InvalidOperationException("Full dashboard must be an HTML route.");
             if (!html.Contains("id=\"benchPage\"") || !html.Contains("data-action=\"bench-refresh\""))
                 throw new InvalidOperationException("Advanced ARAM bench must be HTML-backed.");
             if (!html.Contains("id=\"quickMessagePage\""))

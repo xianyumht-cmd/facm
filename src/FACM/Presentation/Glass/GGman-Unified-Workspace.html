@@ -463,6 +463,17 @@ body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;ov
 #benchChampions .bench-champ-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--card);color:var(--accent);border-radius:7px}
 #benchChampions small{font-size:11px}
 #benchRefresh{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
+#advancedDashboardPage{display:none;padding:4px 2px}
+body[data-mode="dashboard-advanced"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="dashboard-advanced"] #home,body[data-mode="dashboard-advanced"] #other{display:none!important}
+body[data-mode="dashboard-advanced"] #detail{display:flex}
+body[data-mode="dashboard-advanced"] .brand-icon,body[data-mode="dashboard-advanced"] .brand-text{display:none}
+body[data-mode="dashboard-advanced"] #advancedDashboardPage,body[data-mode="dashboard-advanced"] main{display:block;overflow-y:auto}
+#advancedDashboardPage h2{font-size:18px;margin:8px 0 6px}
+#advancedDashboardPage p{font-size:12px;color:var(--muted);line-height:1.7}
+#advancedDashboardPage .dashboard-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+#advancedDashboardPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedDashboardPage button{min-height:38px}
 </style>
 </head>
 <body data-mode="home">
@@ -509,6 +520,35 @@ body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;ov
     </div>
     <p id="toolResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-route="matchmaking-settings">排队详细设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
+  </section>
+  <section id="advancedDashboardPage">
+    <h2>完整 LOL 工作台</h2>
+    <p>来自 GGman 同一个客户端与 Gameflow 观察者的详细快照。账号、服务器、连接和性能预算均显示真实结果，不添加刷新轮询。</p>
+    <div class="dashboard-cards">
+      <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="advancedDbConnection">等待读取</strong></div>
+      <div class="dashboard-card"><span class="small">游戏进程</span><strong id="advancedDbGameProcess">—</strong></div>
+      <div class="dashboard-card"><span class="small">当前阶段</span><strong id="advancedDbPhase">—</strong></div>
+      <div class="dashboard-card"><span class="small">活动分组</span><strong id="advancedDbActivity">—</strong></div>
+      <div class="dashboard-card"><span class="small">召唤师</span><strong id="advancedDbAccount">—</strong></div>
+      <div class="dashboard-card"><span class="small">等级 / 头像编号</span><strong id="advancedDbIdentity">—</strong></div>
+      <div class="dashboard-card"><span class="small">所在平台</span><strong id="advancedDbPlatform">—</strong></div>
+      <div class="dashboard-card"><span class="small">平台代码</span><strong id="advancedDbPlatformId">—</strong></div>
+      <div class="dashboard-card"><span class="small">性能预算（实际配置）</span><strong id="advancedDbBudget">—</strong></div>
+      <div class="dashboard-card"><span class="small">最新状态记录</span><strong id="advancedDbUpdated">—</strong></div>
+    </div>
+    <div class="guide-card">
+      <strong>当前游戏复活状态</strong>
+      <small>只在游戏进行中按需读取现有 Live Client Data；不会新增每秒计时器。</small>
+      <p id="advancedRespawn" role="status" aria-live="polite">尚未读取</p>
+      <button data-action="dashboard-respawn-refresh" id="advancedRespawnRefresh">读取当前复活状态</button>
+    </div>
+    <p id="advancedDbStatus" role="status" aria-live="polite">等待读取状态</p>
+    <div class="actions">
+      <button data-action="refresh-dashboard">刷新全部工作台信息</button>
+      <button data-route="dashboard">返回简洁工作台</button>
+      <button data-route="live">实时对局</button>
+      <button data-route="player">我的战绩</button>
+    </div>
   </section>
   <section id="dashboardPage">
     <h2>LOL 工作台</h2><p>按需读取当前已连接客户端的账号和对局信息，使用 GGman 原有游戏会话。</p>
@@ -917,7 +957,7 @@ var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -927,6 +967,11 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="dashboard-respawn-refresh"){
+    get("advancedRespawnRefresh").disabled=true;
+    get("advancedRespawn").textContent="正在读取当前游戏复活状态";
+    post("dashboard-respawn-refresh");return;
+  }
   if(target.dataset.action==="bench-refresh"){
     get("benchRefresh").disabled=true;get("benchChampions").replaceChildren();
     get("benchReadStatus").textContent="正在从当前 LCU 会话读取替补席";
@@ -1287,6 +1332,14 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
   }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-respawn"){
+    get("advancedRespawnRefresh").disabled=false;
+    var status={dead:"已阵亡，剩余 "+Math.ceil(Number(e.data.seconds)||0)+" 秒",
+      alive:"当前未阵亡",unavailable:"游戏内数据暂不可用或尚未进入对局",
+      "session-changed":"游戏账号或会话已变化，请重新读取",
+      failed:"读取失败，请确认游戏内数据服务可访问"};
+    get("advancedRespawn").textContent=status[e.data.status]||"未取得当前状态";return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-details"){
     document.getElementById("refreshDashboard").disabled=false;
     document.getElementById("dbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"客户端运行中":"未连接";
@@ -1295,11 +1348,29 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     document.getElementById("dbServer").textContent=e.data.server||"—";
     document.getElementById("dbLevel").textContent=e.data.level>0?String(e.data.level):"—";
     document.getElementById("dbBudget").textContent=e.data.budget||"—";
+    var labels={None:"未启动",Client:"客户端大厅",Queueing:"正在匹配",
+      ChampSelect:"英雄选择",InGame:"游戏中"};
+    get("advancedDbConnection").textContent=e.data.connected?"已连接":e.data.clientProcess?"游戏客户端已启动":"未连接";
+    get("advancedDbGameProcess").textContent=e.data.gameProcess?"检测到游戏进程":"未检测到游戏进程";
+    get("advancedDbPhase").textContent=phaseLabel(e.data.phase);
+    get("advancedDbActivity").textContent=labels[e.data.activity]||"未知";
+    get("advancedDbAccount").textContent=e.data.connected?(e.data.account||"未取得账号"):"—";
+    get("advancedDbIdentity").textContent=e.data.connected?
+      ((e.data.level>0?"等级 "+e.data.level:"等级未知")+
+      (e.data.profileIconId>0?" · 头像 #"+e.data.profileIconId:"")):"—";
+    get("advancedDbPlatform").textContent=e.data.connected?(e.data.platformName||e.data.server||"—"):"—";
+    get("advancedDbPlatformId").textContent=e.data.connected?(e.data.platformId||"—"):"—";
+    get("advancedDbBudget").textContent=e.data.budget||"—";
+    get("advancedDbUpdated").textContent=e.data.observedAt||"—";
+    get("advancedDbStatus").textContent=e.data.connected?"已读取当前客户端快照":"当前没有可读取的客户端资料";
     document.getElementById("dashboardResult").textContent=e.data.message||"";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-failed"){
     document.getElementById("refreshDashboard").disabled=false;
-    document.getElementById("dashboardResult").textContent="读取失败，请确认游戏客户端连接";return;
+    document.getElementById("dashboardResult").textContent="读取失败，请确认游戏客户端连接";
+    get("advancedDbStatus").textContent="当前客户端读取失败，请稍后重试";
+    ["advancedDbAccount","advancedDbIdentity","advancedDbPlatform","advancedDbPlatformId",
+      "advancedDbBudget","advancedDbUpdated"].forEach(function(id){get(id).textContent="—";});return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="postgame-settings"){
     document.getElementById("postgameHonor").checked=!!e.data.autoHonor;
@@ -1369,6 +1440,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:auto-selection")setMode("auto-selection","auto-selection");
   else if(value==="detail:postgame-settings")setMode("postgame-settings","postgame-settings");
   else if(value==="detail:dashboard")setMode("dashboard","dashboard");
+  else if(value==="detail:dashboard-advanced")setMode("dashboard-advanced","dashboard-advanced");
   else if(value==="detail:presence")setMode("presence","presence");
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");

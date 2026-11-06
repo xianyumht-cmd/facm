@@ -89,6 +89,34 @@ namespace FACM.AppHost.Modules
                 ? snapshot : null;
         }
 
+        // An explicit UI request reads the existing Live Client Data endpoint.
+        // Do not add a competing Gameflow/respawn polling loop to WebView2.
+        internal async Task<LeagueRespawnTimerSample> ReadUnifiedRespawnAsync(
+            CancellationToken cancellationToken)
+        {
+            var phase = CurrentGameflowState;
+            if (phase == null || !phase.Connected ||
+                !string.Equals(phase.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+                return null;
+            var session = _leagueClient.CurrentSession;
+            if (session == null) return null;
+            var snapshot = await ReadUnifiedDashboardAsync(cancellationToken);
+            if (snapshot == null || !snapshot.Connected ||
+                string.IsNullOrWhiteSpace(snapshot.AccountName) ||
+                !LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession))
+                return null;
+            using (var reader = new LeagueRespawnTimerReader())
+            {
+                var payload = await reader.ReadAsync(cancellationToken);
+                if (cancellationToken.IsCancellationRequested ||
+                    !LeagueEncounterReplayService.SessionMatches(session, _leagueClient.CurrentSession) ||
+                    CurrentGameflowState == null ||
+                    !string.Equals(CurrentGameflowState.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+                    return null;
+                return LeagueRespawnTimerProjection.Project(payload, snapshot.AccountName, null);
+            }
+        }
+
         public Form CreateDashboardForm(UiTextCatalog ui)
         {
             return new LeagueDashboardForm(_leagueClient, _performance.Budgets, ui);
