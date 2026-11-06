@@ -123,6 +123,7 @@ namespace FACM.Presentation.Glass
                     PostAdvancedDetailStatus(raw, detail == null ? "Unavailable" : detail.Status.ToString());
                     return;
                 }
+                RememberAdvancedMatchDetail(raw, detail, session);
                 _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
                 {
                     type = "history-advanced-detail",
@@ -149,6 +150,7 @@ namespace FACM.Presentation.Glass
                         detail.Participants.Take(30).Select(player => new
                         {
                             name = player.PlayerName,
+                            participantId = player.ParticipantId,
                             local = player.IsTarget,
                             championId = player.ChampionId,
                             champion = player.ChampionName,
@@ -219,6 +221,7 @@ namespace FACM.Presentation.Glass
 
         private void CancelAdvancedHistoryDetail()
         {
+            ClearAdvancedMatchDetail();
             _advancedHistoryDetailGeneration++;
             var source = _advancedHistoryDetailCancellation;
             _advancedHistoryDetailCancellation = null;

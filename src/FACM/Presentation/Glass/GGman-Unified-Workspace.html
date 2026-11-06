@@ -510,6 +510,17 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
 #advancedHistoryPage .advanced-player strong{font-size:12px;overflow-wrap:anywhere}
 #advancedHistoryPage .advanced-player .score{text-align:right}
 #advancedHistoryPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedHistoryPage .history-extra{padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin:9px 0}
+#advancedHistoryPage .history-extra h3{font-size:13px;margin:0 0 7px}
+#advancedHistoryPage .history-extra svg{display:block;width:100%;max-width:380px;max-height:250px;margin:auto;overflow:visible}
+#advancedHistoryPage .history-extra svg text{fill:var(--muted);font-size:10px;font-family:"Microsoft YaHei UI",sans-serif}
+#advancedHistoryPage .history-extra svg .axis{stroke:var(--line);stroke-width:1;fill:none}
+#advancedHistoryPage .history-extra svg .player{stroke:var(--accent);stroke-width:2;fill:rgba(8,186,214,.13)}
+#advancedHistoryPage .history-extra svg .team{stroke:#94a8ff;stroke-width:1.5;fill:rgba(148,168,255,.08)}
+#advancedHistoryPage .history-extra .history-chart-note{font-size:11px;color:var(--muted);line-height:1.6}
+#advancedHistoryPage .history-extra .history-event{font-size:11px;border-bottom:1px solid var(--line);padding:5px 2px;overflow-wrap:anywhere}
+#advancedHistoryPage .history-extra .history-event:last-child{border-bottom:0}
+#advancedHistoryPage .history-extra .actions{margin-top:7px}
 </style>
 </head>
 <body data-mode="home">
@@ -670,6 +681,42 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
       <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
       <div id="advancedHistoryTeams"></div>
       <div id="advancedHistoryParticipants"></div>
+      <div id="advancedHistoryExtras" hidden>
+        <div class="history-extra">
+          <h3>七维雷达分析</h3>
+          <p>指标由既有 C# 雷达模型计算；缺失统计保持空值，不补造排名。</p>
+          <label>选择对比玩家<select id="advancedHistoryRadarPlayer" aria-label="选择雷达图玩家"></select></label>
+          <svg id="advancedHistoryRadar" viewBox="0 0 300 260" role="img" aria-label="玩家与队伍平均七维雷达图"></svg>
+          <p id="advancedRadarStatus" class="history-chart-note" role="status">请选择有统计信息的玩家</p>
+        </div>
+        <div class="history-extra">
+          <h3>对局时间线</h3>
+          <p>按需读取同一场对局的真实时间线，最多展示 160 帧与 120 个事件。</p>
+          <label>曲线指标<select id="advancedTimelineMetric">
+            <option value="gold">总经济</option><option value="cs">补刀</option>
+            <option value="xp">经验</option><option value="damage">英雄伤害</option>
+            <option value="taken">承受伤害</option>
+          </select></label>
+          <div class="actions"><button data-action="history-timeline">读取时间线</button></div>
+          <p id="advancedTimelineStatus" role="status">尚未读取时间线</p>
+          <svg id="advancedHistoryTimeline" viewBox="0 0 320 180" role="img" aria-label="按真实比赛时间绘制的成长曲线"></svg>
+          <div id="advancedTimelineEvents"></div>
+        </div>
+        <div class="history-extra">
+          <h3>本地回放</h3>
+          <p>由客户端决定下载或观看；已请求不代表已下载完成。回放可能受版本及区域限制。</p>
+          <div class="actions">
+            <button data-action="history-replay-folder">查看本机回放目录</button>
+            <button data-action="history-replay-confirm">下载或观看本场回放</button>
+          </div>
+          <div id="advancedReplayConfirm" hidden>
+            <p>确认向当前 LOL 客户端请求本场回放？可能开始下载或打开回放。</p>
+            <div class="actions"><button data-action="history-replay">确认请求</button>
+              <button data-action="history-replay-cancel">取消</button></div>
+          </div>
+          <p id="advancedReplayStatus" role="status">等待操作</p>
+        </div>
+      </div>
     </div>
     <div class="actions">
       <button data-action="history-advanced-refresh">重新读取 20 场</button>
@@ -1061,10 +1108,30 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="history-timeline"){
+    if(selectedAdvancedMatch && advancedHistoryIds.has(selectedAdvancedMatch)){
+      get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
+      post("history-advanced-timeline:"+selectedAdvancedMatch);
+    }return;
+  }
+  if(target.dataset.action==="history-replay-folder"){post("history-advanced-replay-folder");return;}
+  if(target.dataset.action==="history-replay-confirm"){
+    if(!selectedAdvancedMatch||!advancedHistoryIds.has(selectedAdvancedMatch))return;
+    get("advancedReplayConfirm").hidden=false;return;
+  }
+  if(target.dataset.action==="history-replay-cancel"){get("advancedReplayConfirm").hidden=true;return;}
+  if(target.dataset.action==="history-replay"){
+    get("advancedReplayConfirm").hidden=true;
+    if(selectedAdvancedMatch&&advancedHistoryIds.has(selectedAdvancedMatch)){
+      get("advancedReplayStatus").textContent="正在检查当前客户端回放能力";
+      post("history-advanced-replay:"+selectedAdvancedMatch);
+    }return;
+  }
   if(target.dataset.action==="history-advanced-refresh"){
     get("advancedHistoryStatus").textContent="正在读取当前账号最多 20 场历史对局";
     get("advancedHistoryRows").replaceChildren();
     get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
     post("history-advanced-refresh");return;
   }
   if(target.dataset.advancedGameId!==undefined){
@@ -1075,6 +1142,11 @@ document.addEventListener("click",function(event){
     get("advancedHistoryDetailStatus").textContent="正在读取原生 LCU/SGP 对局明细";
     get("advancedHistoryTeams").replaceChildren();
     get("advancedHistoryParticipants").replaceChildren();
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryRadar").replaceChildren();
+    get("advancedHistoryTimeline").replaceChildren();
+    get("advancedTimelineEvents").replaceChildren();
+    advancedTimelineFrames=[];
     selectedAdvancedMatch=gameId;
     post("history-advanced-detail:"+gameId);return;
   }
@@ -1475,6 +1547,15 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
     renderAdvancedHistoryList(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-radar"){
+    renderAdvancedRadar(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-timeline"){
+    renderAdvancedTimeline(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-replay-result"){
+    renderAdvancedReplayResult(e.data);return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-detail"){
     renderAdvancedMatchDetail(e.data);return;
@@ -2043,6 +2124,103 @@ function renderHistory(data){
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
 }
+var advancedTimelineFrames=[];
+get("advancedHistoryRadarPlayer").addEventListener("change",function(){
+  var id=Number(this.value);
+  if(selectedAdvancedMatch&&Number.isInteger(id)&&id>0&&id<=20)
+    post("history-advanced-radar:"+id);
+});
+get("advancedTimelineMetric").addEventListener("change",function(){drawAdvancedTimeline();});
+function historySvgElement(name,attributes,textContent){
+  var node=document.createElementNS("http://www.w3.org/2000/svg",name);
+  Object.keys(attributes||{}).forEach(function(key){node.setAttribute(key,String(attributes[key]));});
+  if(textContent!==undefined)node.textContent=String(textContent);
+  return node;
+}
+function renderAdvancedRadar(data){
+  if(data.id!==selectedAdvancedMatch)return;
+  var svg=get("advancedHistoryRadar");svg.replaceChildren();
+  if(data.status!=="ready"||!Array.isArray(data.player)){
+    get("advancedRadarStatus").textContent="当前对局没有可核实的雷达统计";return;
+  }
+  var labels=["英雄伤害","承受伤害","经济","补刀","KDA","参团率","治疗"];
+  var point=function(axis,ratio){
+    var a=-Math.PI/2+2*Math.PI*axis/7;
+    return [150+90*ratio*Math.cos(a),125+88*ratio*Math.sin(a)];
+  };
+  for(var ring=1;ring<=4;ring++){
+    var pts=labels.map(function(_,i){return point(i,ring/4).join(",");}).join(" ");
+    svg.appendChild(historySvgElement("polygon",{points:pts,class:"axis"}));
+  }
+  labels.forEach(function(label,i){
+    var end=point(i,1.04),caption=point(i,1.30);
+    svg.appendChild(historySvgElement("line",{x1:150,y1:125,x2:end[0],y2:end[1],class:"axis"}));
+    svg.appendChild(historySvgElement("text",{x:caption[0],y:caption[1],"text-anchor":"middle"},label));
+  });
+  var poly=function(values,cls){
+    if(!Array.isArray(values)||values.length!==7||values.some(function(x){return x===null||!Number.isFinite(Number(x));}))return false;
+    svg.appendChild(historySvgElement("polygon",{points:values.map(function(v,i){
+      return point(i,Math.max(0,Math.min(1,Number(v)))).join(",");
+    }).join(" "),class:cls}));return true;
+  };
+  var team=poly(data.team,"team"),player=poly(data.player,"player");
+  get("advancedRadarStatus").textContent=player?
+    "青色为所选玩家"+(team?"；淡紫色为所在队伍平均":"；队伍完整统计不可用")+
+    "。每个轴相对本场已知最大值归一化。":"部分必需指标缺失，无法绘制完整多边形";
+}
+function renderAdvancedTimeline(data){
+  if(data.id!==selectedAdvancedMatch)return;
+  get("advancedTimelineEvents").replaceChildren();
+  advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
+  if(data.status!=="ready"){
+    get("advancedTimelineStatus").textContent="当前比赛没有可用的完整时间线";drawAdvancedTimeline();return;
+  }
+  get("advancedTimelineStatus").textContent=
+    "真实时间线 "+(data.frameCount||0)+" 帧、"+(data.eventCount||0)+
+    " 个事件（图表按间隔采样，事件至多展示 120 个）";
+  (Array.isArray(data.events)?data.events:[]).slice(0,120).forEach(function(e){
+    var line=document.createElement("div");line.className="history-event";
+    line.textContent=Math.floor(Math.max(0,Number(e.time)||0)/60000)+
+      " 分钟 · "+String(e.type||"事件")+" · 参与者 #"+(e.participant||"—");
+    get("advancedTimelineEvents").append(line);
+  });
+  drawAdvancedTimeline();
+}
+function drawAdvancedTimeline(){
+  var svg=get("advancedHistoryTimeline");svg.replaceChildren();
+  var key=get("advancedTimelineMetric").value;
+  var data=advancedTimelineFrames.filter(function(p){return Number.isFinite(Number(p[key]))&&p[key]!==null;});
+  if(!data.length)return;
+  var min=0,max=Math.max(1,...data.map(function(p){return Number(p[key]);}));
+  var first=Number(data[0].time)||0,last=Number(data[data.length-1].time)||first+1;
+  svg.appendChild(historySvgElement("line",{x1:28,y1:155,x2:307,y2:155,class:"axis"}));
+  svg.appendChild(historySvgElement("line",{x1:28,y1:12,x2:28,y2:155,class:"axis"}));
+  var points=data.map(function(p){
+    var t=Number(p.time)||0, x=28+278*(t-first)/Math.max(1,last-first);
+    return [x,155-140*(Number(p[key])-min)/(max-min)].join(",");
+  }).join(" ");
+  svg.appendChild(historySvgElement("polyline",{points:points,fill:"none",stroke:"var(--accent)","stroke-width":2}));
+  svg.appendChild(historySvgElement("text",{x:28,y:171},"0"));
+  svg.appendChild(historySvgElement("text",{x:296,y:171,"text-anchor":"end"},Math.round(last/60000)+"分"));
+  svg.appendChild(historySvgElement("text",{x:30,y:15},Math.round(max)));
+}
+function renderAdvancedReplayResult(data){
+  if(data.id&&data.id!==selectedAdvancedMatch)return;
+  var messages={DownloadRequested:"客户端已接受下载请求，等待其自行完成",
+    WatchRequested:"客户端已接受播放请求，正在尝试启动回放",
+    Checking:"客户端正在检查回放状态",Downloading:"客户端回放下载中",
+    Incompatible:"本场回放与客户端版本不兼容",Unavailable:"当前回放暂不可用",
+    NoClient:"未检测到可用客户端",WrongAccount:"LOL 账号已变化，已中止操作",
+    Ready:"本地回放可用"};
+  if(data.kind==="folder"){
+    get("advancedReplayStatus").textContent=data.status==="Ready"?
+      "目录 "+(data.path||"（不可读取）")+
+      (data.playingGame?" · 游戏正在进行，可能无法播放":"") :
+      messages[data.status]||"本机回放目录不可用";
+  }else get("advancedReplayStatus").textContent=
+    (messages[data.status]||"未确认回放执行结果")+
+    (data.status==="Downloading"?"（"+Math.max(0,Math.min(100,Number(data.progress)||0))+"%）":"");
+}
 var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch="";
 ["advancedHistorySearch","advancedHistoryOutcome","advancedHistoryQueue","advancedHistorySort"].forEach(function(id){
   get(id).addEventListener(id==="advancedHistorySearch"?"input":"change",drawAdvancedHistoryRows);
@@ -2112,7 +2290,29 @@ function renderAdvancedMatchDetail(data){
     get("advancedHistoryStatus").textContent="游戏账号已切换，旧记录已清空，请重新读取";
   }
   var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
-  if(data.status!=="Ready")return;
+  if(data.status!=="Ready"){
+    get("advancedHistoryExtras").hidden=true;
+    return;
+  }
+  get("advancedHistoryExtras").hidden=false;
+  get("advancedTimelineStatus").textContent="尚未读取时间线";
+  get("advancedRadarStatus").textContent="正在读取雷达指标";
+  get("advancedReplayStatus").textContent="等待操作";
+  get("advancedReplayConfirm").hidden=true;
+  get("advancedHistoryTimeline").replaceChildren();
+  get("advancedHistoryRadar").replaceChildren();
+  advancedTimelineFrames=[];
+  var select=get("advancedHistoryRadarPlayer");select.replaceChildren();
+  var roster=Array.isArray(data.players)?data.players:[];
+  roster.forEach(function(player){
+    if(!Number.isInteger(player.participantId)||player.participantId<1||player.participantId>20)return;
+    var option=document.createElement("option");option.value=String(player.participantId);
+    option.textContent=(player.name||"玩家 "+player.participantId)+" · "+(player.champion||"");
+    select.appendChild(option);
+    if(player.local)select.value=String(player.participantId);
+  });
+  if(select.options.length&&!select.value)select.selectedIndex=0;
+  if(select.value)post("history-advanced-radar:"+select.value);
   get("advancedHistoryDetailTitle").textContent=
     "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知")+
     (data.source?" · 来源 "+({Lcu:"客户端",Sgp:"区域服务",Automatic:"自动选择"}[data.source]||"已确认"):"");

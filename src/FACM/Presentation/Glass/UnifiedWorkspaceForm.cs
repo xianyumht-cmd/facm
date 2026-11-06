@@ -296,6 +296,13 @@ namespace FACM.Presentation.Glass
             {
                 ApplyUnifiedRecommendation(message.Substring(21)); return;
             }
+            if (message != null && message.StartsWith("history-advanced-timeline:", StringComparison.Ordinal))
+            { ReadAdvancedTimeline(message.Substring(26)); return; }
+            if (message != null && message.StartsWith("history-advanced-radar:", StringComparison.Ordinal))
+            { ReadAdvancedRadar(message.Substring(23)); return; }
+            if (message != null && message.StartsWith("history-advanced-replay:", StringComparison.Ordinal))
+            { StartAdvancedReplay(message.Substring(24)); return; }
+            if (message == "history-advanced-replay-folder") { ReadAdvancedReplayFolder(); return; }
             if (message == "history-advanced-refresh")
             { if (_navigation.Current == "player-advanced") StartHistoryRead(20, true); return; }
             if (message != null && message.StartsWith("history-advanced-detail:", StringComparison.Ordinal))
@@ -1729,6 +1736,10 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"advancedHistoryTimeline\"") ||
+                !html.Contains("id=\"advancedHistoryRadar\"") ||
+                !html.Contains("data-action=\"history-replay\""))
+                throw new InvalidOperationException("History timeline, radar and replay must be real HTML controls.");
             if (!html.Contains("id=\"advancedHistoryPage\"") ||
                 !html.Contains("data-action=\"history-advanced-refresh\""))
                 throw new InvalidOperationException("Historical match detail must be available inside HTML.");

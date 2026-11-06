@@ -44,6 +44,7 @@ $cases = @(
   @{ Mode='profile-customization'; Width=420; Height=620 },
   @{ Mode='player-advanced'; Width=740; Height=790 },
   @{ Mode='player-advanced'; Width=420; Height=620 },
+  @{ Mode='player-advanced'; Width=680; Height=820; Tag='player-advanced-extras' },
   # Emulate Windows display scale factors. Physical window dimensions remain
   # realistic while the Chromium CSS viewport is reduced at 125–200% DPI.
   @{ Mode='home'; Width=525; Height=500; Dpi=1.25; Tag='home-dpi125' },

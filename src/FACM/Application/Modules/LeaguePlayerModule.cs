@@ -93,6 +93,22 @@ namespace FACM.AppHost.Modules
             return _details.ReadHistoryAsync(expected, selfPuuid, selfPuuid, selected, cancellationToken);
         }
 
+        internal Task<LeagueEncounterReplayResult> ExecuteUnifiedHistoryReplayAsync(
+            LeagueClientSession expected, string selfPuuid,
+            LeaguePlayerMatchSummary selected, CancellationToken cancellationToken)
+        {
+            return ExecuteHistoryReplayAsync(expected, selfPuuid, selfPuuid,
+                selected, cancellationToken);
+        }
+
+        internal Task<LeagueReplayDirectoryResult> ReadUnifiedReplayDirectoryAsync(
+            LeagueClientSession expected, string selfPuuid, CancellationToken token)
+        {
+            if (_replay == null) return Task.FromResult(
+                new LeagueReplayDirectoryResult { Status = LeagueEncounterReplayStatus.Unavailable });
+            return _replay.ReadDirectoryAsync(expected, selfPuuid, token);
+        }
+
         public Form CreatePlayerForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
