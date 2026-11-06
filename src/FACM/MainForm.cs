@@ -224,14 +224,25 @@ namespace FACM
                 return;
             }
             _unifiedWorkspace = new UnifiedWorkspaceForm(this, _ui, _settings, _cleanup);
+            _unifiedWorkspace.WorkspaceReady += delegate
+            {
+                if (_startCleanup) _startCleanup = false;
+            };
             _unifiedWorkspace.BrowserUnavailable += delegate
             {
+                var elevatedCleanup = _startCleanup;
                 _unifiedWorkspaceEnabled = false;
                 try
                 {
                     BeginInvoke(new Action(delegate
                     {
-                        if (!IsDisposed && !_exiting) EnsureMenuOpenAndActive();
+                        if (IsDisposed || _exiting) return;
+                        EnsureMenuOpenAndActive();
+                        if (elevatedCleanup && _menu != null && !_menu.IsDisposed)
+                        {
+                            _startCleanup = false;
+                            _menu.BeginInvoke(new Action(_menu.StartEnvironmentCleanup));
+                        }
                     }));
                 }
                 catch (InvalidOperationException) { }
@@ -613,6 +624,19 @@ namespace FACM
 
             if (_startCleanup)
             {
+#if GLASS_WORKBENCH_PREVIEW
+                if (_unifiedWorkspaceEnabled)
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        if (IsDisposed || _exiting) return;
+                        ShowUnifiedWebWorkbench();
+                        if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                            _unifiedWorkspace.OpenFromNativeRoute("cleanup");
+                    }));
+                    return;
+                }
+#endif
                 BeginInvoke(new Action(delegate
                 {
                     if (IsDisposed) return;

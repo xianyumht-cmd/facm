@@ -300,10 +300,11 @@ namespace FACM
 #if GLASS_WORKBENCH_PREVIEW
                     // Explicit candidate builds exercise the intended production default path.
                     // Normal Release builds remain native until signed release gates are met.
-                    if (mainForm != null && !startCleanup &&
+                    if (mainForm != null &&
 #if UNIFIED_RELEASE_CANDIDATE
                         true)
 #else
+                        !startCleanup &&
                         HasArgument(args, "--unified-web-workbench") &&
                         string.Equals(Environment.GetEnvironmentVariable("GGMAN_UNIFIED_WEB_WORKBENCH"),
                             "1", StringComparison.Ordinal))

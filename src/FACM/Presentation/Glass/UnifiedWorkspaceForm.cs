@@ -60,6 +60,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _historyCancellation;
         private int _historyGeneration;
         internal event Action BrowserUnavailable;
+        internal event Action WorkspaceReady;
 
         internal UnifiedWorkspaceForm(MainForm ownerBall, UiTextCatalog ui,
             AppSettings settings, CleanupModule cleanup)
@@ -176,6 +177,7 @@ namespace FACM.Presentation.Glass
                 {
                     if (IsDisposed) return;
                     _ready = true;
+                    if (WorkspaceReady != null) WorkspaceReady();
                     SyncWebNavigation();
                     SyncGameflowState();
                     if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
