@@ -39,6 +39,9 @@ namespace FACM
         private UnifiedWorkspaceForm _unifiedWorkspace;
         private bool _unifiedWorkspaceEnabled;
         private LeagueDashboardPhaseState _lastUnifiedGameflowState;
+        private OnlineSnapshot _unifiedPromptSnapshot;
+        private bool _unifiedPromptForce;
+        private bool _unifiedPromptAutomatic;
 #endif
         private bool _startCleanup;
         private bool _onlineCheckStarted;
@@ -163,6 +166,8 @@ namespace FACM
             get { return !_onlineCenterOpen && !_exiting && !IsDisposed; }
         }
 
+        internal bool IsExiting { get { return _exiting; } }
+
         internal Task<OnlineSnapshot> FetchUnifiedOnlineSnapshotAsync(CancellationToken token)
         {
             if (!UnifiedOnlineCenterAvailable)
@@ -234,12 +239,23 @@ namespace FACM
             _unifiedWorkspace.BrowserUnavailable += delegate
             {
                 var elevatedCleanup = _startCleanup;
+                var onlineSnapshot = _unifiedPromptSnapshot;
+                var forceUpdate = _unifiedPromptForce;
+                var automaticUpdate = _unifiedPromptAutomatic;
+                _unifiedPromptSnapshot = null;
+                _unifiedPromptForce = false;
+                _unifiedPromptAutomatic = false;
                 _unifiedWorkspaceEnabled = false;
                 try
                 {
-                    BeginInvoke(new Action(delegate
+                    BeginInvoke(new Action(async delegate
                     {
                         if (IsDisposed || _exiting) return;
+                        if (onlineSnapshot != null)
+                        {
+                            await ShowOnlineCenterAsync(onlineSnapshot, forceUpdate, automaticUpdate);
+                            return;
+                        }
                         EnsureMenuOpenAndActive();
                         if (elevatedCleanup && _menu != null && !_menu.IsDisposed)
                         {
@@ -997,8 +1013,6 @@ namespace FACM
                     snapshot.Announcement = await snapshot.AnnouncementPending;
                     snapshot.AnnouncementPending = null;
                     if (IsDisposed || _exiting) return;
-                    if (snapshot.Announcement != null)
-                        snapshot.Announcement.Popup = false;
                 }
 
                 var announcement = snapshot.Announcement;
@@ -1080,6 +1094,20 @@ namespace FACM
                 _deferredOnlineAutomatic = automaticPrompt;
                 return Task.CompletedTask;
             }
+#if GLASS_WORKBENCH_PREVIEW
+            if (_unifiedWorkspaceEnabled)
+            {
+                if (_unifiedPromptForce && !forceMode && _unifiedPromptSnapshot != null)
+                    snapshot = _unifiedPromptSnapshot;
+                _unifiedPromptSnapshot = snapshot;
+                _unifiedPromptForce |= forceMode;
+                _unifiedPromptAutomatic = !_unifiedPromptForce && automaticPrompt;
+                ShowUnifiedWebWorkbench();
+                if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
+                    _unifiedWorkspace.PresentOnlineSnapshot(snapshot, _unifiedPromptForce, _unifiedPromptAutomatic);
+                return Task.CompletedTask;
+            }
+#endif
             _onlineCenterOpen = true;
             try
             {
@@ -1147,6 +1175,13 @@ namespace FACM
 #if GLASS_WORKBENCH_PREVIEW
             if (_unifiedWorkspaceEnabled)
             {
+                if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed &&
+                    _unifiedWorkspace.RequiresForcedOnlineUpdate)
+                {
+                    _unifiedWorkspace.BringToFront();
+                    _unifiedWorkspace.Activate();
+                    return;
+                }
                 if (_unifiedWorkspace != null && _unifiedWorkspace.Visible) _unifiedWorkspace.Close();
                 else ShowUnifiedWebWorkbench();
                 return;

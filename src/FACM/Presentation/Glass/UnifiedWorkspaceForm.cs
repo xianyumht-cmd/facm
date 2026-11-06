@@ -42,6 +42,7 @@ namespace FACM.Presentation.Glass
         private bool _starting;
         private bool _ready;
         private bool _closing;
+        private bool _browserUnavailable;
         private bool _userMovedWindow;
         private LeagueDashboardPhaseState _lastGameflowState;
         private CancellationTokenSource _championCatalogCancellation;
@@ -217,7 +218,12 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
                     HookCloudEvents();
                     if (_navigation.Current == "cloud-sync") SyncCloudState();
-                    if (_navigation.Current == "updates") StartOnlineRead();
+                    if (_navigation.Current == "updates")
+                    {
+                        if (_onlineSnapshot != null && _onlineReadCancellation == null)
+                            SendOnlineState(_onlineSnapshot);
+                        else StartOnlineRead();
+                    }
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
@@ -225,6 +231,7 @@ namespace FACM.Presentation.Glass
             {
                 AppLog.Error("Unified WebView2 workspace initialization failed", exception);
                 if (IsDisposed) return;
+                _browserUnavailable = true;
                 _ready = false;
                 if (BrowserUnavailable != null) BrowserUnavailable();
                 Close();
@@ -239,7 +246,8 @@ namespace FACM.Presentation.Glass
             catch { return; }
             if (message == "close")
             {
-                Close();
+                if (_onlineForceRequired) ExitForcedOnline();
+                else Close();
                 return;
             }
             if (message == "drag")
@@ -250,6 +258,9 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
+            if (_onlineForceRequired && message != "updates-refresh" &&
+                message != "updates-install" && message != "updates-stop" && message != "updates-exit" &&
+                message != "updates-link") return;
             if (message == "quick-message-refresh") { SyncQuickMessageSettings(); return; }
             if (message != null && message.StartsWith("quick-message-save:", StringComparison.Ordinal))
             { SaveQuickMessageSettings(message.Substring(19)); return; }
@@ -298,6 +309,9 @@ namespace FACM.Presentation.Glass
             if (message != null && message.StartsWith("updates-auto:", StringComparison.Ordinal))
             { ApplyOnlineAutoSetting(message.Substring(13)); return; }
             if (message == "updates-install") { BeginOnlineInstallation(); return; }
+            if (message == "updates-stop") { CancelOnlineInstallation(); return; }
+            if (message == "updates-exit") { ExitForcedOnline(); return; }
+            if (message == "updates-link") { OpenOnlineAnnouncementLink(); return; }
             if (message == "recommendation-refresh")
             {
                 if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(true);
@@ -416,7 +430,8 @@ namespace FACM.Presentation.Glass
 
         internal void OpenFromNativeRoute(string route)
         {
-            if (IsDisposed || _closing || !UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (IsDisposed || _closing || !IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route) ||
+                !UnifiedWorkspaceNavigation.IsAllowed(route)) return;
             OpenRoute(route);
         }
 
@@ -428,6 +443,7 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
+            if (!IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route)) return;
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             if (route != "cleanup") ResetCleanupPreview();
             if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
@@ -1507,6 +1523,7 @@ namespace FACM.Presentation.Glass
 
         private void NavigateBack()
         {
+            if (_onlineForceRequired) return;
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             if (_navigation.IsHome) return;
             ResetCleanupPreview();
@@ -1531,6 +1548,7 @@ namespace FACM.Presentation.Glass
 
         private void ReturnHome()
         {
+            if (_onlineForceRequired) return;
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
             ResetCleanupPreview();
             CancelChampionCatalog();
@@ -1625,6 +1643,11 @@ namespace FACM.Presentation.Glass
 
         private void HandleClosing(object sender, FormClosingEventArgs e)
         {
+            if (_onlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
+            {
+                e.Cancel = true;
+                return;
+            }
             if (_cleanupExecuting)
             {
                 e.Cancel = true;
@@ -1632,6 +1655,13 @@ namespace FACM.Presentation.Glass
                 return;
             }
             if (_closing) return;
+            if (_onlineForceRequired && !_browserUnavailable && !_ownerBall.IsExiting)
+            {
+                e.Cancel = true;
+                try { _ownerBall.BeginInvoke(new Action(_ownerBall.ExitApplication)); }
+                catch (InvalidOperationException) { }
+                return;
+            }
             ResetCleanupPreview();
             _closing = true;
             CancelChampionCatalog();
@@ -1695,6 +1725,17 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-action=\"cleanup-preview\"") ||
                 !html.Contains("data-action=\"cleanup-confirm\""))
                 throw new InvalidOperationException("Unified cleanup route must preserve plan review and confirmation.");
+            if (!IsRouteAllowedDuringForcedUpdate(false, "player") ||
+                IsRouteAllowedDuringForcedUpdate(true, "player") ||
+                !IsRouteAllowedDuringForcedUpdate(true, "updates"))
+                throw new InvalidOperationException("Forced online update must lock native route navigation.");
+            if (!html.Contains("id=\"updateForcedBanner\"") ||
+                !html.Contains("data-action=\"updates-exit\"") ||
+                !html.Contains("data-action=\"updates-stop\"") ||
+                !html.Contains("data-action=\"updates-link\"") ||
+                !html.Contains("id=\"updateConfirm\"") ||
+                !html.Contains("data-force-update"))
+                throw new InvalidOperationException("Unified online page lacks force, download cancel or announcement controls.");
             if (!html.Contains("Microsoft YaHei UI") ||
                 !html.Contains("class=\"status status-home\"") ||
                 !html.Contains("class=\"section-caption\"") ||

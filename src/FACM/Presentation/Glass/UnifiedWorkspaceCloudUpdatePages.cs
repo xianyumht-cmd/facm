@@ -21,6 +21,75 @@ namespace FACM.Presentation.Glass
         private OnlineSnapshot _onlineSnapshot;
         private DateTime _onlineCheckedUtc;
         private bool _onlineInstalling;
+        private bool _onlineForceRequired;
+        private bool _onlineAutomaticPrompt;
+
+        internal bool RequiresForcedOnlineUpdate { get { return _onlineForceRequired; } }
+
+        internal static bool IsRouteAllowedDuringForcedUpdate(bool forced, string route)
+        {
+            return !forced || string.Equals(route, "updates", StringComparison.Ordinal);
+        }
+
+        internal void PresentOnlineSnapshot(OnlineSnapshot snapshot, bool forceMode, bool automaticPrompt)
+        {
+            if (IsDisposed || _closing || _onlineInstalling) return;
+            _onlineForceRequired |= forceMode || (snapshot != null && snapshot.ForceUpdateRequired);
+            _onlineAutomaticPrompt = !_onlineForceRequired && automaticPrompt;
+            if (_navigation.Current != "updates") OpenNativeRoute("updates", true);
+            CancelOnlineRead();
+            _onlineSnapshot = snapshot ?? new OnlineSnapshot();
+            _onlineCheckedUtc = DateTime.UtcNow;
+            SendOnlineState(_onlineSnapshot);
+            _ = CompletePendingOnlineAnnouncementAsync(_onlineSnapshot);
+        }
+
+        private async Task CompletePendingOnlineAnnouncementAsync(OnlineSnapshot expected)
+        {
+            var pending = expected == null ? null : expected.AnnouncementPending;
+            if (pending == null) return;
+            try
+            {
+                var announcement = await pending;
+                if (!ReferenceEquals(expected, _onlineSnapshot) || IsDisposed || _closing) return;
+                expected.Announcement = announcement;
+                expected.AnnouncementPending = null;
+                SendOnlineState(expected);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified announcement fetch failed: " + exception.GetType().Name);
+            }
+        }
+
+        private void ExitForcedOnline()
+        {
+            if (!_onlineForceRequired || _onlineInstalling) return;
+            _ownerBall.ExitApplication();
+        }
+
+        private void OpenOnlineAnnouncementLink()
+        {
+            if (_navigation.Current != "updates" || _onlineInstalling) return;
+            var announcement = _onlineSnapshot == null ? null : _onlineSnapshot.Announcement;
+            var url = announcement == null || !announcement.Enabled ? null : announcement.LinkUrl;
+            Uri uri;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || uri.Scheme != Uri.UriSchemeHttps)
+                return;
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = uri.AbsoluteUri, UseShellExecute = true
+                });
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified announcement link failed: " + exception.GetType().Name);
+                PostOnlineStatus("link-failed");
+            }
+        }
 
         private void HookCloudEvents()
         {
@@ -231,7 +300,9 @@ namespace FACM.Presentation.Glass
                 if (!OnlineCurrent(source, generation)) return;
                 _onlineSnapshot = snapshot;
                 _onlineCheckedUtc = DateTime.UtcNow;
+                _onlineForceRequired |= snapshot != null && snapshot.ForceUpdateRequired;
                 SendOnlineState(snapshot);
+                _ = CompletePendingOnlineAnnouncementAsync(snapshot);
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
@@ -259,6 +330,14 @@ namespace FACM.Presentation.Glass
                 _navigation.Current != "updates") return;
             var canInstall = OnlineCenterForm.CanInstallUpdateForSmokeTest(snapshot) &&
                 _ownerBall.UnifiedOnlineCenterAvailable;
+            var automaticPrompt = _onlineAutomaticPrompt && canInstall;
+            _onlineAutomaticPrompt = false;
+            var announcement = snapshot == null || snapshot.Announcement == null ||
+                !snapshot.Announcement.Enabled ? null : snapshot.Announcement;
+            Uri link;
+            var hasAnnouncementLink = announcement != null &&
+                Uri.TryCreate(announcement.LinkUrl, UriKind.Absolute, out link) &&
+                link.Scheme == Uri.UriSchemeHttps;
             _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
             {
                 type = "online-state",
@@ -266,16 +345,17 @@ namespace FACM.Presentation.Glass
                 latest = snapshot == null || snapshot.LatestVersion == null ? null : snapshot.LatestVersion.ToString(),
                 error = snapshot == null || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage),
                 available = snapshot != null && snapshot.UpdateAvailable,
-                forced = snapshot != null && snapshot.ForceUpdateRequired,
+                forced = _onlineForceRequired || (snapshot != null && snapshot.ForceUpdateRequired),
                 canInstall,
+                automaticPrompt,
                 notes = snapshot == null || snapshot.Update == null ? null : snapshot.Update.ReleaseNotes,
                 source = snapshot == null ? null : snapshot.MetadataSourceName,
                 autoEnabled = _settings.AutoUpdateEnabled,
-                announcement = snapshot == null || snapshot.Announcement == null ||
-                    !snapshot.Announcement.Enabled ? null : new
+                announcementLink = hasAnnouncementLink,
+                announcement = announcement == null ? null : new
                     {
-                        title = snapshot.Announcement.Title,
-                        body = snapshot.Announcement.Body
+                        title = announcement.Title,
+                        body = announcement.Body
                     }
             }));
         }
@@ -283,6 +363,7 @@ namespace FACM.Presentation.Glass
         private void ApplyOnlineAutoSetting(string setting)
         {
             if (_navigation.Current != "updates" || _onlineInstalling ||
+                _onlineForceRequired ||
                 (setting != "true" && setting != "false")) return;
             try
             {
@@ -343,6 +424,12 @@ namespace FACM.Presentation.Glass
                 _onlineInstalling = false;
                 source.Dispose();
             }
+        }
+
+        private void CancelOnlineInstallation()
+        {
+            var source = _onlineInstallCancellation;
+            if (source != null && !source.IsCancellationRequested) source.Cancel();
         }
 
         private void PostOnlineProgress(int percent)

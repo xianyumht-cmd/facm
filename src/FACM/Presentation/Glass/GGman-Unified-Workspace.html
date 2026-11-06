@@ -369,7 +369,11 @@ body[data-mode="cloud-sync"] main,body[data-mode="updates"] main{display:block;o
 #cloudSyncPage .tool-row label,#updatesPage .tool-row label{display:flex;align-items:center;gap:9px;font-size:12px}
 #cloudSyncPage .tool-row button,#updatesPage .tool-row button{min-height:38px;padding:8px 14px;background:var(--card2);border:1px solid var(--line);border-radius:9px}
 #cloudSyncPage button:disabled,#updatesPage button:disabled{opacity:.5}
+#updateExit{margin-top:8px;padding:10px 14px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--text)}
 #cloudConfirm[hidden],#updateConfirm[hidden],#cloudConflictRow[hidden],#updateProgress[hidden]{display:none!important}
+#updateForcedBanner[hidden],#updateExit[hidden],#announcementLink[hidden],#updateCancelDownload[hidden]{display:none!important}
+body[data-force-update="true"] #detail .back,body[data-force-update="true"] #detail .home,
+body[data-force-update="true"] .header .close,body[data-force-update="true"] #updatesPage .actions{display:none!important}
 #updateProgress{width:100%;accent-color:var(--accent);margin:9px 0}
 #updateNotes,#announcementBody{white-space:pre-wrap;overflow-wrap:anywhere}
 #cloudSyncPage .guide-confirm,#updatesPage .guide-confirm{margin-top:10px}
@@ -853,6 +857,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   <section id="updatesPage">
     <h2>更新中心</h2>
     <p>通过 GGman 原有在线版本源检查更新。下载文件须通过文件哈希和数字签名校验，之后才允许启动现有更新器。</p>
+    <div class="guide-card" id="updateForcedBanner" hidden role="alert"><strong>必须更新才能继续使用</strong><small>当前版本已不再支持。可以安装已验证的新版本，或退出 GGman；不能跳过此更新继续操作。</small></div>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">当前安装版本</span><strong id="updateCurrent">—</strong></div>
       <div class="dashboard-card"><span class="small">已验证最新版本</span><strong id="updateLatest">未获取</strong></div>
@@ -860,16 +865,18 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="status"><b id="updateStatus" role="status" aria-live="polite">等待读取更新信息</b><span id="updateSource"></span></div>
     <div class="tool-row"><label><input id="updateAuto" type="checkbox"> 启用自动更新提示</label></div>
     <div class="guide-card"><strong>更新说明</strong><small id="updateNotes">暂无可用更新说明</small></div>
-    <div class="guide-card"><strong id="announcementTitle">公告</strong><small id="announcementBody">暂无公告</small></div>
+    <div class="guide-card"><strong id="announcementTitle">公告</strong><small id="announcementBody">暂无公告</small><button data-action="updates-link" id="announcementLink" hidden>打开公告链接</button></div>
     <progress id="updateProgress" value="0" max="100" hidden aria-label="已验证更新包下载进度"></progress>
+    <button id="updateCancelDownload" data-action="updates-stop" hidden>取消当前下载</button>
     <div class="save-row">
       <button data-action="updates-refresh" id="updateRefresh">检查更新</button>
       <button data-action="updates-install" id="updateInstall" disabled>安装已验证更新</button>
     </div>
     <div class="guide-confirm" id="updateConfirm" hidden>
-      <p>确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。</p>
+      <p id="updateConfirmText">确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。</p>
       <div class="guide-search"><button data-action="updates-confirm">确认安装</button><button data-action="updates-cancel">取消</button></div>
     </div>
+    <button id="updateExit" data-action="updates-exit" hidden>退出 GGman</button>
     <p id="updateResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-route="cloud-sync">云同步</button><button data-action="home">返回控制中心</button></div>
   </section>
@@ -1133,6 +1140,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
 "use strict";
 var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
+var updateForced=false;
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
@@ -1146,6 +1154,7 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(updateForced&&!["updates-refresh","updates-install","updates-stop","updates-confirm","updates-cancel","updates-exit","updates-link"].includes(target.dataset.action))return;
   if(target.dataset.action==="history-region-catalog"){
     get("advancedRegionalStatus").textContent="正在刷新可授权访问的区域目录";
     post("history-region-catalog");return;
@@ -1338,6 +1347,9 @@ document.addEventListener("click",function(event){
     get("updateConfirm").hidden=false;return;
   }
   if(target.dataset.action==="updates-cancel"){get("updateConfirm").hidden=true;return;}
+  if(target.dataset.action==="updates-exit"){post("updates-exit");return;}
+  if(target.dataset.action==="updates-link"){post("updates-link");return;}
+  if(target.dataset.action==="updates-stop"){get("updateCancelDownload").disabled=true;post("updates-stop");return;}
   if(target.dataset.action==="updates-confirm"){
     get("updateConfirm").hidden=true;get("updateInstall").disabled=true;get("updateRefresh").disabled=true;
     get("updateResult").textContent="正在下载并校验签名";post("updates-install");return;
@@ -1436,6 +1448,7 @@ document.addEventListener("click",function(event){
 });
 // Keyboard navigation must not steal keys from Chinese IME composition or form editing.
 function navigateBack(){
+  if(updateForced)return;
   if(mode==="more")setMode("home");
   else if(mode==="home")post("close");
   else post("back");
@@ -1542,6 +1555,8 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     if(e.data.status==="checking"||e.data.status==="downloading"){get("updateConfirm").hidden=true;}
     if(e.data.status==="downloading"){get("updateProgress").hidden=false;get("updateProgress").value=0;}
     if(!busy){get("updateProgress").hidden=true;}
+    get("updateCancelDownload").hidden=e.data.status!=="downloading";
+    get("updateCancelDownload").disabled=false;
     return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
@@ -1980,10 +1995,20 @@ get("updateAuto").addEventListener("change",function(){
   post("updates-auto:"+(get("updateAuto").checked?"true":"false"));
 });
 function renderOnlineState(data){
+  updateForced=!!data.forced;
+  document.body.dataset.forceUpdate=updateForced?"true":"false";
   onlineCanInstall=!!data.canInstall;
+  get("updateForcedBanner").hidden=!updateForced;
+  get("updateExit").hidden=!updateForced;
+  get("announcementLink").hidden=!data.announcementLink;
+  get("updateConfirmText").textContent=updateForced?
+    "确认下载并安装必须更新的签名版本吗？如果不更新，只能退出 GGman。":
+    "确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。";
+  get("updateConfirm").hidden=!data.automaticPrompt;
   get("updateCurrent").textContent=data.current||"未知";
   get("updateLatest").textContent=data.latest||"未获取";
   get("updateAuto").checked=!!data.autoEnabled;
+  get("updateAuto").disabled=updateForced;
   get("updateRefresh").disabled=false;
   get("updateInstall").disabled=!onlineCanInstall;
   get("updateSource").textContent=data.source?"来源："+data.source:"";
