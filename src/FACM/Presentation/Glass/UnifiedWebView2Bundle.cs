@@ -86,6 +86,30 @@ namespace FACM.Presentation.Glass
             }
         }
 
+        internal static bool IsRuntimeAvailable(string folder)
+        {
+            // The native loader is already registered for this candidate. An
+            // explicit missing folder selects the same native-menu fallback path.
+            if (folder != null && !Directory.Exists(folder)) return false;
+            try
+            {
+                return !string.IsNullOrWhiteSpace(
+                    Microsoft.Web.WebView2.Core.CoreWebView2Environment
+                        .GetAvailableBrowserVersionString(folder));
+            }
+            catch (Exception) { return false; }
+        }
+
+        internal static void ValidateRuntimeFallbackForSmokeTest()
+        {
+            Register();
+            PrepareNativeLoader();
+            var missing = Path.Combine(Path.GetTempPath(), "GGman-No-WebView2-" +
+                Guid.NewGuid().ToString("N"));
+            if (Directory.Exists(missing) || IsRuntimeAvailable(missing))
+                throw new InvalidOperationException("An unavailable WebView2 runtime must select native fallback.");
+        }
+
         internal static void ValidateForSmokeTest()
         {
             Register();

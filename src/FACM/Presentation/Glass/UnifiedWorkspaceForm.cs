@@ -95,6 +95,20 @@ namespace FACM.Presentation.Glass
             Controls.Add(_content);
             Controls.Add(_browser);
             Resize += delegate { ApplyRoundedRegion(); };
+            DpiChanged += delegate
+            {
+                if (!IsHandleCreated || IsDisposed || _closing) return;
+                try
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        if (IsDisposed || _closing) return;
+                        ResizeForRoute(!_navigation.IsHome);
+                        ApplyRoundedRegion();
+                    }));
+                }
+                catch (InvalidOperationException) { }
+            };
             Shown += async delegate { ApplyRoundedRegion(); await InitializeAsync(); };
             FormClosing += HandleClosing;
             FormClosed += delegate
@@ -133,6 +147,8 @@ namespace FACM.Presentation.Glass
                     "FACM", "UnifiedWorkspaceWebView2");
 #if UNIFIED_RELEASE_CANDIDATE
                 UnifiedWebView2Bundle.PrepareNativeLoader();
+                if (!UnifiedWebView2Bundle.IsRuntimeAvailable(null))
+                    throw new InvalidOperationException("WebView2 Evergreen Runtime is not installed.");
 #endif
                 var environment = await CoreWebView2Environment.CreateAsync(null, data);
                 if (IsDisposed) return;

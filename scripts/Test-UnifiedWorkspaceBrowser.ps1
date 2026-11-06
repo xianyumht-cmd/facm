@@ -65,8 +65,17 @@ foreach ($scene in $cases) {
 <script>
 window.GGmanUnifiedShell.setMode('SCENE','SCENE');
 var shell = document.getElementById('shell');
+var main = document.querySelector('main');
+var secondaryScrollOwners = main ? Array.from(main.querySelectorAll('*')).filter(function(node) {
+  var overflow = window.getComputedStyle(node).overflowY;
+  return (overflow === 'auto' || overflow === 'scroll') && node.scrollHeight > node.clientHeight + 2;
+}) : [];
 var documentFits = document.documentElement.scrollWidth <= window.innerWidth + 2 &&
-  shell.scrollWidth <= shell.clientWidth + 2;
+  document.documentElement.scrollHeight <= window.innerHeight + 2 &&
+  document.body.scrollHeight <= window.innerHeight + 2 &&
+  shell.scrollWidth <= shell.clientWidth + 2 &&
+  main && main.scrollWidth <= main.clientWidth + 2 &&
+  secondaryScrollOwners.length === 0;
 var marker = document.createElement('span');
 marker.style.cssText = 'position:fixed;left:0;top:0;width:10px;height:10px;z-index:2147483647;background:' +
   (documentFits ? '#00ff00' : '#ff0000');

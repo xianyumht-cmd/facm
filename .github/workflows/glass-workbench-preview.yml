@@ -140,10 +140,12 @@ jobs:
           Copy-Item -LiteralPath $exe -Destination (Join-Path $isolated 'GGman.exe')
           $bundleTest = Start-Process -FilePath (Join-Path $isolated 'GGman.exe') -ArgumentList '--unified-bundle-smoke' -Wait -PassThru -NoNewWindow
           if ($bundleTest.ExitCode -ne 0) { throw 'Isolated single-EXE WebView2 bundle smoke failed.' }
+          $fallbackTest = Start-Process -FilePath (Join-Path $isolated 'GGman.exe') -ArgumentList '--unified-runtime-fallback-smoke' -Wait -PassThru -NoNewWindow
+          if ($fallbackTest.ExitCode -ne 0) { throw 'Missing WebView2 runtime must select native fallback.' }
           $size = (Get-Item (Join-Path $isolated 'GGman.exe')).Length
           Write-Host "Isolated single-EXE bundle self-test passed; executable bytes=$size"
           if ($size -gt 10MB) { throw 'Unified EXE exceeds existing lightweight GGman release budget.' }
-          Add-Content $env:GITHUB_STEP_SUMMARY '- Isolated single-EXE WebView2 managed and x64 loader bundle passed self-test. This is unsigned and not eligible for production deployment.'
+          Add-Content $env:GITHUB_STEP_SUMMARY '- Isolated single-EXE WebView2 managed and x64 loader bundle plus missing-runtime decision passed smoke tests. This does not replace a Windows 10 GUI fallback test and is unsigned.'
 
       - name: Guard approved compact UI geometry
         shell: pwsh

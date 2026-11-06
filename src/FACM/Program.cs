@@ -24,6 +24,20 @@ namespace FACM
         {
 #if UNIFIED_RELEASE_CANDIDATE
             UnifiedWebView2Bundle.Register();
+            if (HasArgument(args, "--unified-runtime-fallback-smoke"))
+            {
+                try
+                {
+                    UnifiedWebView2Bundle.ValidateRuntimeFallbackForSmokeTest();
+                    Environment.ExitCode = 0;
+                }
+                catch (Exception exception)
+                {
+                    AppLog.Error("Unified runtime fallback self-test failed", exception);
+                    Environment.ExitCode = 7;
+                }
+                return;
+            }
             if (HasArgument(args, "--unified-bundle-smoke"))
             {
                 try { UnifiedWebView2Bundle.ValidateForSmokeTest(); Environment.ExitCode = 0; }

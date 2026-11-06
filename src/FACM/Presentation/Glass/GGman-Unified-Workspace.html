@@ -531,6 +531,11 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
 #appearance .pet-card.selected{border-color:var(--accent)}
 #appearance .pet-commands{display:flex;flex-wrap:wrap;gap:8px}
 #appearance .pet-commands button{min-height:38px;padding:9px 12px;border-radius:8px;background:var(--card2)}
+/* Only main owns viewport scrolling; page sections are never independent scroll panes. */
+html,body{height:100%;overflow:hidden}
+#shell{max-height:100dvh;overflow:hidden}
+main{min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+body[data-mode] main>section{max-height:none;overflow:visible}
 </style>
 </head>
 <body data-mode="home">

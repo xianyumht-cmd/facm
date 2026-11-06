@@ -227,7 +227,14 @@ namespace FACM
             _unifiedWorkspace.BrowserUnavailable += delegate
             {
                 _unifiedWorkspaceEnabled = false;
-                BeginInvoke(new Action(delegate { EnsureMenuOpenAndActive(); }));
+                try
+                {
+                    BeginInvoke(new Action(delegate
+                    {
+                        if (!IsDisposed && !_exiting) EnsureMenuOpenAndActive();
+                    }));
+                }
+                catch (InvalidOperationException) { }
             };
             _unifiedWorkspace.FormClosed += delegate { _unifiedWorkspace = null; };
             PositionMenu(_unifiedWorkspace);
