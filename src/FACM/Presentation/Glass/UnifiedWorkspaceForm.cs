@@ -108,6 +108,7 @@ namespace FACM.Presentation.Glass
                 CancelChampionCatalog();
                 CancelDashboardRead();
                 CancelAdvancedRespawnRead();
+                CancelProfileCustomization();
                 CancelPresenceOperation();
                 CancelRepairOperation();
                 CancelLiveRead();
@@ -191,6 +192,7 @@ namespace FACM.Presentation.Glass
                         string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
                         StartDashboardRead();
                     if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
+                    if (_navigation.Current == "presence-advanced") StartProfileCustomizationRead();
                     if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
                     if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
                     if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
@@ -307,6 +309,13 @@ namespace FACM.Presentation.Glass
                     StartLiveRead(message == "live-sgp");
                 return;
             }
+            if (message == "profile-customization-refresh") { StartProfileCustomizationRead(); return; }
+            if (message != null && message.StartsWith("profile-customization-champion:", StringComparison.Ordinal))
+            { LoadProfileSkins(message.Substring(31)); return; }
+            if (message != null && message.StartsWith("profile-customization-skin:", StringComparison.Ordinal))
+            { ApplyProfileSkin(message.Substring(27)); return; }
+            if (message != null && message.StartsWith("profile-customization-action:", StringComparison.Ordinal))
+            { ApplyProfileCustomizationAction(message.Substring(29)); return; }
             if (message == "presence-refresh")
             {
                 if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
@@ -390,6 +399,7 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Dashboard && route != "dashboard-advanced") CancelDashboardRead();
             if (route != "dashboard-advanced") CancelAdvancedRespawnRead();
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
+            if (route != "presence-advanced") CancelProfileCustomization();
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
             if (route != LeagueHubNavigation.Live) CancelLiveRead();
             if (route != "live-advanced") CancelLiveBenchRead();
@@ -398,6 +408,7 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
             if (route != "quick-messages") CancelQuickMessageSend();
+            if (route == "presence-advanced") { OpenProfileCustomizationPage(pushHistory); return; }
             if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
             if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
             if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
@@ -1522,6 +1533,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
+            CancelProfileCustomization();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1544,6 +1556,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
+            CancelProfileCustomization();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1665,6 +1678,7 @@ namespace FACM.Presentation.Glass
             CancelChampionCatalog();
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
+            CancelProfileCustomization();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1692,6 +1706,9 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"profileCustomizationPage\"") ||
+                !html.Contains("data-profile-action=\"crest\""))
+                throw new InvalidOperationException("LOL profile customization must be a native-backed HTML page.");
             if (!html.Contains("id=\"advancedDashboardPage\"") ||
                 !html.Contains("data-action=\"dashboard-respawn-refresh\""))
                 throw new InvalidOperationException("Full dashboard must be an HTML route.");

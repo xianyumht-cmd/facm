@@ -128,6 +128,27 @@ namespace FACM.AppHost.Modules
             return new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient);
         }
 
+        // One League-client owner: profile reads and writes reuse the same existing services.
+        internal LeagueProfileCustomizationService CreateUnifiedProfileCustomizationService()
+        {
+            return new LeagueProfileCustomizationService(_leagueClient, (ILeagueProfileWriteApi)_leagueClient);
+        }
+
+        internal LeagueRegaliaCustomizationService CreateUnifiedRegaliaService()
+        {
+            return new LeagueRegaliaCustomizationService(_leagueClient, (ILeagueRegaliaWriteApi)_leagueClient);
+        }
+
+        internal LeagueChallengePreferencesService CreateUnifiedChallengePreferencesService()
+        {
+            return new LeagueChallengePreferencesService(_leagueClient, (ILeagueChallengePreferencesWriteApi)_leagueClient);
+        }
+
+        internal LeagueEmoteLoadoutService CreateUnifiedEmoteService()
+        {
+            return new LeagueEmoteLoadoutService(_leagueClient, (ILeagueEmoteLoadoutWriteApi)_leagueClient);
+        }
+
         public Form CreatePresenceForm(UiTextCatalog ui, ThemeDefinition theme)
         {
             return new LeaguePresenceForm(

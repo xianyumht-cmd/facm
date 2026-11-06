@@ -40,6 +40,8 @@ $cases = @(
   @{ Mode='bench'; Width=420; Height=620 },
   @{ Mode='dashboard-advanced'; Width=700; Height=760 },
   @{ Mode='dashboard-advanced'; Width=420; Height=620 },
+  @{ Mode='profile-customization'; Width=690; Height=760 },
+  @{ Mode='profile-customization'; Width=420; Height=620 },
   # Emulate Windows display scale factors. Physical window dimensions remain
   # realistic while the Chromium CSS viewport is reduced at 125–200% DPI.
   @{ Mode='home'; Width=525; Height=500; Dpi=1.25; Tag='home-dpi125' },

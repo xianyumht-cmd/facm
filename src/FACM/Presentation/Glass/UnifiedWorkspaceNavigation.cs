@@ -86,6 +86,7 @@ namespace FACM.Presentation.Glass
                 case "postgame-settings": width = 550; height = 590; break;
                 case "dashboard": width = 640; height = 660; break;
                 case "dashboard-advanced": width = 670; height = 740; break;
+                case "presence-advanced": width = 670; height = 760; break;
                 case "matchmaking-settings": width = 620; height = 710; break;
                 case "presence": width = 590; height = 700; break;
                 case "cloud-sync": width = 600; height = 720; break;

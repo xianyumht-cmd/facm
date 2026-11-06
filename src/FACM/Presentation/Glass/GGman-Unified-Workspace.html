@@ -474,6 +474,21 @@ body[data-mode="dashboard-advanced"] #advancedDashboardPage,body[data-mode="dash
 #advancedDashboardPage .dashboard-cards{grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
 #advancedDashboardPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 #advancedDashboardPage button{min-height:38px}
+#profileCustomizationPage{display:none;padding:4px 2px}
+body[data-mode="profile-customization"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="profile-customization"] #home,body[data-mode="profile-customization"] #other{display:none!important}
+body[data-mode="profile-customization"] #detail{display:flex}
+body[data-mode="profile-customization"] .brand-icon,body[data-mode="profile-customization"] .brand-text{display:none}
+body[data-mode="profile-customization"] #profileCustomizationPage,body[data-mode="profile-customization"] main{display:block;overflow-y:auto}
+#profileCustomizationPage h2{font-size:18px;margin:8px 0 5px}
+#profileCustomizationPage p{color:var(--muted);font-size:12px;line-height:1.65}
+#profileCustomizationPage .profile-control{padding:11px;border:1px solid var(--line);background:var(--card);border-radius:11px;margin:9px 0}
+#profileCustomizationPage .profile-control h3{font-size:13px;margin:0 0 7px}
+#profileCustomizationPage .profile-control select{width:100%;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+#profileCustomizationPage .profile-control label{display:block;font-size:12px;color:var(--muted);margin:8px 0}
+#profileCustomizationPage .profile-control button{min-height:38px;margin-top:6px;padding:8px 11px;border-radius:8px;background:var(--card2);color:var(--text)}
+#profileCustomizationPage .profile-control button:disabled{opacity:.5}
+#profileCustomizationPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 </style>
 </head>
 <body data-mode="home">
@@ -562,6 +577,42 @@ body[data-mode="dashboard-advanced"] #advancedDashboardPage,body[data-mode="dash
     </div>
     <div class="save-row"><button data-action="refresh-dashboard" id="refreshDashboard">读取最新状态</button><span class="muted" id="dashboardResult" role="status"></span></div>
     <div class="actions"><button data-route="player">我的战绩</button><button data-route="live">实时对局</button><button data-route="dashboard-advanced">完整工作台</button></div>
+  </section>
+  <section id="profileCustomizationPage">
+    <h2>LOL 个性资料定制</h2>
+    <p>通过现有 LCU 服务读取并修改当前召唤师资料。写入会回读校验，切换账号后丢弃旧结果；不需要 GGman 云登录。</p>
+    <div class="profile-control">
+      <h3>个人背景英雄皮肤</h3>
+      <label>背景英雄<select id="profileChampion" aria-label="选择背景英雄"></select></label>
+      <label>背景皮肤<select id="profileSkin" aria-label="选择背景皮肤"></select></label>
+      <div class="actions">
+        <button data-action="profile-customization-refresh">读取英雄目录</button>
+        <button id="profileSkinApply" data-profile-action="skin" disabled>应用选中背景</button>
+      </div>
+    </div>
+    <div class="profile-control">
+      <h3>个性展示清理与恢复</h3>
+      <p>以下动作会更新当前 LOL 账号对应项目；先选择操作，再确认。</p>
+      <div class="actions">
+        <button data-profile-action="crest">移除段位徽章</button>
+        <button data-profile-action="tokens">清除挑战代币</button>
+        <button data-profile-action="emotes">清除表情配置</button>
+        <button data-profile-action="banner">恢复上赛季旗帜</button>
+      </div>
+    </div>
+    <div class="guide-card" id="profileCustomizationConfirm" hidden>
+      <strong>确认修改当前 LOL 账号资料？</strong>
+      <small id="profileCustomizationConfirmText"></small>
+      <div class="actions">
+        <button data-action="profile-customization-confirm">确认修改</button>
+        <button data-action="profile-customization-cancel">取消</button>
+      </div>
+    </div>
+    <p id="profileCustomizationStatus" role="status" aria-live="polite">尚未读取英雄目录</p>
+    <div class="actions">
+      <button data-route="presence">返回在线状态</button>
+      <button data-route="dashboard-advanced">完整工作台</button>
+    </div>
   </section>
   <section id="presencePage">
     <h2>在线状态</h2><p>读取当前 LOL 客户端的聊天状态。保存后由原有 C# 服务回读校验，客户端可能覆盖游戏中状态。</p>
@@ -952,12 +1003,12 @@ body[data-mode="dashboard-advanced"] #advancedDashboardPage,body[data-mode="dash
 <script>
 (function(){
 "use strict";
-var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"其他个性展示"};
+var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料"};
 var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -967,6 +1018,36 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="profile-customization-refresh"){
+    get("profileCustomizationStatus").textContent="正在读取当前客户端英雄目录";
+    post("profile-customization-refresh");return;
+  }
+  if(target.dataset.profileAction!==undefined){
+    if(target.disabled)return;
+    var action=target.dataset.profileAction;
+    var skin=action==="skin"?get("profileSkin").value:null;
+    if(action==="skin"&&(!skin||!/^\d{1,8}$/.test(skin)))return;
+    if(!["skin","crest","tokens","emotes","banner"].includes(action))return;
+    pendingProfileAction={action:action,value:skin};
+    get("profileCustomizationConfirmText").textContent=
+      action==="skin"?"将当前 LOL 账号背景更换为选中皮肤 #"+skin:
+      ({crest:"移除当前段位徽章",tokens:"清空当前展示的挑战代币",
+        emotes:"清除当前全部表情槽",banner:"将旗帜恢复为上赛季样式"}[action]||"");
+    get("profileCustomizationConfirm").hidden=false;
+    get("profileCustomizationStatus").textContent="确认后执行，仅影响当前 LOL 账号";return;
+  }
+  if(target.dataset.action==="profile-customization-cancel"){
+    pendingProfileAction=null;get("profileCustomizationConfirm").hidden=true;return;
+  }
+  if(target.dataset.action==="profile-customization-confirm"){
+    if(!pendingProfileAction)return;
+    var request=pendingProfileAction;pendingProfileAction=null;
+    get("profileCustomizationConfirm").hidden=true;
+    get("profileCustomizationStatus").textContent="正在写入并回读校验当前账号";
+    document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=true;});
+    post(request.action==="skin"?"profile-customization-skin:"+request.value:
+      "profile-customization-action:"+request.action);return;
+  }
   if(target.dataset.action==="dashboard-respawn-refresh"){
     get("advancedRespawnRefresh").disabled=true;
     get("advancedRespawn").textContent="正在读取当前游戏复活状态";
@@ -1332,6 +1413,22 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
   }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-options"){
+    renderProfileCustomizationOptions(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-result"){
+    var messages={loading:"正在读取当前账号",success:"操作成功，客户端回读确认",
+      overridden:"客户端已覆盖修改，未确认成功",unverified:"已提交，但未能回读确认",
+      invalid:"输入不符合要求或皮肤不在已读取目录中",unavailable:"当前客户端不支持此操作",
+      "write-failed":"操作失败，客户端拒绝写入",failed:"请求未完成，请检查客户端",
+      "session-changed":"账号或客户端会话发生变化，旧结果已丢弃"};
+    get("profileCustomizationStatus").textContent=messages[e.data.status]||"操作状态待确认";
+    if(e.data.status!=="loading"){
+      document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=false;});
+      get("profileSkinApply").disabled=!profileSkinIds.has(Number(get("profileSkin").value));
+    }
+    return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="advanced-respawn"){
     get("advancedRespawnRefresh").disabled=false;
     var status={dead:"已阵亡，剩余 "+Math.ceil(Number(e.data.seconds)||0)+" 秒",
@@ -1442,6 +1539,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:dashboard")setMode("dashboard","dashboard");
   else if(value==="detail:dashboard-advanced")setMode("dashboard-advanced","dashboard-advanced");
   else if(value==="detail:presence")setMode("presence","presence");
+  else if(value==="detail:presence-advanced")setMode("profile-customization","presence-advanced");
   else if(value==="detail:repair")setMode("repair","repair");
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:live-advanced")setMode("bench","live-advanced");
@@ -1877,6 +1975,47 @@ function renderHistory(data){
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
 }
+var pendingProfileAction=null,profileChampionIds=new Set(),profileSkinIds=new Set();
+function renderProfileCustomizationOptions(data){
+  var select,items;
+  if(data.kind==="champions"){
+    profileChampionIds.clear();profileSkinIds.clear();
+    select=get("profileChampion");select.replaceChildren();
+    get("profileSkin").replaceChildren();get("profileSkinApply").disabled=true;
+    items=Array.isArray(data.items)?data.items.slice(0,300):[];
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0||id>10000)return;
+      var opt=document.createElement("option");opt.value=String(id);opt.textContent=String(item.name||"#"+id);
+      select.appendChild(opt);profileChampionIds.add(id);
+    });
+    if(select.options.length)select.selectedIndex=0;
+    get("profileCustomizationStatus").textContent=profileChampionIds.size?
+      "请选择英雄，随后读取该英雄可用的皮肤":"没有可用的英雄目录";
+    return;
+  }
+  if(data.kind==="skins"){
+    profileSkinIds.clear();select=get("profileSkin");select.replaceChildren();
+    items=Array.isArray(data.items)?data.items.slice(0,200):[];
+    items.forEach(function(item){
+      var id=Number(item.id);
+      if(!Number.isSafeInteger(id)||id<=0||id>99999999)return;
+      var opt=document.createElement("option");opt.value=String(id);opt.textContent=String(item.name||"#"+id);
+      select.appendChild(opt);profileSkinIds.add(id);
+    });
+    if(select.options.length)select.selectedIndex=0;
+    get("profileSkinApply").disabled=!profileSkinIds.size;
+    get("profileCustomizationStatus").textContent=profileSkinIds.size?
+      "已读取 "+profileSkinIds.size+" 个背景皮肤，可选择后应用":"当前英雄没有可用的背景皮肤";
+  }
+}
+get("profileChampion").addEventListener("change",function(){
+  var id=Number(this.value);
+  profileSkinIds.clear();get("profileSkin").replaceChildren();get("profileSkinApply").disabled=true;
+  if(!profileChampionIds.has(id))return;
+  get("profileCustomizationStatus").textContent="正在读取选中英雄的背景皮肤";
+  post("profile-customization-champion:"+id);
+});
 var benchIds=new Set();
 function renderBenchState(data){
   var list=get("benchChampions");list.replaceChildren();
