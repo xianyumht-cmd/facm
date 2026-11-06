@@ -20,8 +20,7 @@ using Microsoft.Web.WebView2.WinForms;
 
 namespace FACM.Presentation.Glass
 {
-    // Feature-gated transition host. One native OS window and one WebView2 process owner.
-    // Existing native League pages remain embedded until their HTML counterparts are ready.
+    // One native shell and one WebView2 owner for all business routes.
     internal sealed partial class UnifiedWorkspaceForm : Form
     {
         private const string HtmlResource = "FACM.Presentation.Glass.GGman-Unified-Workspace.html";
@@ -41,11 +40,9 @@ namespace FACM.Presentation.Glass
         private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
         private readonly Panel _content;
-        private LeagueHubForm _hub;
         private bool _starting;
         private bool _ready;
         private bool _closing;
-        private bool _explicitlyClosingHub;
         private bool _userMovedWindow;
         private LeagueDashboardPhaseState _lastGameflowState;
         private CancellationTokenSource _championCatalogCancellation;
@@ -104,7 +101,6 @@ namespace FACM.Presentation.Glass
             {
                 try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
-                if (_hub != null && !_hub.IsDisposed) _hub.Dispose();
                 CancelChampionCatalog();
                 CancelDashboardRead();
                 CancelAdvancedRespawnRead();
@@ -125,7 +121,6 @@ namespace FACM.Presentation.Glass
             };
         }
 
-        internal bool HasNativeRoute { get { return _hub != null && !_hub.IsDisposed; } }
         internal bool HasActiveCleanup { get { return _cleanupExecuting; } }
 
         private async Task InitializeAsync()
@@ -492,61 +487,9 @@ namespace FACM.Presentation.Glass
                 OpenUnifiedCleanupPage(pushHistory);
                 return;
             }
-            if (_hub == null || _hub.IsDisposed)
-            {
-                _hub = LeagueHubUiBridge.CreateUnifiedEmbeddedForm(_ui);
-                if (_hub == null) return;
-                _hub.SetInitialView(string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Efficiency :
-                    string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Dashboard :
-                    route == "presence-advanced" ? LeagueHubNavigation.Presence :
-                    route == "live-advanced" ? LeagueHubNavigation.Live :
-                    route == "player-advanced" ? LeagueHubNavigation.Player : route);
-                _hub.UseUnifiedWorkspaceHost();
-                _hub.TopLevel = false;
-                _hub.FormBorderStyle = FormBorderStyle.None;
-                _hub.Dock = DockStyle.Fill;
-                _hub.StartPosition = FormStartPosition.Manual;
-                _hub.ShowInTaskbar = false;
-                _hub.TopMost = false;
-                _hub.MinimumSize = Size.Empty;
-                _hub.MaximumSize = Size.Empty;
-                _content.Controls.Add(_hub);
-                var observedHub = _hub;
-                observedHub.FormClosed += delegate
-                {
-                    if (_explicitlyClosingHub || _closing || IsDisposed) return;
-                    if (ReferenceEquals(_hub, observedHub))
-                    {
-                        _content.Controls.Remove(observedHub);
-                        _hub = null;
-                        _navigation.Home();
-                        ShowHome();
-                    }
-                };
-            }
-            else if (!_hub.NavigateInUnifiedWorkspace(
-                string.Equals(route, "efficiency-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Efficiency :
-                    string.Equals(route, "dashboard-advanced", StringComparison.Ordinal)
-                    ? LeagueHubNavigation.Dashboard :
-                    route == "presence-advanced" ? LeagueHubNavigation.Presence :
-                    route == "live-advanced" ? LeagueHubNavigation.Live :
-                    route == "player-advanced" ? LeagueHubNavigation.Player : route))
-            {
-                // Unsaved settings editor explicitly declined navigation.
-                SyncWebNavigation();
-                return;
-            }
-
-            if (pushHistory) _navigation.Open(route);
-            _browser.Dock = DockStyle.Top;
-            _browser.Height = 58;
-            _content.Visible = true;
-            ResizeForRoute(true);
-            _hub.Show();
-            SyncWebNavigation();
+            // The route map above is complete. Unmapped IDs never open a second
+            // WinForms business surface inside this single-window controller.
+            AppLog.Info("Unified workspace rejected an unmapped route: " + route);
         }
 
         private void OpenDashboardPage(bool pushHistory)
@@ -1615,18 +1558,9 @@ namespace FACM.Presentation.Glass
 
         private bool TryCloseCurrentHub()
         {
-            if (_hub == null || _hub.IsDisposed) return true;
-            _explicitlyClosingHub = true;
-            try
-            {
-                var closing = _hub;
-                closing.Close();
-                if (!closing.IsDisposed) return false;
-                _content.Controls.Remove(closing);
-                if (ReferenceEquals(_hub, closing)) _hub = null;
-                return true;
-            }
-            finally { _explicitlyClosingHub = false; }
+            // No embedded business forms remain. System picker dialogs keep their
+            // own native lifetime and are not owned by this navigation stack.
+            return true;
         }
 
         private void ShowHome()
