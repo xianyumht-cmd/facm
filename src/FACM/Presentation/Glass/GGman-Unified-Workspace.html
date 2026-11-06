@@ -489,6 +489,27 @@ body[data-mode="profile-customization"] #profileCustomizationPage,body[data-mode
 #profileCustomizationPage .profile-control button{min-height:38px;margin-top:6px;padding:8px 11px;border-radius:8px;background:var(--card2);color:var(--text)}
 #profileCustomizationPage .profile-control button:disabled{opacity:.5}
 #profileCustomizationPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#advancedHistoryPage{display:none;padding:4px 2px}
+body[data-mode="player-advanced"] #shell{padding:9px 13px;gap:6px}
+body[data-mode="player-advanced"] #home,body[data-mode="player-advanced"] #other{display:none!important}
+body[data-mode="player-advanced"] #detail{display:flex}
+body[data-mode="player-advanced"] .brand-icon,body[data-mode="player-advanced"] .brand-text{display:none}
+body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-advanced"] main{display:block;overflow-y:auto}
+#advancedHistoryPage h2{font-size:18px;margin:8px 0 5px}
+#advancedHistoryPage p{font-size:12px;color:var(--muted);line-height:1.6}
+#advancedHistoryPage .advanced-history-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:9px}
+#advancedHistoryPage label{font-size:12px;color:var(--muted)}
+#advancedHistoryPage input,#advancedHistoryPage select{display:block;width:100%;padding:9px;margin-top:5px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px}
+#advancedHistoryPage .history-advanced-row{display:flex;align-items:center;justify-content:space-between;gap:9px;flex-wrap:wrap;padding:11px;margin-top:8px;background:var(--card);border-radius:10px}
+#advancedHistoryPage .history-advanced-row strong,#advancedHistoryPage .history-advanced-row small{display:block;min-width:0;overflow-wrap:anywhere}
+#advancedHistoryPage .history-advanced-row small{color:var(--muted);font-size:11px;margin-top:5px}
+#advancedHistoryPage button{min-height:36px;padding:7px 11px;border-radius:8px;background:var(--card2);color:var(--text)}
+#advancedHistoryPage button:disabled{opacity:.5}
+#advancedHistoryPage .advanced-player{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:8px;align-items:center;background:var(--card);padding:10px;margin-top:7px;border-radius:9px}
+#advancedHistoryPage .advanced-player small{font-size:11px;color:var(--muted);display:block;overflow-wrap:anywhere;margin-top:5px}
+#advancedHistoryPage .advanced-player strong{font-size:12px;overflow-wrap:anywhere}
+#advancedHistoryPage .advanced-player .score{text-align:right}
+#advancedHistoryPage .actions{grid-template-columns:repeat(2,minmax(0,1fr))}
 </style>
 </head>
 <body data-mode="home">
@@ -632,6 +653,28 @@ body[data-mode="profile-customization"] #profileCustomizationPage,body[data-mode
     <div class="save-row"><button id="presenceSaveRank" data-action="presence-rank">保存展示段位</button></div>
     <p id="presenceResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-action="presence-refresh">重新读取</button><button data-route="presence-advanced">其他个性展示</button></div>
+  </section>
+  <section id="advancedHistoryPage">
+    <h2>高级战绩与对局详情</h2>
+    <p>从当前游戏账号按需读取最多 20 场对局；下面的筛选只针对已读取记录，不伪称查询服务器全部战绩。选中对局后由原来的 LCU/SGP 明细服务读取真实记分板。</p>
+    <div class="advanced-history-filters">
+      <label>搜索英雄或模式<input id="advancedHistorySearch" type="search" autocomplete="off" maxlength="80" placeholder="英雄、模式、队列"></label>
+      <label>比赛结果<select id="advancedHistoryOutcome"><option value="all">全部结果</option><option value="win">胜利</option><option value="loss">失败</option><option value="unknown">结果未确认</option></select></label>
+      <label>队列模式<select id="advancedHistoryQueue"><option value="all">全部已读取队列</option></select></label>
+      <label>排序<select id="advancedHistorySort"><option value="recent">最近优先</option><option value="oldest">较早优先</option><option value="kills">击杀优先</option><option value="kda">KDA 优先</option></select></label>
+    </div>
+    <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
+    <div id="advancedHistoryRows"></div>
+    <div class="guide-card" id="advancedHistoryDetail" hidden>
+      <strong id="advancedHistoryDetailTitle">对局详情</strong>
+      <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
+      <div id="advancedHistoryTeams"></div>
+      <div id="advancedHistoryParticipants"></div>
+    </div>
+    <div class="actions">
+      <button data-action="history-advanced-refresh">重新读取 20 场</button>
+      <button data-route="player">返回近期战绩</button>
+    </div>
   </section>
   <section id="historyPage">
     <h2>我的战绩</h2>
@@ -1003,12 +1046,12 @@ body[data-mode="profile-customization"] #profileCustomizationPage,body[data-mode
 <script>
 (function(){
 "use strict";
-var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料"};
+var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
 function get(id){return document.getElementById(id);}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
-  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
+  mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="player-advanced"?"player-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
@@ -1018,6 +1061,23 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="history-advanced-refresh"){
+    get("advancedHistoryStatus").textContent="正在读取当前账号最多 20 场历史对局";
+    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryDetail").hidden=true;
+    post("history-advanced-refresh");return;
+  }
+  if(target.dataset.advancedGameId!==undefined){
+    var gameId=target.dataset.advancedGameId;
+    if(!advancedHistoryIds.has(gameId))return;
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
+    get("advancedHistoryDetailStatus").textContent="正在读取原生 LCU/SGP 对局明细";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    selectedAdvancedMatch=gameId;
+    post("history-advanced-detail:"+gameId);return;
+  }
   if(target.dataset.action==="profile-customization-refresh"){
     get("profileCustomizationStatus").textContent="正在读取当前客户端英雄目录";
     post("profile-customization-refresh");return;
@@ -1413,6 +1473,12 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
   }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
+    renderAdvancedHistoryList(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-detail"){
+    renderAdvancedMatchDetail(e.data);return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-options"){
     renderProfileCustomizationOptions(e.data);return;
   }
@@ -1544,6 +1610,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   else if(value==="detail:live")setMode("live","live");
   else if(value==="detail:live-advanced")setMode("bench","live-advanced");
   else if(value==="detail:player")setMode("player","player");
+  else if(value==="detail:player-advanced")setMode("player-advanced","player-advanced");
   else if(value==="detail:quick-messages")setMode("quick-messages","quick-messages");
   else if(value==="detail:efficiency-advanced")setMode("efficiency-advanced","efficiency-advanced");
   else if(value==="detail:profile")setMode("profile","profile");
@@ -1974,6 +2041,100 @@ function renderHistory(data){
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
+}
+var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch="";
+["advancedHistorySearch","advancedHistoryOutcome","advancedHistoryQueue","advancedHistorySort"].forEach(function(id){
+  get(id).addEventListener(id==="advancedHistorySearch"?"input":"change",drawAdvancedHistoryRows);
+});
+function renderAdvancedHistoryList(data){
+  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  advancedHistoryIds=new Set(advancedHistoryRows.map(function(item){return String(item.id);}));
+  selectedAdvancedMatch="";get("advancedHistoryDetail").hidden=true;
+  var queue=get("advancedHistoryQueue"),before=queue.value;queue.replaceChildren();
+  var all=document.createElement("option");all.value="all";all.textContent="全部已读取队列";queue.append(all);
+  var available=new Set();
+  advancedHistoryRows.forEach(function(item){
+    var id=String(item.queue||0);
+    if(available.has(id))return;available.add(id);
+    var option=document.createElement("option");option.value=id;
+    option.textContent=item.mode?String(item.mode)+" (#"+id+")":"队列 #"+id;queue.appendChild(option);
+  });
+  if(Array.from(queue.options).some(function(o){return o.value===before;}))queue.value=before;
+  get("advancedHistoryStatus").textContent=data.error?"读取失败或当前游戏账号已切换":
+    "当前账号 "+(data.name||"")+" · 已读取 "+advancedHistoryRows.length+" 场"+
+    (data.hasMore?"（还有历史对局未读取）":"");
+  drawAdvancedHistoryRows();
+}
+function drawAdvancedHistoryRows(){
+  var list=get("advancedHistoryRows");list.replaceChildren();
+  var search=get("advancedHistorySearch").value.trim().toLocaleLowerCase();
+  var outcome=get("advancedHistoryOutcome").value,queue=get("advancedHistoryQueue").value;
+  var rows=advancedHistoryRows.filter(function(match){
+    if(outcome!=="all"&&match.outcome!==outcome)return false;
+    if(queue!=="all"&&String(match.queue)!==queue)return false;
+    return !search||[match.champion,match.mode,match.queue].some(function(value){
+      return String(value==null?"":value).toLocaleLowerCase().includes(search);
+    });
+  });
+  var sort=get("advancedHistorySort").value;
+  if(sort==="oldest")rows.reverse();
+  if(sort==="kills"||sort==="kda"){
+    rows.sort(function(a,b){
+      var metric=function(x){return sort==="kills"?Number(x.kills)||0:
+        ((Number(x.kills)||0)+(Number(x.assists)||0))/Math.max(1,Number(x.deaths)||0);};
+      return metric(b)-metric(a);
+    });
+  }
+  rows.forEach(function(match){
+    var card=document.createElement("div");card.className="history-advanced-row";
+    var left=document.createElement("div"),heading=document.createElement("strong"),meta=document.createElement("small");
+    heading.textContent=String(match.champion||"英雄 #"+match.championId)+" · "+(
+      {win:"胜利",loss:"失败",unknown:"结果未确认"}[match.outcome]||"未确认");
+    meta.textContent=[match.played,match.mode||"队列 #"+match.queue,
+      "K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
+    left.append(heading,meta);
+    var button=document.createElement("button");button.dataset.advancedGameId=String(match.id);
+    button.textContent="查看完整对局";button.setAttribute("aria-label","读取对局 "+match.id+" 的真实明细");
+    card.append(left,button);list.appendChild(card);
+  });
+  if(!rows.length){var empty=document.createElement("p");empty.textContent="已读取记录中没有符合条件的对局";list.append(empty);}
+}
+function renderAdvancedMatchDetail(data){
+  if(String(data.id)!==selectedAdvancedMatch&&selectedAdvancedMatch!=="")return;
+  var panel=get("advancedHistoryDetail");panel.hidden=false;
+  var labels={Ready:"对局明细已读取",NoClient:"游戏客户端不可用",
+    WrongAccount:"游戏账号已变化，旧对局明细已丢弃",Unavailable:"对局详细信息暂不可用"};
+  get("advancedHistoryDetailStatus").textContent=labels[data.status]||"读取状态待确认";
+  var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
+  if(data.status!=="Ready")return;
+  get("advancedHistoryDetailTitle").textContent=
+    "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知");
+  (Array.isArray(data.teams)?data.teams:[]).slice(0,12).forEach(function(team){
+    var item=document.createElement("div");item.className="history-advanced-row";
+    var heading=document.createElement("strong");heading.textContent="队伍 "+team.id+
+      (team.placement!=null?" · 排名 "+team.placement:"");
+    var meta=document.createElement("small");meta.textContent=
+      "击杀 "+team.kills+" · 死亡 "+team.deaths+" · 助攻 "+team.assists+
+      (team.damage!=null?" · 英雄伤害 "+team.damage:"");
+    item.append(heading,meta);teams.append(item);
+  });
+  (Array.isArray(data.players)?data.players:[]).slice(0,30).forEach(function(player){
+    var item=document.createElement("div");item.className="advanced-player";
+    var left=document.createElement("div"),heading=document.createElement("strong"),more=document.createElement("small");
+    heading.textContent=(player.local?"★ ":"")+(player.name||"未知玩家")+
+      " · "+(player.champion||"英雄 #"+player.championId);
+    more.textContent="队伍 "+player.team+" · "+(player.position||"位置未知")+
+      " · 装备 "+(player.items||[]).join("/")+
+      " · 强化 "+(player.augments||[]).join("/");
+    left.append(heading,more);
+    var right=document.createElement("div");right.className="score";
+    var score=document.createElement("strong");score.textContent=player.kills+"/"+player.deaths+"/"+player.assists;
+    var damage=document.createElement("small");damage.textContent=
+      (player.damage!=null?"伤害 "+player.damage:"伤害未提供")+" · "+(player.gold||0)+" 金币";
+    right.append(score,damage);item.append(left,right);players.append(item);
+  });
+  if(!data.players||!data.players.length)get("advancedHistoryDetailStatus").textContent=
+    "对局仅返回基础资料；当前数据源未提供可核实的玩家记分板";
 }
 var pendingProfileAction=null,profileChampionIds=new Set(),profileSkinIds=new Set();
 function renderProfileCustomizationOptions(data){

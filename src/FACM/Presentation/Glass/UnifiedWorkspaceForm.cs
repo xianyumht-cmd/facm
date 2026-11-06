@@ -109,6 +109,7 @@ namespace FACM.Presentation.Glass
                 CancelDashboardRead();
                 CancelAdvancedRespawnRead();
                 CancelProfileCustomization();
+                CancelAdvancedHistoryDetail();
                 CancelPresenceOperation();
                 CancelRepairOperation();
                 CancelLiveRead();
@@ -201,6 +202,7 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == "live-advanced") StartLiveBenchRead();
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
+                    if (_navigation.Current == "player-advanced") OpenAdvancedHistoryData();
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
                     HookCloudEvents();
                     if (_navigation.Current == "cloud-sync") SyncCloudState();
@@ -294,6 +296,10 @@ namespace FACM.Presentation.Glass
             {
                 ApplyUnifiedRecommendation(message.Substring(21)); return;
             }
+            if (message == "history-advanced-refresh")
+            { if (_navigation.Current == "player-advanced") StartHistoryRead(20, true); return; }
+            if (message != null && message.StartsWith("history-advanced-detail:", StringComparison.Ordinal))
+            { LoadAdvancedHistoryDetail(message.Substring(24)); return; }
             if (message == "history-refresh" || message == "history-more")
             {
                 if (_navigation.Current == LeagueHubNavigation.Player)
@@ -403,11 +409,14 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
             if (route != LeagueHubNavigation.Live) CancelLiveRead();
             if (route != "live-advanced") CancelLiveBenchRead();
-            if (route != LeagueHubNavigation.Player) CancelHistoryRead();
+            if (route != LeagueHubNavigation.Player && route != "player-advanced")
+                CancelHistoryRead();
+            if (route != "player-advanced") CancelAdvancedHistoryDetail();
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
             if (route != "quick-messages") CancelQuickMessageSend();
+            if (route == "player-advanced") { OpenAdvancedHistoryPage(pushHistory); return; }
             if (route == "presence-advanced") { OpenProfileCustomizationPage(pushHistory); return; }
             if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
             if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
@@ -624,6 +633,8 @@ namespace FACM.Presentation.Glass
             if (module == null) { PostHistoryError(); return; }
             var source = new CancellationTokenSource();
             _historyCancellation = source;
+            // History changes invalidate any previously selectable match identity.
+            ResetAdvancedHistorySnapshot();
             LoadHistoryAsync(module, count, force, source, _historyGeneration);
         }
 
@@ -640,7 +651,10 @@ namespace FACM.Presentation.Glass
                     return;
                 }
                 if (result == null || result.Profile == null) { PostHistoryError(); return; }
+                _advancedHistorySnapshot = result;
+                _advancedHistorySession = session;
                 var page = result.Page;
+                if (_navigation.Current == "player-advanced") SyncAdvancedHistoryList();
                 var payload = new JavaScriptSerializer().Serialize(new
                 {
                     type = "history-details",
@@ -685,7 +699,8 @@ namespace FACM.Presentation.Glass
             return !IsDisposed && !_closing && !source.IsCancellationRequested &&
                 generation == _historyGeneration &&
                 ReferenceEquals(_historyCancellation, source) &&
-                _navigation.Current == LeagueHubNavigation.Player &&
+                (_navigation.Current == LeagueHubNavigation.Player ||
+                 _navigation.Current == "player-advanced") &&
                 _ready && _browser.CoreWebView2 != null &&
                 (!checkSession || (session == null ? module.UnifiedHistorySession == null :
                     LeagueEncounterReplayService.SessionMatches(session, module.UnifiedHistorySession)));
@@ -702,7 +717,12 @@ namespace FACM.Presentation.Glass
         private void PostHistoryError()
         {
             if (_ready && !IsDisposed && _browser.CoreWebView2 != null)
+            {
                 _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"history-failed\"}");
+                if (_navigation.Current == "player-advanced")
+                    _browser.CoreWebView2.PostWebMessageAsJson(
+                        "{\"type\":\"history-advanced-list\",\"error\":true,\"rows\":[]}");
+            }
         }
 
         private void OpenLivePage(bool pushHistory)
@@ -1534,6 +1554,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
+            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1557,6 +1578,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
+            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1679,6 +1701,7 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
+            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
             CancelLiveRead();
@@ -1706,6 +1729,9 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"advancedHistoryPage\"") ||
+                !html.Contains("data-action=\"history-advanced-refresh\""))
+                throw new InvalidOperationException("Historical match detail must be available inside HTML.");
             if (!html.Contains("id=\"profileCustomizationPage\"") ||
                 !html.Contains("data-profile-action=\"crest\""))
                 throw new InvalidOperationException("LOL profile customization must be a native-backed HTML page.");

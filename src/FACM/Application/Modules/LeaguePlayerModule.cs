@@ -79,6 +79,20 @@ namespace FACM.AppHost.Modules
                 ? new LeagueUnifiedHistorySnapshot { Profile = profile, Page = page } : null;
         }
 
+        // Match details share the existing collector and SGP fallback; callers must
+        // select an actual match belonging to the currently loaded account.
+        internal Task<LeagueEncounterMatchDetailResult> ReadUnifiedMatchDetailAsync(
+            LeagueClientSession expected, string selfPuuid, LeaguePlayerMatchSummary selected,
+            CancellationToken cancellationToken)
+        {
+            if (_details == null || selected == null)
+                return Task.FromResult(new LeagueEncounterMatchDetailResult
+                {
+                    Status = LeagueEncounterMatchDetailStatus.Unavailable
+                });
+            return _details.ReadHistoryAsync(expected, selfPuuid, selfPuuid, selected, cancellationToken);
+        }
+
         public Form CreatePlayerForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
