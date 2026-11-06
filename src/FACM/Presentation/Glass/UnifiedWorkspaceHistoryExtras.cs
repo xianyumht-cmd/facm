@@ -121,7 +121,12 @@ namespace FACM.Presentation.Glass
             try
             {
                 var timeline = await detail.LoadTimeline(source.Token);
-                if (!ExtraReadCurrent(module, source, generation)) return;
+                if (!ExtraReadCurrent(module, source, generation))
+                {
+                    if (ExtraReadCurrent(module, source, generation, false))
+                        PostAdvancedExtra("timeline", "session-changed");
+                    return;
+                }
                 if (timeline == null || timeline.GameId != detail.Match.GameId)
                 {
                     PostAdvancedExtra("timeline", "unavailable"); return;
@@ -205,7 +210,12 @@ namespace FACM.Presentation.Glass
             {
                 var result = await module.ExecuteUnifiedHistoryReplayAsync(
                     session, loaded.Profile.PuuId, match, source.Token);
-                if (!ExtraReadCurrent(module, source, generation)) return;
+                if (!ExtraReadCurrent(module, source, generation))
+                {
+                    if (ExtraReadCurrent(module, source, generation, false))
+                        PostAdvancedExtra("replay", "WrongAccount");
+                    return;
+                }
                 _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
                 {
                     type = "history-advanced-replay-result", kind = "replay", id,

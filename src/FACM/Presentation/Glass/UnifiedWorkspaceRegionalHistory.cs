@@ -83,6 +83,7 @@ namespace FACM.Presentation.Glass
             {
                 PostRegionalResult("Unavailable", null, null); return;
             }
+            CancelAdvancedHistoryDetail();
             CancelRegionalHistoryRead();
             var source = new CancellationTokenSource(TimeSpan.FromSeconds(27));
             _regionalReadCancellation = source;
@@ -92,7 +93,12 @@ namespace FACM.Presentation.Glass
             {
                 var found = await module.SearchUnifiedRiotPlayerAsync(
                     expectedProfile, riotId, server, source.Token);
-                if (!RegionalRequestCurrent(module, session, source, generation)) return;
+                if (!RegionalRequestCurrent(module, session, source, generation))
+                {
+                    if (RegionalRequestCurrent(module, session, source, generation, false))
+                        PostRegionalResult("AccountChanged", null, null);
+                    return;
+                }
                 if (found == null || found.Status != LeagueRiotPlayerSearchStatus.Found ||
                     found.Player == null)
                 {
@@ -101,7 +107,12 @@ namespace FACM.Presentation.Glass
                 }
                 var result = await module.ReadUnifiedRegionalHistoryAsync(
                     expectedProfile, found.Player.PuuId, server, source.Token);
-                if (!RegionalRequestCurrent(module, session, source, generation)) return;
+                if (!RegionalRequestCurrent(module, session, source, generation))
+                {
+                    if (RegionalRequestCurrent(module, session, source, generation, false))
+                        PostRegionalResult("AccountChanged", null, null);
+                    return;
+                }
                 if (result == null || result.Status != LeagueRiotPlayerSearchStatus.Found ||
                     result.Page == null)
                 {

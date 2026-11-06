@@ -1135,6 +1135,9 @@ document.addEventListener("click",function(event){
     get("advancedRegionalStatus").textContent="正在查找账号并读取目标区域战绩";
     get("advancedRegionalResults").replaceChildren();
     remoteHistoryIds.clear();
+    selectedAdvancedMatch="";
+    get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
     post("history-region-search:"+JSON.stringify({riotId:query,serverId:server}));return;
   }
   if(target.dataset.remoteGameId!==undefined){
@@ -2199,7 +2202,11 @@ function renderRegionalHistory(data){
     AccountChanged:"本机 LOL 账号已切换，请重新读取",
     Unavailable:"所选区域无授权、客户端不可用或数据源暂时不可用"};
   status.textContent=labels[data.status]||"未取得跨区战绩";
-  if(data.status!=="Found")return;
+  if(data.status!=="Found"){
+    get("advancedHistoryDetail").hidden=true;
+    get("advancedHistoryExtras").hidden=true;
+    return;
+  }
   var rows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
   status.textContent="玩家 "+String(data.name||"")+" · "+String(data.region||"当前大区")+
     " · 已读取 "+rows.length+" 场（仅查询服务器已返回记录）";
@@ -2268,7 +2275,9 @@ function renderAdvancedTimeline(data){
   get("advancedTimelineEvents").replaceChildren();
   advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
   if(data.status!=="ready"){
-    get("advancedTimelineStatus").textContent="当前比赛没有可用的完整时间线";drawAdvancedTimeline();return;
+    get("advancedTimelineStatus").textContent=data.status==="session-changed"?
+      "当前 LOL 账号或对局已切换，请重新选择比赛":"当前比赛没有可用的完整时间线";
+    drawAdvancedTimeline();return;
   }
   get("advancedTimelineStatus").textContent=
     "真实时间线 "+(data.frameCount||0)+" 帧、"+(data.eventCount||0)+
