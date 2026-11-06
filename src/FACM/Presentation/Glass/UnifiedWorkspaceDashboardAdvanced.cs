@@ -14,9 +14,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenAdvancedDashboardPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("dashboard-advanced");
-            _content.Visible = false;
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

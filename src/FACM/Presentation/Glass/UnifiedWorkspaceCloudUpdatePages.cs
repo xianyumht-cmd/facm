@@ -53,9 +53,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenCloudPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("cloud-sync");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -206,9 +204,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenUpdatesPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("updates");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();

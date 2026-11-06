@@ -21,9 +21,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenUnifiedCleanupPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("cleanup");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
