@@ -39,7 +39,6 @@ namespace FACM.Presentation.Glass
         private readonly AppSettings _settings;
         private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
-        private readonly Panel _content;
         private bool _starting;
         private bool _ready;
         private bool _closing;
@@ -80,19 +79,11 @@ namespace FACM.Presentation.Glass
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = UnifiedWorkspaceNavigation.ResolveClientSize(Screen.PrimaryScreen.WorkingArea, false);
 
-            _content = new Panel
-            {
-                Dock = DockStyle.Fill,
-                Visible = false,
-                BackColor = FacmDesignSystem.Canvas,
-                Padding = Padding.Empty
-            };
             _browser = new WebView2
             {
                 Dock = DockStyle.Fill,
                 DefaultBackgroundColor = Color.FromArgb(4, 12, 32)
             };
-            Controls.Add(_content);
             Controls.Add(_browser);
             Resize += delegate { ApplyRoundedRegion(); };
             DpiChanged += delegate
@@ -518,9 +509,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenDashboardPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Dashboard);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -605,9 +594,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenHistoryPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Player);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -715,9 +702,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenLivePage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Live);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -811,9 +796,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenPresencePage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Presence);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1019,9 +1002,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenRepairPage(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Repair);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1137,9 +1118,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenPostgameSettings(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("postgame-settings");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1204,9 +1183,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenAutoSelection(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("auto-selection");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1327,9 +1304,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenMatchmakingSettings(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("matchmaking-settings");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1399,9 +1374,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenQuickTools(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Efficiency);
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1467,9 +1440,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenClientStatus(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("client-status");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1478,9 +1449,7 @@ namespace FACM.Presentation.Glass
 
         private void OpenAppearance(bool pushHistory)
         {
-            if (!TryCloseCurrentHub()) return;
             if (pushHistory) _navigation.Open("appearance");
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
@@ -1537,7 +1506,7 @@ namespace FACM.Presentation.Glass
         private void NavigateBack()
         {
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
-            if (_navigation.IsHome || !TryCloseCurrentHub()) return;
+            if (_navigation.IsHome) return;
             ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
@@ -1561,7 +1530,6 @@ namespace FACM.Presentation.Glass
         private void ReturnHome()
         {
             if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
-            if (!TryCloseCurrentHub()) return;
             ResetCleanupPreview();
             CancelChampionCatalog();
             CancelDashboardRead();
@@ -1581,16 +1549,8 @@ namespace FACM.Presentation.Glass
             ShowHome();
         }
 
-        private bool TryCloseCurrentHub()
-        {
-            // No embedded business forms remain. System picker dialogs keep their
-            // own native lifetime and are not owned by this navigation stack.
-            return true;
-        }
-
         private void ShowHome()
         {
-            _content.Visible = false;
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(false);
             SyncWebNavigation();
@@ -1671,11 +1631,6 @@ namespace FACM.Presentation.Glass
             }
             if (_closing) return;
             ResetCleanupPreview();
-            if (!TryCloseCurrentHub())
-            {
-                e.Cancel = true;
-                return;
-            }
             _closing = true;
             CancelChampionCatalog();
             CancelDashboardRead();
