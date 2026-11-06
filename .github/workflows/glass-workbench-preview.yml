@@ -55,6 +55,30 @@ jobs:
             (Resolve-Path 'scripts/Start-Compact-Browser.ps1').Path,
             [ref] $tokens, [ref] $parseErrors) | Out-Null
           if ($parseErrors.Count -gt 0) { throw "Browser launcher PowerShell syntax error: $parseErrors" }
+      - name: Enforce HTML-only business route ownership
+        shell: pwsh
+        run: |
+          $owner = Get-Content 'src/FACM/Presentation/Glass/UnifiedWorkspaceForm.cs' -Raw -Encoding utf8
+          foreach ($legacy in @('CreateUnifiedEmbeddedForm', 'LeagueHubForm _hub', 'Controls.Add(_content)', 'TryCloseCurrentHub')) {
+            if ($owner.Contains($legacy)) { throw "Unified window still embeds native workbench: $legacy" }
+          }
+          $partials = Get-ChildItem 'src/FACM/Presentation/Glass' -Filter 'UnifiedWorkspace*.cs' -File
+          foreach ($partial in $partials) {
+            $source = Get-Content -LiteralPath $partial.FullName -Raw -Encoding utf8
+            if ($source.Contains('_content.Visible =') -or $source.Contains('TryCloseCurrentHub()')) {
+              throw "Legacy embedded panel is still referenced: $($partial.Name)"
+            }
+          }
+          $main = Get-Content 'src/FACM/MainForm.cs' -Raw -Encoding utf8
+          foreach ($required in @('TryNavigateUnifiedRoute("appearance")', 'TryNavigateUnifiedRoute(LeagueHubNavigation.Mayhem)', 'TryNavigateUnifiedRoute("updates")', 'ApplyUnifiedPetSelection', '_gameflowVisibility.IsSuppressed')) {
+            if (-not $main.Contains($required)) { throw "Native shell integration missing: $required" }
+          }
+          $html = Get-Content 'src/FACM/Presentation/Glass/GGman-Unified-Workspace.html' -Raw -Encoding utf8
+          foreach ($required in @('id="petList"', 'id="cleanupPage"', 'id="profileCustomizationPage"', 'id="advancedHistoryPage"')) {
+            if (-not $html.Contains($required)) { throw "HTML business route missing: $required" }
+          }
+          Add-Content $env:GITHUB_STEP_SUMMARY '- Audited HTML-only navigation and tray business entrypoints; original WinForms compact fallback remains separate.'
+
       - name: Check browser fallback renders visible offline HTML
         shell: pwsh
         run: |
