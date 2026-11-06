@@ -235,6 +235,49 @@ namespace FACM
             _unifiedWorkspace.Activate();
         }
 
+        internal string ApplyUnifiedPetSelection(string id)
+        {
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return "unavailable";
+            var selected = AnimalPetCatalog.Visible.FirstOrDefault(item =>
+                string.Equals(item.Id, id, StringComparison.Ordinal));
+            if (selected == null) return "invalid";
+            var oldId = _settings.PetStyleId;
+            var oldEnabled = _settings.AnimalPetEnabled;
+            try
+            {
+                _settings.PetStyleId = selected.Id;
+                _settings.AnimalPetEnabled = true;
+                _settings.Save();
+                ActivateAnimalPet();
+                if (!_settings.AnimalPetEnabled) return "failed";
+                return "enabled";
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Native desktop pet selection failed: " + exception.GetType().Name);
+                _settings.PetStyleId = oldId;
+                _settings.AnimalPetEnabled = oldEnabled;
+                try { _settings.Save(); } catch { }
+                return "failed";
+            }
+        }
+
+        internal string ApplyUnifiedPetAction(string action)
+        {
+            if (!_unifiedWorkspaceEnabled || IsDisposed || _exiting) return "unavailable";
+            if (action == "disable")
+            {
+                RestoreDefaultBall();
+                return "disabled";
+            }
+            if (action == "reset")
+            {
+                ResetAnimalPet();
+                return "reset";
+            }
+            return "invalid";
+        }
+
         internal void EnableCompactLivePilot(ILeagueClientApi league)
         {
             if (_compactPilot != null) return;
@@ -352,6 +395,9 @@ namespace FACM
 
         public void OpenPanelThemeSelector()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("appearance")) return;
+#endif
             if (_themePickerOpen || IsDisposed) return;
             _themePickerOpen = true;
             try
@@ -374,6 +420,9 @@ namespace FACM
 
         public void OpenPetSelector()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("appearance")) return;
+#endif
             if (_petPickerOpen || IsDisposed) return;
             _petPickerOpen = true;
             try
@@ -441,6 +490,9 @@ namespace FACM
 
         public void OpenMayhemLookup()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute(LeagueHubNavigation.Mayhem)) return;
+#endif
             if (_mayhemOpen || IsDisposed) return;
             _mayhemOpen = true;
             try
@@ -486,6 +538,9 @@ namespace FACM
 
         public async void OpenUpdateCenter()
         {
+#if GLASS_WORKBENCH_PREVIEW
+            if (TryNavigateUnifiedRoute("updates")) return;
+#endif
             await OpenOnlineCenterAsync();
         }
 

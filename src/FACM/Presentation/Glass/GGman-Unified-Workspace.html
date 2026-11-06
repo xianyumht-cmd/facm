@@ -524,6 +524,13 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
 #advancedHistoryPage #advancedRegionalResults{display:grid;gap:7px}
 #advancedHistoryPage .history-region-header{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:9px}
 #advancedHistoryPage .history-region-header input,#advancedHistoryPage .history-region-header select{width:100%;min-width:0}
+#appearance .pet-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:8px;margin:10px 0}
+#appearance .pet-card{text-align:left;min-height:66px;padding:10px;border-radius:10px;background:var(--card);border:1px solid var(--line)}
+#appearance .pet-card strong{display:block;font-size:12px}
+#appearance .pet-card small{display:block;font-size:11px;line-height:1.55;color:var(--muted);margin-top:5px}
+#appearance .pet-card.selected{border-color:var(--accent)}
+#appearance .pet-commands{display:flex;flex-wrap:wrap;gap:8px}
+#appearance .pet-commands button{min-height:38px;padding:9px 12px;border-radius:8px;background:var(--card2)}
 </style>
 </head>
 <body data-mode="home">
@@ -1074,6 +1081,17 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
     <h2>外观与主题</h2><p>选择喜欢的配色，点击即应用并保存。所有设置仍由 GGman 本地管理。</p>
     <div class="themes" id="themeList" aria-label="可选择的主题"></div>
     <p id="themeResult" role="status" aria-live="polite"></p>
+    <div class="guide-card">
+      <strong>桌宠与悬浮球</strong>
+      <small>选择本机内置的桌宠样式；桌宠启用后可随时恢复轻量 GG 悬浮球。</small>
+    </div>
+    <div id="petList" class="pet-list" aria-label="可选桌宠"></div>
+    <div class="pet-commands">
+      <button data-action="pet-disable">关闭桌宠，恢复悬浮球</button>
+      <button data-action="pet-reset">重置桌面位置</button>
+      <button data-action="pet-refresh">刷新桌宠状态</button>
+    </div>
+    <p id="petResult" role="status" aria-live="polite"></p>
   </section>
   <section id="other">
     <h2>全部功能</h2>
@@ -1386,6 +1404,16 @@ document.addEventListener("click",function(event){
   if(target.dataset.save==="matchmaking"){saveMatchmaking();return;}
   if(target.dataset.save==="auto-selection"){saveAutoSelection();return;}
   if(target.dataset.save==="postgame"){savePostgame();return;}
+  if(target.dataset.petId!==undefined){
+    if(target.disabled)return;
+    get("petResult").textContent="正在应用所选桌宠";
+    post("pet-select:"+target.dataset.petId);return;
+  }
+  if(target.dataset.action==="pet-disable"||target.dataset.action==="pet-reset"||
+     target.dataset.action==="pet-refresh"){
+    get("petResult").textContent="正在处理桌宠设置";
+    post(target.dataset.action);return;
+  }
   if(target.dataset.theme){post("theme:"+target.dataset.theme);return;}
   if(target.dataset.setting){
     if(target.disabled)return;
@@ -1716,6 +1744,14 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="tool-error"){
     document.querySelectorAll("[data-setting]").forEach(function(button){button.disabled=false;});
     document.getElementById("toolResult").textContent="保存失败，请检查程序日志";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="pets"){renderPetChoices(e.data);return;}
+  if(e.data&&typeof e.data==="object"&&e.data.type==="pet-result"){
+    var messages={enabled:"桌宠样式已保存并启用",disabled:"已恢复 GG 轻量悬浮球",
+      reset:"已执行桌宠或悬浮球位置重置",failed:"桌宠启动失败，已保留轻量悬浮球",
+      invalid:"未选择允许的桌宠样式",unavailable:"当前没有可操作的桌宠宿主"};
+    get("petResult").textContent=messages[e.data.status]||"桌宠状态待确认";
+    return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="themes"){renderThemes(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="theme-error"){
@@ -2718,6 +2754,20 @@ document.getElementById("toolSearch").addEventListener("input",filterToolCards);
 function phaseLabel(phase){
   var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
   return labels[String(phase||"")]||"已连接";
+}
+function renderPetChoices(data){
+  var list=get("petList");list.replaceChildren();
+  (Array.isArray(data.items)?data.items:[]).forEach(function(item){
+    if(!item||typeof item.id!=="string")return;
+    var btn=document.createElement("button");btn.className="pet-card"+
+      (item.id===data.selected&&data.enabled?" selected":"");
+    btn.dataset.petId=item.id;
+    var name=document.createElement("strong");name.textContent=String(item.name||item.id);
+    var desc=document.createElement("small");desc.textContent=String(item.description||"");
+    btn.append(name,desc);list.append(btn);
+  });
+  get("petResult").textContent=data.enabled?"当前已启用桌宠："+(data.name||data.selected):
+    "当前使用轻量 GG 悬浮球";
 }
 function renderThemes(data){
   var container=document.getElementById("themeList");container.replaceChildren();

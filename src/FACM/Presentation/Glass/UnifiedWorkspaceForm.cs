@@ -172,7 +172,10 @@ namespace FACM.Presentation.Glass
                     SyncWebNavigation();
                     SyncGameflowState();
                     if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
+                    {
                         SyncThemeOptions();
+                        SyncUnifiedPetOptions();
+                    }
                     if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
                         SyncQuickSettings();
                     if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
@@ -378,6 +381,11 @@ namespace FACM.Presentation.Glass
                 ApplyQuickSetting(message.Substring(7));
                 return;
             }
+            if (message == "pet-refresh") { SyncUnifiedPetOptions(); return; }
+            if (message != null && message.StartsWith("pet-select:", StringComparison.Ordinal))
+            { ApplyUnifiedPetChoice(message.Substring(11)); return; }
+            if (message == "pet-disable" || message == "pet-reset")
+            { ApplyUnifiedPetAction(message.Substring(4)); return; }
             if (message != null && message.StartsWith("theme:", StringComparison.Ordinal))
             {
                 ApplyTheme(message.Substring(6));
@@ -1461,6 +1469,7 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             SyncWebNavigation();
             SyncThemeOptions();
+            SyncUnifiedPetOptions();
         }
 
         private void ApplyTheme(string id)
