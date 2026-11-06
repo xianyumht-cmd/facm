@@ -521,6 +521,9 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
 #advancedHistoryPage .history-extra .history-event{font-size:11px;border-bottom:1px solid var(--line);padding:5px 2px;overflow-wrap:anywhere}
 #advancedHistoryPage .history-extra .history-event:last-child{border-bottom:0}
 #advancedHistoryPage .history-extra .actions{margin-top:7px}
+#advancedHistoryPage #advancedRegionalResults{display:grid;gap:7px}
+#advancedHistoryPage .history-region-header{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:9px}
+#advancedHistoryPage .history-region-header input,#advancedHistoryPage .history-region-header select{width:100%;min-width:0}
 </style>
 </head>
 <body data-mode="home">
@@ -673,6 +676,18 @@ body[data-mode="player-advanced"] #advancedHistoryPage,body[data-mode="player-ad
       <label>比赛结果<select id="advancedHistoryOutcome"><option value="all">全部结果</option><option value="win">胜利</option><option value="loss">失败</option><option value="unknown">结果未确认</option></select></label>
       <label>队列模式<select id="advancedHistoryQueue"><option value="all">全部已读取队列</option></select></label>
       <label>排序<select id="advancedHistorySort"><option value="recent">最近优先</option><option value="oldest">较早优先</option><option value="kills">击杀优先</option><option value="kda">KDA 优先</option></select></label>
+    </div>
+    <div class="history-extra">
+      <h3>Riot ID 跨区战绩查询</h3>
+      <p>仅查询客户端当前账号可授权访问的区域服务器。国服可选择其他腾讯大区，其他地区按原有 SGP 授权目录限制；不会绕过账号或服务端权限。</p>
+      <div class="history-region-header">
+        <label>Riot ID<input type="text" id="advancedRegionalRiotId" maxlength="52" autocomplete="off" placeholder="召唤师名称#编号"></label>
+        <label>服务器<select id="advancedRegionalServer" aria-label="战绩查询服务器"></select></label>
+      </div>
+      <div class="actions"><button data-action="history-region-search">搜索玩家并读取 20 场</button>
+        <button data-action="history-region-catalog">更新服务器列表</button></div>
+      <p id="advancedRegionalStatus" role="status">等待选择服务器和输入 Riot ID</p>
+      <div id="advancedRegionalResults"></div>
     </div>
     <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
     <div id="advancedHistoryRows"></div>
@@ -1108,6 +1123,32 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
+  if(target.dataset.action==="history-region-catalog"){
+    get("advancedRegionalStatus").textContent="正在刷新可授权访问的区域目录";
+    post("history-region-catalog");return;
+  }
+  if(target.dataset.action==="history-region-search"){
+    var query=get("advancedRegionalRiotId").value.trim(),server=get("advancedRegionalServer").value;
+    if(query.length>52||query.indexOf("#")<1||!/^.{1,32}#[^#]{1,16}$/.test(query)){
+      get("advancedRegionalStatus").textContent="请输入有效的 Riot ID（名称#编号）";return;
+    }
+    get("advancedRegionalStatus").textContent="正在查找账号并读取目标区域战绩";
+    get("advancedRegionalResults").replaceChildren();
+    remoteHistoryIds.clear();
+    post("history-region-search:"+JSON.stringify({riotId:query,serverId:server}));return;
+  }
+  if(target.dataset.remoteGameId!==undefined){
+    var remoteId=target.dataset.remoteGameId;
+    if(!remoteHistoryIds.has(remoteId))return;
+    selectedAdvancedMatch=remoteId;
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryDetailTitle").textContent="跨区对局 #"+remoteId;
+    get("advancedHistoryDetailStatus").textContent="通过当前账号权限读取目标区域比赛明细";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    post("history-region-detail:"+remoteId);return;
+  }
   if(target.dataset.action==="history-timeline"){
     if(selectedAdvancedMatch && advancedHistoryIds.has(selectedAdvancedMatch)){
       get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
@@ -1547,6 +1588,12 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
     renderAdvancedHistoryList(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-region-options"){
+    renderRegionalOptions(e.data);return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-region-results"){
+    renderRegionalHistory(e.data);return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-radar"){
     renderAdvancedRadar(e.data);return;
@@ -2123,6 +2170,50 @@ function renderHistory(data){
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
   drawHistoryRows();
+}
+var remoteHistoryIds=new Set();
+function renderRegionalOptions(data){
+  var control=get("advancedRegionalServer"),prior=control.value;control.replaceChildren();
+  var current=document.createElement("option");current.value="";
+  current.textContent="当前客户端大区（自动）";control.append(current);
+  (Array.isArray(data.servers)?data.servers:[]).slice(0,64).forEach(function(item){
+    if(!item||typeof item.id!=="string"||item.id.length>45)return;
+    var option=document.createElement("option");option.value=item.id;
+    option.textContent=String(item.name||item.id)+" ("+item.id+")";
+    control.append(option);
+  });
+  if(Array.from(control.options).some(function(x){return x.value===prior;}))control.value=prior;
+  get("advancedRegionalStatus").textContent=data.available?
+    "已加载当前账号授权的服务器目录；其他大区可能需要 SGP 权限":
+    "无法识别当前客户端区域，跨区查询不可用";
+}
+function renderRegionalHistory(data){
+  var status=get("advancedRegionalStatus"),list=get("advancedRegionalResults");
+  list.replaceChildren();remoteHistoryIds.clear();
+  var labels={Found:"已读取目标玩家当前区域记录",InvalidQuery:"Riot ID 格式不正确",
+    NotFound:"未找到对应玩家，请核对 Riot ID 和区域",
+    AccountChanged:"本机 LOL 账号已切换，请重新读取",
+    Unavailable:"所选区域无授权、客户端不可用或数据源暂时不可用"};
+  status.textContent=labels[data.status]||"未取得跨区战绩";
+  if(data.status!=="Found")return;
+  var rows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  status.textContent="玩家 "+String(data.name||"")+" · "+String(data.region||"当前大区")+
+    " · 已读取 "+rows.length+" 场（仅查询服务器已返回记录）";
+  rows.forEach(function(item){
+    var id=String(item.id||"");
+    if(!/^[1-9]\d{0,18}$/.test(id)||remoteHistoryIds.has(id))return;
+    remoteHistoryIds.add(id);
+    var card=document.createElement("div");card.className="history-advanced-row";
+    var summary=document.createElement("div"),heading=document.createElement("strong"),detail=document.createElement("small");
+    heading.textContent=String(item.champion||"英雄 #"+item.championId)+
+      " · "+(item.outcome==="win"?"胜利":item.outcome==="loss"?"失败":"结果未知");
+    detail.textContent=[item.played,item.mode||"队列 #"+item.queue,
+      "K/D/A "+(item.kills||0)+"/"+(item.deaths||0)+"/"+(item.assists||0)].filter(Boolean).join(" · ");
+    summary.append(heading,detail);
+    var button=document.createElement("button");button.dataset.remoteGameId=id;
+    button.textContent="查看跨区对局";card.append(summary,button);list.append(card);
+  });
+  if(!remoteHistoryIds.size){var empty=document.createElement("p");empty.textContent="当前区域没有返回可查询的对局";list.append(empty);}
 }
 var advancedTimelineFrames=[];
 get("advancedHistoryRadarPlayer").addEventListener("change",function(){

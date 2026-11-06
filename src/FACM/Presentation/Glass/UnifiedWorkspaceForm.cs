@@ -202,7 +202,11 @@ namespace FACM.Presentation.Glass
                     if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
                     if (_navigation.Current == "live-advanced") StartLiveBenchRead();
                     if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
-                    if (_navigation.Current == "player-advanced") OpenAdvancedHistoryData();
+                    if (_navigation.Current == "player-advanced")
+                    {
+                        OpenAdvancedHistoryData();
+                        SendRegionalOptions();
+                    }
                     if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
                     HookCloudEvents();
                     if (_navigation.Current == "cloud-sync") SyncCloudState();
@@ -303,6 +307,12 @@ namespace FACM.Presentation.Glass
             if (message != null && message.StartsWith("history-advanced-replay:", StringComparison.Ordinal))
             { StartAdvancedReplay(message.Substring(24)); return; }
             if (message == "history-advanced-replay-folder") { ReadAdvancedReplayFolder(); return; }
+            if (message == "history-region-options") { SendRegionalOptions(); return; }
+            if (message == "history-region-catalog") { RefreshRegionalCatalog(); return; }
+            if (message != null && message.StartsWith("history-region-search:", StringComparison.Ordinal))
+            { SearchRegionalRiotId(message.Substring(22)); return; }
+            if (message != null && message.StartsWith("history-region-detail:", StringComparison.Ordinal))
+            { ReadRegionalMatchDetail(message.Substring(22)); return; }
             if (message == "history-advanced-refresh")
             { if (_navigation.Current == "player-advanced") StartHistoryRead(20, true); return; }
             if (message != null && message.StartsWith("history-advanced-detail:", StringComparison.Ordinal))
@@ -418,7 +428,11 @@ namespace FACM.Presentation.Glass
             if (route != "live-advanced") CancelLiveBenchRead();
             if (route != LeagueHubNavigation.Player && route != "player-advanced")
                 CancelHistoryRead();
-            if (route != "player-advanced") CancelAdvancedHistoryDetail();
+            if (route != "player-advanced")
+            {
+                CancelAdvancedHistoryDetail();
+                CancelRegionalHistoryRead();
+            }
             if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
             if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
             if (route != "updates") CancelOnlineRead();
@@ -1736,6 +1750,9 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("id=\"advancedRegionalResults\"") ||
+                !html.Contains("data-action=\"history-region-search\""))
+                throw new InvalidOperationException("Regional Riot ID history must be a native-backed HTML feature.");
             if (!html.Contains("id=\"advancedHistoryTimeline\"") ||
                 !html.Contains("id=\"advancedHistoryRadar\"") ||
                 !html.Contains("data-action=\"history-replay\""))

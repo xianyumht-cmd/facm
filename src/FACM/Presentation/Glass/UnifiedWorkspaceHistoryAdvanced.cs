@@ -124,51 +124,7 @@ namespace FACM.Presentation.Glass
                     return;
                 }
                 RememberAdvancedMatchDetail(raw, detail, session);
-                _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-                {
-                    type = "history-advanced-detail",
-                    status = "Ready",
-                    id = raw,
-                    mode = detail.Match.GameMode,
-                    queue = detail.Match.QueueId,
-                    duration = detail.Match.GameDurationSeconds,
-                    source = detail.Match.DataSource.ToString(),
-                    teams = detail.Teams == null ? new object[0] :
-                        detail.Teams.Take(12).Select(team => new
-                        {
-                            id = team.TeamId,
-                            placement = team.SubteamPlacement,
-                            kills = team.Kills,
-                            deaths = team.Deaths,
-                            assists = team.Assists,
-                            damage = team.DamageToChampions,
-                            towers = team.TowerKills,
-                            dragons = team.DragonKills,
-                            barons = team.BaronKills
-                        }).ToArray(),
-                    players = detail.Participants == null ? new object[0] :
-                        detail.Participants.Take(30).Select(player => new
-                        {
-                            name = player.PlayerName,
-                            participantId = player.ParticipantId,
-                            local = player.IsTarget,
-                            championId = player.ChampionId,
-                            champion = player.ChampionName,
-                            team = player.TeamId,
-                            position = player.Position,
-                            kills = player.Kills,
-                            deaths = player.Deaths,
-                            assists = player.Assists,
-                            damage = player.DamageAvailable ? (int?)player.DamageToChampions : null,
-                            gold = player.GoldAvailable ? (int?)player.GoldEarned : null,
-                            cs = player.CreepScoreAvailable ? (int?)player.CreepScore : null,
-                            vision = player.VisionScore,
-                            items = (player.ItemIds ?? new int[0]).Take(7).ToArray(),
-                            spells = (player.SpellIds ?? new int[0]).Take(2).ToArray(),
-                            perks = (player.PerkIds ?? new int[0]).Take(9).ToArray(),
-                            augments = (player.AugmentIds ?? new int[0]).Take(6).ToArray()
-                        }).ToArray()
-                }));
+                PostAdvancedHistoryDetail(raw, detail);
             }
             catch (OperationCanceledException)
             {

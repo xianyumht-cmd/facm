@@ -109,6 +109,39 @@ namespace FACM.AppHost.Modules
             return _replay.ReadDirectoryAsync(expected, selfPuuid, token);
         }
 
+        internal Task<LeagueRiotPlayerSearchResult> SearchUnifiedRiotPlayerAsync(
+            LeaguePlayerProfile expected, string riotId, string serverId, CancellationToken token)
+        {
+            if (_service == null) return Task.FromResult(new LeagueRiotPlayerSearchResult
+            {
+                Status = LeagueRiotPlayerSearchStatus.Unavailable
+            });
+            return _service.SearchRiotIdAsync(expected, riotId, token,
+                serverId == null, serverId);
+        }
+
+        internal Task<LeagueRemotePlayerHistoryResult> ReadUnifiedRegionalHistoryAsync(
+            LeaguePlayerProfile expected, string targetPuuid, string serverId,
+            CancellationToken token)
+        {
+            if (_service == null) return Task.FromResult(new LeagueRemotePlayerHistoryResult
+            {
+                Status = LeagueRiotPlayerSearchStatus.Unavailable
+            });
+            return _service.LoadRemotePlayerHistoryAsync(expected, targetPuuid, token,
+                0, 20, serverId == null ? LeaguePlayerHistorySource.Automatic :
+                LeaguePlayerHistorySource.Sgp, serverId);
+        }
+
+        internal Task<LeagueEncounterMatchDetailResult> ReadUnifiedRemoteDetailAsync(
+            LeagueClientSession expected, string selfPuuid, string targetPuuid,
+            LeaguePlayerMatchSummary match, CancellationToken token)
+        {
+            if (_details == null || match == null) return Task.FromResult(
+                new LeagueEncounterMatchDetailResult { Status = LeagueEncounterMatchDetailStatus.Unavailable });
+            return _details.ReadHistoryAsync(expected, selfPuuid, targetPuuid, match, token);
+        }
+
         public Form CreatePlayerForm(UiTextCatalog ui)
         {
             if (_service == null) throw new InvalidOperationException("League Player module is not initialized.");
