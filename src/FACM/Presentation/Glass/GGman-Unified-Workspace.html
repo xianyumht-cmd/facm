@@ -1150,7 +1150,8 @@ document.addEventListener("click",function(event){
     post("history-region-detail:"+remoteId);return;
   }
   if(target.dataset.action==="history-timeline"){
-    if(selectedAdvancedMatch && advancedHistoryIds.has(selectedAdvancedMatch)){
+    if(selectedAdvancedMatch && (advancedHistoryIds.has(selectedAdvancedMatch) ||
+        remoteHistoryIds.has(selectedAdvancedMatch))){
       get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
       post("history-advanced-timeline:"+selectedAdvancedMatch);
     }return;
@@ -1173,6 +1174,9 @@ document.addEventListener("click",function(event){
     get("advancedHistoryRows").replaceChildren();
     get("advancedHistoryDetail").hidden=true;
     get("advancedHistoryExtras").hidden=true;
+    get("advancedRegionalResults").replaceChildren();
+    remoteHistoryIds.clear();
+    get("advancedRegionalStatus").textContent="当前账号战绩已刷新，跨区记录需重新查询";
     post("history-advanced-refresh");return;
   }
   if(target.dataset.advancedGameId!==undefined){
@@ -2319,6 +2323,8 @@ var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch=""
 function renderAdvancedHistoryList(data){
   advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
   advancedHistoryIds=new Set(advancedHistoryRows.map(function(item){return String(item.id);}));
+  remoteHistoryIds.clear();
+  get("advancedRegionalResults").replaceChildren();
   selectedAdvancedMatch="";get("advancedHistoryDetail").hidden=true;
   var queue=get("advancedHistoryQueue"),before=queue.value;queue.replaceChildren();
   var all=document.createElement("option");all.value="all";all.textContent="全部已读取队列";queue.append(all);

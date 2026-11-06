@@ -25,7 +25,11 @@ namespace FACM.Presentation.Glass
             _browser.Dock = DockStyle.Fill;
             ResizeForRoute(true);
             SyncWebNavigation();
-            if (_ready) OpenAdvancedHistoryData();
+            if (_ready)
+            {
+                OpenAdvancedHistoryData();
+                SendRegionalOptions();
+            }
         }
 
         private void OpenAdvancedHistoryData()
@@ -173,6 +177,7 @@ namespace FACM.Presentation.Glass
             CancelAdvancedHistoryDetail();
             _advancedHistorySnapshot = null;
             _advancedHistorySession = null;
+            CancelRegionalHistoryRead();
         }
 
         private void CancelAdvancedHistoryDetail()

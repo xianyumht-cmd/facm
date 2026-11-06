@@ -117,13 +117,13 @@ namespace FACM.Presentation.Glass
             }
             catch (OperationCanceledException)
             {
-                if (RegionalRequestCurrent(module, session, source, generation, false))
+                if (RegionalRequestCurrent(module, session, source, generation, false, false))
                     PostRegionalResult("Unavailable", null, null);
             }
             catch (Exception exception)
             {
                 AppLog.Info("Regional Riot ID lookup unavailable: " + exception.GetType().Name);
-                if (RegionalRequestCurrent(module, session, source, generation, false))
+                if (RegionalRequestCurrent(module, session, source, generation, false, false))
                     PostRegionalResult("Unavailable", null, null);
             }
             finally
@@ -136,8 +136,8 @@ namespace FACM.Presentation.Glass
 
         private void ReadRegionalMatchDetail(string raw)
         {
-            if (_navigation.Current != "player-advanced" || string.IsNullOrEmpty(raw) || raw.Length > 20 ||
-                _advancedHistoryDetailCancellation != null) return;
+            if (_navigation.Current != "player-advanced" || string.IsNullOrEmpty(raw) || raw.Length > 20)
+                return;
             long id;
             if (!long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out id) ||
                 id <= 0 || _regionalHistory == null || _regionalHistory.Page == null ||
@@ -154,6 +154,7 @@ namespace FACM.Presentation.Glass
             }
             var match = _regionalHistory.Page.Matches.FirstOrDefault(x => x.GameId == id);
             if (match == null) { PostAdvancedDetailStatus(raw, "Unavailable"); return; }
+            // Repeated selections invalidate the former in-flight detail read.
             CancelAdvancedHistoryDetail();
             var source = new CancellationTokenSource(TimeSpan.FromSeconds(12));
             _advancedHistoryDetailCancellation = source;
@@ -223,12 +224,14 @@ namespace FACM.Presentation.Glass
         }
 
         private bool RegionalRequestCurrent(LeaguePlayerModule module, LeagueClientSession session,
-            CancellationTokenSource source, int generation, bool checkSession = true)
+            CancellationTokenSource source, int generation, bool checkSession = true,
+            bool checkCancellation = true)
         {
             return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
                 _navigation.Current == "player-advanced" &&
                 ReferenceEquals(source, _regionalReadCancellation) &&
-                generation == _regionalReadGeneration && !source.IsCancellationRequested &&
+                generation == _regionalReadGeneration &&
+                (!checkCancellation || !source.IsCancellationRequested) &&
                 (!checkSession || LeagueEncounterReplayService.SessionMatches(
                     session, module.UnifiedHistorySession));
         }
