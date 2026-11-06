@@ -1,3 +1,7 @@
+## 2026-11-06 — Draft release-workflow integration (not online)
+
+PR #359 now stages the 3.5.x publisher to compile `UseUnifiedReleaseCandidate=true` instead of silently shipping the ordinary native-only UI. Before signing, the draft workflow checks actual unified route smoke, a copied isolated single EXE's managed/x64 loader bundle, missing-runtime decision and embedded resource names. The change is only a release-preparation safeguard: it is not executed on production `main` and cannot prove a clean Win10 no-runtime fallback, native IME/DPI/focus, Chinese LOL behavior, or public signed file/updater verification. Do not update `release/3.5-request.json` or `online/version.json`, merge #359 or issue v3.5.81 while required Windows 10/operator release gates remain absent.
+
 ## 2026-11-06 — Single-WebView2 navigation audit and Windows candidate compatibility
 
 All nine LeagueHub routes plus the advanced dashboard, matchmaking, champion selection, postgame, online status, history, ARAM bench, recommendation, Mayhem, cleanup, cloud, updates and pet/theme choices have a direct HTML handler. The obsolete embedded LeagueHubForm child and its WinForms panel have been removed from UnifiedWorkspaceForm. A new Glass CI source check rejects reintroducing them. Native tray theme, Mayhem, manual update and desktop-pet actions now open the relevant HTML page. Pet choice, activation/disable and position-reset use the existing native PetsModule, not a new service.

@@ -154,7 +154,7 @@ jobs:
         shell: pwsh
         run: |
           # This step deliberately does NOT alter the published 3.5.x release workflow.
-          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseUnifiedReleaseCandidate=true /p:ContinuousIntegrationBuild=false /v:minimal
+          msbuild FACM.sln /restore /m /p:Configuration=Release /p:Platform="Any CPU" /p:UseUnifiedReleaseCandidate=true /p:ContinuousIntegrationBuild=true /v:minimal
           if ($LASTEXITCODE -ne 0) { throw 'Unified default-start candidate build failed.' }
           $exe = (Resolve-Path 'src/FACM/bin/Release/net48/GGman.exe').Path
           $smoke = Start-Process -FilePath $exe -ArgumentList '--unified-workspace-smoke' -Wait -PassThru -NoNewWindow
