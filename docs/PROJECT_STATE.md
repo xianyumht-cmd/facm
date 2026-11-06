@@ -1337,15 +1337,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.80
-- GitHub Release：v3.5.80
+- 版本：GGman 3.5.81
+- GitHub Release：v3.5.81
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：d3010f718c4fca372d7775c42e2927d1f76b44b0
-- 发布元数据提交：fbc75b40d8d802467a8e69568906bff21ac6819d
-- Release GGman.exe SHA-256：D69D597E2F00153CC0305EA1B55DEF74867A16F9B8E048E88AEC7169DF3C7511
-- release_notes：GGman 3.5.80：针对 3.5.79 的实际截图反馈优化 LOL 工作台。快捷工具与自动化设置说明按文字长度自适应显示，并新增设置分组快速跳转；我的战绩筛选按组换行、深色表头与列表区域重排；在线状态页限制重复滚动；段位、队列和组队邀请默认选项改为中文显示，保留原有接口值和设置。此版本不强制更新，仍建议反馈不同 DPI 的实际界面表现。
+- 发布基础 main：ae6a597a8bf11ee2cf1beb50c4f47a09d002dc6d
+- 发布元数据提交：2f2f1e26834e80166852997f09b2dd85f8556fae
+- Release GGman.exe SHA-256：20AE9C2EDA08E7D6E657236B38CA1944B1FD9253D062122143E2B8D8EFE6992C
+- release_notes：GGman 3.5.81：全新轻量悬浮球与深海军蓝／青蓝 WebView2 单窗口控制中心，微软雅黑、界面自适应及页面内导航／返回；完成工作台、在线状态、战绩等操作入口的统一。自动更新、强制更新和公告弹窗统一进入控制中心，支持下载取消、强制更新导航锁定和安全退出；WebView2 不可用时保留原生回退。继续采用原有签名与哈希验证的在线更新链路，不强制旧版本升级。Windows 10／多 DPI 等实机体验由用户在正式在线更新后验收。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
