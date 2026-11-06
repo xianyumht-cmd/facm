@@ -81,7 +81,7 @@ namespace FACM.Presentation.Glass
 
         private async void LoadAdvancedHistoryDetail(string raw)
         {
-            if (_navigation.Current != "player-advanced" || _advancedHistoryDetailCancellation != null ||
+            if (_navigation.Current != "player-advanced" ||
                 string.IsNullOrEmpty(raw) || raw.Length > 20) return;
             long gameId;
             if (!long.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out gameId) ||
@@ -97,6 +97,9 @@ namespace FACM.Presentation.Glass
             }
             var match = loaded.Page.Matches.FirstOrDefault(m => m.GameId == gameId);
             if (match == null) { PostAdvancedDetailStatus(raw, "Unavailable"); return; }
+            // A new explicit selection cancels the old detail request instead of
+            // leaving the second page indefinitely in a loading state.
+            CancelAdvancedHistoryDetail();
             var source = new CancellationTokenSource(TimeSpan.FromSeconds(12));
             _advancedHistoryDetailCancellation = source;
             var generation = _advancedHistoryDetailGeneration;
@@ -104,7 +107,16 @@ namespace FACM.Presentation.Glass
             {
                 var detail = await module.ReadUnifiedMatchDetailAsync(
                     session, loaded.Profile.PuuId, match, source.Token);
-                if (!AdvancedHistoryRequestCurrent(module, session, source, generation)) return;
+                if (!AdvancedHistoryRequestCurrent(module, session, source, generation))
+                {
+                    if (AdvancedHistoryRequestCurrent(module, session, source, generation, false))
+                    {
+                        ResetAdvancedHistorySnapshot();
+                        SyncAdvancedHistoryList();
+                        PostAdvancedDetailStatus(raw, "WrongAccount");
+                    }
+                    return;
+                }
                 if (detail == null || detail.Status != LeagueEncounterMatchDetailStatus.Ready ||
                     detail.Match == null)
                 {
@@ -119,6 +131,7 @@ namespace FACM.Presentation.Glass
                     mode = detail.Match.GameMode,
                     queue = detail.Match.QueueId,
                     duration = detail.Match.GameDurationSeconds,
+                    source = detail.Match.DataSource.ToString(),
                     teams = detail.Teams == null ? new object[0] :
                         detail.Teams.Take(12).Select(team => new
                         {
@@ -127,7 +140,10 @@ namespace FACM.Presentation.Glass
                             kills = team.Kills,
                             deaths = team.Deaths,
                             assists = team.Assists,
-                            damage = team.DamageToChampions
+                            damage = team.DamageToChampions,
+                            towers = team.TowerKills,
+                            dragons = team.DragonKills,
+                            barons = team.BaronKills
                         }).ToArray(),
                     players = detail.Participants == null ? new object[0] :
                         detail.Participants.Take(30).Select(player => new
@@ -143,7 +159,11 @@ namespace FACM.Presentation.Glass
                             assists = player.Assists,
                             damage = player.DamageAvailable ? (int?)player.DamageToChampions : null,
                             gold = player.GoldAvailable ? (int?)player.GoldEarned : null,
+                            cs = player.CreepScoreAvailable ? (int?)player.CreepScore : null,
+                            vision = player.VisionScore,
                             items = (player.ItemIds ?? new int[0]).Take(7).ToArray(),
+                            spells = (player.SpellIds ?? new int[0]).Take(2).ToArray(),
+                            perks = (player.PerkIds ?? new int[0]).Take(9).ToArray(),
                             augments = (player.AugmentIds ?? new int[0]).Take(6).ToArray()
                         }).ToArray()
                 }));

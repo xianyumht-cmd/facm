@@ -1487,7 +1487,8 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       overridden:"客户端已覆盖修改，未确认成功",unverified:"已提交，但未能回读确认",
       invalid:"输入不符合要求或皮肤不在已读取目录中",unavailable:"当前客户端不支持此操作",
       "write-failed":"操作失败，客户端拒绝写入",failed:"请求未完成，请检查客户端",
-      "session-changed":"账号或客户端会话发生变化，旧结果已丢弃"};
+      "session-changed":"账号或客户端会话发生变化，旧结果已丢弃",
+      busy:"前一个请求尚未完成，请稍后重选英雄"};
     get("profileCustomizationStatus").textContent=messages[e.data.status]||"操作状态待确认";
     if(e.data.status!=="loading"){
       document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=false;});
@@ -2100,22 +2101,31 @@ function drawAdvancedHistoryRows(){
   if(!rows.length){var empty=document.createElement("p");empty.textContent="已读取记录中没有符合条件的对局";list.append(empty);}
 }
 function renderAdvancedMatchDetail(data){
-  if(String(data.id)!==selectedAdvancedMatch&&selectedAdvancedMatch!=="")return;
+  if(String(data.id)!==selectedAdvancedMatch)return;
   var panel=get("advancedHistoryDetail");panel.hidden=false;
   var labels={Ready:"对局明细已读取",NoClient:"游戏客户端不可用",
     WrongAccount:"游戏账号已变化，旧对局明细已丢弃",Unavailable:"对局详细信息暂不可用"};
   get("advancedHistoryDetailStatus").textContent=labels[data.status]||"读取状态待确认";
+  if(data.status==="WrongAccount"){
+    advancedHistoryRows=[];advancedHistoryIds.clear();
+    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryStatus").textContent="游戏账号已切换，旧记录已清空，请重新读取";
+  }
   var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
   if(data.status!=="Ready")return;
   get("advancedHistoryDetailTitle").textContent=
-    "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知");
+    "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知")+
+    (data.source?" · 来源 "+({Lcu:"客户端",Sgp:"区域服务",Automatic:"自动选择"}[data.source]||"已确认"):"");
   (Array.isArray(data.teams)?data.teams:[]).slice(0,12).forEach(function(team){
     var item=document.createElement("div");item.className="history-advanced-row";
     var heading=document.createElement("strong");heading.textContent="队伍 "+team.id+
       (team.placement!=null?" · 排名 "+team.placement:"");
     var meta=document.createElement("small");meta.textContent=
       "击杀 "+team.kills+" · 死亡 "+team.deaths+" · 助攻 "+team.assists+
-      (team.damage!=null?" · 英雄伤害 "+team.damage:"");
+      (team.damage!=null?" · 英雄伤害 "+team.damage:"")+
+      (team.towers!=null?" · 推塔 "+team.towers:"")+
+      (team.dragons!=null?" · 小龙 "+team.dragons:"")+
+      (team.barons!=null?" · 大龙 "+team.barons:"");
     item.append(heading,meta);teams.append(item);
   });
   (Array.isArray(data.players)?data.players:[]).slice(0,30).forEach(function(player){
@@ -2124,13 +2134,18 @@ function renderAdvancedMatchDetail(data){
     heading.textContent=(player.local?"★ ":"")+(player.name||"未知玩家")+
       " · "+(player.champion||"英雄 #"+player.championId);
     more.textContent="队伍 "+player.team+" · "+(player.position||"位置未知")+
+      (player.cs!=null?" · 补刀 "+player.cs:"")+
+      (player.vision!=null?" · 视野 "+player.vision:"")+
       " · 装备 "+(player.items||[]).join("/")+
+      " · 召唤师技能 "+(player.spells||[]).join("/")+
+      " · 符文 "+(player.perks||[]).join("/")+
       " · 强化 "+(player.augments||[]).join("/");
     left.append(heading,more);
     var right=document.createElement("div");right.className="score";
     var score=document.createElement("strong");score.textContent=player.kills+"/"+player.deaths+"/"+player.assists;
     var damage=document.createElement("small");damage.textContent=
-      (player.damage!=null?"伤害 "+player.damage:"伤害未提供")+" · "+(player.gold||0)+" 金币";
+      (player.damage!=null?"伤害 "+player.damage:"伤害未提供")+
+      (player.gold!=null?" · "+player.gold+" 金币":" · 金币未提供");
     right.append(score,damage);item.append(left,right);players.append(item);
   });
   if(!data.players||!data.players.length)get("advancedHistoryDetailStatus").textContent=

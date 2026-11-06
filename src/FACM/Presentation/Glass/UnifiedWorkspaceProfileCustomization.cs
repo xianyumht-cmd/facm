@@ -49,6 +49,10 @@ namespace FACM.Presentation.Glass
             {
                 PostProfileResult("invalid"); return;
             }
+            if (_profileCustomizationCancellation != null)
+            {
+                PostProfileResult("busy"); return;
+            }
             int championId = int.Parse(raw, CultureInfo.InvariantCulture);
             _profileSkins.Clear();
             ReadProfileOptions("skins", championId);
@@ -69,7 +73,12 @@ namespace FACM.Presentation.Glass
                 if (kind == "champions")
                 {
                     var result = await _profileCustomizationService.LoadChampionsAsync(source.Token);
-                    if (!ProfileRequestCurrent(owner, source, gen)) return;
+                    if (!ProfileRequestCurrent(owner, source, gen))
+                    {
+                        if (ProfileRequestCurrent(owner, source, gen, false))
+                            PostProfileResult("session-changed");
+                        return;
+                    }
                     var items = result.Where(item => item.Id > 0 && item.Id <= 10000)
                         .Take(300).ToArray();
                     _profileChampions = new HashSet<int>(items.Select(item => item.Id));
@@ -78,7 +87,12 @@ namespace FACM.Presentation.Glass
                 else if (kind == "skins")
                 {
                     var result = await _profileCustomizationService.LoadSkinsAsync(championId, source.Token);
-                    if (!ProfileRequestCurrent(owner, source, gen)) return;
+                    if (!ProfileRequestCurrent(owner, source, gen))
+                    {
+                        if (ProfileRequestCurrent(owner, source, gen, false))
+                            PostProfileResult("session-changed");
+                        return;
+                    }
                     var items = result.Where(item => item.Id > 0 && item.Id <= 99999999)
                         .Take(200).ToArray();
                     _profileSkins = new HashSet<int>(items.Select(item => item.Id));
@@ -102,7 +116,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void ApplyProfileSkin(string raw)
+        private void ApplyProfileSkin(string raw)
         {
             if (_navigation.Current != "presence-advanced" || !TryProfileId(raw, 99999999, _profileSkins))
             {
