@@ -2441,6 +2441,9 @@ Cancellation sources and request generations no longer belong to their Form
 partials. The existing native efficiency module, JSON validation contracts,
 one WebView2, 23-shard registry and update protections are unchanged. Static
 smoke exercises missing-module messages, route isolation and cancellation.
-Four Windows CI gates are pending for this executable candidate; no Tencent CN
-or Windows 10 owner acceptance is claimed. PR #364 remains Draft and production
-3.5.85 is unaffected.
+Executable commit `4a8fc34bd5f71ab14472054a2dc63f71e76264d4` passed
+all four Windows workflows: Windows Build `42420330603`, Glass WebView2
+Candidate `42420330544` (including unified route and startup smoke), UI Text
+`42420330554` and Mayhem Source Probe `42420330569`. Tencent CN gameplay and
+Windows 10 owner acceptance remain unverified. PR #364 stays Draft and
+production 3.5.85 is unaffected.
