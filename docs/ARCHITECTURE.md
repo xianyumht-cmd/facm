@@ -1126,3 +1126,15 @@ including captured presence session and allowed skin IDs. Only narrow
 navigation/dispatch facades remain in the matching Form partials. All adapters
 are ordinary per-workbench C# objects; native backend services, the one WebView2,
 ChampSelect popup and shard registry lifetimes are unchanged.
+
+The next Draft #364 adapter slice makes the configuration routes independent
+per-workbench components as well. `UnifiedWorkspaceQuickMessageAdapter` owns
+quick-message settings, status projection and the one cancellable send request;
+`UnifiedWorkspaceAdvancedToolsAdapter` owns the typed reply/invitation/ARAM/
+signature/rank/offline/respawn setting operations. The shared
+`UnifiedWorkspaceAutomationAdapter` owns postgame honor/return, champion pick/
+ban with an independently cancellable champion catalog, and matchmaking
+configuration. The existing strict request codecs remain unchanged and the
+Form's methods are limited to navigation and delegating to those adapters.
+WebView2 route and message publishers are injected, and the native
+`LeagueEfficiencyModule` remains the only feature backend.

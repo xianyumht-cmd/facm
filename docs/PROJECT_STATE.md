@@ -2429,3 +2429,18 @@ Candidate `42416664756` (including unified startup/route smoke), UI Text
 `0da4f49` exposed a missing League bridge import in the thin Form facade;
 `f22d8b8` restored it and all four jobs were re-run successfully. PR #364
 remains Draft; production 3.5.85 manifests and signed artifacts remain intact.
+
+### Quick messages, advanced tools and automation adapter extraction (next Draft #364 candidate)
+
+Three more per-workbench adapters now own the configuration domain behavior:
+quick-message hotkeys/presets and cancellable sends; advanced reply/invitation/
+ARAM/signature/rank/offline/respawn operations; and postgame, auto-selection
+with cancellable champion catalog, and matchmaking settings. The Form's matching
+partials keep the original route entrypoints but only navigate/delegate.
+Cancellation sources and request generations no longer belong to their Form
+partials. The existing native efficiency module, JSON validation contracts,
+one WebView2, 23-shard registry and update protections are unchanged. Static
+smoke exercises missing-module messages, route isolation and cancellation.
+Four Windows CI gates are pending for this executable candidate; no Tencent CN
+or Windows 10 owner acceptance is claimed. PR #364 remains Draft and production
+3.5.85 is unaffected.

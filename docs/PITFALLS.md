@@ -586,3 +586,13 @@ and advanced history snapshot before publishing `WrongAccount`; on route exit,
 cancel detail and region reads and erase selected evidence. Profile customization
 must retain its catalog-derived champion/skin allowlists and captured session
 for writes, not trust raw WebView messages or a stale active account.
+
+Quick-message sending and champion-catalog loading are asynchronous even though
+their neighboring setting writes are synchronous. Moving just their JSON
+projection out of the Form would leave two hidden cancellation lifetimes behind;
+both source and generation must move together. After an awaited operation,
+verify the active route, generation, matching source and current native module
+before posting. A page-open/ready race can request the catalog twice: the new
+request must cancel the old one, while route departure cancels either. Route
+guards also belong on postgame/matchmaking synchronization, so a queued ready
+event cannot write the wrong page's HTML state.

@@ -425,3 +425,13 @@ advanced customization, load a champion's permitted skins, switch account
 during a catalog request or profile write, and confirm `session-changed`
 without applying a stale change. These scenarios require real Windows/League
 acceptance beyond the four source/build/Glass/UI workflows.
+
+For the configuration adapter slice, check quick-message edit/save/send and
+immediate route departure while a send is pending; repeated opening of auto
+selection during a slow champion-catalog read; pause/pick/ban settings; postgame
+honor strategy; matchmaking stop policies; and advanced reply/invitation/rank
+settings. Rapidly change routes during readiness and replace the active
+efficiency module; only the current page's `*-result` or catalog message should
+appear. The strict native request validators must still reject unknown fields,
+invalid hotkeys, controls and unsupported rank or queue values. Verify exact
+candidate-head Windows CI before operator acceptance.

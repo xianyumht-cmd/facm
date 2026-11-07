@@ -95,8 +95,20 @@ namespace FACM.Presentation.Glass
 
     internal sealed partial class UnifiedWorkspaceForm
     {
-        private CancellationTokenSource _quickMessageCancellation;
-        private int _quickMessageGeneration;
+        private UnifiedWorkspaceQuickMessageAdapter _quickMessageAdapter;
+
+        private UnifiedWorkspaceQuickMessageAdapter QuickMessageAdapter
+        {
+            get
+            {
+                if (_quickMessageAdapter == null)
+                    _quickMessageAdapter = new UnifiedWorkspaceQuickMessageAdapter(
+                        delegate { return CanPublishOnRoute("quick-messages"); },
+                        delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
+                        delegate { return LeagueHubUiBridge.UnifiedEfficiency; });
+                return _quickMessageAdapter;
+            }
+        }
 
         internal void OpenQuickMessagePage(bool pushHistory)
         {
@@ -109,99 +121,22 @@ namespace FACM.Presentation.Glass
 
         internal void SyncQuickMessageSettings()
         {
-            if (!_ready || _closing || IsDisposed || _browser.CoreWebView2 == null ||
-                _navigation.Current != "quick-messages") return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) { PostQuickMessageResult("unavailable"); return; }
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "quick-message-settings",
-                presets = LeagueQuickMessagePresets.Parse(module.QuickMessagePresetsJson),
-                hotkeys = LeagueQuickMessageHotkeys.Parse(module.QuickMessageHotkeysJson),
-                intervalMs = module.QuickMessageIntervalMs
-            }));
+            QuickMessageAdapter.Sync();
         }
 
         internal void SaveQuickMessageSettings(string raw)
         {
-            if (_navigation.Current != "quick-messages" || _closing) return;
-            UnifiedQuickMessageChange change;
-            if (!UnifiedWorkspaceQuickMessageContract.TryParse(raw, out change))
-            {
-                PostQuickMessageResult("invalid"); return;
-            }
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) { PostQuickMessageResult("unavailable"); return; }
-            try
-            {
-                string error;
-                if (!module.TrySaveQuickMessageSettings(change.Presets, change.Hotkeys,
-                    change.IntervalMs, out error))
-                {
-                    AppLog.Info("Quick message binding rejected by native hotkey owner.");
-                    PostQuickMessageResult("hotkey-conflict"); return;
-                }
-                PostQuickMessageResult("saved");
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified quick message save failed: " + exception.GetType().Name);
-                PostQuickMessageResult("failed");
-            }
+            QuickMessageAdapter.Save(raw);
         }
 
-        internal async void SendQuickMessage(int index)
+        internal void SendQuickMessage(int index)
         {
-            if (_navigation.Current != "quick-messages" || _closing || index < 0 ||
-                index >= LeagueQuickMessagePresets.SlotCount || _quickMessageCancellation != null) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) { PostQuickMessageResult("unavailable"); return; }
-            var messages = LeagueQuickMessagePresets.Parse(module.QuickMessagePresetsJson);
-            if (string.IsNullOrWhiteSpace(messages[index]))
-            {
-                PostQuickMessageResult("unsaved"); return;
-            }
-            var token = new CancellationTokenSource();
-            _quickMessageCancellation = token;
-            var generation = _quickMessageGeneration;
-            PostQuickMessageResult("sending");
-            try
-            {
-                var sent = await module.SendQuickMessageAsync(messages[index], token.Token);
-                if (generation == _quickMessageGeneration && _navigation.Current == "quick-messages" &&
-                    !token.IsCancellationRequested)
-                    PostQuickMessageResult(sent ? "sent" : "unavailable");
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified quick message send skipped: " + exception.GetType().Name);
-                if (generation == _quickMessageGeneration && !token.IsCancellationRequested)
-                    PostQuickMessageResult("failed");
-            }
-            finally
-            {
-                if (ReferenceEquals(_quickMessageCancellation, token)) _quickMessageCancellation = null;
-                token.Dispose();
-            }
+            QuickMessageAdapter.Send(index);
         }
 
         internal void CancelQuickMessageSend()
         {
-            _quickMessageGeneration++;
-            var source = _quickMessageCancellation;
-            _quickMessageCancellation = null;
-            if (source != null && !source.IsCancellationRequested) source.Cancel();
-        }
-
-        private void PostQuickMessageResult(string status)
-        {
-            if (!_ready || IsDisposed || _closing || _browser.CoreWebView2 == null ||
-                _navigation.Current != "quick-messages") return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "quick-message-result", status
-            }));
+            if (_quickMessageAdapter != null) _quickMessageAdapter.Cancel();
         }
     }
 }

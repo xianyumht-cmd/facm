@@ -614,3 +614,15 @@ require the captured League session before reusing it. Move personal profile
 customization to its own instance with the original allowlisted IDs, active
 route checks and post-await presence-session fence. Do not add OS processes,
 duplicate LCU subscriptions or an additional WebView2 to realize these boundaries.
+
+## 2026-11-08 — Keep desktop configuration requests per window
+
+Extract quick-message sends and auto-selection champion-catalog reads into
+separate per-workbench adapters, retaining their distinct cancellation sources
+and generation counters. The static shard catalog must only dispatch commands;
+it must not retain in-flight sends or a cached champion list. Group postgame,
+auto-selection and matchmaking UI operations in one configuration adapter,
+because all use the existing `LeagueEfficiencyModule` settings owner. Preserve
+strict JSON allowlists and localized result/status contracts; gate both writes
+and publishes by the current active route. Do not create a second network owner,
+worker process or WebView2 for configuration pages.

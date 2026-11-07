@@ -562,6 +562,9 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceRegionalHistoryAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceHistoryExtrasAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceProfileCustomizationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceQuickMessageAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceAdvancedToolsAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceAutomationAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();

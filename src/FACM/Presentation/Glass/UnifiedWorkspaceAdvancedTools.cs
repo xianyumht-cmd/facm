@@ -138,6 +138,21 @@ namespace FACM.Presentation.Glass
 
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private UnifiedWorkspaceAdvancedToolsAdapter _advancedToolsAdapter;
+
+        private UnifiedWorkspaceAdvancedToolsAdapter AdvancedToolsAdapter
+        {
+            get
+            {
+                if (_advancedToolsAdapter == null)
+                    _advancedToolsAdapter = new UnifiedWorkspaceAdvancedToolsAdapter(
+                        delegate { return CanPublishOnRoute("efficiency-advanced"); },
+                        delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
+                        delegate { return LeagueHubUiBridge.UnifiedEfficiency; });
+                return _advancedToolsAdapter;
+            }
+        }
+
         internal void OpenAdvancedTools(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("efficiency-advanced");
@@ -149,107 +164,12 @@ namespace FACM.Presentation.Glass
 
         internal void SyncAdvancedTools()
         {
-            if (!_ready || IsDisposed || _closing || _browser.CoreWebView2 == null ||
-                _navigation.Current != "efficiency-advanced") return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null)
-            {
-                PostAdvancedResult("all", "unavailable");
-                return;
-            }
-            var policies = LeagueInvitationPolicies.Parse(module.InvitationStrategiesJson);
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "advanced-settings",
-                replyEnabled = module.AutoReplyEnabled,
-                replyAway = module.AutoReplyAwayOnly,
-                replyText = module.AutoReplyText,
-                inviteEnabled = module.AutoHandleInvitationsEnabled,
-                inviteAway = module.SkipInvitationsWhenAway,
-                inviteLeader = module.AutoSkipLeaderEnabled,
-                invitationTypes = LeagueInvitationPolicies.GameTypes.Select(item => new
-                {
-                    value = item,
-                    action = policies.ContainsKey(item) ? policies[item] : LeagueInvitationPolicies.Ignore,
-                    label = item == LeagueInvitationPolicies.Default ? "所有模式（默认）" : item
-                }).ToArray(),
-                aramEnabled = module.AutoAramTeamSideEnabled,
-                aramVisible = module.AutoAramTeamSideVisibleToTeam,
-                loginSignatureEnabled = module.AutoLoginStatusMessageEnabled,
-                loginSignature = module.AutoLoginStatusMessage,
-                loginRankEnabled = module.AutoLoginRankedStatusEnabled,
-                loginRankQueue = module.AutoLoginRankedQueue,
-                loginRankTier = module.AutoLoginRankedTier,
-                loginRankDivision = module.AutoLoginRankedDivision,
-                rankedQueues = LeaguePresenceService.RankedQueues,
-                rankedTiers = LeaguePresenceService.RankedTiers,
-                rankedDivisions = LeaguePresenceService.RankedDivisions,
-                offlineLocked = module.LockOfflineStatusEnabled,
-                respawnEnabled = module.RespawnOverlayEnabled
-            }));
+            AdvancedToolsAdapter.Sync();
         }
 
         internal void ApplyAdvancedTools(string request)
         {
-            if (_navigation.Current != "efficiency-advanced" || string.IsNullOrEmpty(request) ||
-                request.Length > 3200) return;
-            var index = request.IndexOf(':');
-            if (index < 1 || index > 18) return;
-            var group = request.Substring(0, index);
-            UnifiedAdvancedChange change;
-            if (!UnifiedWorkspaceAdvancedContract.TryParse(group, request.Substring(index + 1),
-                    out change))
-            {
-                PostAdvancedResult(group, "invalid"); return;
-            }
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) { PostAdvancedResult(group, "unavailable"); return; }
-            try
-            {
-                switch (group)
-                {
-                    case "reply":
-                        module.UpdateAutoReply(change.Enabled, change.Secondary, change.Text);
-                        break;
-                    case "invitations":
-                        module.UpdateInvitationSettings(change.Enabled, change.Secondary,
-                            change.Policies, change.Tertiary);
-                        break;
-                    case "aram":
-                        module.UpdateAramTeamSideSettings(change.Enabled, change.Secondary);
-                        break;
-                    case "signature":
-                        module.UpdateLoginStatusMessage(change.Enabled, change.Text);
-                        break;
-                    case "rank":
-                        module.UpdateLoginRankedStatus(change.Enabled, change.Queue,
-                            change.Tier, change.Division);
-                        break;
-                    case "offline":
-                        module.UpdateLockOfflineStatus(change.Enabled);
-                        break;
-                    case "respawn":
-                        module.UpdateRespawnOverlayEnabled(change.Enabled);
-                        break;
-                    default: return;
-                }
-                PostAdvancedResult(group, "saved");
-            }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified advanced setting save failed: " + exception.GetType().Name);
-                PostAdvancedResult(group, "failed");
-            }
-        }
-
-        private void PostAdvancedResult(string group, string status)
-        {
-            if (!_ready || IsDisposed || _closing || _browser.CoreWebView2 == null ||
-                _navigation.Current != "efficiency-advanced") return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "advanced-result", group, status
-            }));
+            AdvancedToolsAdapter.Apply(request);
         }
     }
 }
