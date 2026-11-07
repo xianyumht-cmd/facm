@@ -28,6 +28,7 @@ namespace FACM.Presentation.Glass
 
         private readonly LeagueRuntimeCompanionController _controller;
         private readonly AppSettings _settings;
+        private readonly UiTextCatalog _ui = UiTextCatalog.Load();
         private readonly WebView2 _web;
         private readonly System.Windows.Forms.Timer _refreshTimer;
         private readonly System.Windows.Forms.Timer _startupTimer;
@@ -65,7 +66,7 @@ namespace FACM.Presentation.Glass
         {
             _controller = new LeagueRuntimeCompanionController(bench, leagueClient, advisor, apply, items, player);
             _settings = settings;
-            Text = "GGman 实时对局助手";
+            Text = UiTextRuntime.Text(UiTextKeys.AppName);
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.Manual;
             ShowInTaskbar = false;
@@ -362,6 +363,11 @@ namespace FACM.Presentation.Glass
             finally { _refreshing = false; }
         }
 
+        private string Copy(string key)
+        {
+            return LeagueRuntimeCompanionText.Get(_ui, key);
+        }
+
         private void Post(object payload)
         {
             if (!_ready || IsDisposed || _unavailable || _web.CoreWebView2 == null) return;
@@ -465,19 +471,19 @@ namespace FACM.Presentation.Glass
             if (!state.SessionAvailable || !state.BenchEnabled ||
                 state.BenchChampionIds == null || !state.BenchChampionIds.Contains(championId)) return;
             _busy = true;
-            Post(new { type = "status", message = "正在请求换英雄…" });
+            Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapBusy) });
             try
             {
                 var result = await _controller.TrySwapAsync(championId, state.SwapRoute, _lifetime.Token);
                 Post(new { type = "status", message = result != null && result.Success ?
-                    "已提交换英雄请求" : "换英雄未成功，请确认游戏内是否仍可交换" });
+                    Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapSuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapRejected) });
                 await RefreshAsync();
             }
             catch (OperationCanceledException) { }
             catch (Exception error)
             {
                 AppLog.Info("Runtime Companion HTML swap failed: " + error.GetType().Name);
-                Post(new { type = "status", message = "换英雄请求失败" });
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapFailed) });
             }
             finally { _busy = false; }
         }
@@ -495,7 +501,7 @@ namespace FACM.Presentation.Glass
                     _pendingItems = await _controller.PrepareItemSetAsync(_lifetime.Token);
                     if (_pendingItems == null || !_pendingItems.HasItems)
                     {
-                        Post(new { type = "status", message = "当前没有可导入的出装" });
+                        Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetUnavailable) });
                         return;
                     }
                 }
@@ -506,20 +512,24 @@ namespace FACM.Presentation.Glass
                     _pendingLoadout = await _controller.PrepareApplyAsync(kind, _lifetime.Token);
                     if (_pendingLoadout == null || !_pendingLoadout.IsUsable)
                     {
-                        Post(new { type = "status", message = "没有可应用的数据或选人状态已改变" });
+                        Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebApplyMissing) });
                         return;
                     }
                 }
-                Post(new { type = "confirm", title = "确认应用推荐",
-                    message = "将向当前 LOL 客户端应用" +
-                        (target == "items" ? "出装方案" : target == "runes" ? "符文" : "召唤师技能") +
-                        "。请确认当前选中的英雄及推荐来源。" });
+                var label = target == "items"
+                    ? Copy(LeagueRuntimeCompanionUiTextKeys.WebItemsLabel)
+                    : target == "runes"
+                        ? Copy(LeagueRuntimeCompanionUiTextKeys.WebRunesLabel)
+                        : Copy(LeagueRuntimeCompanionUiTextKeys.WebSpellsLabel);
+                Post(new { type = "confirm",
+                    title = Copy(LeagueRuntimeCompanionUiTextKeys.WebConfirmTitle),
+                    message = string.Format(Copy(LeagueRuntimeCompanionUiTextKeys.WebConfirmFormat), label) });
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 AppLog.Info("Runtime Companion HTML apply preparation failed: " + e.GetType().Name);
-                Post(new { type = "status", message = "无法准备应用推荐" });
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebPrepareFailed) });
             }
             finally { _busy = false; }
         }
@@ -539,20 +549,20 @@ namespace FACM.Presentation.Glass
                 {
                     var result = await _controller.ApplyPreparedAsync(loadout, _lifetime.Token);
                     Post(new { type = "status", message = result != null && result.AnyApplied ?
-                        "推荐已应用" : "未成功应用：请确认符文页或英雄状态" });
+                        Copy(LeagueRuntimeCompanionUiTextKeys.WebApplySuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebApplyRejected) });
                 }
                 else
                 {
                     var result = await _controller.ApplyItemSetAsync(items, _lifetime.Token);
                     Post(new { type = "status", message = result != null && result.Succeeded ?
-                        "出装文件已更新" : "出装未应用，可能需要检查本地目录" });
+                        Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetSucceeded) : Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetFailed) });
                 }
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 AppLog.Info("Runtime Companion HTML apply failed: " + e.GetType().Name);
-                Post(new { type = "status", message = "应用失败或选人状态已变化" });
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebApplyFailed) });
             }
             finally { _busy = false; _ = RefreshAsync(); }
         }
@@ -565,13 +575,13 @@ namespace FACM.Presentation.Glass
             {
                 var result = await _controller.QuitChampSelectAsync(_lifetime.Token);
                 Post(new { type = "status", message = result != null && result.Success ?
-                    "退出请求已处理" : "退出请求未成功" });
+                    Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded) : Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked) });
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 AppLog.Info("Runtime Companion HTML quit failed: " + e.GetType().Name);
-                Post(new { type = "status", message = "退出选人失败" });
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed) });
             }
             finally { _busy = false; }
         }
