@@ -2,8 +2,9 @@ namespace FACM.Theming
 {
     internal static class ThemePickerUiText
     {
-        public const string WindowTitle = "FACM 全局主题";
-        public const string Title = "选择 FACM 全局主题";
-        public const string Hint = "主题会应用到控制中心、LOL 工作台、清理与修复以及其它 FACM 自绘窗口。";
+        public const string WindowTitle = "GGman 皮肤";
+        public const string Title = "选择 GGman 皮肤";
+        public const string Apply = "应用皮肤";
+        public const string Hint = "皮肤会应用到 GGman 悬浮球、控制中心、选人助手及其他自绘界面。";
     }
 }

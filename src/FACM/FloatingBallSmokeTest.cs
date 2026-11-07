@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using FACM.AppHost.Modules;
 using FACM.Services;
+using FACM.Theming;
 
 namespace FACM
 {
@@ -16,9 +17,10 @@ namespace FACM
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
 
+                FacmThemeRuntime.Initialize("obsidian-gold");
                 var leagueClient = new LeagueClientModule();
                 using (var form = new MainForm(
-                    new AppSettings(),
+                    new AppSettings { ThemeId = "obsidian-gold" },
                     UiTextCatalog.Load(),
                     new ToolsModule(),
                     new OnlineModule(),
@@ -27,6 +29,28 @@ namespace FACM
                     new CleanupModule(),
                     false))
                 {
+                    if (form.FloatingBallSkinIdForSmokeTest != "obsidian-gold")
+                        throw new InvalidOperationException("Saved skin was not applied to the floating ball on construction.");
+                    FacmThemeRuntime.SetCurrent("cloud-light");
+                    if (form.FloatingBallSkinIdForSmokeTest != "cloud-light")
+                        throw new InvalidOperationException("Changing the skin did not update the existing floating ball.");
+                    FacmThemeRuntime.SetCurrent("obsidian-gold");
+                    using (var gold = LayeredFloatingBall.RenderSkinForSmokeTest(form.Width, "obsidian-gold"))
+                    using (var light = LayeredFloatingBall.RenderSkinForSmokeTest(form.Width, "cloud-light"))
+                    {
+                        var changed = 0;
+                        for (var y = 0; y < gold.Height; y++)
+                        for (var x = 0; x < gold.Width; x++)
+                        {
+                            var a = gold.GetPixel(x, y);
+                            var b = light.GetPixel(x, y);
+                            if (a.A > 150 && b.A > 150 &&
+                                Math.Abs(a.R - b.R) + Math.Abs(a.G - b.G) + Math.Abs(a.B - b.B) > 90)
+                                changed++;
+                        }
+                        if (changed < 500)
+                            throw new InvalidOperationException("Different GGman skins did not produce visibly different floating balls.");
+                    }
                     if (form.Width < 52 || form.Height < 52)
                         throw new InvalidOperationException("Built-in FACM shell window is unexpectedly small.");
                     if (form.FormBorderStyle != FormBorderStyle.None || !form.TopMost)
@@ -67,6 +91,7 @@ namespace FACM
                     }
                     form.Close();
                 }
+                FacmThemeRuntime.Initialize(ThemeCatalog.DefaultThemeId);
                 return 0;
             }
             catch (Exception exception)

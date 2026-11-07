@@ -255,11 +255,9 @@ namespace FACM.Presentation.Glass
             if (WorkspaceReady != null) WorkspaceReady();
             SyncWebNavigation();
             SyncGameflowState();
+            SyncThemeOptions();
             if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
-            {
-                SyncThemeOptions();
                 SyncUnifiedPetOptions();
-            }
             if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
                 SyncQuickSettings();
             if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
@@ -1604,7 +1602,8 @@ namespace FACM.Presentation.Glass
                 _settings.ThemeId = candidate.Id;
                 _settings.Save();
                 FacmThemeRuntime.SetCurrent(candidate.Id);
-                SyncThemeOptions();
+                SyncThemeOptions(true);
+                AppLog.Info("Unified workspace skin applied: " + candidate.Id);
             }
             catch (Exception exception)
             {
@@ -1615,13 +1614,14 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void SyncThemeOptions()
+        private void SyncThemeOptions(bool applied = false)
         {
             if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
             var payload = new JavaScriptSerializer().Serialize(new
             {
                 type = "themes",
                 selected = _settings.ThemeId,
+                applied = applied,
                 items = ThemeCatalog.All.Select(theme => new
                 {
                     id = theme.Id, name = theme.Name, description = theme.Description,

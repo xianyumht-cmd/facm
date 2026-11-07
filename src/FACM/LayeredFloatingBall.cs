@@ -77,6 +77,8 @@ namespace FACM
             return new LayeredFloatingBall(form, theme);
         }
 
+        internal string CurrentSkinIdForSmokeTest { get { return _theme.Id; } }
+
         public void SetTheme(ThemeDefinition theme)
         {
             if (_disposed) return;
@@ -90,6 +92,11 @@ namespace FACM
                 size,
                 Math.Max(0f, Math.Min(1f, hover)),
                 ThemeCatalog.Get(ThemeCatalog.DefaultThemeId));
+        }
+
+        internal static Bitmap RenderSkinForSmokeTest(int size, string skinId)
+        {
+            return RenderShell(size, 0f, ThemeCatalog.Get(skinId));
         }
 
         private void HandleCreated(object sender, EventArgs e)

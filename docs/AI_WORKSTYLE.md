@@ -1,3 +1,7 @@
+## 2026-11-08 — 皮肤 is the owner-facing name for GGman appearance presets
+
+The operator calls the former 外观与主题 / 外观主题 feature **皮肤**. Use 皮肤 consistently in visible menus, headings, status and release notes. When skin choice is applied, verify the actual pixels/colors of the floating ball, WebView2 control center and Champion Select helper, including after closing/reopening and restoring settings. Do not regard a saved ThemeId alone as visual acceptance. Keep compatibility keys stable.
+
 ## 2026-11-07 — v3.5.81 post-release operator acceptance
 
 For the unified WebView2 3.5.81 update, the owner explicitly changed the acceptance sequence: finish automatic/forced update and announcement HTML parity, pass the exact-head Windows CI and signed release/asset/updater gates, then publish the official online update **before** the owner performs Windows 10 DPI, IME, live Chinese LOL and user-facing interaction acceptance. Preserve all code, security, signing and updater-integrity gates; report unverified real-device behavior as post-release risk, not as passed. This supersedes earlier instructions requiring operator screenshots before this particular release.
