@@ -2422,5 +2422,10 @@ owns personal customization catalog/writes and allowlisted IDs. All original
 Form entrypoints remain as thin routing delegates, without new backend owners,
 processes or browser engines. Smoke tests cover adapter isolation, missing
 session, invalid regional payloads, selection cancellation and allowlists.
-Windows CI gates have not yet run for this latest executable candidate. PR #364
+Executable commit `f22d8b82baeafedb0a7f7e97767e4a32b24515e2` passed
+all four Windows workflows: Windows Build `42416664844`, Glass WebView2
+Candidate `42416664756` (including unified startup/route smoke), UI Text
+`42416664780`, and Mayhem Source Probe `42416664758`. The first candidate
+`0da4f49` exposed a missing League bridge import in the thin Form facade;
+`f22d8b8` restored it and all four jobs were re-run successfully. PR #364
 remains Draft; production 3.5.85 manifests and signed artifacts remain intact.
