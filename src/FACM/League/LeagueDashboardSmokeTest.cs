@@ -42,6 +42,15 @@ namespace FACM
             Require(LeagueGameflowActivityMapper.Map("Matchmaking", true) == LeagueActivityLevel.Queueing, "Matchmaking mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("ReadyCheck", true) == LeagueActivityLevel.Queueing, "ReadyCheck mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("ChampSelect", true) == LeagueActivityLevel.ChampSelect, "ChampSelect mapping failed.");
+            var selection = new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.ChampSelect };
+            Require(LeagueHubModule.ShouldShowRuntimeCompanion(selection, false) &&
+                    LeagueHubModule.ShouldShowRuntimeCompanion(selection, true),
+                "Unified WebView2 workbench must not suppress the Champion Select Runtime Companion.");
+            Require(!LeagueHubModule.ShouldShowRuntimeCompanion(
+                    new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.InGame }, true) &&
+                    !LeagueHubModule.ShouldShowRuntimeCompanion(
+                    new LeagueDashboardPhaseState { Connected = false, Activity = LeagueActivityLevel.ChampSelect }, true),
+                "Runtime Companion must remain limited to an active Champion Select episode.");
             Require(LeagueGameflowActivityMapper.Map("InProgress", true) == LeagueActivityLevel.InGame, "InProgress mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("WatchInProgress", true) == LeagueActivityLevel.InGame, "Watch mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Reconnect", true) == LeagueActivityLevel.InGame, "Reconnect mapping failed.");
