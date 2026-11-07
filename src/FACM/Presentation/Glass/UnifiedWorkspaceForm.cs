@@ -170,7 +170,7 @@ namespace FACM.Presentation.Glass
             var status = new Label
             {
                 AutoSize = true,
-                Text = "正在打开控制中心…",
+                Text = UiTextRuntime.Text(UiTextKeys.UnifiedWorkspaceOpening),
                 Font = new Font("Microsoft YaHei UI", 9F),
                 ForeColor = palette.TextMuted,
                 BackColor = Color.Transparent

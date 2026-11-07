@@ -12,6 +12,7 @@ namespace FACM.Services
         // Existing public configuration contract. Keep these string values stable.
         public const string AppName = "AppName";
         public const string ControlCenter = "ControlCenter";
+        public const string UnifiedWorkspaceOpening = "UnifiedWorkspaceOpening";
         public const string UnifiedMatchmakingInvalid = "UnifiedMatchmakingInvalid";
         public const string UnifiedSelectionInvalid = "UnifiedSelectionInvalid";
         public const string UnifiedSelectionSaved = "UnifiedSelectionSaved";
