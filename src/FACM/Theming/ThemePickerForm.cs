@@ -92,7 +92,7 @@ namespace FACM.Theming
 
             _applyButton = new FacmActionButton
             {
-                Text = "应用主题",
+                Text = ThemePickerUiText.Apply,
                 Location = new Point(566, 523),
                 Size = new Size(92, 38),
                 Tone = FacmButtonTone.Primary,
