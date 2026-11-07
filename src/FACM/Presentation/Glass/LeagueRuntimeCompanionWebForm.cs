@@ -241,8 +241,8 @@ namespace FACM.Presentation.Glass
             if (InvokeRequired)
             {
                 try { BeginInvoke(new Action(delegate { PublishSnapshot(args.Snapshot); })); }
-                catch (InvalidOperationException) { }
                 catch (ObjectDisposedException) { }
+                catch (InvalidOperationException) { }
                 return;
             }
             PublishSnapshot(args.Snapshot);
