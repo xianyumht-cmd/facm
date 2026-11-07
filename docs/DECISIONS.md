@@ -1,3 +1,12 @@
+## 2026-11-08 — Own protected maintenance UI state per workbench
+
+Keep observed ARAM bench choice lists, game repair cancellation, cleanup review
+tokens, cloud event subscriptions and forced-online update/download flags in
+one adapter per desktop window. The Form reads those flags for navigation and
+close protection; it must not independently mirror the state. Cloud route
+departure invalidates UI results without cancelling a native upload. Real
+LCU, cleanup, account and signed updater owners remain unchanged.
+
 ## 2026-11-08 — Call GGman appearance presets 皮肤; keep stable compatibility keys
 
 Owner explicitly renamed the visible 外观与主题 / 外观主题 function to **皮肤** and requires the selection to visibly recolor GGman, including the floating orb, workbench and transient game-time overlay. Keep the existing preset palette catalog as the underlying implementation: no new theme database or installer, no rewrite of account/device settings. The internal `appearance` route and `ThemeId` key remain stable so previously saved choices and navigation work without migration. Native and HTML windows are separate view owners and therefore must individually consume the runtime palette on creation and on changes. Future styling work must not confuse “setting saved” with an actual visual change.

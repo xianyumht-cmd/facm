@@ -1,3 +1,18 @@
+## 2026-11-08 — Live-bench and protected maintenance adapters (Draft #364)
+
+Five more per-workbench components own the previously Form-held state:
+`UnifiedWorkspaceLiveBenchAdapter` (observed champion allowlist, native icon
+enrichment, read/swap cancellation), `UnifiedWorkspaceRepairAdapter` (repair and
+exit action cancellation), `UnifiedWorkspaceCleanupAdapter` (plan, two-minute
+one-use token and execution guard), `UnifiedWorkspaceCloudSyncAdapter` (account
+events, cloud settings/upload/conflict UI), and `UnifiedWorkspaceOnlineAdapter`
+(snapshot, announcement, force/update prompts and signed install lifecycle).
+Registered shards and original WebView2 message types are unchanged. The Form
+holds only the native folder chooser, window/navigation guards and delegation;
+it reads adapter flags for forced updates and active deletion. Existing LCU,
+`SafeCleanupService`, account sync and signed `UpdateInstaller` are the only
+backend owners; no new process, browser, timer or transport is introduced.
+
 ## 2026-11-08 — GGman skin propagation across native orb and HTML windows
 
 `ThemeCatalog` and `FacmThemeRuntime.Current` remain the canonical palette; `AppSettings.ThemeId` persists the selection. `SettingsModule.Initialize` loads it before the native shell is built. `MainForm` now constructs `LayeredFloatingBall` with that current theme and subscribes to `FacmThemeRuntime.ThemeChanged` to redraw the live layered frame; it removes the subscription on close. `UnifiedWorkspaceForm` sends the palette contract (`themes`) after **every** successful embedded HTML handshake, including the home route, and after selection changes. The HTML sets semantic CSS custom properties instead of depending on the chooser page being opened. The independent `LeagueRuntimeCompanionWebForm` sends the same active palette as a small bounded `skin` event on readiness and subsequent changes; its offline HTML updates semantic colors without changing LCU ownership. User-facing naming is **皮肤**, while routes `appearance`, settings key `ThemeId` and preset IDs retain compatibility. No new web resource or polling loop.

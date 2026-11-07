@@ -1,3 +1,17 @@
+## 2026-11-08 — Draft #364 live-bench and maintenance adapter acceptance
+
+Reopen live bench during a slow icon request and replace the League account
+while a single champion swap runs; old messages may not appear in the next
+session. Navigate away during repair and cloud upload; repair results must
+cancel and an old account's cloud result must not populate the new page.
+Confirm cloud events do not double-subscribe across reopen. For cleanup, try
+expired/wrong tokens, changed game root, non-admin and running-process checks;
+an already executing deletion must still block back/home/close. Verify the
+signed updater's required-update command allowlist, ten-minute snapshot
+freshness, announcement HTTPS allowlist, progress cancel and native fallback.
+Run the four exact-head Windows workflows; Windows 10 x64/Tencent/UAC/signed
+installer checks remain separate owner acceptance, not automatically proven.
+
 ## 2026-11-08 — GGman 3.5.85 signed skin release and field acceptance
 
 PR #363 merged with all four exact-final-head Windows CI gates passing: Build #42392219536, Glass #42392219529, UI Text #42392219492, Mayhem #42392219453. The official [signed publisher #42392669307](https://github.com/xianyumht-cmd/facm/actions/runs/42392669307) completed, including public asset signer/byte/SHA verification. Both public EXEs are 7,117,720 bytes, SHA-256 `6148FB8E04C1D5E0BC10F8A34CAEC7D0D65C77B824E3FF982B8670864C4D0FC1`; `online/version.json` enables nonforced v3.5.85. No manual installation is needed for an existing GGman client with a working online updater.

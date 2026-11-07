@@ -163,7 +163,7 @@ namespace FACM.Presentation.Glass
             return surface;
         }
 
-        internal bool HasActiveCleanup { get { return _cleanupExecuting; } }
+        internal bool HasActiveCleanup { get { return _cleanupAdapter != null && _cleanupAdapter.IsExecuting; } }
 
         private async Task InitializeAsync()
         {
@@ -338,7 +338,7 @@ namespace FACM.Presentation.Glass
         internal bool Dismiss()
         {
             if (IsDisposed || _closing || !CanDismiss(_browserUnavailable, _ownerBall.IsExiting,
-                _onlineForceRequired, _onlineInstalling, _cleanupExecuting)) return false;
+                RequiresForcedOnlineUpdate, OnlineInstalling, HasActiveCleanup)) return false;
             Hide();
             ReturnHome();
             return true;
@@ -365,7 +365,7 @@ namespace FACM.Presentation.Glass
             if (!_ready) return;
             if (message == "close")
             {
-                if (_onlineForceRequired) ExitForcedOnline();
+                if (RequiresForcedOnlineUpdate) ExitForcedOnline();
                 else Dismiss();
                 return;
             }
@@ -377,11 +377,11 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
-            if (_onlineForceRequired && message != "updates-refresh" &&
+            if (RequiresForcedOnlineUpdate && message != "updates-refresh" &&
                 message != "updates-install" && message != "updates-stop" && message != "updates-exit" &&
                 message != "updates-link") return;
             // Required updates own the interaction even if a previous page was still active.
-            var activeRoute = _onlineForceRequired ? "updates" : _navigation.Current;
+            var activeRoute = RequiresForcedOnlineUpdate ? "updates" : _navigation.Current;
             if (UnifiedWorkspaceShardCatalog.TryHandle(this, activeRoute, message)) return;
             if (message == "back")
             {
@@ -399,7 +399,7 @@ namespace FACM.Presentation.Glass
 
         internal void OpenFromNativeRoute(string route)
         {
-            if (IsDisposed || _closing || !IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route) ||
+            if (IsDisposed || _closing || !IsRouteAllowedDuringForcedUpdate(RequiresForcedOnlineUpdate, route) ||
                 !UnifiedWorkspaceNavigation.IsAllowed(route)) return;
             OpenRoute(route);
         }
@@ -412,8 +412,8 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
-            if (!IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route)) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
+            if (!IsRouteAllowedDuringForcedUpdate(RequiresForcedOnlineUpdate, route)) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
             UnifiedWorkspaceShardCatalog.CancelOutside(this, route);
             if (UnifiedWorkspaceShardCatalog.TryOpen(this, route, pushHistory)) return;
             // An allowed but unregistered route is a contract failure, never a native dialog.
@@ -422,8 +422,8 @@ namespace FACM.Presentation.Glass
 
         private void NavigateBack()
         {
-            if (_onlineForceRequired) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
+            if (RequiresForcedOnlineUpdate) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
             if (_navigation.IsHome) return;
             UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             _navigation.Back();
@@ -433,8 +433,8 @@ namespace FACM.Presentation.Glass
 
         private void ReturnHome()
         {
-            if (_onlineForceRequired) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
+            if (RequiresForcedOnlineUpdate) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
             UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             _navigation.Home();
             ShowHome();
@@ -514,19 +514,19 @@ namespace FACM.Presentation.Glass
 
         private void HandleClosing(object sender, FormClosingEventArgs e)
         {
-            if (_onlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
+            if (OnlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
             {
                 e.Cancel = true;
                 return;
             }
-            if (_cleanupExecuting)
+            if (HasActiveCleanup)
             {
                 e.Cancel = true;
                 PostUnifiedCleanupStatus("deleting");
                 return;
             }
             if (_closing) return;
-            if (_onlineForceRequired && !_browserUnavailable && !_ownerBall.IsExiting)
+            if (RequiresForcedOnlineUpdate && !_browserUnavailable && !_ownerBall.IsExiting)
             {
                 e.Cancel = true;
                 try { _ownerBall.BeginInvoke(new Action(_ownerBall.ExitApplication)); }
@@ -565,6 +565,11 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceQuickMessageAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedToolsAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceAutomationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceLiveBenchAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceRepairAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceCloudSyncAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceOnlineAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceCleanupAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();

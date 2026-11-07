@@ -57,7 +57,8 @@ namespace FACM.Presentation.Glass
             else if (message == "cloud-keep-local") workspace.ResolveCloudConflict();
             else workspace.ApplyCloudToggle(message.Substring("cloud-toggle:".Length));
         }
-        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute) { }
+        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)
+        { if (nextRoute != Route) workspace.LeaveCloudPage(); }
     }
 
     internal sealed class UpdatesShard : IUnifiedWorkspaceShard

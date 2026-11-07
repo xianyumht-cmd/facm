@@ -1,3 +1,15 @@
+## 2026-11-08 — Maintenance adapters must preserve safety state across awaits
+
+An old ARAM bench icon or swap must not post after leaving the route, replacing
+the League process, or cancelling its request. Its `finally` must not clear a
+newer's busy state. Cloud account changes can dispatch off the UI thread;
+marshal callbacks, unsubscribe on disposal and fence awaited upload results
+with current account and route generation. Forced updates cannot lose their
+close/back lock on refresh or navigation; require the existing install gate,
+ten-minute checked snapshot and signature-checked installer. Cleanup must
+atomically consume a one-use, unexpired review token and recheck root, admin
+and running game processes; active execution must still block closing.
+
 ## 2026-11-08 — Saving a theme ID does not recolor independent native/WebView2 windows
 
 With signed v3.5.84, the skin picker saved `AppSettings.ThemeId` and the current HTML page could reflect the new selection, but the 56px orb and subsequent control-center windows appeared unchanged. `LayeredFloatingBall.Attach(form)` hardcoded the default catalog palette rather than using `FacmThemeRuntime.Current` and the shell never listened for `ThemeChanged`. The WebView2 host only posted `themes` while its current route was `appearance` instead of as soon as the embedded HTML becomes ready. Separate transient WebView2 gameplay overlays likewise used fixed navy colors. A shared preference is not automatically a shared visible skin. Bind each visual host to the canonical runtime, send the selected palette on every new browser load, subscribe/unsubscribe live windows safely, and test **changed pixels / computed CSS values**, not just successful save or selected-card borders. Preserve the stable `appearance` route and ThemeId key when user-facing naming changes to 皮肤.

@@ -1,3 +1,16 @@
+## 2026-11-08 — Draft #364 live bench and maintenance adapter extraction (candidate)
+
+Live bench/ARAM swap, game repair, cleanup review/execute, cloud-sync/account
+events and signed online updates now have per-workbench adapter classes instead
+of Form-owned cancellation tokens, busy flags and JSON projection. Form partials
+remain navigation/delegation surfaces and its OS folder picker stays native.
+Forced update and active deletion guards now read their owning adapter state;
+the native LCU, cleanup, account and updater services are unchanged. Source
+candidate still requires the four exact-HEAD Windows gates, real Win10 DPI,
+Tencent client and UAC/update operator acceptance. Existing Draft PR #364 is
+the only task PR. No main merge, signing, release or change to production 3.5.85
+and `online/version.json` is authorized by this refactor alone.
+
 ## 2026-11-08 — GGman 3.5.85 signed skin fix online; Windows operator acceptance pending
 
 The owner reported that v3.5.84's appearance picker saved a selection but GGman did not visibly change. PR [#363](https://github.com/xianyumht-cmd/facm/pull/363) found and corrected two code-level defects: `MainForm` created `LayeredFloatingBall` using the fixed default theme and never observed `FacmThemeRuntime.ThemeChanged`, while the unified HTML workbench only synchronized saved palette colors on the `appearance` route, not on initial home startup. The transient WebView2 Champion Select helper also used fixed navy CSS. All three now consume the current runtime skin at creation and on changes; changing skin also updates the orb's per-pixel-alpha frame. User-visible appearance/theme naming is now **皮肤**, without changing the saved `ThemeId` or stable `appearance` route.
