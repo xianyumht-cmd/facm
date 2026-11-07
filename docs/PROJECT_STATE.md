@@ -2368,5 +2368,10 @@ behavior changes to seven domain-specific partial files, reducing the central
 source to under 700 lines. This is organization of one partial Form type,
 not a new OS process or independently instantiated service. Forced online-update
 command restrictions, cleanup execution guard, region/account fences and shared
-gameflow owner remain intact. Exact-HEAD Windows CI is pending; production
-online manifests and signed 3.5.85 are untouched, PR #364 remains Draft.
+gameflow owner remain intact. Executable commit
+`912ac05cd1579d1e46ab8d044211f0902810eb21` passed all four Windows workflows:
+Build `42405457264`, Glass `42405457306`, UI Text `42405457266` and Mayhem
+`42405457271`. The preceding full-route refactor `77d4287` also passed 4/4.
+Production online manifests and signed 3.5.85 are untouched; PR #364 remains
+Draft. Operator Win10 compositor/latency/DPI and real Tencent CN acceptance are
+not established by these CI checks.
