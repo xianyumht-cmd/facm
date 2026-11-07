@@ -109,7 +109,8 @@ namespace FACM
             };
             _tray.DoubleClick += delegate { EnsureMenuOpenAndActive(); };
 
-            _layeredBall = LayeredFloatingBall.Attach(this);
+            _layeredBall = LayeredFloatingBall.Attach(this, FacmThemeRuntime.Current);
+            FacmThemeRuntime.ThemeChanged += RefreshFloatingBallSkin;
 
             MouseDown += BeginBallDrag;
             MouseMove += ContinueBallDrag;
@@ -439,6 +440,24 @@ namespace FACM
             }
         }
 
+        private void RefreshFloatingBallSkin(object sender, EventArgs e)
+        {
+            if (IsDisposed || _exiting) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(delegate { RefreshFloatingBallSkin(sender, e); })); }
+                catch (InvalidOperationException) { }
+                return;
+            }
+            _layeredBall.SetTheme(FacmThemeRuntime.Current);
+            AppLog.Info("GGman floating-ball skin applied: " + FacmThemeRuntime.Current.Id);
+        }
+
+        internal string FloatingBallSkinIdForSmokeTest
+        {
+            get { return _layeredBall.CurrentSkinIdForSmokeTest; }
+        }
+
         public void ApplyThemeSelection()
         {
             CloseMenu();
@@ -723,6 +742,7 @@ namespace FACM
         private void HandleClosed(object sender, FormClosedEventArgs e)
         {
             try { _pets.Stop(); } catch { }
+            FacmThemeRuntime.ThemeChanged -= RefreshFloatingBallSkin;
             if (_layeredBall != null) _layeredBall.Dispose();
             _tray.Visible = false;
             var trayMenu = _tray.ContextMenuStrip;
