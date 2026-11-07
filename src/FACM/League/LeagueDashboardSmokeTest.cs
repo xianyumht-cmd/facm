@@ -42,6 +42,30 @@ namespace FACM
             Require(LeagueGameflowActivityMapper.Map("Matchmaking", true) == LeagueActivityLevel.Queueing, "Matchmaking mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("ReadyCheck", true) == LeagueActivityLevel.Queueing, "ReadyCheck mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("ChampSelect", true) == LeagueActivityLevel.ChampSelect, "ChampSelect mapping failed.");
+#if GLASS_WORKBENCH_PREVIEW
+            using (var html = System.Reflection.Assembly.GetExecutingAssembly().GetManifestResourceStream(
+                "FACM.Presentation.Glass.GGman-Runtime-Companion.html"))
+            {
+                Require(html != null, "WebView2 Champion Select companion HTML is not embedded.");
+                using (var reader = new System.IO.StreamReader(html))
+                {
+                    var markup = reader.ReadToEnd();
+                    Require(markup.Contains("shell-ready") && markup.Contains("swap:") &&
+                        markup.Contains("apply:runes") && markup.Contains("apply:items") &&
+                        markup.Contains("quit:yes") && markup.Contains("augmentFilters"),
+                        "WebView2 Champion Select companion command contract is incomplete.");
+                }
+            }
+#endif
+            var selection = new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.ChampSelect };
+            Require(LeagueHubModule.ShouldShowRuntimeCompanion(selection, false) &&
+                    LeagueHubModule.ShouldShowRuntimeCompanion(selection, true),
+                "Unified WebView2 workbench must not suppress the Champion Select Runtime Companion.");
+            Require(!LeagueHubModule.ShouldShowRuntimeCompanion(
+                    new LeagueDashboardPhaseState { Connected = true, Activity = LeagueActivityLevel.InGame }, true) &&
+                    !LeagueHubModule.ShouldShowRuntimeCompanion(
+                    new LeagueDashboardPhaseState { Connected = false, Activity = LeagueActivityLevel.ChampSelect }, true),
+                "Runtime Companion must remain limited to an active Champion Select episode.");
             Require(LeagueGameflowActivityMapper.Map("InProgress", true) == LeagueActivityLevel.InGame, "InProgress mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("WatchInProgress", true) == LeagueActivityLevel.InGame, "Watch mapping failed.");
             Require(LeagueGameflowActivityMapper.Map("Reconnect", true) == LeagueActivityLevel.InGame, "Reconnect mapping failed.");

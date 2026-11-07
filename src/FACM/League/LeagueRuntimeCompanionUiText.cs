@@ -60,6 +60,20 @@ namespace FACM.League
         public const string RecentUseResolvedFormat = "LeagueRuntimeCompanionRecentUseResolvedFormat";
         public const string RecentUseWinLossFormat = "LeagueRuntimeCompanionRecentUseWinLossFormat";
         public const string RecentUseKdaFormat = "LeagueRuntimeCompanionRecentUseKdaFormat";
+        public const string WebSwapBusy = "LeagueRuntimeCompanionWebSwapBusy";
+        public const string WebSwapSuccess = "LeagueRuntimeCompanionWebSwapSuccess";
+        public const string WebSwapRejected = "LeagueRuntimeCompanionWebSwapRejected";
+        public const string WebSwapFailed = "LeagueRuntimeCompanionWebSwapFailed";
+        public const string WebApplyMissing = "LeagueRuntimeCompanionWebApplyMissing";
+        public const string WebConfirmTitle = "LeagueRuntimeCompanionWebConfirmTitle";
+        public const string WebConfirmFormat = "LeagueRuntimeCompanionWebConfirmFormat";
+        public const string WebRunesLabel = "LeagueRuntimeCompanionWebRunesLabel";
+        public const string WebSpellsLabel = "LeagueRuntimeCompanionWebSpellsLabel";
+        public const string WebItemsLabel = "LeagueRuntimeCompanionWebItemsLabel";
+        public const string WebPrepareFailed = "LeagueRuntimeCompanionWebPrepareFailed";
+        public const string WebApplySuccess = "LeagueRuntimeCompanionWebApplySuccess";
+        public const string WebApplyRejected = "LeagueRuntimeCompanionWebApplyRejected";
+        public const string WebApplyFailed = "LeagueRuntimeCompanionWebApplyFailed";
     }
 
     internal static class LeagueRuntimeCompanionText
@@ -119,7 +133,21 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.RecentUseSampleFormat, "近 {0} 场中使用 {1} 场" },
             { LeagueRuntimeCompanionUiTextKeys.RecentUseResolvedFormat, "已解析 {0}/{1} 场" },
             { LeagueRuntimeCompanionUiTextKeys.RecentUseWinLossFormat, "{0}胜 {1}负" },
-            { LeagueRuntimeCompanionUiTextKeys.RecentUseKdaFormat, "KDA {0} / {1} / {2}" }
+            { LeagueRuntimeCompanionUiTextKeys.RecentUseKdaFormat, "KDA {0} / {1} / {2}" },
+            { LeagueRuntimeCompanionUiTextKeys.WebSwapBusy, "正在请求换英雄…" },
+            { LeagueRuntimeCompanionUiTextKeys.WebSwapSuccess, "已提交换英雄请求" },
+            { LeagueRuntimeCompanionUiTextKeys.WebSwapRejected, "换英雄未成功，请确认游戏内是否仍可交换" },
+            { LeagueRuntimeCompanionUiTextKeys.WebSwapFailed, "换英雄请求失败" },
+            { LeagueRuntimeCompanionUiTextKeys.WebApplyMissing, "没有可应用的数据或选人状态已改变" },
+            { LeagueRuntimeCompanionUiTextKeys.WebConfirmTitle, "确认应用推荐" },
+            { LeagueRuntimeCompanionUiTextKeys.WebConfirmFormat, "将向当前 LOL 客户端应用{0}。请确认当前选中的英雄及推荐来源。" },
+            { LeagueRuntimeCompanionUiTextKeys.WebRunesLabel, "符文" },
+            { LeagueRuntimeCompanionUiTextKeys.WebSpellsLabel, "召唤师技能" },
+            { LeagueRuntimeCompanionUiTextKeys.WebItemsLabel, "出装方案" },
+            { LeagueRuntimeCompanionUiTextKeys.WebPrepareFailed, "无法准备应用推荐" },
+            { LeagueRuntimeCompanionUiTextKeys.WebApplySuccess, "推荐已应用" },
+            { LeagueRuntimeCompanionUiTextKeys.WebApplyRejected, "未成功应用：请确认符文页或英雄状态" },
+            { LeagueRuntimeCompanionUiTextKeys.WebApplyFailed, "应用失败或选人状态已变化" }
         };
 
         public static string Get(UiTextCatalog ui, string key)

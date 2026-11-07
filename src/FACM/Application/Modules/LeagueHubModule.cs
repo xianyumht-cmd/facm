@@ -6,6 +6,9 @@ using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
 using FACM.Services;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM.AppHost.Modules
 {
@@ -194,20 +197,9 @@ namespace FACM.AppHost.Modules
             if (_hubForm != null && !_hubForm.IsDisposed)
                 _hubForm.UpdateGameflowContext(state);
 
-            // The unified shell owns the live companion route. Never open a second
-            // top-level assistant window over the game while it is enabled.
-            var shell = Application.OpenForms.OfType<MainForm>()
-                .FirstOrDefault(form => !form.IsDisposed && form.UsesUnifiedWebWorkbench);
-            if (shell != null)
-            {
-                CloseAutomaticLivePopup();
-                _champSelectEpisode = false;
-                _surfacePresentedForEpisode = false;
-                _dismissedForEpisode = false;
-                return;
-            }
-
-            var inChampSelect = state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
+            var unifiedWorkspaceActive = Application.OpenForms.OfType<MainForm>()
+                .Any(form => !form.IsDisposed && form.UsesUnifiedWebWorkbench);
+            var inChampSelect = ShouldShowRuntimeCompanion(state, unifiedWorkspaceActive);
 
             if (!inChampSelect)
             {
@@ -239,10 +231,17 @@ namespace FACM.AppHost.Modules
             }
 
             if (_dismissedForEpisode || _automaticLivePopup != null || _surfacePresentedForEpisode) return;
-            ShowAutomaticLivePopup();
+            ShowAutomaticLivePopup(unifiedWorkspaceActive);
         }
 
-        private void ShowAutomaticLivePopup()
+        internal static bool ShouldShowRuntimeCompanion(
+            LeagueDashboardPhaseState state, bool unifiedWorkspaceActive)
+        {
+            // The desktop workbench does not replace the transient Champion Select overlay.
+            return state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
+        }
+
+        private void ShowAutomaticLivePopup(bool preferWebView2)
         {
             Form form = null;
             try
@@ -252,7 +251,21 @@ namespace FACM.AppHost.Modules
                     _advisor.RuntimeCompanionApplyService,
                     _advisor.RuntimeCompanionItemSetService,
                     _advisor.RuntimeCompanionSettings,
-                    _player.RuntimeCompanionReadService);
+                    _player.RuntimeCompanionReadService, preferWebView2);
+#if GLASS_WORKBENCH_PREVIEW
+                var browserOverlay = form as LeagueRuntimeCompanionWebForm;
+                if (browserOverlay != null)
+                {
+                    browserOverlay.BrowserUnavailable += delegate
+                    {
+                        if (!ReferenceEquals(_automaticLivePopup, browserOverlay) ||
+                            !_champSelectEpisode) return;
+                        CloseAutomaticLivePopup();
+                        _surfacePresentedForEpisode = false;
+                        ShowAutomaticLivePopup(false);
+                    };
+                }
+#endif
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
 
@@ -262,7 +275,8 @@ namespace FACM.AppHost.Modules
                 form.Show();
                 form.BringToFront();
                 UsageTelemetryModule.Record("champ_select_companion_open");
-                AppLog.Info("Runtime Companion opened for Champion Select episode.");
+                AppLog.Info("Runtime Companion opened for Champion Select episode; surface=" +
+                    (preferWebView2 ? "WebView2" : "native") + ".");
             }
             catch (Exception exception)
             {

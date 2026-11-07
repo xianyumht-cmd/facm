@@ -43,6 +43,10 @@
                       LogicalName="FACM.Presentation.Glass.GGman-Unified-Workspace.html"
                       Type="Non-Resx"
                       WithCulture="false" />
+    <EmbeddedResource Include="Presentation\\Glass\\GGman-Runtime-Companion.html"
+                      LogicalName="FACM.Presentation.Glass.GGman-Runtime-Companion.html"
+                      Type="Non-Resx"
+                      WithCulture="false" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(UseUnifiedReleaseCandidate)' == 'true'">
