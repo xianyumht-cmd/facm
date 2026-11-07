@@ -110,4 +110,60 @@ document.body.appendChild(marker);
   } finally { $image.Dispose() }
   Write-Host "Unified browser rendered: $caseName"
 }
+
+# Exercise the separate Champion Select overlay in a real Edge renderer. The
+# mock is a local bridge only; no LCU/network fixture or account data is used.
+$companion = Get-Content -LiteralPath 'src/FACM/Presentation/Glass/GGman-Runtime-Companion.html' -Raw -Encoding utf8
+if (-not $companion.Contains('shell-ready') -or -not $companion.Contains('swap:') -or
+    -not $companion.Contains('assets-reset')) { throw 'Champion Select HTML bridge missing.' }
+$companionMock = @'
+<script>
+window.chrome={webview:{
+  postMessage:function(){},
+  addEventListener:function(kind,cb){if(kind==='message')window.__companionReceive=cb;}
+}};
+</script>
+'@
+$companionProbe = @'
+<script>
+var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'BAN_PICK',
+  bench:true,choices:[22,99],teams:[],build:{
+    status:'ready',source:'local-test',mode:'ARAM',tier:'S',rows:[
+      {category:'runes',title:'Rune fixture',evidence:'local'},
+      {category:'core',title:'Build fixture',evidence:'local'}]},
+  guide:{champion:'Ashe',tier:'S',winRate:0.52,core:['A','B'],augments:[
+    {id:'fixture',name:'Augment fixture',rank:1,rarity:'gold',winRate:0.54}]}};
+window.__companionReceive({data:sample});
+window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
+var pass=document.querySelectorAll('#bench button').length===2 &&
+ document.querySelectorAll('#recommend .rec').length===2 &&
+ document.querySelectorAll('#augments .augment').length===1 &&
+ document.querySelectorAll('#augmentFilters button').length===4 &&
+ document.querySelector('#timer').textContent==='14s';
+var mark=document.createElement('div');
+mark.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
+ (pass?'#00ff00':'#ff0000');
+document.body.appendChild(mark);
+</script>
+'@
+$companionPage=$companion.Replace('<script>', $companionMock + '<script>').Replace('</body>', $companionProbe + '</body>')
+$companionPath=Join-Path $target.FullName 'champselect-companion.html'
+$companionPng=Join-Path $target.FullName 'champselect-companion.png'
+Set-Content -LiteralPath $companionPath -Value $companionPage -Encoding utf8 -NoNewline
+$companionUri=([System.Uri]::new($companionPath)).AbsoluteUri
+$companionProfile=Join-Path $env:RUNNER_TEMP 'ggman-companion-browser-fixture'
+& $edge '--headless=new' '--disable-gpu' '--no-first-run' '--no-default-browser-check' '--hide-scrollbars' "--user-data-dir=$companionProfile" "--screenshot=$companionPng" '--window-size=380,480' $companionUri
+if (-not (Test-Path -LiteralPath $companionPng)) { throw 'Champion Select overlay screenshot missing.' }
+$picture=[System.Drawing.Bitmap]::FromFile($companionPng)
+try {
+  $mark=$picture.GetPixel(4,4)
+  if ($mark.G -lt 180 -or $mark.R -gt 140) { throw 'Champion Select overlay JS fixture or visual rendering failed.' }
+  $background=$picture.GetPixel(25,80)
+  if ($background.R -gt 230 -and $background.G -gt 230 -and $background.B -gt 230) {
+    throw 'Champion Select overlay rendered white.'
+  }
+} finally { $picture.Dispose() }
+Write-Host 'Champion Select WebView2 overlay HTML fixture rendered.'
+
 exit 0
