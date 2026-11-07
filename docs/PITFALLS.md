@@ -9,6 +9,10 @@ close/back lock on refresh or navigation; require the existing install gate,
 ten-minute checked snapshot and signature-checked installer. Cleanup must
 atomically consume a one-use, unexpired review token and recheck root, admin
 and running game processes; active execution must still block closing.
+When splitting a Form partial into a new business class plus a thin wrapper,
+verify the wrapper's own namespace imports (`LeagueHubUiBridge` lives in
+`FACM.League`). Glass candidate compilation caught a missing import in
+`dad944b`; `79fce5b` restored it and re-ran all four exact-head gates.
 
 ## 2026-11-08 — Saving a theme ID does not recolor independent native/WebView2 windows
 

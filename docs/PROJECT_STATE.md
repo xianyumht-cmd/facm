@@ -1,4 +1,4 @@
-## 2026-11-08 — Draft #364 live bench and maintenance adapter extraction (candidate)
+## 2026-11-08 — Draft #364 live bench and maintenance adapters (Windows CI passed)
 
 Live bench/ARAM swap, game repair, cleanup review/execute, cloud-sync/account
 events and signed online updates now have per-workbench adapter classes instead
@@ -6,8 +6,15 @@ of Form-owned cancellation tokens, busy flags and JSON projection. Form partials
 remain navigation/delegation surfaces and its OS folder picker stays native.
 Forced update and active deletion guards now read their owning adapter state;
 the native LCU, cleanup, account and updater services are unchanged. Source
-candidate still requires the four exact-HEAD Windows gates, real Win10 DPI,
-Tencent client and UAC/update operator acceptance. Existing Draft PR #364 is
+`dad944b` initially failed Glass compilation because the new live-bench Form
+facade omitted `FACM.League` for `LeagueHubUiBridge`. The follow-up executable
+`79fce5b120325e3d6f265789194728a364af7a7c` restored the import and passed
+all four Windows workflows: [Build 42423362738](https://github.com/xianyumht-cmd/facm/actions/runs/42423362738),
+[Glass 42423362749](https://github.com/xianyumht-cmd/facm/actions/runs/42423362749),
+[UI Text 42423362743](https://github.com/xianyumht-cmd/facm/actions/runs/42423362743),
+and [Mayhem 42423362742](https://github.com/xianyumht-cmd/facm/actions/runs/42423362742).
+Real Win10 DPI, Tencent client and UAC/update operator acceptance remain.
+Existing Draft PR #364 is
 the only task PR. No main merge, signing, release or change to production 3.5.85
 and `online/version.json` is authorized by this refactor alone.
 
