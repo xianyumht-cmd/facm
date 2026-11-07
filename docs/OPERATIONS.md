@@ -404,3 +404,13 @@ route during a slow read and after changing League accounts. Confirm only the
 active page receives data, no old session repopulates it, and hiding/reopening
 still reuses a single WebView2. Four Windows GitHub workflows are necessary
 but cannot replace actual League client/DPI/GPU acceptance.
+
+Additional per-workbench smoke covers independent history/Mayhem/recommendation/
+presence/profile instances, their missing-module responses, JSON shapes and
+route-gated message dispatch. For owner acceptance verify Player → advanced
+history → Player preserves the shared list; local detail → remote regional
+detail never shows a stale selected match; Mayhem icon messages arrive after
+the text without blocking it; recommendation apply cancels on route/account
+change; presence conditional write cannot overwrite external client changes;
+and local profile stats updates unsubscribe on workbench disposal. Windows CI alone does not
+prove live Tencent account/session behavior.

@@ -2390,3 +2390,17 @@ an identity check. Smoke contracts cover JSON and adapter isolation. Signed
 remain unchanged. Four Windows CI gates are pending for this candidate;
 Tencent CN, Windows 10 DPI and measured latency/memory need owner acceptance.
 PR #364 stays Draft.
+
+### History, guide, recommendation, presence and profile adapter extraction (next Draft #364 candidate)
+
+Five more per-workbench adapters independently own the basic history read,
+Mayhem/T0/T1 ranking and optional icons, recommendation read and explicit
+apply, presence read/conditional write, and local statistics subscription.
+The existing page partials now delegate instead of owning those sources,
+generations and projections. Cached basic history still explicitly hands its
+snapshot to the preexisting advanced Player form state. Selected-match detail,
+regional SGP history, extended result evidence and profile customization
+retain coupled Form state and are the remaining extraction group; they are
+not claimed complete. No new process, WebView2, LCU observer, remote API
+owner or production manifest change. Windows four-gate CI for this candidate
+has not yet run; actual Windows 10/Tencent acceptance remains deferred.

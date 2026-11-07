@@ -568,3 +568,11 @@ the route guard and message publisher, and cancel on route departure, normal
 hide or disposal. Check the captured LCU session after awaits, including
 dashboard summaries, so stale account data cannot appear. The publisher must
 not access a disposed WebView2.
+
+The advanced Player route shares a selected-detail cancellation lifetime with
+remote regional match detail. A mechanical extraction of only one branch
+would allow stale local/remote requests to race or publish after navigation.
+Move those paths together when extracting the remaining advanced-history
+adapter. Likewise, recommendation apply owns a separate cancellation source
+from guide refresh; keep the captured League session and generation checks
+between prepare and write, not only when the HTML action first arrives.

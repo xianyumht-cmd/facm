@@ -1097,3 +1097,16 @@ The updates shard preserves the forced-update command allowlist, including when
 the updater is presented while another route is still active. Destructive cleanup
 keeps its preview token and in-progress guard; cloud account hooks remain shared
 by the one desktop host rather than duplicated per page.
+
+The following Draft #364 adapter slice adds five per-workbench components:
+`UnifiedWorkspaceHistoryAdapter` (recent history reads and advanced-list handoff),
+`UnifiedWorkspaceMayhemAdapter` (guide ranking and cancellable image enrichment),
+`UnifiedWorkspaceRecommendationAdapter` (champion build read plus explicit
+session-fenced apply), `UnifiedWorkspacePresenceAdapter` (presence reads and
+conditional writes), and `UnifiedWorkspaceProfileAdapter` (local personal-stats
+subscription and JSON projection). Their route-scoped publishers are injected
+by the Form; none constructs WebView2 or a second backend owner. Shard definitions
+remain shared and stateless. The Form's history, guide, presence and profile
+partials are now thin integration facades. Advanced match detail, regional
+history, selected-match extras and profile customization retain tightly shared
+Form state and remain the next extraction boundary, not five completed domains.

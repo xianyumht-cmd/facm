@@ -553,6 +553,11 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceShardCatalog.ValidateForSmokeTest();
             UnifiedWorkspaceDashboardAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceLiveAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceHistoryAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceMayhemAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceRecommendationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspacePresenceAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceProfileAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();

@@ -594,3 +594,10 @@ only route-availability predicates and message-publish delegates injected from
 the shell. Existing native modules retain LCU/Gameflow ownership. Check the
 active route and captured League session before publication; do not add another
 browser, transport, poller or process merely to achieve modularity.
+
+Extend this boundary to recent Player history, Mayhem guide/icon retrieval,
+recommendation read/apply, presence read/write and local personal statistics.
+The source modules remain the authority for LCU sessions, caches, conditional
+writes and stat events. Keep Player → advanced history snapshot handoff explicit
+while the advanced and regional selected-match machinery is still coupled;
+do not split their shared cancellation source until both paths migrate together.
