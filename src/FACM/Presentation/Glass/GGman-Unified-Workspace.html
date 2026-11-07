@@ -2826,6 +2826,7 @@ document.getElementById("dragHandle").addEventListener("mousedown",function(e){
   if(e.button===0&&!e.target.closest("button"))post("drag");
 });
 window.GGmanUnifiedShell={setMode:setMode,knownRoutes:Object.keys(titles)};
+post("shell-ready");
 })();
 </script>
 </body></html>
