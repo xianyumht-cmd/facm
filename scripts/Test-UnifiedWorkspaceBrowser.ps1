@@ -154,7 +154,15 @@ Set-Content -LiteralPath $companionPath -Value $companionPage -Encoding utf8 -No
 $companionUri=([System.Uri]::new($companionPath)).AbsoluteUri
 $companionProfile=Join-Path $env:RUNNER_TEMP 'ggman-companion-browser-fixture'
 & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--no-default-browser-check' '--hide-scrollbars' "--user-data-dir=$companionProfile" "--screenshot=$companionPng" '--window-size=380,480' $companionUri
-if (-not (Test-Path -LiteralPath $companionPng)) { throw 'Champion Select overlay screenshot missing.' }
+$companionPrevious=-1
+$companionStable=$false
+for ($attempt=0; $attempt -lt 40; $attempt++) {
+  $size=if (Test-Path -LiteralPath $companionPng) { (Get-Item -LiteralPath $companionPng).Length } else { 0 }
+  if ($size -gt 1536 -and $size -eq $companionPrevious) { $companionStable=$true; break }
+  $companionPrevious=$size
+  Start-Sleep -Milliseconds 250
+}
+if (-not $companionStable) { throw 'Champion Select overlay screenshot missing or incomplete.' }
 $picture=[System.Drawing.Bitmap]::FromFile($companionPng)
 try {
   $mark=$picture.GetPixel(4,4)
