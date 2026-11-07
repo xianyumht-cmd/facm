@@ -2402,5 +2402,8 @@ snapshot to the preexisting advanced Player form state. Selected-match detail,
 regional SGP history, extended result evidence and profile customization
 retain coupled Form state and are the remaining extraction group; they are
 not claimed complete. No new process, WebView2, LCU observer, remote API
-owner or production manifest change. Windows four-gate CI for this candidate
-has not yet run; actual Windows 10/Tencent acceptance remains deferred.
+owner or production manifest change. Executable commit
+`63136b883005ccbed1c4f3ee4a4584c82f393db7` passed the four Windows gates:
+Windows Build `42410095283`, Glass WebView2 `42410095251`, UI Text
+`42410095276` and Mayhem Source Probe `42410095281`. Windows 10 and Tencent CN
+gameplay acceptance remains deferred; PR #364 is still Draft.
