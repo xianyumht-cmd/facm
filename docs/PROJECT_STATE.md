@@ -1343,15 +1343,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.81
-- GitHub Release：v3.5.81
+- 版本：GGman 3.5.82
+- GitHub Release：v3.5.82
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：ae6a597a8bf11ee2cf1beb50c4f47a09d002dc6d
-- 发布元数据提交：2f2f1e26834e80166852997f09b2dd85f8556fae
-- Release GGman.exe SHA-256：20AE9C2EDA08E7D6E657236B38CA1944B1FD9253D062122143E2B8D8EFE6992C
-- release_notes：GGman 3.5.81：全新轻量悬浮球与深海军蓝／青蓝 WebView2 单窗口控制中心，微软雅黑、界面自适应及页面内导航／返回；完成工作台、在线状态、战绩等操作入口的统一。自动更新、强制更新和公告弹窗统一进入控制中心，支持下载取消、强制更新导航锁定和安全退出；WebView2 不可用时保留原生回退。继续采用原有签名与哈希验证的在线更新链路，不强制旧版本升级。Windows 10／多 DPI 等实机体验由用户在正式在线更新后验收。
+- 发布基础 main：95a1946b8aff8ba052d1a93ac098a541838116bc
+- 发布元数据提交：6b82d54248a34448a9eef0c86470e5318a1cdf63
+- Release GGman.exe SHA-256：4E49FBA24B94A8E25590E2621D9F467C22CFDEA24586B290EC3B236108AD00B7
+- release_notes：GGman 3.5.82：修复 3.5.81 在部分 Windows 10 电脑上控制中心长时间显示深色空白窗口的问题。WebView2 现要求页面导航成功并收到完整 HTML 初始化回执，启动超时或浏览器／渲染进程异常时自动回退到原生菜单，并补充加载阶段和失败原因日志，便于后续定位显卡合成兼容性。保留现有小悬浮球、单窗口功能、签名验证与在线更新流程；本次仍不强制升级。请用户更新后查看是否正常显示控制中心，或是否在约 20 秒内恢复到原生菜单。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
