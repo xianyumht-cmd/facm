@@ -24,6 +24,7 @@ namespace FACM.Presentation.Glass
     internal sealed partial class UnifiedWorkspaceForm : Form
     {
         private const string HtmlResource = "FACM.Presentation.Glass.GGman-Unified-Workspace.html";
+        private const int StartupTimeoutMs = 20000;
         private const int WmNcLButtonDown = 0x00A1;
         private const int HtCaption = 2;
 
@@ -39,8 +40,11 @@ namespace FACM.Presentation.Glass
         private readonly AppSettings _settings;
         private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
+        private readonly System.Windows.Forms.Timer _startupTimer;
         private bool _starting;
         private bool _ready;
+        private bool _navigationSucceeded;
+        private bool _documentReady;
         private bool _closing;
         private bool _browserUnavailable;
         private bool _userMovedWindow;
@@ -86,6 +90,12 @@ namespace FACM.Presentation.Glass
                 Dock = DockStyle.Fill,
                 DefaultBackgroundColor = Color.FromArgb(4, 12, 32)
             };
+            _startupTimer = new System.Windows.Forms.Timer { Interval = StartupTimeoutMs };
+            _startupTimer.Tick += delegate
+            {
+                FailWebWorkspace("startup timeout; content handshake not received within " +
+                    StartupTimeoutMs + "ms", null);
+            };
             Controls.Add(_browser);
             Resize += delegate { ApplyRoundedRegion(); };
             DpiChanged += delegate
@@ -102,10 +112,17 @@ namespace FACM.Presentation.Glass
                 }
                 catch (InvalidOperationException) { }
             };
-            Shown += async delegate { ApplyRoundedRegion(); await InitializeAsync(); };
+            Shown += async delegate
+            {
+                ApplyRoundedRegion();
+                _startupTimer.Start();
+                await InitializeAsync();
+            };
             FormClosing += HandleClosing;
             FormClosed += delegate
             {
+                _startupTimer.Stop();
+                _startupTimer.Dispose();
                 try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
                 CancelChampionCatalog();
@@ -134,6 +151,7 @@ namespace FACM.Presentation.Glass
         {
             if (_starting || IsDisposed) return;
             _starting = true;
+            AppLog.Info("Unified workspace WebView2 initialization started.");
             try
             {
                 var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -144,9 +162,12 @@ namespace FACM.Presentation.Glass
                     throw new InvalidOperationException("WebView2 Evergreen Runtime is not installed.");
 #endif
                 var environment = await CoreWebView2Environment.CreateAsync(null, data);
-                if (IsDisposed) return;
+                if (IsDisposed || _browserUnavailable) return;
                 await _browser.EnsureCoreWebView2Async(environment);
-                if (IsDisposed || _browser.CoreWebView2 == null) return;
+                if (IsDisposed || _browserUnavailable || _browser.CoreWebView2 == null) return;
+
+                AppLog.Info("Unified workspace WebView2 environment ready; runtime=" +
+                    environment.BrowserVersionString);
 
                 var core = _browser.CoreWebView2;
                 core.Settings.AreDevToolsEnabled = false;
@@ -174,76 +195,121 @@ namespace FACM.Presentation.Glass
                     args.Cancel = true;
                 };
                 core.WebMessageReceived += HandleWebMessage;
-                core.NavigationCompleted += delegate
+                core.ProcessFailed += delegate(object sender, CoreWebView2ProcessFailedEventArgs args)
                 {
-                    if (IsDisposed) return;
-                    _ready = true;
-                    if (WorkspaceReady != null) WorkspaceReady();
-                    SyncWebNavigation();
-                    SyncGameflowState();
-                    if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
+                    if (IsDisposed || _browserUnavailable) return;
+                    AppLog.Info("Unified workspace WebView2 process failure: " + args.ProcessFailedKind);
+                    if (args.ProcessFailedKind == CoreWebView2ProcessFailedKind.BrowserProcessExited ||
+                        args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited ||
+                        args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+                        FailWebWorkspace("browser or renderer process failed", null);
+                };
+                core.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs args)
+                {
+                    if (IsDisposed || _browserUnavailable) return;
+                    if (!args.IsSuccess)
                     {
-                        SyncThemeOptions();
-                        SyncUnifiedPetOptions();
+                        FailWebWorkspace("navigation failed: " + args.WebErrorStatus, null);
+                        return;
                     }
-                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
-                        SyncQuickSettings();
-                    if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
-                        SyncMatchmakingSettings();
-                    if (string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal))
-                        SyncPostgameSettings();
-                    if (string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal))
-                    {
-                        SyncAutoSelection();
-                        StartAutoSelectionCatalog();
-                    }
-                    if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
-                        string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
-                        StartDashboardRead();
-                    if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
-                    if (_navigation.Current == "presence-advanced") StartProfileCustomizationRead();
-                    if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
-                    if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
-                    if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
-                    if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
-                    if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
-                    if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
-                    if (_navigation.Current == "live-advanced") StartLiveBenchRead();
-                    if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
-                    if (_navigation.Current == "player-advanced")
-                    {
-                        OpenAdvancedHistoryData();
-                        SendRegionalOptions();
-                    }
-                    if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
-                    HookCloudEvents();
-                    if (_navigation.Current == "cloud-sync") SyncCloudState();
-                    if (_navigation.Current == "updates")
-                    {
-                        if (_onlineSnapshot != null && _onlineReadCancellation == null)
-                            SendOnlineState(_onlineSnapshot);
-                        else StartOnlineRead();
-                    }
+                    _navigationSucceeded = true;
+                    CompleteWebWorkspaceReady();
                 };
                 core.NavigateToString(ReadEmbeddedHtml());
             }
             catch (Exception exception)
             {
-                AppLog.Error("Unified WebView2 workspace initialization failed", exception);
-                if (IsDisposed) return;
-                _browserUnavailable = true;
-                _ready = false;
-                if (BrowserUnavailable != null) BrowserUnavailable();
-                Close();
+                FailWebWorkspace("initialization failed", exception);
             }
+        }
+
+        private void CompleteWebWorkspaceReady()
+        {
+            if (!HasCompletedStartup(_navigationSucceeded, _documentReady) || _ready || IsDisposed ||
+                _browserUnavailable || _closing) return;
+            _startupTimer.Stop();
+            _ready = true;
+            AppLog.Info("Unified workspace WebView2 HTML content ready.");
+            if (WorkspaceReady != null) WorkspaceReady();
+            SyncWebNavigation();
+            SyncGameflowState();
+            if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
+            {
+                SyncThemeOptions();
+                SyncUnifiedPetOptions();
+            }
+            if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
+                SyncQuickSettings();
+            if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
+                SyncMatchmakingSettings();
+            if (string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal))
+                SyncPostgameSettings();
+            if (string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal))
+            {
+                SyncAutoSelection();
+                StartAutoSelectionCatalog();
+            }
+            if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
+                string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
+                StartDashboardRead();
+            if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
+            if (_navigation.Current == "presence-advanced") StartProfileCustomizationRead();
+            if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
+            if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
+            if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
+            if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
+            if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
+            if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
+            if (_navigation.Current == "live-advanced") StartLiveBenchRead();
+            if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
+            if (_navigation.Current == "player-advanced")
+            {
+                OpenAdvancedHistoryData();
+                SendRegionalOptions();
+            }
+            if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
+            HookCloudEvents();
+            if (_navigation.Current == "cloud-sync") SyncCloudState();
+            if (_navigation.Current == "updates")
+            {
+                if (_onlineSnapshot != null && _onlineReadCancellation == null)
+                    SendOnlineState(_onlineSnapshot);
+                else StartOnlineRead();
+            }
+        }
+
+        private static bool HasCompletedStartup(bool navigationSucceeded, bool documentReady)
+        {
+            return navigationSucceeded && documentReady;
+        }
+
+        private void FailWebWorkspace(string reason, Exception exception)
+        {
+            if (IsDisposed || _browserUnavailable || _closing) return;
+            _startupTimer.Stop();
+            _browserUnavailable = true;
+            _ready = false;
+            if (exception == null)
+                AppLog.Info("Unified workspace WebView2 fallback: " + reason);
+            else
+                AppLog.Error("Unified workspace WebView2 fallback: " + reason, exception);
+            if (BrowserUnavailable != null) BrowserUnavailable();
+            Close();
         }
 
         private void HandleWebMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
-            if (IsDisposed || _closing || !_ready) return;
+            if (IsDisposed || _closing || _browserUnavailable) return;
             string message;
             try { message = e.TryGetWebMessageAsString(); }
             catch { return; }
+            if (message == "shell-ready")
+            {
+                _documentReady = true;
+                CompleteWebWorkspaceReady();
+                return;
+            }
+            if (!_ready) return;
             if (message == "close")
             {
                 if (_onlineForceRequired) ExitForcedOnline();
@@ -1695,7 +1761,12 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
+            if (HasCompletedStartup(false, false) || HasCompletedStartup(false, true) ||
+                HasCompletedStartup(true, false) || !HasCompletedStartup(true, true))
+                throw new InvalidOperationException("WebView2 startup requires both navigation and HTML readiness.");
             var html = ReadEmbeddedHtml();
+            if (!html.Contains("post(\"shell-ready\")"))
+                throw new InvalidOperationException("Unified workspace HTML must acknowledge complete script initialization.");
             if (!html.Contains("id=\"advancedRegionalResults\"") ||
                 !html.Contains("data-action=\"history-region-search\""))
                 throw new InvalidOperationException("Regional Riot ID history must be a native-backed HTML feature.");
