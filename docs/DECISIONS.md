@@ -1,3 +1,7 @@
+## 2026-11-08 — Call GGman appearance presets 皮肤; keep stable compatibility keys
+
+Owner explicitly renamed the visible 外观与主题 / 外观主题 function to **皮肤** and requires the selection to visibly recolor GGman, including the floating orb, workbench and transient game-time overlay. Keep the existing preset palette catalog as the underlying implementation: no new theme database or installer, no rewrite of account/device settings. The internal `appearance` route and `ThemeId` key remain stable so previously saved choices and navigation work without migration. Native and HTML windows are separate view owners and therefore must individually consume the runtime palette on creation and on changes. Future styling work must not confuse “setting saved” with an actual visual change.
+
 ## 2026-11-07 — Champion Select helper uses an independent WebView2 transient window
 
 The owner clarified that reopening the old WinForms Runtime Companion is not the desired final UX. Keep the 3.5.83 unified WebView2 desktop control center unchanged, but render the automatically appearing Champion Select companion as its own lightweight WebView2/HTML overlay, with native C# LCU/recommendation owners and browser-failure fallback to the existing native companion. The separate window is intentional because gameplay needs a persistent positioned helper while the desktop workbench may be closed. Main-menu single-window routing does not imply suppressing game-context overlays. Do not mark temporary native re-enablement as complete WebView2 migration.
