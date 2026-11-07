@@ -72,7 +72,7 @@ namespace FACM.Presentation.Glass
                 !double.IsInfinity(value.Value) ? value : null).ToArray();
         }
 
-        private void ReadAdvancedRadar(string raw)
+        internal void ReadAdvancedRadar(string raw)
         {
             int participantId;
             if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out participantId) ||
@@ -99,7 +99,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private async void ReadAdvancedTimeline(string requestedId)
+        internal async void ReadAdvancedTimeline(string requestedId)
         {
             var module = LeagueHubUiBridge.UnifiedPlayer;
             if (!SelectedDetailCurrent(module) || _advancedSelectedGameId != requestedId)
@@ -184,7 +184,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void StartAdvancedReplay(string requestedId)
+        internal async void StartAdvancedReplay(string requestedId)
         {
             var module = LeagueHubUiBridge.UnifiedPlayer;
             var loaded = _advancedHistorySnapshot;
@@ -243,7 +243,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void ReadAdvancedReplayFolder()
+        internal async void ReadAdvancedReplayFolder()
         {
             var module = LeagueHubUiBridge.UnifiedPlayer;
             var loaded = _advancedHistorySnapshot;

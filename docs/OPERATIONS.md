@@ -374,7 +374,8 @@ Then run one real client acceptance: enable anonymous ranking in “我的 GGman
 ## 2026-11-08 — Workspace shard and cold/warm opening checks (candidate)
 
 Run `--unified-workspace-smoke` in the release-candidate Windows executable to
-check the registered quick-message/advanced-tools routes, command isolation,
+check the registered quick-message/advanced-tools, basic/advanced Player,
+Mayhem, recommendation, live and ARAM bench routes, command isolation,
 render-readiness contract and protected dismiss conditions. The existing Glass
 WebView2 Windows workflow must also render the offline HTML and gameplay overlay.
 On a real Windows 10 x64 machine, compare first click versus reopen after close,
@@ -384,3 +385,7 @@ in `facm-YYYYMMDD.log`, and measure the full GGman + WebView2 process tree both
 before first opening and while the control center is hidden. Confirm forced
 update/install and cleanup cannot be dismissed, and ChampSelect auto-popup is
 unaffected. Do not treat source checks or HTML screenshots as a native-paint test.
+For the expanded shards, explicitly exercise basic Player → advanced history →
+back, remote-region detail → back, Mayhem query → cancel, recommendation apply →
+home, and live → bench → home. Confirm stale results never render after navigation
+or account replacement and no duplicate refresh occurs at WebView2 readiness.

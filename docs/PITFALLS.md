@@ -540,3 +540,13 @@ forced-update or active-install/cleanup UI; do not invoke native fallback merely
 because a previously dismissed, hidden browser later fails initialization.
 Source/CI checks cannot prove the owner's actual Win10 compositor pixels or
 memory cost; measure cold/warm opening and idle retention in final acceptance.
+
+## 2026-11-08 — UI shard routing must cancel old reads without invalidating shared history
+
+The basic and advanced Player routes share a session-fenced history snapshot.
+When moving cancellation into `IUnifiedWorkspaceShard.CancelOutside`, keep the
+history read alive for `player → player-advanced`, but cancel regional/detail
+reads when leaving `player-advanced`. Other page readers and recommendation
+writes must be canceled on exit. A WebView2 message is only actionable in its
+own registered active route; broad global prefix handling could allow an old
+page's queued command to mutate the next page's state.

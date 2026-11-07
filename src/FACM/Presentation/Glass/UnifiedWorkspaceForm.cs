@@ -140,16 +140,10 @@ namespace FACM.Presentation.Glass
                 CancelDashboardRead();
                 CancelAdvancedRespawnRead();
                 CancelProfileCustomization();
-                CancelAdvancedHistoryDetail();
                 CancelPresenceOperation();
                 CancelRepairOperation();
-                CancelLiveRead();
-                CancelLiveBenchRead();
-                CancelHistoryRead();
-                CancelMayhemRead();
-                CancelRecommendationRead();
+                UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
                 CancelOnlineRead();
-                CancelQuickMessageSend();
                 UnhookCloudEvents();
                 UnhookLocalStats();
                 _browser.Dispose();
@@ -324,15 +318,6 @@ namespace FACM.Presentation.Glass
             if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
             if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
             UnifiedWorkspaceShardCatalog.Ready(this, _navigation.Current);
-            if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
-            if (_navigation.Current == "live-advanced") StartLiveBenchRead();
-            if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
-            if (_navigation.Current == "player-advanced")
-            {
-                OpenAdvancedHistoryData();
-                SendRegionalOptions();
-            }
-            if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
             HookCloudEvents();
             if (_navigation.Current == "cloud-sync") SyncCloudState();
             if (_navigation.Current == "updates")
@@ -453,19 +438,6 @@ namespace FACM.Presentation.Glass
             {
                 ApplyRepairAction(message.Substring(14)); return;
             }
-            if (message != null && message.StartsWith("mayhem-query:", StringComparison.Ordinal))
-            {
-                StartMayhemQuery(message.Substring(13)); return;
-            }
-            if (message == "mayhem-cancel")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Mayhem)
-                {
-                    CancelMayhemRead();
-                    PostLeaguePageStatus("mayhem-failed", "canceled");
-                }
-                return;
-            }
             if (message == "cloud-refresh") { SyncCloudState(); return; }
             if (message != null && message.StartsWith("cloud-toggle:", StringComparison.Ordinal))
             { ApplyCloudToggle(message.Substring(13)); return; }
@@ -478,47 +450,6 @@ namespace FACM.Presentation.Glass
             if (message == "updates-stop") { CancelOnlineInstallation(); return; }
             if (message == "updates-exit") { ExitForcedOnline(); return; }
             if (message == "updates-link") { OpenOnlineAnnouncementLink(); return; }
-            if (message == "recommendation-refresh")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(true);
-                return;
-            }
-            if (message != null && message.StartsWith("recommendation-apply:", StringComparison.Ordinal))
-            {
-                ApplyUnifiedRecommendation(message.Substring(21)); return;
-            }
-            if (message != null && message.StartsWith("history-advanced-timeline:", StringComparison.Ordinal))
-            { ReadAdvancedTimeline(message.Substring(26)); return; }
-            if (message != null && message.StartsWith("history-advanced-radar:", StringComparison.Ordinal))
-            { ReadAdvancedRadar(message.Substring(23)); return; }
-            if (message != null && message.StartsWith("history-advanced-replay:", StringComparison.Ordinal))
-            { StartAdvancedReplay(message.Substring(24)); return; }
-            if (message == "history-advanced-replay-folder") { ReadAdvancedReplayFolder(); return; }
-            if (message == "history-region-options") { SendRegionalOptions(); return; }
-            if (message == "history-region-catalog") { RefreshRegionalCatalog(); return; }
-            if (message != null && message.StartsWith("history-region-search:", StringComparison.Ordinal))
-            { SearchRegionalRiotId(message.Substring(22)); return; }
-            if (message != null && message.StartsWith("history-region-detail:", StringComparison.Ordinal))
-            { ReadRegionalMatchDetail(message.Substring(22)); return; }
-            if (message == "history-advanced-refresh")
-            { if (_navigation.Current == "player-advanced") StartHistoryRead(20, true); return; }
-            if (message != null && message.StartsWith("history-advanced-detail:", StringComparison.Ordinal))
-            { LoadAdvancedHistoryDetail(message.Substring(24)); return; }
-            if (message == "history-refresh" || message == "history-more")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Player)
-                    StartHistoryRead(message == "history-more" ? 20 : 10, true);
-                return;
-            }
-            if (message == "bench-refresh") { StartLiveBenchRead(); return; }
-            if (message != null && message.StartsWith("bench-swap:", StringComparison.Ordinal))
-            { SwapLiveBenchChampion(message.Substring(11)); return; }
-            if (message == "live-refresh" || message == "live-sgp")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Live)
-                    StartLiveRead(message == "live-sgp");
-                return;
-            }
             if (message == "profile-customization-refresh") { StartProfileCustomizationRead(); return; }
             if (message != null && message.StartsWith("profile-customization-champion:", StringComparison.Ordinal))
             { LoadProfileSkins(message.Substring(31)); return; }
@@ -618,31 +549,14 @@ namespace FACM.Presentation.Glass
             if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
             if (route != "presence-advanced") CancelProfileCustomization();
             if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
-            if (route != LeagueHubNavigation.Live) CancelLiveRead();
-            if (route != "live-advanced") CancelLiveBenchRead();
-            if (route != LeagueHubNavigation.Player && route != "player-advanced")
-                CancelHistoryRead();
-            if (route != "player-advanced")
-            {
-                CancelAdvancedHistoryDetail();
-                CancelRegionalHistoryRead();
-            }
-            if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
-            if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, route);
             if (route != "updates") CancelOnlineRead();
-            if (route != "quick-messages") CancelQuickMessageSend();
-            if (route == "player-advanced") { OpenAdvancedHistoryPage(pushHistory); return; }
             if (route == "presence-advanced") { OpenProfileCustomizationPage(pushHistory); return; }
             if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
-            if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
             if (UnifiedWorkspaceShardCatalog.TryOpen(this, route, pushHistory)) return;
             if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
             if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
             if (route == "updates") { OpenUpdatesPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Mayhem) { OpenMayhemPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Recommendation) { OpenRecommendationPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Player) { OpenHistoryPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Live) { OpenLivePage(pushHistory); return; }
             if (route == LeagueHubNavigation.Repair) { OpenRepairPage(pushHistory); return; }
             if (route == LeagueHubNavigation.Presence) { OpenPresencePage(pushHistory); return; }
             if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
@@ -775,7 +689,7 @@ namespace FACM.Presentation.Glass
 
 
 
-        private void OpenHistoryPage(bool pushHistory)
+        internal void OpenHistoryPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Player);
             _browser.Dock = DockStyle.Fill;
@@ -784,7 +698,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartHistoryRead(10, false);
         }
 
-        private void StartHistoryRead(int count, bool force)
+        internal void StartHistoryRead(int count, bool force)
         {
             CancelHistoryRead();
             var module = LeagueHubUiBridge.UnifiedPlayer;
@@ -864,7 +778,7 @@ namespace FACM.Presentation.Glass
                     LeagueEncounterReplayService.SessionMatches(session, module.UnifiedHistorySession)));
         }
 
-        private void CancelHistoryRead()
+        internal void CancelHistoryRead()
         {
             _historyGeneration++;
             var previous = _historyCancellation;
@@ -883,7 +797,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void OpenLivePage(bool pushHistory)
+        internal void OpenLivePage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Live);
             _browser.Dock = DockStyle.Fill;
@@ -892,7 +806,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartLiveRead(false);
         }
 
-        private void StartLiveRead(bool includeSgp)
+        internal void StartLiveRead(bool includeSgp)
         {
             CancelLiveRead();
             var module = LeagueHubUiBridge.UnifiedLive;
@@ -963,7 +877,7 @@ namespace FACM.Presentation.Glass
                     LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLiveSession)));
         }
 
-        private void CancelLiveRead()
+        internal void CancelLiveRead()
         {
             _liveGeneration++;
             var old = _liveCancellation;
@@ -1698,16 +1612,10 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             CancelOnlineRead();
-            CancelQuickMessageSend();
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1722,16 +1630,10 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             CancelOnlineRead();
-            CancelQuickMessageSend();
             _navigation.Home();
             ShowHome();
         }
@@ -1835,14 +1737,9 @@ namespace FACM.Presentation.Glass
             CancelDashboardRead();
             CancelAdvancedRespawnRead();
             CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
             CancelPresenceOperation();
             CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             CancelOnlineRead();
         }
 

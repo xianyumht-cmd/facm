@@ -186,7 +186,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void CancelQuickMessageSend()
+        internal void CancelQuickMessageSend()
         {
             _quickMessageGeneration++;
             var source = _quickMessageCancellation;

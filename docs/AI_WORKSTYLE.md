@@ -100,3 +100,10 @@ shards with declared routes and bounded commands. Avoid growing the centralized
 one in-process C# backend, single shared desktop WebView2, native floating ball,
 game-context companion overlay, lightweight resource use and original LCU/update
 ownership. Do not equate one shard with one operating-system process.
+
+Additional control-center features should follow the registered Player/Mayhem/live
+shard pattern: implement `Open`, `Ready`, `Recognizes`, `Handle` and `CancelOutside`
+in a feature-owned file; add only one entry to `UnifiedWorkspaceShardCatalog`.
+Do not reintroduce centralized WebView2 command handlers or route-specific
+cancel calls in `UnifiedWorkspaceForm`. Preserve each service's account/session
+fences and do not grow the number of resident processes merely to add a UI page.

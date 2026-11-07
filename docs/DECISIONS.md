@@ -571,3 +571,8 @@ the embedded page has acknowledged a render opportunity. On normal dismissal,
 hide and reuse the same browser after canceling route work. This trades retained
 memory after the first opening for lower warm-open latency; verify the actual
 Windows 10 GPU/DPI compositor and resident memory before declaring acceptance.
+
+The next six Player/Mayhem/recommendation/live UI routes use feature-local shard
+classes with a `CancelOutside` lifecycle hook. Preserve the basic-to-advanced
+Player history reuse exception, account/session fencing, and per-page cancellation
+instead of introducing service-wide cancellation or one process per route.

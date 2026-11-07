@@ -25,7 +25,7 @@ namespace FACM.Presentation.Glass
         private LeagueClientSession _recommendationSession;
         private bool _recommendationBusy;
 
-        private void OpenMayhemPage(bool pushHistory)
+        internal void OpenMayhemPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Mayhem);
             _browser.Dock = DockStyle.Fill;
@@ -34,7 +34,7 @@ namespace FACM.Presentation.Glass
             PostLeaguePageStatus("mayhem-failed", "ready");
         }
 
-        private void StartMayhemQuery(string query)
+        internal void StartMayhemQuery(string query)
         {
             if (_navigation.Current != LeagueHubNavigation.Mayhem) return;
             CancelMayhemRead();
@@ -183,7 +183,7 @@ namespace FACM.Presentation.Glass
                     LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLookupSession)));
         }
 
-        private void CancelMayhemRead()
+        internal void CancelMayhemRead()
         {
             _mayhemGeneration++;
             var current = _mayhemCancellation;
@@ -191,7 +191,7 @@ namespace FACM.Presentation.Glass
             if (current != null && !current.IsCancellationRequested) current.Cancel();
         }
 
-        private void OpenRecommendationPage(bool pushHistory)
+        internal void OpenRecommendationPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Recommendation);
             _browser.Dock = DockStyle.Fill;
@@ -201,7 +201,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartRecommendationRead(false);
         }
 
-        private void StartRecommendationRead(bool force)
+        internal void StartRecommendationRead(bool force)
         {
             if (_navigation.Current != LeagueHubNavigation.Recommendation || _recommendationBusy) return;
             CancelRecommendationRead();
@@ -296,7 +296,7 @@ namespace FACM.Presentation.Glass
                     LeagueEncounterReplayService.SessionMatches(session, module.UnifiedRecommendationSession));
         }
 
-        private async void ApplyUnifiedRecommendation(string json)
+        internal async void ApplyUnifiedRecommendation(string json)
         {
             if (_navigation.Current != LeagueHubNavigation.Recommendation || _recommendationBusy) return;
             UnifiedRecommendationApplyChange request;
@@ -428,7 +428,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void CancelRecommendationRead()
+        internal void CancelRecommendationRead()
         {
             _recommendationGeneration++;
             var apply = _recommendationApplyCancellation;
@@ -441,7 +441,7 @@ namespace FACM.Presentation.Glass
             if (source != null && !source.IsCancellationRequested) source.Cancel();
         }
 
-        private void PostLeaguePageStatus(string type, string status)
+        internal void PostLeaguePageStatus(string type, string status)
         {
             if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
             _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new

@@ -26,7 +26,7 @@ namespace FACM.Presentation.Glass
         private HashSet<int> _liveBenchChoices = new HashSet<int>();
         private bool _liveBenchSwapping;
 
-        private void OpenLiveBenchPage(bool pushHistory)
+        internal void OpenLiveBenchPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("live-advanced");
             _browser.Dock = DockStyle.Fill;
@@ -35,7 +35,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartLiveBenchRead();
         }
 
-        private void StartLiveBenchRead()
+        internal void StartLiveBenchRead()
         {
             if (_navigation.Current != "live-advanced" || _liveBenchSwapping) return;
             CancelLiveBenchRead();
@@ -152,7 +152,7 @@ namespace FACM.Presentation.Glass
                 LiveBenchCurrentIgnoringTimeout(module, session, source, generation);
         }
 
-        private async void SwapLiveBenchChampion(string request)
+        internal async void SwapLiveBenchChampion(string request)
         {
             if (_navigation.Current != "live-advanced" || _liveBenchSwapping) return;
             int championId;
@@ -230,7 +230,7 @@ namespace FACM.Presentation.Glass
                 new JavaScriptSerializer().Serialize(new { type, status }));
         }
 
-        private void CancelLiveBenchRead()
+        internal void CancelLiveBenchRead()
         {
             _liveBenchGeneration++;
             _liveBenchSession = null;

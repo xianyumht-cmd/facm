@@ -17,7 +17,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _advancedHistoryDetailCancellation;
         private int _advancedHistoryDetailGeneration;
 
-        private void OpenAdvancedHistoryPage(bool pushHistory)
+        internal void OpenAdvancedHistoryPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("player-advanced");
             _browser.Dock = DockStyle.Fill;
@@ -30,7 +30,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void OpenAdvancedHistoryData()
+        internal void OpenAdvancedHistoryData()
         {
             var module = LeagueHubUiBridge.UnifiedPlayer;
             if (module != null && _advancedHistorySnapshot != null &&
@@ -81,7 +81,7 @@ namespace FACM.Presentation.Glass
             _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
-        private async void LoadAdvancedHistoryDetail(string raw)
+        internal async void LoadAdvancedHistoryDetail(string raw)
         {
             if (_navigation.Current != "player-advanced" ||
                 string.IsNullOrEmpty(raw) || raw.Length > 20) return;
@@ -178,7 +178,7 @@ namespace FACM.Presentation.Glass
             CancelRegionalHistoryRead();
         }
 
-        private void CancelAdvancedHistoryDetail()
+        internal void CancelAdvancedHistoryDetail()
         {
             ClearAdvancedMatchDetail();
             _advancedHistoryDetailGeneration++;

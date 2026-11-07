@@ -24,8 +24,6 @@ namespace FACM.Presentation.Glass
                 string.Equals(route, "appearance", StringComparison.Ordinal) ||
                 string.Equals(route, "client-status", StringComparison.Ordinal) ||
                 string.Equals(route, "presence-advanced", StringComparison.Ordinal) ||
-                string.Equals(route, "live-advanced", StringComparison.Ordinal) ||
-                string.Equals(route, "player-advanced", StringComparison.Ordinal) ||
                 UnifiedWorkspaceShardCatalog.HasRoute(route) ||
                 string.Equals(route, "matchmaking-settings", StringComparison.Ordinal) ||
                 string.Equals(route, "auto-selection", StringComparison.Ordinal) ||

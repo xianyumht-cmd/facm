@@ -18,7 +18,7 @@ namespace FACM.Presentation.Glass
         private LeaguePlayerProfile _regionalOwner;
         private string _regionalTargetPuuid;
 
-        private void SendRegionalOptions()
+        internal void SendRegionalOptions()
         {
             if (_navigation.Current != "player-advanced" || !_ready || IsDisposed ||
                 _closing || _browser.CoreWebView2 == null) return;
@@ -35,7 +35,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private async void RefreshRegionalCatalog()
+        internal async void RefreshRegionalCatalog()
         {
             if (_navigation.Current != "player-advanced" || _regionalReadCancellation != null) return;
             var module = LeagueHubUiBridge.UnifiedPlayer;
@@ -62,7 +62,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void SearchRegionalRiotId(string request)
+        internal async void SearchRegionalRiotId(string request)
         {
             if (_navigation.Current != "player-advanced" || string.IsNullOrWhiteSpace(request) ||
                 request.Length > 220) return;
@@ -145,7 +145,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void ReadRegionalMatchDetail(string raw)
+        internal void ReadRegionalMatchDetail(string raw)
         {
             if (_navigation.Current != "player-advanced" || string.IsNullOrEmpty(raw) || raw.Length > 20)
                 return;
@@ -271,7 +271,7 @@ namespace FACM.Presentation.Glass
             catch (InvalidOperationException) { return false; }
         }
 
-        private void CancelRegionalHistoryRead()
+        internal void CancelRegionalHistoryRead()
         {
             _regionalReadGeneration++;
             _regionalHistory = null;

@@ -2334,6 +2334,20 @@ unchanged. A native skin-matched placeholder covers cold WebView2 initialization
 the embedded page acknowledges a render opportunity before uncovering it.
 Normal closing hides and reuses the initialized desktop browser, while forced
 updates, active installation, cleanup and process/browser failure retain their
-guards. This is an implementation candidate; Windows CI and the owner's cold/
-warm/DPI/GPU/memory observations have not yet been verified. Do not modify
+guards. The initial slice passed four Windows CI workflows at `0fadb533`;
+the owner's cold/warm/DPI/GPU/memory observations have not yet been verified. Do not modify
 production `online/version.json` or tag from this branch.
+
+### Workspace shard expansion — Player, Mayhem, recommendation and live (Draft #364)
+
+The next candidate moves six more control-center routes into the same registry:
+basic and advanced Player/history, Mayhem/海斗攻略, recommendation/apply, live
+match and ARAM live bench. Each shard owns its route, explicit command allowlist,
+initial load, and route-exit cancellation. `UnifiedWorkspaceForm` no longer has
+the per-command or per-open branches for these routes; regional history, advanced
+timeline/radar/replay, SGP enrichment and bench swaps continue using the existing
+session-fenced adapters/data modules. Basic-to-advanced Player keeps the reusable
+history cache; leaving the advanced route cancels detail and regional reads.
+No new process, background timer, service endpoint, token owner or production
+update was added. Current candidate is unverified until exact-HEAD Windows CI;
+manual Tencent CN/Windows 10 interaction remains open. PR #364 stays Draft.

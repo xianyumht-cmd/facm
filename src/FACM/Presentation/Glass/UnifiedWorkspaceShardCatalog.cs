@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FACM.League;
 
 namespace FACM.Presentation.Glass
 {
@@ -13,6 +14,9 @@ namespace FACM.Presentation.Glass
         void Open(UnifiedWorkspaceForm workspace, bool pushHistory);
         void Ready(UnifiedWorkspaceForm workspace);
         void Handle(UnifiedWorkspaceForm workspace, string message);
+        // Called for every route change and on shell shutdown. A shard decides
+        // whether its in-flight work is still valid for the destination route.
+        void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute);
     }
 
     internal static class UnifiedWorkspaceShardCatalog
@@ -26,6 +30,12 @@ namespace FACM.Presentation.Glass
             var routes = new Dictionary<string, IUnifiedWorkspaceShard>(StringComparer.Ordinal);
             Register(routes, new QuickMessagesShard());
             Register(routes, new AdvancedToolsShard());
+            Register(routes, new PlayerHistoryShard());
+            Register(routes, new AdvancedHistoryShard());
+            Register(routes, new MayhemGuideShard());
+            Register(routes, new RecommendationShard());
+            Register(routes, new LiveMatchShard());
+            Register(routes, new LiveBenchShard());
             return routes;
         }
 
@@ -70,16 +80,41 @@ namespace FACM.Presentation.Glass
             return true;
         }
 
+        internal static void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)
+        {
+            foreach (var shard in Routes.Values) shard.CancelOutside(workspace, nextRoute);
+        }
+
         internal static void ValidateForSmokeTest()
         {
             if (!HasRoute("quick-messages") || !HasRoute("efficiency-advanced") ||
+                !HasRoute(LeagueHubNavigation.Player) || !HasRoute("player-advanced") ||
+                !HasRoute(LeagueHubNavigation.Mayhem) ||
+                !HasRoute(LeagueHubNavigation.Recommendation) ||
+                !HasRoute(LeagueHubNavigation.Live) || !HasRoute("live-advanced") ||
                 HasRoute("unknown") || HasRoute(null) ||
                 !Routes["quick-messages"].Recognizes("quick-message-refresh") ||
                 !Routes["quick-messages"].Recognizes("quick-message-save:{}") ||
                 Routes["quick-messages"].Recognizes("advanced-save:{}") ||
                 !Routes["efficiency-advanced"].Recognizes("advanced-refresh") ||
                 !Routes["efficiency-advanced"].Recognizes("advanced-save:{}") ||
-                Routes["efficiency-advanced"].Recognizes("quick-message-send:0"))
+                Routes["efficiency-advanced"].Recognizes("quick-message-send:0") ||
+                !Routes[LeagueHubNavigation.Player].Recognizes("history-more") ||
+                Routes[LeagueHubNavigation.Player].Recognizes("history-advanced-refresh") ||
+                !Routes["player-advanced"].Recognizes("history-region-search:{}") ||
+                Routes["player-advanced"].Recognizes("history-more") ||
+                !Routes[LeagueHubNavigation.Mayhem].Recognizes("mayhem-cancel") ||
+                Routes[LeagueHubNavigation.Mayhem].Recognizes("recommendation-refresh") ||
+                !Routes[LeagueHubNavigation.Recommendation].Recognizes("recommendation-apply:{}") ||
+                Routes[LeagueHubNavigation.Recommendation].Recognizes("mayhem-query:test") ||
+                !Routes[LeagueHubNavigation.Live].Recognizes("live-sgp") ||
+                Routes[LeagueHubNavigation.Live].Recognizes("bench-refresh") ||
+                !Routes["live-advanced"].Recognizes("bench-swap:1") ||
+                Routes["live-advanced"].Recognizes("live-refresh") ||
+                TryHandle(null, LeagueHubNavigation.Player, "bench-refresh") ||
+                TryHandle(null, "player-advanced", "history-more") ||
+                TryHandle(null, LeagueHubNavigation.Live, "history-refresh") ||
+                TryHandle(null, "unknown", "live-refresh"))
                 throw new InvalidOperationException("Workspace shard routing or command isolation changed.");
             var duplicate = new Dictionary<string, IUnifiedWorkspaceShard>(StringComparer.Ordinal);
             Register(duplicate, new QuickMessagesShard());
@@ -130,6 +165,10 @@ namespace FACM.Presentation.Glass
                     workspace.SendQuickMessage(index);
             }
         }
+        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)
+        {
+            if (nextRoute != Route) workspace.CancelQuickMessageSend();
+        }
     }
 
     internal sealed class AdvancedToolsShard : IUnifiedWorkspaceShard
@@ -159,5 +198,7 @@ namespace FACM.Presentation.Glass
             else if (message.StartsWith("advanced-save:", StringComparison.Ordinal))
                 workspace.ApplyAdvancedTools(message.Substring("advanced-save:".Length));
         }
+
+        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute) { }
     }
 }
