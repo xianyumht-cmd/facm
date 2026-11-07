@@ -94,6 +94,11 @@ namespace FACM
                 ThemeCatalog.Get(ThemeCatalog.DefaultThemeId));
         }
 
+        internal static Bitmap RenderSkinForSmokeTest(int size, string skinId)
+        {
+            return RenderShell(size, 0f, ThemeCatalog.Get(skinId));
+        }
+
         private void HandleCreated(object sender, EventArgs e)
         {
             ApplyLayeredStyle();
