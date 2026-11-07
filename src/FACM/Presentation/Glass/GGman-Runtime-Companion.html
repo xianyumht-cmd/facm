@@ -42,6 +42,8 @@ h2,h3,p{margin:0}
 #source{color:var(--soft);font-size:10px}
 #recommend{display:grid;gap:6px}
 .rec{border:1px solid #23405b;border-radius:8px;background:#112943;padding:7px}
+.iconline{display:flex;gap:4px;margin:3px 0 4px;flex-wrap:wrap}
+.iconline img,.augmentIcon{width:28px;height:28px;border-radius:5px;object-fit:cover;border:1px solid #345c75;background:#0b233a;flex-shrink:0}
 .rec-label{font-size:10px;color:var(--cyan);margin-bottom:2px}
 .rec-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px;line-height:1.55}
 .rec-note{color:var(--soft);font-size:10px;margin-top:3px}
@@ -117,7 +119,7 @@ h2,h3,p{margin:0}
 const $ = id=>document.getElementById(id);
 const send = text=>{if(window.chrome && window.chrome.webview)window.chrome.webview.postMessage(text)};
 const elem=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
-const icons=new Map();
+const icons=new Map(),assetIcons=new Map();
 let snapshot=null,filter='all',confirmation='confirm:yes',dragging=false,toastTimer=null;
 const fmtRate=x=>{if(x===null||x===undefined||!isFinite(Number(x)))return '—';let n=Number(x);if(n>=0&&n<=1)n*=100;return n.toFixed(1)+'%'};
 const nice=(value,fallback='—')=>value===null||value===undefined||String(value).trim()===''?fallback:String(value);
@@ -167,12 +169,18 @@ $('source').textContent=b?nice(b.source,'来源待确认'):'';
 if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(elem('div','muted sub',snapshot&&snapshot.buildLoading?'正在载入推荐…':'暂无可用的符文与出装推荐'));
 }else{
- for(const r of b.rows){
+ b.rows.forEach((r,index)=>{
  const card=elem('div','rec');card.appendChild(elem('div','rec-label',categories[r.category]||nice(r.category,'推荐')));
+ const iconsHost=elem('div','iconline');
+ for(let n=0;n<3;n++){
+ const asset=assetIcons.get('build:'+index+':'+n);if(!asset)continue;
+ const img=elem('img');img.src=asset;img.alt=nice(r.category,'推荐')+' 图标';iconsHost.appendChild(img);
+ }
+ if(iconsHost.childNodes.length)card.appendChild(iconsHost);
  card.appendChild(elem('div','rec-text',nice(r.title,'暂无数据')));
  if(r.evidence)card.appendChild(elem('div','rec-note',r.evidence));
  host.appendChild(card);
- }
+ });
 }
 const canApply=!!(b&&b.status==='ready');
 for(const id of ['runes','spells','items'])$(id).disabled=!canApply;
@@ -184,6 +192,8 @@ const rows=all.filter(x=>filter==='all'||x.rarity===filter).slice(0,20);
 if(!rows.length){host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
 for(const r of rows){
  const row=elem('div','augment');row.appendChild(elem('div','augmentRank','#'+nice(r.rank,'—')));
+ const asset=assetIcons.get('augment:'+r.id);
+ if(asset){const image=elem('img','augmentIcon');image.src=asset;image.alt=nice(r.name,'强化');row.appendChild(image)}
  const body=elem('div','augmentBody');const name=elem('div','augmentName',nice(r.name));
  name.appendChild(elem('span','augmentRarity',nice(r.rarity,'')));
  body.appendChild(name);
@@ -225,6 +235,8 @@ window.chrome.webview.addEventListener('message',e=>{
 const m=e.data||{};
 if(m.type==='snapshot'){snapshot=m;render()}
 else if(m.type==='icon'){if(m.id&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){icons.set(m.id,m.value);if(snapshot)renderBench()}}
+else if(m.type==='assets-reset'){assetIcons.clear();if(snapshot){renderBuild();renderAugments()}}
+else if(m.type==='asset'){if(typeof m.key==='string'&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){assetIcons.set(m.key,m.value);if(snapshot){renderBuild();renderAugments()}}}
 else if(m.type==='status'){showToast(m.message)}
 else if(m.type==='confirm'){confirm(nice(m.title,'确认'),nice(m.message,''),'confirm:yes')}
 else if(m.type==='window'){

@@ -310,15 +310,37 @@ namespace FACM.Presentation.Glass
                 guideError = snapshot.GuideError,
                 buildError = snapshot.BuildError
             });
-            var key = snapshot.LocalChampionId + "|" + string.Join(",", ids);
+            var assets = new List<KeyValuePair<string, string>>();
+            if (recommendation != null && recommendation.Rows != null)
+            {
+                var rows = recommendation.Rows.Take(30).ToArray();
+                for (var i = 0; i < rows.Length; i++)
+                {
+                    var references = rows[i] == null ? null : rows[i].IconReferences;
+                    if (references == null) continue;
+                    for (var j = 0; j < Math.Min(3, references.Count); j++)
+                        if (!string.IsNullOrWhiteSpace(references[j]))
+                            assets.Add(new KeyValuePair<string, string>("build:" + i + ":" + j, references[j]));
+                }
+            }
+            if (guide != null && guide.AugmentRows != null)
+            {
+                foreach (var augment in guide.AugmentRows.Take(12))
+                    if (augment != null && !string.IsNullOrWhiteSpace(augment.IconUrl))
+                        assets.Add(new KeyValuePair<string, string>("augment:" + augment.Id, augment.IconUrl));
+            }
+            var key = snapshot.LocalChampionId + "|" + string.Join(",", ids) + "|" +
+                string.Join("|", assets.Select(item => item.Key + ":" + item.Value));
             if (!string.Equals(key, _lastIconKey, StringComparison.Ordinal))
             {
                 _lastIconKey = key;
-                _ = LoadIconsAsync(ids, ++_iconGeneration);
+                Post(new { type = "assets-reset" });
+                _ = LoadIconsAsync(ids, assets, ++_iconGeneration);
             }
         }
 
-        private async Task LoadIconsAsync(int[] ids, int generation)
+        private async Task LoadIconsAsync(int[] ids,
+            IReadOnlyList<KeyValuePair<string, string>> assets, int generation)
         {
             foreach (var id in ids.Take(20))
             {
@@ -343,6 +365,31 @@ namespace FACM.Presentation.Glass
                 catch (OperationCanceledException) { return; }
                 catch (ObjectDisposedException) { return; }
                 catch (Exception e) { AppLog.Info("Runtime Companion icon unavailable: " + e.GetType().Name); }
+            }
+            foreach (var asset in assets.Take(42))
+            {
+                if (!Current(generation)) return;
+                try
+                {
+                    using (var image = await _controller.LoadGuideAssetAsync(asset.Value, _lifetime.Token))
+                    {
+                        if (!Current(generation) || image == null) continue;
+                        using (var thumb = new Bitmap(28, 28))
+                        using (var output = new MemoryStream())
+                        {
+                            using (var graphics = Graphics.FromImage(thumb))
+                                graphics.DrawImage(image, new Rectangle(0, 0, 28, 28));
+                            thumb.Save(output, ImageFormat.Png);
+                            if (output.Length <= 22000)
+                                Post(new { type = "asset", key = asset.Key,
+                                    value = "data:image/png;base64," +
+                                        Convert.ToBase64String(output.ToArray()) });
+                        }
+                    }
+                }
+                catch (OperationCanceledException) { return; }
+                catch (ObjectDisposedException) { return; }
+                catch (Exception e) { AppLog.Info("Runtime Companion visual unavailable: " + e.GetType().Name); }
             }
         }
 
