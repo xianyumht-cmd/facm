@@ -565,7 +565,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <div class="actions">
       <button data-route="cleanup">清理修复</button>
-      <button data-route="appearance">外观主题</button>
+      <button data-route="appearance">皮肤</button>
       <button data-action="more">全部功能</button>
     </div>
   </section>
@@ -829,7 +829,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <p id="profileStatus" role="status" aria-live="polite">正在读取本地资料</p>
     <div class="actions">
       <button data-action="profile-refresh">刷新本地资料</button>
-      <button data-route="appearance">外观主题</button>
+      <button data-route="appearance">皮肤</button>
       <button data-route="cleanup">清理修复</button>
       <button data-route="updates">更新中心</button>
     </div>
@@ -1090,8 +1090,8 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="save-row"><button data-save="matchmaking" id="saveMatchmaking">保存设置</button><span class="muted" id="matchmakingResult" role="status" aria-live="polite"></span></div>
   </section>
   <section id="appearance">
-    <h2>外观与主题</h2><p>选择喜欢的配色，点击即应用并保存。所有设置仍由 GGman 本地管理。</p>
-    <div class="themes" id="themeList" aria-label="可选择的主题"></div>
+    <h2>皮肤</h2><p>点击即切换 GGman 悬浮球、控制中心和实时对局助手的配色；选择自动保存。</p>
+    <div class="themes" id="themeList" aria-label="可选择的皮肤"></div>
     <p id="themeResult" role="status" aria-live="polite"></p>
     <div class="guide-card">
       <strong>桌宠与悬浮球</strong>
@@ -1138,7 +1138,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
 <script>
 (function(){
 "use strict";
-var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"外观与主题","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
+var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"皮肤","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
 var updateForced=false;
 function get(id){return document.getElementById(id);}
@@ -1775,7 +1775,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="themes"){renderThemes(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="theme-error"){
-    document.getElementById("themeResult").textContent="保存主题失败，请查看程序日志";return;
+    document.getElementById("themeResult").textContent="切换皮肤失败，请查看程序日志";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
     document.body.dataset.connected=e.data.connected?"true":"false";
@@ -2817,7 +2817,12 @@ function renderThemes(data){
       .forEach(function(pair){if(pair[1])css.setProperty(pair[0],String(pair[1]));});
     document.documentElement.style.colorScheme=current.light?"light":"dark";
   }
-  if(data.selected){document.getElementById("themeResult").textContent="当前主题已保存";}
+  if(current){
+    document.documentElement.dataset.skin=current.id;
+    document.documentElement.dataset.skinLight=current.light?"true":"false";
+    document.getElementById("themeResult").textContent=
+      (data.applied?"皮肤已应用：":"当前皮肤：")+String(current.name||current.id);
+  }
 }
 document.getElementById("selectionPaused").addEventListener("change",function(e){
   post("selection-pause:"+(e.target.checked?"true":"false"));
