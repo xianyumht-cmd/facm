@@ -12,6 +12,7 @@ using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
 using FACM.Services;
+using FACM.Theming;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -72,7 +73,7 @@ namespace FACM.Presentation.Glass
             ShowInTaskbar = false;
             ControlBox = false;
             TopMost = settings == null || settings.LeagueRuntimeCompanionPinned;
-            BackColor = Color.FromArgb(6, 17, 37);
+            BackColor = FacmThemeRuntime.Current.Background;
             AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Microsoft YaHei UI", 9F);
             ClientSize = new Size(360, ExpandedHeight);
@@ -83,7 +84,7 @@ namespace FACM.Presentation.Glass
             _web = new WebView2
             {
                 Dock = DockStyle.Fill,
-                DefaultBackgroundColor = Color.FromArgb(6, 17, 37)
+                DefaultBackgroundColor = FacmThemeRuntime.Current.Background
             };
             Controls.Add(_web);
 
@@ -92,6 +93,7 @@ namespace FACM.Presentation.Glass
             _startupTimer = new System.Windows.Forms.Timer { Interval = StartupTimeoutMs };
             _startupTimer.Tick += delegate { FailBrowser("startup timed out"); };
             _controller.SnapshotChanged += HandleSnapshotChanged;
+            FacmThemeRuntime.ThemeChanged += HandleSkinChanged;
             Shown += async delegate
             {
                 PositionOnScreen();
@@ -231,6 +233,7 @@ namespace FACM.Presentation.Glass
             _ready = true;
             AppLog.Info("Runtime Companion WebView2 HTML content ready.");
             Post(new { type = "window", collapsed = _collapsed, pinned = TopMost });
+            SyncSkin();
             _refreshTimer.Start();
             _ = RefreshAsync();
         }
@@ -245,6 +248,40 @@ namespace FACM.Presentation.Glass
             var handler = BrowserUnavailable;
             if (handler != null) handler();
             if (!IsDisposed) Close();
+        }
+
+        private void HandleSkinChanged(object sender, EventArgs e)
+        {
+            if (IsDisposed || _unavailable) return;
+            if (InvokeRequired)
+            {
+                try { BeginInvoke(new Action(delegate { HandleSkinChanged(sender, e); })); }
+                catch (InvalidOperationException) { }
+                return;
+            }
+            SyncSkin();
+        }
+
+        private void SyncSkin()
+        {
+            var skin = FacmThemeRuntime.Current;
+            BackColor = skin.Background;
+            _web.DefaultBackgroundColor = skin.Background;
+            if (!_ready) return;
+            Post(new
+            {
+                type = "skin",
+                id = skin.Id,
+                light = skin.IsLight,
+                background = ColorTranslator.ToHtml(skin.Background),
+                surface = ColorTranslator.ToHtml(skin.Surface),
+                surfaceRaised = ColorTranslator.ToHtml(skin.SurfaceSecondary),
+                text = ColorTranslator.ToHtml(skin.TextPrimary),
+                muted = ColorTranslator.ToHtml(skin.TextMuted),
+                accent = ColorTranslator.ToHtml(skin.Accent),
+                border = ColorTranslator.ToHtml(skin.Border),
+                warning = ColorTranslator.ToHtml(skin.Warning)
+            });
         }
 
         private void HandleSnapshotChanged(object sender, LeagueRuntimeCompanionUpdateEventArgs args)
@@ -650,6 +687,7 @@ namespace FACM.Presentation.Glass
             _startupTimer.Stop();
             _refreshTimer.Stop();
             _controller.SnapshotChanged -= HandleSnapshotChanged;
+            FacmThemeRuntime.ThemeChanged -= HandleSkinChanged;
             _startupTimer.Dispose();
             _refreshTimer.Dispose();
             _iconGeneration++;
