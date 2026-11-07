@@ -45,6 +45,9 @@ namespace FACM.Presentation.Glass
         private bool _ready;
         private bool _navigationSucceeded;
         private bool _documentReady;
+        private bool _embeddedNavigationPending;
+        private bool _embeddedNavigationStarted;
+        private ulong _embeddedNavigationId;
         private bool _closing;
         private bool _browserUnavailable;
         private bool _userMovedWindow;
@@ -179,8 +182,17 @@ namespace FACM.Presentation.Glass
                 core.Settings.AreBrowserAcceleratorKeysEnabled = false;
                 core.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs args)
                 {
-                    if (!string.Equals(args.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
-                        args.Cancel = true;
+                    if (IsExpectedEmbeddedNavigation(_embeddedNavigationPending, _embeddedNavigationStarted))
+                    {
+                        _embeddedNavigationStarted = true;
+                        _embeddedNavigationId = args.NavigationId;
+                        AppLog.Info("Unified workspace embedded HTML navigation started; id=" +
+                            args.NavigationId + "; uri=" + DescribeNavigationUri(args.Uri));
+                        return;
+                    }
+                    args.Cancel = true;
+                    AppLog.Info("Unified workspace blocked external navigation; id=" +
+                        args.NavigationId + "; uri=" + DescribeNavigationUri(args.Uri));
                 };
                 core.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs args)
                 {
@@ -207,6 +219,15 @@ namespace FACM.Presentation.Glass
                 core.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs args)
                 {
                     if (IsDisposed || _browserUnavailable) return;
+                    if (!IsExpectedNavigationCompletion(_embeddedNavigationStarted,
+                        _embeddedNavigationId, args.NavigationId))
+                    {
+                        if (!args.IsSuccess)
+                            AppLog.Info("Unified workspace ignored unrelated navigation completion; id=" +
+                                args.NavigationId + "; status=" + args.WebErrorStatus);
+                        return;
+                    }
+                    _embeddedNavigationPending = false;
                     if (!args.IsSuccess)
                     {
                         FailWebWorkspace("navigation failed: " + args.WebErrorStatus, null);
@@ -215,6 +236,7 @@ namespace FACM.Presentation.Glass
                     _navigationSucceeded = true;
                     CompleteWebWorkspaceReady();
                 };
+                _embeddedNavigationPending = true;
                 core.NavigateToString(ReadEmbeddedHtml());
             }
             catch (Exception exception)
@@ -281,6 +303,35 @@ namespace FACM.Presentation.Glass
         private static bool HasCompletedStartup(bool navigationSucceeded, bool documentReady)
         {
             return navigationSucceeded && documentReady;
+        }
+
+        private static bool IsExpectedEmbeddedNavigation(bool pending, bool alreadyStarted)
+        {
+            return pending && !alreadyStarted;
+        }
+
+        private static bool IsExpectedNavigationCompletion(bool started, ulong expectedId, ulong completedId)
+        {
+            return started && expectedId == completedId;
+        }
+
+        private static string DescribeNavigationUri(string value)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(value, UriKind.Absolute, out uri)) return "<invalid>";
+            if (string.Equals(uri.Scheme, "about", StringComparison.OrdinalIgnoreCase))
+                return value.Length <= 96 ? value : value.Substring(0, 96);
+            if (string.Equals(uri.Scheme, "data", StringComparison.OrdinalIgnoreCase))
+                return "data:<embedded-content;length=" + value.Length + ">";
+            if (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                // Never record a URL's query, fragment or credentials in application logs.
+                var safe = uri.Scheme + "://" + uri.Host +
+                    (uri.IsDefaultPort ? string.Empty : ":" + uri.Port) + uri.AbsolutePath;
+                return safe.Length <= 192 ? safe : safe.Substring(0, 192);
+            }
+            return uri.Scheme + ":<redacted>";
         }
 
         private void FailWebWorkspace(string reason, Exception exception)
@@ -1764,6 +1815,18 @@ namespace FACM.Presentation.Glass
             if (HasCompletedStartup(false, false) || HasCompletedStartup(false, true) ||
                 HasCompletedStartup(true, false) || !HasCompletedStartup(true, true))
                 throw new InvalidOperationException("WebView2 startup requires both navigation and HTML readiness.");
+            if (IsExpectedEmbeddedNavigation(false, false) ||
+                IsExpectedEmbeddedNavigation(true, true) ||
+                !IsExpectedEmbeddedNavigation(true, false) ||
+                IsExpectedNavigationCompletion(false, 7UL, 7UL) ||
+                IsExpectedNavigationCompletion(true, 7UL, 8UL) ||
+                !IsExpectedNavigationCompletion(true, 7UL, 7UL))
+                throw new InvalidOperationException("Only the initiated HTML navigation may complete startup.");
+            if (DescribeNavigationUri("https://user:pass@example.org/app?access_token=secret#fragment")
+                .Contains("secret") ||
+                DescribeNavigationUri("https://user:pass@example.org/app").Contains("pass") ||
+                DescribeNavigationUri("data:text/html,<secret>").Contains("secret"))
+                throw new InvalidOperationException("Navigation logs must redact embedded content and URL secrets.");
             var html = ReadEmbeddedHtml();
             if (!html.Contains("post(\"shell-ready\")"))
                 throw new InvalidOperationException("Unified workspace HTML must acknowledge complete script initialization.");
