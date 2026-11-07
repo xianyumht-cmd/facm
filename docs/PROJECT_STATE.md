@@ -1349,15 +1349,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.82
-- GitHub Release：v3.5.82
+- 版本：GGman 3.5.83
+- GitHub Release：v3.5.83
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：95a1946b8aff8ba052d1a93ac098a541838116bc
-- 发布元数据提交：6b82d54248a34448a9eef0c86470e5318a1cdf63
-- Release GGman.exe SHA-256：4E49FBA24B94A8E25590E2621D9F467C22CFDEA24586B290EC3B236108AD00B7
-- release_notes：GGman 3.5.82：修复 3.5.81 在部分 Windows 10 电脑上控制中心长时间显示深色空白窗口的问题。WebView2 现要求页面导航成功并收到完整 HTML 初始化回执，启动超时或浏览器／渲染进程异常时自动回退到原生菜单，并补充加载阶段和失败原因日志，便于后续定位显卡合成兼容性。保留现有小悬浮球、单窗口功能、签名验证与在线更新流程；本次仍不强制升级。请用户更新后查看是否正常显示控制中心，或是否在约 20 秒内恢复到原生菜单。
+- 发布基础 main：a835479be7052a02d5e266a4acc0833172b13a5b
+- 发布元数据提交：c62582812cbd256c99fd18bc10c7cdee00f7afef
+- Release GGman.exe SHA-256：A3A56648C859DA5722C5FC941FB793B36D6F61D90222B1EAD16A75C9D1645B45
+- release_notes：GGman 3.5.83：针对 3.5.82 实机日志中 WebView2 导航被取消（OperationCanceled）导致控制中心自动回退的问题，修复过严的 about:blank 导航限制。仅允许 GGman 主动加载的单次内嵌 HTML 导航，以导航 ID 验证页面完成结果并忽略无关导航取消；仍禁止所有后续未经授权的外部网页导航。增加安全脱敏的导航目标及错误日志，保留 20 秒启动超时、HTML 就绪确认、浏览器异常监测与原生菜单自动回退。此次不强制更新，请在 Windows 10 上通过正式更新验收新控制中心是否正常显示。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
