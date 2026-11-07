@@ -77,6 +77,8 @@ namespace FACM
             return new LayeredFloatingBall(form, theme);
         }
 
+        internal string CurrentSkinIdForSmokeTest { get { return _theme.Id; } }
+
         public void SetTheme(ThemeDefinition theme)
         {
             if (_disposed) return;
