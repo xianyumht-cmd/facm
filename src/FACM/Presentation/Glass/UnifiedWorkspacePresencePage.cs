@@ -23,6 +23,12 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private CancellationTokenSource _presenceCancellation;
+        private int _presenceGeneration;
+        private bool _presenceBusy;
+        private LeaguePresenceSnapshot _presenceSnapshot;
+        private LeagueClientSession _presenceSession;
+
         internal void OpenPresencePage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Presence);

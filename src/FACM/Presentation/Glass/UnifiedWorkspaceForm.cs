@@ -55,21 +55,6 @@ namespace FACM.Presentation.Glass
         private bool _browserUnavailable;
         private bool _userMovedWindow;
         private LeagueDashboardPhaseState _lastGameflowState;
-        private CancellationTokenSource _championCatalogCancellation;
-        private int _championCatalogGeneration;
-        private CancellationTokenSource _dashboardReadCancellation;
-        private int _dashboardReadGeneration;
-        private CancellationTokenSource _presenceCancellation;
-        private int _presenceGeneration;
-        private bool _presenceBusy;
-        private LeaguePresenceSnapshot _presenceSnapshot;
-        private LeagueClientSession _presenceSession;
-        private CancellationTokenSource _repairCancellation;
-        private bool _repairBusy;
-        private CancellationTokenSource _liveCancellation;
-        private int _liveGeneration;
-        private CancellationTokenSource _historyCancellation;
-        private int _historyGeneration;
         internal event Action BrowserUnavailable;
         internal event Action WorkspaceReady;
 

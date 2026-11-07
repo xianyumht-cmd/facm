@@ -23,6 +23,9 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private CancellationTokenSource _repairCancellation;
+        private bool _repairBusy;
+
         internal void OpenRepairPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Repair);

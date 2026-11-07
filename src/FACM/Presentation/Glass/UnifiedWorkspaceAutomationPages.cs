@@ -23,6 +23,9 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private CancellationTokenSource _championCatalogCancellation;
+        private int _championCatalogGeneration;
+
         internal void OpenPostgameSettings(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("postgame-settings");

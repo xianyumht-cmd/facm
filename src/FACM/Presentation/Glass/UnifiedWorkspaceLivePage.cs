@@ -23,6 +23,9 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private CancellationTokenSource _liveCancellation;
+        private int _liveGeneration;
+
         internal void OpenLivePage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Live);

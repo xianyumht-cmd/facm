@@ -23,6 +23,9 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
+        private CancellationTokenSource _dashboardReadCancellation;
+        private int _dashboardReadGeneration;
+
         internal void OpenDashboardPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Dashboard);

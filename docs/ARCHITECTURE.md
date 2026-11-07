@@ -1066,7 +1066,8 @@ add another centralized routing branch. Backend state/writes continue to flow th
 existing session-scoped `FacmHost` modules and allowlisted bridges. Previously
 centralized dashboard, history/live, presence, repair, automation and appearance
 adapters are now grouped into seven domain `UnifiedWorkspace*Page(s).cs` partials;
-those are still one `UnifiedWorkspaceForm` type, not independently instantiated
+their page-owned cancellation sources and generation counters are colocated with
+those methods. These remain one `UnifiedWorkspaceForm` type, not independently instantiated
 service processes. Actual business state retains the existing backend owners.
 
 The desktop workbench displays a native, skin-colored loading surface while the
