@@ -17,11 +17,6 @@ namespace FACM.Presentation.Glass
                         delegate { return _navigation.Current == "player-advanced"; },
                         delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
                         ResetAdvancedHistorySnapshot,
-                        delegate(FACM.AppHost.Modules.LeagueUnifiedHistorySnapshot result, LeagueClientSession session)
-                        {
-                            _advancedHistorySnapshot = result;
-                            _advancedHistorySession = session;
-                        },
                         SyncAdvancedHistoryList);
                 return _historyAdapter;
             }

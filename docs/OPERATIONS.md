@@ -414,3 +414,14 @@ the text without blocking it; recommendation apply cancels on route/account
 change; presence conditional write cannot overwrite external client changes;
 and local profile stats updates unsubscribe on workbench disposal. Windows CI alone does not
 prove live Tencent account/session behavior.
+
+The next owner acceptance pass should switch rapidly between local match A,
+remote match B and local match C while network detail requests are pending,
+then navigate away and replace the League account. No stale detail, radar,
+timeline or replay-result JSON should appear after a later selection or route
+change. Compare advanced list reuse after Player → advanced → Player and the
+cross-region Riot ID/server search after refresh. Separately, visit presence
+advanced customization, load a champion's permitted skins, switch account
+during a catalog request or profile write, and confirm `session-changed`
+without applying a stale change. These scenarios require real Windows/League
+acceptance beyond the four source/build/Glass/UI workflows.

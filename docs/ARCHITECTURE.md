@@ -1110,3 +1110,19 @@ remain shared and stateless. The Form's history, guide, presence and profile
 partials are now thin integration facades. Advanced match detail, regional
 history, selected-match extras and profile customization retain tightly shared
 Form state and remain the next extraction boundary, not five completed domains.
+
+The following Draft #364 extraction moves that remaining boundary out of the
+Form. `UnifiedWorkspaceHistoryAdapter` now owns both the basic/advanced history
+snapshot, session and list projection. `UnifiedWorkspaceHistoryDetailAdapter`
+owns **one** per-window cancellation source and generation for both local and
+cross-region match detail requests, including serialized team/participant
+evidence and selected-detail handoff. `UnifiedWorkspaceRegionalHistoryAdapter`
+owns SGP server selection, Riot ID search, remote match cache and region request
+generation. `UnifiedWorkspaceHistoryExtrasAdapter` owns the selected detail,
+timeline, radar and replay requests with a separate cancellation generation.
+`UnifiedWorkspaceProfileCustomizationAdapter` owns the personal background,
+crest, challenge-token, emote and seasonal-banner catalog/write operations,
+including captured presence session and allowed skin IDs. Only narrow
+navigation/dispatch facades remain in the matching Form partials. All adapters
+are ordinary per-workbench C# objects; native backend services, the one WebView2,
+ChampSelect popup and shard registry lifetimes are unchanged.

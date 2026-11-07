@@ -576,3 +576,13 @@ Move those paths together when extracting the remaining advanced-history
 adapter. Likewise, recommendation apply owns a separate cancellation source
 from guide refresh; keep the captured League session and generation checks
 between prepare and write, not only when the HTML action first arrives.
+
+The coupled detail extraction also depends on *two* generations: the common
+local/cross-region detail generation cancels stale selections; the selected
+timeline/replay generation invalidates evidence when a different match is
+selected, even if its match ID happens to match. Do not give the regional adapter
+its own competing detail token. On account replacement, clear the cached basic
+and advanced history snapshot before publishing `WrongAccount`; on route exit,
+cancel detail and region reads and erase selected evidence. Profile customization
+must retain its catalog-derived champion/skin allowlists and captured session
+for writes, not trust raw WebView messages or a stale active account.

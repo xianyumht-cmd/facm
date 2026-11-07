@@ -2407,3 +2407,20 @@ owner or production manifest change. Executable commit
 Windows Build `42410095283`, Glass WebView2 `42410095251`, UI Text
 `42410095276` and Mayhem Source Probe `42410095281`. Windows 10 and Tencent CN
 gameplay acceptance remains deferred; PR #364 is still Draft.
+
+### Shared advanced-history/detail and profile customization extraction (Draft #364 candidate)
+
+The current candidate completes the previously identified high-coupling group:
+advanced list projection and cached basic/advanced history session now belong to
+`UnifiedWorkspaceHistoryAdapter`; one `UnifiedWorkspaceHistoryDetailAdapter`
+owns local and remote detail cancellation, generation, serialization and
+selected-detail handoff. `UnifiedWorkspaceRegionalHistoryAdapter` owns server
+catalog, Riot ID lookup and regional history cache. The independent
+`UnifiedWorkspaceHistoryExtrasAdapter` owns the selected match, radar, timeline,
+replay and replay-folder cancellation; `UnifiedWorkspaceProfileCustomizationAdapter`
+owns personal customization catalog/writes and allowlisted IDs. All original
+Form entrypoints remain as thin routing delegates, without new backend owners,
+processes or browser engines. Smoke tests cover adapter isolation, missing
+session, invalid regional payloads, selection cancellation and allowlists.
+Windows CI gates have not yet run for this latest executable candidate. PR #364
+remains Draft; production 3.5.85 manifests and signed artifacts remain intact.

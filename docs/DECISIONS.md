@@ -601,3 +601,16 @@ The source modules remain the authority for LCU sessions, caches, conditional
 writes and stat events. Keep Player → advanced history snapshot handoff explicit
 while the advanced and regional selected-match machinery is still coupled;
 do not split their shared cancellation source until both paths migrate together.
+
+## 2026-11-08 — Move local and regional details as one cancellable unit
+
+Both detail entrypoints must share the **same** per-workbench request generation
+and cancellation source. Selecting a new local or cross-region match invalidates
+the previous detail and any selected timeline/replay data. The regional catalog
+and Riot ID lookup own a separate cancellation lifetime, while the advanced
+extras adapter exclusively owns selected-match and evidence/replay state. Keep
+the common recent/advanced history snapshot inside the history adapter and
+require the captured League session before reusing it. Move personal profile
+customization to its own instance with the original allowlisted IDs, active
+route checks and post-await presence-session fence. Do not add OS processes,
+duplicate LCU subscriptions or an additional WebView2 to realize these boundaries.
