@@ -138,7 +138,7 @@ namespace FACM.Presentation.Glass
                     throw new InvalidOperationException("WebView2 Evergreen Runtime unavailable.");
 #endif
                 var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FACM", "RuntimeCompanionWebView2");
+                    "FACM", "UnifiedWorkspaceWebView2");
                 var environment = await CoreWebView2Environment.CreateAsync(null, data);
                 if (IsDisposed || _unavailable) return;
                 await _web.EnsureCoreWebView2Async(environment);
