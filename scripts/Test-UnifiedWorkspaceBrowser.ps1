@@ -134,13 +134,18 @@ var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,ph
   guide:{champion:'Ashe',tier:'S',winRate:0.52,core:['A','B'],augments:[
     {id:'fixture',name:'Augment fixture',rank:1,rarity:'gold',winRate:0.54}]}};
 window.__companionReceive({data:sample});
+window.__companionReceive({data:{type:'skin',id:'cloud-light',light:true,
+ background:'#F4F7FD',surface:'#FFFFFF',surfaceRaised:'#EBF2FF',
+ text:'#1A2743',muted:'#667797',accent:'#4E7EFF',border:'#D3DCEE',warning:'#EA8B39'}});
 window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
 var pass=document.querySelectorAll('#bench button').length===2 &&
  document.querySelectorAll('#recommend .rec').length===2 &&
  document.querySelectorAll('#augments .augment').length===1 &&
  document.querySelectorAll('#augmentFilters button').length===4 &&
- document.querySelector('#timer').textContent==='14s';
+ document.querySelector('#timer').textContent==='14s' &&
+ getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()==='#F4F7FD' &&
+ document.documentElement.dataset.skin==='cloud-light';
 var mark=document.createElement('div');
 mark.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
  (pass?'#00ff00':'#ff0000');
@@ -173,5 +178,68 @@ try {
   }
 } finally { $picture.Dispose() }
 Write-Host 'Champion Select WebView2 overlay HTML fixture rendered.'
+
+
+# Verify home skin messages actually recolor the running page, without
+# navigating to the skin chooser. The marker detects a broken JS bridge
+# and a palette that was accepted without changing computed CSS values.
+$skinMock = @'
+<script>
+window.chrome={webview:{
+  postMessage:function(){},
+  addEventListener:function(kind,cb){if(kind==='message')window.__skinReceive=cb;}
+}};
+</script>
+'@
+$skinProbe = @'
+<script>
+var palette={id:'SKIN',name:'Skin fixture',background:'BACKGROUND',
+ surface:'SURFACE',surfaceRaised:'RAISED',text:'TEXT',
+ muted:'MUTED',accent:'ACCENT',border:'BORDER',light:ISLIGHT};
+window.__skinReceive({data:{type:'themes',selected:palette.id,items:[palette]}});
+var actual=getComputedStyle(document.documentElement);
+var pass=document.body.dataset.mode==='home' &&
+ document.documentElement.dataset.skin===palette.id &&
+ document.documentElement.dataset.skinLight===String(palette.light) &&
+ actual.getPropertyValue('--canvas').trim().toLowerCase()===palette.background.toLowerCase() &&
+ actual.getPropertyValue('--accent').trim().toLowerCase()===palette.accent.toLowerCase() &&
+ document.querySelectorAll('#themeList .theme-card.selected').length===1 &&
+ document.getElementById('themeResult').textContent.indexOf('当前皮肤：')===0;
+var marker=document.createElement('span');
+marker.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
+ (pass?'#00ff00':'#ff0000');
+document.body.appendChild(marker);
+</script>
+'@
+$skins=@(
+  @{ Id='cloud-light'; Light='true'; Background='#F4F7FD'; Surface='#FFFFFF'; Raised='#EBF2FF'; Text='#1A2743'; Muted='#667797'; Accent='#4E7EFF'; Border='#D3DCEE' },
+  @{ Id='obsidian-gold'; Light='false'; Background='#090A0A'; Surface='#181816'; Raised='#231F18'; Text='#F8DEA1'; Muted='#B09B6F'; Accent='#CC9636'; Border='#B18132' }
+)
+foreach ($skin in $skins) {
+  $probe=$skinProbe.Replace('SKIN',$skin.Id).Replace('ISLIGHT',$skin.Light)
+  foreach ($field in @('Background','Surface','Raised','Text','Muted','Accent','Border')) {
+    $probe=$probe.Replace($field.ToUpperInvariant(),[string]$skin[$field])
+  }
+  $page=$source.Replace('<script>', $skinMock + '<script>').Replace('</body>', $probe + '</body>')
+  $htmlPath=Join-Path $target.FullName "skin-$($skin.Id).html"
+  $imagePath=Join-Path $target.FullName "skin-$($skin.Id).png"
+  Set-Content -LiteralPath $htmlPath -Value $page -Encoding utf8 -NoNewline
+  $uri=([System.Uri]::new($htmlPath)).AbsoluteUri
+  $profile=Join-Path $env:RUNNER_TEMP "ggman-skin-$($skin.Id)"
+  & $edge '--headless=new' '--disable-gpu' '--no-first-run' '--no-default-browser-check' '--hide-scrollbars' "--user-data-dir=$profile" "--screenshot=$imagePath" '--window-size=420,400' $uri
+  $previous=-1;$stable=$false
+  for($attempt=0;$attempt -lt 40;$attempt++){
+    $size=if(Test-Path -LiteralPath $imagePath){(Get-Item -LiteralPath $imagePath).Length}else{0}
+    if($size -gt 1536 -and $size -eq $previous){$stable=$true;break}
+    $previous=$size;Start-Sleep -Milliseconds 250
+  }
+  if(-not $stable){throw "Skin screenshot missing: $($skin.Id)"}
+  $bitmap=[System.Drawing.Bitmap]::FromFile($imagePath)
+  try{
+    $marker=$bitmap.GetPixel(4,4)
+    if($marker.G -lt 180 -or $marker.R -gt 140){throw "Saved skin did not recolor unified home: $($skin.Id)"}
+  }finally{$bitmap.Dispose()}
+  Write-Host "GGman skin rendered from native bridge: $($skin.Id)"
+}
 
 exit 0
