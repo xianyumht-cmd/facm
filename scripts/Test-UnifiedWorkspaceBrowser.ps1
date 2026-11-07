@@ -173,8 +173,8 @@ try {
   $mark=$picture.GetPixel(4,4)
   if ($mark.G -lt 180 -or $mark.R -gt 140) { throw 'Champion Select overlay JS fixture or visual rendering failed.' }
   $background=$picture.GetPixel(25,80)
-  if ($background.R -gt 230 -and $background.G -gt 230 -and $background.B -gt 230) {
-    throw 'Champion Select overlay rendered white.'
+  if ($background.R -lt 200 -or $background.G -lt 200 -or $background.B -lt 200) {
+    throw 'Champion Select overlay ignored the light skin palette.'
   }
 } finally { $picture.Dispose() }
 Write-Host 'Champion Select WebView2 overlay HTML fixture rendered.'
