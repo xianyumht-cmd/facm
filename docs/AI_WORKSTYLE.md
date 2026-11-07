@@ -107,3 +107,8 @@ in a feature-owned file; add only one entry to `UnifiedWorkspaceShardCatalog`.
 Do not reintroduce centralized WebView2 command handlers or route-specific
 cancel calls in `UnifiedWorkspaceForm`. Preserve each service's account/session
 fences and do not grow the number of resident processes merely to add a UI page.
+All existing single-window desktop routes now use that registration pattern.
+Keep `UnifiedWorkspaceForm.cs` focused on browser lifetime, global protection
+and navigation; feature-specific adapters belong in the domain partial files.
+Treat those partials as a transitional organization of one Form type, while
+authoritative LCU/network/cache state continues to live in native service owners.

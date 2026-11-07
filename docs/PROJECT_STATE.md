@@ -2349,5 +2349,24 @@ timeline/radar/replay, SGP enrichment and bench swaps continue using the existin
 session-fenced adapters/data modules. Basic-to-advanced Player keeps the reusable
 history cache; leaving the advanced route cancels detail and regional reads.
 No new process, background timer, service endpoint, token owner or production
-update was added. Current candidate is unverified until exact-HEAD Windows CI;
-manual Tencent CN/Windows 10 interaction remains open. PR #364 stays Draft.
+update was added. Commit `055016d638aa2ced5dae165ef743a2164712928d`
+passed all four Windows workflows (Build `42401045365`, Glass `42401045495`,
+UI Text `42401045563`, Mayhem `42401045410`). Manual Tencent CN/Windows 10
+interaction remains open. PR #364 stays Draft.
+
+### Remaining workbench routes registered as shards (next Draft #364 candidate)
+
+The following candidate closes the remaining 15 desktop registration gaps:
+dashboard/advanced dashboard, presence/advanced customization, local profile,
+repair, client status, postgame, auto-selection, matchmaking, efficiency,
+appearance/pets, cleanup, cloud sync and signed updates. Every allowed route now
+maps to exactly one registered shard; `UnifiedWorkspaceForm` delegates page
+opening, ready refresh, bounded HTML commands and route-exit cancellation through
+the catalog instead of a centralized switch. The backend adapters for dashboard,
+history/live, presence, repair, automation and skin/tools were relocated without
+behavior changes to seven domain-specific partial files, reducing the central
+source to under 700 lines. This is organization of one partial Form type,
+not a new OS process or independently instantiated service. Forced online-update
+command restrictions, cleanup execution guard, region/account fences and shared
+gameflow owner remain intact. Exact-HEAD Windows CI is pending; production
+online manifests and signed 3.5.85 are untouched, PR #364 remains Draft.

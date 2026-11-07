@@ -20,7 +20,7 @@ namespace FACM.Presentation.Glass
         private HashSet<int> _profileChampions = new HashSet<int>();
         private HashSet<int> _profileSkins = new HashSet<int>();
 
-        private void OpenProfileCustomizationPage(bool pushHistory)
+        internal void OpenProfileCustomizationPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("presence-advanced");
             _browser.Dock = DockStyle.Fill;
@@ -29,7 +29,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartProfileCustomizationRead();
         }
 
-        private void StartProfileCustomizationRead()
+        internal void StartProfileCustomizationRead()
         {
             if (_navigation.Current != "presence-advanced") return;
             CancelProfileCustomization();
@@ -41,7 +41,7 @@ namespace FACM.Presentation.Glass
             ReadProfileOptions("champions", 0);
         }
 
-        private void LoadProfileSkins(string raw)
+        internal void LoadProfileSkins(string raw)
         {
             if (_navigation.Current != "presence-advanced" || !TryProfileId(raw, 10000, _profileChampions))
             {
@@ -114,7 +114,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void ApplyProfileSkin(string raw)
+        internal void ApplyProfileSkin(string raw)
         {
             if (_navigation.Current != "presence-advanced" || !TryProfileId(raw, 99999999, _profileSkins))
             {
@@ -124,7 +124,7 @@ namespace FACM.Presentation.Glass
             ApplyProfileChange("skin", skinId);
         }
 
-        private void ApplyProfileCustomizationAction(string action)
+        internal void ApplyProfileCustomizationAction(string action)
         {
             if (action != "crest" && action != "tokens" && action != "emotes" && action != "banner")
             {
@@ -233,7 +233,7 @@ namespace FACM.Presentation.Glass
                 new { type = "profile-customization-result", status }));
         }
 
-        private void CancelProfileCustomization()
+        internal void CancelProfileCustomization()
         {
             _profileCustomizationGeneration++;
             _profileCustomizationSession = null;

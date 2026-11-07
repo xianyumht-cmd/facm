@@ -389,3 +389,10 @@ For the expanded shards, explicitly exercise basic Player → advanced history �
 back, remote-region detail → back, Mayhem query → cancel, recommendation apply →
 home, and live → bench → home. Confirm stale results never render after navigation
 or account replacement and no duplicate refresh occurs at WebView2 readiness.
+The next shard candidate also requires all navigation IDs to be present in the
+registry and a focused walkthrough of dashboard → advanced dashboard, presence →
+customization, automation settings, appearance/pets, cloud sync, cleanup preview
+and signed update. Assert that a queued command from a different page cannot
+publish cloud state, confirm deletion or start installation. During a forced
+update, only its explicit command allowlist may execute, and back/home must
+stay blocked. Compare same-window back-stack behavior to the pre-shard candidate.

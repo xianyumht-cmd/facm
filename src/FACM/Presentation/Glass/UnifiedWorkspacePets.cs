@@ -7,7 +7,7 @@ namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
-        private void SyncUnifiedPetOptions()
+        internal void SyncUnifiedPetOptions()
         {
             if (!_ready || _closing || IsDisposed || _navigation.Current != "appearance" ||
                 _browser.CoreWebView2 == null) return;
@@ -27,7 +27,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void ApplyUnifiedPetChoice(string id)
+        internal void ApplyUnifiedPetChoice(string id)
         {
             if (_navigation.Current != "appearance" || id == null || id.Length > 48) return;
             var status = _ownerBall.ApplyUnifiedPetSelection(id);
@@ -35,7 +35,7 @@ namespace FACM.Presentation.Glass
             SyncUnifiedPetOptions();
         }
 
-        private void ApplyUnifiedPetAction(string action)
+        internal void ApplyUnifiedPetAction(string action)
         {
             if (_navigation.Current != "appearance") return;
             var status = _ownerBall.ApplyUnifiedPetAction(action);

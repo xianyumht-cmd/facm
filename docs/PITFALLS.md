@@ -550,3 +550,11 @@ reads when leaving `player-advanced`. Other page readers and recommendation
 writes must be canceled on exit. A WebView2 message is only actionable in its
 own registered active route; broad global prefix handling could allow an old
 page's queued command to mutate the next page's state.
+
+For maintenance pages the route boundary is also a security boundary: cloud
+publish, cleanup confirmation and update installation must only honor their
+own current route. Forced online update is exceptional: its allowlisted
+commands remain actionable while the update mandate is active, including a
+transient stale route. Never register a generic `updates-*` or `cleanup-*`
+handler on the unscoped shell. Cancelling navigation must clear any cleanup
+preview token without cancelling a cleanup already executing.

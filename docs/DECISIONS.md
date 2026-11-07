@@ -576,3 +576,10 @@ The next six Player/Mayhem/recommendation/live UI routes use feature-local shard
 classes with a `CancelOutside` lifecycle hook. Preserve the basic-to-advanced
 Player history reuse exception, account/session fencing, and per-page cancellation
 instead of introducing service-wide cancellation or one process per route.
+
+Register the remaining desktop UI routes under the same contract and make the
+catalog the sole navigation allowlist. Keep forced-update interactions and
+destructive-cleanup guards in the single host, with shard-owned page actions
+and cancellation. Split the legacy form adapters into domain partial files as a
+reviewable intermediate step; do not mistake file separation for independent
+business service ownership or introduce additional WebView2 engines.

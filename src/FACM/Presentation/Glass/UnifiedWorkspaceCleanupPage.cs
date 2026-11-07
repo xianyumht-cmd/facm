@@ -19,7 +19,7 @@ namespace FACM.Presentation.Glass
         private bool _cleanupExecuting;
         private bool _cleanupDriverStarted;
 
-        private void OpenUnifiedCleanupPage(bool pushHistory)
+        internal void OpenUnifiedCleanupPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("cleanup");
             _browser.Dock = DockStyle.Fill;
@@ -28,7 +28,7 @@ namespace FACM.Presentation.Glass
             SyncUnifiedCleanupState();
         }
 
-        private void SyncUnifiedCleanupState()
+        internal void SyncUnifiedCleanupState()
         {
             if (!_ready || IsDisposed || _closing || _browser.CoreWebView2 == null ||
                 _navigation.Current != "cleanup") return;
@@ -47,7 +47,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void ResetCleanupPreview()
+        internal void ResetCleanupPreview()
         {
             _cleanupGeneration++;
             _cleanupPreview = null;
@@ -55,7 +55,7 @@ namespace FACM.Presentation.Glass
             _cleanupReviewExpiresUtc = DateTime.MinValue;
         }
 
-        private void SelectUnifiedCleanupDirectory()
+        internal void SelectUnifiedCleanupDirectory()
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting) return;
             using (var dialog = new FolderBrowserDialog())
@@ -68,7 +68,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void DetectUnifiedCleanupDirectory()
+        internal async void DetectUnifiedCleanupDirectory()
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting) return;
             ResetCleanupPreview();
@@ -116,7 +116,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void OpenUnifiedDriverRepair()
+        internal void OpenUnifiedDriverRepair()
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting) return;
             try
@@ -133,7 +133,7 @@ namespace FACM.Presentation.Glass
             SyncUnifiedCleanupState();
         }
 
-        private async void PreviewUnifiedCleanup()
+        internal async void PreviewUnifiedCleanup()
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting) return;
             ResetCleanupPreview();
@@ -206,7 +206,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void ConfirmUnifiedCleanup(string token)
+        internal async void ConfirmUnifiedCleanup(string token)
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting) return;
             if (string.IsNullOrEmpty(token) || token.Length != 32 ||
@@ -260,7 +260,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void RestartUnifiedCleanupElevated()
+        internal void RestartUnifiedCleanupElevated()
         {
             if (_navigation.Current != "cleanup" || _cleanupBusy || _cleanupExecuting ||
                 _cleanup.IsAdministrator) return;

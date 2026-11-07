@@ -1052,18 +1052,22 @@ timing and reverse disposal for the native GGman Core. UI modularity now builds 
 that owner rather than adding another process or LCU monitor.
 `UnifiedWorkspaceShardCatalog` registers `IUnifiedWorkspaceShard` definitions; each
 definition owns its stable route, bounded WebView2 commands, page activation,
-post-handshake refresh and route-exit cancellation. Extracted shards now cover
-`quick-messages`, `efficiency-advanced`, `player`, `player-advanced`, `mayhem`,
-`recommendation`, `live` and `live-advanced`. History, guide and live-domain shard
+post-handshake refresh and route-exit cancellation. The current 23 routes all
+have registered shards: Player/history, Mayhem/recommendation, live/bench,
+dashboard/respawn, presence/profile customization, profile/repair, automation
+settings, appearance/pets, cleanup, cloud and signed updates. Domain-specific
 implementations live in separate `UnifiedWorkspace*Shards.cs` files. The navigation
-allowlist consults the registry, and the unified form dispatches registered commands
-only when the shard's route is active. `CancelOutside` preserves shared history
+allowlist delegates entirely to the catalog, and the unified form dispatches
+feature commands only when their registered route is active. `CancelOutside` preserves shared history
 while moving from basic to advanced Player, but cancels stale page reads, cross-region
 details, recommendation applies, and live-bench work on other transitions and exit.
 New UI features require a shard implementation and one registry entry; they do not
 add another centralized routing branch. Backend state/writes continue to flow through
-existing session-scoped `FacmHost` modules and allowlisted bridges. Other legacy
-routes and business adapters in form partials still await extraction.
+existing session-scoped `FacmHost` modules and allowlisted bridges. Previously
+centralized dashboard, history/live, presence, repair, automation and appearance
+adapters are now grouped into seven domain `UnifiedWorkspace*Page(s).cs` partials;
+those are still one `UnifiedWorkspaceForm` type, not independently instantiated
+service processes. Actual business state retains the existing backend owners.
 
 The desktop workbench displays a native, skin-colored loading surface while the
 one WebView2 initializes and navigates its embedded offline HTML. The page sends
@@ -1075,3 +1079,7 @@ page-owned reads without destroying WebView2; reopening reuses the same renderer
 Exit, browser failure, active download, required update and cleanup keep their
 original protected lifetimes. The separate ChampSelect companion remains owned
 by `LeagueHubModule`, not the desktop shard registry.
+The updates shard preserves the forced-update command allowlist, including when
+the updater is presented while another route is still active. Destructive cleanup
+keeps its preview token and in-progress guard; cloud account hooks remain shared
+by the one desktop host rather than duplicated per page.

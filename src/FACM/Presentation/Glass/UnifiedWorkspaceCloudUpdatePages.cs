@@ -63,13 +63,13 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void ExitForcedOnline()
+        internal void ExitForcedOnline()
         {
             if (!_onlineForceRequired || _onlineInstalling) return;
             _ownerBall.ExitApplication();
         }
 
-        private void OpenOnlineAnnouncementLink()
+        internal void OpenOnlineAnnouncementLink()
         {
             if (_navigation.Current != "updates" || _onlineInstalling) return;
             var announcement = _onlineSnapshot == null ? null : _onlineSnapshot.Announcement;
@@ -120,7 +120,7 @@ namespace FACM.Presentation.Glass
             else SyncCloudState();
         }
 
-        private void OpenCloudPage(bool pushHistory)
+        internal void OpenCloudPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("cloud-sync");
             _browser.Dock = DockStyle.Fill;
@@ -130,7 +130,7 @@ namespace FACM.Presentation.Glass
             SyncCloudState();
         }
 
-        private void SyncCloudState()
+        internal void SyncCloudState()
         {
             if (!_ready || IsDisposed || _closing ||
                 _browser.CoreWebView2 == null || _navigation.Current != "cloud-sync") return;
@@ -159,7 +159,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void ApplyCloudToggle(string request)
+        internal void ApplyCloudToggle(string request)
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
             if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
@@ -186,7 +186,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void PublishCloudGameProfile()
+        internal async void PublishCloudGameProfile()
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
             if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
@@ -223,7 +223,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void ResolveCloudConflict()
+        internal async void ResolveCloudConflict()
         {
             if (_navigation.Current != "cloud-sync" || _cloudBusy) return;
             if (_settings.LocalOnlyMode) { PostCloudResult("local-only"); return; }
@@ -271,7 +271,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void OpenUpdatesPage(bool pushHistory)
+        internal void OpenUpdatesPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("updates");
             _browser.Dock = DockStyle.Fill;
@@ -280,7 +280,14 @@ namespace FACM.Presentation.Glass
             if (_ready) StartOnlineRead();
         }
 
-        private void StartOnlineRead()
+        internal void SyncOnlineInitialState()
+        {
+            if (_onlineSnapshot != null && _onlineReadCancellation == null)
+                SendOnlineState(_onlineSnapshot);
+            else StartOnlineRead();
+        }
+
+        internal void StartOnlineRead()
         {
             if (_navigation.Current != "updates" || _onlineInstalling) return;
             CancelOnlineRead();
@@ -360,7 +367,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void ApplyOnlineAutoSetting(string setting)
+        internal void ApplyOnlineAutoSetting(string setting)
         {
             if (_navigation.Current != "updates" || _onlineInstalling ||
                 _onlineForceRequired ||
@@ -379,7 +386,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void BeginOnlineInstallation()
+        internal async void BeginOnlineInstallation()
         {
             if (_navigation.Current != "updates" || _onlineInstalling ||
                 !_ownerBall.UnifiedOnlineCenterAvailable ||
@@ -426,7 +433,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private void CancelOnlineInstallation()
+        internal void CancelOnlineInstallation()
         {
             var source = _onlineInstallCancellation;
             if (source != null && !source.IsCancellationRequested) source.Cancel();
@@ -452,7 +459,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void CancelOnlineRead()
+        internal void CancelOnlineRead()
         {
             _onlineGeneration++;
             var read = _onlineReadCancellation;

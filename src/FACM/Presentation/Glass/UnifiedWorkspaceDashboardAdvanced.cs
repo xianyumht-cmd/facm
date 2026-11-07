@@ -12,7 +12,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _advancedRespawnCancellation;
         private int _advancedRespawnGeneration;
 
-        private void OpenAdvancedDashboardPage(bool pushHistory)
+        internal void OpenAdvancedDashboardPage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("dashboard-advanced");
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -21,7 +21,7 @@ namespace FACM.Presentation.Glass
             if (_ready) StartDashboardRead();
         }
 
-        private void StartAdvancedRespawnRead()
+        internal void StartAdvancedRespawnRead()
         {
             if (_navigation.Current != "dashboard-advanced" || _closing) return;
             CancelAdvancedRespawnRead();
@@ -101,7 +101,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void CancelAdvancedRespawnRead()
+        internal void CancelAdvancedRespawnRead()
         {
             _advancedRespawnGeneration++;
             var source = _advancedRespawnCancellation;

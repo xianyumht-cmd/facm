@@ -39,7 +39,7 @@ namespace FACM.Presentation.Glass
             catch (InvalidOperationException) { }
         }
 
-        private void OpenLocalProfilePage(bool pushHistory)
+        internal void OpenLocalProfilePage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open(LeagueHubNavigation.Profile);
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -49,7 +49,7 @@ namespace FACM.Presentation.Glass
             SyncLocalProfile();
         }
 
-        private void SyncLocalProfile()
+        internal void SyncLocalProfile()
         {
             if (_navigation.Current != LeagueHubNavigation.Profile || !_ready || IsDisposed ||
                 _closing || _browser.CoreWebView2 == null) return;

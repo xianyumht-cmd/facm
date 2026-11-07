@@ -36,6 +36,21 @@ namespace FACM.Presentation.Glass
             Register(routes, new RecommendationShard());
             Register(routes, new LiveMatchShard());
             Register(routes, new LiveBenchShard());
+            Register(routes, new DashboardShard());
+            Register(routes, new AdvancedDashboardShard());
+            Register(routes, new PresenceShard());
+            Register(routes, new ProfileCustomizationShard());
+            Register(routes, new LocalProfileShard());
+            Register(routes, new RepairShard());
+            Register(routes, new ClientStatusShard());
+            Register(routes, new PostgameSettingsShard());
+            Register(routes, new AutoSelectionShard());
+            Register(routes, new MatchmakingSettingsShard());
+            Register(routes, new EfficiencyShard());
+            Register(routes, new AppearanceShard());
+            Register(routes, new CleanupShard());
+            Register(routes, new CloudSyncShard());
+            Register(routes, new UpdatesShard());
             return routes;
         }
 
@@ -92,6 +107,13 @@ namespace FACM.Presentation.Glass
                 !HasRoute(LeagueHubNavigation.Mayhem) ||
                 !HasRoute(LeagueHubNavigation.Recommendation) ||
                 !HasRoute(LeagueHubNavigation.Live) || !HasRoute("live-advanced") ||
+                !HasRoute(LeagueHubNavigation.Dashboard) || !HasRoute("dashboard-advanced") ||
+                !HasRoute(LeagueHubNavigation.Presence) || !HasRoute("presence-advanced") ||
+                !HasRoute(LeagueHubNavigation.Profile) || !HasRoute(LeagueHubNavigation.Repair) ||
+                !HasRoute(LeagueHubNavigation.Efficiency) || !HasRoute("client-status") ||
+                !HasRoute("postgame-settings") || !HasRoute("auto-selection") ||
+                !HasRoute("matchmaking-settings") || !HasRoute("appearance") ||
+                !HasRoute("cleanup") || !HasRoute("cloud-sync") || !HasRoute("updates") ||
                 HasRoute("unknown") || HasRoute(null) ||
                 !Routes["quick-messages"].Recognizes("quick-message-refresh") ||
                 !Routes["quick-messages"].Recognizes("quick-message-save:{}") ||
@@ -114,7 +136,18 @@ namespace FACM.Presentation.Glass
                 TryHandle(null, LeagueHubNavigation.Player, "bench-refresh") ||
                 TryHandle(null, "player-advanced", "history-more") ||
                 TryHandle(null, LeagueHubNavigation.Live, "history-refresh") ||
-                TryHandle(null, "unknown", "live-refresh"))
+                TryHandle(null, "unknown", "live-refresh") ||
+                !Routes["dashboard-advanced"].Recognizes("dashboard-respawn-refresh") ||
+                Routes[LeagueHubNavigation.Dashboard].Recognizes("dashboard-respawn-refresh") ||
+                !Routes["presence-advanced"].Recognizes("profile-customization-skin:1") ||
+                Routes[LeagueHubNavigation.Presence].Recognizes("profile-customization-skin:1") ||
+                !Routes["appearance"].Recognizes("theme:default") ||
+                Routes["updates"].Recognizes("cleanup-confirm:token") ||
+                Routes["cleanup"].Recognizes("updates-install") ||
+                !Routes["updates"].Recognizes("updates-stop") ||
+                !Routes["cleanup"].Recognizes("cleanup-confirm:token") ||
+                TryHandle(null, "updates", "cloud-publish") ||
+                TryHandle(null, "cleanup", "updates-install"))
                 throw new InvalidOperationException("Workspace shard routing or command isolation changed.");
             var duplicate = new Dictionary<string, IUnifiedWorkspaceShard>(StringComparer.Ordinal);
             Register(duplicate, new QuickMessagesShard());

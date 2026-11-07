@@ -18,19 +18,7 @@ namespace FACM.Presentation.Glass
 
         internal static bool IsAllowed(string route)
         {
-            return string.Equals(route, "cloud-sync", StringComparison.Ordinal) ||
-                string.Equals(route, "updates", StringComparison.Ordinal) ||
-                string.Equals(route, "cleanup", StringComparison.Ordinal) ||
-                string.Equals(route, "appearance", StringComparison.Ordinal) ||
-                string.Equals(route, "client-status", StringComparison.Ordinal) ||
-                string.Equals(route, "presence-advanced", StringComparison.Ordinal) ||
-                UnifiedWorkspaceShardCatalog.HasRoute(route) ||
-                string.Equals(route, "matchmaking-settings", StringComparison.Ordinal) ||
-                string.Equals(route, "auto-selection", StringComparison.Ordinal) ||
-                string.Equals(route, "postgame-settings", StringComparison.Ordinal) ||
-                string.Equals(route, "dashboard-advanced", StringComparison.Ordinal) ||
-                LeagueHubNavigation.Views.Any(item =>
-                    string.Equals(item.Id, route, StringComparison.Ordinal));
+            return UnifiedWorkspaceShardCatalog.HasRoute(route);
         }
 
         internal bool Open(string route)
