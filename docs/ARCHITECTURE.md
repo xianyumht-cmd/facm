@@ -1070,6 +1070,19 @@ their page-owned cancellation sources and generation counters are colocated with
 those methods. These remain one `UnifiedWorkspaceForm` type, not independently instantiated
 service processes. Actual business state retains the existing backend owners.
 
+The next Draft #364 slice starts replacing partial-form adapters with independently
+instantiated, per-workspace business adapters. The dashboard adapter owns summary
+and advanced respawn reads, while the live adapter owns LCU/SGP live-detail
+reads. Each has its own cancellation source, request generation, snapshot-to-HTML
+JSON projection and route-guarded publish callback. The form's corresponding
+partials only open pages, lazily construct adapters and pass the existing
+`LeagueDashboardModule`/`LeagueLiveModule` owners through. Neither adapter refers
+to `UnifiedWorkspaceForm`, creates a WebView2, subscribes to Gameflow nor owns
+an authenticated transport. Respawn/live session fencing remains, and dashboard
+summary reads now also discard a session replaced during their await.
+Static shard definitions never hold per-window requests. Remaining Player,
+recommendation, presence and settings partial-form logic awaits extraction.
+
 The desktop workbench displays a native, skin-colored loading surface while the
 one WebView2 initializes and navigates its embedded offline HTML. The page sends
 `shell-ready` after two animation-frame callbacks, in addition to a successful

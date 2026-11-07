@@ -283,6 +283,13 @@ namespace FACM.Presentation.Glass
             return navigationSucceeded && documentReady;
         }
 
+        private bool CanPublishOnRoute(string route, string relatedRoute = null)
+        {
+            return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
+                (_navigation.Current == route ||
+                 (relatedRoute != null && _navigation.Current == relatedRoute));
+        }
+
         private static bool IsExpectedEmbeddedNavigation(bool pending, bool alreadyStarted)
         {
             return pending && !alreadyStarted;
@@ -544,6 +551,8 @@ namespace FACM.Presentation.Glass
         {
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
             UnifiedWorkspaceShardCatalog.ValidateForSmokeTest();
+            UnifiedWorkspaceDashboardAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceLiveAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();

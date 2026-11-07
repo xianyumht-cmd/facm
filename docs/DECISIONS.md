@@ -583,3 +583,14 @@ destructive-cleanup guards in the single host, with shard-owned page actions
 and cancellation. Split the legacy form adapters into domain partial files as a
 reviewable intermediate step; do not mistake file separation for independent
 business service ownership or introduce additional WebView2 engines.
+
+## 2026-11-08 — Instantiate business adapters per workbench, not per route catalog
+
+`IUnifiedWorkspaceShard` entries are shared route definitions. Keep cancellation
+sources, asynchronous request generations and serialized presentation state in
+independent per-form adapters, never in static shard objects. First extract
+dashboard/advanced respawn and live/SGP adapters as ordinary C# classes with
+only route-availability predicates and message-publish delegates injected from
+the shell. Existing native modules retain LCU/Gameflow ownership. Check the
+active route and captured League session before publication; do not add another
+browser, transport, poller or process merely to achieve modularity.

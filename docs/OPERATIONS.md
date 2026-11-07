@@ -396,3 +396,11 @@ and signed update. Assert that a queued command from a different page cannot
 publish cloud state, confirm deletion or start installation. During a forced
 update, only its explicit command allowlist may execute, and back/home must
 stay blocked. Compare same-window back-stack behavior to the pre-shard candidate.
+
+The unified workspace smoke now checks dashboard/live JSON shapes, live's
+24-player bound and independent per-instance null-module behavior. On Windows
+10, repeat dashboard summary → advanced respawn → home and live/SGP → another
+route during a slow read and after changing League accounts. Confirm only the
+active page receives data, no old session repopulates it, and hiding/reopening
+still reuses a single WebView2. Four Windows GitHub workflows are necessary
+but cannot replace actual League client/DPI/GPU acceptance.

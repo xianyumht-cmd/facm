@@ -558,3 +558,13 @@ commands remain actionable while the update mandate is active, including a
 transient stale route. Never register a generic `updates-*` or `cleanup-*`
 handler on the unscoped shell. Cancelling navigation must clear any cleanup
 preview token without cancelling a cleanup already executing.
+
+## 2026-11-08 — A registered shard is not a per-window request owner
+
+`UnifiedWorkspaceShardCatalog` holds shared definitions. If a shard owns a
+`CancellationTokenSource` or generation counter, closing one workbench can
+cancel another's requests. Instantiate an adapter on each workbench, inject
+the route guard and message publisher, and cancel on route departure, normal
+hide or disposal. Check the captured LCU session after awaits, including
+dashboard summaries, so stale account data cannot appear. The publisher must
+not access a disposed WebView2.

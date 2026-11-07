@@ -2375,3 +2375,18 @@ Build `42405457264`, Glass `42405457306`, UI Text `42405457266` and Mayhem
 Production online manifests and signed 3.5.85 are untouched; PR #364 remains
 Draft. Operator Win10 compositor/latency/DPI and real Tencent CN acceptance are
 not established by these CI checks.
+
+### Independently instantiated dashboard and live adapters (Draft #364 candidate)
+
+This slice starts actual business-adapter separation after full route
+registration. `UnifiedWorkspaceDashboardAdapter` owns summary/advanced respawn
+request state and projection; `UnifiedWorkspaceLiveAdapter` owns live/SGP
+details and bounded player projection. Both belong to one workbench instance
+with narrow injected UI callbacks, not shared route shards. The corresponding
+Form partials only navigate and delegate. Post-await active-route/session
+fences preserve current account/page semantics; the dashboard summary adds
+an identity check. Smoke contracts cover JSON and adapter isolation. Signed
+3.5.85, the production manifest, Gameflow/LCU owners and browser runtime
+remain unchanged. Four Windows CI gates are pending for this candidate;
+Tencent CN, Windows 10 DPI and measured latency/memory need owner acceptance.
+PR #364 stays Draft.
