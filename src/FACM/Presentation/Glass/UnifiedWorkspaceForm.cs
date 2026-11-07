@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Collections.Generic;
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Linq;
@@ -40,7 +41,9 @@ namespace FACM.Presentation.Glass
         private readonly AppSettings _settings;
         private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
+        private readonly Panel _loadingSurface;
         private readonly System.Windows.Forms.Timer _startupTimer;
+        private readonly Stopwatch _startupStopwatch = new Stopwatch();
         private bool _starting;
         private bool _ready;
         private bool _navigationSucceeded;
@@ -88,11 +91,13 @@ namespace FACM.Presentation.Glass
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = UnifiedWorkspaceNavigation.ResolveClientSize(Screen.PrimaryScreen.WorkingArea, false);
 
+            var palette = FacmThemeRuntime.Current;
             _browser = new WebView2
             {
                 Dock = DockStyle.Fill,
-                DefaultBackgroundColor = Color.FromArgb(4, 12, 32)
+                DefaultBackgroundColor = palette.Background
             };
+            _loadingSurface = CreateLoadingSurface(ui, palette);
             _startupTimer = new System.Windows.Forms.Timer { Interval = StartupTimeoutMs };
             _startupTimer.Tick += delegate
             {
@@ -100,6 +105,8 @@ namespace FACM.Presentation.Glass
                     StartupTimeoutMs + "ms", null);
             };
             Controls.Add(_browser);
+            Controls.Add(_loadingSurface);
+            _loadingSurface.BringToFront();
             Resize += delegate { ApplyRoundedRegion(); };
             DpiChanged += delegate
             {
@@ -118,6 +125,7 @@ namespace FACM.Presentation.Glass
             Shown += async delegate
             {
                 ApplyRoundedRegion();
+                _startupStopwatch.Start();
                 _startupTimer.Start();
                 await InitializeAsync();
             };
@@ -146,6 +154,41 @@ namespace FACM.Presentation.Glass
                 UnhookLocalStats();
                 _browser.Dispose();
             };
+        }
+
+        private static Panel CreateLoadingSurface(UiTextCatalog ui, ThemeDefinition palette)
+        {
+            var surface = new Panel { Dock = DockStyle.Fill, BackColor = palette.Background };
+            var title = new Label
+            {
+                AutoSize = true,
+                Text = ui.AppName,
+                Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold),
+                ForeColor = palette.TextPrimary,
+                BackColor = Color.Transparent
+            };
+            var status = new Label
+            {
+                AutoSize = true,
+                Text = "正在打开控制中心…",
+                Font = new Font("Microsoft YaHei UI", 9F),
+                ForeColor = palette.TextMuted,
+                BackColor = Color.Transparent
+            };
+            surface.Controls.Add(title);
+            surface.Controls.Add(status);
+            surface.Resize += delegate
+            {
+                title.Location = new Point(Math.Max(0, (surface.ClientSize.Width - title.Width) / 2),
+                    Math.Max(0, (surface.ClientSize.Height - title.Height) / 2 - 18));
+                status.Location = new Point(Math.Max(0, (surface.ClientSize.Width - status.Width) / 2),
+                    title.Bottom + 12);
+            };
+            surface.PerformLayout();
+            title.Location = new Point(Math.Max(0, (surface.ClientSize.Width - title.Width) / 2),
+                Math.Max(0, (surface.ClientSize.Height - title.Height) / 2 - 18));
+            status.Location = new Point(Math.Max(0, (surface.ClientSize.Width - status.Width) / 2), title.Bottom + 12);
+            return surface;
         }
 
         internal bool HasActiveCleanup { get { return _cleanupExecuting; } }
@@ -250,8 +293,11 @@ namespace FACM.Presentation.Glass
             if (!HasCompletedStartup(_navigationSucceeded, _documentReady) || _ready || IsDisposed ||
                 _browserUnavailable || _closing) return;
             _startupTimer.Stop();
+            _startupStopwatch.Stop();
             _ready = true;
-            AppLog.Info("Unified workspace WebView2 HTML content ready.");
+            _loadingSurface.Hide();
+            AppLog.Info("Unified workspace WebView2 HTML content ready; startup=" +
+                _startupStopwatch.ElapsedMilliseconds + "ms.");
             if (WorkspaceReady != null) WorkspaceReady();
             SyncWebNavigation();
             SyncGameflowState();
@@ -277,8 +323,7 @@ namespace FACM.Presentation.Glass
             if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
             if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
             if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
-            if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
-            if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
+            UnifiedWorkspaceShardCatalog.Ready(this, _navigation.Current);
             if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
             if (_navigation.Current == "live-advanced") StartLiveBenchRead();
             if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
@@ -346,6 +391,23 @@ namespace FACM.Presentation.Glass
             Close();
         }
 
+        // The orb dismisses the desktop UI without tearing down the browser engine.
+        // Returning home cancels page-owned reads; the League service modules keep running.
+        internal bool Dismiss()
+        {
+            if (IsDisposed || _closing || !CanDismiss(_browserUnavailable, _ownerBall.IsExiting,
+                _onlineForceRequired, _onlineInstalling, _cleanupExecuting)) return false;
+            Hide();
+            ReturnHome();
+            return true;
+        }
+
+        private static bool CanDismiss(bool browserUnavailable, bool exiting, bool forceRequired,
+            bool installing, bool cleaning)
+        {
+            return !browserUnavailable && !exiting && !forceRequired && !installing && !cleaning;
+        }
+
         private void HandleWebMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             if (IsDisposed || _closing || _browserUnavailable) return;
@@ -362,7 +424,7 @@ namespace FACM.Presentation.Glass
             if (message == "close")
             {
                 if (_onlineForceRequired) ExitForcedOnline();
-                else Close();
+                else Dismiss();
                 return;
             }
             if (message == "drag")
@@ -376,18 +438,7 @@ namespace FACM.Presentation.Glass
             if (_onlineForceRequired && message != "updates-refresh" &&
                 message != "updates-install" && message != "updates-stop" && message != "updates-exit" &&
                 message != "updates-link") return;
-            if (message == "quick-message-refresh") { SyncQuickMessageSettings(); return; }
-            if (message != null && message.StartsWith("quick-message-save:", StringComparison.Ordinal))
-            { SaveQuickMessageSettings(message.Substring(19)); return; }
-            if (message != null && message.StartsWith("quick-message-send:", StringComparison.Ordinal))
-            {
-                int index;
-                if (int.TryParse(message.Substring(19), out index)) SendQuickMessage(index);
-                return;
-            }
-            if (message == "advanced-refresh") { SyncAdvancedTools(); return; }
-            if (message != null && message.StartsWith("advanced-save:", StringComparison.Ordinal))
-            { ApplyAdvancedTools(message.Substring(14)); return; }
+            if (UnifiedWorkspaceShardCatalog.TryHandle(this, _navigation.Current, message)) return;
             if (message == "profile-refresh") { SyncLocalProfile(); return; }
             if (message == "cleanup-refresh") { SyncUnifiedCleanupState(); return; }
             if (message == "cleanup-select") { SelectUnifiedCleanupDirectory(); return; }
@@ -584,8 +635,7 @@ namespace FACM.Presentation.Glass
             if (route == "presence-advanced") { OpenProfileCustomizationPage(pushHistory); return; }
             if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
             if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
-            if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
-            if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
+            if (UnifiedWorkspaceShardCatalog.TryOpen(this, route, pushHistory)) return;
             if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
             if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
             if (route == "updates") { OpenUpdatesPage(pushHistory); return; }
@@ -1809,6 +1859,7 @@ namespace FACM.Presentation.Glass
         internal static void ValidateForSmokeTest()
         {
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
+            UnifiedWorkspaceShardCatalog.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
@@ -1830,6 +1881,15 @@ namespace FACM.Presentation.Glass
             var html = ReadEmbeddedHtml();
             if (!html.Contains("post(\"shell-ready\")"))
                 throw new InvalidOperationException("Unified workspace HTML must acknowledge complete script initialization.");
+            if (!html.Contains("requestAnimationFrame(function(){requestAnimationFrame(function(){post(\"shell-ready\");});});"))
+                throw new InvalidOperationException("Unified workspace must wait for a render opportunity before hiding its native startup surface.");
+            if (!CanDismiss(false, false, false, false, false) ||
+                CanDismiss(true, false, false, false, false) ||
+                CanDismiss(false, true, false, false, false) ||
+                CanDismiss(false, false, true, false, false) ||
+                CanDismiss(false, false, false, true, false) ||
+                CanDismiss(false, false, false, false, true))
+                throw new InvalidOperationException("Workspace reuse must not bypass browser failure, exit, update or cleanup lifetimes.");
             if (!html.Contains("id=\"advancedRegionalResults\"") ||
                 !html.Contains("data-action=\"history-region-search\""))
                 throw new InvalidOperationException("Regional Riot ID history must be a native-backed HTML feature.");

@@ -528,3 +528,15 @@ The earlier experimental 005 ESC migration granted table and RPC access to `anon
 ## Email OTP is a three-request, service-configured authentication flow (2026-10-10)
 
 CloudBase's v2 HTTP API does not sign a desktop user in with only their email and six-digit code. First call `/auth/v1/verification` with `target=ANY`, retain the returned `verification_id` and `is_user`; next call `/auth/v1/verification/verify` with that ID and code to receive `verification_token`; finally call `/auth/v1/signin` or `/auth/v1/signup` to obtain a registered `sub`. Bind challenges to the original address, expire them after at most ten minutes, restrict retries and never expose OTP/session token in log files. Email OTP requires enabling **身份认证 → 登录方式 → 邮箱验证码** and mail forwarding/SMTP in the *real* CloudBase project. The official CAPTCHA endpoints are `/auth/v1/captcha/data` and `/auth/v1/captcha/data/verify`, not the legacy redirect-based `/auth/v1/captcha/init`. After `captcha_required`, present bounded GIF data and verify it, then make **one** original request retry with `x-captcha-token`; `captcha_invalid` or a second `captcha_required` must stop. GUI resend countdown is bypassable via direct HTTP, so rely on server-side CloudBase limits and inspect real quotas/alerts before public release. Source-level tests do not verify real CAPTCHA, signup, delivery, server budgets or two-PC UID stability. Device-anonymous `ggman_settings_sync` must not silently switch to the registered principal.
+## 2026-11-08 — A successful WebView2 handshake can still expose cold-start blank frames
+
+The floating workbench previously called `Show()` before asynchronously creating
+the WebView2 environment, causing a visible empty browser surface during cold
+start, and ordinary dismissal called `Close()`, so each reopen paid that cost
+again. Preserve a native loading surface until successful tracked navigation
+and the HTML's animation-frame readiness acknowledgement; reuse the hidden
+workbench on normal dismiss while canceling page-owned operations. Do not hide
+forced-update or active-install/cleanup UI; do not invoke native fallback merely
+because a previously dismissed, hidden browser later fails initialization.
+Source/CI checks cannot prove the owner's actual Win10 compositor pixels or
+memory cost; measure cold/warm opening and idle retention in final acceptance.

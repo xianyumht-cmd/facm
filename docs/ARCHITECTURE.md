@@ -1045,3 +1045,27 @@ The existing `LeaguePostGameAutomationController` remains the only postgame owne
 ## Player history collection ownership (Draft #357)
 
 `LeaguePlayerForm` and `LeagueRemotePlayerHistoryForm` each own one explicit, cancelable collection operation and their transient settings/result state. The shared native modal snapshots an active simple or advanced predicate; `LeaguePlayerDataService.CollectMatchesAsync` scans successive LCU windows under the **same** Player request semaphore, with a 12-second per-window deadline and two current-PUUID checks. For a remote target, the verified signed-in PUUID fences requests while an independently verified target PUUID supplies the history route and parser identity. Results are detached bounded `LeaguePlayerMatchPage` instances for the invoking window only, not the 45-second fast-history cache; stopping preserves completed windows, identity replacement discards them, and normal refresh/page reload restores the previous fast-path behavior. Filter updates recompute the in-memory rows locally. There is no new Gameflow subscription, session owner, timer, persistence or long-lived network connection. Current/self and explicitly selected remote LCU scans are present as source candidates; cross-region SGP collection remains open.
+## 2026-11-08 — Workspace shards and warm WebView2 lifetime (candidate)
+
+`FacmHost`/`IFacmModule` already provide dependency-ordered initialization, rollback,
+timing and reverse disposal for the native GGman Core. UI modularity now builds on
+that owner rather than adding another process or LCU monitor.
+`UnifiedWorkspaceShardCatalog` registers `IUnifiedWorkspaceShard` definitions; each
+definition owns its stable route, bounded WebView2 commands, page activation and
+post-handshake refresh. The first two extracted shards are `quick-messages` and
+`efficiency-advanced`. The navigation allowlist consults the registry, and the
+unified form dispatches registered commands only when the shard's route is active.
+New UI shards are registered in that catalog; backend state/writes continue to
+flow through existing session-scoped `FacmHost` modules and allowlisted bridges.
+Remaining legacy routes are not yet converted to registered UI shards.
+
+The desktop workbench displays a native, skin-colored loading surface while the
+one WebView2 initializes and navigates its embedded offline HTML. The page sends
+`shell-ready` after two animation-frame callbacks, in addition to a successful
+tracked NavigationId; only then does the host uncover the browser. The existing
+20-second watchdog, browser-failure fallback and forced-update guard remain.
+An ordinary ball/HTML dismissal hides the workbench, returns home and cancels
+page-owned reads without destroying WebView2; reopening reuses the same renderer.
+Exit, browser failure, active download, required update and cleanup keep their
+original protected lifetimes. The separate ChampSelect companion remains owned
+by `LeagueHubModule`, not the desktop shard registry.

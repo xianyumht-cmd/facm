@@ -138,7 +138,7 @@ namespace FACM.Presentation.Glass
 
     internal sealed partial class UnifiedWorkspaceForm
     {
-        private void OpenAdvancedTools(bool pushHistory)
+        internal void OpenAdvancedTools(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("efficiency-advanced");
             _browser.Dock = DockStyle.Fill;
@@ -147,7 +147,7 @@ namespace FACM.Presentation.Glass
             SyncAdvancedTools();
         }
 
-        private void SyncAdvancedTools()
+        internal void SyncAdvancedTools()
         {
             if (!_ready || IsDisposed || _closing || _browser.CoreWebView2 == null ||
                 _navigation.Current != "efficiency-advanced") return;
@@ -189,7 +189,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void ApplyAdvancedTools(string request)
+        internal void ApplyAdvancedTools(string request)
         {
             if (_navigation.Current != "efficiency-advanced" || string.IsNullOrEmpty(request) ||
                 request.Length > 3200) return;

@@ -556,3 +556,18 @@ Maintain GGman's preexisting generic `IsLoss` rule when adding Akari's `isLoss(f
 ## 2026-10-27 — Keep match replay behind one explicit native scoreboard action
 
 Implement pinned Akari 1.5.1 replay configuration, create metadata, read metadata and conditional download/watch via one typed authenticated writer. Never continuously scan remote history or autonomously POST downloads; the existing on-demand match detail and native WinForms scoreboard own the action. Revalidate selected game and locally signed-in owner plus LCU session before a mutation; display unsupported/transitional states without repeated POSTs. Do not publish until the consolidated real Windows/Tencent acceptance.
+## 2026-11-08 — Extend existing FacmHost with registered UI shards
+
+The owner wants Akari-style functional modules: future features should be
+implemented and registered, without adding a new central route/message switch.
+Keep the already-established `IFacmModule`/`FacmHost` for native business owners,
+and introduce the small `IUnifiedWorkspaceShard` UI contract for allowlisted
+routes and commands. Start with quick messages and advanced tools; migrate other
+routes incrementally. This is in-process composition, not one OS process per
+feature, a dynamic DLL plug-in loader, or a second browser runtime.
+
+For the first WebView2 launch, draw a skin-matched native loading surface until
+the embedded page has acknowledged a render opportunity. On normal dismissal,
+hide and reuse the same browser after canceling route work. This trades retained
+memory after the first opening for lower warm-open latency; verify the actual
+Windows 10 GPU/DPI compositor and resident memory before declaring acceptance.

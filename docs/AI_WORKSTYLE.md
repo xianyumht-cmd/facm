@@ -91,3 +91,12 @@ GGman 家庭、网吧和跨电脑场景需要：同一个已登录 GGman 账号�
 ## Lightweight UI and formal release expectation (2026-10-09)
 
 For GGman desktop product changes, preserve the floating-ball-first experience and avoid replacing it with a permanently opened dashboard. The user prefers each accepted, tested iteration to be issued as a properly numbered online release with durable GitHub Release notes and updater history, rather than receiving only detached local review binaries. Release authorization never overrides required CI, signing, updater-asset verification, or source/branch safety checks. Do not publish unverified or unsigned client builds.
+## GGman Core shard additions (2026-11-08)
+
+New business capabilities should live in self-contained native modules registered
+with the existing `FacmHost`; web presentation should use registered workspace
+shards with declared routes and bounded commands. Avoid growing the centralized
+`UnifiedWorkspaceForm` switch for every feature. Preserve single-EXE distribution,
+one in-process C# backend, single shared desktop WebView2, native floating ball,
+game-context companion overlay, lightweight resource use and original LCU/update
+ownership. Do not equate one shard with one operating-system process.

@@ -2320,3 +2320,20 @@ The continuing experimental branch captures each selected champion's **nine exac
 ### Akari 1.5.1 parity work: postgame honor strategy (Draft #357)
 
 The next draft candidate extends the existing optional postgame honor action with the reference's five target policies and a native inline selector. The V2/legacy write and verification owner remains unchanged, and party-aware selection uses a conditional read of `/lol-lobby/v2/party/eog-status`. Party-only mode refuses to guess when roster data is unavailable; automatic honor remains off by default, and the already-saved auto-return flow is preserved. **Full vote-pool processing, live Tencent acceptance, and runtime performance measurement remain pending** alongside the rest of the complete Akari parity backlog.
+## 2026-11-08 — GGman Core UI-shard / WebView2 cold-start candidate (not published)
+
+Owner requested Akari-like shard registration for future UI features and removal
+of the approximately two-second dark workbench before content appears. The current
+`main` already contains a dependency-ordered `FacmHost` native module host, so the
+new candidate branch `feat/ggman-shard-workspace-warmup-20261108` extends it with
+registered desktop UI shards rather than new services or processes. Initial
+extractions: quick-message settings/send and advanced automation tools, with
+route-scoped bridge commands. The existing app-owned native/LCU data owners,
+ChampSelect WebView2 helper, skin propagation and signed 3.5.85 release remain
+unchanged. A native skin-matched placeholder covers cold WebView2 initialization;
+the embedded page acknowledges a render opportunity before uncovering it.
+Normal closing hides and reuses the initialized desktop browser, while forced
+updates, active installation, cleanup and process/browser failure retain their
+guards. This is an implementation candidate; Windows CI and the owner's cold/
+warm/DPI/GPU/memory observations have not yet been verified. Do not modify
+production `online/version.json` or tag from this branch.

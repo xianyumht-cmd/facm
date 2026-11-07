@@ -98,7 +98,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _quickMessageCancellation;
         private int _quickMessageGeneration;
 
-        private void OpenQuickMessagePage(bool pushHistory)
+        internal void OpenQuickMessagePage(bool pushHistory)
         {
             if (pushHistory) _navigation.Open("quick-messages");
             _browser.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -107,7 +107,7 @@ namespace FACM.Presentation.Glass
             SyncQuickMessageSettings();
         }
 
-        private void SyncQuickMessageSettings()
+        internal void SyncQuickMessageSettings()
         {
             if (!_ready || _closing || IsDisposed || _browser.CoreWebView2 == null ||
                 _navigation.Current != "quick-messages") return;
@@ -122,7 +122,7 @@ namespace FACM.Presentation.Glass
             }));
         }
 
-        private void SaveQuickMessageSettings(string raw)
+        internal void SaveQuickMessageSettings(string raw)
         {
             if (_navigation.Current != "quick-messages" || _closing) return;
             UnifiedQuickMessageChange change;
@@ -150,7 +150,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private async void SendQuickMessage(int index)
+        internal async void SendQuickMessage(int index)
         {
             if (_navigation.Current != "quick-messages" || _closing || index < 0 ||
                 index >= LeagueQuickMessagePresets.SlotCount || _quickMessageCancellation != null) return;

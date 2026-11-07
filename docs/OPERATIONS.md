@@ -371,3 +371,16 @@ ORDER BY routine_name;
 ```
 
 Then run one real client acceptance: enable anonymous ranking in “我的 GGman”, connect League once, verify a hashed row appears in `ggman_account_history`, and confirm the UI receives only aggregate ranking results. Never paste service-role/server API keys into the client to bypass a migration/RLS problem.
+## 2026-11-08 — Workspace shard and cold/warm opening checks (candidate)
+
+Run `--unified-workspace-smoke` in the release-candidate Windows executable to
+check the registered quick-message/advanced-tools routes, command isolation,
+render-readiness contract and protected dismiss conditions. The existing Glass
+WebView2 Windows workflow must also render the offline HTML and gameplay overlay.
+On a real Windows 10 x64 machine, compare first click versus reopen after close,
+including all active skins and 100/125/150/200% DPI, looking for black/blank
+frames, hover/focus theft and unexpected native fallback. Inspect startup timing
+in `facm-YYYYMMDD.log`, and measure the full GGman + WebView2 process tree both
+before first opening and while the control center is hidden. Confirm forced
+update/install and cleanup cannot be dismissed, and ChampSelect auto-popup is
+unaffected. Do not treat source checks or HTML screenshots as a native-paint test.
