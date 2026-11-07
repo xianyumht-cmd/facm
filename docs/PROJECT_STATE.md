@@ -1369,15 +1369,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.84
-- GitHub Release：v3.5.84
+- 版本：GGman 3.5.85
+- GitHub Release：v3.5.85
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：50061e8bdb16b4bbce1d5a823e36c38e26297a68
-- 发布元数据提交：3a779d4b68c297d2e55ec433000f377ce71dc2be
-- Release GGman.exe SHA-256：D3933AFB0CBDD7EBC7010D3E17E9C322D2FDD9F4DCD403199399FBA249776745
-- release_notes：GGman 3.5.84：修复 3.5.83 在游戏英雄选择阶段不再自动弹出实时对局助手的回归问题。保留已修好的 WebView2 悬浮球控制中心，同时将选人助手迁移成单独的轻量 WebView2/HTML 游戏浮层：显示当前英雄、倒计时、替补席候选英雄与图标、推荐符文／召唤师技能／出装、海斗强化排行与图标、最近使用数据以及队伍信息。支持拖动、固定置顶和折叠；换英雄及写入操作沿用原有 C#／LCU 安全校验，符文、召唤师技能与出装需确认后才应用。浮层浏览器初始化失败时回退原生助手，不影响主控制中心。通过 Windows 编译及 Edge 页面渲染检查，本次非强制更新；国服 LOL 游戏内行为由用户更新后验收。
+- 发布基础 main：4ed45856863a8e15d15820ed88aa8832204eec35
+- 发布元数据提交：e79fc412e6739e90293421be62e8f511f5c90f42
+- Release GGman.exe SHA-256：6148FB8E04C1D5E0BC10F8A34CAEC7D0D65C77B824E3FF982B8670864C4D0FC1
+- release_notes：GGman 3.5.85：将原「外观与主题／外观主题」统一更名为「皮肤」。修复旧版本皮肤设置看似保存但悬浮球没有改变的问题：悬浮球启动时加载当前皮肤，切换时立即重绘；WebView2 控制中心每次展开都恢复上次保存的皮肤，而不需要先进入皮肤页面。实时对局助手也跟随当前皮肤同步更新深浅配色。保留原有皮肤配置、全部预设及页面入口兼容。补充悬浮球换色像素测试、深浅皮肤 Edge 页面渲染验证和四项 Windows CI。本版本为非强制更新，Windows 实机皮肤切换与选人浮层显示由用户在线更新后验收。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair

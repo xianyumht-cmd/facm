@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.85",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.85/FACM.exe",
   "sha256": "6148FB8E04C1D5E0BC10F8A34CAEC7D0D65C77B824E3FF982B8670864C4D0FC1",
   "release_notes": "GGman 3.5.85：将原「外观与主题／外观主题」统一更名为「皮肤」。修复旧版本皮肤设置看似保存但悬浮球没有改变的问题：悬浮球启动时加载当前皮肤，切换时立即重绘；WebView2 控制中心每次展开都恢复上次保存的皮肤，而不需要先进入皮肤页面。实时对局助手也跟随当前皮肤同步更新深浅配色。保留原有皮肤配置、全部预设及页面入口兼容。补充悬浮球换色像素测试、深浅皮肤 Edge 页面渲染验证和四项 Windows CI。本版本为非强制更新，Windows 实机皮肤切换与选人浮层显示由用户在线更新后验收。",
-  "published_at": "2026-11-07T16:44:42.4283000+00:00"
+  "published_at": "2026-11-07T16:44:50.2595419+00:00"
 }
