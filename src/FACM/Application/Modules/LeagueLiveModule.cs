@@ -7,6 +7,9 @@ using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
 using FACM.Services;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM.AppHost.Modules
 {
@@ -71,11 +74,17 @@ namespace FACM.AppHost.Modules
             LeagueBuildApplyService apply = null,
             LeagueItemSetService itemSet = null,
             AppSettings settings = null,
-            LeaguePlayerDataService player = null)
+            LeaguePlayerDataService player = null,
+            bool preferWebView2 = false)
         {
             if (_service == null || _benchQuickPick == null)
                 throw new InvalidOperationException("League Live module is not initialized.");
 
+#if GLASS_WORKBENCH_PREVIEW
+            if (preferWebView2)
+                return new LeagueRuntimeCompanionWebForm(_benchQuickPick, _leagueClient,
+                    advisor, apply, itemSet, player, settings);
+#endif
             var form = new LeagueRuntimeCompanionForm(_benchQuickPick, _leagueClient, advisor, apply, itemSet, player);
             LeagueRuntimeCompanionWindowState.Attach(form, settings);
             return form;

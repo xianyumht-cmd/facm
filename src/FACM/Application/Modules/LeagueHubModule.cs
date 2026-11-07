@@ -6,6 +6,9 @@ using FACM.AppHost;
 using FACM.League;
 using FACM.Performance;
 using FACM.Services;
+#if GLASS_WORKBENCH_PREVIEW
+using FACM.Presentation.Glass;
+#endif
 
 namespace FACM.AppHost.Modules
 {
@@ -228,7 +231,7 @@ namespace FACM.AppHost.Modules
             }
 
             if (_dismissedForEpisode || _automaticLivePopup != null || _surfacePresentedForEpisode) return;
-            ShowAutomaticLivePopup();
+            ShowAutomaticLivePopup(unifiedWorkspaceActive);
         }
 
         internal static bool ShouldShowRuntimeCompanion(
@@ -238,7 +241,7 @@ namespace FACM.AppHost.Modules
             return state != null && state.Connected && state.Activity == LeagueActivityLevel.ChampSelect;
         }
 
-        private void ShowAutomaticLivePopup()
+        private void ShowAutomaticLivePopup(bool preferWebView2)
         {
             Form form = null;
             try
@@ -248,7 +251,21 @@ namespace FACM.AppHost.Modules
                     _advisor.RuntimeCompanionApplyService,
                     _advisor.RuntimeCompanionItemSetService,
                     _advisor.RuntimeCompanionSettings,
-                    _player.RuntimeCompanionReadService);
+                    _player.RuntimeCompanionReadService, preferWebView2);
+#if GLASS_WORKBENCH_PREVIEW
+                var browserOverlay = form as LeagueRuntimeCompanionWebForm;
+                if (browserOverlay != null)
+                {
+                    browserOverlay.BrowserUnavailable += delegate
+                    {
+                        if (!ReferenceEquals(_automaticLivePopup, browserOverlay) ||
+                            !_champSelectEpisode) return;
+                        CloseAutomaticLivePopup();
+                        _surfacePresentedForEpisode = false;
+                        ShowAutomaticLivePopup(false);
+                    };
+                }
+#endif
                 form.ShowInTaskbar = false;
                 form.StartPosition = FormStartPosition.Manual;
 
@@ -258,7 +275,8 @@ namespace FACM.AppHost.Modules
                 form.Show();
                 form.BringToFront();
                 UsageTelemetryModule.Record("champ_select_companion_open");
-                AppLog.Info("Runtime Companion opened for Champion Select episode.");
+                AppLog.Info("Runtime Companion opened for Champion Select episode; surface=" +
+                    (preferWebView2 ? "WebView2" : "native") + ".");
             }
             catch (Exception exception)
             {
