@@ -111,10 +111,22 @@ namespace FACM.Presentation.Glass
                 ? Screen.FromPoint(new Point(_settings.LeagueRuntimeCompanionX, _settings.LeagueRuntimeCompanionY))
                 : Screen.FromPoint(Cursor.Position);
             var area = screen.WorkingArea;
+            FitToMonitor(area);
             var desired = saved
                 ? new Point(_settings.LeagueRuntimeCompanionX, _settings.LeagueRuntimeCompanionY)
                 : new Point(area.Right - Width - 18, area.Top + 90);
             Location = Constrain(desired);
+        }
+
+        private void FitToMonitor(Rectangle area)
+        {
+            var dpi = LeagueRuntimeCompanionWindowState.ResolveDpiScale(this);
+            var width = Math.Min((int)Math.Round(360 * dpi), Math.Max(200, area.Width - 24));
+            var height = _collapsed
+                ? Math.Min((int)Math.Round(CollapsedHeight * dpi), Math.Max(36, area.Height - 24))
+                : Math.Min((int)Math.Round(ExpandedHeight * dpi),
+                    LeagueRuntimeCompanionWindowState.ResolveExpandedHeight(area.Height, dpi));
+            ClientSize = new Size(width, Math.Max(36, height));
         }
 
         private Point Constrain(Point desired)
@@ -446,7 +458,7 @@ namespace FACM.Presentation.Glass
             if (command == "collapse")
             {
                 _collapsed = !_collapsed;
-                ClientSize = new Size(ClientSize.Width, _collapsed ? CollapsedHeight : ExpandedHeight);
+                FitToMonitor(Screen.FromRectangle(Bounds).WorkingArea);
                 Location = Constrain(Location);
                 if (_settings != null) { _settings.LeagueRuntimeCompanionCollapsed = _collapsed; _settings.Save(); }
                 Post(new { type = "window", collapsed = _collapsed, pinned = TopMost });
