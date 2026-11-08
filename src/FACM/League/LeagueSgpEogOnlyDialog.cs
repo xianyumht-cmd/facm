@@ -93,8 +93,8 @@ namespace FACM.League
 
             var stats = new ListView { Dock = DockStyle.Fill, View = View.Details,
                 FullRowSelect = true, GridLines = true };
-            stats.Columns.Add("SGP Stat", 190);
-            stats.Columns.Add("Value", 105);
+            stats.Columns.Add(LeagueStatDisplayNames.Translate("SGP Stat"), 190);
+            stats.Columns.Add(LeagueStatDisplayNames.Translate("Value"), 105);
             split.Panel2.Controls.Add(stats);
             foreach (var group in detail.EogOnly.Players.GroupBy(p => p.TeamId).OrderBy(g => g.Key))
             {
@@ -147,22 +147,22 @@ namespace FACM.League
                     if (selected == null) return;
                     var derived = LeagueSgpEogProjection.Analyze(detail.EogOnly, selected);
                     AddDerived(stats, "KDA", derived.Kda, false);
-                    AddDerived(stats, "Kill participation", derived.KillParticipation, true);
-                    AddDerived(stats, "Damage share", derived.DamageShare, true);
-                    AddDerived(stats, "Gold share", derived.GoldShare, true);
-                    AddDerived(stats, "Damage/min", derived.DamagePerMinute, false);
-                    AddDerived(stats, "Gold/min", derived.GoldPerMinute, false);
-                    AddDerived(stats, "CS/min", derived.CsPerMinute, false);
-                    AddDerived(stats, "Vision/min", derived.VisionPerMinute, false);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Kill participation"), derived.KillParticipation, true);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Damage share"), derived.DamageShare, true);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Gold share"), derived.GoldShare, true);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Damage/min"), derived.DamagePerMinute, false);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Gold/min"), derived.GoldPerMinute, false);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("CS/min"), derived.CsPerMinute, false);
+                    AddDerived(stats, LeagueStatDisplayNames.Translate("Vision/min"), derived.VisionPerMinute, false);
                     if (selected.Metadata != null)
                         foreach (var entry in selected.Metadata.OrderBy(p => p.Key,
                             StringComparer.OrdinalIgnoreCase))
-                            stats.Items.Add(new ListViewItem(new[] { entry.Key, entry.Value }));
+                            stats.Items.Add(new ListViewItem(new[] { LeagueStatDisplayNames.Translate(entry.Key), entry.Value }));
                     if (selected.Statistics != null)
                         foreach (var entry in selected.Statistics.OrderBy(p => p.Key,
                             StringComparer.OrdinalIgnoreCase))
                             stats.Items.Add(new ListViewItem(new[] {
-                                entry.Key, FormatStatistic(entry.Value) }));
+                                LeagueStatDisplayNames.Translate(entry.Key), FormatStatistic(entry.Value) }));
                 }
                 finally { stats.EndUpdate(); }
             };

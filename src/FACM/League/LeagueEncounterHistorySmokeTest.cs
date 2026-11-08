@@ -30,6 +30,13 @@ namespace FACM.League
             ValidateCardPresentation();
             ValidateSingleAkariScore();
             ValidateDetailedStatMatrix();
+            Require(LeagueStatDisplayNames.KnownLabelCount >= 233 &&
+                    LeagueStatDisplayNames.Translate("Damage / minute") == "分均英雄伤害" &&
+                    LeagueStatDisplayNames.Translate("firstBloodKill") == "获得一血" &&
+                    LeagueStatDisplayNames.Translate("selectedRolePreferences") == "所选分路偏好" &&
+                    LeagueStatDisplayNames.Translate("unknownFutureStat") == "unknownFutureStat" &&
+                    LeagueStatDisplayNames.Translate("KDA") == "KDA",
+                "The localized scoreboard must cover known metrics without changing raw keys or abbreviations.");
             var availableIcons = new HashSet<int> { 4, 5, 6 };
             Require(LeagueEncounterMatchScoreboardDialog.SelectMatchRowIconIds(
                     new[] { 1, 2, 3, 4, 4, 5, 6 }, availableIcons.Contains, 2)

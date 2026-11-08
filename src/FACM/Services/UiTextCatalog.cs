@@ -239,7 +239,7 @@ namespace FACM.Services
 
             Pair(UiTextKeys.LeagueDashboardMenu, "英雄联盟面板"),
             Pair(UiTextKeys.LeagueDashboardWindowTitle, "GGman · 英雄联盟面板"),
-            Pair(UiTextKeys.LeagueDashboardTitle, "League Dashboard"),
+            Pair(UiTextKeys.LeagueDashboardTitle, "当前状态"),
             Pair(UiTextKeys.LeagueDashboardHint, "读取本机英雄联盟客户端状态与召唤师信息。"),
             Pair(UiTextKeys.LeagueDashboardConnection, "客户端连接"),
             Pair(UiTextKeys.LeagueDashboardConnected, "已连接"),
@@ -290,7 +290,7 @@ namespace FACM.Services
 
             Pair(UiTextKeys.LeaguePlayerMenu, "玩家主页"),
             Pair(UiTextKeys.LeaguePlayerWindowTitle, "GGman · 玩家主页"),
-            Pair(UiTextKeys.LeaguePlayerTitle, "Player"),
+            Pair(UiTextKeys.LeaguePlayerTitle, "我的战绩"),
             Pair(UiTextKeys.LeaguePlayerHint, "当前账号与最近对局；先显示账号，再渐进读取战绩。"),
             Pair(UiTextKeys.LeaguePlayerLoadingProfile, "正在读取当前账号..."),
             Pair(UiTextKeys.LeaguePlayerLoadingMatches, "正在读取最近对局..."),
@@ -853,7 +853,7 @@ namespace FACM.Services
 
             Pair(UiTextKeys.LeagueLiveMenu, "实时对局"),
             Pair(UiTextKeys.LeagueLiveWindowTitle, "GGman · 实时对局"),
-            Pair(UiTextKeys.LeagueLiveTitle, "Champ Select / Current Game"),
+            Pair(UiTextKeys.LeagueLiveTitle, "实时对局"),
             Pair(UiTextKeys.LeagueLiveHint, "只读显示选人和当前对局必要信息；不执行自动操作。"),
             Pair(UiTextKeys.LeagueLivePhase, "当前阶段"),
             Pair(UiTextKeys.LeagueLivePerformance, "性能档位"),
@@ -884,7 +884,7 @@ namespace FACM.Services
 
             Pair(UiTextKeys.LeagueAdvisorMenu, "OP.GG 对局助手"),
             Pair(UiTextKeys.LeagueAdvisorWindowTitle, "GGman · OP.GG 对局助手"),
-            Pair(UiTextKeys.LeagueAdvisorTitle, "OP.GG Build Advisor"),
+            Pair(UiTextKeys.LeagueAdvisorTitle, "出装推荐"),
             Pair(UiTextKeys.LeagueAdvisorHint, "自动识别当前英雄并显示 OP.GG Global 构筑建议；Gate 1 严格只读。"),
             Pair(UiTextKeys.LeagueAdvisorContext, "当前上下文"),
             Pair(UiTextKeys.LeagueAdvisorStats, "英雄数据"),

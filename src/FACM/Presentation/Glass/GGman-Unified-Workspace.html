@@ -206,7 +206,7 @@ main{overflow-x:hidden;overflow-y:auto;scrollbar-color:var(--line) transparent;s
 main::-webkit-scrollbar{width:6px}
 main::-webkit-scrollbar-thumb{background:var(--line);border-radius:12px}
 button{font-family:inherit;transition:background-color .12s ease,border-color .12s ease}
-button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus-ring);outline-offset:2px}
 button:disabled{cursor:default}
 #home .status-home{width:100%;display:block;text-align:left;min-height:66px;padding:10px 12px;
   background:linear-gradient(120deg,var(--card),color-mix(in srgb,var(--accent) 8%,var(--card)));
@@ -547,7 +547,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
 <header class="header" id="dragHandle">
   <div class="brand-icon" aria-hidden="true">G</div>
   <div class="brand-text"><div class="brand-name">GGman</div><div class="subhead">轻巧常驻 · 随时掌控游戏</div></div>
-  <div id="detail"><button class="back" aria-label="返回上一页" data-action="back">‹</button><span class="title" id="routeTitle">LOL 工作台</span><button class="home" title="返回控制中心" data-action="home">⌂</button></div>
+  <div id="detail"><button class="back" aria-label="返回上一页" title="返回上一页" data-action="back">‹</button><span class="title" id="routeTitle" tabindex="-1">LOL 工作台</span><button class="home" aria-label="返回控制中心" title="返回控制中心" data-action="home">⌂</button></div>
   <button class="close" aria-label="关闭控制中心" data-action="close">×</button>
 </header>
 <main id="pages">
@@ -571,12 +571,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="clientStatus">
     <h2>LOL 客户端状态</h2>
-    <p>状态来自 GGman 现有 Gameflow 观察者，不会创建新的网络请求或轮询。</p>
+    <p>自动显示英雄联盟的连接状态和当前游戏阶段，无需手动刷新。</p>
     <div class="status"><b id="statusConnection">未连接</b><span id="statusPhase">等待客户端连接</span><span id="statusHint">启动英雄联盟后自动同步</span></div>
     <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
   </section>
   <section id="quicktools">
-    <h2>快捷工具</h2><p>开关实时保存到现有 GGman 设置，继续由原生游戏流程控制器执行操作。</p>
+    <h2>快捷工具</h2><p>按需开启常用自动操作，开关更改后立即保存。</p>
     <div class="tools" id="quickSettings">
       <div class="tool-row"><span><strong>自动开始排队</strong><small>符合组队条件时自动寻找对局</small></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
       <div class="tool-row"><span><strong>自动接受对局</strong><small>匹配成功时自动接受一次</small></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
@@ -589,7 +589,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="advancedDashboardPage">
     <h2>完整 LOL 工作台</h2>
-    <p>来自 GGman 同一个客户端与 Gameflow 观察者的详细快照。账号、服务器、连接和性能预算均显示真实结果，不添加刷新轮询。</p>
+    <p>查看当前账号、所在服务器及游戏运行情况。点击下方按钮可获取最新状态。</p>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="advancedDbConnection">等待读取</strong></div>
       <div class="dashboard-card"><span class="small">游戏进程</span><strong id="advancedDbGameProcess">—</strong></div>
@@ -599,12 +599,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <div class="dashboard-card"><span class="small">等级 / 头像编号</span><strong id="advancedDbIdentity">—</strong></div>
       <div class="dashboard-card"><span class="small">所在平台</span><strong id="advancedDbPlatform">—</strong></div>
       <div class="dashboard-card"><span class="small">平台代码</span><strong id="advancedDbPlatformId">—</strong></div>
-      <div class="dashboard-card"><span class="small">性能预算（实际配置）</span><strong id="advancedDbBudget">—</strong></div>
+      <div class="dashboard-card"><span class="small">后台资源使用模式</span><strong id="advancedDbBudget">—</strong></div>
       <div class="dashboard-card"><span class="small">最新状态记录</span><strong id="advancedDbUpdated">—</strong></div>
     </div>
     <div class="guide-card">
       <strong>当前游戏复活状态</strong>
-      <small>只在游戏进行中按需读取现有 Live Client Data；不会新增每秒计时器。</small>
+      <small>进入对局后可查看当前复活进度；未进入游戏时无法读取。</small>
       <p id="advancedRespawn" role="status" aria-live="polite">尚未读取</p>
       <button data-action="dashboard-respawn-refresh" id="advancedRespawnRefresh">读取当前复活状态</button>
     </div>
@@ -617,21 +617,21 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
   </section>
   <section id="dashboardPage">
-    <h2>LOL 工作台</h2><p>按需读取当前已连接客户端的账号和对局信息，使用 GGman 原有游戏会话。</p>
+    <h2>LOL 工作台</h2><p>这里会显示当前登录的游戏账号和对局状态。</p>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="dbConnection">等待连接</strong></div>
       <div class="dashboard-card"><span class="small">当前阶段</span><strong id="dbPhase">未连接</strong></div>
       <div class="dashboard-card"><span class="small">登录账号</span><strong id="dbAccount">—</strong></div>
       <div class="dashboard-card"><span class="small">所在服务器</span><strong id="dbServer">—</strong></div>
       <div class="dashboard-card"><span class="small">召唤师等级</span><strong id="dbLevel">—</strong></div>
-      <div class="dashboard-card"><span class="small">性能预算</span><strong id="dbBudget">—</strong></div>
+      <div class="dashboard-card"><span class="small">资源使用模式</span><strong id="dbBudget">—</strong></div>
     </div>
     <div class="save-row"><button data-action="refresh-dashboard" id="refreshDashboard">读取最新状态</button><span class="muted" id="dashboardResult" role="status"></span></div>
     <div class="actions"><button data-route="player">我的战绩</button><button data-route="live">实时对局</button><button data-route="dashboard-advanced">完整工作台</button></div>
   </section>
   <section id="profileCustomizationPage">
     <h2>LOL 个性资料定制</h2>
-    <p>通过现有 LCU 服务读取并修改当前召唤师资料。写入会回读校验，切换账号后丢弃旧结果；不需要 GGman 云登录。</p>
+    <p>自定义当前英雄联盟账号的展示资料。修改后会自动检查是否生效，切换游戏账号时将重新读取。</p>
     <div class="profile-control">
       <h3>个人背景英雄皮肤</h3>
       <label>背景英雄<select id="profileChampion" aria-label="选择背景英雄"></select></label>
@@ -666,7 +666,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
   </section>
   <section id="presencePage">
-    <h2>在线状态</h2><p>读取当前 LOL 客户端的聊天状态。保存后由原有 C# 服务回读校验，客户端可能覆盖游戏中状态。</p>
+    <h2>在线状态</h2><p>设置好友看到的在线状态、签名和展示段位。部分状态可能在进入游戏后被客户端自动更改。</p>
     <div class="status"><b id="presenceCurrent">等待读取</b><span id="presenceName">请先连接英雄联盟</span></div>
     <div class="presence-modes" id="presenceModes">
       <button data-presence-mode="Online">在线</button><button data-presence-mode="Away">离开</button>
@@ -686,7 +686,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="advancedHistoryPage">
     <h2>高级战绩与对局详情</h2>
-    <p>从当前游戏账号按需读取最多 20 场对局；下面的筛选只针对已读取记录，不伪称查询服务器全部战绩。选中对局后由原来的 LCU/SGP 明细服务读取真实记分板。</p>
+    <p>先读取当前账号最近 20 场对局，再按英雄、结果和模式筛选。点击任意对局可查看详细数据。</p>
     <div class="advanced-history-filters">
       <label>搜索英雄或模式<input id="advancedHistorySearch" type="search" autocomplete="off" maxlength="80" placeholder="英雄、模式、队列"></label>
       <label>比赛结果<select id="advancedHistoryOutcome"><option value="all">全部结果</option><option value="win">胜利</option><option value="loss">失败</option><option value="unknown">结果未确认</option></select></label>
@@ -695,7 +695,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <div class="history-extra">
       <h3>Riot ID 跨区战绩查询</h3>
-      <p>仅查询客户端当前账号可授权访问的区域服务器。国服可选择其他腾讯大区，其他地区按原有 SGP 授权目录限制；不会绕过账号或服务端权限。</p>
+      <p>输入玩家的 Riot ID 并选择服务器，可查询能够访问的大区战绩。部分服务器可能暂时不支持。</p>
       <div class="history-region-header">
         <label>Riot ID<input type="text" id="advancedRegionalRiotId" maxlength="52" autocomplete="off" placeholder="召唤师名称#编号"></label>
         <label>服务器<select id="advancedRegionalServer" aria-label="战绩查询服务器"></select></label>
@@ -715,14 +715,14 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <div id="advancedHistoryExtras" hidden>
         <div class="history-extra">
           <h3>七维雷达分析</h3>
-          <p>指标由既有 C# 雷达模型计算；缺失统计保持空值，不补造排名。</p>
+          <p>对比玩家的七项表现。缺少的数据会显示为空，不参与对比。</p>
           <label>选择对比玩家<select id="advancedHistoryRadarPlayer" aria-label="选择雷达图玩家"></select></label>
           <svg id="advancedHistoryRadar" viewBox="0 0 300 260" role="img" aria-label="玩家与队伍平均七维雷达图"></svg>
           <p id="advancedRadarStatus" class="history-chart-note" role="status">请选择有统计信息的玩家</p>
         </div>
         <div class="history-extra">
           <h3>对局时间线</h3>
-          <p>按需读取同一场对局的真实时间线，最多展示 160 帧与 120 个事件。</p>
+          <p>查看这场对局中经济、补刀和其他指标的变化，以及重要事件。</p>
           <label>曲线指标<select id="advancedTimelineMetric">
             <option value="gold">总经济</option><option value="cs">补刀</option>
             <option value="xp">经验</option><option value="damage">英雄伤害</option>
@@ -735,7 +735,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
         </div>
         <div class="history-extra">
           <h3>本地回放</h3>
-          <p>由客户端决定下载或观看；已请求不代表已下载完成。回放可能受版本及区域限制。</p>
+          <p>可使用英雄联盟客户端下载或观看回放。部分旧对局可能因游戏版本或服务器限制而无法回放。</p>
           <div class="actions">
             <button data-action="history-replay-folder">查看本机回放目录</button>
             <button data-action="history-replay-confirm">下载或观看本场回放</button>
@@ -756,7 +756,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="historyPage">
     <h2>我的战绩</h2>
-    <p>当前登录账号的近期战绩，按需从现有 LCU/SGP 历史服务读取，换号时会取消并丢弃旧结果。</p>
+    <p>查看当前账号的近期对局。切换游戏账号后，战绩会自动更新。</p>
     <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
     <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
     <div class="history-filter" role="group" aria-label="筛选已读取战绩">
@@ -775,7 +775,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="benchPage">
     <h2>ARAM 替补席 · 快速换英雄</h2>
-    <p>替补英雄仅在选人替补席开放时显示。点击后由既有 LCU 交换服务执行一次操作并回读确认，不会自动重试。</p>
+    <p>在极地大乱斗选人阶段，点击替补席上的英雄即可尝试交换。交换结果会自动确认。</p>
     <div class="guide-stats">
       <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
       <div class="guide-card"><small>对局模式</small><strong id="benchMode">—</strong></div>
@@ -789,7 +789,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
   </section>
   <section id="livePage">
-    <h2>实时对局</h2><p>按需读取当前选人/对局阵容。资料由已有 LCU 会话服务提供，不额外启动轮询。</p>
+    <h2>实时对局</h2><p>在选人或游戏过程中查看双方阵容、禁用英雄和玩家信息。</p>
     <div class="live-summary">
       <div><small>连接状态</small><strong id="liveConnection">等待读取</strong></div>
       <div><small>对局阶段</small><strong id="livePhase">—</strong></div>
@@ -815,7 +815,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   <section id="profilePage">
     <h2>我的 GGman · 本地资料</h2>
     <p>无需 GGman 邮箱登录；仅展示当前设备已记录的使用数据。云端个人排行与验证码暂缓开放。</p>
-    <div class="status"><b>本地模式</b><span id="profileMode">保存在当前设备，不依赖 CloudBase</span></div>
+    <div class="status"><b>本地模式</b><span id="profileMode">数据保存在这台电脑上</span></div>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">使用过的游戏账号</span><strong id="profilePlayed">—</strong></div>
       <div class="dashboard-card"><span class="small">活跃天数</span><strong id="profileActiveDays">—</strong></div>
@@ -856,7 +856,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="updatesPage">
     <h2>更新中心</h2>
-    <p>通过 GGman 原有在线版本源检查更新。下载文件须通过文件哈希和数字签名校验，之后才允许启动现有更新器。</p>
+    <p>检查并安装 GGman 正式更新。下载完成后会自动验证文件，确保更新包完整可靠。</p>
     <div class="guide-card" id="updateForcedBanner" hidden role="alert"><strong>必须更新才能继续使用</strong><small>当前版本已不再支持。可以安装已验证的新版本，或退出 GGman；不能跳过此更新继续操作。</small></div>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">当前安装版本</span><strong id="updateCurrent">—</strong></div>
@@ -882,7 +882,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="mayhemPage">
     <h2>海斗攻略</h2>
-    <p>输入英雄名称后按需读取现有海斗排行、强化与版本平衡数据。仅展示真实来源返回的项目。</p>
+    <p>搜索英雄，查看当前版本的海斗强度、强化推荐和出装。没有数据的项目会明确标注。</p>
     <div class="guide-search">
       <input id="mayhemChampion" type="search" maxlength="80" autocomplete="off" placeholder="英雄中文名、英文名或简称" aria-label="查询海斗英雄">
       <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
@@ -904,7 +904,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="recommendationPage">
     <h2>出装推荐</h2>
-    <p>复用现有 OP.GG 缓存、选人阶段与账号会话保护；符文、召唤师技能和装备由原生服务应用。</p>
+    <p>根据当前英雄查看 OP.GG 推荐，可选择将符文、召唤师技能或装备配置应用到游戏客户端。</p>
     <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
     <div class="guide-results" id="recommendationOutput" hidden>
       <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
@@ -931,7 +931,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="cleanupPage">
     <h2>清理与修复</h2>
-    <p>游戏目录检测、驱动修复和环境清理沿用现有 C# 安全服务。执行清理前必须查看精确目标列表并确认；不会删除标记为保留或禁止的目录。</p>
+    <p>检测游戏安装位置，修复常见问题，或扫描可清理文件。清理前会列出完整路径，须经你确认后才执行。</p>
     <div class="guide-results">
       <div class="guide-card"><strong>英雄联盟安装目录</strong><small id="cleanupPath">等待读取</small></div>
       <div class="guide-card"><strong>当前权限</strong><small id="cleanupPrivilege">正在检测</small></div>
@@ -957,12 +957,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="repairPage">
     <h2>游戏修复</h2>
-    <p>复用 GGman 原有客户端修复模块。操作只在你主动选择后运行，不额外检测或轮询。</p>
+    <p>选择需要修复的问题。除已开启的自动窗口修复外，其他操作只会在你点击按钮后执行。</p>
     <div class="tools">
       <div class="tool-row"><span><strong>窗口恢复</strong><small>将异常大小或屏幕外的 LOL 客户端窗口恢复到可见位置</small></span><button data-repair-action="window">立即修复</button></div>
-      <div class="tool-row"><span><strong>自动窗口修复</strong><small>沿用已有客户端窗口事件，不添加后台服务</small></span><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
-      <div class="tool-row"><span><strong>跳过卡住的结算</strong><small>使用已有 LCU 赛后写入接口</small></span><button data-repair-action="settlement">跳过结算</button></div>
-      <div class="tool-row"><span><strong>重启客户端界面</strong><small>仅重启 Riot 客户端的 UX 进程，可能关闭当前界面</small></span><button data-repair-action="restart">重启界面</button></div>
+      <div class="tool-row"><span><strong>自动窗口修复</strong><small>客户端窗口位置异常时尝试自动恢复</small></span><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
+      <div class="tool-row"><span><strong>跳过卡住的结算</strong><small>尝试解决对局结束后一直停留在结算界面的问题</small></span><button data-repair-action="settlement">跳过结算</button></div>
+      <div class="tool-row"><span><strong>重启客户端界面</strong><small>重新打开 Riot 客户端界面，当前画面可能暂时关闭</small></span><button data-repair-action="restart">重启界面</button></div>
       <div class="tool-row"><span><strong>退出当前游戏</strong><small>仅针对当前正在运行的游戏进程，请先保存必要内容</small></span><button data-repair-action="exit">退出游戏</button></div>
     </div>
     <div id="repairExitConfirm" hidden>
@@ -972,7 +972,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <p id="repairResult" role="status" aria-live="polite"></p>
   </section>
   <section id="postgameSettings">
-    <h2>赛后处理</h2><p>结束对局后自动点赞，并按需返回大厅。偏好与进度由现有赛后控制器负责。</p>
+    <h2>赛后处理</h2><p>对局结束后，可自动为队友点赞，并在处理完毕后返回游戏大厅。</p>
     <div class="setting-checks">
       <label><input type="checkbox" id="postgameHonor"> 自动点赞</label>
       <label><input type="checkbox" id="postgameReturn"> 完成后返回大厅</label>
@@ -982,7 +982,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="autoSelection">
     <h2>自动选禁英雄</h2>
-    <p>选择英雄后保存，自动选禁只在选人阶段由 GGman 原有控制器执行。可随时临时暂停。</p>
+    <p>选好优先使用或禁用的英雄后保存，GGman 会在选人阶段自动执行。可随时临时暂停。</p>
     <div class="setting-checks">
       <label><input type="checkbox" id="selectionPickEnabled"> 自动选择英雄</label>
       <label><input type="checkbox" id="selectionBanEnabled"> 自动禁用英雄</label>
@@ -998,7 +998,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="quickMessagePage">
     <h2>快捷消息与热键</h2>
-    <p>四组预设、五组热键与发送间隔均保存到原生热键控制器；发送使用当前已连接 LOL 客户端，不需要 GGman 登录。发送前请先保存。</p>
+    <p>设置四组常用消息和对应快捷键，游戏中可一键发送。编辑完成后请先保存。</p>
     <div id="quickMessageRows"></div>
     <div class="quick-card">
       <strong>停止快捷发送</strong>
@@ -1012,7 +1012,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="advancedToolsPage">
     <h2>高级工具 · 自动化</h2>
-    <p>设置保存给现有 LOL 自动化控制器，不引入新的游戏请求或后台服务。每组单独保存，当前游戏会话由原生模块管理。</p>
+    <p>为不同场景设置自动操作规则。每组设置相互独立，修改后请点击对应的保存按钮。</p>
     <div class="advanced-section" data-advanced-group="reply">
       <h3>私聊自动回复</h3>
       <label><input type="checkbox" id="advancedReplyEnabled"> 启用私聊自动回复</label>
@@ -1059,7 +1059,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="advanced-section" data-advanced-group="offline">
       <h3>离线状态锁定</h3>
       <label><input type="checkbox" id="advancedOffline"> 保持对好友不可见</label>
-      <p>复用现有好友状态事件观察者，与自动回复策略共用连接状态。</p>
+      <p>启用后会尝试让好友列表持续显示为离线状态。</p>
       <button data-action="advanced-save" data-advanced-group="offline">保存离线锁定</button>
       <div class="advanced-feedback" data-advanced-feedback="offline" role="status"></div>
     </div>
@@ -1073,7 +1073,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="matchmakingSettings">
     <h2>自动排队与确认对局</h2>
-    <p>这些选项直接使用现有的 LOL 自动匹配控制器。保存后会沿用同一游戏会话，无额外后台轮询。</p>
+    <p>设置什么时候自动寻找对局，以及找到对局后多久接受。修改完成后请保存。</p>
     <div class="setting-checks">
       <label><input type="checkbox" id="queueEnabled"> 自动开始寻找对局</label>
       <label><input type="checkbox" id="acceptEnabled"> 自动接受对局</label>
@@ -1142,14 +1142,27 @@ var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "c
 var mode="home";
 var updateForced=false;
 function get(id){return document.getElementById(id);}
+function modeName(value){
+  var names={ARAM:"极地大乱斗",CLASSIC:"召唤师峡谷",CHERRY:"斗魂竞技场",ARENA:"斗魂竞技场",
+    URF:"无限火力",ONEFORALL:"克隆大作战",NEXUSBLITZ:"极限闪击",PRACTICETOOL:"训练模式",
+    RANKED_SOLO_5x5:"单双排",RANKED_FLEX_SR:"灵活组排",NORMAL:"匹配模式"};
+  var code=String(value==null?"":value).trim();
+  return names[code.toUpperCase()]||code;
+}
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
+  var previous=mode;
   mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="player-advanced"?"player-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
   document.body.dataset.mode=mode;
   document.getElementById("other").classList.toggle("open",mode==="more");
   document.getElementById("home").style.display=mode==="home"?"block":"none";
   document.getElementById("routeTitle").textContent=mode==="more"?"全部功能":(titles[title]||"LOL 工作台");
-  if(mode==="more")requestAnimationFrame(function(){document.getElementById("toolSearch").focus();});
+  if(previous!==mode){
+    get("pages").scrollTop=0;
+    if(mode==="more")requestAnimationFrame(function(){get("toolSearch").focus();});
+    else if(mode==="home")requestAnimationFrame(function(){get("clientConnection").closest("button").focus();});
+    else requestAnimationFrame(function(){get("routeTitle").focus();});
+  }
 }
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
@@ -1219,7 +1232,7 @@ document.addEventListener("click",function(event){
     if(!advancedHistoryIds.has(gameId))return;
     get("advancedHistoryDetail").hidden=false;
     get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
-    get("advancedHistoryDetailStatus").textContent="正在读取原生 LCU/SGP 对局明细";
+    get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
     get("advancedHistoryTeams").replaceChildren();
     get("advancedHistoryParticipants").replaceChildren();
     get("advancedHistoryExtras").hidden=true;
@@ -1255,7 +1268,7 @@ document.addEventListener("click",function(event){
     if(!pendingProfileAction)return;
     var request=pendingProfileAction;pendingProfileAction=null;
     get("profileCustomizationConfirm").hidden=true;
-    get("profileCustomizationStatus").textContent="正在写入并回读校验当前账号";
+    get("profileCustomizationStatus").textContent="正在修改并确认当前账号资料";
     document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=true;});
     post(request.action==="skin"?"profile-customization-skin:"+request.value:
       "profile-customization-action:"+request.action);return;
@@ -1267,7 +1280,7 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.action==="bench-refresh"){
     get("benchRefresh").disabled=true;get("benchChampions").replaceChildren();
-    get("benchReadStatus").textContent="正在从当前 LCU 会话读取替补席";
+    get("benchReadStatus").textContent="正在读取当前替补席";
     post("bench-refresh");return;
   }
   if(target.dataset.benchSwap!==undefined){
@@ -1276,18 +1289,18 @@ document.addEventListener("click",function(event){
     if(!Number.isSafeInteger(id)||id<1||!benchIds.has(id))return;
     get("benchChampions").querySelectorAll("button").forEach(function(b){b.disabled=true;});
     get("benchRefresh").disabled=true;
-    get("benchActionStatus").textContent="正在通过当前 LOL 会话交换英雄 #"+id;
+    get("benchActionStatus").textContent="正在交换英雄 #"+id;
     post("bench-swap:"+id);return;
   }
   if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
   if(target.dataset.action==="quick-message-save"){
     var message=collectQuickMessageSettings();
     if(!message)return;
-    get("quickSave").disabled=true;get("quickMessageStatus").textContent="正在保存原生快捷键";
+    get("quickSave").disabled=true;get("quickMessageStatus").textContent="正在保存快捷键";
     post("quick-message-save:"+JSON.stringify(message));return;
   }
   if(target.dataset.quickSend!==undefined){
-    get("quickMessageStatus").textContent="正在通过 LOL 当前游戏会话发送已保存的预设";
+    get("quickMessageStatus").textContent="正在向游戏聊天发送预设消息";
     post("quick-message-send:"+target.dataset.quickSend);return;
   }
   if(target.dataset.action==="advanced-refresh"){post("advanced-refresh");return;}
@@ -1386,7 +1399,7 @@ document.addEventListener("click",function(event){
     get("recommendationConfirm").hidden=true;
     get("recommendationApply").disabled=true;
     get("recommendationRefresh").disabled=true;
-    get("recommendationResult").textContent="正在通过当前游戏会话应用所选推荐";
+    get("recommendationResult").textContent="正在将所选推荐应用到游戏";
     post("recommendation-apply:"+JSON.stringify({runes:get("applyRunes").checked,spells:get("applySpells").checked,items:get("applyItems").checked}));return;
   }
   if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
@@ -1396,7 +1409,7 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
     get("liveRefresh").disabled=true;get("liveSgpRefresh").disabled=true;
-    get("liveSummary").textContent="正在读取当前游戏会话";
+    get("liveSummary").textContent="正在读取当前对局";
     post(target.dataset.action==="live-sgp"?"live-sgp":"live-refresh");return;
   }
   if(target.dataset.repairAction){
@@ -1605,10 +1618,10 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="bench-state"){renderBenchState(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="bench-icon"){renderBenchIcon(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="bench-swap-result"){
-    var result={Success:"换英雄成功，已通过客户端回读确认",
+    var result={Success:"换英雄成功，游戏客户端已确认",
       TargetUnavailable:"该英雄已被交换，请刷新替补席",BenchDisabled:"当前替补席不可用",
       SessionUnavailable:"客户端或选人会话已断开",WriteRejected:"英雄联盟客户端拒绝本次交换",
-      VerificationFailed:"请求已提交，但没有回读确认成功，请核对游戏界面",
+      VerificationFailed:"已发送交换请求，但未确认成功，请查看游戏选人界面",
       "session-changed":"账号或选人会话已变化，已丢弃操作结果",
       "not-on-bench":"目标不在当前替补席中，请刷新","swapping":"正在交换并验证",
       timeout:"操作等待超时，请核对游戏界面，避免重复操作",failed:"交换未完成，请核对游戏界面"};
@@ -1638,7 +1651,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-state"){renderPresence(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-result"){
-    var statuses={success:"设置已保存并通过客户端回读",overridden:"客户端状态已改变，未覆盖",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
+    var statuses={success:"设置已保存，游戏客户端已确认",overridden:"游戏客户端更改了状态，请重新查看",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
@@ -1666,8 +1679,8 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     renderProfileCustomizationOptions(e.data);return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="profile-customization-result"){
-    var messages={loading:"正在读取当前账号",success:"操作成功，客户端回读确认",
-      overridden:"客户端已覆盖修改，未确认成功",unverified:"已提交，但未能回读确认",
+    var messages={loading:"正在读取当前账号",success:"操作成功，游戏客户端已确认",
+      overridden:"游戏客户端覆盖了修改，请重新查看",unverified:"已提交，但未确认是否生效，请查看游戏客户端",
       invalid:"输入不符合要求或皮肤不在已读取目录中",unavailable:"当前客户端不支持此操作",
       "write-failed":"操作失败，客户端拒绝写入",failed:"请求未完成，请检查客户端",
       "session-changed":"账号或客户端会话发生变化，旧结果已丢弃",
@@ -1709,7 +1722,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("advancedDbPlatformId").textContent=e.data.connected?(e.data.platformId||"—"):"—";
     get("advancedDbBudget").textContent=e.data.budget||"—";
     get("advancedDbUpdated").textContent=e.data.observedAt||"—";
-    get("advancedDbStatus").textContent=e.data.connected?"已读取当前客户端快照":"当前没有可读取的客户端资料";
+    get("advancedDbStatus").textContent=e.data.connected?"已更新游戏客户端状态":"当前没有可读取的客户端资料";
     document.getElementById("dashboardResult").textContent=e.data.message||"";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-failed"){
@@ -1971,7 +1984,7 @@ function renderCloudState(data){
   get("cloudModeNote").textContent=data.localOnly?
     "目前免费云服务额度已耗尽，GGman 已进入免登录本地模式；云同步和验证码功能暂缓，所有本地游戏功能继续可用。":
     "已启用云端模式，账号验证和自动同步使用已有服务.";
-  get("cloudStatus").textContent=data.localOnly?"本地模式运行中 · 不访问 CloudBase":(data.status||"同步状态待确认");
+  get("cloudStatus").textContent=data.localOnly?"正在使用本地模式，云同步暂不可用":(data.status||"同步状态待确认");
   get("cloudAutoSync").checked=!data.localOnly&&!!data.autoSync;
   get("cloudGameRestore").checked=!data.localOnly&&!!data.autoGameRestore;
   cloudBusy=!!data.busy;
@@ -2146,7 +2159,7 @@ function renderRecommendation(data){
   var rows=Array.isArray(data.rows)?data.rows:[];
   get("recommendationOutput").hidden=false;
   guideText("recommendationChampion",data.champion|| (data.championId>0?"英雄 #"+data.championId:"当前英雄未确认"));
-  guideText("recommendationContext",[data.mode,data.position,data.source,data.cached?"缓存数据":""].filter(Boolean).join(" · "));
+  guideText("recommendationContext",[modeName(data.mode),data.position,data.source,data.cached?"缓存数据":""].filter(Boolean).join(" · "));
   guideText("recommendationVersion",data.version);
   guideText("recommendationWinRate",guidePercent(data.winRate));
   var labels={"runes":"推荐符文","summoner-spells":"召唤师技能","starter-items":"出门装备",
@@ -2217,7 +2230,7 @@ function drawHistoryRows(){
     top.append(champ,outcome);
     var meta=document.createElement("small");
     var duration=Number(match.duration)||0;
-    meta.textContent=[match.played,match.mode||"队列 "+match.queueId,
+    meta.textContent=[match.played,modeName(match.mode)||"队列 "+match.queueId,
       duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
     var score=document.createElement("small");
     score.textContent=match.outcome==="unknown"?"对局数据待补全":
@@ -2257,7 +2270,7 @@ function renderRegionalOptions(data){
   });
   if(Array.from(control.options).some(function(x){return x.value===prior;}))control.value=prior;
   get("advancedRegionalStatus").textContent=data.available?
-    "已加载当前账号授权的服务器目录；其他大区可能需要 SGP 权限":
+    "已加载可访问的服务器列表；部分大区可能没有查询权限":
     "无法识别当前客户端区域，跨区查询不可用";
 }
 function renderRegionalHistory(data){
@@ -2284,7 +2297,7 @@ function renderRegionalHistory(data){
     var summary=document.createElement("div"),heading=document.createElement("strong"),detail=document.createElement("small");
     heading.textContent=String(item.champion||"英雄 #"+item.championId)+
       " · "+(item.outcome==="win"?"胜利":item.outcome==="loss"?"失败":"结果未知");
-    detail.textContent=[item.played,item.mode||"队列 #"+item.queue,
+    detail.textContent=[item.played,modeName(item.mode)||"队列 #"+item.queue,
       "K/D/A "+(item.kills||0)+"/"+(item.deaths||0)+"/"+(item.assists||0)].filter(Boolean).join(" · ");
     summary.append(heading,detail);
     var button=document.createElement("button");button.dataset.remoteGameId=id;
@@ -2441,7 +2454,7 @@ function drawAdvancedHistoryRows(){
     var left=document.createElement("div"),heading=document.createElement("strong"),meta=document.createElement("small");
     heading.textContent=String(match.champion||"英雄 #"+match.championId)+" · "+(
       {win:"胜利",loss:"失败",unknown:"结果未确认"}[match.outcome]||"未确认");
-    meta.textContent=[match.played,match.mode||"队列 #"+match.queue,
+    meta.textContent=[match.played,modeName(match.mode)||"队列 #"+match.queue,
       "K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
     left.append(heading,meta);
     var button=document.createElement("button");button.dataset.advancedGameId=String(match.id);
@@ -2486,7 +2499,7 @@ function renderAdvancedMatchDetail(data){
   if(select.options.length&&!select.value)select.selectedIndex=0;
   if(select.value)post("history-advanced-radar:"+select.value);
   get("advancedHistoryDetailTitle").textContent=
-    "对局 #"+data.id+" · "+(data.mode||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知")+
+    "对局 #"+data.id+" · "+(modeName(data.mode)||"队列 "+data.queue)+" · "+(data.duration>0?Math.round(data.duration/60)+" 分钟":"时长未知")+
     (data.source?" · 来源 "+({Lcu:"客户端",Sgp:"区域服务",Automatic:"自动选择"}[data.source]||"已确认"):"");
   (Array.isArray(data.teams)?data.teams:[]).slice(0,12).forEach(function(team){
     var item=document.createElement("div");item.className="history-advanced-row";
@@ -2569,7 +2582,7 @@ function renderBenchState(data){
   var list=get("benchChampions");list.replaceChildren();
   benchIds.clear();get("benchRefresh").disabled=false;
   get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
-  get("benchMode").textContent=data.mode|| (data.queue>0?"队列 #"+data.queue:"—");
+  get("benchMode").textContent=modeName(data.mode)|| (data.queue>0?"队列 #"+data.queue:"—");
   var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
     disabled:"当前游戏模式没有开放替补席","session-changed":"游戏账号或选人会话已切换，请重新读取",timeout:"读取超时，请稍后再试",
     failed:"替补席读取失败，检查客户端后重试"};
@@ -2664,7 +2677,7 @@ function renderLive(data){
   get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
   get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
   get("livePhase").textContent=phaseLabel(data.phase);
-  get("liveQueue").textContent=data.queue||data.mode||"—";
+  get("liveQueue").textContent=modeName(data.queue)||modeName(data.mode)||"—";
   get("liveMap").textContent=data.map||"—";
   liveRows=(Array.isArray(data.players)?data.players:[]).slice(0,24);
   get("livePlayers").dataset.sgp=data.sgp?"true":"false";

@@ -112,3 +112,16 @@ Keep `UnifiedWorkspaceForm.cs` focused on browser lifetime, global protection
 and navigation; feature-specific adapters belong in the domain partial files.
 Treat those partials as a transitional organization of one Form type, while
 authoritative LCU/network/cache state continues to live in native service owners.
+
+## 2026-11-08 — Public-product UI acceptance and Chinese copy
+
+Treat prompts as engineering directions but evaluate the shipped GGman
+interface on an ordinary player's terms. Keep standard names and familiar
+abbreviations; explain technical operations through user outcomes, clear
+buttons and actionable status rather than implementation jargon. Apply the
+Vercel web-design-guidelines, UI/UX Designer user-journey lens and Windows
+writing guidance to the existing compact WinForms/WebView2 visual system.
+Prioritize UI presentation and localization in this task; do not expand its
+scope into a separate security redesign. Finish code checks and all four
+Windows CI gates before requesting a normal signed online release; real
+Windows/Chinese LoL/DPI/IME acceptance belongs to the owner afterward.

@@ -1,22 +1,29 @@
-## 2026-11-08 — GGman 3.5.86 official release request staged (not yet published)
+## 2026-11-08 — GGman v3.5.87 product UI localization work in progress
 
-The owner explicitly requested promotion of the PR #364 Shard/control-center
-candidate into the normal signed online update, not delivery as a detached
-test artifact. The release request on this same task branch now targets
-`3.5.86`, `minimum_version=3.0.0`, `force_update=false` and
-`prerelease=false`. It will invoke the canonical
-`.github/workflows/publish-3.5-lightweight.yml` when the request change
-lands on `main`, after the final PR HEAD passes the four Windows gates.
-The publisher must build its release candidate, run standalone smoke tests,
-Authenticode-sign it, publish the matching `GGman.exe` and `FACM.exe`,
-re-download both assets to verify hashes/sizes/signer, and enable the
-online manifest last. Until that workflow succeeds, signed 3.5.85 remains
-the only production version and `online/version.json` must stay unchanged.
-Windows 10/Tencent LOL/DPI, skin and pet interactions, and actual updater
-replacement remain explicitly post-release operator acceptance.
-This new publication request supersedes the earlier release prohibition
-for the completed architectural slice; it does not waive signing or
-updater-integrity gates.
+Latest GitHub release is signed-channel `v3.5.86`, and `main` is
+`5b01996bf01e11b9a0d8732ac3ad6e49358c787f` (confirmed 2026-11-08).
+The current short-lived task branch
+`feat/ggman-product-ui-localization-20261108` targets a unified player-facing
+copy/visual-interaction pass on the WebView2 control center and native League
+stat dialogs, not a new backend architecture or independent preview EXE.
+Reference criteria are recorded in `docs/DECISIONS.md`. The user requested
+signed online v3.5.87 *after* four exact-head Windows CI gates and the normal
+publisher integrity/signing workflow; user-side Windows 10, Chinese LoL,
+skin/IME/DPI and actual updater operation remain post-release acceptance.
+At this stage development changes are local; do not claim CI, PR merge,
+v3.5.87 publication or real-device acceptance until independently verified.
+
+## 2026-11-08 — GGman 3.5.86 release request completed (historical)
+
+PR #364 was promoted through the normal release request and canonical
+`.github/workflows/publish-3.5-lightweight.yml` publisher. GitHub now exposes
+the official [`v3.5.86` release](https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.86)
+and the release-enabling `main` commit
+`5b01996bf01e11b9a0d8732ac3ad6e49358c787f`. The version request was
+non-forced and non-prerelease with minimum version `3.0.0`. The release
+publisher retains standalone smoke, Authenticode-signature, matching
+`GGman.exe`/`FACM.exe` asset and manifest-last verification gates; this
+historical note does not imply that Tencent LOL or real DPI testing passed.
 
 ## 2026-11-08 — Draft #364 remaining control-center business extraction (four Windows gates passed)
 

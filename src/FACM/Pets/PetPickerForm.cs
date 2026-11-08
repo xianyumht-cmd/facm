@@ -28,7 +28,7 @@ namespace FACM.Pets
         {
             _selectedPetId = PetCatalog.Get(currentPetId).Id;
 
-            Text = "FACM · 3D 桌面宠物";
+            Text = "GGman · 3D 桌面宠物"; // ui-text-contract: allow - product brand in legacy native pet picker
             StartPosition = FormStartPosition.CenterScreen;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
@@ -103,7 +103,7 @@ namespace FACM.Pets
             };
             _status = new Label
             {
-                Text = "请选择一个桌宠。应用后可在桌面使用，点击桌宠打开 FACM 控制面板。",
+                Text = "请选择一个桌宠。应用后可在桌面使用，点击桌宠打开 GGman 控制中心。", // ui-text-contract: allow - native pet help
                 Location = new Point(22, 572),
                 Size = new Size(772, 28),
                 ForeColor = FacmDesignSystem.Success
@@ -312,7 +312,7 @@ namespace FACM.Pets
                     _selectedPetId = pet.Id;
                     ActivatedPersonaId = result.PersonaId;
                     _progress.Value = 100;
-                    _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 FACM 控制面板。";
+                    _status.Text = "已应用 " + pet.Name + "。点击桌宠可打开 GGman 控制中心。"; // ui-text-contract: allow - native pet feedback
                     _status.ForeColor = FacmDesignSystem.Success;
                     DialogResult = DialogResult.OK;
                     Close();

@@ -645,3 +645,28 @@ because all use the existing `LeagueEfficiencyModule` settings owner. Preserve
 strict JSON allowlists and localized result/status contracts; gate both writes
 and publishes by the current active route. Do not create a second network owner,
 worker process or WebView2 for configuration pages.
+
+## 2026-11-08 — Product-facing GGman UI quality standard
+
+Evaluate GGman as a public Windows desktop product, not as a developer-facing
+prototype. Use the open-source Vercel `web-design-guidelines` skill as the
+repeatable HTML/CSS quality checklist, the `wshobson/agents` UI/UX Designer
+agent's user-journey/design-system responsibilities as the product-review lens,
+and Microsoft's Windows Writing Style for concise controls, readable error
+states and recovery guidance. These are reference criteria, not external
+runtime dependencies, required agent orchestration, or permission to override
+this repository's source contracts. Preserve the navy/cyan floating ball,
+single WebView2 control center, native fallbacks and Microsoft YaHei UI.
+
+Review every reachable UI surface for understandable Chinese controls,
+meaningful page headings, clear action outcomes, keyboard/focus navigation,
+status and error feedback, compact-window readability, high-DPI scaling,
+contrast and theme consistency. Common abbreviations and proper nouns such as
+GGman, LOL, ARAM, KDA, CS, Riot ID and OP.GG may remain in English; raw API
+field names, legacy FACM branding and implementation descriptions may not be
+shown as ordinary-player instructions. Preserve raw server-stat keys and
+application setting identifiers internally; localize presentation only. When
+unknown future fields must be exposed diagnostically, leave the exact raw key
+as fallback instead of inventing a statistic's meaning. Continue existing
+signing/build/update integrity gates; the owner will perform actual Windows,
+LoL and DPI acceptance *after* the signed online publication.

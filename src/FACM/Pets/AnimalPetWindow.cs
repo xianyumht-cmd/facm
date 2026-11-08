@@ -49,7 +49,7 @@ namespace FACM.Pets
         public AnimalPetWindow(AnimalPetDefinition pet)
         {
             _pet = pet ?? AnimalPetCatalog.Get(AnimalPetCatalog.DefaultPetId);
-            Text = "FACM 桌面宠物";
+            Text = "GGman 桌面宠物"; // ui-text-contract: allow - native pet title
             ShowInTaskbar = false;
             TopMost = true;
             FormBorderStyle = FormBorderStyle.None;

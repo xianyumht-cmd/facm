@@ -23,7 +23,7 @@ namespace FACM.Services
         {
             _worker = worker ?? throw new ArgumentNullException(nameof(worker));
 
-            Text = "FACM 目录识别";
+            Text = "GGman 目录识别"; // ui-text-contract: allow - native directory picker title
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
