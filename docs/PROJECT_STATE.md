@@ -1,3 +1,23 @@
+## 2026-11-08 — GGman 3.5.86 official release request staged (not yet published)
+
+The owner explicitly requested promotion of the PR #364 Shard/control-center
+candidate into the normal signed online update, not delivery as a detached
+test artifact. The release request on this same task branch now targets
+`3.5.86`, `minimum_version=3.0.0`, `force_update=false` and
+`prerelease=false`. It will invoke the canonical
+`.github/workflows/publish-3.5-lightweight.yml` when the request change
+lands on `main`, after the final PR HEAD passes the four Windows gates.
+The publisher must build its release candidate, run standalone smoke tests,
+Authenticode-sign it, publish the matching `GGman.exe` and `FACM.exe`,
+re-download both assets to verify hashes/sizes/signer, and enable the
+online manifest last. Until that workflow succeeds, signed 3.5.85 remains
+the only production version and `online/version.json` must stay unchanged.
+Windows 10/Tencent LOL/DPI, skin and pet interactions, and actual updater
+replacement remain explicitly post-release operator acceptance.
+This new publication request supersedes the earlier release prohibition
+for the completed architectural slice; it does not waive signing or
+updater-integrity gates.
+
 ## 2026-11-08 — Draft #364 remaining control-center business extraction (four Windows gates passed)
 
 Four new per-window adapters now own Quick Tools toggle validation/native
