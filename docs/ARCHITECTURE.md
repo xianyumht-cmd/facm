@@ -1,3 +1,20 @@
+## 2026-11-08 — Final quick-tools, skin, pet and status presentation boundary (Draft #364)
+
+`UnifiedWorkspaceQuickToolsAdapter` owns the five exact, allowlisted efficiency
+toggles and the current native `LeagueEfficiencyModule` snapshot. The
+`UnifiedWorkspaceSkinAdapter` owns `ThemeId` persistence, native runtime
+palette notification and the complete `themes` CSS-token projection, including
+the home-route handshake. `UnifiedWorkspacePetAdapter` projects the visible
+desktop-pet catalog and delegates confirmed selection/reset/disable to the
+original `MainForm` pet owner. `UnifiedWorkspaceGameflowAdapter` owns the last
+connected/phase status snapshot and small page-status JSON projections.
+Each component is per-workbench and publishes only through the Form's bounded
+WebView2 bridge; route eligibility remains with the registered Efficiency,
+Appearance and ClientStatus shards. The Form owns only the renderer lifetime,
+native window, navigation, route dispatch and OS folder dialog. Cleanup's
+validated initial folder suggestion now comes from its existing adapter.
+No new browser, native service, process, timer, data source or persisted key.
+
 ## 2026-11-08 — Live-bench and protected maintenance adapters (Draft #364)
 
 Five more per-workbench components own the previously Form-held state:

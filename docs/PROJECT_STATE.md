@@ -1,3 +1,19 @@
+## 2026-11-08 — Draft #364 remaining control-center business extraction (candidate)
+
+Four new per-window adapters now own Quick Tools toggle validation/native
+mutation, the 皮肤 catalog/save/runtime palette message, desktop-pet selection
+and native status result projection, plus connected Gameflow phase JSON. Their
+`UnifiedWorkspaceForm` partials remain navigation and adapter-delegation only.
+The folder picker now receives its validated initial path from the cleanup
+adapter. Source audit of all Form partials found no remaining direct settings
+save, League module mutation, pet mutation or business snapshot serialization;
+typed contracts, native folder dialog and module delegate injection remain.
+The existing 23 registered Shards and one warm WebView2 shell are unchanged.
+**Candidate only:** exact-head Windows four-gate CI and real Windows/Tencent
+operator interaction have not yet been run for this new commit. Continue on
+the existing Draft PR #364; do not merge/release/publish `online/version.json`
+or touch signed production GGman 3.5.85 on this architectural batch alone.
+
 ## 2026-11-08 — Draft #364 live bench and maintenance adapters (Windows CI passed)
 
 Live bench/ARAM swap, game repair, cleanup review/execute, cloud-sync/account

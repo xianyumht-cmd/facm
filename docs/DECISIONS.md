@@ -1,3 +1,13 @@
+## 2026-11-08 — Keep simple feature adapters in-process, separate from Form
+
+Quick tools, skins, desktop pets and the small gameflow/status projection use
+four per-workbench adapter objects, not extra processes or a generalized
+plugin-loader runtime. The existing typed Shards own routing and commands;
+the adapters own feature validation, native calls and JSON state. Keep the
+single WebView2 shell and native efficiency, theme, pet and Gameflow owners.
+Any added control-center feature should register its own Shard and inject its
+own bounded business adapter, leaving `UnifiedWorkspaceForm` as a shell.
+
 ## 2026-11-08 — Own protected maintenance UI state per workbench
 
 Keep observed ARAM bench choice lists, game repair cancellation, cleanup review

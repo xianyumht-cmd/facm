@@ -1,56 +1,26 @@
-using System;
-using System.Linq;
-using System.Web.Script.Serialization;
-using FACM.Pets;
-
 namespace FACM.Presentation.Glass
 {
     internal sealed partial class UnifiedWorkspaceForm
     {
-        internal void SyncUnifiedPetOptions()
+        private UnifiedWorkspacePetAdapter _petAdapter;
+
+        private UnifiedWorkspacePetAdapter PetAdapter
         {
-            if (!_ready || _closing || IsDisposed || _navigation.Current != "appearance" ||
-                _browser.CoreWebView2 == null) return;
-            var current = AnimalPetCatalog.Get(_settings.PetStyleId);
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
+            get
             {
-                type = "pets",
-                selected = current.Id,
-                name = current.Name,
-                enabled = _settings.AnimalPetEnabled,
-                items = AnimalPetCatalog.Visible.Select(item => new
-                {
-                    id = item.Id,
-                    name = item.Name,
-                    description = item.Description
-                }).ToArray()
-            }));
+                if (_petAdapter == null)
+                    _petAdapter = new UnifiedWorkspacePetAdapter(
+                        delegate { return CanPublishOnRoute("appearance"); },
+                        delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
+                        delegate(string id) { return _ownerBall.ApplyUnifiedPetSelection(id); },
+                        delegate(string action) { return _ownerBall.ApplyUnifiedPetAction(action); },
+                        _settings);
+                return _petAdapter;
+            }
         }
 
-        internal void ApplyUnifiedPetChoice(string id)
-        {
-            if (_navigation.Current != "appearance" || id == null || id.Length > 48) return;
-            var status = _ownerBall.ApplyUnifiedPetSelection(id);
-            PostUnifiedPetResult(status);
-            SyncUnifiedPetOptions();
-        }
-
-        internal void ApplyUnifiedPetAction(string action)
-        {
-            if (_navigation.Current != "appearance") return;
-            var status = _ownerBall.ApplyUnifiedPetAction(action);
-            PostUnifiedPetResult(status);
-            SyncUnifiedPetOptions();
-        }
-
-        private void PostUnifiedPetResult(string status)
-        {
-            if (!_ready || IsDisposed || _closing || _navigation.Current != "appearance" ||
-                _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "pet-result", status
-            }));
-        }
+        internal void SyncUnifiedPetOptions() { PetAdapter.Sync(); }
+        internal void ApplyUnifiedPetChoice(string id) { PetAdapter.Select(id); }
+        internal void ApplyUnifiedPetAction(string action) { PetAdapter.Act(action); }
     }
 }

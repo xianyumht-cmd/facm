@@ -26,6 +26,10 @@ namespace FACM.Presentation.Glass
 
         internal bool IsBusy { get { return _cleanupBusy; } }
         internal bool IsExecuting { get { return _cleanupExecuting; } }
+        internal string SuggestedDirectory
+        {
+            get { return _cleanup.IsValidGameRoot(_settings.GamePath) ? _settings.GamePath : null; }
+        }
 
         internal UnifiedWorkspaceCleanupAdapter(Func<bool> canPublish, Action<string> publish,
             AppSettings settings, CleanupModule cleanup, Action runDriver, Action exit)

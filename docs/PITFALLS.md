@@ -1,3 +1,17 @@
+## 2026-11-08 — Moving UI code must preserve cross-route skin hydration
+
+The `themes` event is sent at HTML readiness even while the home page is
+active; a new skin adapter must not apply the `appearance` route predicate to
+its initial publish. Only a user-triggered `theme:` write is route-restricted.
+The five quick-tool booleans are native settings, not free-form bridge
+properties: validate the exact key and literal `true`/`false` before touching
+the efficiency module. Desktop-pet choices must come from the *visible* pet
+catalog and continue using `MainForm` to change the actual floating surface.
+If skin persistence or runtime notification fails, restore the prior setting
+and report a failure; do not claim a new color has been applied. A smoke check
+must cover JSON contracts and hidden-route ownership; real changed pixels on
+Windows 10 remain a separate operator check.
+
 ## 2026-11-08 — Maintenance adapters must preserve safety state across awaits
 
 An old ARAM bench icon or swap must not post after leaving the route, replacing

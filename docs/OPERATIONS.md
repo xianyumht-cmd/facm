@@ -1,3 +1,19 @@
+## 2026-11-08 — Draft #364 quick-tools, skin, pet and gameflow acceptance
+
+Run the exact-head Windows Build, Glass WebView2, UI Text Contract and Mayhem
+Source workflows. Glass smoke must execute quick-tool allowlist, skin palette,
+visible pet catalog and home/client-status projection checks. In Windows 10
+operator acceptance, toggle each of the five quick settings and verify its
+native persisted behavior; change to 曜石鎏金 then 云端浅色 and check the native
+orb, home/picker and game-time companion visually recolor after close/reopen;
+select/disable/reset a desktop pet and check the actual native floating state.
+Disconnect/reconnect the League client and verify home/client-status phase
+messages do not retain a stale phase. Retry invalid commands and navigation
+away; no command may reach the native owner from an inactive route. Confirm
+cleanup folder selection still suggests only verified game roots. The real
+Tencent client, DPI 100/125/150/200%, UAC and signed installation still require
+independent operator acceptance; Draft #364 does not change production 3.5.85.
+
 ## 2026-11-08 — Draft #364 live-bench and maintenance adapter acceptance
 
 Reopen live bench during a slow icon request and replace the League account

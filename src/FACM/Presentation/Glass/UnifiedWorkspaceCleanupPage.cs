@@ -48,8 +48,8 @@ namespace FACM.Presentation.Glass
             using (var dialog = new FolderBrowserDialog())
             {
                 dialog.Description = CleanupRepairUiText.FolderDialog;
-                if (_cleanup.IsValidGameRoot(_settings.GamePath))
-                    dialog.SelectedPath = _settings.GamePath;
+                var suggested = CleanupAdapter.SuggestedDirectory;
+                if (!string.IsNullOrEmpty(suggested)) dialog.SelectedPath = suggested;
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                     CleanupAdapter.SaveDirectory(dialog.SelectedPath);
             }

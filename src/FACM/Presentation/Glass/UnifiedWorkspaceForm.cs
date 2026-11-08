@@ -9,7 +9,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Web.Script.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.League;
@@ -54,7 +53,6 @@ namespace FACM.Presentation.Glass
         private bool _closing;
         private bool _browserUnavailable;
         private bool _userMovedWindow;
-        private LeagueDashboardPhaseState _lastGameflowState;
         internal event Action BrowserUnavailable;
         internal event Action WorkspaceReady;
 
@@ -493,25 +491,6 @@ namespace FACM.Presentation.Glass
                 _navigation.IsHome ? "home" : "detail:" + _navigation.Current);
         }
 
-        internal void UpdateGameflowState(LeagueDashboardPhaseState state)
-        {
-            if (IsDisposed) return;
-            _lastGameflowState = state;
-            SyncGameflowState();
-        }
-
-        private void SyncGameflowState()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var connected = _lastGameflowState != null && _lastGameflowState.Connected;
-            var phase = connected ? (_lastGameflowState.Phase ?? string.Empty) : string.Empty;
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "status", connected = connected, phase = phase
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
-        }
-
         private void HandleClosing(object sender, FormClosingEventArgs e)
         {
             if (OnlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
@@ -570,6 +549,10 @@ namespace FACM.Presentation.Glass
             UnifiedWorkspaceCloudSyncAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceOnlineAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceCleanupAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceQuickToolsAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceSkinAdapter.ValidateForSmokeTest();
+            UnifiedWorkspacePetAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceGameflowAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();

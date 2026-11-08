@@ -1,4 +1,3 @@
-using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
 
@@ -78,13 +77,5 @@ namespace FACM.Presentation.Glass
             if (_recommendationAdapter != null) _recommendationAdapter.Cancel();
         }
 
-        internal void PostLeaguePageStatus(string type, string status)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type, status
-            }));
-        }
     }
 }
