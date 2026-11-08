@@ -1,5 +1,9 @@
 ## 2026-11-08 — Draft #364 quick-tools, skin, pet and gameflow acceptance
 
+Executable `962c068` passed [Build 42460785830](https://github.com/xianyumht-cmd/facm/actions/runs/42460785830),
+[Glass 42460785768](https://github.com/xianyumht-cmd/facm/actions/runs/42460785768),
+[UI Text 42460785821](https://github.com/xianyumht-cmd/facm/actions/runs/42460785821),
+and [Mayhem 42460785769](https://github.com/xianyumht-cmd/facm/actions/runs/42460785769).
 Run the exact-head Windows Build, Glass WebView2, UI Text Contract and Mayhem
 Source workflows. Glass smoke must execute quick-tool allowlist, skin palette,
 visible pet catalog and home/client-status projection checks. In Windows 10

@@ -1,4 +1,4 @@
-## 2026-11-08 — Draft #364 remaining control-center business extraction (candidate)
+## 2026-11-08 — Draft #364 remaining control-center business extraction (four Windows gates passed)
 
 Four new per-window adapters now own Quick Tools toggle validation/native
 mutation, the 皮肤 catalog/save/runtime palette message, desktop-pet selection
@@ -9,8 +9,12 @@ adapter. Source audit of all Form partials found no remaining direct settings
 save, League module mutation, pet mutation or business snapshot serialization;
 typed contracts, native folder dialog and module delegate injection remain.
 The existing 23 registered Shards and one warm WebView2 shell are unchanged.
-**Candidate only:** exact-head Windows four-gate CI and real Windows/Tencent
-operator interaction have not yet been run for this new commit. Continue on
+Executable `962c068f7ad895f000f5b994911b8f212bfb6c7f` passed all four exact-head
+Windows gates: [Build 42460785830](https://github.com/xianyumht-cmd/facm/actions/runs/42460785830),
+[Glass 42460785768](https://github.com/xianyumht-cmd/facm/actions/runs/42460785768),
+[UI Text 42460785821](https://github.com/xianyumht-cmd/facm/actions/runs/42460785821),
+and [Mayhem 42460785769](https://github.com/xianyumht-cmd/facm/actions/runs/42460785769).
+Real Windows/Tencent operator interaction remains unverified. Continue on
 the existing Draft PR #364; do not merge/release/publish `online/version.json`
 or touch signed production GGman 3.5.85 on this architectural batch alone.
 
