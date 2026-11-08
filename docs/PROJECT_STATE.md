@@ -1431,15 +1431,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.85
-- GitHub Release：v3.5.85
+- 版本：GGman 3.5.86
+- GitHub Release：v3.5.86
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：4ed45856863a8e15d15820ed88aa8832204eec35
-- 发布元数据提交：e79fc412e6739e90293421be62e8f511f5c90f42
-- Release GGman.exe SHA-256：6148FB8E04C1D5E0BC10F8A34CAEC7D0D65C77B824E3FF982B8670864C4D0FC1
-- release_notes：GGman 3.5.85：将原「外观与主题／外观主题」统一更名为「皮肤」。修复旧版本皮肤设置看似保存但悬浮球没有改变的问题：悬浮球启动时加载当前皮肤，切换时立即重绘；WebView2 控制中心每次展开都恢复上次保存的皮肤，而不需要先进入皮肤页面。实时对局助手也跟随当前皮肤同步更新深浅配色。保留原有皮肤配置、全部预设及页面入口兼容。补充悬浮球换色像素测试、深浅皮肤 Edge 页面渲染验证和四项 Windows CI。本版本为非强制更新，Windows 实机皮肤切换与选人浮层显示由用户在线更新后验收。
+- 发布基础 main：2629f986b9e2bb3811f7fd60fb5064df863d7191
+- 发布元数据提交：ef709333bb95ed369b4f40385c122810048bf3d3
+- Release GGman.exe SHA-256：352E3934999497C90C1A2AA377A2D3F50185EA48ED2DD97CC80F4D04AF7652F3
+- release_notes：GGman 3.5.86：正式整合控制中心 Shard 模块化架构与 WebView2 热启动。23 个功能入口保持在同一自适应控制中心中，由独立业务适配器处理战绩与跨区详情、个人资料、实时数据、海斗攻略与出装、快速工具、皮肤、桌面宠物、维护、云同步及在线更新操作，减少界面和业务逻辑耦合。保留轻量原生后端、悬浮球及选人阶段实时助手；强化页面切换时的取消与状态隔离。本版为非强制正式更新，Windows 10、腾讯国服实战、DPI 与实际皮肤/宠物/更新体验仍由用户安装后验收。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
