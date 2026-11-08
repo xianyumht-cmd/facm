@@ -244,6 +244,7 @@ namespace FACM.League
             { "Value", "数值" },
             { "SGP EOG", "赛后统计" },
             { "KDA CV", "KDA 波动系数" },
+            { "KDA avg", "场均 KDA" },
         };
 
         internal static string Translate(string key)

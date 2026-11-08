@@ -1443,9 +1443,9 @@ namespace FACM.League
                 LeagueOngoingCardStatsProjection.CopyText(null) == "",
                 "Verified native card details must support bounded copy and reject missing rows.");
             Require(details.Any(row => row.Key == "KDA" && row.Value == "2.50") &&
-                details.Any(row => row.Key == "KDA avg" && row.Value == "2.50") &&
+                details.Any(row => row.Key == LeagueStatDisplayNames.Translate("KDA avg") && row.Value == "2.50") &&
                 details.Any(row => row.Key == "K / D / A" && row.Value == "3.00 / 2.00 / 2.00") &&
-                details.Any(row => row.Key == "KDA CV") &&
+                details.Any(row => row.Key == LeagueStatDisplayNames.Translate("KDA CV")) &&
                 details.Count(row => row.Key ==
                     LeagueEfficiencyText.Get(null, LeagueEfficiencyUiTextKeys.ProfileModeCherry)) == 1,
                 "Source card details must expose verified per-game averages and mode evidence.");

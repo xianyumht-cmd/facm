@@ -116,7 +116,7 @@ namespace FACM.League
             if (analysis.Kda.HasValue)
                 add("KDA", analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.AverageGameKda.HasValue)
-                add("KDA avg", analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+                add(LeagueStatDisplayNames.Translate("KDA avg"), analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.KdaCv.HasValue)
                 add(LeagueStatDisplayNames.Translate("KDA CV"), analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.StatisticsGames > 0)

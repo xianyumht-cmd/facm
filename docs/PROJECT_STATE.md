@@ -10,7 +10,13 @@ Reference criteria are recorded in `docs/DECISIONS.md`. The user requested
 signed online v3.5.87 *after* four exact-head Windows CI gates and the normal
 publisher integrity/signing workflow; user-side Windows 10, Chinese LoL,
 skin/IME/DPI and actual updater operation remain post-release acceptance.
-At this stage development changes are local; do not claim CI, PR merge,
+PR [#365](https://github.com/xianyumht-cmd/facm/pull/365) is open on this
+branch. The first pushed executable head `0f43ed256b80878d94ce9a264da9f3beb401c4c4`
+passed UI Text Contract and Mayhem; Windows Build compiled but its synthetic
+card-details presentation assertion required an obsolete English `KDA CV`
+label. The follow-up correction aligns that display-only assertion with the
+new Chinese label, without changing data calculations; the corrected head
+still requires all four exact-head Windows checks. Do not claim CI, PR merge,
 v3.5.87 publication or real-device acceptance until independently verified.
 
 ## 2026-11-08 — GGman 3.5.86 release request completed (historical)
