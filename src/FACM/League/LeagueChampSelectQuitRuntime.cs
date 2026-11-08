@@ -14,18 +14,19 @@ namespace FACM.League
 {
     /// <summary>
     /// Narrow writer for the League Client's team-builder Champion Select quit action.
-    /// This owner can write to two allowlisted Champion Select exit routes but cannot delete or create a lobby.
+    /// This owner can issue only two allowlisted Champion Select exit calls; it cannot delete or create a lobby.
     /// </summary>
     internal interface ILeagueChampSelectQuitWriteApi
     {
         Task<LeagueClientWriteResponse> TryQuitAsync(CancellationToken cancellationToken);
-        Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryLegacyQuitAsync(CancellationToken cancellationToken);
     }
 
     internal sealed class LeagueChampSelectQuitWriteApiClient : ILeagueChampSelectQuitWriteApi, IDisposable
     {
         internal const string QuitPath = "/lol-lobby-team-builder/champ-select/v1/session/quit";
-        internal const string RequestLobbyPath = "/lol-gameflow/v1/session/request-lobby";
+        internal static readonly string LegacyQuitPath = "/lol-login/v1/session/invoke?destination=lcdsServiceProxy&method=call&args=" +
+            Uri.EscapeDataString("[\"\",\"teambuilder-draft\",\"quitV2\",\"\"]");
 
         private readonly LeagueClientSessionProvider _sessions;
         private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
@@ -41,9 +42,9 @@ namespace FACM.League
             return SendAsync(QuitPath, cancellationToken);
         }
 
-        public Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken)
+        public Task<LeagueClientWriteResponse> TryLegacyQuitAsync(CancellationToken cancellationToken)
         {
-            return SendAsync(RequestLobbyPath, cancellationToken);
+            return SendAsync(LegacyQuitPath, cancellationToken);
         }
 
         private async Task<LeagueClientWriteResponse> SendAsync(string path, CancellationToken cancellationToken)
@@ -103,7 +104,7 @@ namespace FACM.League
         {
             return string.Equals((method ?? string.Empty).Trim(), "POST", StringComparison.OrdinalIgnoreCase) &&
                    (string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal) ||
-                    string.Equals((path ?? string.Empty).Trim(), RequestLobbyPath, StringComparison.Ordinal));
+                    string.Equals((path ?? string.Empty).Trim(), LegacyQuitPath, StringComparison.Ordinal));
         }
 
         public void Dispose()
@@ -192,19 +193,26 @@ namespace FACM.League
                     // Do not change gameflow after the initial rejection if the user
                     // has already left Champion Select through another action.
                     if (!string.Equals(await ReadPhaseAsync(cancellationToken).ConfigureAwait(false),
-                                       "ChampSelect", StringComparison.OrdinalIgnoreCase))
+                                       "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
+                        !MatchesOriginalLobby(before, ReadLobbyIdentity(
+                            await _reader.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false))) ||
+                        !HasActiveChampSelectSession(await _reader.TryGetBytesAsync(
+                            ChampSelectSessionPath, cancellationToken).ConfigureAwait(false)))
                         return VerifyFailedWithCooldown(response.StatusCode, phase);
 
                     usedFallback = true;
-                    response = await _writer.TryRequestLobbyAsync(cancellationToken).ConfigureAwait(false);
+                    response = await _writer.TryLegacyQuitAsync(cancellationToken).ConfigureAwait(false);
                     if (response == null)
                         return Result(LeagueChampSelectQuitStatus.SessionUnavailable, 0, phase, false);
-                    if (!response.IsSuccessStatusCode || !IsAcceptedLobbyRequest(response.Body))
-                    {
-                        AppLog.Info("League quit Champion Select: request-lobby-rejected; http=" + response.StatusCode +
-                                    "; errorCode=" + ReadErrorCode(response.Body));
+
+                    AppLog.Info("League quit Champion Select: quitV2-response; http=" + response.StatusCode +
+                                "; bodyKind=" + DescribeResponseBody(response.Body) +
+                                "; errorCode=" + ReadErrorCode(response.Body));
+
+                    // Proxy calls may return 2xx with an empty or non-boolean payload.
+                    // The server-visible phase and original party are the only success proof.
+                    if (!response.IsSuccessStatusCode)
                         return RejectWithCooldown(response.StatusCode, phase);
-                    }
                 }
 
                 string settledPhase = phase;
@@ -222,10 +230,10 @@ namespace FACM.League
                     {
                         var remainingSession = await _reader.TryGetBytesAsync(
                             ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
-                        if (remainingSession == null || remainingSession.Length == 0)
+                        if (!HasActiveChampSelectSession(remainingSession))
                         {
                             AppLog.Info("League quit Champion Select: success; route=" +
-                                        (usedFallback ? "request-lobby" : "quit") +
+                                        (usedFallback ? "quitV2" : "quit") +
                                         "; phase=Lobby; lobbyPreserved=true");
                             return Result(LeagueChampSelectQuitStatus.Success, response.StatusCode, settledPhase, true);
                         }
@@ -299,10 +307,25 @@ namespace FACM.League
                 : null;
         }
 
-        private static bool IsAcceptedLobbyRequest(byte[] body)
+        private static bool HasActiveChampSelectSession(byte[] body)
         {
-            return body != null && string.Equals(
-                Encoding.UTF8.GetString(body).Trim(), "true", StringComparison.OrdinalIgnoreCase);
+            return body != null && body.Length > 0 &&
+                   !string.Equals(Encoding.UTF8.GetString(body).Trim(), "null", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static string DescribeResponseBody(byte[] body)
+        {
+            if (body == null || body.Length == 0) return "empty";
+            if (body.Length > 4096) return "oversized";
+            var value = Encoding.UTF8.GetString(body).Trim();
+            if (value.Length == 0) return "empty";
+            if (string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)) return "bool-true";
+            if (string.Equals(value, "false", StringComparison.OrdinalIgnoreCase)) return "bool-false";
+            if (string.Equals(value, "null", StringComparison.OrdinalIgnoreCase)) return "null";
+            if (value[0] == '{') return "object";
+            if (value[0] == '[') return "array";
+            if (value[0] == '"') return "string";
+            return "other";
         }
 
         private static string ReadErrorCode(byte[] body)
