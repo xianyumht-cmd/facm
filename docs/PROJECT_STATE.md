@@ -1444,15 +1444,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.86
-- GitHub Release：v3.5.86
+- 版本：GGman 3.5.87
+- GitHub Release：v3.5.87
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：2629f986b9e2bb3811f7fd60fb5064df863d7191
-- 发布元数据提交：ef709333bb95ed369b4f40385c122810048bf3d3
-- Release GGman.exe SHA-256：352E3934999497C90C1A2AA377A2D3F50185EA48ED2DD97CC80F4D04AF7652F3
-- release_notes：GGman 3.5.86：正式整合控制中心 Shard 模块化架构与 WebView2 热启动。23 个功能入口保持在同一自适应控制中心中，由独立业务适配器处理战绩与跨区详情、个人资料、实时数据、海斗攻略与出装、快速工具、皮肤、桌面宠物、维护、云同步及在线更新操作，减少界面和业务逻辑耦合。保留轻量原生后端、悬浮球及选人阶段实时助手；强化页面切换时的取消与状态隔离。本版为非强制正式更新，Windows 10、腾讯国服实战、DPI 与实际皮肤/宠物/更新体验仍由用户安装后验收。
+- 发布基础 main：c75a9590811723dd7b30356f1c86b0694865de69
+- 发布元数据提交：a0204ea76b226053bcf79dbde4dc72afe916486e
+- Release GGman.exe SHA-256：465F3675000854F8EB0CD6B67E679B812699061867A9030108983FE0542DD7ED
+- release_notes：GGman 3.5.87：面向普通玩家优化中文界面与操作体验。简化控制中心、战绩、个人资料、在线状态、快捷工具、海斗、出装、修复与更新中心的说明文字；高级对局记分板将已知统计字段显示为中文，保留 KDA、LOL、OP.GG 等常用名称与缩写；赛后数据列头和旧窗口品牌名称同步统一。补充页面切换键盘焦点与游戏模式中文名称，内部数据及快捷操作逻辑保持不变。本版为非强制正式更新，Windows 10、国服对局、皮肤及不同 DPI 下的实机体验由用户更新后验收。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair

@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.87",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.87/FACM.exe",
   "sha256": "465F3675000854F8EB0CD6B67E679B812699061867A9030108983FE0542DD7ED",
   "release_notes": "GGman 3.5.87：面向普通玩家优化中文界面与操作体验。简化控制中心、战绩、个人资料、在线状态、快捷工具、海斗、出装、修复与更新中心的说明文字；高级对局记分板将已知统计字段显示为中文，保留 KDA、LOL、OP.GG 等常用名称与缩写；赛后数据列头和旧窗口品牌名称同步统一。补充页面切换键盘焦点与游戏模式中文名称，内部数据及快捷操作逻辑保持不变。本版为非强制正式更新，Windows 10、国服对局、皮肤及不同 DPI 下的实机体验由用户更新后验收。",
-  "published_at": "2026-11-08T10:54:53.3368329+00:00"
+  "published_at": "2026-11-08T10:55:01.0417235+00:00"
 }
