@@ -26,7 +26,7 @@ namespace FACM
         {
             if (plan == null) throw new ArgumentNullException(nameof(plan));
 
-            Text = "FACM 清理预览";
+            Text = "GGman 清理预览"; // ui-text-contract: allow - native cleanup review title
             FormBorderStyle = FormBorderStyle.None;
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;

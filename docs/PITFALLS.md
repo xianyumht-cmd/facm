@@ -626,3 +626,16 @@ before posting. A page-open/ready race can request the catalog twice: the new
 request must cancel the old one, while route departure cancels either. Route
 guards also belong on postgame/matchmaking synchronization, so a queued ready
 event cannot write the wrong page's HTML state.
+
+## 2026-11-08 — UI translation changes can break display-label smoke assertions
+
+The first PR #365 Windows Build compiled GGman but failed
+`LeagueDynamicMessageSmokeTest.ValidateOngoingCardDetails` because its
+presentation assertion still expected the old `KDA CV` English row after the
+user-visible key was localized. When translating a displayed statistic,
+update all native table/popover/clipboard labels and any tests that compare
+those **visible labels**, while keeping raw server stat identifiers unchanged.
+Use the shared `LeagueStatDisplayNames.Translate` mapping on both sides of
+the presentation assertion and preserve independent numeric evidence checks.
+Do not relax the whole smoke test or treat a successful compiler step as a
+successful release gate.

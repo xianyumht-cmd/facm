@@ -116,9 +116,9 @@ namespace FACM.League
             if (analysis.Kda.HasValue)
                 add("KDA", analysis.Kda.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.AverageGameKda.HasValue)
-                add("KDA avg", analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
+                add(LeagueStatDisplayNames.Translate("KDA avg"), analysis.AverageGameKda.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.KdaCv.HasValue)
-                add("KDA CV", analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
+                add(LeagueStatDisplayNames.Translate("KDA CV"), analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture));
             if (analysis.StatisticsGames > 0)
                 add("K / D / A", string.Join(" / ", new[] {
                     analysis.Kills, analysis.Deaths, analysis.Assists
@@ -394,7 +394,7 @@ namespace FACM.League
                 list.Columns.Add(t(LeagueEfficiencyUiTextKeys.HistoricalDraftGame), 75);
                 list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardWinRate), 95);
                 list.Columns.Add("KDA", 85);
-                list.Columns.Add("KDA CV", 85);
+                list.Columns.Add(LeagueStatDisplayNames.Translate("KDA CV"), 110);
                 list.Columns.Add(t(LeagueEfficiencyUiTextKeys.OngoingCardArenaCount), 115);
                 foreach (var item in breakdown.Where(row => row.Kind == kind))
                 {
@@ -1191,7 +1191,7 @@ namespace FACM.League
                 stats.Text = detail;
                 var expanded = detail;
                 if (analysis.KdaCv.HasValue)
-                    expanded += Environment.NewLine + "KDA CV: " +
+                    expanded += Environment.NewLine + LeagueStatDisplayNames.Translate("KDA CV") + "：" +
                         analysis.KdaCv.Value.ToString("0.00", CultureInfo.CurrentCulture);
                 if (analysis.NormalWinRate.HasValue)
                     expanded += Environment.NewLine + t(LeagueEfficiencyUiTextKeys.ProfileModeNormal) + ": " +

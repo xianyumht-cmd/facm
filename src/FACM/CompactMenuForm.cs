@@ -605,7 +605,7 @@ namespace FACM
                 if (!_cleanup.IsAdministrator)
                 {
                     var choice = MessageBox.Show(
-                        "清理固定系统目录需要管理员权限。FACM 将以管理员身份重新启动，并自动继续本次清理。",
+                        "清理系统目录需要管理员权限。GGman 将请求管理员授权并重新启动，然后继续本次清理。", // ui-text-contract: allow - native elevation confirmation
                         "需要管理员权限",
                         MessageBoxButtons.OKCancel,
                         MessageBoxIcon.Information,

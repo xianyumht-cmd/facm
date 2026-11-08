@@ -469,3 +469,28 @@ efficiency module; only the current page's `*-result` or catalog message should
 appear. The strict native request validators must still reject unknown fields,
 invalid hotkeys, controls and unsupported rank or queue values. Verify exact
 candidate-head Windows CI before operator acceptance.
+
+## Public-product interface pre-release gate (2026-11-08)
+
+This extends, rather than replaces, the signed publisher and four Windows
+CI requirements below. For GGman UI/copy changes:
+
+1. Inventory the visible control-center routes, native fallbacks and live
+   companion. Confirm every button describes its result; show readable
+   Chinese labels and player-oriented empty, busy, success and failure states.
+   Preserve GGman/LOL/ARAM/KDA/CS/OP.GG/Riot ID and other recognized names.
+2. Review navigation keyboard focus, Escape/Back/Home, search and form labels,
+   status announcements, dark/light skin contrast, scroll/flex reflow and
+   reduced-motion support. Do not add background processes or network polling
+   solely for UI presentation.
+3. Keep server-stat identifiers and configuration keys unchanged. When
+   translating League match metrics, map only the text displayed to the user;
+   ensure no fabricated zero, ranking, status or unsupported game mode appears.
+4. Parse the production HTML script, run narrow League/UI text smoke tests,
+   and obtain four exact-head Windows workflows: Build, Glass WebView2, UI
+   Text Contract and Mayhem. Do not claim browser screenshot/Win10 DPI/Chinese
+   LoL success from code checks alone.
+5. Merge the task PR once gates pass; allow
+   `.github/workflows/publish-3.5-lightweight.yml` to sign and verify the
+   official GGman.exe/FACM.exe, then publish `online/version.json` last.
+   The owner tests the installed formal update on a real device afterward.

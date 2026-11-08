@@ -438,7 +438,7 @@ namespace FACM.League
                 detailsTable.Groups.Add(section);
                 foreach (var stat in group)
                 {
-                    var values = new[] { stat.Name }.Concat(stat.Values).ToArray();
+                    var values = new[] { LeagueStatDisplayNames.Translate(stat.Name) }.Concat(stat.Values).ToArray();
                     var item = new ListViewItem(values) { Group = section };
                     detailsTable.Items.Add(item);
                 }
@@ -464,7 +464,7 @@ namespace FACM.League
             Func<Task> loadEog = null;
             if (detail.LoadEog != null)
             {
-                eogTab = new TabPage("SGP EOG");
+                eogTab = new TabPage(LeagueStatDisplayNames.Translate("SGP EOG"));
                 var eogLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
                 eogLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
                 eogLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -496,8 +496,8 @@ namespace FACM.League
                 eogSplit.Panel1.Controls.Add(eogRows);
                 var eogStats = new ListView { Dock = DockStyle.Fill, View = View.Details,
                     FullRowSelect = true, GridLines = true };
-                eogStats.Columns.Add("SGP Stat", 205);
-                eogStats.Columns.Add("Value", 100);
+                eogStats.Columns.Add(LeagueStatDisplayNames.Translate("SGP Stat"), 205);
+                eogStats.Columns.Add(LeagueStatDisplayNames.Translate("Value"), 100);
                 eogSplit.Panel2.Controls.Add(eogStats);
                 LeagueSgpEogResult currentEog = null;
                 eogRows.SelectedIndexChanged += (sender, e) =>
@@ -511,28 +511,29 @@ namespace FACM.League
                         if (selected == null || currentEog == null) return;
                         var derived = LeagueSgpEogProjection.Analyze(currentEog, selected);
                         LeagueSgpEogOnlyDialog.AddDerived(eogStats, "KDA", derived.Kda, false);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Kill participation",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Kill participation"),
                             derived.KillParticipation, true);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage share",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Damage share"),
                             derived.DamageShare, true);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold share",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Gold share"),
                             derived.GoldShare, true);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Damage/min",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Damage/min"),
                             derived.DamagePerMinute, false);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Gold/min",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Gold/min"),
                             derived.GoldPerMinute, false);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "CS/min",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("CS/min"),
                             derived.CsPerMinute, false);
-                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, "Vision/min",
+                        LeagueSgpEogOnlyDialog.AddDerived(eogStats, LeagueStatDisplayNames.Translate("Vision/min"),
                             derived.VisionPerMinute, false);
                         if (selected.Metadata != null)
                             foreach (var meta in selected.Metadata.OrderBy(x => x.Key,
                                 StringComparer.OrdinalIgnoreCase))
-                                eogStats.Items.Add(new ListViewItem(new[] { meta.Key, meta.Value }));
+                                eogStats.Items.Add(new ListViewItem(new[] {
+                                    LeagueStatDisplayNames.Translate(meta.Key), meta.Value }));
                         if (selected.Statistics != null)
                             foreach (var stat in selected.Statistics.OrderBy(x => x.Key,
                                 StringComparer.OrdinalIgnoreCase))
-                                eogStats.Items.Add(new ListViewItem(new[] { stat.Key,
+                                eogStats.Items.Add(new ListViewItem(new[] { LeagueStatDisplayNames.Translate(stat.Key),
                                     stat.Value.ToString("G", CultureInfo.CurrentCulture) }));
                     }
                     finally { eogStats.EndUpdate(); }
