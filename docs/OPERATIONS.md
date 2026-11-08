@@ -1,3 +1,37 @@
+## 2026-11-08 — Draft #364 quick-tools, skin, pet and gameflow acceptance
+
+Executable `962c068` passed [Build 42460785830](https://github.com/xianyumht-cmd/facm/actions/runs/42460785830),
+[Glass 42460785768](https://github.com/xianyumht-cmd/facm/actions/runs/42460785768),
+[UI Text 42460785821](https://github.com/xianyumht-cmd/facm/actions/runs/42460785821),
+and [Mayhem 42460785769](https://github.com/xianyumht-cmd/facm/actions/runs/42460785769).
+Run the exact-head Windows Build, Glass WebView2, UI Text Contract and Mayhem
+Source workflows. Glass smoke must execute quick-tool allowlist, skin palette,
+visible pet catalog and home/client-status projection checks. In Windows 10
+operator acceptance, toggle each of the five quick settings and verify its
+native persisted behavior; change to 曜石鎏金 then 云端浅色 and check the native
+orb, home/picker and game-time companion visually recolor after close/reopen;
+select/disable/reset a desktop pet and check the actual native floating state.
+Disconnect/reconnect the League client and verify home/client-status phase
+messages do not retain a stale phase. Retry invalid commands and navigation
+away; no command may reach the native owner from an inactive route. Confirm
+cleanup folder selection still suggests only verified game roots. The real
+Tencent client, DPI 100/125/150/200%, UAC and signed installation still require
+independent operator acceptance; Draft #364 does not change production 3.5.85.
+
+## 2026-11-08 — Draft #364 live-bench and maintenance adapter acceptance
+
+Reopen live bench during a slow icon request and replace the League account
+while a single champion swap runs; old messages may not appear in the next
+session. Navigate away during repair and cloud upload; repair results must
+cancel and an old account's cloud result must not populate the new page.
+Confirm cloud events do not double-subscribe across reopen. For cleanup, try
+expired/wrong tokens, changed game root, non-admin and running-process checks;
+an already executing deletion must still block back/home/close. Verify the
+signed updater's required-update command allowlist, ten-minute snapshot
+freshness, announcement HTTPS allowlist, progress cancel and native fallback.
+Run the four exact-head Windows workflows; Windows 10 x64/Tencent/UAC/signed
+installer checks remain separate owner acceptance, not automatically proven.
+
 ## 2026-11-08 — GGman 3.5.85 signed skin release and field acceptance
 
 PR #363 merged with all four exact-final-head Windows CI gates passing: Build #42392219536, Glass #42392219529, UI Text #42392219492, Mayhem #42392219453. The official [signed publisher #42392669307](https://github.com/xianyumht-cmd/facm/actions/runs/42392669307) completed, including public asset signer/byte/SHA verification. Both public EXEs are 7,117,720 bytes, SHA-256 `6148FB8E04C1D5E0BC10F8A34CAEC7D0D65C77B824E3FF982B8670864C4D0FC1`; `online/version.json` enables nonforced v3.5.85. No manual installation is needed for an existing GGman client with a working online updater.
@@ -371,3 +405,67 @@ ORDER BY routine_name;
 ```
 
 Then run one real client acceptance: enable anonymous ranking in “我的 GGman”, connect League once, verify a hashed row appears in `ggman_account_history`, and confirm the UI receives only aggregate ranking results. Never paste service-role/server API keys into the client to bypass a migration/RLS problem.
+## 2026-11-08 — Workspace shard and cold/warm opening checks (candidate)
+
+Run `--unified-workspace-smoke` in the release-candidate Windows executable to
+check the registered quick-message/advanced-tools, basic/advanced Player,
+Mayhem, recommendation, live and ARAM bench routes, command isolation,
+render-readiness contract and protected dismiss conditions. The existing Glass
+WebView2 Windows workflow must also render the offline HTML and gameplay overlay.
+On a real Windows 10 x64 machine, compare first click versus reopen after close,
+including all active skins and 100/125/150/200% DPI, looking for black/blank
+frames, hover/focus theft and unexpected native fallback. Inspect startup timing
+in `facm-YYYYMMDD.log`, and measure the full GGman + WebView2 process tree both
+before first opening and while the control center is hidden. Confirm forced
+update/install and cleanup cannot be dismissed, and ChampSelect auto-popup is
+unaffected. Do not treat source checks or HTML screenshots as a native-paint test.
+For the expanded shards, explicitly exercise basic Player → advanced history →
+back, remote-region detail → back, Mayhem query → cancel, recommendation apply →
+home, and live → bench → home. Confirm stale results never render after navigation
+or account replacement and no duplicate refresh occurs at WebView2 readiness.
+The next shard candidate also requires all navigation IDs to be present in the
+registry and a focused walkthrough of dashboard → advanced dashboard, presence →
+customization, automation settings, appearance/pets, cloud sync, cleanup preview
+and signed update. Assert that a queued command from a different page cannot
+publish cloud state, confirm deletion or start installation. During a forced
+update, only its explicit command allowlist may execute, and back/home must
+stay blocked. Compare same-window back-stack behavior to the pre-shard candidate.
+
+The unified workspace smoke now checks dashboard/live JSON shapes, live's
+24-player bound and independent per-instance null-module behavior. On Windows
+10, repeat dashboard summary → advanced respawn → home and live/SGP → another
+route during a slow read and after changing League accounts. Confirm only the
+active page receives data, no old session repopulates it, and hiding/reopening
+still reuses a single WebView2. Four Windows GitHub workflows are necessary
+but cannot replace actual League client/DPI/GPU acceptance.
+
+Additional per-workbench smoke covers independent history/Mayhem/recommendation/
+presence/profile instances, their missing-module responses, JSON shapes and
+route-gated message dispatch. For owner acceptance verify Player → advanced
+history → Player preserves the shared list; local detail → remote regional
+detail never shows a stale selected match; Mayhem icon messages arrive after
+the text without blocking it; recommendation apply cancels on route/account
+change; presence conditional write cannot overwrite external client changes;
+and local profile stats updates unsubscribe on workbench disposal. Windows CI alone does not
+prove live Tencent account/session behavior.
+
+The next owner acceptance pass should switch rapidly between local match A,
+remote match B and local match C while network detail requests are pending,
+then navigate away and replace the League account. No stale detail, radar,
+timeline or replay-result JSON should appear after a later selection or route
+change. Compare advanced list reuse after Player → advanced → Player and the
+cross-region Riot ID/server search after refresh. Separately, visit presence
+advanced customization, load a champion's permitted skins, switch account
+during a catalog request or profile write, and confirm `session-changed`
+without applying a stale change. These scenarios require real Windows/League
+acceptance beyond the four source/build/Glass/UI workflows.
+
+For the configuration adapter slice, check quick-message edit/save/send and
+immediate route departure while a send is pending; repeated opening of auto
+selection during a slow champion-catalog read; pause/pick/ban settings; postgame
+honor strategy; matchmaking stop policies; and advanced reply/invitation/rank
+settings. Rapidly change routes during readiness and replace the active
+efficiency module; only the current page's `*-result` or catalog message should
+appear. The strict native request validators must still reject unknown fields,
+invalid hotkeys, controls and unsupported rank or queue values. Verify exact
+candidate-head Windows CI before operator acceptance.

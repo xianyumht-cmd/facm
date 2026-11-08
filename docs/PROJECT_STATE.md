@@ -1,3 +1,63 @@
+## 2026-11-08 — GGman 3.5.86 official release request staged (not yet published)
+
+The owner explicitly requested promotion of the PR #364 Shard/control-center
+candidate into the normal signed online update, not delivery as a detached
+test artifact. The release request on this same task branch now targets
+`3.5.86`, `minimum_version=3.0.0`, `force_update=false` and
+`prerelease=false`. It will invoke the canonical
+`.github/workflows/publish-3.5-lightweight.yml` when the request change
+lands on `main`, after the final PR HEAD passes the four Windows gates.
+The publisher must build its release candidate, run standalone smoke tests,
+Authenticode-sign it, publish the matching `GGman.exe` and `FACM.exe`,
+re-download both assets to verify hashes/sizes/signer, and enable the
+online manifest last. Until that workflow succeeds, signed 3.5.85 remains
+the only production version and `online/version.json` must stay unchanged.
+Windows 10/Tencent LOL/DPI, skin and pet interactions, and actual updater
+replacement remain explicitly post-release operator acceptance.
+This new publication request supersedes the earlier release prohibition
+for the completed architectural slice; it does not waive signing or
+updater-integrity gates.
+
+## 2026-11-08 — Draft #364 remaining control-center business extraction (four Windows gates passed)
+
+Four new per-window adapters now own Quick Tools toggle validation/native
+mutation, the 皮肤 catalog/save/runtime palette message, desktop-pet selection
+and native status result projection, plus connected Gameflow phase JSON. Their
+`UnifiedWorkspaceForm` partials remain navigation and adapter-delegation only.
+The folder picker now receives its validated initial path from the cleanup
+adapter. Source audit of all Form partials found no remaining direct settings
+save, League module mutation, pet mutation or business snapshot serialization;
+typed contracts, native folder dialog and module delegate injection remain.
+The existing 23 registered Shards and one warm WebView2 shell are unchanged.
+Executable `962c068f7ad895f000f5b994911b8f212bfb6c7f` passed all four exact-head
+Windows gates: [Build 42460785830](https://github.com/xianyumht-cmd/facm/actions/runs/42460785830),
+[Glass 42460785768](https://github.com/xianyumht-cmd/facm/actions/runs/42460785768),
+[UI Text 42460785821](https://github.com/xianyumht-cmd/facm/actions/runs/42460785821),
+and [Mayhem 42460785769](https://github.com/xianyumht-cmd/facm/actions/runs/42460785769).
+Real Windows/Tencent operator interaction remains unverified. Continue on
+the existing Draft PR #364; do not merge/release/publish `online/version.json`
+or touch signed production GGman 3.5.85 on this architectural batch alone.
+
+## 2026-11-08 — Draft #364 live bench and maintenance adapters (Windows CI passed)
+
+Live bench/ARAM swap, game repair, cleanup review/execute, cloud-sync/account
+events and signed online updates now have per-workbench adapter classes instead
+of Form-owned cancellation tokens, busy flags and JSON projection. Form partials
+remain navigation/delegation surfaces and its OS folder picker stays native.
+Forced update and active deletion guards now read their owning adapter state;
+the native LCU, cleanup, account and updater services are unchanged. Source
+`dad944b` initially failed Glass compilation because the new live-bench Form
+facade omitted `FACM.League` for `LeagueHubUiBridge`. The follow-up executable
+`79fce5b120325e3d6f265789194728a364af7a7c` restored the import and passed
+all four Windows workflows: [Build 42423362738](https://github.com/xianyumht-cmd/facm/actions/runs/42423362738),
+[Glass 42423362749](https://github.com/xianyumht-cmd/facm/actions/runs/42423362749),
+[UI Text 42423362743](https://github.com/xianyumht-cmd/facm/actions/runs/42423362743),
+and [Mayhem 42423362742](https://github.com/xianyumht-cmd/facm/actions/runs/42423362742).
+Real Win10 DPI, Tencent client and UAC/update operator acceptance remain.
+Existing Draft PR #364 is
+the only task PR. No main merge, signing, release or change to production 3.5.85
+and `online/version.json` is authorized by this refactor alone.
+
 ## 2026-11-08 — GGman 3.5.85 signed skin fix online; Windows operator acceptance pending
 
 The owner reported that v3.5.84's appearance picker saved a selection but GGman did not visibly change. PR [#363](https://github.com/xianyumht-cmd/facm/pull/363) found and corrected two code-level defects: `MainForm` created `LayeredFloatingBall` using the fixed default theme and never observed `FacmThemeRuntime.ThemeChanged`, while the unified HTML workbench only synchronized saved palette colors on the `appearance` route, not on initial home startup. The transient WebView2 Champion Select helper also used fixed navy CSS. All three now consume the current runtime skin at creation and on changes; changing skin also updates the orb's per-pixel-alpha frame. User-visible appearance/theme naming is now **皮肤**, without changing the saved `ThemeId` or stable `appearance` route.
@@ -2320,3 +2380,130 @@ The continuing experimental branch captures each selected champion's **nine exac
 ### Akari 1.5.1 parity work: postgame honor strategy (Draft #357)
 
 The next draft candidate extends the existing optional postgame honor action with the reference's five target policies and a native inline selector. The V2/legacy write and verification owner remains unchanged, and party-aware selection uses a conditional read of `/lol-lobby/v2/party/eog-status`. Party-only mode refuses to guess when roster data is unavailable; automatic honor remains off by default, and the already-saved auto-return flow is preserved. **Full vote-pool processing, live Tencent acceptance, and runtime performance measurement remain pending** alongside the rest of the complete Akari parity backlog.
+## 2026-11-08 — GGman Core UI-shard / WebView2 cold-start candidate (not published)
+
+Owner requested Akari-like shard registration for future UI features and removal
+of the approximately two-second dark workbench before content appears. The current
+`main` already contains a dependency-ordered `FacmHost` native module host, so the
+new candidate branch `feat/ggman-shard-workspace-warmup-20261108` extends it with
+registered desktop UI shards rather than new services or processes. Initial
+extractions: quick-message settings/send and advanced automation tools, with
+route-scoped bridge commands. The existing app-owned native/LCU data owners,
+ChampSelect WebView2 helper, skin propagation and signed 3.5.85 release remain
+unchanged. A native skin-matched placeholder covers cold WebView2 initialization;
+the embedded page acknowledges a render opportunity before uncovering it.
+Normal closing hides and reuses the initialized desktop browser, while forced
+updates, active installation, cleanup and process/browser failure retain their
+guards. The initial slice passed four Windows CI workflows at `0fadb533`;
+the owner's cold/warm/DPI/GPU/memory observations have not yet been verified. Do not modify
+production `online/version.json` or tag from this branch.
+
+### Workspace shard expansion — Player, Mayhem, recommendation and live (Draft #364)
+
+The next candidate moves six more control-center routes into the same registry:
+basic and advanced Player/history, Mayhem/海斗攻略, recommendation/apply, live
+match and ARAM live bench. Each shard owns its route, explicit command allowlist,
+initial load, and route-exit cancellation. `UnifiedWorkspaceForm` no longer has
+the per-command or per-open branches for these routes; regional history, advanced
+timeline/radar/replay, SGP enrichment and bench swaps continue using the existing
+session-fenced adapters/data modules. Basic-to-advanced Player keeps the reusable
+history cache; leaving the advanced route cancels detail and regional reads.
+No new process, background timer, service endpoint, token owner or production
+update was added. Commit `055016d638aa2ced5dae165ef743a2164712928d`
+passed all four Windows workflows (Build `42401045365`, Glass `42401045495`,
+UI Text `42401045563`, Mayhem `42401045410`). Manual Tencent CN/Windows 10
+interaction remains open. PR #364 stays Draft.
+
+### Remaining workbench routes registered as shards (next Draft #364 candidate)
+
+The following candidate closes the remaining 15 desktop registration gaps:
+dashboard/advanced dashboard, presence/advanced customization, local profile,
+repair, client status, postgame, auto-selection, matchmaking, efficiency,
+appearance/pets, cleanup, cloud sync and signed updates. Every allowed route now
+maps to exactly one registered shard; `UnifiedWorkspaceForm` delegates page
+opening, ready refresh, bounded HTML commands and route-exit cancellation through
+the catalog instead of a centralized switch. The backend adapters for dashboard,
+history/live, presence, repair, automation and skin/tools were relocated without
+behavior changes to seven domain-specific partial files, reducing the central
+source to under 700 lines. This is organization of one partial Form type,
+not a new OS process or independently instantiated service. Forced online-update
+command restrictions, cleanup execution guard, region/account fences and shared
+gameflow owner remain intact. Executable commit
+`912ac05cd1579d1e46ab8d044211f0902810eb21` passed all four Windows workflows:
+Build `42405457264`, Glass `42405457306`, UI Text `42405457266` and Mayhem
+`42405457271`. The preceding full-route refactor `77d4287` also passed 4/4.
+Production online manifests and signed 3.5.85 are untouched; PR #364 remains
+Draft. Operator Win10 compositor/latency/DPI and real Tencent CN acceptance are
+not established by these CI checks.
+
+### Independently instantiated dashboard and live adapters (Draft #364 candidate)
+
+This slice starts actual business-adapter separation after full route
+registration. `UnifiedWorkspaceDashboardAdapter` owns summary/advanced respawn
+request state and projection; `UnifiedWorkspaceLiveAdapter` owns live/SGP
+details and bounded player projection. Both belong to one workbench instance
+with narrow injected UI callbacks, not shared route shards. The corresponding
+Form partials only navigate and delegate. Post-await active-route/session
+fences preserve current account/page semantics; the dashboard summary adds
+an identity check. Smoke contracts cover JSON and adapter isolation. Signed
+3.5.85, the production manifest, Gameflow/LCU owners and browser runtime
+remain unchanged. Four Windows CI gates are pending for this candidate;
+Tencent CN, Windows 10 DPI and measured latency/memory need owner acceptance.
+PR #364 stays Draft.
+
+### History, guide, recommendation, presence and profile adapter extraction (next Draft #364 candidate)
+
+Five more per-workbench adapters independently own the basic history read,
+Mayhem/T0/T1 ranking and optional icons, recommendation read and explicit
+apply, presence read/conditional write, and local statistics subscription.
+The existing page partials now delegate instead of owning those sources,
+generations and projections. Cached basic history still explicitly hands its
+snapshot to the preexisting advanced Player form state. Selected-match detail,
+regional SGP history, extended result evidence and profile customization
+retain coupled Form state and are the remaining extraction group; they are
+not claimed complete. No new process, WebView2, LCU observer, remote API
+owner or production manifest change. Executable commit
+`63136b883005ccbed1c4f3ee4a4584c82f393db7` passed the four Windows gates:
+Windows Build `42410095283`, Glass WebView2 `42410095251`, UI Text
+`42410095276` and Mayhem Source Probe `42410095281`. Windows 10 and Tencent CN
+gameplay acceptance remains deferred; PR #364 is still Draft.
+
+### Shared advanced-history/detail and profile customization extraction (Draft #364 candidate)
+
+The current candidate completes the previously identified high-coupling group:
+advanced list projection and cached basic/advanced history session now belong to
+`UnifiedWorkspaceHistoryAdapter`; one `UnifiedWorkspaceHistoryDetailAdapter`
+owns local and remote detail cancellation, generation, serialization and
+selected-detail handoff. `UnifiedWorkspaceRegionalHistoryAdapter` owns server
+catalog, Riot ID lookup and regional history cache. The independent
+`UnifiedWorkspaceHistoryExtrasAdapter` owns the selected match, radar, timeline,
+replay and replay-folder cancellation; `UnifiedWorkspaceProfileCustomizationAdapter`
+owns personal customization catalog/writes and allowlisted IDs. All original
+Form entrypoints remain as thin routing delegates, without new backend owners,
+processes or browser engines. Smoke tests cover adapter isolation, missing
+session, invalid regional payloads, selection cancellation and allowlists.
+Executable commit `f22d8b82baeafedb0a7f7e97767e4a32b24515e2` passed
+all four Windows workflows: Windows Build `42416664844`, Glass WebView2
+Candidate `42416664756` (including unified startup/route smoke), UI Text
+`42416664780`, and Mayhem Source Probe `42416664758`. The first candidate
+`0da4f49` exposed a missing League bridge import in the thin Form facade;
+`f22d8b8` restored it and all four jobs were re-run successfully. PR #364
+remains Draft; production 3.5.85 manifests and signed artifacts remain intact.
+
+### Quick messages, advanced tools and automation adapter extraction (next Draft #364 candidate)
+
+Three more per-workbench adapters now own the configuration domain behavior:
+quick-message hotkeys/presets and cancellable sends; advanced reply/invitation/
+ARAM/signature/rank/offline/respawn operations; and postgame, auto-selection
+with cancellable champion catalog, and matchmaking settings. The Form's matching
+partials keep the original route entrypoints but only navigate/delegate.
+Cancellation sources and request generations no longer belong to their Form
+partials. The existing native efficiency module, JSON validation contracts,
+one WebView2, 23-shard registry and update protections are unchanged. Static
+smoke exercises missing-module messages, route isolation and cancellation.
+Executable commit `4a8fc34bd5f71ab14472054a2dc63f71e76264d4` passed
+all four Windows workflows: Windows Build `42420330603`, Glass WebView2
+Candidate `42420330544` (including unified route and startup smoke), UI Text
+`42420330554` and Mayhem Source Probe `42420330569`. Tencent CN gameplay and
+Windows 10 owner acceptance remain unverified. PR #364 stays Draft and
+production 3.5.85 is unaffected.

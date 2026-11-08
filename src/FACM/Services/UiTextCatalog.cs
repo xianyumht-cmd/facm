@@ -18,6 +18,7 @@ namespace FACM.Services
         {
             Pair(UiTextKeys.AppName, "GGman"),
             Pair(UiTextKeys.ControlCenter, "控制中心"),
+            Pair(UiTextKeys.UnifiedWorkspaceOpening, "正在打开控制中心…"),
             Pair(UiTextKeys.UnifiedMatchmakingInvalid, "排队设置格式或数值范围不正确"),
             Pair(UiTextKeys.UnifiedSelectionInvalid, "自动选禁设置格式有误"),
             Pair(UiTextKeys.UnifiedSelectionSaved, "自动选禁设置已保存"),

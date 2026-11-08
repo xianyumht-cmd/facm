@@ -1,3 +1,35 @@
+## 2026-11-08 — Final quick-tools, skin, pet and status presentation boundary (Draft #364)
+
+`UnifiedWorkspaceQuickToolsAdapter` owns the five exact, allowlisted efficiency
+toggles and the current native `LeagueEfficiencyModule` snapshot. The
+`UnifiedWorkspaceSkinAdapter` owns `ThemeId` persistence, native runtime
+palette notification and the complete `themes` CSS-token projection, including
+the home-route handshake. `UnifiedWorkspacePetAdapter` projects the visible
+desktop-pet catalog and delegates confirmed selection/reset/disable to the
+original `MainForm` pet owner. `UnifiedWorkspaceGameflowAdapter` owns the last
+connected/phase status snapshot and small page-status JSON projections.
+Each component is per-workbench and publishes only through the Form's bounded
+WebView2 bridge; route eligibility remains with the registered Efficiency,
+Appearance and ClientStatus shards. The Form owns only the renderer lifetime,
+native window, navigation, route dispatch and OS folder dialog. Cleanup's
+validated initial folder suggestion now comes from its existing adapter.
+No new browser, native service, process, timer, data source or persisted key.
+
+## 2026-11-08 — Live-bench and protected maintenance adapters (Draft #364)
+
+Five more per-workbench components own the previously Form-held state:
+`UnifiedWorkspaceLiveBenchAdapter` (observed champion allowlist, native icon
+enrichment, read/swap cancellation), `UnifiedWorkspaceRepairAdapter` (repair and
+exit action cancellation), `UnifiedWorkspaceCleanupAdapter` (plan, two-minute
+one-use token and execution guard), `UnifiedWorkspaceCloudSyncAdapter` (account
+events, cloud settings/upload/conflict UI), and `UnifiedWorkspaceOnlineAdapter`
+(snapshot, announcement, force/update prompts and signed install lifecycle).
+Registered shards and original WebView2 message types are unchanged. The Form
+holds only the native folder chooser, window/navigation guards and delegation;
+it reads adapter flags for forced updates and active deletion. Existing LCU,
+`SafeCleanupService`, account sync and signed `UpdateInstaller` are the only
+backend owners; no new process, browser, timer or transport is introduced.
+
 ## 2026-11-08 — GGman skin propagation across native orb and HTML windows
 
 `ThemeCatalog` and `FacmThemeRuntime.Current` remain the canonical palette; `AppSettings.ThemeId` persists the selection. `SettingsModule.Initialize` loads it before the native shell is built. `MainForm` now constructs `LayeredFloatingBall` with that current theme and subscribes to `FacmThemeRuntime.ThemeChanged` to redraw the live layered frame; it removes the subscription on close. `UnifiedWorkspaceForm` sends the palette contract (`themes`) after **every** successful embedded HTML handshake, including the home route, and after selection changes. The HTML sets semantic CSS custom properties instead of depending on the chooser page being opened. The independent `LeagueRuntimeCompanionWebForm` sends the same active palette as a small bounded `skin` event on readiness and subsequent changes; its offline HTML updates semantic colors without changing LCU ownership. User-facing naming is **皮肤**, while routes `appearance`, settings key `ThemeId` and preset IDs retain compatibility. No new web resource or polling loop.
@@ -1045,3 +1077,96 @@ The existing `LeaguePostGameAutomationController` remains the only postgame owne
 ## Player history collection ownership (Draft #357)
 
 `LeaguePlayerForm` and `LeagueRemotePlayerHistoryForm` each own one explicit, cancelable collection operation and their transient settings/result state. The shared native modal snapshots an active simple or advanced predicate; `LeaguePlayerDataService.CollectMatchesAsync` scans successive LCU windows under the **same** Player request semaphore, with a 12-second per-window deadline and two current-PUUID checks. For a remote target, the verified signed-in PUUID fences requests while an independently verified target PUUID supplies the history route and parser identity. Results are detached bounded `LeaguePlayerMatchPage` instances for the invoking window only, not the 45-second fast-history cache; stopping preserves completed windows, identity replacement discards them, and normal refresh/page reload restores the previous fast-path behavior. Filter updates recompute the in-memory rows locally. There is no new Gameflow subscription, session owner, timer, persistence or long-lived network connection. Current/self and explicitly selected remote LCU scans are present as source candidates; cross-region SGP collection remains open.
+## 2026-11-08 — Workspace shards and warm WebView2 lifetime (candidate)
+
+`FacmHost`/`IFacmModule` already provide dependency-ordered initialization, rollback,
+timing and reverse disposal for the native GGman Core. UI modularity now builds on
+that owner rather than adding another process or LCU monitor.
+`UnifiedWorkspaceShardCatalog` registers `IUnifiedWorkspaceShard` definitions; each
+definition owns its stable route, bounded WebView2 commands, page activation,
+post-handshake refresh and route-exit cancellation. The current 23 routes all
+have registered shards: Player/history, Mayhem/recommendation, live/bench,
+dashboard/respawn, presence/profile customization, profile/repair, automation
+settings, appearance/pets, cleanup, cloud and signed updates. Domain-specific
+implementations live in separate `UnifiedWorkspace*Shards.cs` files. The navigation
+allowlist delegates entirely to the catalog, and the unified form dispatches
+feature commands only when their registered route is active. `CancelOutside` preserves shared history
+while moving from basic to advanced Player, but cancels stale page reads, cross-region
+details, recommendation applies, and live-bench work on other transitions and exit.
+New UI features require a shard implementation and one registry entry; they do not
+add another centralized routing branch. Backend state/writes continue to flow through
+existing session-scoped `FacmHost` modules and allowlisted bridges. Previously
+centralized dashboard, history/live, presence, repair, automation and appearance
+adapters are now grouped into seven domain `UnifiedWorkspace*Page(s).cs` partials;
+their page-owned cancellation sources and generation counters are colocated with
+those methods. These remain one `UnifiedWorkspaceForm` type, not independently instantiated
+service processes. Actual business state retains the existing backend owners.
+
+The next Draft #364 slice starts replacing partial-form adapters with independently
+instantiated, per-workspace business adapters. The dashboard adapter owns summary
+and advanced respawn reads, while the live adapter owns LCU/SGP live-detail
+reads. Each has its own cancellation source, request generation, snapshot-to-HTML
+JSON projection and route-guarded publish callback. The form's corresponding
+partials only open pages, lazily construct adapters and pass the existing
+`LeagueDashboardModule`/`LeagueLiveModule` owners through. Neither adapter refers
+to `UnifiedWorkspaceForm`, creates a WebView2, subscribes to Gameflow nor owns
+an authenticated transport. Respawn/live session fencing remains, and dashboard
+summary reads now also discard a session replaced during their await.
+Static shard definitions never hold per-window requests. Remaining Player,
+recommendation, presence and settings partial-form logic awaits extraction.
+
+The desktop workbench displays a native, skin-colored loading surface while the
+one WebView2 initializes and navigates its embedded offline HTML. The page sends
+`shell-ready` after two animation-frame callbacks, in addition to a successful
+tracked NavigationId; only then does the host uncover the browser. The existing
+20-second watchdog, browser-failure fallback and forced-update guard remain.
+An ordinary ball/HTML dismissal hides the workbench, returns home and cancels
+page-owned reads without destroying WebView2; reopening reuses the same renderer.
+Exit, browser failure, active download, required update and cleanup keep their
+original protected lifetimes. The separate ChampSelect companion remains owned
+by `LeagueHubModule`, not the desktop shard registry.
+The updates shard preserves the forced-update command allowlist, including when
+the updater is presented while another route is still active. Destructive cleanup
+keeps its preview token and in-progress guard; cloud account hooks remain shared
+by the one desktop host rather than duplicated per page.
+
+The following Draft #364 adapter slice adds five per-workbench components:
+`UnifiedWorkspaceHistoryAdapter` (recent history reads and advanced-list handoff),
+`UnifiedWorkspaceMayhemAdapter` (guide ranking and cancellable image enrichment),
+`UnifiedWorkspaceRecommendationAdapter` (champion build read plus explicit
+session-fenced apply), `UnifiedWorkspacePresenceAdapter` (presence reads and
+conditional writes), and `UnifiedWorkspaceProfileAdapter` (local personal-stats
+subscription and JSON projection). Their route-scoped publishers are injected
+by the Form; none constructs WebView2 or a second backend owner. Shard definitions
+remain shared and stateless. The Form's history, guide, presence and profile
+partials are now thin integration facades. Advanced match detail, regional
+history, selected-match extras and profile customization retain tightly shared
+Form state and remain the next extraction boundary, not five completed domains.
+
+The following Draft #364 extraction moves that remaining boundary out of the
+Form. `UnifiedWorkspaceHistoryAdapter` now owns both the basic/advanced history
+snapshot, session and list projection. `UnifiedWorkspaceHistoryDetailAdapter`
+owns **one** per-window cancellation source and generation for both local and
+cross-region match detail requests, including serialized team/participant
+evidence and selected-detail handoff. `UnifiedWorkspaceRegionalHistoryAdapter`
+owns SGP server selection, Riot ID search, remote match cache and region request
+generation. `UnifiedWorkspaceHistoryExtrasAdapter` owns the selected detail,
+timeline, radar and replay requests with a separate cancellation generation.
+`UnifiedWorkspaceProfileCustomizationAdapter` owns the personal background,
+crest, challenge-token, emote and seasonal-banner catalog/write operations,
+including captured presence session and allowed skin IDs. Only narrow
+navigation/dispatch facades remain in the matching Form partials. All adapters
+are ordinary per-workbench C# objects; native backend services, the one WebView2,
+ChampSelect popup and shard registry lifetimes are unchanged.
+
+The next Draft #364 adapter slice makes the configuration routes independent
+per-workbench components as well. `UnifiedWorkspaceQuickMessageAdapter` owns
+quick-message settings, status projection and the one cancellable send request;
+`UnifiedWorkspaceAdvancedToolsAdapter` owns the typed reply/invitation/ARAM/
+signature/rank/offline/respawn setting operations. The shared
+`UnifiedWorkspaceAutomationAdapter` owns postgame honor/return, champion pick/
+ban with an independently cancellable champion catalog, and matchmaking
+configuration. The existing strict request codecs remain unchanged and the
+Form's methods are limited to navigation and delegating to those adapters.
+WebView2 route and message publishers are injected, and the native
+`LeagueEfficiencyModule` remains the only feature backend.

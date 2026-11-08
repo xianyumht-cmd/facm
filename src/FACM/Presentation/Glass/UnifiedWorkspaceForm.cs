@@ -2,13 +2,13 @@ using System;
 using System.Drawing;
 using System.Collections.Generic;
 using System.Drawing.Drawing2D;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Web.Script.Serialization;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using FACM.League;
@@ -40,7 +40,9 @@ namespace FACM.Presentation.Glass
         private readonly AppSettings _settings;
         private readonly CleanupModule _cleanup;
         private readonly WebView2 _browser;
+        private readonly Panel _loadingSurface;
         private readonly System.Windows.Forms.Timer _startupTimer;
+        private readonly Stopwatch _startupStopwatch = new Stopwatch();
         private bool _starting;
         private bool _ready;
         private bool _navigationSucceeded;
@@ -51,22 +53,6 @@ namespace FACM.Presentation.Glass
         private bool _closing;
         private bool _browserUnavailable;
         private bool _userMovedWindow;
-        private LeagueDashboardPhaseState _lastGameflowState;
-        private CancellationTokenSource _championCatalogCancellation;
-        private int _championCatalogGeneration;
-        private CancellationTokenSource _dashboardReadCancellation;
-        private int _dashboardReadGeneration;
-        private CancellationTokenSource _presenceCancellation;
-        private int _presenceGeneration;
-        private bool _presenceBusy;
-        private LeaguePresenceSnapshot _presenceSnapshot;
-        private LeagueClientSession _presenceSession;
-        private CancellationTokenSource _repairCancellation;
-        private bool _repairBusy;
-        private CancellationTokenSource _liveCancellation;
-        private int _liveGeneration;
-        private CancellationTokenSource _historyCancellation;
-        private int _historyGeneration;
         internal event Action BrowserUnavailable;
         internal event Action WorkspaceReady;
 
@@ -88,11 +74,13 @@ namespace FACM.Presentation.Glass
             AutoScaleMode = AutoScaleMode.Dpi;
             ClientSize = UnifiedWorkspaceNavigation.ResolveClientSize(Screen.PrimaryScreen.WorkingArea, false);
 
+            var palette = FacmThemeRuntime.Current;
             _browser = new WebView2
             {
                 Dock = DockStyle.Fill,
-                DefaultBackgroundColor = Color.FromArgb(4, 12, 32)
+                DefaultBackgroundColor = palette.Background
             };
+            _loadingSurface = CreateLoadingSurface(ui, palette);
             _startupTimer = new System.Windows.Forms.Timer { Interval = StartupTimeoutMs };
             _startupTimer.Tick += delegate
             {
@@ -100,6 +88,8 @@ namespace FACM.Presentation.Glass
                     StartupTimeoutMs + "ms", null);
             };
             Controls.Add(_browser);
+            Controls.Add(_loadingSurface);
+            _loadingSurface.BringToFront();
             Resize += delegate { ApplyRoundedRegion(); };
             DpiChanged += delegate
             {
@@ -118,6 +108,7 @@ namespace FACM.Presentation.Glass
             Shown += async delegate
             {
                 ApplyRoundedRegion();
+                _startupStopwatch.Start();
                 _startupTimer.Start();
                 await InitializeAsync();
             };
@@ -128,27 +119,49 @@ namespace FACM.Presentation.Glass
                 _startupTimer.Dispose();
                 try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
                 catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
-                CancelChampionCatalog();
-                CancelDashboardRead();
-                CancelAdvancedRespawnRead();
-                CancelProfileCustomization();
-                CancelAdvancedHistoryDetail();
-                CancelPresenceOperation();
-                CancelRepairOperation();
-                CancelLiveRead();
-                CancelLiveBenchRead();
-                CancelHistoryRead();
-                CancelMayhemRead();
-                CancelRecommendationRead();
-                CancelOnlineRead();
-                CancelQuickMessageSend();
+                UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
                 UnhookCloudEvents();
                 UnhookLocalStats();
                 _browser.Dispose();
             };
         }
 
-        internal bool HasActiveCleanup { get { return _cleanupExecuting; } }
+        private static Panel CreateLoadingSurface(UiTextCatalog ui, ThemeDefinition palette)
+        {
+            var surface = new Panel { Dock = DockStyle.Fill, BackColor = palette.Background };
+            var title = new Label
+            {
+                AutoSize = true,
+                Text = ui.AppName,
+                Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold),
+                ForeColor = palette.TextPrimary,
+                BackColor = Color.Transparent
+            };
+            var status = new Label
+            {
+                AutoSize = true,
+                Text = UiTextRuntime.Text(UiTextKeys.UnifiedWorkspaceOpening),
+                Font = new Font("Microsoft YaHei UI", 9F),
+                ForeColor = palette.TextMuted,
+                BackColor = Color.Transparent
+            };
+            surface.Controls.Add(title);
+            surface.Controls.Add(status);
+            surface.Resize += delegate
+            {
+                title.Location = new Point(Math.Max(0, (surface.ClientSize.Width - title.Width) / 2),
+                    Math.Max(0, (surface.ClientSize.Height - title.Height) / 2 - 18));
+                status.Location = new Point(Math.Max(0, (surface.ClientSize.Width - status.Width) / 2),
+                    title.Bottom + 12);
+            };
+            surface.PerformLayout();
+            title.Location = new Point(Math.Max(0, (surface.ClientSize.Width - title.Width) / 2),
+                Math.Max(0, (surface.ClientSize.Height - title.Height) / 2 - 18));
+            status.Location = new Point(Math.Max(0, (surface.ClientSize.Width - status.Width) / 2), title.Bottom + 12);
+            return surface;
+        }
+
+        internal bool HasActiveCleanup { get { return _cleanupAdapter != null && _cleanupAdapter.IsExecuting; } }
 
         private async Task InitializeAsync()
         {
@@ -250,57 +263,29 @@ namespace FACM.Presentation.Glass
             if (!HasCompletedStartup(_navigationSucceeded, _documentReady) || _ready || IsDisposed ||
                 _browserUnavailable || _closing) return;
             _startupTimer.Stop();
+            _startupStopwatch.Stop();
             _ready = true;
-            AppLog.Info("Unified workspace WebView2 HTML content ready.");
+            _loadingSurface.Hide();
+            AppLog.Info("Unified workspace WebView2 HTML content ready; startup=" +
+                _startupStopwatch.ElapsedMilliseconds + "ms.");
             if (WorkspaceReady != null) WorkspaceReady();
             SyncWebNavigation();
             SyncGameflowState();
             SyncThemeOptions();
-            if (string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal))
-                SyncUnifiedPetOptions();
-            if (string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal))
-                SyncQuickSettings();
-            if (string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal))
-                SyncMatchmakingSettings();
-            if (string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal))
-                SyncPostgameSettings();
-            if (string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal))
-            {
-                SyncAutoSelection();
-                StartAutoSelectionCatalog();
-            }
-            if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
-                string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
-                StartDashboardRead();
-            if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
-            if (_navigation.Current == "presence-advanced") StartProfileCustomizationRead();
-            if (_navigation.Current == LeagueHubNavigation.Repair) SyncRepairState();
-            if (_navigation.Current == "cleanup") SyncUnifiedCleanupState();
-            if (_navigation.Current == LeagueHubNavigation.Profile) SyncLocalProfile();
-            if (_navigation.Current == "efficiency-advanced") SyncAdvancedTools();
-            if (_navigation.Current == "quick-messages") SyncQuickMessageSettings();
-            if (_navigation.Current == LeagueHubNavigation.Live) StartLiveRead(false);
-            if (_navigation.Current == "live-advanced") StartLiveBenchRead();
-            if (_navigation.Current == LeagueHubNavigation.Player) StartHistoryRead(10, false);
-            if (_navigation.Current == "player-advanced")
-            {
-                OpenAdvancedHistoryData();
-                SendRegionalOptions();
-            }
-            if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(false);
             HookCloudEvents();
-            if (_navigation.Current == "cloud-sync") SyncCloudState();
-            if (_navigation.Current == "updates")
-            {
-                if (_onlineSnapshot != null && _onlineReadCancellation == null)
-                    SendOnlineState(_onlineSnapshot);
-                else StartOnlineRead();
-            }
+            UnifiedWorkspaceShardCatalog.Ready(this, _navigation.Current);
         }
 
         private static bool HasCompletedStartup(bool navigationSucceeded, bool documentReady)
         {
             return navigationSucceeded && documentReady;
+        }
+
+        private bool CanPublishOnRoute(string route, string relatedRoute = null)
+        {
+            return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
+                (_navigation.Current == route ||
+                 (relatedRoute != null && _navigation.Current == relatedRoute));
         }
 
         private static bool IsExpectedEmbeddedNavigation(bool pending, bool alreadyStarted)
@@ -346,6 +331,23 @@ namespace FACM.Presentation.Glass
             Close();
         }
 
+        // The orb dismisses the desktop UI without tearing down the browser engine.
+        // Returning home cancels page-owned reads; the League service modules keep running.
+        internal bool Dismiss()
+        {
+            if (IsDisposed || _closing || !CanDismiss(_browserUnavailable, _ownerBall.IsExiting,
+                RequiresForcedOnlineUpdate, OnlineInstalling, HasActiveCleanup)) return false;
+            Hide();
+            ReturnHome();
+            return true;
+        }
+
+        private static bool CanDismiss(bool browserUnavailable, bool exiting, bool forceRequired,
+            bool installing, bool cleaning)
+        {
+            return !browserUnavailable && !exiting && !forceRequired && !installing && !cleaning;
+        }
+
         private void HandleWebMessage(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             if (IsDisposed || _closing || _browserUnavailable) return;
@@ -361,8 +363,8 @@ namespace FACM.Presentation.Glass
             if (!_ready) return;
             if (message == "close")
             {
-                if (_onlineForceRequired) ExitForcedOnline();
-                else Close();
+                if (RequiresForcedOnlineUpdate) ExitForcedOnline();
+                else Dismiss();
                 return;
             }
             if (message == "drag")
@@ -373,162 +375,12 @@ namespace FACM.Presentation.Glass
                 SendMessage(Handle, WmNcLButtonDown, new IntPtr(HtCaption), IntPtr.Zero);
                 return;
             }
-            if (_onlineForceRequired && message != "updates-refresh" &&
+            if (RequiresForcedOnlineUpdate && message != "updates-refresh" &&
                 message != "updates-install" && message != "updates-stop" && message != "updates-exit" &&
                 message != "updates-link") return;
-            if (message == "quick-message-refresh") { SyncQuickMessageSettings(); return; }
-            if (message != null && message.StartsWith("quick-message-save:", StringComparison.Ordinal))
-            { SaveQuickMessageSettings(message.Substring(19)); return; }
-            if (message != null && message.StartsWith("quick-message-send:", StringComparison.Ordinal))
-            {
-                int index;
-                if (int.TryParse(message.Substring(19), out index)) SendQuickMessage(index);
-                return;
-            }
-            if (message == "advanced-refresh") { SyncAdvancedTools(); return; }
-            if (message != null && message.StartsWith("advanced-save:", StringComparison.Ordinal))
-            { ApplyAdvancedTools(message.Substring(14)); return; }
-            if (message == "profile-refresh") { SyncLocalProfile(); return; }
-            if (message == "cleanup-refresh") { SyncUnifiedCleanupState(); return; }
-            if (message == "cleanup-select") { SelectUnifiedCleanupDirectory(); return; }
-            if (message == "cleanup-detect") { DetectUnifiedCleanupDirectory(); return; }
-            if (message == "cleanup-driver") { OpenUnifiedDriverRepair(); return; }
-            if (message == "cleanup-preview") { PreviewUnifiedCleanup(); return; }
-            if (message == "cleanup-cancel") { ResetCleanupPreview(); SyncUnifiedCleanupState(); return; }
-            if (message == "cleanup-elevate") { RestartUnifiedCleanupElevated(); return; }
-            if (message != null && message.StartsWith("cleanup-confirm:", StringComparison.Ordinal))
-            { ConfirmUnifiedCleanup(message.Substring(16)); return; }
-            if (message != null && message.StartsWith("repair-action:", StringComparison.Ordinal))
-            {
-                ApplyRepairAction(message.Substring(14)); return;
-            }
-            if (message != null && message.StartsWith("mayhem-query:", StringComparison.Ordinal))
-            {
-                StartMayhemQuery(message.Substring(13)); return;
-            }
-            if (message == "mayhem-cancel")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Mayhem)
-                {
-                    CancelMayhemRead();
-                    PostLeaguePageStatus("mayhem-failed", "canceled");
-                }
-                return;
-            }
-            if (message == "cloud-refresh") { SyncCloudState(); return; }
-            if (message != null && message.StartsWith("cloud-toggle:", StringComparison.Ordinal))
-            { ApplyCloudToggle(message.Substring(13)); return; }
-            if (message == "cloud-publish") { PublishCloudGameProfile(); return; }
-            if (message == "cloud-keep-local") { ResolveCloudConflict(); return; }
-            if (message == "updates-refresh") { StartOnlineRead(); return; }
-            if (message != null && message.StartsWith("updates-auto:", StringComparison.Ordinal))
-            { ApplyOnlineAutoSetting(message.Substring(13)); return; }
-            if (message == "updates-install") { BeginOnlineInstallation(); return; }
-            if (message == "updates-stop") { CancelOnlineInstallation(); return; }
-            if (message == "updates-exit") { ExitForcedOnline(); return; }
-            if (message == "updates-link") { OpenOnlineAnnouncementLink(); return; }
-            if (message == "recommendation-refresh")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Recommendation) StartRecommendationRead(true);
-                return;
-            }
-            if (message != null && message.StartsWith("recommendation-apply:", StringComparison.Ordinal))
-            {
-                ApplyUnifiedRecommendation(message.Substring(21)); return;
-            }
-            if (message != null && message.StartsWith("history-advanced-timeline:", StringComparison.Ordinal))
-            { ReadAdvancedTimeline(message.Substring(26)); return; }
-            if (message != null && message.StartsWith("history-advanced-radar:", StringComparison.Ordinal))
-            { ReadAdvancedRadar(message.Substring(23)); return; }
-            if (message != null && message.StartsWith("history-advanced-replay:", StringComparison.Ordinal))
-            { StartAdvancedReplay(message.Substring(24)); return; }
-            if (message == "history-advanced-replay-folder") { ReadAdvancedReplayFolder(); return; }
-            if (message == "history-region-options") { SendRegionalOptions(); return; }
-            if (message == "history-region-catalog") { RefreshRegionalCatalog(); return; }
-            if (message != null && message.StartsWith("history-region-search:", StringComparison.Ordinal))
-            { SearchRegionalRiotId(message.Substring(22)); return; }
-            if (message != null && message.StartsWith("history-region-detail:", StringComparison.Ordinal))
-            { ReadRegionalMatchDetail(message.Substring(22)); return; }
-            if (message == "history-advanced-refresh")
-            { if (_navigation.Current == "player-advanced") StartHistoryRead(20, true); return; }
-            if (message != null && message.StartsWith("history-advanced-detail:", StringComparison.Ordinal))
-            { LoadAdvancedHistoryDetail(message.Substring(24)); return; }
-            if (message == "history-refresh" || message == "history-more")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Player)
-                    StartHistoryRead(message == "history-more" ? 20 : 10, true);
-                return;
-            }
-            if (message == "bench-refresh") { StartLiveBenchRead(); return; }
-            if (message != null && message.StartsWith("bench-swap:", StringComparison.Ordinal))
-            { SwapLiveBenchChampion(message.Substring(11)); return; }
-            if (message == "live-refresh" || message == "live-sgp")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Live)
-                    StartLiveRead(message == "live-sgp");
-                return;
-            }
-            if (message == "profile-customization-refresh") { StartProfileCustomizationRead(); return; }
-            if (message != null && message.StartsWith("profile-customization-champion:", StringComparison.Ordinal))
-            { LoadProfileSkins(message.Substring(31)); return; }
-            if (message != null && message.StartsWith("profile-customization-skin:", StringComparison.Ordinal))
-            { ApplyProfileSkin(message.Substring(27)); return; }
-            if (message != null && message.StartsWith("profile-customization-action:", StringComparison.Ordinal))
-            { ApplyProfileCustomizationAction(message.Substring(29)); return; }
-            if (message == "presence-refresh")
-            {
-                if (_navigation.Current == LeagueHubNavigation.Presence) StartPresenceRead();
-                return;
-            }
-            if (message != null && message.StartsWith("presence-mode:", StringComparison.Ordinal))
-            { ApplyPresenceChange("mode", message.Substring(14)); return; }
-            if (message != null && message.StartsWith("presence-signature:", StringComparison.Ordinal))
-            { ApplyPresenceChange("signature", message.Substring(19)); return; }
-            if (message != null && message.StartsWith("presence-rank:", StringComparison.Ordinal))
-            { ApplyPresenceChange("rank", message.Substring(14)); return; }
-            if (message == "dashboard-respawn-refresh") { StartAdvancedRespawnRead(); return; }
-            if (message == "dashboard-refresh")
-            {
-                if (string.Equals(_navigation.Current, LeagueHubNavigation.Dashboard, StringComparison.Ordinal) ||
-                    string.Equals(_navigation.Current, "dashboard-advanced", StringComparison.Ordinal))
-                    StartDashboardRead();
-                return;
-            }
-            if (message != null && message.StartsWith("save-postgame:", StringComparison.Ordinal))
-            {
-                ApplyPostgameSettings(message.Substring(14));
-                return;
-            }
-            if (message != null && message.StartsWith("save-selection:", StringComparison.Ordinal))
-            {
-                ApplyAutoSelection(message.Substring(15));
-                return;
-            }
-            if (message != null && message.StartsWith("selection-pause:", StringComparison.Ordinal))
-            {
-                ApplySelectionPause(message.Substring(16));
-                return;
-            }
-            if (message != null && message.StartsWith("save-matchmaking:", StringComparison.Ordinal))
-            {
-                ApplyMatchmakingSettings(message.Substring(17));
-                return;
-            }
-            if (message != null && message.StartsWith("toggle:", StringComparison.Ordinal))
-            {
-                ApplyQuickSetting(message.Substring(7));
-                return;
-            }
-            if (message == "pet-refresh") { SyncUnifiedPetOptions(); return; }
-            if (message != null && message.StartsWith("pet-select:", StringComparison.Ordinal))
-            { ApplyUnifiedPetChoice(message.Substring(11)); return; }
-            if (message == "pet-disable" || message == "pet-reset")
-            { ApplyUnifiedPetAction(message.Substring(4)); return; }
-            if (message != null && message.StartsWith("theme:", StringComparison.Ordinal))
-            {
-                ApplyTheme(message.Substring(6));
-                return;
-            }
+            // Required updates own the interaction even if a previous page was still active.
+            var activeRoute = RequiresForcedOnlineUpdate ? "updates" : _navigation.Current;
+            if (UnifiedWorkspaceShardCatalog.TryHandle(this, activeRoute, message)) return;
             if (message == "back")
             {
                 NavigateBack();
@@ -545,7 +397,7 @@ namespace FACM.Presentation.Glass
 
         internal void OpenFromNativeRoute(string route)
         {
-            if (IsDisposed || _closing || !IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route) ||
+            if (IsDisposed || _closing || !IsRouteAllowedDuringForcedUpdate(RequiresForcedOnlineUpdate, route) ||
                 !UnifiedWorkspaceNavigation.IsAllowed(route)) return;
             OpenRoute(route);
         }
@@ -558,1106 +410,20 @@ namespace FACM.Presentation.Glass
         private void OpenNativeRoute(string route, bool pushHistory)
         {
             if (!UnifiedWorkspaceNavigation.IsAllowed(route)) return;
-            if (!IsRouteAllowedDuringForcedUpdate(_onlineForceRequired, route)) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
-            if (route != "cleanup") ResetCleanupPreview();
-            if (!string.Equals(route, "auto-selection", StringComparison.Ordinal)) CancelChampionCatalog();
-            if (route != LeagueHubNavigation.Dashboard && route != "dashboard-advanced") CancelDashboardRead();
-            if (route != "dashboard-advanced") CancelAdvancedRespawnRead();
-            if (route != LeagueHubNavigation.Presence) CancelPresenceOperation();
-            if (route != "presence-advanced") CancelProfileCustomization();
-            if (route != LeagueHubNavigation.Repair) CancelRepairOperation();
-            if (route != LeagueHubNavigation.Live) CancelLiveRead();
-            if (route != "live-advanced") CancelLiveBenchRead();
-            if (route != LeagueHubNavigation.Player && route != "player-advanced")
-                CancelHistoryRead();
-            if (route != "player-advanced")
-            {
-                CancelAdvancedHistoryDetail();
-                CancelRegionalHistoryRead();
-            }
-            if (route != LeagueHubNavigation.Mayhem) CancelMayhemRead();
-            if (route != LeagueHubNavigation.Recommendation) CancelRecommendationRead();
-            if (route != "updates") CancelOnlineRead();
-            if (route != "quick-messages") CancelQuickMessageSend();
-            if (route == "player-advanced") { OpenAdvancedHistoryPage(pushHistory); return; }
-            if (route == "presence-advanced") { OpenProfileCustomizationPage(pushHistory); return; }
-            if (route == "dashboard-advanced") { OpenAdvancedDashboardPage(pushHistory); return; }
-            if (route == "live-advanced") { OpenLiveBenchPage(pushHistory); return; }
-            if (route == "quick-messages") { OpenQuickMessagePage(pushHistory); return; }
-            if (route == "efficiency-advanced") { OpenAdvancedTools(pushHistory); return; }
-            if (route == LeagueHubNavigation.Profile) { OpenLocalProfilePage(pushHistory); return; }
-            if (route == "cloud-sync") { OpenCloudPage(pushHistory); return; }
-            if (route == "updates") { OpenUpdatesPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Mayhem) { OpenMayhemPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Recommendation) { OpenRecommendationPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Player) { OpenHistoryPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Live) { OpenLivePage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Repair) { OpenRepairPage(pushHistory); return; }
-            if (route == LeagueHubNavigation.Presence) { OpenPresencePage(pushHistory); return; }
-            if (string.Equals(route, LeagueHubNavigation.Dashboard, StringComparison.Ordinal))
-            {
-                OpenDashboardPage(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "postgame-settings", StringComparison.Ordinal))
-            {
-                OpenPostgameSettings(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "auto-selection", StringComparison.Ordinal))
-            {
-                OpenAutoSelection(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "matchmaking-settings", StringComparison.Ordinal))
-            {
-                OpenMatchmakingSettings(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "efficiency", StringComparison.Ordinal))
-            {
-                OpenQuickTools(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "client-status", StringComparison.Ordinal))
-            {
-                OpenClientStatus(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "appearance", StringComparison.Ordinal))
-            {
-                OpenAppearance(pushHistory);
-                return;
-            }
-            if (string.Equals(route, "cleanup", StringComparison.Ordinal))
-            {
-                OpenUnifiedCleanupPage(pushHistory);
-                return;
-            }
-            // The route map above is complete. Unmapped IDs never open a second
-            // WinForms business surface inside this single-window controller.
+            if (!IsRouteAllowedDuringForcedUpdate(RequiresForcedOnlineUpdate, route)) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, route);
+            if (UnifiedWorkspaceShardCatalog.TryOpen(this, route, pushHistory)) return;
+            // An allowed but unregistered route is a contract failure, never a native dialog.
             AppLog.Info("Unified workspace rejected an unmapped route: " + route);
-        }
-
-        private void OpenDashboardPage(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Dashboard);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            if (_ready) StartDashboardRead();
-        }
-
-        private void StartDashboardRead()
-        {
-            CancelDashboardRead();
-            var module = LeagueHubUiBridge.UnifiedDashboard;
-            if (module == null) return;
-            var cancellation = new CancellationTokenSource();
-            _dashboardReadCancellation = cancellation;
-            var generation = _dashboardReadGeneration;
-            LoadDashboardAsync(module, cancellation, generation);
-        }
-
-        private async void LoadDashboardAsync(LeagueDashboardModule module,
-            CancellationTokenSource cancellation, int generation)
-        {
-            try
-            {
-                var snapshot = await module.ReadUnifiedDashboardAsync(cancellation.Token);
-                if (IsDisposed || cancellation.IsCancellationRequested ||
-                    generation != _dashboardReadGeneration ||
-                    (_navigation.Current != LeagueHubNavigation.Dashboard &&
-                     _navigation.Current != "dashboard-advanced") ||
-                    _browser.CoreWebView2 == null) return;
-                if (snapshot == null)
-                {
-                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"dashboard-failed\"}");
-                    return;
-                }
-                var payload = new JavaScriptSerializer().Serialize(new
-                {
-                    type = "dashboard-details",
-                    connected = snapshot.Connected,
-                    clientProcess = snapshot.ClientProcessDetected,
-                    phase = snapshot.Phase,
-                    account = snapshot.AccountName,
-                    server = !string.IsNullOrWhiteSpace(snapshot.PlatformName)
-                        ? snapshot.PlatformName : snapshot.PlatformId,
-                    level = snapshot.SummonerLevel,
-                    budget = snapshot.BudgetName,
-                    gameProcess = snapshot.GameProcessDetected,
-                    platformId = snapshot.PlatformId,
-                    platformName = snapshot.PlatformName,
-                    profileIconId = snapshot.ProfileIconId,
-                    activity = snapshot.Activity.ToString(),
-                    observedAt = snapshot.UpdatedAtUtc == DateTime.MinValue ? null
-                        : snapshot.UpdatedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
-                    ranked = snapshot.IsRankedQueue
-                });
-                _browser.CoreWebView2.PostWebMessageAsJson(payload);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified League dashboard read skipped: " + exception.GetType().Name);
-                if (!IsDisposed && generation == _dashboardReadGeneration &&
-                    _browser.CoreWebView2 != null)
-                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"dashboard-failed\"}");
-            }
-            finally
-            {
-                if (ReferenceEquals(_dashboardReadCancellation, cancellation))
-                    _dashboardReadCancellation = null;
-                cancellation.Dispose();
-            }
-        }
-
-        private void CancelDashboardRead()
-        {
-            _dashboardReadGeneration++;
-            var previous = _dashboardReadCancellation;
-            _dashboardReadCancellation = null;
-            if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
-        }
-
-
-
-
-        private void OpenHistoryPage(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Player);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            if (_ready) StartHistoryRead(10, false);
-        }
-
-        private void StartHistoryRead(int count, bool force)
-        {
-            CancelHistoryRead();
-            var module = LeagueHubUiBridge.UnifiedPlayer;
-            if (module == null) { PostHistoryError(); return; }
-            var source = new CancellationTokenSource();
-            _historyCancellation = source;
-            // History changes invalidate any previously selectable match identity.
-            ResetAdvancedHistorySnapshot();
-            LoadHistoryAsync(module, count, force, source, _historyGeneration);
-        }
-
-        private async void LoadHistoryAsync(LeaguePlayerModule module, int count, bool force,
-            CancellationTokenSource source, int generation)
-        {
-            try
-            {
-                var session = module.UnifiedHistorySession;
-                var result = await module.ReadUnifiedHistoryAsync(count, force, source.Token);
-                if (!HistoryReadIsCurrent(module, session, source, generation))
-                {
-                    if (HistoryReadIsCurrent(module, null, source, generation, false)) PostHistoryError();
-                    return;
-                }
-                if (result == null || result.Profile == null) { PostHistoryError(); return; }
-                _advancedHistorySnapshot = result;
-                _advancedHistorySession = session;
-                var page = result.Page;
-                if (_navigation.Current == "player-advanced") SyncAdvancedHistoryList();
-                var payload = new JavaScriptSerializer().Serialize(new
-                {
-                    type = "history-details",
-                    name = result.Profile.AccountName,
-                    level = result.Profile.SummonerLevel,
-                    count = page == null ? 0 : page.Matches.Count,
-                    hasMore = page != null && page.HasMore && count < 20,
-                    rows = page == null ? new object[0] : page.Matches.Take(20).Select(match => new
-                    {
-                        gameId = match.GameId,
-                        played = match.GameCreationLocal.ToString("yyyy-MM-dd HH:mm"),
-                        champion = match.ChampionName,
-                        championId = match.ChampionId,
-                        mode = match.GameMode,
-                        queueId = match.QueueId,
-                        outcome = match.StatisticsAvailable
-                            ? (match.Win ? "win" : "loss") : "unknown",
-                        kills = match.Kills,
-                        deaths = match.Deaths,
-                        assists = match.Assists,
-                        duration = match.GameDurationSeconds
-                    }).ToArray()
-                });
-                _browser.CoreWebView2.PostWebMessageAsJson(payload);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified recent history read skipped: " + exception.GetType().Name);
-                if (HistoryReadIsCurrent(module, null, source, generation, false)) PostHistoryError();
-            }
-            finally
-            {
-                if (ReferenceEquals(_historyCancellation, source)) _historyCancellation = null;
-                source.Dispose();
-            }
-        }
-
-        private bool HistoryReadIsCurrent(LeaguePlayerModule module, LeagueClientSession session,
-            CancellationTokenSource source, int generation, bool checkSession = true)
-        {
-            return !IsDisposed && !_closing && !source.IsCancellationRequested &&
-                generation == _historyGeneration &&
-                ReferenceEquals(_historyCancellation, source) &&
-                (_navigation.Current == LeagueHubNavigation.Player ||
-                 _navigation.Current == "player-advanced") &&
-                _ready && _browser.CoreWebView2 != null &&
-                (!checkSession || (session == null ? module.UnifiedHistorySession == null :
-                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedHistorySession)));
-        }
-
-        private void CancelHistoryRead()
-        {
-            _historyGeneration++;
-            var previous = _historyCancellation;
-            _historyCancellation = null;
-            if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
-        }
-
-        private void PostHistoryError()
-        {
-            if (_ready && !IsDisposed && _browser.CoreWebView2 != null)
-            {
-                _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"history-failed\"}");
-                if (_navigation.Current == "player-advanced")
-                    _browser.CoreWebView2.PostWebMessageAsJson(
-                        "{\"type\":\"history-advanced-list\",\"error\":true,\"rows\":[]}");
-            }
-        }
-
-        private void OpenLivePage(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Live);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            if (_ready) StartLiveRead(false);
-        }
-
-        private void StartLiveRead(bool includeSgp)
-        {
-            CancelLiveRead();
-            var module = LeagueHubUiBridge.UnifiedLive;
-            if (module == null) { PostLiveError(); return; }
-            var source = new CancellationTokenSource();
-            _liveCancellation = source;
-            LoadLiveAsync(module, includeSgp, source, _liveGeneration);
-        }
-
-        private async void LoadLiveAsync(LeagueLiveModule module, bool includeSgp,
-            CancellationTokenSource source, int generation)
-        {
-            try
-            {
-                var session = module.UnifiedLiveSession;
-                var snapshot = await module.ReadUnifiedLiveAsync(includeSgp, source.Token);
-                if (!LiveReadIsCurrent(module, session, source, generation))
-                {
-                    if (LiveReadIsCurrent(module, null, source, generation, false)) PostLiveError();
-                    return;
-                }
-                if (snapshot == null) { PostLiveError(); return; }
-                var payload = new JavaScriptSerializer().Serialize(new
-                {
-                    type = "live-details",
-                    connected = snapshot.Connected,
-                    phase = snapshot.Phase,
-                    queue = snapshot.QueueName,
-                    mode = snapshot.GameMode,
-                    map = snapshot.MapName,
-                    gameId = snapshot.GameId,
-                    timer = snapshot.TimerMillisecondsLeft,
-                    sgp = snapshot.SgpEnriched,
-                    allyBans = snapshot.AllyBans.ToArray(),
-                    enemyBans = snapshot.EnemyBans.ToArray(),
-                    players = snapshot.Players.Select(player => new
-                    {
-                        side = player.Side,
-                        name = player.AccountName,
-                        position = player.Position,
-                        champion = player.ChampionId,
-                        local = player.IsLocalPlayer
-                    }).Take(24).ToArray()
-                });
-                _browser.CoreWebView2.PostWebMessageAsJson(payload);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified live read skipped: " + exception.GetType().Name);
-                if (LiveReadIsCurrent(module, null, source, generation, false)) PostLiveError();
-            }
-            finally
-            {
-                if (ReferenceEquals(_liveCancellation, source)) _liveCancellation = null;
-                source.Dispose();
-            }
-        }
-
-        private bool LiveReadIsCurrent(LeagueLiveModule module, LeagueClientSession session,
-            CancellationTokenSource source, int generation, bool checkSession = true)
-        {
-            return !IsDisposed && !_closing && !source.IsCancellationRequested &&
-                ReferenceEquals(_liveCancellation, source) && generation == _liveGeneration &&
-                _navigation.Current == LeagueHubNavigation.Live &&
-                _ready && _browser.CoreWebView2 != null &&
-                (!checkSession || (session == null ? module.UnifiedLiveSession == null :
-                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLiveSession)));
-        }
-
-        private void CancelLiveRead()
-        {
-            _liveGeneration++;
-            var old = _liveCancellation;
-            _liveCancellation = null;
-            if (old != null && !old.IsCancellationRequested) old.Cancel();
-        }
-
-        private void PostLiveError()
-        {
-            if (_ready && !IsDisposed && _browser.CoreWebView2 != null)
-                _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"live-failed\"}");
-        }
-
-        private void OpenPresencePage(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Presence);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            if (_ready) StartPresenceRead();
-        }
-
-        private void StartPresenceRead()
-        {
-            if (_presenceBusy) return;
-            CancelPresenceOperation();
-            var module = LeagueHubUiBridge.UnifiedDashboard;
-            if (module == null) { PostPresenceSnapshot(null); return; }
-            var cancellation = new CancellationTokenSource();
-            _presenceCancellation = cancellation;
-            _presenceBusy = true;
-            ReadPresenceAsync(module, cancellation, _presenceGeneration);
-        }
-
-        private async void ReadPresenceAsync(LeagueDashboardModule module,
-            CancellationTokenSource cancellation, int generation)
-        {
-            try
-            {
-                var session = module.UnifiedPresenceSession;
-                LeaguePresenceSnapshot snapshot = null;
-                if (session != null)
-                    snapshot = await module.CreateUnifiedPresenceService().ReadAsync(cancellation.Token);
-                if (!PresenceRequestIsCurrent(module, session, cancellation, generation)) return;
-                _presenceSession = session;
-                _presenceSnapshot = snapshot;
-                PostPresenceSnapshot(snapshot);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified presence read skipped: " + exception.GetType().Name);
-                if (PresenceRequestIsCurrent(module, null, cancellation, generation, false))
-                    PostPresenceSnapshot(null);
-            }
-            finally { FinishPresenceOperation(cancellation); }
-        }
-
-        private bool PresenceRequestIsCurrent(LeagueDashboardModule module, LeagueClientSession session,
-            CancellationTokenSource cancellation, int generation, bool checkSession = true)
-        {
-            return !IsDisposed && !_closing && !cancellation.IsCancellationRequested &&
-                generation == _presenceGeneration &&
-                ReferenceEquals(_presenceCancellation, cancellation) &&
-                _navigation.Current == LeagueHubNavigation.Presence &&
-                _ready && _browser.CoreWebView2 != null &&
-                (!checkSession || (session == null ? module.UnifiedPresenceSession == null :
-                    LeagueEncounterReplayService.SessionMatches(session, module.UnifiedPresenceSession)));
-        }
-
-        private void ApplyPresenceChange(string kind, string request)
-        {
-            if (_presenceBusy || _navigation.Current != LeagueHubNavigation.Presence) return;
-            var module = LeagueHubUiBridge.UnifiedDashboard;
-            if (module == null || _presenceSession == null || _presenceSnapshot == null ||
-                !_presenceSnapshot.Connected ||
-                !LeagueEncounterReplayService.SessionMatches(_presenceSession, module.UnifiedPresenceSession))
-            {
-                PostPresenceResult("unavailable");
-                return;
-            }
-            LeaguePresenceMode mode = LeaguePresenceMode.Online;
-            string signature = null, queue = null, tier = null, division = null;
-            try
-            {
-                if (kind == "mode")
-                {
-                    if (!new[] { "Online", "Away", "DoNotDisturb", "Mobile", "Offline", "DisplayInGame" }
-                        .Contains(request) || !Enum.TryParse(request, out mode))
-                    { PostPresenceResult("invalid"); return; }
-                }
-                else
-                {
-                    if (string.IsNullOrEmpty(request) || request.Length > 4096)
-                    { PostPresenceResult("invalid"); return; }
-                    var fields = new JavaScriptSerializer().DeserializeObject(request) as IDictionary<string, object>;
-                    if (fields == null) { PostPresenceResult("invalid"); return; }
-                    object value;
-                    if (kind == "signature")
-                    {
-                        if (fields.Count != 1 || !fields.TryGetValue("message", out value) ||
-                            !(value is string) || ((string)value).Length > LeaguePresenceService.MaximumStatusMessageLength)
-                        { PostPresenceResult("invalid"); return; }
-                        signature = (string)value;
-                    }
-                    else if (kind == "rank")
-                    {
-                        if (fields.Count != 3 || !fields.TryGetValue("queue", out value) || !(value is string))
-                        { PostPresenceResult("invalid"); return; }
-                        queue = (string)value;
-                        if (!fields.TryGetValue("tier", out value) || !(value is string))
-                        { PostPresenceResult("invalid"); return; }
-                        tier = (string)value;
-                        if (!fields.TryGetValue("division", out value) || !(value is string))
-                        { PostPresenceResult("invalid"); return; }
-                        division = (string)value;
-                        string nq, nt, nd;
-                        if (!LeaguePresenceService.TryNormalizeRankedStatusForSmokeTest(queue, tier, division,
-                            out nq, out nt, out nd))
-                        { PostPresenceResult("invalid"); return; }
-                        queue = nq; tier = nt; division = nd;
-                    }
-                    else return;
-                }
-            }
-            catch (ArgumentException) { PostPresenceResult("invalid"); return; }
-            catch (InvalidOperationException) { PostPresenceResult("invalid"); return; }
-
-            var cancellation = new CancellationTokenSource();
-            _presenceCancellation = cancellation;
-            _presenceBusy = true;
-            WritePresenceAsync(module, kind, mode, signature, queue, tier, division,
-                _presenceSnapshot, _presenceSession, cancellation, _presenceGeneration);
-        }
-
-        private async void WritePresenceAsync(LeagueDashboardModule module, string kind,
-            LeaguePresenceMode mode, string signature, string queue, string tier, string division,
-            LeaguePresenceSnapshot expected, LeagueClientSession session,
-            CancellationTokenSource cancellation, int generation)
-        {
-            try
-            {
-                if (!PresenceRequestIsCurrent(module, session, cancellation, generation)) return;
-                var service = module.CreateUnifiedPresenceService();
-                string result;
-                if (kind == "mode")
-                    result = (await service.ApplyIfAvailabilityUnchangedAsync(mode,
-                        expected.Availability, cancellation.Token)).Status;
-                else if (kind == "signature")
-                    result = (await service.ApplyStatusMessageIfUnchangedAsync(signature,
-                        expected.StatusMessage, cancellation.Token)).Status;
-                else
-                    result = (await service.ApplyRankedStatusIfUnchangedAsync(queue, tier, division,
-                        expected, cancellation.Token)).Status;
-                if (!PresenceRequestIsCurrent(module, session, cancellation, generation)) return;
-                var snapshot = await service.ReadAsync(cancellation.Token);
-                if (!PresenceRequestIsCurrent(module, session, cancellation, generation)) return;
-                _presenceSnapshot = snapshot;
-                PostPresenceSnapshot(snapshot);
-                PostPresenceResult(result ?? "write-failed");
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified presence write skipped: " + exception.GetType().Name);
-                if (PresenceRequestIsCurrent(module, session, cancellation, generation))
-                    PostPresenceResult("write-failed");
-            }
-            finally { FinishPresenceOperation(cancellation); }
-        }
-
-        private void FinishPresenceOperation(CancellationTokenSource cancellation)
-        {
-            if (ReferenceEquals(_presenceCancellation, cancellation))
-            {
-                _presenceBusy = false;
-                _presenceCancellation = null;
-            }
-            cancellation.Dispose();
-        }
-
-        private void CancelPresenceOperation()
-        {
-            _presenceGeneration++;
-            _presenceSession = null;
-            _presenceSnapshot = null;
-            _presenceBusy = false;
-            var cancellation = _presenceCancellation;
-            _presenceCancellation = null;
-            if (cancellation != null && !cancellation.IsCancellationRequested) cancellation.Cancel();
-        }
-
-        private void PostPresenceSnapshot(LeaguePresenceSnapshot snapshot)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "presence-state",
-                connected = snapshot != null && snapshot.Connected,
-                name = snapshot == null ? null : snapshot.DisplayName,
-                availability = snapshot == null ? null : snapshot.Availability,
-                gameStatus = snapshot == null ? null : snapshot.GameStatus,
-                message = snapshot == null ? null : snapshot.StatusMessage,
-                queue = snapshot == null ? null : snapshot.RankedLeagueQueue,
-                tier = snapshot == null ? null : snapshot.RankedLeagueTier,
-                division = snapshot == null ? null : snapshot.RankedLeagueDivision
-            }));
-        }
-
-        private void PostPresenceResult(string result)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "presence-result", status = result
-            }));
-        }
-
-
-        private void OpenRepairPage(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Repair);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncRepairState();
-        }
-
-        private void SyncRepairState()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var service = LeagueHubUiBridge.UnifiedRepair;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "repair-state",
-                available = service != null,
-                auto = service != null && service.AutoRepairEnabled
-            }));
-        }
-
-        private void ApplyRepairAction(string action)
-        {
-            if (_navigation.Current != LeagueHubNavigation.Repair || _repairBusy) return;
-            var service = LeagueHubUiBridge.UnifiedRepair;
-            if (service == null) { PostRepairResult("unavailable", null); return; }
-            if (action == "auto")
-            {
-                try
-                {
-                    var updated = service.SetAutoRepairEnabled(!service.AutoRepairEnabled);
-                    PostRepairResult(updated != null && updated.Success ? "success" : "failed",
-                        updated == null ? null : updated.Message);
-                    SyncRepairState();
-                }
-                catch (Exception exception)
-                {
-                    AppLog.Info("Unified auto-repair switch failed: " + exception.GetType().Name);
-                    PostRepairResult("failed", null);
-                }
-                return;
-            }
-            if (action != "window" && action != "settlement" && action != "restart" && action != "exit")
-                return;
-            var cancellation = new CancellationTokenSource();
-            _repairCancellation = cancellation;
-            _repairBusy = true;
-            RunRepairActionAsync(action, service, cancellation);
-        }
-
-        private async void RunRepairActionAsync(string action,
-            LeagueGameRepairService service, CancellationTokenSource cancellation)
-        {
-            try
-            {
-                if (cancellation.IsCancellationRequested) return;
-                if (action == "exit")
-                {
-                    var efficiency = LeagueHubUiBridge.UnifiedEfficiency;
-                    var result = efficiency == null ? null : await efficiency.RunExitGameAsync();
-                    if (IsCurrentRepairOperation(cancellation))
-                        PostRepairResult(result == null ? "failed" : result.Status, null);
-                }
-                else
-                {
-                    LeagueGameRepairResult result;
-                    if (action == "window") result = await service.RepairWindowAsync(cancellation.Token);
-                    else if (action == "settlement") result = await service.SkipSettlementAsync(cancellation.Token);
-                    else result = await service.RestartClientUxAsync(cancellation.Token);
-                    if (IsCurrentRepairOperation(cancellation))
-                        PostRepairResult(result != null && result.Success ? "success" : "failed",
-                            result == null ? null : result.Message);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified repair action failed: " + exception.GetType().Name);
-                if (IsCurrentRepairOperation(cancellation)) PostRepairResult("failed", null);
-            }
-            finally
-            {
-                if (ReferenceEquals(_repairCancellation, cancellation))
-                {
-                    _repairCancellation = null;
-                    _repairBusy = false;
-                }
-                cancellation.Dispose();
-            }
-        }
-
-        private bool IsCurrentRepairOperation(CancellationTokenSource cancellation)
-        {
-            return !IsDisposed && !_closing && !cancellation.IsCancellationRequested &&
-                ReferenceEquals(_repairCancellation, cancellation) &&
-                _navigation.Current == LeagueHubNavigation.Repair &&
-                _ready && _browser.CoreWebView2 != null;
-        }
-
-        private void CancelRepairOperation()
-        {
-            _repairBusy = false;
-            var cancellation = _repairCancellation;
-            _repairCancellation = null;
-            if (cancellation != null && !cancellation.IsCancellationRequested) cancellation.Cancel();
-        }
-
-        private void PostRepairResult(string status, string message)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "repair-result", status = status, message = message
-            }));
-        }
-
-        private void OpenPostgameSettings(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open("postgame-settings");
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncPostgameSettings();
-        }
-
-        private void SyncPostgameSettings()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            var textKeys = new[]
-            {
-                LeagueEfficiencyUiTextKeys.HonorPreferParty,
-                LeagueEfficiencyUiTextKeys.HonorOnlyParty,
-                LeagueEfficiencyUiTextKeys.HonorAnyAlly,
-                LeagueEfficiencyUiTextKeys.HonorOptOut,
-                LeagueEfficiencyUiTextKeys.HonorIncludingOpponent
-            };
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "postgame-settings",
-                autoHonor = module.AutoHonorEnabled, autoReturn = module.AutoReturnLobbyEnabled,
-                strategy = module.AutoHonorStrategy,
-                strategies = LeagueHonorStrategy.Choices.Select((value, index) => new
-                {
-                    value, label = LeagueEfficiencyText.Get(_ui, textKeys[Math.Min(index, textKeys.Length - 1)])
-                }).ToArray()
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
-        }
-
-        private void ApplyPostgameSettings(string json)
-        {
-            if (!string.Equals(_navigation.Current, "postgame-settings", StringComparison.Ordinal)) return;
-            UnifiedPostgameChange input;
-            if (!UnifiedWorkspaceSettingsContract.TryParsePostgame(json, out input))
-            {
-                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.SaveFailed));
-                return;
-            }
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            try
-            {
-                module.UpdatePostGameSettings(input.AutoHonor, input.AutoReturn, input.Strategy);
-                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.PostGameSaved));
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Unified postgame save failed", exception);
-                SendPostgameResult(LeagueEfficiencyText.Get(_ui, LeagueEfficiencyUiTextKeys.SaveFailed));
-            }
-        }
-
-        private void SendPostgameResult(string message)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            { type = "postgame-result", message }));
-        }
-
-        private void OpenAutoSelection(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open("auto-selection");
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncAutoSelection();
-            StartAutoSelectionCatalog();
-        }
-
-        private void StartAutoSelectionCatalog()
-        {
-            CancelChampionCatalog();
-            if (!_ready || IsDisposed) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            var cancellation = new CancellationTokenSource();
-            _championCatalogCancellation = cancellation;
-            var generation = _championCatalogGeneration;
-            LoadAutoSelectionCatalogAsync(module, cancellation, generation);
-        }
-
-        private async void LoadAutoSelectionCatalogAsync(LeagueEfficiencyModule module,
-            CancellationTokenSource cancellation, int generation)
-        {
-            try
-            {
-                var champions = await module.LoadChampionsAsync(cancellation.Token);
-                if (IsDisposed || cancellation.IsCancellationRequested ||
-                    generation != _championCatalogGeneration ||
-                    !string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal) ||
-                    _browser.CoreWebView2 == null) return;
-                var payload = new JavaScriptSerializer().Serialize(new
-                {
-                    type = "auto-selection-catalog",
-                    champions = (champions ?? new LeagueProfileChampionOption[0])
-                        .Where(item => item != null && item.Id > 0 && item.Id <= 10000)
-                        .Select(item => new { id = item.Id, name = item.Name }).ToArray()
-                });
-                _browser.CoreWebView2.PostWebMessageAsJson(payload);
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception exception)
-            {
-                AppLog.Info("Unified auto-select champion directory unavailable: " + exception.GetType().Name);
-            }
-            finally
-            {
-                if (ReferenceEquals(_championCatalogCancellation, cancellation))
-                    _championCatalogCancellation = null;
-                cancellation.Dispose();
-            }
-        }
-
-        private void CancelChampionCatalog()
-        {
-            _championCatalogGeneration++;
-            var previous = _championCatalogCancellation;
-            _championCatalogCancellation = null;
-            if (previous != null && !previous.IsCancellationRequested) previous.Cancel();
-        }
-
-        private void ApplyAutoSelection(string json)
-        {
-            if (!string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal)) return;
-            UnifiedAutoSelectionChange input;
-            if (!UnifiedWorkspaceSettingsContract.TryParseAutoSelection(json, out input))
-            {
-                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionInvalid));
-                return;
-            }
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            try
-            {
-                module.UpdateAutoSelectSettings(input.AutoPick, input.PickId, input.AutoBan, input.BanId);
-                SendSelectionResult(true, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionSaved));
-            }
-            catch (ArgumentException)
-            {
-                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionMissingChampion));
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Unified auto-select settings save failed", exception);
-                SendSelectionResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedSelectionFailed));
-            }
-        }
-
-        private void ApplySelectionPause(string value)
-        {
-            if (!string.Equals(_navigation.Current, "auto-selection", StringComparison.Ordinal) ||
-                (value != "true" && value != "false")) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            try { module.UpdateAutoSelectTemporaryPause(value == "true"); SyncAutoSelection(); }
-            catch (Exception exception) { AppLog.Error("Unified auto-select pause failed", exception); }
-        }
-
-        private void SendSelectionResult(bool ok, string message)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-                { type = "selection-result", ok, message }));
-        }
-
-        private void SyncAutoSelection()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-            {
-                type = "auto-selection",
-                autoPick = module.AutoPickEnabled, autoBan = module.AutoBanEnabled,
-                pickId = module.AutoPickChampionId, banId = module.AutoBanChampionId,
-                paused = module.AutoSelectTemporarilyDisabled,
-                champions = new object[0]
-            }));
-        }
-
-        private void OpenMatchmakingSettings(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open("matchmaking-settings");
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncMatchmakingSettings();
-        }
-
-        private void ApplyMatchmakingSettings(string request)
-        {
-            if (!string.Equals(_navigation.Current, "matchmaking-settings", StringComparison.Ordinal)) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            UnifiedMatchmakingChange setting;
-            if (!UnifiedWorkspaceSettingsContract.TryParseMatchmaking(request, out setting))
-            {
-                PostMatchmakingResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingInvalid));
-                return;
-            }
-            try
-            {
-                module.UpdateMatchmakingSettings(setting.AutoSearch, setting.AutoAccept,
-                    setting.MinParty, setting.QueueDelayMs, setting.AcceptDelayMs,
-                    setting.StopPolicy, setting.StopAfterMs,
-                    setting.WaitForInvitees, setting.RoomNotices);
-                SyncMatchmakingSettings();
-                PostMatchmakingResult(true, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingSaved));
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Unified matchmaking settings save failed", exception);
-                PostMatchmakingResult(false, UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingFailed));
-            }
-        }
-
-        private void PostMatchmakingResult(bool ok, string message)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            _browser.CoreWebView2.PostWebMessageAsJson(new JavaScriptSerializer().Serialize(new
-                { type = "matchmaking-result", ok, message }));
-        }
-
-        private void SyncMatchmakingSettings()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "matchmaking-settings",
-                autoSearch = module.AutoMatchmakingEnabled,
-                autoAccept = module.AutoAcceptEnabled,
-                minParty = module.AutoMatchmakingMinPartySize,
-                queueDelayMs = module.AutoMatchmakingStartDelayMs,
-                acceptDelayMs = module.AutoAcceptDelayMs,
-                stopPolicy = module.AutoMatchmakingStopPolicy,
-                stopAfterMs = module.AutoMatchmakingStopAfterMs,
-                waitForInvitees = module.AutoMatchmakingWaitForInvitees,
-                roomNotices = module.AutoMatchmakingRoomNotices,
-                policies = new[]
-                {
-                    new { value = LeagueMatchmakingStopPolicyCodec.Never, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopNever) },
-                    new { value = LeagueMatchmakingStopPolicyCodec.Fixed, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopFixed) },
-                    new { value = LeagueMatchmakingStopPolicyCodec.Estimated, label = UiTextRuntime.Text(UiTextKeys.UnifiedMatchmakingStopEstimated) }
-                }
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
-        }
-
-        private void OpenQuickTools(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open(LeagueHubNavigation.Efficiency);
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncQuickSettings();
-        }
-
-        private void ApplyQuickSetting(string request)
-        {
-            if (!string.Equals(_navigation.Current, LeagueHubNavigation.Efficiency, StringComparison.Ordinal)) return;
-            var divider = request.LastIndexOf(':');
-            if (divider < 0) return;
-            var key = request.Substring(0, divider);
-            var value = request.Substring(divider + 1);
-            if (value != "true" && value != "false") return;
-            var enabled = value == "true";
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            try
-            {
-                if (key == "autoSearch" || key == "autoAccept")
-                    module.UpdateMatchmakingSettings(
-                        key == "autoSearch" ? enabled : module.AutoMatchmakingEnabled,
-                        key == "autoAccept" ? enabled : module.AutoAcceptEnabled,
-                        module.AutoMatchmakingMinPartySize, module.AutoMatchmakingStartDelayMs,
-                        module.AutoAcceptDelayMs, module.AutoMatchmakingStopPolicy,
-                        module.AutoMatchmakingStopAfterMs, module.AutoMatchmakingWaitForInvitees,
-                        module.AutoMatchmakingRoomNotices);
-                else if (key == "autoReconnect") module.UpdateReconnectSetting(enabled);
-                else if (key == "autoHonor" || key == "autoReturn")
-                    module.UpdatePostGameSettings(key == "autoHonor" ? enabled : module.AutoHonorEnabled,
-                        key == "autoReturn" ? enabled : module.AutoReturnLobbyEnabled,
-                        module.AutoHonorStrategy);
-                else return;
-                SyncQuickSettings();
-            }
-            catch (Exception exception)
-            {
-                AppLog.Error("Unified workspace quick setting update failed", exception);
-                if (_ready && _browser.CoreWebView2 != null)
-                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"tool-error\"}");
-            }
-        }
-
-        private void SyncQuickSettings()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var module = LeagueHubUiBridge.UnifiedEfficiency;
-            if (module == null) return;
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "quick-tools",
-                values = new
-                {
-                    autoSearch = module.AutoMatchmakingEnabled,
-                    autoAccept = module.AutoAcceptEnabled,
-                    autoReconnect = module.AutoReconnectEnabled,
-                    autoHonor = module.AutoHonorEnabled,
-                    autoReturn = module.AutoReturnLobbyEnabled
-                }
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
-        }
-
-        private void OpenClientStatus(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open("client-status");
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncGameflowState();
-        }
-
-        private void OpenAppearance(bool pushHistory)
-        {
-            if (pushHistory) _navigation.Open("appearance");
-            _browser.Dock = DockStyle.Fill;
-            ResizeForRoute(true);
-            SyncWebNavigation();
-            SyncThemeOptions();
-            SyncUnifiedPetOptions();
-        }
-
-        private void ApplyTheme(string id)
-        {
-            if (!string.Equals(_navigation.Current, "appearance", StringComparison.Ordinal)) return;
-            var candidate = ThemeCatalog.All.FirstOrDefault(item =>
-                string.Equals(item.Id, id, StringComparison.Ordinal));
-            if (candidate == null) return;
-            var before = _settings.ThemeId;
-            try
-            {
-                _settings.ThemeId = candidate.Id;
-                _settings.Save();
-                FacmThemeRuntime.SetCurrent(candidate.Id);
-                SyncThemeOptions(true);
-                AppLog.Info("Unified workspace skin applied: " + candidate.Id);
-            }
-            catch (Exception exception)
-            {
-                _settings.ThemeId = before;
-                AppLog.Error("Unified workspace theme update failed", exception);
-                if (_ready && _browser.CoreWebView2 != null)
-                    _browser.CoreWebView2.PostWebMessageAsJson("{\"type\":\"theme-error\"}");
-            }
-        }
-
-        private void SyncThemeOptions(bool applied = false)
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "themes",
-                selected = _settings.ThemeId,
-                applied = applied,
-                items = ThemeCatalog.All.Select(theme => new
-                {
-                    id = theme.Id, name = theme.Name, description = theme.Description,
-                    accent = ColorTranslator.ToHtml(theme.Accent),
-                    background = ColorTranslator.ToHtml(theme.Background),
-                    surface = ColorTranslator.ToHtml(theme.Surface),
-                    surfaceRaised = ColorTranslator.ToHtml(theme.SurfaceSecondary),
-                    text = ColorTranslator.ToHtml(theme.TextPrimary),
-                    muted = ColorTranslator.ToHtml(theme.TextMuted),
-                    border = ColorTranslator.ToHtml(theme.Border),
-                    light = theme.IsLight
-                }).ToArray()
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
         }
 
         private void NavigateBack()
         {
-            if (_onlineForceRequired) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
+            if (RequiresForcedOnlineUpdate) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
             if (_navigation.IsHome) return;
-            ResetCleanupPreview();
-            CancelChampionCatalog();
-            CancelDashboardRead();
-            CancelAdvancedRespawnRead();
-            CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
-            CancelPresenceOperation();
-            CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
-            CancelOnlineRead();
-            CancelQuickMessageSend();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             _navigation.Back();
             if (_navigation.IsHome) ShowHome();
             else OpenNativeRoute(_navigation.Current, false);
@@ -1665,23 +431,9 @@ namespace FACM.Presentation.Glass
 
         private void ReturnHome()
         {
-            if (_onlineForceRequired) return;
-            if (_cleanupExecuting) { PostUnifiedCleanupStatus("deleting"); return; }
-            ResetCleanupPreview();
-            CancelChampionCatalog();
-            CancelDashboardRead();
-            CancelAdvancedRespawnRead();
-            CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
-            CancelPresenceOperation();
-            CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
-            CancelOnlineRead();
-            CancelQuickMessageSend();
+            if (RequiresForcedOnlineUpdate) return;
+            if (HasActiveCleanup) { PostUnifiedCleanupStatus("deleting"); return; }
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
             _navigation.Home();
             ShowHome();
         }
@@ -1739,61 +491,29 @@ namespace FACM.Presentation.Glass
                 _navigation.IsHome ? "home" : "detail:" + _navigation.Current);
         }
 
-        internal void UpdateGameflowState(LeagueDashboardPhaseState state)
-        {
-            if (IsDisposed) return;
-            _lastGameflowState = state;
-            SyncGameflowState();
-        }
-
-        private void SyncGameflowState()
-        {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
-            var connected = _lastGameflowState != null && _lastGameflowState.Connected;
-            var phase = connected ? (_lastGameflowState.Phase ?? string.Empty) : string.Empty;
-            var payload = new JavaScriptSerializer().Serialize(new
-            {
-                type = "status", connected = connected, phase = phase
-            });
-            _browser.CoreWebView2.PostWebMessageAsJson(payload);
-        }
-
         private void HandleClosing(object sender, FormClosingEventArgs e)
         {
-            if (_onlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
+            if (OnlineInstalling && !_ownerBall.IsExiting && !_browserUnavailable)
             {
                 e.Cancel = true;
                 return;
             }
-            if (_cleanupExecuting)
+            if (HasActiveCleanup)
             {
                 e.Cancel = true;
                 PostUnifiedCleanupStatus("deleting");
                 return;
             }
             if (_closing) return;
-            if (_onlineForceRequired && !_browserUnavailable && !_ownerBall.IsExiting)
+            if (RequiresForcedOnlineUpdate && !_browserUnavailable && !_ownerBall.IsExiting)
             {
                 e.Cancel = true;
                 try { _ownerBall.BeginInvoke(new Action(_ownerBall.ExitApplication)); }
                 catch (InvalidOperationException) { }
                 return;
             }
-            ResetCleanupPreview();
             _closing = true;
-            CancelChampionCatalog();
-            CancelDashboardRead();
-            CancelAdvancedRespawnRead();
-            CancelProfileCustomization();
-            CancelAdvancedHistoryDetail();
-            CancelPresenceOperation();
-            CancelRepairOperation();
-            CancelLiveRead();
-            CancelLiveBenchRead();
-            CancelHistoryRead();
-            CancelMayhemRead();
-            CancelRecommendationRead();
-            CancelOnlineRead();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
         }
 
         internal static string ReadEmbeddedHtml()
@@ -1809,6 +529,30 @@ namespace FACM.Presentation.Glass
         internal static void ValidateForSmokeTest()
         {
             UnifiedWorkspaceNavigation.ValidateForSmokeTest();
+            UnifiedWorkspaceShardCatalog.ValidateForSmokeTest();
+            UnifiedWorkspaceDashboardAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceLiveAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceHistoryAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceMayhemAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceRecommendationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspacePresenceAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceProfileAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceHistoryDetailAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceRegionalHistoryAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceHistoryExtrasAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceProfileCustomizationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceQuickMessageAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceAdvancedToolsAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceAutomationAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceLiveBenchAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceRepairAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceCloudSyncAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceOnlineAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceCleanupAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceQuickToolsAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceSkinAdapter.ValidateForSmokeTest();
+            UnifiedWorkspacePetAdapter.ValidateForSmokeTest();
+            UnifiedWorkspaceGameflowAdapter.ValidateForSmokeTest();
             UnifiedWorkspaceSettingsContract.ValidateForSmokeTest();
             UnifiedWorkspaceAdvancedContract.ValidateForSmokeTest();
             UnifiedWorkspaceQuickMessageContract.ValidateForSmokeTest();
@@ -1830,6 +574,15 @@ namespace FACM.Presentation.Glass
             var html = ReadEmbeddedHtml();
             if (!html.Contains("post(\"shell-ready\")"))
                 throw new InvalidOperationException("Unified workspace HTML must acknowledge complete script initialization.");
+            if (!html.Contains("requestAnimationFrame(function(){requestAnimationFrame(function(){post(\"shell-ready\");});});"))
+                throw new InvalidOperationException("Unified workspace must wait for a render opportunity before hiding its native startup surface.");
+            if (!CanDismiss(false, false, false, false, false) ||
+                CanDismiss(true, false, false, false, false) ||
+                CanDismiss(false, true, false, false, false) ||
+                CanDismiss(false, false, true, false, false) ||
+                CanDismiss(false, false, false, true, false) ||
+                CanDismiss(false, false, false, false, true))
+                throw new InvalidOperationException("Workspace reuse must not bypass browser failure, exit, update or cleanup lifetimes.");
             if (!html.Contains("id=\"advancedRegionalResults\"") ||
                 !html.Contains("data-action=\"history-region-search\""))
                 throw new InvalidOperationException("Regional Riot ID history must be a native-backed HTML feature.");

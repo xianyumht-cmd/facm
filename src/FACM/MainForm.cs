@@ -208,7 +208,9 @@ namespace FACM
 #if GLASS_WORKBENCH_PREVIEW
             if (_compactPilot != null) _compactPilot.Hide();
             if (_unifiedWorkspace != null && !_unifiedWorkspace.IsDisposed)
-                _unifiedWorkspace.Close();
+            {
+                if (!_unifiedWorkspace.Dismiss()) _unifiedWorkspace.Close();
+            }
 #endif
             if (_menu == null) return;
             var menu = _menu;
@@ -239,6 +241,7 @@ namespace FACM
             };
             _unifiedWorkspace.BrowserUnavailable += delegate
             {
+                var wasVisible = _unifiedWorkspace != null && _unifiedWorkspace.Visible;
                 var elevatedCleanup = _startCleanup;
                 var onlineSnapshot = _unifiedPromptSnapshot;
                 var forceUpdate = _unifiedPromptForce;
@@ -257,6 +260,7 @@ namespace FACM
                             await ShowOnlineCenterAsync(onlineSnapshot, forceUpdate, automaticUpdate);
                             return;
                         }
+                        if (!wasVisible) return;
                         EnsureMenuOpenAndActive();
                         if (elevatedCleanup && _menu != null && !_menu.IsDisposed)
                         {
@@ -1202,7 +1206,8 @@ namespace FACM
                     _unifiedWorkspace.Activate();
                     return;
                 }
-                if (_unifiedWorkspace != null && _unifiedWorkspace.Visible) _unifiedWorkspace.Close();
+                if (_unifiedWorkspace != null && _unifiedWorkspace.Visible)
+                    _unifiedWorkspace.Dismiss();
                 else ShowUnifiedWebWorkbench();
                 return;
             }

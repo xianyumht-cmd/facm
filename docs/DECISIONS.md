@@ -1,3 +1,22 @@
+## 2026-11-08 — Keep simple feature adapters in-process, separate from Form
+
+Quick tools, skins, desktop pets and the small gameflow/status projection use
+four per-workbench adapter objects, not extra processes or a generalized
+plugin-loader runtime. The existing typed Shards own routing and commands;
+the adapters own feature validation, native calls and JSON state. Keep the
+single WebView2 shell and native efficiency, theme, pet and Gameflow owners.
+Any added control-center feature should register its own Shard and inject its
+own bounded business adapter, leaving `UnifiedWorkspaceForm` as a shell.
+
+## 2026-11-08 — Own protected maintenance UI state per workbench
+
+Keep observed ARAM bench choice lists, game repair cancellation, cleanup review
+tokens, cloud event subscriptions and forced-online update/download flags in
+one adapter per desktop window. The Form reads those flags for navigation and
+close protection; it must not independently mirror the state. Cloud route
+departure invalidates UI results without cancelling a native upload. Real
+LCU, cleanup, account and signed updater owners remain unchanged.
+
 ## 2026-11-08 — Call GGman appearance presets 皮肤; keep stable compatibility keys
 
 Owner explicitly renamed the visible 外观与主题 / 外观主题 function to **皮肤** and requires the selection to visibly recolor GGman, including the floating orb, workbench and transient game-time overlay. Keep the existing preset palette catalog as the underlying implementation: no new theme database or installer, no rewrite of account/device settings. The internal `appearance` route and `ThemeId` key remain stable so previously saved choices and navigation work without migration. Native and HTML windows are separate view owners and therefore must individually consume the runtime palette on creation and on changes. Future styling work must not confuse “setting saved” with an actual visual change.
@@ -556,3 +575,73 @@ Maintain GGman's preexisting generic `IsLoss` rule when adding Akari's `isLoss(f
 ## 2026-10-27 — Keep match replay behind one explicit native scoreboard action
 
 Implement pinned Akari 1.5.1 replay configuration, create metadata, read metadata and conditional download/watch via one typed authenticated writer. Never continuously scan remote history or autonomously POST downloads; the existing on-demand match detail and native WinForms scoreboard own the action. Revalidate selected game and locally signed-in owner plus LCU session before a mutation; display unsupported/transitional states without repeated POSTs. Do not publish until the consolidated real Windows/Tencent acceptance.
+## 2026-11-08 — Extend existing FacmHost with registered UI shards
+
+The owner wants Akari-style functional modules: future features should be
+implemented and registered, without adding a new central route/message switch.
+Keep the already-established `IFacmModule`/`FacmHost` for native business owners,
+and introduce the small `IUnifiedWorkspaceShard` UI contract for allowlisted
+routes and commands. Start with quick messages and advanced tools; migrate other
+routes incrementally. This is in-process composition, not one OS process per
+feature, a dynamic DLL plug-in loader, or a second browser runtime.
+
+For the first WebView2 launch, draw a skin-matched native loading surface until
+the embedded page has acknowledged a render opportunity. On normal dismissal,
+hide and reuse the same browser after canceling route work. This trades retained
+memory after the first opening for lower warm-open latency; verify the actual
+Windows 10 GPU/DPI compositor and resident memory before declaring acceptance.
+
+The next six Player/Mayhem/recommendation/live UI routes use feature-local shard
+classes with a `CancelOutside` lifecycle hook. Preserve the basic-to-advanced
+Player history reuse exception, account/session fencing, and per-page cancellation
+instead of introducing service-wide cancellation or one process per route.
+
+Register the remaining desktop UI routes under the same contract and make the
+catalog the sole navigation allowlist. Keep forced-update interactions and
+destructive-cleanup guards in the single host, with shard-owned page actions
+and cancellation. Split the legacy form adapters into domain partial files as a
+reviewable intermediate step; do not mistake file separation for independent
+business service ownership or introduce additional WebView2 engines.
+
+## 2026-11-08 — Instantiate business adapters per workbench, not per route catalog
+
+`IUnifiedWorkspaceShard` entries are shared route definitions. Keep cancellation
+sources, asynchronous request generations and serialized presentation state in
+independent per-form adapters, never in static shard objects. First extract
+dashboard/advanced respawn and live/SGP adapters as ordinary C# classes with
+only route-availability predicates and message-publish delegates injected from
+the shell. Existing native modules retain LCU/Gameflow ownership. Check the
+active route and captured League session before publication; do not add another
+browser, transport, poller or process merely to achieve modularity.
+
+Extend this boundary to recent Player history, Mayhem guide/icon retrieval,
+recommendation read/apply, presence read/write and local personal statistics.
+The source modules remain the authority for LCU sessions, caches, conditional
+writes and stat events. Keep Player → advanced history snapshot handoff explicit
+while the advanced and regional selected-match machinery is still coupled;
+do not split their shared cancellation source until both paths migrate together.
+
+## 2026-11-08 — Move local and regional details as one cancellable unit
+
+Both detail entrypoints must share the **same** per-workbench request generation
+and cancellation source. Selecting a new local or cross-region match invalidates
+the previous detail and any selected timeline/replay data. The regional catalog
+and Riot ID lookup own a separate cancellation lifetime, while the advanced
+extras adapter exclusively owns selected-match and evidence/replay state. Keep
+the common recent/advanced history snapshot inside the history adapter and
+require the captured League session before reusing it. Move personal profile
+customization to its own instance with the original allowlisted IDs, active
+route checks and post-await presence-session fence. Do not add OS processes,
+duplicate LCU subscriptions or an additional WebView2 to realize these boundaries.
+
+## 2026-11-08 — Keep desktop configuration requests per window
+
+Extract quick-message sends and auto-selection champion-catalog reads into
+separate per-workbench adapters, retaining their distinct cancellation sources
+and generation counters. The static shard catalog must only dispatch commands;
+it must not retain in-flight sends or a cached champion list. Group postgame,
+auto-selection and matchmaking UI operations in one configuration adapter,
+because all use the existing `LeagueEfficiencyModule` settings owner. Preserve
+strict JSON allowlists and localized result/status contracts; gate both writes
+and publishes by the current active route. Do not create a second network owner,
+worker process or WebView2 for configuration pages.

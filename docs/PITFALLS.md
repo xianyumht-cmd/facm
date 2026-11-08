@@ -1,3 +1,33 @@
+## 2026-11-08 — Moving UI code must preserve cross-route skin hydration
+
+The `themes` event is sent at HTML readiness even while the home page is
+active; a new skin adapter must not apply the `appearance` route predicate to
+its initial publish. Only a user-triggered `theme:` write is route-restricted.
+The five quick-tool booleans are native settings, not free-form bridge
+properties: validate the exact key and literal `true`/`false` before touching
+the efficiency module. Desktop-pet choices must come from the *visible* pet
+catalog and continue using `MainForm` to change the actual floating surface.
+If skin persistence or runtime notification fails, restore the prior setting
+and report a failure; do not claim a new color has been applied. A smoke check
+must cover JSON contracts and hidden-route ownership; real changed pixels on
+Windows 10 remain a separate operator check.
+
+## 2026-11-08 — Maintenance adapters must preserve safety state across awaits
+
+An old ARAM bench icon or swap must not post after leaving the route, replacing
+the League process, or cancelling its request. Its `finally` must not clear a
+newer's busy state. Cloud account changes can dispatch off the UI thread;
+marshal callbacks, unsubscribe on disposal and fence awaited upload results
+with current account and route generation. Forced updates cannot lose their
+close/back lock on refresh or navigation; require the existing install gate,
+ten-minute checked snapshot and signature-checked installer. Cleanup must
+atomically consume a one-use, unexpired review token and recheck root, admin
+and running game processes; active execution must still block closing.
+When splitting a Form partial into a new business class plus a thin wrapper,
+verify the wrapper's own namespace imports (`LeagueHubUiBridge` lives in
+`FACM.League`). Glass candidate compilation caught a missing import in
+`dad944b`; `79fce5b` restored it and re-ran all four exact-head gates.
+
 ## 2026-11-08 — Saving a theme ID does not recolor independent native/WebView2 windows
 
 With signed v3.5.84, the skin picker saved `AppSettings.ThemeId` and the current HTML page could reflect the new selection, but the 56px orb and subsequent control-center windows appeared unchanged. `LayeredFloatingBall.Attach(form)` hardcoded the default catalog palette rather than using `FacmThemeRuntime.Current` and the shell never listened for `ThemeChanged`. The WebView2 host only posted `themes` while its current route was `appearance` instead of as soon as the embedded HTML becomes ready. Separate transient WebView2 gameplay overlays likewise used fixed navy colors. A shared preference is not automatically a shared visible skin. Bind each visual host to the canonical runtime, send the selected palette on every new browser load, subscribe/unsubscribe live windows safely, and test **changed pixels / computed CSS values**, not just successful save or selected-card borders. Preserve the stable `appearance` route and ThemeId key when user-facing naming changes to 皮肤.
@@ -528,3 +558,71 @@ The earlier experimental 005 ESC migration granted table and RPC access to `anon
 ## Email OTP is a three-request, service-configured authentication flow (2026-10-10)
 
 CloudBase's v2 HTTP API does not sign a desktop user in with only their email and six-digit code. First call `/auth/v1/verification` with `target=ANY`, retain the returned `verification_id` and `is_user`; next call `/auth/v1/verification/verify` with that ID and code to receive `verification_token`; finally call `/auth/v1/signin` or `/auth/v1/signup` to obtain a registered `sub`. Bind challenges to the original address, expire them after at most ten minutes, restrict retries and never expose OTP/session token in log files. Email OTP requires enabling **身份认证 → 登录方式 → 邮箱验证码** and mail forwarding/SMTP in the *real* CloudBase project. The official CAPTCHA endpoints are `/auth/v1/captcha/data` and `/auth/v1/captcha/data/verify`, not the legacy redirect-based `/auth/v1/captcha/init`. After `captcha_required`, present bounded GIF data and verify it, then make **one** original request retry with `x-captcha-token`; `captcha_invalid` or a second `captcha_required` must stop. GUI resend countdown is bypassable via direct HTTP, so rely on server-side CloudBase limits and inspect real quotas/alerts before public release. Source-level tests do not verify real CAPTCHA, signup, delivery, server budgets or two-PC UID stability. Device-anonymous `ggman_settings_sync` must not silently switch to the registered principal.
+## 2026-11-08 — A successful WebView2 handshake can still expose cold-start blank frames
+
+The floating workbench previously called `Show()` before asynchronously creating
+the WebView2 environment, causing a visible empty browser surface during cold
+start, and ordinary dismissal called `Close()`, so each reopen paid that cost
+again. Preserve a native loading surface until successful tracked navigation
+and the HTML's animation-frame readiness acknowledgement; reuse the hidden
+workbench on normal dismiss while canceling page-owned operations. Do not hide
+forced-update or active-install/cleanup UI; do not invoke native fallback merely
+because a previously dismissed, hidden browser later fails initialization.
+Source/CI checks cannot prove the owner's actual Win10 compositor pixels or
+memory cost; measure cold/warm opening and idle retention in final acceptance.
+
+## 2026-11-08 — UI shard routing must cancel old reads without invalidating shared history
+
+The basic and advanced Player routes share a session-fenced history snapshot.
+When moving cancellation into `IUnifiedWorkspaceShard.CancelOutside`, keep the
+history read alive for `player → player-advanced`, but cancel regional/detail
+reads when leaving `player-advanced`. Other page readers and recommendation
+writes must be canceled on exit. A WebView2 message is only actionable in its
+own registered active route; broad global prefix handling could allow an old
+page's queued command to mutate the next page's state.
+
+For maintenance pages the route boundary is also a security boundary: cloud
+publish, cleanup confirmation and update installation must only honor their
+own current route. Forced online update is exceptional: its allowlisted
+commands remain actionable while the update mandate is active, including a
+transient stale route. Never register a generic `updates-*` or `cleanup-*`
+handler on the unscoped shell. Cancelling navigation must clear any cleanup
+preview token without cancelling a cleanup already executing.
+
+## 2026-11-08 — A registered shard is not a per-window request owner
+
+`UnifiedWorkspaceShardCatalog` holds shared definitions. If a shard owns a
+`CancellationTokenSource` or generation counter, closing one workbench can
+cancel another's requests. Instantiate an adapter on each workbench, inject
+the route guard and message publisher, and cancel on route departure, normal
+hide or disposal. Check the captured LCU session after awaits, including
+dashboard summaries, so stale account data cannot appear. The publisher must
+not access a disposed WebView2.
+
+The advanced Player route shares a selected-detail cancellation lifetime with
+remote regional match detail. A mechanical extraction of only one branch
+would allow stale local/remote requests to race or publish after navigation.
+Move those paths together when extracting the remaining advanced-history
+adapter. Likewise, recommendation apply owns a separate cancellation source
+from guide refresh; keep the captured League session and generation checks
+between prepare and write, not only when the HTML action first arrives.
+
+The coupled detail extraction also depends on *two* generations: the common
+local/cross-region detail generation cancels stale selections; the selected
+timeline/replay generation invalidates evidence when a different match is
+selected, even if its match ID happens to match. Do not give the regional adapter
+its own competing detail token. On account replacement, clear the cached basic
+and advanced history snapshot before publishing `WrongAccount`; on route exit,
+cancel detail and region reads and erase selected evidence. Profile customization
+must retain its catalog-derived champion/skin allowlists and captured session
+for writes, not trust raw WebView messages or a stale active account.
+
+Quick-message sending and champion-catalog loading are asynchronous even though
+their neighboring setting writes are synchronous. Moving just their JSON
+projection out of the Form would leave two hidden cancellation lifetimes behind;
+both source and generation must move together. After an awaited operation,
+verify the active route, generation, matching source and current native module
+before posting. A page-open/ready race can request the catalog twice: the new
+request must cancel the old one, while route departure cancels either. Route
+guards also belong on postgame/matchmaking synchronization, so a queued ready
+event cannot write the wrong page's HTML state.
