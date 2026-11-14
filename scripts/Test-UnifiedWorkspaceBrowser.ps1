@@ -1,6 +1,20 @@
 $ErrorActionPreference = 'Stop'
 $asset = 'src/FACM/Presentation/Glass/GGman-Unified-Workspace.html'
 $source = Get-Content -LiteralPath $asset -Raw -Encoding utf8
+# The compact interface must be action-first without losing bridge controls.
+$tiles = @([regex]::Matches($source, '<button class="tile"[\s\S]*?</button>'))
+if ($tiles.Count -ne 12 -or @($tiles | Where-Object { $_.Value.Contains('<small>') }).Count) {
+  throw 'Launcher or browse cards regressed to redundant subcaptions.'
+}
+$repairActions = @([regex]::Matches($source, '<div class="tool-row"><button[^>]*data-repair-action='))
+if ($repairActions.Count -ne 5) {
+  throw 'Repair page lost its five direct-action controls.'
+}
+if (-not $source.Contains('main>section:not(#home)>h2{display:none}') -or
+    $source.Contains('轻触即可进入') -or
+    $source.Contains('游戏运行时禁止上传')) {
+  throw 'Compact title, instruction, or game-lobby upload copy contract regressed.'
+}
 if (-not $source.Contains('window.GGmanUnifiedShell={setMode:setMode') -or -not $source.Contains('</body>')) { throw 'Missing unified HTML router.' }
 $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
 $programFiles = [Environment]::GetFolderPath('ProgramFiles')
@@ -13,6 +27,10 @@ $target = New-Item -ItemType Directory -Path 'artifacts/Visual-Checks' -Force
 Add-Type -AssemblyName System.Drawing
 $cases = @(
   @{ Mode='home'; Width=420; Height=400 },
+  @{ Mode='more'; Width=440; Height=560; Tag='browse-compact' },
+  @{ Mode='client-status'; Width=440; Height=370; Tag='status-compact' },
+  @{ Mode='repair'; Width=520; Height=530; Tag='repair-compact' },
+  @{ Mode='postgame-settings'; Width=490; Height=450; Tag='postgame-compact' },
   @{ Mode='dashboard'; Width=660; Height=680 },
   @{ Mode='quicktools'; Width=630; Height=650 },
   @{ Mode='matchmaking-settings'; Width=640; Height=740 },
