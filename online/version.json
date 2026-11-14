@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.88",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.88/FACM.exe",
   "sha256": "2370934C102AABE4AA637B99C350DE2FF5896484966022B299F103B6D89D8795",
   "release_notes": "GGman 3.5.88：控制中心采用极简操作型界面。首页和全部功能改为图标＋功能名称，移除重复副标题、说明段落与返回导航；快捷工具与游戏修复改为紧凑的单行开关、直接操作按钮。皮肤和桌宠保留名称及选中状态，额外说明改为悬停提示。调整功能页面尺寸，精简选人助手的多余引导；保留战绩、强化排行、数据来源、操作结果及危险操作确认。云配置上传提示明确区分游戏大厅与正式对局。本版不改变现有业务能力和在线更新通道，为非强制正式更新。",
-  "published_at": "2026-11-14T16:53:32.6976840+00:00"
+  "published_at": "2026-11-14T16:53:41.4291323+00:00"
 }

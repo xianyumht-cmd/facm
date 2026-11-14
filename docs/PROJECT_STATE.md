@@ -1458,15 +1458,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.87
-- GitHub Release：v3.5.87
+- 版本：GGman 3.5.88
+- GitHub Release：v3.5.88
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：c75a9590811723dd7b30356f1c86b0694865de69
-- 发布元数据提交：a0204ea76b226053bcf79dbde4dc72afe916486e
-- Release GGman.exe SHA-256：465F3675000854F8EB0CD6B67E679B812699061867A9030108983FE0542DD7ED
-- release_notes：GGman 3.5.87：面向普通玩家优化中文界面与操作体验。简化控制中心、战绩、个人资料、在线状态、快捷工具、海斗、出装、修复与更新中心的说明文字；高级对局记分板将已知统计字段显示为中文，保留 KDA、LOL、OP.GG 等常用名称与缩写；赛后数据列头和旧窗口品牌名称同步统一。补充页面切换键盘焦点与游戏模式中文名称，内部数据及快捷操作逻辑保持不变。本版为非强制正式更新，Windows 10、国服对局、皮肤及不同 DPI 下的实机体验由用户更新后验收。
+- 发布基础 main：37cb64f56017e18342cee2f339651505a19b3a3e
+- 发布元数据提交：3cac17237ab81c116194635a16d1cc8dfcc387c5
+- Release GGman.exe SHA-256：2370934C102AABE4AA637B99C350DE2FF5896484966022B299F103B6D89D8795
+- release_notes：GGman 3.5.88：控制中心采用极简操作型界面。首页和全部功能改为图标＋功能名称，移除重复副标题、说明段落与返回导航；快捷工具与游戏修复改为紧凑的单行开关、直接操作按钮。皮肤和桌宠保留名称及选中状态，额外说明改为悬停提示。调整功能页面尺寸，精简选人助手的多余引导；保留战绩、强化排行、数据来源、操作结果及危险操作确认。云配置上传提示明确区分游戏大厅与正式对局。本版不改变现有业务能力和在线更新通道，为非强制正式更新。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
