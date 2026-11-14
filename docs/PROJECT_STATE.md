@@ -1,28 +1,35 @@
-## 2026-11-15 — GGman v3.5.88 action-first compact UI candidate (pending CI and release)
+## 2026-11-15 — GGman v3.5.88 action-first compact UI officially released
 
-Latest verified signed production is GGman v3.5.87; `online/version.json`
-points to 3.5.87. The canonical main baseline at task start was
-`a3ad2bc8ffc234c250bc750c8613156693aee733` (2026-11-15).
-Task branch `feat/ggman-minimal-action-ui-20261115` implements the owner's
-minimal-copy UI request in the embedded WebView2 control center and Champion
-Select companion: 12 launcher/browse subtitles removed; 22 page-intro
-paragraphs and redundant operation hints removed; 5 direct repair actions
-and condensed quick-tool toggles; compact route dimensions; repeated visible
-titles hidden in favor of the navigable header; theme and desktop-pet details
-remain in title tooltips, while meaningful gameplay statistics, live status,
-cloud conflict confirmations and destructive-action warnings remain visible
-when relevant. The game-profile upload confirmation now correctly distinguishes
-the permitted LOL lobby from disallowed active training/matches, matching
-`GgmanAutoSyncService.PublishGameProfileAsync`.
+Owner-approved compact UI task is complete through [PR #366](https://github.com/xianyumht-cmd/facm/pull/366),
+squash-merged as `37cb64f56017e18342cee2f339651505a19b3a3e`.
+The work removes 12 persistent home/browse tile subtitles, 22 page-intro
+paragraphs, redundant setting hints and secondary navigation, uses direct
+repair and cloud action buttons, preserves functional bridge IDs and all
+important data, state and destructive confirmations, and adjusts route sizing.
+The LOL lobby remains allowed for manual cloud configuration upload; actual
+training and matches are blocked by the unchanged native service. The native
+frontend is still the fallback for machines without working WebView2.
 
-The branch includes route-size smoke assertions and browser rendering checks
-for the compact home, browse, status, repair and postgame pages. No release,
-CI success, signed asset, public rollout or real Windows Tencent LOL acceptance
-is claimed until independently verified. Planned release: nonforced signed
-v3.5.88 through the canonical request publisher only after four exact-final-
-head Windows CI gates pass. Signer, public GGman.exe/FACM.exe byte/hash match,
-and manifest-last activation remain mandatory; test real device DPI/IME,
-selection overlay, skins and gameplay after official update.
+All four exact-final-head Windows PR workflows passed on `e509d61c4e483efe5b63ff2ca22fc5346bb31ab4`:
+[Build #43617428349](https://github.com/xianyumht-cmd/facm/actions/runs/43617428349),
+[Glass WebView2 #43617428378](https://github.com/xianyumht-cmd/facm/actions/runs/43617428378),
+[UI Text #43617428339](https://github.com/xianyumht-cmd/facm/actions/runs/43617428339),
+and [Mayhem Source #43617428336](https://github.com/xianyumht-cmd/facm/actions/runs/43617428336).
+One earlier Glass smoke failed because its previous mandatory section-caption
+assertion contradicted the newly approved label-less compact home; the
+assertion was replaced with an action-first card contract and all gates passed.
+
+Official [signed publisher #43617902828](https://github.com/xianyumht-cmd/facm/actions/runs/43617902828)
+succeeded, created [v3.5.88](https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.88),
+verified public `GGman.exe` and `FACM.exe` at identical 7,179,672 bytes,
+SHA-256 `2370934C102AABE4AA637B99C350DE2FF5896484966022B299F103B6D89D8795`
+and verified signer, then enabled nonforced `online/version.json` 3.5.88.
+The manifest update landed on main as
+`d9cd251b902cf6c7ac49bad0f7cec5b09f3d14b8`.
+Actual Windows 10 player-side DPI, IME, keyboard/game focus, selected theme,
+Chinese LOL and update-path interaction acceptance remain **unverified** and
+should be checked on the official update; a signed Windows CI build is not
+evidence of those real-device behaviors.
 
 ## 2026-11-08 — GGman v3.5.87 signed online release (historical)
 
