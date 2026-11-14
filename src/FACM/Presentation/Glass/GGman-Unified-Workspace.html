@@ -560,6 +560,8 @@ main>section:not(#home)>h2{display:none}
 #repairPage .tool-row button[data-repair-action="exit"]{border-color:color-mix(in srgb,#e18c94 55%,var(--line));color:#f4aeb1}
 #cleanupPage .tool-row{padding:0;border:0;background:transparent;display:block}
 #cleanupPage .tool-row button{display:block;min-height:40px;width:100%;text-align:left;padding:10px 12px}
+#cloudSyncPage .cloud-action{padding:0;background:transparent;border:0}
+#cloudSyncPage .cloud-action button{width:100%;min-height:42px;text-align:left;padding:10px 12px}
 #appearance .theme-card{min-height:62px;padding:9px 12px}
 #appearance .pet-card{min-height:62px}
 main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:none}
@@ -868,8 +870,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="tools">
       <div class="tool-row"><label><input id="cloudAutoSync" type="checkbox"> 自动同步应用设置与文字配置</label></div>
       <div class="tool-row"><label><input id="cloudGameRestore" type="checkbox"> 已发布游戏配置自动恢复</label></div>
-      <div class="tool-row"><span><strong>上传当前游戏配置</strong><small>仅手动触发，游戏运行时禁止上传。上传前需确认；由原有模块校验游戏目录和账号。</small></span><button id="cloudPublish" data-action="cloud-publish">上传</button></div>
-      <div class="tool-row" id="cloudConflictRow" hidden><span><strong>同步冲突处理</strong><small>将当前本地配置上传到账号云端，可能替换远端版本，请确认本地数据正确。</small></span><button id="cloudKeepLocal" data-action="cloud-keep-local">保留本地并上传</button></div>
+      <div class="tool-row cloud-action"><button id="cloudPublish" data-action="cloud-publish" title="游戏大厅可上传；训练与正式对局期间不可上传">上传游戏配置</button></div>
+      <div class="tool-row cloud-action" id="cloudConflictRow" hidden><button id="cloudKeepLocal" data-action="cloud-keep-local">以本地配置覆盖云端</button></div>
     </div>
     <div class="guide-confirm" id="cloudConfirm" hidden>
       <p id="cloudConfirmText">确认执行此云端操作吗？</p>
@@ -1364,7 +1366,7 @@ document.addEventListener("click",function(event){
   if(target.dataset.action==="cloud-publish"||target.dataset.action==="cloud-keep-local"){
     cloudPendingAction=target.dataset.action==="cloud-publish"?"cloud-publish":"cloud-keep-local";
     get("cloudConfirmText").textContent=cloudPendingAction==="cloud-publish"?
-      "确认把当前本地游戏配置上传到已登录账号的云端吗？游戏运行期间将拒绝上传。":
+      "确认上传当前游戏配置吗？请先退出训练或正式对局；英雄联盟大厅无需关闭。":
       "确认将本地设置上传并覆盖冲突的云端版本吗？此操作不可直接撤销。";
     get("cloudConfirm").hidden=false;return;
   }
