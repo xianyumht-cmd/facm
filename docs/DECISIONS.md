@@ -1,3 +1,18 @@
+## 2026-11-15 — Action-first compact GGman UI copy
+
+Use one visible route title in the persistent Back/Home header and prefer
+self-explanatory icon+name cards, direct-action rows, and single-line labels
+plus toggles over permanent subtitles and introductory explanations. Keep
+dynamic connection/operation status, player evidence (rank, win/pick rates,
+samples, data freshness), actionable validation feedback and confirmation
+for destructive changes, profile overwrite, and game exit. Store optional
+skin/pet detail in tooltips instead of using a second permanent row. Do not
+shrink hit targets below the existing accessible control sizes. Browser/route
+smokes must cover compact physical dimensions and avoid horizontal scroll.
+Retain native C# ownership, WebView2 event IDs, cloud/game restrictions and
+signed-updater trust boundaries. This is a presentation and microcopy choice,
+not a license to remove existing business behavior.
+
 ## 2026-11-08 — Keep simple feature adapters in-process, separate from Form
 
 Quick tools, skins, desktop pets and the small gameflow/status projection use
