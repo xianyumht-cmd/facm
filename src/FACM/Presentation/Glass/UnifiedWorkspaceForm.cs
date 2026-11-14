@@ -625,9 +625,10 @@ namespace FACM.Presentation.Glass
                 throw new InvalidOperationException("Unified online page lacks force, download cancel or announcement controls.");
             if (!html.Contains("Microsoft YaHei UI") ||
                 !html.Contains("class=\"status status-home\"") ||
-                !html.Contains("class=\"section-caption\"") ||
+                html.Contains("class=\"section-caption\"") ||
+                !html.Contains("#home .tile,#other .tile{min-height:58px") ||
                 !html.Contains("data-mode=\"home\""))
-                throw new InvalidOperationException("Unified workbench design token or compact home is missing.");
+                throw new InvalidOperationException("Unified workbench compact action-only home is missing.");
             foreach (var view in LeagueHubNavigation.Views)
             {
                 if (html.IndexOf("data-route=\"" + view.Id + "\"", StringComparison.Ordinal) < 0)
