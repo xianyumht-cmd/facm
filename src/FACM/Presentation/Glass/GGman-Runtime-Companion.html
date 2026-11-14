@@ -69,6 +69,10 @@ h2,h3,p{margin:0}
 .dialog h3{font-size:14px}.dialog p{margin:10px 0;color:var(--soft);white-space:pre-wrap}
 .dialog .actions{grid-template-columns:1fr 1fr}
 #emptyGuide{color:var(--soft);font-size:11px}
+
+#content .section{padding-top:8px;padding-bottom:8px}
+#content .section h3{margin-bottom:5px}
+#message:empty{display:none}
 </style>
 </head>
 <body>
@@ -86,7 +90,7 @@ h2,h3,p{margin:0}
 <div id="recent"></div>
 </section>
 <section class="section">
-<h3><span>快速选择 · 大乱斗替补席</span><span class="muted sub">点击英雄交换</span></h3>
+<h3>快速选择 · 大乱斗替补席</h3>
 <div id="benchEmpty">正在确认替补席是否可用…</div>
 <div id="bench" role="group" aria-label="可交换的英雄"></div>
 </section>
@@ -100,13 +104,13 @@ h2,h3,p{margin:0}
 </div>
 </section>
 <section class="section">
-<h3><span>海斗强化 · 大乱斗数据</span><span class="muted sub">当前英雄</span></h3>
+<h3>海斗强化 · 大乱斗数据</h3>
 <div id="guideInfo"></div><div id="emptyGuide">等待强化数据…</div>
 <div id="augmentFilters"><button data-filter="all" class="active">全部</button><button data-filter="prism">棱彩</button><button data-filter="gold">黄金</button><button data-filter="silver">白银</button></div>
 <div id="augments"></div>
 </section>
 <section class="section"><h3>本局队伍</h3><div id="teams" class="sub muted">等待队友数据…</div></section>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span id="message" class="muted sub">来自 LOL 本地客户端与已启用数据源</span><button id="quit" class="warn">退出选人</button></div>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span id="message" class="muted sub"></span><button id="quit" class="warn">退出选人</button></div>
 </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>

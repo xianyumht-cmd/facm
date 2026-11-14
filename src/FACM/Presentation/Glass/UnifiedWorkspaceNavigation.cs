@@ -62,27 +62,32 @@ namespace FACM.Presentation.Glass
             switch (route ?? string.Empty)
             {
                 case "": width = 400; height = 360; break;
-                case "client-status": width = 460; height = 420; break;
-                case "appearance": width = 590; height = 650; break;
-                case "efficiency": width = 610; height = 640; break;
-                case "efficiency-advanced": width = 650; height = 760; break;
-                case "quick-messages": width = 650; height = 760; break;
-                case "auto-selection": width = 580; height = 650; break;
-                case "postgame-settings": width = 550; height = 590; break;
-                case "dashboard": width = 640; height = 660; break;
-                case "dashboard-advanced": width = 670; height = 740; break;
-                case "presence-advanced": width = 670; height = 760; break;
-                case "player-advanced": width = 720; height = 780; break;
-                case "matchmaking-settings": width = 620; height = 710; break;
-                case "presence": width = 590; height = 700; break;
-                case "cloud-sync": width = 600; height = 720; break;
-                case "updates": width = 610; height = 700; break;
-                case "repair": width = 590; height = 670; break;
-                case "cleanup": width = 650; height = 740; break;
-                case "profile": width = 640; height = 710; break;
-                case "live": width = 650; height = 730; break;
-                case "live-advanced": width = 640; height = 700; break;
-                case "player": width = 650; height = 730; break;
+                case "more": width = 420; height = 540; break;
+                case "bench": width = 500; height = 540; break;
+                case "mayhem": width = 570; height = 640; break;
+                case "recommendation": width = 570; height = 650; break;
+                case "profile-customization": width = 560; height = 620; break;
+                case "client-status": width = 420; height = 340; break;
+                case "appearance": width = 520; height = 560; break;
+                case "efficiency": width = 480; height = 520; break;
+                case "efficiency-advanced": width = 560; height = 660; break;
+                case "quick-messages": width = 560; height = 650; break;
+                case "auto-selection": width = 500; height = 550; break;
+                case "postgame-settings": width = 470; height = 420; break;
+                case "dashboard": width = 520; height = 520; break;
+                case "dashboard-advanced": width = 580; height = 650; break;
+                case "presence-advanced": width = 580; height = 670; break;
+                case "player-advanced": width = 690; height = 750; break;
+                case "matchmaking-settings": width = 530; height = 580; break;
+                case "presence": width = 510; height = 610; break;
+                case "cloud-sync": width = 530; height = 620; break;
+                case "updates": width = 540; height = 620; break;
+                case "repair": width = 500; height = 500; break;
+                case "cleanup": width = 550; height = 650; break;
+                case "profile": width = 540; height = 620; break;
+                case "live": width = 580; height = 650; break;
+                case "live-advanced": width = 560; height = 630; break;
+                case "player": width = 570; height = 650; break;
                 default: width = 1000; height = 740; break;
             }
             var scale = Math.Max(1F, Math.Min(2.5F, dpiScale));
@@ -149,10 +154,15 @@ namespace FACM.Presentation.Glass
             var appearance = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "appearance", 1F);
             var queue = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "matchmaking-settings", 1F);
             var tiny = ResolveClientSize(new Rectangle(0, 0, 720, 580), "auto-selection", 1.5F);
+            var browse = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "more", 1F);
+            var repairs = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "repair", 1F);
+            var mayhem = ResolveClientSize(new Rectangle(0, 0, 1920, 1080), "mayhem", 1F);
             if (normal != new Size(400, 360) || detail != new Size(1000, 740) ||
                 highDpiHome != new Size(800, 720) ||
-                appearance != new Size(590, 650) ||
-                queue != new Size(620, 710) ||
+                appearance != new Size(520, 560) ||
+                queue != new Size(530, 580) ||
+                browse != new Size(420, 540) ||
+                repairs != new Size(500, 500) || mayhem != new Size(570, 640) ||
                 tiny.Width > 696 || tiny.Height > 556 ||
                 small.Width > 696 || small.Height > 556)
                 throw new InvalidOperationException("Unified shell size must clamp to the visible work area.");

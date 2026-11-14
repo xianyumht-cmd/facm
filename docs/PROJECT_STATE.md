@@ -1,23 +1,37 @@
-## 2026-11-08 — GGman v3.5.87 product UI localization work in progress
+## 2026-11-15 — GGman v3.5.88 action-first compact UI candidate (pending CI and release)
 
-Latest GitHub release is signed-channel `v3.5.86`, and `main` is
-`5b01996bf01e11b9a0d8732ac3ad6e49358c787f` (confirmed 2026-11-08).
-The current short-lived task branch
-`feat/ggman-product-ui-localization-20261108` targets a unified player-facing
-copy/visual-interaction pass on the WebView2 control center and native League
-stat dialogs, not a new backend architecture or independent preview EXE.
-Reference criteria are recorded in `docs/DECISIONS.md`. The user requested
-signed online v3.5.87 *after* four exact-head Windows CI gates and the normal
-publisher integrity/signing workflow; user-side Windows 10, Chinese LoL,
-skin/IME/DPI and actual updater operation remain post-release acceptance.
-PR [#365](https://github.com/xianyumht-cmd/facm/pull/365) is open on this
-branch. The first pushed executable head `0f43ed256b80878d94ce9a264da9f3beb401c4c4`
-passed UI Text Contract and Mayhem; Windows Build compiled but its synthetic
-card-details presentation assertion required an obsolete English `KDA CV`
-label. The follow-up correction aligns that display-only assertion with the
-new Chinese label, without changing data calculations; the corrected head
-still requires all four exact-head Windows checks. Do not claim CI, PR merge,
-v3.5.87 publication or real-device acceptance until independently verified.
+Latest verified signed production is GGman v3.5.87; `online/version.json`
+points to 3.5.87. The canonical main baseline at task start was
+`a3ad2bc8ffc234c250bc750c8613156693aee733` (2026-11-15).
+Task branch `feat/ggman-minimal-action-ui-20261115` implements the owner's
+minimal-copy UI request in the embedded WebView2 control center and Champion
+Select companion: 12 launcher/browse subtitles removed; 22 page-intro
+paragraphs and redundant operation hints removed; 5 direct repair actions
+and condensed quick-tool toggles; compact route dimensions; repeated visible
+titles hidden in favor of the navigable header; theme and desktop-pet details
+remain in title tooltips, while meaningful gameplay statistics, live status,
+cloud conflict confirmations and destructive-action warnings remain visible
+when relevant. The game-profile upload confirmation now correctly distinguishes
+the permitted LOL lobby from disallowed active training/matches, matching
+`GgmanAutoSyncService.PublishGameProfileAsync`.
+
+The branch includes route-size smoke assertions and browser rendering checks
+for the compact home, browse, status, repair and postgame pages. No release,
+CI success, signed asset, public rollout or real Windows Tencent LOL acceptance
+is claimed until independently verified. Planned release: nonforced signed
+v3.5.88 through the canonical request publisher only after four exact-final-
+head Windows CI gates pass. Signer, public GGman.exe/FACM.exe byte/hash match,
+and manifest-last activation remain mandatory; test real device DPI/IME,
+selection overlay, skins and gameplay after official update.
+
+## 2026-11-08 — GGman v3.5.87 signed online release (historical)
+
+PR #365 merged and the official signed release v3.5.87 became publicly
+available on 2026-11-08. The canonical `online/version.json` currently enables
+nonforced 3.5.87; its player-facing Chinese copy improvement is the baseline
+for the subsequent action-first visual simplification. Historical CI and
+work-in-progress notes from this PR should not be mistaken for current
+v3.5.88 acceptance.
 
 ## 2026-11-08 — GGman 3.5.86 release request completed (historical)
 
