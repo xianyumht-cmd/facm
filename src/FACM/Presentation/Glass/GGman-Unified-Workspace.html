@@ -540,13 +540,37 @@ html,body{height:100%;overflow:hidden}
 #shell{max-height:100dvh;overflow:hidden}
 main{min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
 body[data-mode] main>section{max-height:none;overflow:visible}
+
+/* Action-first compact surfaces; visible labels remain functional. */
+main>section:not(#home)>h2{display:none}
+#home .tiles,#other .tiles{gap:8px}
+#home .tile,#other .tile{min-height:69px;padding:8px 6px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:5px}
+#home .tile .glyph,#other .tile .glyph{width:29px;height:29px;flex:0 0 29px;font-size:17px}
+#home .tile .glyph svg,#other .tile .glyph svg{width:21px;height:21px}
+#home .tile .tile-copy,#other .tile .tile-copy{min-width:0;max-width:100%}
+#home .tile strong,#other .tile strong{font-size:12px;line-height:1.25;white-space:nowrap}
+#home .section-caption{margin:8px 0 0}
+#home .tiles{margin-top:7px}
+#home .actions{margin-top:8px}
+#quicktools .tool-row{min-height:44px;padding:9px 12px;gap:8px;align-items:center}
+#quicktools .tool-row strong{font-size:12.5px}
+#repairPage .tools{gap:8px}
+#repairPage .tool-row{padding:0;border:0;background:transparent;display:block}
+#repairPage .tool-row button{display:block;width:100%;text-align:left;min-height:43px;padding:10px 13px;border:1px solid var(--line);border-radius:10px}
+#repairPage .tool-row button[data-repair-action="exit"]{border-color:color-mix(in srgb,#e18c94 55%,var(--line));color:#f4aeb1}
+#cleanupPage .tool-row{padding:0;border:0;background:transparent;display:block}
+#cleanupPage .tool-row button{display:block;min-height:40px;width:100%;text-align:left;padding:10px 12px}
+#appearance .theme-card{min-height:62px;padding:9px 12px}
+#appearance .pet-card{min-height:62px}
+main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:none}
+@media(max-width:380px){#home .tile,#other .tile{min-height:65px}#home .tile .glyph,#other .tile .glyph{width:27px;height:27px;flex-basis:27px}}
 </style>
 </head>
 <body data-mode="home">
 <div id="shell">
 <header class="header" id="dragHandle">
   <div class="brand-icon" aria-hidden="true">G</div>
-  <div class="brand-text"><div class="brand-name">GGman</div><div class="subhead">轻巧常驻 · 随时掌控游戏</div></div>
+  <div class="brand-text"><div class="brand-name">GGman</div></div>
   <div id="detail"><button class="back" aria-label="返回上一页" title="返回上一页" data-action="back">‹</button><span class="title" id="routeTitle" tabindex="-1">LOL 工作台</span><button class="home" aria-label="返回控制中心" title="返回控制中心" data-action="home">⌂</button></div>
   <button class="close" aria-label="关闭控制中心" data-action="close">×</button>
 </header>
@@ -554,14 +578,14 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   <section id="home">
     <button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
       <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 等待连接</b><span class="status-chevron" aria-hidden="true">›</span></span>
-      <span id="clientPhase">正在等候当前客户端状态</span><span class="hint">打开 LOL 客户端后会自动显示当前场景</span>
+      <span id="clientPhase">正在等候当前客户端状态</span>
     </button>
-    <div class="section-caption"><span>常用功能</span><span>轻触即可进入</span></div>
+    <div class="section-caption"><span>常用功能</span></div>
     <div class="tiles">
-      <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong><small>当前阶段与账号</small></span></button>
-      <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong><small>历史与英雄分析</small></span></button>
-      <button class="tile" data-route="mayhem"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 2.1 6.5L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.5Z"/><path d="m19 17 1 2.5 2 1-2 .7-.7 2-1-2-.8-.7"/></svg></span><span class="tile-copy"><strong>海斗攻略</strong><small>强化推荐与排行</small></span></button>
-      <button class="tile" data-route="efficiency"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--card2)"/><circle cx="16" cy="12" r="2.2" fill="var(--card2)"/><circle cx="10" cy="18" r="2.2" fill="var(--card2)"/></svg></span><span class="tile-copy"><strong>快捷工具</strong><small>自动匹配与选禁</small></span></button>
+      <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong></span></button>
+      <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong></span></button>
+      <button class="tile" data-route="mayhem"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 2.1 6.5L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.5Z"/><path d="m19 17 1 2.5 2 1-2 .7-.7 2-1-2-.8-.7"/></svg></span><span class="tile-copy"><strong>海斗攻略</strong></span></button>
+      <button class="tile" data-route="efficiency"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--card2)"/><circle cx="16" cy="12" r="2.2" fill="var(--card2)"/><circle cx="10" cy="18" r="2.2" fill="var(--card2)"/></svg></span><span class="tile-copy"><strong>快捷工具</strong></span></button>
     </div>
     <div class="actions">
       <button data-route="cleanup">清理修复</button>
@@ -571,25 +595,25 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="clientStatus">
     <h2>LOL 客户端状态</h2>
-    <p>自动显示英雄联盟的连接状态和当前游戏阶段，无需手动刷新。</p>
+    
     <div class="status"><b id="statusConnection">未连接</b><span id="statusPhase">等待客户端连接</span><span id="statusHint">启动英雄联盟后自动同步</span></div>
     <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
   </section>
   <section id="quicktools">
-    <h2>快捷工具</h2><p>按需开启常用自动操作，开关更改后立即保存。</p>
+    <h2>快捷工具</h2>
     <div class="tools" id="quickSettings">
-      <div class="tool-row"><span><strong>自动开始排队</strong><small>符合组队条件时自动寻找对局</small></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
-      <div class="tool-row"><span><strong>自动接受对局</strong><small>匹配成功时自动接受一次</small></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
-      <div class="tool-row"><span><strong>断线自动重连</strong><small>仅在可确认重连状态后执行</small></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
-      <div class="tool-row"><span><strong>赛后自动点赞</strong><small>延续已保存的点赞优先级</small></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
-      <div class="tool-row"><span><strong>赛后返回大厅</strong><small>结束点赞流程后再返回</small></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
+      <div class="tool-row"><span><strong>自动开始排队</strong></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
+      <div class="tool-row"><span><strong>自动接受对局</strong></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
+      <div class="tool-row"><span><strong>断线自动重连</strong></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
+      <div class="tool-row"><span><strong>赛后自动点赞</strong></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
+      <div class="tool-row"><span><strong>赛后返回大厅</strong></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
     </div>
     <p id="toolResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-route="matchmaking-settings">排队详细设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
   </section>
   <section id="advancedDashboardPage">
     <h2>完整 LOL 工作台</h2>
-    <p>查看当前账号、所在服务器及游戏运行情况。点击下方按钮可获取最新状态。</p>
+    
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="advancedDbConnection">等待读取</strong></div>
       <div class="dashboard-card"><span class="small">游戏进程</span><strong id="advancedDbGameProcess">—</strong></div>
@@ -604,20 +628,20 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <div class="guide-card">
       <strong>当前游戏复活状态</strong>
-      <small>进入对局后可查看当前复活进度；未进入游戏时无法读取。</small>
+      
       <p id="advancedRespawn" role="status" aria-live="polite">尚未读取</p>
       <button data-action="dashboard-respawn-refresh" id="advancedRespawnRefresh">读取当前复活状态</button>
     </div>
     <p id="advancedDbStatus" role="status" aria-live="polite">等待读取状态</p>
     <div class="actions">
       <button data-action="refresh-dashboard">刷新全部工作台信息</button>
-      <button data-route="dashboard">返回简洁工作台</button>
+      
       <button data-route="live">实时对局</button>
       <button data-route="player">我的战绩</button>
     </div>
   </section>
   <section id="dashboardPage">
-    <h2>LOL 工作台</h2><p>这里会显示当前登录的游戏账号和对局状态。</p>
+    <h2>LOL 工作台</h2>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">游戏客户端</span><strong id="dbConnection">等待连接</strong></div>
       <div class="dashboard-card"><span class="small">当前阶段</span><strong id="dbPhase">未连接</strong></div>
@@ -631,7 +655,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="profileCustomizationPage">
     <h2>LOL 个性资料定制</h2>
-    <p>自定义当前英雄联盟账号的展示资料。修改后会自动检查是否生效，切换游戏账号时将重新读取。</p>
+    
     <div class="profile-control">
       <h3>个人背景英雄皮肤</h3>
       <label>背景英雄<select id="profileChampion" aria-label="选择背景英雄"></select></label>
@@ -643,7 +667,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <div class="profile-control">
       <h3>个性展示清理与恢复</h3>
-      <p>以下动作会更新当前 LOL 账号对应项目；先选择操作，再确认。</p>
+      
       <div class="actions">
         <button data-profile-action="crest">移除段位徽章</button>
         <button data-profile-action="tokens">清除挑战代币</button>
@@ -661,12 +685,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <p id="profileCustomizationStatus" role="status" aria-live="polite">尚未读取英雄目录</p>
     <div class="actions">
-      <button data-route="presence">返回在线状态</button>
+      
       <button data-route="dashboard-advanced">完整工作台</button>
     </div>
   </section>
   <section id="presencePage">
-    <h2>在线状态</h2><p>设置好友看到的在线状态、签名和展示段位。部分状态可能在进入游戏后被客户端自动更改。</p>
+    <h2>在线状态</h2>
     <div class="status"><b id="presenceCurrent">等待读取</b><span id="presenceName">请先连接英雄联盟</span></div>
     <div class="presence-modes" id="presenceModes">
       <button data-presence-mode="Online">在线</button><button data-presence-mode="Away">离开</button>
@@ -686,7 +710,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="advancedHistoryPage">
     <h2>高级战绩与对局详情</h2>
-    <p>先读取当前账号最近 20 场对局，再按英雄、结果和模式筛选。点击任意对局可查看详细数据。</p>
+    
     <div class="advanced-history-filters">
       <label>搜索英雄或模式<input id="advancedHistorySearch" type="search" autocomplete="off" maxlength="80" placeholder="英雄、模式、队列"></label>
       <label>比赛结果<select id="advancedHistoryOutcome"><option value="all">全部结果</option><option value="win">胜利</option><option value="loss">失败</option><option value="unknown">结果未确认</option></select></label>
@@ -715,14 +739,14 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <div id="advancedHistoryExtras" hidden>
         <div class="history-extra">
           <h3>七维雷达分析</h3>
-          <p>对比玩家的七项表现。缺少的数据会显示为空，不参与对比。</p>
+          
           <label>选择对比玩家<select id="advancedHistoryRadarPlayer" aria-label="选择雷达图玩家"></select></label>
           <svg id="advancedHistoryRadar" viewBox="0 0 300 260" role="img" aria-label="玩家与队伍平均七维雷达图"></svg>
           <p id="advancedRadarStatus" class="history-chart-note" role="status">请选择有统计信息的玩家</p>
         </div>
         <div class="history-extra">
           <h3>对局时间线</h3>
-          <p>查看这场对局中经济、补刀和其他指标的变化，以及重要事件。</p>
+          
           <label>曲线指标<select id="advancedTimelineMetric">
             <option value="gold">总经济</option><option value="cs">补刀</option>
             <option value="xp">经验</option><option value="damage">英雄伤害</option>
@@ -751,12 +775,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     </div>
     <div class="actions">
       <button data-action="history-advanced-refresh">重新读取 20 场</button>
-      <button data-route="player">返回近期战绩</button>
+      
     </div>
   </section>
   <section id="historyPage">
     <h2>我的战绩</h2>
-    <p>查看当前账号的近期对局。切换游戏账号后，战绩会自动更新。</p>
+    
     <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
     <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
     <div class="history-filter" role="group" aria-label="筛选已读取战绩">
@@ -775,7 +799,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="benchPage">
     <h2>ARAM 替补席 · 快速换英雄</h2>
-    <p>在极地大乱斗选人阶段，点击替补席上的英雄即可尝试交换。交换结果会自动确认。</p>
+    
     <div class="guide-stats">
       <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
       <div class="guide-card"><small>对局模式</small><strong id="benchMode">—</strong></div>
@@ -785,11 +809,11 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <p id="benchActionStatus" role="status" aria-live="polite"></p>
     <div class="actions">
       <button id="benchRefresh" data-action="bench-refresh">刷新替补席</button>
-      <button data-route="live">返回实时对局</button>
+      
     </div>
   </section>
   <section id="livePage">
-    <h2>实时对局</h2><p>在选人或游戏过程中查看双方阵容、禁用英雄和玩家信息。</p>
+    <h2>实时对局</h2>
     <div class="live-summary">
       <div><small>连接状态</small><strong id="liveConnection">等待读取</strong></div>
       <div><small>对局阶段</small><strong id="livePhase">—</strong></div>
@@ -814,7 +838,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="profilePage">
     <h2>我的 GGman · 本地资料</h2>
-    <p>无需 GGman 邮箱登录；仅展示当前设备已记录的使用数据。云端个人排行与验证码暂缓开放。</p>
+    
     <div class="status"><b>本地模式</b><span id="profileMode">数据保存在这台电脑上</span></div>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">使用过的游戏账号</span><strong id="profilePlayed">—</strong></div>
@@ -856,7 +880,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="updatesPage">
     <h2>更新中心</h2>
-    <p>检查并安装 GGman 正式更新。下载完成后会自动验证文件，确保更新包完整可靠。</p>
+    
     <div class="guide-card" id="updateForcedBanner" hidden role="alert"><strong>必须更新才能继续使用</strong><small>当前版本已不再支持。可以安装已验证的新版本，或退出 GGman；不能跳过此更新继续操作。</small></div>
     <div class="dashboard-cards">
       <div class="dashboard-card"><span class="small">当前安装版本</span><strong id="updateCurrent">—</strong></div>
@@ -882,7 +906,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="mayhemPage">
     <h2>海斗攻略</h2>
-    <p>搜索英雄，查看当前版本的海斗强度、强化推荐和出装。没有数据的项目会明确标注。</p>
+    
     <div class="guide-search">
       <input id="mayhemChampion" type="search" maxlength="80" autocomplete="off" placeholder="英雄中文名、英文名或简称" aria-label="查询海斗英雄">
       <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
@@ -904,7 +928,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="recommendationPage">
     <h2>出装推荐</h2>
-    <p>根据当前英雄查看 OP.GG 推荐，可选择将符文、召唤师技能或装备配置应用到游戏客户端。</p>
+    
     <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
     <div class="guide-results" id="recommendationOutput" hidden>
       <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
@@ -931,7 +955,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="cleanupPage">
     <h2>清理与修复</h2>
-    <p>检测游戏安装位置，修复常见问题，或扫描可清理文件。清理前会列出完整路径，须经你确认后才执行。</p>
+    
     <div class="guide-results">
       <div class="guide-card"><strong>英雄联盟安装目录</strong><small id="cleanupPath">等待读取</small></div>
       <div class="guide-card"><strong>当前权限</strong><small id="cleanupPrivilege">正在检测</small></div>
@@ -941,9 +965,9 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <button id="cleanupSelect" data-action="cleanup-select">选择目录</button>
       <button id="cleanupRefresh" data-action="cleanup-refresh">刷新状态</button>
     </div>
-    <div class="tool-row"><span><strong>驱动修复</strong><small>通过已有系统工具执行，不新增安装器</small></span><button id="cleanupDriver" data-action="cleanup-driver">启动驱动修复</button></div>
-    <div class="tool-row"><span><strong>环境清理</strong><small>先扫描并预览全部目标，禁止游戏进程运行时执行。</small></span><button id="cleanupPreviewButton" data-action="cleanup-preview">扫描清理范围</button></div>
-    <div class="tool-row" id="cleanupElevation" hidden><span><strong>需要管理员权限</strong><small>清理系统目录需要 Windows 管理员授权</small></span><button data-action="cleanup-elevate">管理员模式重启</button></div>
+    <div class="tool-row"><button id="cleanupDriver" data-action="cleanup-driver" title="通过已有系统工具执行，不新增安装器">启动驱动修复</button></div>
+    <div class="tool-row"><button id="cleanupPreviewButton" data-action="cleanup-preview" title="先扫描并预览全部目标，禁止游戏进程运行时执行。">扫描清理范围</button></div>
+    <div class="tool-row" id="cleanupElevation" hidden><button data-action="cleanup-elevate" title="清理系统目录需要 Windows 管理员授权">管理员模式重启</button></div>
     <p id="cleanupStatus" role="status" aria-live="polite">等待检查本地游戏环境</p>
     <section id="cleanupReview" class="guide-results" hidden>
       <div class="guide-card"><strong>清理确认预览</strong><small id="cleanupPlanSummary"></small></div>
@@ -957,13 +981,13 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="repairPage">
     <h2>游戏修复</h2>
-    <p>选择需要修复的问题。除已开启的自动窗口修复外，其他操作只会在你点击按钮后执行。</p>
+    
     <div class="tools">
-      <div class="tool-row"><span><strong>窗口恢复</strong><small>将异常大小或屏幕外的 LOL 客户端窗口恢复到可见位置</small></span><button data-repair-action="window">立即修复</button></div>
-      <div class="tool-row"><span><strong>自动窗口修复</strong><small>客户端窗口位置异常时尝试自动恢复</small></span><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
-      <div class="tool-row"><span><strong>跳过卡住的结算</strong><small>尝试解决对局结束后一直停留在结算界面的问题</small></span><button data-repair-action="settlement">跳过结算</button></div>
-      <div class="tool-row"><span><strong>重启客户端界面</strong><small>重新打开 Riot 客户端界面，当前画面可能暂时关闭</small></span><button data-repair-action="restart">重启界面</button></div>
-      <div class="tool-row"><span><strong>退出当前游戏</strong><small>仅针对当前正在运行的游戏进程，请先保存必要内容</small></span><button data-repair-action="exit">退出游戏</button></div>
+      <div class="tool-row"><button data-repair-action="window">恢复窗口</button></div>
+      <div class="tool-row"><button id="repairAuto" data-repair-action="auto">启用自动修复</button></div>
+      <div class="tool-row"><button data-repair-action="settlement">跳过结算</button></div>
+      <div class="tool-row"><button data-repair-action="restart">重启客户端界面</button></div>
+      <div class="tool-row"><button data-repair-action="exit">退出当前游戏</button></div>
     </div>
     <div id="repairExitConfirm" hidden>
       <p>确定退出当前运行的游戏吗？此操作可能中断对局。</p>
@@ -972,7 +996,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <p id="repairResult" role="status" aria-live="polite"></p>
   </section>
   <section id="postgameSettings">
-    <h2>赛后处理</h2><p>对局结束后，可自动为队友点赞，并在处理完毕后返回游戏大厅。</p>
+    <h2>赛后处理</h2>
     <div class="setting-checks">
       <label><input type="checkbox" id="postgameHonor"> 自动点赞</label>
       <label><input type="checkbox" id="postgameReturn"> 完成后返回大厅</label>
@@ -982,7 +1006,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="autoSelection">
     <h2>自动选禁英雄</h2>
-    <p>选好优先使用或禁用的英雄后保存，GGman 会在选人阶段自动执行。可随时临时暂停。</p>
+    
     <div class="setting-checks">
       <label><input type="checkbox" id="selectionPickEnabled"> 自动选择英雄</label>
       <label><input type="checkbox" id="selectionBanEnabled"> 自动禁用英雄</label>
@@ -993,18 +1017,18 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <label>优先禁用英雄<select id="selectionBanChampion" aria-label="优先禁用英雄"><option value="0">未设置英雄</option></select></label>
     </div>
     <div class="save-row"><button data-save="auto-selection" id="saveAutoSelection">保存自动选禁</button><span class="muted" id="selectionResult" role="status" aria-live="polite"></span></div>
-    <p>需要按游戏模式、分路设置英雄优先级，或调整抢选、延迟与交换策略，可进入高级配置。</p>
+    
     <div class="actions"><button data-route="efficiency-advanced">编辑高级优先级</button></div>
   </section>
   <section id="quickMessagePage">
     <h2>快捷消息与热键</h2>
-    <p>设置四组常用消息和对应快捷键，游戏中可一键发送。编辑完成后请先保存。</p>
+    
     <div id="quickMessageRows"></div>
     <div class="quick-card">
       <strong>停止快捷发送</strong>
       <label>取消快捷键<input type="text" id="quickCancelHotkey" maxlength="60" placeholder="例如 Ctrl+Shift+0" aria-label="取消快捷发送热键"></label>
       <label>消息间隔（毫秒）<input type="number" id="quickInterval" min="0" max="5000" step="100" value="0"></label>
-      <p>快捷键需含 Ctrl、Alt、Shift 或 Win；也可使用 F1–F12。相同快捷键不允许重复绑定。</p>
+      
     </div>
     <div class="save-row"><button id="quickSave" data-action="quick-message-save">保存四组预设和热键</button><button data-action="quick-message-refresh">重新读取</button></div>
     <p role="status" aria-live="polite" id="quickMessageStatus"></p>
@@ -1012,7 +1036,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="advancedToolsPage">
     <h2>高级工具 · 自动化</h2>
-    <p>为不同场景设置自动操作规则。每组设置相互独立，修改后请点击对应的保存按钮。</p>
+    
     <div class="advanced-section" data-advanced-group="reply">
       <h3>私聊自动回复</h3>
       <label><input type="checkbox" id="advancedReplyEnabled"> 启用私聊自动回复</label>
@@ -1026,7 +1050,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
       <label><input type="checkbox" id="advancedInviteEnabled"> 自动处理收到的邀请</label>
       <label><input type="checkbox" id="advancedInviteAway"> 离开状态跳过邀请</label>
       <label><input type="checkbox" id="advancedInviteLeader"> 自动让出队长</label>
-      <p>为各游戏模式设置接受、拒绝或忽略邀请。不同模式独立保存。</p>
+      
       <div id="advancedInvitationPolicies" class="advanced-policies"></div>
       <button data-action="advanced-save" data-advanced-group="invitations">保存邀请规则</button>
       <div class="advanced-feedback" data-advanced-feedback="invitations" role="status"></div>
@@ -1059,7 +1083,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="advanced-section" data-advanced-group="offline">
       <h3>离线状态锁定</h3>
       <label><input type="checkbox" id="advancedOffline"> 保持对好友不可见</label>
-      <p>启用后会尝试让好友列表持续显示为离线状态。</p>
+      
       <button data-action="advanced-save" data-advanced-group="offline">保存离线锁定</button>
       <div class="advanced-feedback" data-advanced-feedback="offline" role="status"></div>
     </div>
@@ -1073,7 +1097,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="matchmakingSettings">
     <h2>自动排队与确认对局</h2>
-    <p>设置什么时候自动寻找对局，以及找到对局后多久接受。修改完成后请保存。</p>
+    
     <div class="setting-checks">
       <label><input type="checkbox" id="queueEnabled"> 自动开始寻找对局</label>
       <label><input type="checkbox" id="acceptEnabled"> 自动接受对局</label>
@@ -1090,12 +1114,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="save-row"><button data-save="matchmaking" id="saveMatchmaking">保存设置</button><span class="muted" id="matchmakingResult" role="status" aria-live="polite"></span></div>
   </section>
   <section id="appearance">
-    <h2>皮肤</h2><p>点击即切换 GGman 悬浮球、控制中心和实时对局助手的配色；选择自动保存。</p>
+    <h2>皮肤</h2>
     <div class="themes" id="themeList" aria-label="可选择的皮肤"></div>
     <p id="themeResult" role="status" aria-live="polite"></p>
     <div class="guide-card">
       <strong>桌宠与悬浮球</strong>
-      <small>选择本机内置的桌宠样式；桌宠启用后可随时恢复轻量 GG 悬浮球。</small>
+      
     </div>
     <div id="petList" class="pet-list" aria-label="可选桌宠"></div>
     <div class="pet-commands">
@@ -1107,7 +1131,7 @@ body[data-mode] main>section{max-height:none;overflow:visible}
   </section>
   <section id="other">
     <h2>全部功能</h2>
-    <p class="more-caption">按照你要做的事情查找工具，所有页面都在当前小窗中切换。</p>
+    
     <label class="tool-search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
       <input id="toolSearch" type="search" inputmode="search" placeholder="搜索功能名称" aria-label="搜索功能" autocomplete="off" spellcheck="false">
@@ -1115,30 +1139,30 @@ body[data-mode] main>section{max-height:none;overflow:visible}
     <div class="tool-section">
       <h3>对局与数据</h3>
       <div class="tiles">
-        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true">连</span><span class="tile-copy"><strong>客户端状态</strong><small>连接与阶段</small></span></button>
-        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true">实</span><span class="tile-copy"><strong>实时对局</strong><small>查看队友和对手</small></span></button>
-        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true">荐</span><span class="tile-copy"><strong>出装推荐</strong><small>符文和装备</small></span></button>
-        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true">在</span><span class="tile-copy"><strong>在线状态</strong><small>好友展示设置</small></span></button>
+        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true">连</span><span class="tile-copy"><strong>客户端状态</strong></span></button>
+        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true">实</span><span class="tile-copy"><strong>实时对局</strong></span></button>
+        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true">荐</span><span class="tile-copy"><strong>出装推荐</strong></span></button>
+        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true">在</span><span class="tile-copy"><strong>在线状态</strong></span></button>
       </div>
     </div>
     <div class="tool-section">
       <h3>维护与个人设置</h3>
       <div class="tiles">
-        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong><small>修复异常状态</small></span></button>
-        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong><small>个人与偏好</small></span></button>
-        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true">云</span><span class="tile-copy"><strong>云同步</strong><small>账号与配置</small></span></button>
-        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true">新</span><span class="tile-copy"><strong>更新中心</strong><small>版本与公告</small></span></button>
+        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong></span></button>
+        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong></span></button>
+        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true">云</span><span class="tile-copy"><strong>云同步</strong></span></button>
+        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true">新</span><span class="tile-copy"><strong>更新中心</strong></span></button>
       </div>
     </div>
     <p id="searchMessage" role="status" aria-live="polite"></p>
-    <div class="actions"><button data-action="back">返回控制中心</button></div>
+    
   </section>
 </main>
 </div>
 <script>
 (function(){
 "use strict";
-var titles={"live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"皮肤","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
+var titles={"profile-customization":"LOL 个性资料","bench":"ARAM 替补席","live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"皮肤","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
 var updateForced=false;
 function get(id){return document.getElementById(id);}
@@ -2806,8 +2830,8 @@ function renderPetChoices(data){
       (item.id===data.selected&&data.enabled?" selected":"");
     btn.dataset.petId=item.id;
     var name=document.createElement("strong");name.textContent=String(item.name||item.id);
-    var desc=document.createElement("small");desc.textContent=String(item.description||"");
-    btn.append(name,desc);list.append(btn);
+    btn.title=String(item.description||item.name||"");
+    btn.append(name);list.append(btn);
   });
   get("petResult").textContent=data.enabled?"当前已启用桌宠："+(data.name||data.selected):
     "当前使用轻量 GG 悬浮球";
@@ -2819,8 +2843,8 @@ function renderThemes(data){
     button.setAttribute("data-theme",String(item.id||""));
     var swatch=document.createElement("span");swatch.className="theme-swatch";swatch.style.background=String(item.accent||"");
     var text=document.createElement("span");var title=document.createElement("strong");title.textContent=String(item.name||"");
-    var caption=document.createElement("small");caption.textContent=String(item.description||"");
-    text.append(title,caption);button.append(swatch,text);container.appendChild(button);
+    button.title=String(item.description||item.name||"");
+    text.append(title);button.append(swatch,text);container.appendChild(button);
   });
   var current=(Array.isArray(data.items)?data.items:[]).find(function(item){return item.id===data.selected;});
   if(current){
