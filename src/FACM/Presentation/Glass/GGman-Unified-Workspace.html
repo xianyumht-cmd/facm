@@ -544,12 +544,12 @@ body[data-mode] main>section{max-height:none;overflow:visible}
 /* Action-first compact surfaces; visible labels remain functional. */
 main>section:not(#home)>h2{display:none}
 #home .tiles,#other .tiles{gap:8px}
-#home .tile,#other .tile{min-height:69px;padding:8px 6px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:5px}
-#home .tile .glyph,#other .tile .glyph{width:29px;height:29px;flex:0 0 29px;font-size:17px}
-#home .tile .glyph svg,#other .tile .glyph svg{width:21px;height:21px}
-#home .tile .tile-copy,#other .tile .tile-copy{min-width:0;max-width:100%}
+#home .tile,#other .tile{min-height:58px;padding:6px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:3px}
+#home .tile .glyph,#other .tile .glyph{width:25px;height:25px;flex:0 0 25px;font-size:16px}
+#home .tile .glyph svg,#other .tile .glyph svg{width:19px;height:19px}
+#home .tile .tile-copy,#other .tile .tile-copy{flex:0 0 auto;min-width:0;max-width:100%}
 #home .tile strong,#other .tile strong{font-size:12px;line-height:1.25;white-space:nowrap}
-#home .section-caption{margin:8px 0 0}
+#home .section-caption{display:none}
 #home .tiles{margin-top:7px}
 #home .actions{margin-top:8px}
 #quicktools .tool-row{min-height:44px;padding:9px 12px;gap:8px;align-items:center}
@@ -565,7 +565,7 @@ main>section:not(#home)>h2{display:none}
 #appearance .theme-card{min-height:62px;padding:9px 12px}
 #appearance .pet-card{min-height:62px}
 main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:none}
-@media(max-width:380px){#home .tile,#other .tile{min-height:65px}#home .tile .glyph,#other .tile .glyph{width:27px;height:27px;flex-basis:27px}}
+@media(max-width:380px){#home .tile,#other .tile{min-height:56px}#home .tile .glyph,#other .tile .glyph{width:25px;height:25px;flex-basis:25px}}
 </style>
 </head>
 <body data-mode="home">
@@ -582,7 +582,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 等待连接</b><span class="status-chevron" aria-hidden="true">›</span></span>
       <span id="clientPhase">正在等候当前客户端状态</span>
     </button>
-    <div class="section-caption"><span>常用功能</span></div>
+    
     <div class="tiles">
       <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong></span></button>
       <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong></span></button>
