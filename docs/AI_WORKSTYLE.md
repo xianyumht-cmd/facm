@@ -1,3 +1,15 @@
+## 2026-11-15 — Prefer maximally concise action-first GGman UI
+
+The owner rejected dense explanatory copy in the floating control center.
+For new and maintained pages, let short button labels, icon-and-name cards,
+and one-line switches communicate ordinary actions. Omit duplicate page
+headings, slogans, introductory paragraphs, secondary feature descriptions
+and redundant bottom Back/Home actions. Do not conceal real data, error
+feedback, limits that change what an action can do, or dangerous overwrite/
+delete/exit confirmations. Keep familiar product and game abbreviations.
+Adjust route dimensions after reducing content rather than leaving empty
+space. Finish through the normal signed online updater after exact-head CI.
+
 ## 2026-11-08 — 皮肤 is the owner-facing name for GGman appearance presets
 
 The operator calls the former 外观与主题 / 外观主题 feature **皮肤**. Use 皮肤 consistently in visible menus, headings, status and release notes. When skin choice is applied, verify the actual pixels/colors of the floating ball, WebView2 control center and Champion Select helper, including after closing/reopening and restoring settings. Do not regard a saved ThemeId alone as visual acceptance. Keep compatibility keys stable.
