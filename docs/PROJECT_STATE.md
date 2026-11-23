@@ -1,3 +1,13 @@
+## 2026-11-23 — Compact quick-action and direct-update candidate (not yet released)
+
+Task branch: `feat/ggman-compact-ui-quick-actions-20261123`, based on production `main` at `b2ac48c`. Current released online manifest remains **3.5.88** until exact-head Windows CI, reviewed merge, official signed publisher and public asset validation finish. The intended next version is **3.5.89**; do not infer that it is published from these source changes.
+
+The requested source changes consolidate five automation toggles, four direct game/client actions and editable close-lobby/exit-game hotkeys in the existing WebView2 Efficiency route. They reuse `LeagueEfficiencyModule`, `LeagueEfficiencyActionService`, `LeagueGameRepairService` and current session-safe adapters without new background processes. The home, all-functions and independent Champion Select companion use a restrained, theme-driven navy/cyan refresh based on approved visual previews. Redundant in-page second-confirmation dialogs are removed from active HTML surfaces, including official signed update installation. The updater's pinned metadata, package validation, signature and forced-version restrictions remain native gates.
+
+The mandatory update view now exposes its X control, which exits the app when the release is mandatory; an optional update view can dismiss normally. During active download, closing requests cancellation and dismisses after the install lifecycle has settled. Native cleanup still requires a scanned, one-use bounded plan and an explicit **execute** action for irreversible file deletion; it is a preflight rather than a duplicate confirmation dialog.
+
+Pending verification: exact-HEAD Windows Build, Glass/WebView2, UI Text and Mayhem gates, current-size/browser source validation, signed 3.5.x official publication, public `GGman.exe`/`FACM.exe` equality and sign/hash checks, online manifest. Real Windows 10 DPI 100/125/150/200%, IME, Chromium paint, all ten skins, LOL active gameflow and updater-close behavior require post-release operator acceptance. No manual deployment or old 4.x publisher.
+
 ## 2026-11-15 — GGman v3.5.88 action-first compact UI officially released
 
 Owner-approved compact UI task is complete through [PR #366](https://github.com/xianyumht-cmd/facm/pull/366),
