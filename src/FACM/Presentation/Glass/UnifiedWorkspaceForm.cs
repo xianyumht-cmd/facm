@@ -625,9 +625,27 @@ namespace FACM.Presentation.Glass
             if (!html.Contains("Microsoft YaHei UI") ||
                 !html.Contains("class=\"status status-home\"") ||
                 html.Contains("class=\"section-caption\"") ||
-                !html.Contains("#home .tile,#other .tile{min-height:58px") ||
+                !html.Contains("#home .tile{min-height:70px") ||
+                !html.Contains("#other .tile{min-height:67px") ||
                 !html.Contains("data-mode=\"home\""))
-                throw new InvalidOperationException("Unified workbench compact action-only home is missing.");
+                throw new InvalidOperationException("Unified workbench visual hierarchy or compact home is missing.");
+            if (!html.Contains("data-quick-action=\"close-lobby\"") ||
+                !html.Contains("id=\"exitGameHotkey\"") || !html.Contains("id=\"closeLobbyHotkey\"") ||
+                !html.Contains("data-action=\"hotkeys-save\"") ||
+                !html.Contains("data-repair-action=\"restart\"") ||
+                !html.Contains("data-repair-action=\"window\"") ||
+                html.Contains("id=\"updateConfirm\"") || html.Contains("id=\"cloudConfirm\"") ||
+                html.Contains("id=\"repairExitConfirm\"") ||
+                html.Contains("id=\"profileCustomizationConfirm\"") ||
+                html.Contains("id=\"recommendationConfirm\""))
+                throw new InvalidOperationException("Compact quick actions or single-click command contract changed.");
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            foreach (System.Text.RegularExpressions.Match match in
+                System.Text.RegularExpressions.Regex.Matches(html, "id=\\\"([^\\\"]+)\\\""))
+            {
+                if (!ids.Add(match.Groups[1].Value))
+                    throw new InvalidOperationException("Duplicate static HTML id: " + match.Groups[1].Value);
+            }
             foreach (var view in LeagueHubNavigation.Views)
             {
                 if (html.IndexOf("data-route=\"" + view.Id + "\"", StringComparison.Ordinal) < 0)
