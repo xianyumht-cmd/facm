@@ -1,3 +1,9 @@
+## 2026-11-23 — Update close must not be hidden or blocked at multiple layers
+
+The forced-update presentation combined a CSS rule hiding `body[data-force-update="true"] .header .close`, a JavaScript forced-action allowlist excluding `close`, and a host `CanDismiss` rule denying exit during a download. Merely rendering the X or changing one layer leaves the apparent close action broken. The fix is to keep the X visible, accept the close message through the forced-action allowlist, map forced close to application exit (never bypass `RequiresForce`), and map non-forced download close to cancellation followed by a lifecycle-settled hide. The online adapter must clear its install-busy flag even if its cancellation token was detached by navigation. Test UI, bridge, cancel/settle callbacks and host closing together.
+
+The former Efficiency WinForms hotkeys and close-lobby process service existed while the migrated WebView2 quick page lacked their controls. Always audit both native implementation and the active route/bridge before describing a feature as missing. Reuse the existing process allowlist and hotkey conflict gate; do not invent a second process terminator. Duplicate static HTML ids can silently redirect DOM reads; `advancedRespawn` had both a status node and a checkbox and must be smoke-checked for uniqueness.
+
 ## 2026-11-08 — Moving UI code must preserve cross-route skin hydration
 
 The `themes` event is sent at HTML readiness even while the home page is
