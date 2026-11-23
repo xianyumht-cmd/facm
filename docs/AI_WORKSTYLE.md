@@ -1,3 +1,7 @@
+## 2026-11-23 — Direct actions and visible close controls
+
+GGman's owner approved the code-based compact UI previews for the home, all-functions, Efficiency and Champion Select companion views, and requests a single signed production online update instead of a detached test build. For reachable app-owned actions, **one intentional click should execute**; omit supplementary second-confirmation dialogs, including the official update installation. A forced update can still require an upgrade to use the app, but the close X must remain visible and must exit rather than trap the user. A running optional download can be canceled from X without leaving a stuck busy window. Keep explicit preflight + execution when scanning irreversible filesystem targets; that is not a modal re-confirmation, and keep all existing safety and integrity guards.
+
 ## 2026-11-15 — Prefer maximally concise action-first GGman UI
 
 The owner rejected dense explanatory copy in the floating control center.
