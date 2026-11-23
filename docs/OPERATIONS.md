@@ -1,3 +1,9 @@
+## 2026-11-23 — GGman 3.5.89 production publishing evidence
+
+The owner-authorized PR #367 was merged at `0ecf174bcb29c58ef1ad4fb25ddad5a7ae06791f` after four same-HEAD CI checks passed on `f59b780`. Release request `2335f951` triggered [official signed publisher #45169654506](https://github.com/xianyumht-cmd/facm/actions/runs/45169654506). The publisher completed successfully including signature checks, public-executable byte/signature checks, and manifest activation; [v3.5.89 release](https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.89) and `online/version.json` version 3.5.89 were verified after the run. Both GGman.exe and FACM.exe are 7,185,816 bytes with SHA-256 `3CB699C6A3BABFE3C549471E8B786D27A60B31314117524098D0920628859FAD`. `force_update` remains false, `minimum_version` remains 3.0.0.
+
+No manual installer is needed for an existing supported GGman with a working in-app update channel. The operator's real Win10, LOL, WebView2 rendering, scene hotkeys, forced-version X, and download-cancel window closure remain **post-release field acceptance**, not verified by hosted CI. If these fail, collect sanitized GGman logs, version/current route, screenshot, and update status, and deliver a signed hotfix through the same publisher; never activate an unverified binary.
+
 ## 2026-11-23 — Compact UI and single-click release verification
 
 For the 3.5.89 candidate run the four exact-head Windows CI workflows (Windows Build, Glass WebView2, UI Text Contract, Mayhem Source Probe) **after** the last executable change. Verify the enabled release-candidate WebView2 workbench and native fallback, compact home and eight functional SVG all-functions controls, quick toggles, close lobby, game exit, client restart/window restore, editable global close/exit hotkeys, and Champion Select companion. Test valid/invalid native shard messages and duplicate ids, and check that each operation posts only its intended allowlisted native action.
