@@ -1,3 +1,11 @@
+## 2026-11-23 — Compact UI and single-click release verification
+
+For the 3.5.89 candidate run the four exact-head Windows CI workflows (Windows Build, Glass WebView2, UI Text Contract, Mayhem Source Probe) **after** the last executable change. Verify the enabled release-candidate WebView2 workbench and native fallback, compact home and eight functional SVG all-functions controls, quick toggles, close lobby, game exit, client restart/window restore, editable global close/exit hotkeys, and Champion Select companion. Test valid/invalid native shard messages and duplicate ids, and check that each operation posts only its intended allowlisted native action.
+
+The active HTML second-confirmation dialogs should be absent from update, game exit, cloud publish/overwrite, profile customization, match replay and recommendation apply. Cleanup still scans and displays an explicit allowlisted one-use deletion plan before the separate execute action; reject changed directory, expired token, running LOL, invalid root or missing administrator privileges. Verify signed update freshness, public hash/signer checks, auto/forced version state and rollbacks remain unchanged.
+
+Acceptance scenarios: optional update X immediately dismisses and retains the warm browser; optional update X during a download cancels and hides after cancellation settles; forced-update X exits the **application** and does not return to an unrestricted home; forced download X cancels and exits; quick close-lobby never kills a running `League of Legends` game process, while exit-game never targets `LeagueClient` lobby processes. The UI may be accepted via source/CI before the owner's real Windows 10 LOL gameplay, DPI and skin screenshots, but those are not marked as tested until performed. Only invoke `.github/workflows/publish-3.5-lightweight.yml` after reviewed main and green exact-head gates, and verify signed byte-identical assets and `online/version.json` before reporting publication.
+
 ## 2026-11-08 — Draft #364 quick-tools, skin, pet and gameflow acceptance
 
 Executable `962c068` passed [Build 42460785830](https://github.com/xianyumht-cmd/facm/actions/runs/42460785830),
