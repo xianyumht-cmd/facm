@@ -1,10 +1,10 @@
 {
-  "enabled": true,
-  "version": "3.5.88",
+  "enabled": false,
+  "version": "3.5.89",
   "minimum_version": "3.0.0",
   "force_update": false,
-  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.88/FACM.exe",
-  "sha256": "2370934C102AABE4AA637B99C350DE2FF5896484966022B299F103B6D89D8795",
-  "release_notes": "GGman 3.5.88：控制中心采用极简操作型界面。首页和全部功能改为图标＋功能名称，移除重复副标题、说明段落与返回导航；快捷工具与游戏修复改为紧凑的单行开关、直接操作按钮。皮肤和桌宠保留名称及选中状态，额外说明改为悬停提示。调整功能页面尺寸，精简选人助手的多余引导；保留战绩、强化排行、数据来源、操作结果及危险操作确认。云配置上传提示明确区分游戏大厅与正式对局。本版不改变现有业务能力和在线更新通道，为非强制正式更新。",
-  "published_at": "2026-11-14T16:53:41.4291323+00:00"
+  "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.89/FACM.exe",
+  "sha256": "3CB699C6A3BABFE3C549471E8B786D27A60B31314117524098D0920628859FAD",
+  "release_notes": "GGman 3.5.89：按新版设计统一控制中心、全部功能、快捷工具与选人助手的字体、卡片和图标质感；快捷工具集中关闭大厅、退出游戏、重启客户端界面和恢复窗口，支持直接设置两项全局热键；取消更新安装、游戏操作、云配置操作、个人资料及推荐应用等二次确认；修复 WebView2 与 WinForms 更新中心关闭无效，下载过程中可取消后关闭；保留原生授权、签名校验、强制版本规则及清理安全扫描。本次为非强制正式在线更新。",
+  "published_at": "2026-11-23T11:58:28.5420938+00:00"
 }
