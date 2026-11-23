@@ -641,7 +641,7 @@ namespace FACM.Presentation.Glass
                 throw new InvalidOperationException("Compact quick actions or single-click command contract changed.");
             var ids = new HashSet<string>(StringComparer.Ordinal);
             foreach (System.Text.RegularExpressions.Match match in
-                System.Text.RegularExpressions.Regex.Matches(html, "id=\\\"([^\\\"]+)\\\""))
+                System.Text.RegularExpressions.Regex.Matches(html, @"id=""([^""]+)"""))
             {
                 if (!ids.Add(match.Groups[1].Value))
                     throw new InvalidOperationException("Duplicate static HTML id: " + match.Groups[1].Value);
