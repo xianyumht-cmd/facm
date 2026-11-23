@@ -930,9 +930,6 @@ namespace FACM.League
                 string error;
                 if (!LeagueAkariGameflowTransfer.TryParse(json, out parsed, out error))
                     throw new InvalidOperationException(error);
-                if (MessageBox.Show(this, T(LeagueEfficiencyUiTextKeys.GameflowImportConfirm),
-                        Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-                    return;
                 if (!_module.TryImportAkariGameflowSettings(json, out error))
                     throw new InvalidOperationException(error);
                 RefreshPostGameSettingsFromModule();
