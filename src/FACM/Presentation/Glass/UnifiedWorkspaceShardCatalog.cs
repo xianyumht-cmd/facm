@@ -118,6 +118,11 @@ namespace FACM.Presentation.Glass
                 !Routes["quick-messages"].Recognizes("quick-message-refresh") ||
                 !Routes["quick-messages"].Recognizes("quick-message-save:{}") ||
                 Routes["quick-messages"].Recognizes("advanced-save:{}") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("quick-action:close-lobby") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("hotkeys-save:{}") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("repair-action:exit") ||
+                Routes[LeagueHubNavigation.Efficiency].Recognizes("repair-action:unknown") ||
+                Routes[LeagueHubNavigation.Repair].Recognizes("quick-action:close-lobby") ||
                 !Routes["efficiency-advanced"].Recognizes("advanced-refresh") ||
                 !Routes["efficiency-advanced"].Recognizes("advanced-save:{}") ||
                 Routes["efficiency-advanced"].Recognizes("quick-message-send:0") ||
