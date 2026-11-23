@@ -1215,13 +1215,7 @@ document.addEventListener("click",function(event){
     }return;
   }
   if(target.dataset.action==="history-replay-folder"){post("history-advanced-replay-folder");return;}
-  if(target.dataset.action==="history-replay-confirm"){
-    if(!selectedAdvancedMatch||!advancedHistoryIds.has(selectedAdvancedMatch))return;
-    get("advancedReplayConfirm").hidden=false;return;
-  }
-  if(target.dataset.action==="history-replay-cancel"){get("advancedReplayConfirm").hidden=true;return;}
   if(target.dataset.action==="history-replay"){
-    get("advancedReplayConfirm").hidden=true;
     if(selectedAdvancedMatch&&advancedHistoryIds.has(selectedAdvancedMatch)){
       get("advancedReplayStatus").textContent="正在检查当前客户端回放能力";
       post("history-advanced-replay:"+selectedAdvancedMatch);
@@ -1263,29 +1257,14 @@ document.addEventListener("click",function(event){
     var skin=action==="skin"?get("profileSkin").value:null;
     if(action==="skin"&&(!skin||!/^\d{1,8}$/.test(skin)))return;
     if(!["skin","crest","tokens","emotes","banner"].includes(action))return;
-    pendingProfileAction={action:action,value:skin};
-    get("profileCustomizationConfirmText").textContent=
-      action==="skin"?"将当前 LOL 账号背景更换为选中皮肤 #"+skin:
-      ({crest:"移除当前段位徽章",tokens:"清空当前展示的挑战代币",
-        emotes:"清除当前全部表情槽",banner:"将旗帜恢复为上赛季样式"}[action]||"");
-    get("profileCustomizationConfirm").hidden=false;
-    get("profileCustomizationStatus").textContent="确认后执行，仅影响当前 LOL 账号";return;
-  }
-  if(target.dataset.action==="profile-customization-cancel"){
-    pendingProfileAction=null;get("profileCustomizationConfirm").hidden=true;return;
-  }
-  if(target.dataset.action==="profile-customization-confirm"){
-    if(!pendingProfileAction)return;
-    var request=pendingProfileAction;pendingProfileAction=null;
-    get("profileCustomizationConfirm").hidden=true;
-    get("profileCustomizationStatus").textContent="正在修改并确认当前账号资料";
+    get("profileCustomizationStatus").textContent="正在修改当前账号资料";
     document.querySelectorAll("#profileCustomizationPage button").forEach(function(b){b.disabled=true;});
-    post(request.action==="skin"?"profile-customization-skin:"+request.value:
-      "profile-customization-action:"+request.action);return;
+    post(action==="skin"?"profile-customization-skin:"+skin:
+      "profile-customization-action:"+action);return;
   }
   if(target.dataset.action==="dashboard-respawn-refresh"){
     get("advancedRespawnRefresh").disabled=true;
-    get("advancedRespawn").textContent="正在读取当前游戏复活状态";
+    get("advancedRespawnStatus").textContent="正在读取当前游戏复活状态";
     post("dashboard-respawn-refresh");return;
   }
   if(target.dataset.action==="bench-refresh"){
@@ -1343,40 +1322,28 @@ document.addEventListener("click",function(event){
   if(target.dataset.action==="cleanup-confirm"){
     if(!cleanupToken||target.disabled)return;
     get("cleanupConfirm").disabled=true;
-    get("cleanupStatus").textContent="正在通过安全清理引擎删除已确认目标";
+    get("cleanupStatus").textContent="正在通过安全清理引擎删除已选目标";
     post("cleanup-confirm:"+cleanupToken);cleanupToken=null;return;
   }
   if(target.dataset.action==="cloud-refresh"){post("cloud-refresh");return;}
   if(target.dataset.action==="cloud-publish"||target.dataset.action==="cloud-keep-local"){
-    cloudPendingAction=target.dataset.action==="cloud-publish"?"cloud-publish":"cloud-keep-local";
-    get("cloudConfirmText").textContent=cloudPendingAction==="cloud-publish"?
-      "确认上传当前游戏配置吗？请先退出训练或正式对局；英雄联盟大厅无需关闭。":
-      "确认将本地设置上传并覆盖冲突的云端版本吗？此操作不可直接撤销。";
-    get("cloudConfirm").hidden=false;return;
-  }
-  if(target.dataset.action==="cloud-cancel"){cloudPendingAction=null;get("cloudConfirm").hidden=true;return;}
-  if(target.dataset.action==="cloud-confirm"){
-    get("cloudConfirm").hidden=true;
-    if(cloudPendingAction){post(cloudPendingAction);cloudPendingAction=null;get("cloudResult").textContent="正在执行云端操作";}
-    return;
+    if(target.disabled)return;
+    get("cloudResult").textContent="正在执行云端操作";
+    post(target.dataset.action);return;
   }
   if(target.dataset.action==="updates-refresh"){
     get("updateRefresh").disabled=true;get("updateInstall").disabled=true;
-    get("updateConfirm").hidden=true;get("updateResult").textContent="正在检查版本";
+    get("updateResult").textContent="正在检查版本";
     post("updates-refresh");return;
   }
   if(target.dataset.action==="updates-install"){
     if(target.disabled)return;
-    get("updateConfirm").hidden=false;return;
+    get("updateInstall").disabled=true;get("updateRefresh").disabled=true;
+    get("updateResult").textContent="正在下载并校验签名";post("updates-install");return;
   }
-  if(target.dataset.action==="updates-cancel"){get("updateConfirm").hidden=true;return;}
   if(target.dataset.action==="updates-exit"){post("updates-exit");return;}
   if(target.dataset.action==="updates-link"){post("updates-link");return;}
   if(target.dataset.action==="updates-stop"){get("updateCancelDownload").disabled=true;post("updates-stop");return;}
-  if(target.dataset.action==="updates-confirm"){
-    get("updateConfirm").hidden=true;get("updateInstall").disabled=true;get("updateRefresh").disabled=true;
-    get("updateResult").textContent="正在下载并校验签名";post("updates-install");return;
-  }
   if(target.dataset.action==="mayhem-query"){
     var query=get("mayhemChampion").value.trim();
     if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
@@ -1389,7 +1356,7 @@ document.addEventListener("click",function(event){
     post("mayhem-cancel");get("mayhemCancel").disabled=true;get("mayhemQuery").disabled=false;return;
   }
   if(target.dataset.action==="recommendation-refresh"){
-    get("recommendationConfirm").hidden=true;get("recommendationApply").disabled=true;
+    get("recommendationApply").disabled=true;
     get("recommendationRefresh").disabled=true;get("recommendationOutput").hidden=true;
     get("recommendationRows").replaceChildren();
     get("recommendationFeedback").hidden=true;
@@ -1398,15 +1365,9 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.action==="recommendation-apply"){
     if(target.disabled)return;
-    var selected=["applyRunes","applySpells","applyItems"].filter(function(id){return get(id).checked;});
-    if(!selected.length){get("recommendationResult").textContent="请至少选择一项";return;}
-    var names={applyRunes:"符文",applySpells:"召唤师技能",applyItems:"装备"};
-    get("recommendationConfirmText").textContent="确认写入当前英雄联盟客户端："+selected.map(function(id){return names[id];}).join("、")+"？";
-    get("recommendationConfirm").hidden=false;return;
-  }
-  if(target.dataset.action==="recommendation-cancel"){get("recommendationConfirm").hidden=true;return;}
-  if(target.dataset.action==="recommendation-confirm"){
-    get("recommendationConfirm").hidden=true;
+    if(!get("applyRunes").checked&&!get("applySpells").checked&&!get("applyItems").checked){
+      get("recommendationResult").textContent="请至少选择一项";return;
+    }
     get("recommendationApply").disabled=true;
     get("recommendationRefresh").disabled=true;
     get("recommendationResult").textContent="正在将所选推荐应用到游戏";
@@ -1424,15 +1385,20 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.repairAction){
     if(target.disabled)return;
-    if(target.dataset.repairAction==="exit"){get("repairExitConfirm").hidden=false;return;}
-    get("repairResult").textContent="正在执行";
+    if(mode==="quicktools")get("toolResult").textContent="正在执行";
+    else get("repairResult").textContent="正在执行";
     post("repair-action:"+target.dataset.repairAction);return;
   }
-  if(target.dataset.action==="repair-confirm"){
-    get("repairExitConfirm").hidden=true;get("repairResult").textContent="正在退出";
-    post("repair-action:exit");return;
+  if(target.dataset.quickAction==="close-lobby"){
+    if(target.disabled)return;
+    get("toolResult").textContent="正在关闭大厅";
+    post("quick-action:close-lobby");return;
   }
-  if(target.dataset.action==="repair-cancel"){get("repairExitConfirm").hidden=true;return;}
+  if(target.dataset.action==="hotkeys-save"){
+    target.disabled=true;
+    post("hotkeys-save:"+JSON.stringify({exit:get("exitGameHotkey").value.trim(),lobby:get("closeLobbyHotkey").value.trim()}));
+    return;
+  }
   if(target.dataset.presenceMode){post("presence-mode:"+target.dataset.presenceMode);get("presenceResult").textContent="正在保存";return;}
   if(target.dataset.action==="presence-refresh"){post("presence-refresh");get("presenceResult").textContent="正在读取";return;}
   if(target.dataset.action==="presence-signature"){post("presence-signature:"+JSON.stringify({message:get("presenceSignature").value}));get("presenceResult").textContent="正在保存";return;}
@@ -1575,7 +1541,6 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var busy=["checking","downloading","installing"].includes(e.data.status);
     get("updateRefresh").disabled=busy;
     get("updateInstall").disabled=busy||!onlineCanInstall;
-    if(e.data.status==="checking"||e.data.status==="downloading"){get("updateConfirm").hidden=true;}
     if(e.data.status==="downloading"){get("updateProgress").hidden=false;get("updateProgress").value=0;}
     if(!busy){get("updateProgress").hidden=true;}
     get("updateCancelDownload").hidden=e.data.status!=="downloading";
@@ -1656,7 +1621,9 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="repair-result"){
     var labels={success:"操作完成",failed:"执行失败","no-target":"没有可退出的游戏",unavailable:"修复服务不可用"};
-    get("repairResult").textContent=e.data.message||labels[e.data.status]||"操作未完成";
+    var statusText=e.data.message||labels[e.data.status]||"操作未完成";
+    get("repairResult").textContent=statusText;
+    if(mode==="quicktools")get("toolResult").textContent=statusText;
     return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-state"){renderPresence(e.data);return;}
@@ -1708,7 +1675,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       alive:"当前未阵亡",unavailable:"游戏内数据暂不可用或尚未进入对局",
       "session-changed":"游戏账号或会话已变化，请重新读取",
       failed:"读取失败，请确认游戏内数据服务可访问"};
-    get("advancedRespawn").textContent=status[e.data.status]||"未取得当前状态";return;
+    get("advancedRespawnStatus").textContent=status[e.data.status]||"未取得当前状态";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="dashboard-details"){
     document.getElementById("refreshDashboard").disabled=false;
@@ -1781,7 +1748,18 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       var button=document.querySelector("[data-setting=\""+key+"\"]");
       if(button){button.setAttribute("aria-pressed",e.data.values[key]?"true":"false");button.disabled=false;}
     });
+    if(document.activeElement!==get("exitGameHotkey"))get("exitGameHotkey").value=e.data.exitHotkey||"";
+    if(document.activeElement!==get("closeLobbyHotkey"))get("closeLobbyHotkey").value=e.data.lobbyHotkey||"";
     document.getElementById("toolResult").textContent=e.data.message||"";
+    return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-hotkeys-result"){
+    document.querySelectorAll("#quicktools button[data-action=hotkeys-save]").forEach(function(button){button.disabled=false;});
+    get("toolResult").textContent=e.data.message||(e.data.ok?"快捷键已保存":"快捷键保存失败");return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="quick-action-result"){
+    get("toolResult").textContent=e.data.status==="success"?"大厅已关闭":
+      e.data.status==="no-target"?"大厅未运行":e.data.status==="unavailable"?"功能暂不可用":"关闭大厅失败";
     return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="tool-error"){
@@ -1984,9 +1962,8 @@ function renderCleanupPreview(data){
       " · "+(Number(item.files)||0)+" 个文件";
     li.append(path,note);list.append(li);
   });
-  get("cleanupStatus").textContent="请逐一核对清理目标；只有点击确认才会真正删除";
+  get("cleanupStatus").textContent="清理范围已列出；按执行清理开始删除";
 }
-var cloudPendingAction=null;
 var cloudBusy=false;
 var onlineCanInstall=false;
 function renderCloudState(data){
@@ -2024,10 +2001,6 @@ function renderOnlineState(data){
   get("updateForcedBanner").hidden=!updateForced;
   get("updateExit").hidden=!updateForced;
   get("announcementLink").hidden=!data.announcementLink;
-  get("updateConfirmText").textContent=updateForced?
-    "确认下载并安装必须更新的签名版本吗？如果不更新，只能退出 GGman。":
-    "确认下载并安装已签名的正式版本吗？更新器可能会关闭并重启 GGman。";
-  get("updateConfirm").hidden=!data.automaticPrompt;
   get("updateCurrent").textContent=data.current||"未知";
   get("updateLatest").textContent=data.latest||"未获取";
   get("updateAuto").checked=!!data.autoEnabled;
