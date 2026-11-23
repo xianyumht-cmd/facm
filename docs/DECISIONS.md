@@ -1,3 +1,9 @@
+## 2026-11-23 — One-click desktop actions with native safeguards
+
+GGman's active WebView2 desktop workspace uses direct-action buttons instead of extra Yes/Cancel overlays. This includes launching an official signed update, cloud publish/conflict resolution, game/lobby exit, champion recommendation apply, profile customization and match replay. Compact action labels convey intent, and the status/result line reports failure or success. Users retain the ability to cancel a running download; they are not required to affirm a second prompt.
+
+Preserve authorization, session fences, module and route allowlists, signed package integrity, and the server-enforced minimum version. A forced-update X **exits GGman** rather than unlocking protected business routes. A non-forced update X hides the reusable workspace, and an in-progress download must settle cancellation first. Irreversible filesystem cleanup retains a scan/preview followed by one explicit execution, because scanning alone is non-destructive and can reveal blocked targets; no extra modal confirmation follows execution. Keep WinForms + WebView2, existing Shards/adapters and the single signed 3.5.x publisher.
+
 ## 2026-11-15 — Action-first compact GGman UI copy
 
 Use one visible route title in the persistent Back/Home header and prefer
