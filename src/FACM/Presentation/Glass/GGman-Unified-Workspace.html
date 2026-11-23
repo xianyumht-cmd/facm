@@ -305,7 +305,7 @@ body[data-mode="more"] .header{min-height:42px;height:42px}
 
 /* Native-backed data pages share the same compact cards and single scroll owner. */
 #mayhemPage,#recommendationPage{display:none;padding:4px 2px}
-#mayhemOutput[hidden],#recommendationOutput[hidden],#recommendationConfirm[hidden],#recommendationFeedback[hidden]{display:none!important}
+#mayhemOutput[hidden],#recommendationOutput[hidden],#recommendationFeedback[hidden]{display:none!important}
 .guide-icon-row{display:flex;align-items:center;gap:9px;min-width:0}
 .guide-thumb{width:36px;height:36px;flex:0 0 36px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--card2);color:var(--accent);font-weight:700;overflow:hidden}
 .guide-thumb img{display:block;width:100%;height:100%;object-fit:cover}
@@ -566,6 +566,53 @@ main>section:not(#home)>h2{display:none}
 #appearance .pet-card{min-height:62px}
 main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:none}
 @media(max-width:380px){#home .tile,#other .tile{min-height:56px}#home .tile .glyph,#other .tile .glyph{width:25px;height:25px;flex-basis:25px}}
+
+/* Consistent compact UI with theme-driven colors and reduced decorative weight. */
+#shell{padding:14px 15px;gap:12px;background:radial-gradient(88% 52% at 16% -9%,color-mix(in srgb,var(--accent) 9%,transparent),transparent 92%),var(--canvas)}
+.header{height:45px;min-height:45px}
+.brand-icon{height:33px;width:33px;flex-basis:33px;font-size:15px;border-width:1px;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 6%,transparent)}
+.brand-name{font-size:16.5px}
+#home .status-home{min-height:72px;padding:13px 14px;background:linear-gradient(115deg,color-mix(in srgb,var(--card2) 35%,var(--card)),var(--card));box-shadow:0 10px 28px rgba(0,0,0,.10)}
+#home .status-heading b{font-size:13.4px}
+#home .status-home #clientPhase{font-size:12px}
+#home .tiles{gap:9px;margin-top:6px}
+#home .tile{min-height:70px;padding:10px 5px;gap:7px;background:linear-gradient(155deg,color-mix(in srgb,var(--card2) 23%,var(--card)),var(--card));box-shadow:0 3px 12px rgba(0,0,0,.06)}
+#home .tile .glyph{width:26px;height:26px;flex-basis:26px;background:transparent}
+#home .tile .glyph svg{width:22px;height:22px;stroke-width:1.7}
+#home .tile strong{font-size:12.7px;font-weight:650}
+#home .actions{margin-top:11px;gap:8px}
+#other .tile{min-height:67px;padding:9px 6px;gap:6px}
+#other .tile .glyph{width:26px;height:26px;flex-basis:26px;background:transparent}
+#other .tile .glyph svg{width:21px;height:21px;stroke-width:1.7}
+#other .tile strong{font-size:12.7px;font-weight:650}
+#other .tool-search{min-height:43px;height:43px}
+#other #toolSearch{font-size:13px}
+#other .tool-section{margin:18px 0 3px}
+#quicktools .tool-caption{font-size:11.5px;color:var(--muted);font-weight:650;margin:12px 1px 7px}
+#quicktools .tool-caption:first-child{margin-top:2px}
+#quicktools #quickSettings{display:grid;gap:0;background:var(--card);border:1px solid var(--line);border-radius:13px;overflow:hidden;margin:0}
+#quicktools .tool-row{min-height:52px;padding:12px 13px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+#quicktools .tool-row:last-child{border-bottom:0}
+#quicktools .tool-row strong{font-size:13px;font-weight:600}
+#quicktools .toggle{min-width:43px;width:43px;height:24px;border-radius:14px}
+#quicktools .toggle:after{width:16px;height:16px;top:4px;left:4px}
+#quicktools .toggle[aria-pressed="true"]:after{transform:translateX(19px)}
+#quicktools .quick-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#quicktools .quick-actions button{display:flex;align-items:center;gap:9px;text-align:left;padding:10px 12px;min-height:54px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-size:12.5px;font-weight:650}
+#quicktools .quick-actions button:hover{border-color:var(--accent);background:var(--card2)}
+#quicktools .quick-actions button:disabled{opacity:.5}
+#quicktools .quick-actions svg{height:19px;width:19px;flex:0 0 19px;fill:none;stroke:var(--accent);stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+#quicktools .quick-actions [data-repair-action="exit"] svg,#quicktools .quick-actions [data-quick-action="close-lobby"] svg{stroke:#eaa7aa}
+#quicktools .quick-hotkeys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px}
+#quicktools .quick-hotkeys label{font-size:11.5px;color:var(--muted);min-width:0}
+#quicktools .quick-hotkeys input{display:block;background:var(--card2);border:1px solid var(--line);border-radius:8px;color:var(--text);width:100%;height:34px;padding:5px 9px;margin-top:5px;font-size:12px;min-width:0}
+#quicktools .quick-hotkeys button{grid-column:1/-1;min-height:34px;border:1px solid var(--line);background:var(--card2);border-radius:8px}
+#quicktools .actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+#quicktools .actions button{min-height:40px}
+#quicktools #toolResult{font-size:11.5px;min-height:0}
+#quicktools #toolResult:empty{display:none}
+#quicktools .quick-hotkeys button:hover{border-color:var(--accent)}
+@media(prefers-reduced-motion:no-preference){#home .tile,#other .tile,#quicktools .quick-actions button{transition:background-color .12s ease,border-color .12s ease}}
 </style>
 </head>
 <body data-mode="home">
@@ -1125,19 +1172,19 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="tool-section">
       <h3>对局与数据</h3>
       <div class="tiles">
-        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true">连</span><span class="tile-copy"><strong>客户端状态</strong></span></button>
-        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true">实</span><span class="tile-copy"><strong>实时对局</strong></span></button>
-        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true">荐</span><span class="tile-copy"><strong>出装推荐</strong></span></button>
-        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true">在</span><span class="tile-copy"><strong>在线状态</strong></span></button>
+        <button class="tile" data-route="client-status"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></span><span class="tile-copy"><strong>客户端状态</strong></span></button>
+        <button class="tile" data-route="live"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg></span><span class="tile-copy"><strong>实时对局</strong></span></button>
+        <button class="tile" data-route="recommendation"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 5 6-2 3 5 5 1v11H5zM9 13h6M9 16h4"/></svg></span><span class="tile-copy"><strong>出装推荐</strong></span></button>
+        <button class="tile" data-route="presence"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="tile-copy"><strong>在线状态</strong></span></button>
       </div>
     </div>
     <div class="tool-section">
       <h3>维护与个人设置</h3>
       <div class="tiles">
-        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true">修</span><span class="tile-copy"><strong>游戏修复</strong></span></button>
-        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true">我</span><span class="tile-copy"><strong>我的 GGman</strong></span></button>
-        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true">云</span><span class="tile-copy"><strong>云同步</strong></span></button>
-        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true">新</span><span class="tile-copy"><strong>更新中心</strong></span></button>
+        <button class="tile" data-route="repair"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m14 4 6 6-4 4-6-6zM11 11l-7 7a2 2 0 0 0 3 3l7-7"/></svg></span><span class="tile-copy"><strong>游戏修复</strong></span></button>
+        <button class="tile" data-route="profile"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 15-5 16 0"/></svg></span><span class="tile-copy"><strong>我的 GGman</strong></span></button>
+        <button class="tile" data-route="cloud-sync"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 18H6a4 4 0 0 1-.5-8A7 7 0 0 1 19 12a3 3 0 0 1-1 6h-2M12 12v10m-4-4 4 4-4M12 12v10m-4-4 4 4 4-4"/></svg></span><span class="tile-copy"><strong>云同步</strong></span></button>
+        <button class="tile" data-route="updates"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 11a8 8 0 0 1 14-5l2 2M20 3v5h-5M20 13a8 8 0 0 1-14 5l-2-2M4 21v-5h5"/></svg></span><span class="tile-copy"><strong>更新中心</strong></span></button>
       </div>
     </div>
     <p id="searchMessage" role="status" aria-live="polite"></p>
@@ -1177,7 +1224,7 @@ function setMode(next,title){
 document.addEventListener("click",function(event){
   var target=event.target.closest("button");
   if(!target)return;
-  if(updateForced&&!["updates-refresh","updates-install","updates-stop","updates-confirm","updates-cancel","updates-exit","updates-link"].includes(target.dataset.action))return;
+  if(updateForced&&!["close","updates-refresh","updates-install","updates-stop","updates-exit","updates-link"].includes(target.dataset.action))return;
   if(target.dataset.action==="history-region-catalog"){
     get("advancedRegionalStatus").textContent="正在刷新可授权访问的区域目录";
     post("history-region-catalog");return;
@@ -1560,7 +1607,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-failed"){
     get("recommendationRefresh").disabled=false;get("recommendationApply").disabled=true;
     recommendationCanApply=false;
-    get("recommendationConfirm").hidden=true;get("recommendationOutput").hidden=true;
+    get("recommendationOutput").hidden=true;
     get("recommendationFeedback").hidden=true;get("recommendationRows").replaceChildren();
     get("recommendationResult").textContent=e.data.status==="loading"?"正在读取当前英雄推荐":
       e.data.status==="context-changed"?"账号或游戏会话已变化，推荐已清空，请重新读取":
@@ -2136,7 +2183,6 @@ function renderRecommendationFeedback(data){
 }
 function renderRecommendation(data){
   get("recommendationRefresh").disabled=false;
-  get("recommendationConfirm").hidden=true;
   recommendationCanApply=!!data.canApply;
   get("recommendationApply").disabled=!recommendationCanApply;
   var rows=Array.isArray(data.rows)?data.rows:[];
@@ -2165,7 +2211,7 @@ function renderRecommendation(data){
     "推荐已读取，可选择应用到当前选人阶段":(statuses[data.status]||"暂时无法应用推荐");
 }
 ["applyRunes","applySpells","applyItems"].forEach(function(id){
-  get(id).addEventListener("change",function(){get("recommendationConfirm").hidden=true;});
+  get(id).addEventListener("change",function(){get("recommendationApply").disabled=!recommendationCanApply;});
 });
 get("mayhemChampion").addEventListener("keydown",function(event){
   if(event.isComposing||event.keyCode===229)return;
@@ -2466,7 +2512,6 @@ function renderAdvancedMatchDetail(data){
   get("advancedTimelineStatus").textContent="尚未读取时间线";
   get("advancedRadarStatus").textContent="正在读取雷达指标";
   get("advancedReplayStatus").textContent="等待操作";
-  get("advancedReplayConfirm").hidden=true;
   get("advancedHistoryTimeline").replaceChildren();
   get("advancedHistoryRadar").replaceChildren();
   advancedTimelineFrames=[];
