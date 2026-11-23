@@ -63,12 +63,31 @@ namespace FACM.Presentation.Glass
         public string Id { get { return "league.efficiency"; } }
         public string Route { get { return LeagueHubNavigation.Efficiency; } }
         public bool Recognizes(string message)
-        { return message != null && message.StartsWith("toggle:", StringComparison.Ordinal); }
+        {
+            return message != null && (
+                message.StartsWith("toggle:", StringComparison.Ordinal) ||
+                message.StartsWith("hotkeys-save:", StringComparison.Ordinal) ||
+                message == "quick-action:close-lobby" ||
+                message == "repair-action:exit" ||
+                message == "repair-action:restart" ||
+                message == "repair-action:window");
+        }
         public void Open(UnifiedWorkspaceForm workspace, bool pushHistory)
         { workspace.OpenQuickTools(pushHistory); }
-        public void Ready(UnifiedWorkspaceForm workspace) { workspace.SyncQuickSettings(); }
+        public void Ready(UnifiedWorkspaceForm workspace)
+        {
+            workspace.SyncQuickSettings();
+            workspace.SyncRepairState();
+        }
         public void Handle(UnifiedWorkspaceForm workspace, string message)
-        { workspace.ApplyQuickSetting(message.Substring("toggle:".Length)); }
+        {
+            if (message.StartsWith("toggle:", StringComparison.Ordinal))
+                workspace.ApplyQuickSetting(message.Substring("toggle:".Length));
+            else if (message.StartsWith("hotkeys-save:", StringComparison.Ordinal))
+                workspace.SaveQuickHotkeys(message.Substring("hotkeys-save:".Length));
+            else if (message == "quick-action:close-lobby") workspace.CloseQuickLobby();
+            else workspace.ApplyRepairAction(message.Substring("repair-action:".Length));
+        }
         public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute) { }
     }
 

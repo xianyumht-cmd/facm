@@ -69,7 +69,7 @@ namespace FACM.Presentation.Glass
                 case "profile-customization": width = 560; height = 620; break;
                 case "client-status": width = 420; height = 340; break;
                 case "appearance": width = 520; height = 560; break;
-                case "efficiency": width = 480; height = 520; break;
+                case "efficiency": width = 480; height = 620; break;
                 case "efficiency-advanced": width = 560; height = 660; break;
                 case "quick-messages": width = 560; height = 650; break;
                 case "auto-selection": width = 500; height = 550; break;

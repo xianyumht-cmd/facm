@@ -17,6 +17,7 @@ namespace FACM.Presentation.Glass
         private readonly Func<bool> _centerAvailable;
         private readonly Action _exit;
         private readonly AppSettings _settings;
+        private readonly Action _installSettled;
         private CancellationTokenSource _read;
         private CancellationTokenSource _install;
         private int _generation;
@@ -31,7 +32,7 @@ namespace FACM.Presentation.Glass
 
         internal UnifiedWorkspaceOnlineAdapter(Func<bool> canPublish, Action<string> publish,
             Func<CancellationToken, Task<OnlineSnapshot>> fetch, Func<bool> centerAvailable,
-            Action exit, AppSettings settings)
+            Action exit, AppSettings settings, Action installSettled = null)
         {
             _canPublish = canPublish ?? throw new ArgumentNullException(nameof(canPublish));
             _publish = publish ?? throw new ArgumentNullException(nameof(publish));
@@ -39,6 +40,7 @@ namespace FACM.Presentation.Glass
             _centerAvailable = centerAvailable ?? throw new ArgumentNullException(nameof(centerAvailable));
             _exit = exit ?? throw new ArgumentNullException(nameof(exit));
             _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _installSettled = installSettled;
         }
 
         internal void Present(OnlineSnapshot snapshot, bool force, bool automatic)
@@ -72,7 +74,9 @@ namespace FACM.Presentation.Glass
 
         internal void ExitForced()
         {
-            if (_forceRequired && !_installing) _exit();
+            if (!_forceRequired) return;
+            if (_installing) CancelInstallation();
+            _exit();
         }
 
         internal void OpenAnnouncementLink()
@@ -225,12 +229,10 @@ namespace FACM.Presentation.Glass
             }
             finally
             {
-                if (ReferenceEquals(_install, source))
-                {
-                    _install = null;
-                    _installing = false;
-                }
+                if (ReferenceEquals(_install, source)) _install = null;
+                _installing = false;
                 source.Dispose();
+                if (_installSettled != null) _installSettled();
             }
         }
 

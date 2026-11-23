@@ -10,6 +10,7 @@ namespace FACM.Presentation.Glass
     {
         private UnifiedWorkspaceCloudSyncAdapter _cloudAdapter;
         private UnifiedWorkspaceOnlineAdapter _onlineAdapter;
+        private bool _dismissAfterOnlineCancel;
 
         private UnifiedWorkspaceCloudSyncAdapter CloudAdapter
         {
@@ -34,7 +35,8 @@ namespace FACM.Presentation.Glass
                         delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
                         delegate(CancellationToken token) { return _ownerBall.FetchUnifiedOnlineSnapshotAsync(token); },
                         delegate { return _ownerBall.UnifiedOnlineCenterAvailable; },
-                        delegate { _ownerBall.ExitApplication(); }, _settings);
+                        delegate { _ownerBall.ExitApplication(); }, _settings,
+                        OnOnlineInstallSettled);
                 return _onlineAdapter;
             }
         }
@@ -55,6 +57,25 @@ namespace FACM.Presentation.Glass
         }
 
         internal void ExitForcedOnline() { if (_onlineAdapter != null) _onlineAdapter.ExitForced(); }
+
+        internal void RequestCloseFromWeb()
+        {
+            if (RequiresForcedOnlineUpdate) { ExitForcedOnline(); return; }
+            if (OnlineInstalling)
+            {
+                _dismissAfterOnlineCancel = true;
+                CancelOnlineInstallation();
+                return;
+            }
+            Dismiss();
+        }
+
+        private void OnOnlineInstallSettled()
+        {
+            if (!_dismissAfterOnlineCancel) return;
+            _dismissAfterOnlineCancel = false;
+            if (!IsDisposed && !_closing) Dismiss();
+        }
         internal void OpenOnlineAnnouncementLink() { OnlineAdapter.OpenAnnouncementLink(); }
 
         private void DispatchCloudEventOnUi(Action work)
