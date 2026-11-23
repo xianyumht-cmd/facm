@@ -363,8 +363,7 @@ namespace FACM.Presentation.Glass
             if (!_ready) return;
             if (message == "close")
             {
-                if (RequiresForcedOnlineUpdate) ExitForcedOnline();
-                else Dismiss();
+                RequestCloseFromWeb();
                 return;
             }
             if (message == "drag")
@@ -620,7 +619,7 @@ namespace FACM.Presentation.Glass
                 !html.Contains("data-action=\"updates-exit\"") ||
                 !html.Contains("data-action=\"updates-stop\"") ||
                 !html.Contains("data-action=\"updates-link\"") ||
-                !html.Contains("id=\"updateConfirm\"") ||
+                !html.Contains("data-action=\"updates-install\"") ||
                 !html.Contains("data-force-update"))
                 throw new InvalidOperationException("Unified online page lacks force, download cancel or announcement controls.");
             if (!html.Contains("Microsoft YaHei UI") ||

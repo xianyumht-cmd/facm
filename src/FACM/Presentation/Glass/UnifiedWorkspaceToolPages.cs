@@ -43,10 +43,13 @@ namespace FACM.Presentation.Glass
             ResizeForRoute(true);
             SyncWebNavigation();
             SyncQuickSettings();
+            SyncRepairState();
         }
 
         internal void ApplyQuickSetting(string request) { QuickToolsAdapter.Apply(request); }
         internal void SyncQuickSettings() { QuickToolsAdapter.Sync(); }
+        internal void CloseQuickLobby() { QuickToolsAdapter.CloseLobby(); }
+        internal void SaveQuickHotkeys(string json) { QuickToolsAdapter.SaveHotkeys(json); }
 
         internal void OpenClientStatus(bool pushHistory)
         {

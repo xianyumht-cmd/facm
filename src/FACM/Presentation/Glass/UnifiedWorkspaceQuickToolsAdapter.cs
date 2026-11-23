@@ -1,5 +1,6 @@
 using System;
 using System.Web.Script.Serialization;
+using System.Collections.Generic;
 using FACM.AppHost.Modules;
 using FACM.Services;
 
@@ -10,6 +11,7 @@ namespace FACM.Presentation.Glass
         private readonly Func<bool> _canPublish;
         private readonly Action<string> _publish;
         private readonly Func<LeagueEfficiencyModule> _owner;
+        private bool _actionBusy;
 
         internal UnifiedWorkspaceQuickToolsAdapter(Func<bool> canPublish,
             Action<string> publish, Func<LeagueEfficiencyModule> owner)
@@ -26,7 +28,11 @@ namespace FACM.Presentation.Glass
             bool enabled;
             if (!TryParseSetting(request, out key, out enabled)) return;
             var module = _owner();
-            if (module == null) return;
+            if (module == null)
+            {
+                _publish("{\"type\":\"tool-error\"}");
+                return;
+            }
             try
             {
                 if (key == "autoSearch" || key == "autoAccept")
@@ -51,6 +57,71 @@ namespace FACM.Presentation.Glass
             }
         }
 
+        internal async void CloseLobby()
+        {
+            if (!_canPublish() || _actionBusy) return;
+            var module = _owner();
+            if (module == null)
+            {
+                _publish("{\"type\":\"quick-action-result\",\"status\":\"unavailable\"}");
+                return;
+            }
+            _actionBusy = true;
+            try
+            {
+                var result = await module.RunCloseLobbyAsync();
+                if (_canPublish())
+                    _publish(new JavaScriptSerializer().Serialize(new {
+                        type = "quick-action-result", status = result == null ? "failed" : result.Status
+                    }));
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified quick close-lobby failed: " + exception.GetType().Name);
+                if (_canPublish()) _publish("{\"type\":\"quick-action-result\",\"status\":\"failed\"}");
+            }
+            finally { _actionBusy = false; }
+        }
+
+        internal void SaveHotkeys(string request)
+        {
+            if (!_canPublish()) return;
+            var module = _owner();
+            if (module == null || string.IsNullOrEmpty(request) || request.Length > 256)
+            {
+                PostHotkeysResult(false, "当前快捷键不可用");
+                return;
+            }
+            try
+            {
+                var values = new JavaScriptSerializer { MaxJsonLength = 512 }
+                    .Deserialize<Dictionary<string, object>>(request);
+                if (values == null || values.Count != 2 ||
+                    !values.ContainsKey("exit") || !values.ContainsKey("lobby") ||
+                    !(values["exit"] is string) || !(values["lobby"] is string))
+                {
+                    PostHotkeysResult(false, "快捷键格式无效");
+                    return;
+                }
+                string error;
+                var saved = module.TryUpdateBindings((string)values["exit"], (string)values["lobby"], out error);
+                if (saved) Sync();
+                PostHotkeysResult(saved, saved ? "快捷键已保存" : (error ?? "快捷键冲突或格式无效"));
+            }
+            catch (Exception exception)
+            {
+                AppLog.Info("Unified quick hotkey update failed: " + exception.GetType().Name);
+                PostHotkeysResult(false, "快捷键保存失败");
+            }
+        }
+
+        private void PostHotkeysResult(bool ok, string message)
+        {
+            if (_canPublish()) _publish(new JavaScriptSerializer().Serialize(new {
+                type = "quick-hotkeys-result", ok, message
+            }));
+        }
+
         internal void Sync()
         {
             if (!_canPublish()) return;
@@ -66,7 +137,9 @@ namespace FACM.Presentation.Glass
                     autoReconnect = module.AutoReconnectEnabled,
                     autoHonor = module.AutoHonorEnabled,
                     autoReturn = module.AutoReturnLobbyEnabled
-                }
+                },
+                exitHotkey = module.ExitGameHotkey,
+                lobbyHotkey = module.CloseLobbyHotkey
             }));
         }
 

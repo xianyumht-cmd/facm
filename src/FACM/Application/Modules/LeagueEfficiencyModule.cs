@@ -719,6 +719,13 @@ namespace FACM.AppHost.Modules
             return _actions.ExitGameAsync();
         }
 
+        public Task<LeagueEfficiencyActionResult> RunCloseLobbyAsync()
+        {
+            ThrowIfDisposed();
+            if (_actions == null) throw new InvalidOperationException("League Efficiency action service is not initialized.");
+            return _actions.CloseLobbyAsync();
+        }
+
         public bool TryUpdateBindings(string exitGame, string closeLobby, out string error)
         {
             return TryApplyBindings(exitGame, closeLobby, true, out error);

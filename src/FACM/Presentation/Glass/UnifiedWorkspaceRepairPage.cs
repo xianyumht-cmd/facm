@@ -14,7 +14,8 @@ namespace FACM.Presentation.Glass
             {
                 if (_repairAdapter == null)
                     _repairAdapter = new UnifiedWorkspaceRepairAdapter(
-                        delegate { return CanPublishOnRoute(LeagueHubNavigation.Repair); },
+                        delegate { return CanPublishOnRoute(LeagueHubNavigation.Repair) ||
+                            CanPublishOnRoute(LeagueHubNavigation.Efficiency); },
                         delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); },
                         delegate { return LeagueHubUiBridge.UnifiedRepair; },
                         delegate { return LeagueHubUiBridge.UnifiedEfficiency; });
