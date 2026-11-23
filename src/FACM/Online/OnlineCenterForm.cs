@@ -49,7 +49,7 @@ namespace FACM.Online
             BackColor = FacmDesignSystem.Canvas;
             ForeColor = FacmDesignSystem.Text;
             Font = new Font(FacmThemeRuntime.Current.FontName, 9F);
-            ControlBox = !forceMode;
+            ControlBox = true;
             FacmWindowChrome.SetSubtitle(this, UiTextRuntime.Text(UiTextKeys.UpdateAndAnnouncements));
 
             var header = new Label
@@ -182,17 +182,10 @@ namespace FACM.Online
                 forceMode ? FacmButtonTone.Danger : FacmButtonTone.Secondary);
             _closeButton.Click += delegate
             {
-                if (_updateStarted) return;
-                if (_forceMode)
-                {
-                    _closing = true;
-                    Close();
-                    _owner.ExitApplication();
-                }
-                else
-                {
-                    Close();
-                }
+                try { if (_updateStarted && _cancellation != null) _cancellation.Cancel(); } catch { }
+                _closing = true;
+                Close();
+                if (_forceMode) _owner.ExitApplication();
             };
 
             Controls.Add(header);
@@ -212,18 +205,10 @@ namespace FACM.Online
             get { return CanInstallUpdateForSmokeTest(_snapshot); }
         }
 
-        public async Task BeginAutomaticUpdateAsync()
+        public Task BeginAutomaticUpdateAsync()
         {
-            if (!_settings.AutoUpdateEnabled || !HasAvailableUpdate || _forceMode) return;
-
-            var choice = MessageBox.Show(
-                this,
-                "检测到新版本，现在下载并安装吗？",
-                OnlineCenterUiText.PromptTitle,
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Information,
-                MessageBoxDefaultButton.Button1);
-            if (choice == DialogResult.Yes) await BeginUpdateAsync();
+            // An automatic notice opens the update center; installing requires only the explicit Update click.
+            return Task.CompletedTask;
         }
 
         private async Task RefreshAsync()
@@ -440,7 +425,7 @@ namespace FACM.Online
             _refreshButton.Enabled = !busy;
             _updateButton.Enabled = !busy && CanInstallUpdateForSmokeTest(_snapshot);
             _autoUpdate.Enabled = !busy;
-            _closeButton.Enabled = !busy || !_forceMode;
+            _closeButton.Enabled = true;
             if (!string.IsNullOrWhiteSpace(status))
             {
                 _updateStatus.Text = status;
@@ -458,12 +443,6 @@ namespace FACM.Online
 
         private void HandleFormClosing(object sender, FormClosingEventArgs e)
         {
-            if (_updateStarted && !_closing)
-            {
-                e.Cancel = true;
-                return;
-            }
-
             try { if (_cancellation != null) _cancellation.Cancel(); } catch { }
 
             if (_forceMode && e.CloseReason == CloseReason.UserClosing && !_closing)
