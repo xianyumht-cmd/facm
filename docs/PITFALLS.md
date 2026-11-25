@@ -645,3 +645,16 @@ Use the shared `LeagueStatDisplayNames.Translate` mapping on both sides of
 the presentation assertion and preserve independent numeric evidence checks.
 Do not relax the whole smoke test or treat a successful compiler step as a
 successful release gate.
+
+### Overlay windows that can outlive their own message loop
+
+An always-on-top overlay that draws over the client and intercepts clicks is a
+liability as soon as the code owning it blocks: a synchronous network call in
+the same thread that pumps its messages leaves the window alive but
+unresponsive, so every click inside its rectangle disappears into a queue that
+will never be drained. Keep the overlay opt-in (badge first, panel on demand),
+give the loop hard HTTP timeouts, add a watchdog that hides the window when the
+loop has not completed a cycle for a few seconds, and return `HTTRANSPARENT`
+from `WM_NCHITTEST` while stalled. Also verify that a synthetic click test
+actually reaches the intended window: an overlay parked over the client's
+window controls will close the client rather than exercise the overlay.

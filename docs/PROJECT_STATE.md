@@ -2555,3 +2555,29 @@ Candidate `42420330544` (including unified route and startup smoke), UI Text
 `42420330554` and Mayhem Source Probe `42420330569`. Tencent CN gameplay and
 Windows 10 owner acceptance remain unverified. PR #364 stays Draft and
 production 3.5.85 is unaffected.
+
+### Injected renderer agent subtree (task branch `feat/ggman-inject`)
+
+A native x64 DLL agent lives in `injected-agent/` and is injected into
+`LeagueClientUxRender.exe`; it is independent of the .NET client in `src/` and
+adds capabilities the client UI does not expose: full-lobby intel for all ten
+champ-select players (rank, recent-20 winrate, most-played champions, streaks,
+duo detection via shared gameIds), position-based pick and rotating ban list,
+delayed lock-in, per-champion rune page and summoner-spell mapping, conditional
+dodge (suggest-only by default), champion-swap accept/decline, ARAM bench swap
+by personal mastery points, friend/recent-teammate invites, a local watch list
+persisted as TSV, and a loopback console at `127.0.0.1:27888` (`/api/state`,
+`/api/action`). A `tools/cross_clean.py` helper reports, stops, renames and
+restores the client's `Cross` component directory.
+
+Verified: injection plus watchdog re-injection, panel and tool actions against
+the live client (LCU 404/204 responses), the console endpoints, and the Cross
+rename/restore cycle. Champ-select intel, rune/spell writes, dodge behaviour,
+bench swap and invitations are verified against a mock LCU only; the mute
+endpoint (`/lol-chat/v1/conversations/{id}/mute`) is unconfirmed on the live
+client. Two defects found and fixed during live use: an out-of-bounds label
+array that crashed the renderer when opening the tools tab, and an overlay that
+swallowed client clicks while the agent's own request loop was stalled (now the
+panel passes clicks through and hides itself after a 4s stall). The client-side
+landing page was not modified; `tools/set_landing.py` applies and restores it on
+request.
