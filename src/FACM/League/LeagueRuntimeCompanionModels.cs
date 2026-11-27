@@ -168,6 +168,11 @@ namespace FACM.League
         public int LocalChampionId { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public IReadOnlyList<int> BenchChampionIds { get; set; } = Array.Empty<int>();
+        // Internal observation is immutable after publication; no identity is sent to HTML.
+        internal LeagueBenchQuickPickState QuickPickState { get; set; }
+        public int ChoiceRevision { get; set; }
+        public bool InitialCardSelection { get { return QuickPickState != null && QuickPickState.IsInitialCardSelection; } }
+        public bool CanChoose(int id) { return QuickPickState != null && QuickPickState.CanChoose(id); }
         public string TimerPhase { get; set; }
         public int TimerMillisecondsLeft { get; set; }
         public IReadOnlyList<int> AllyBans { get; set; } = Array.Empty<int>();
@@ -230,6 +235,8 @@ namespace FACM.League
                 BenchChampionIds = BenchChampionIds == null
                     ? Array.Empty<int>()
                     : new List<int>(BenchChampionIds).AsReadOnly(),
+                QuickPickState = QuickPickState,
+                ChoiceRevision = ChoiceRevision,
                 TimerPhase = TimerPhase,
                 TimerMillisecondsLeft = TimerMillisecondsLeft,
                 AllyBans = AllyBans == null ? Array.Empty<int>() : new List<int>(AllyBans).AsReadOnly(),

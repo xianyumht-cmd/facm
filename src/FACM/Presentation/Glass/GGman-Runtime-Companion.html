@@ -228,7 +228,9 @@ next.forEach(id=>remaining.delete(id));
 remaining.forEach(id=>{const pos=next.indexOf(0);if(pos>=0)next[pos]=id;});
 benchSlots=next;
 const usable=!!(snapshot.connected&&snapshot.bench&&!snapshot.busy);
-const fingerprint=next.join(',')+'|'+usable;
+const selectable=new Set(Array.isArray(snapshot.selectable)?snapshot.selectable:[]);
+const initial=!!snapshot.initialPick,revision=Number(snapshot.choiceRevision)||0;
+const fingerprint=next.join(',')+'|'+usable+'|'+Array.from(selectable).join(',')+'|'+initial+'|'+revision;
 if(fingerprint===benchFingerprint && host.childElementCount===next.length){
  Array.from(host.children).forEach((button,i)=>{
   const id=next[i],image=icons.get(id);
@@ -241,13 +243,13 @@ if(fingerprint===benchFingerprint && host.childElementCount===next.length){
 benchFingerprint=fingerprint;host.replaceChildren();
 for(const id of next){
  const b=elem('button','bench-choice'+(id?'':' empty'));
- b.type='button';b.disabled=!id||!usable;
+ b.type='button';b.disabled=!id||!usable||!selectable.has(id);
  if(!id){b.setAttribute('aria-label','空替补位置');host.appendChild(b);continue;}
- b.title='交换英雄 #'+id;b.setAttribute('aria-label',b.title);b.dataset.championId=String(id);
+ b.title=(initial?'选择英雄 #':'交换英雄 #')+id;b.setAttribute('aria-label',b.title);b.dataset.championId=String(id);
  const image=icons.get(id);
  if(image){const img=elem('img');img.src=image;img.alt='英雄 #'+id;b.appendChild(img)}
  else b.appendChild(elem('span','placeholder',String(id)));
- b.onclick=()=>send('swap:'+id);host.appendChild(b);
+ b.onclick=()=>send((initial?'pick:':'swap:')+id+':'+revision);host.appendChild(b);
 }
 }
 const categories={runes:'符文',spells:'召唤师技能','summoner-spells':'召唤师技能',skills:'技能加点',starter:'出门装','starter-items':'出门装',boots:'鞋子',core:'核心出装','core-items':'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
@@ -300,7 +302,7 @@ $('timer').textContent=Number(snapshot.timer)>0?snapshot.timer+'s':'--';
 $('dot').classList.toggle('on',!!snapshot.connected);
 $('status').classList.toggle('connected',!!snapshot.connected);
 $('statusText').textContent=snapshot.connected?'':'正在连接 LOL';
-$('champTitle').textContent=nice(snapshot.name,snapshot.guide&&snapshot.guide.champion?snapshot.guide.champion:snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
+$('champTitle').textContent=snapshot.initialPick?'选择英雄':nice(snapshot.name,snapshot.guide&&snapshot.guide.champion?snapshot.guide.champion:snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
 const b=snapshot.build,g=snapshot.guide;
 const kind=snapshot.guideKind||'None';
 if(lastGuideKind!==kind){lastGuideKind=kind;manualTab=false;filter='all';

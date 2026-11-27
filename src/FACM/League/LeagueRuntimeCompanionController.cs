@@ -139,7 +139,7 @@ namespace FACM.League
                 var championIds = new List<int>();
                 if (state != null)
                 {
-                    foreach (var championId in state.ChampionIds)
+                    foreach (var championId in state.DisplayChampionIds)
                     {
                         if (championId > 0 && !championIds.Contains(championId)) championIds.Add(championId);
                     }
@@ -147,6 +147,13 @@ namespace FACM.League
 
                 lock (_stateGate)
                 {
+                    var prior = _snapshot.QuickPickState;
+                    if (prior == null || !prior.SameDraft(state) ||
+                        (state != null && (prior.IsInitialCardSelection != state.IsInitialCardSelection ||
+                            prior.LocalChampionId != state.LocalChampionId || prior.LocalPickActionId != state.LocalPickActionId ||
+                            !string.Equals(prior.TimerPhase, state.TimerPhase, StringComparison.Ordinal))))
+                        _snapshot.ChoiceRevision++;
+                    _snapshot.QuickPickState = state;
                     _snapshot.SessionAvailable = sessionAvailable;
                     _snapshot.BenchEnabled = sessionAvailable && state.BenchEnabled;
                     _snapshot.GuideKind = guideKind;
@@ -196,13 +203,11 @@ namespace FACM.League
             }
         }
 
-        public Task<LeagueBenchSwapResult> TrySwapAsync(
-            int championId,
-            LeagueBenchSwapRoute route,
-            CancellationToken cancellationToken)
+        public Task<LeagueBenchSwapResult> TryChooseAsync(
+            int championId, LeagueRuntimeCompanionSnapshot expected, CancellationToken cancellationToken)
         {
             ThrowIfDisposed();
-            return _bench.TrySwapAsync(championId, route, cancellationToken);
+            return _bench.TryChooseAsync(championId, expected == null ? null : expected.QuickPickState, cancellationToken);
         }
 
         public Task<byte[]> LoadBenchChampionIconAsync(int championId, CancellationToken cancellationToken)

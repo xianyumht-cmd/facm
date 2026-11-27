@@ -136,7 +136,7 @@ namespace FACM.League
         private sealed class BenchTarget
         {
             public int ChampionId { get; set; }
-            public LeagueBenchSwapRoute Route { get; set; }
+            public LeagueRuntimeCompanionSnapshot Snapshot { get; set; }
         }
 
         private sealed class RecommendationSection
@@ -2162,7 +2162,8 @@ namespace FACM.League
             }
             var pages = Math.Max(1, (int)Math.Ceiling(ids.Length / (double)BenchPageSize));
             _benchPage = Math.Max(0, Math.Min(_benchPage, pages - 1));
-            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.LocalChampionId + "|" + snapshot.SwapRoute + "|" + snapshot.BenchEnabled;
+            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.ChoiceRevision +
+                "|" + string.Join(",", ids.Where(snapshot.CanChoose)) + "|" + _actionBusy;
             if (string.Equals(_benchRenderFingerprint, fingerprint, StringComparison.Ordinal)) return;
             _benchRenderFingerprint = fingerprint;
 
@@ -2187,11 +2188,12 @@ namespace FACM.League
                     button.TabStop = false;
                     continue;
                 }
-                button.Tag = new BenchTarget { ChampionId = championId, Route = snapshot.SwapRoute };
+                button.Tag = new BenchTarget { ChampionId = championId, Snapshot = snapshot };
+                button.Enabled = !_actionBusy && snapshot.CanChoose(championId);
                 button.Click += async delegate
                 {
                     var target = button.Tag as BenchTarget;
-                    if (target != null) await SwapToAsync(target.ChampionId, target.Route);
+                    if (target != null) await SwapToAsync(target.ChampionId, target.Snapshot);
                 };
                 button.FlatAppearance.BorderColor = championId == snapshot.LocalChampionId ? FacmDesignSystem.Accent : FacmDesignSystem.BorderSoft;
                 var benchLabelText = BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture);
@@ -2325,13 +2327,16 @@ namespace FACM.League
             return bitmap;
         }
 
-        private async Task SwapToAsync(int championId, LeagueBenchSwapRoute route)
+        private async Task SwapToAsync(int championId, LeagueRuntimeCompanionSnapshot expected)
         {
-            if (championId <= 0 || IsDisposed) return;
+            if (championId <= 0 || IsDisposed || _actionBusy || expected == null || !expected.CanChoose(championId)) return;
+            _actionBusy = true;
+            SetActionButtonsEnabled(false);
+            foreach (var control in _benchPanel.Controls.OfType<Button>()) control.Enabled = false;
             SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Swapping), FacmDesignSystem.Accent);
             try
             {
-                var result = await _controller.TrySwapAsync(championId, route, _lifetime.Token);
+                var result = await _controller.TryChooseAsync(championId, expected, _lifetime.Token);
                 if (IsDisposed) return;
                 SetStatus(
                     result.Success ? BenchText(LeagueBenchQuickPickUiTextKeys.Success) : DescribeSwapFailure(result.Status),
@@ -2349,6 +2354,17 @@ namespace FACM.League
                 AppLog.Info("Runtime Companion quick swap failed: " + exception.Message);
                 if (!IsDisposed)
                     SetStatus(BenchText(LeagueBenchQuickPickUiTextKeys.Rejected), FacmDesignSystem.Warning);
+            }
+            finally
+            {
+                _actionBusy = false;
+                if (!IsDisposed)
+                {
+                    SetActionButtonsEnabled(true);
+                    _benchRenderFingerprint = null;
+                    var current = _controller.CurrentSnapshot;
+                    if (current.HasBenchSurface) RenderBench(current);
+                }
             }
         }
 

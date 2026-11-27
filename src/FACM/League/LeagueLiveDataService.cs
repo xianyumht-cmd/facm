@@ -450,15 +450,16 @@ namespace FACM.League
                 var parsed = new JavaScriptSerializer { MaxJsonLength = 65536 }
                     .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
                 if (parsed == null) return false;
+                var ordered = new List<int>();
                 var unique = new HashSet<int>();
                 foreach (var item in parsed)
                 {
                     int id;
                     if (item == null || !int.TryParse(Convert.ToString(item), out id) || id <= 0 || id > 10000)
                         return false;
-                    unique.Add(id);
+                    if (unique.Add(id)) ordered.Add(id);
                 }
-                foreach (var id in parsed.Select(item => Convert.ToInt32(item)).Distinct()) ids.Add(id);
+                foreach (var id in ordered) ids.Add(id);
                 return true;
             }
             catch (ArgumentException) { return false; }

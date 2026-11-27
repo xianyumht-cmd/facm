@@ -323,6 +323,9 @@ namespace FACM.Presentation.Glass
                 allowsRunes = snapshot.AllowsRunes,
                 canApply = snapshot.HasBuild,
                 choices = ids,
+                selectable = ids.Where(snapshot.CanChoose).ToArray(),
+                initialPick = snapshot.InitialCardSelection,
+                choiceRevision = snapshot.ChoiceRevision,
                 busy = _busy,
                 teams = snapshot.Players == null ? new object[0] : snapshot.Players.Take(12).Select(p => new {
                     side = p.Side, championId = p.ChampionId, name = p.DisplayName,
@@ -537,10 +540,14 @@ namespace FACM.Presentation.Glass
             }
             if (command == "confirm:yes") { _ = ApplyPreparedAsync(); return; }
             if (command == "quit:yes") { _ = QuitAsync(); return; }
-            if (command.StartsWith("swap:", StringComparison.Ordinal))
+            if (command.StartsWith("swap:", StringComparison.Ordinal) ||
+                command.StartsWith("pick:", StringComparison.Ordinal))
             {
-                int id;
-                if (int.TryParse(command.Substring(5), out id)) _ = SwapAsync(id);
+                int id, revision;
+                var parts = command.Split(':');
+                if (parts.Length == 3 && int.TryParse(parts[1], out id) &&
+                    int.TryParse(parts[2], out revision))
+                    _ = SwapAsync(id, parts[0] == "pick", revision);
                 return;
             }
             if (command == "apply:runes" || command == "apply:spells" || command == "apply:items")
@@ -566,17 +573,18 @@ namespace FACM.Presentation.Glass
             _settings.Save();
         }
 
-        private async Task SwapAsync(int championId)
+        private async Task SwapAsync(int championId, bool initialPick, int revision)
         {
             if (_busy || championId <= 0) return;
             var state = _controller.CurrentSnapshot;
-            if (!state.SessionAvailable || !state.BenchEnabled ||
-                state.BenchChampionIds == null || !state.BenchChampionIds.Contains(championId)) return;
+            if (!state.SessionAvailable || !state.CanChoose(championId) ||
+                state.InitialCardSelection != initialPick || state.ChoiceRevision != revision) return;
             _busy = true;
+            PublishSnapshot(state);
             Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapBusy) });
             try
             {
-                var result = await _controller.TrySwapAsync(championId, state.SwapRoute, _lifetime.Token);
+                var result = await _controller.TryChooseAsync(championId, state, _lifetime.Token);
                 Post(new { type = "status", message = result != null && result.Success ?
                     Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapSuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapRejected) });
                 await RefreshAsync();
@@ -587,7 +595,7 @@ namespace FACM.Presentation.Glass
                 AppLog.Info("Runtime Companion HTML swap failed: " + error.GetType().Name);
                 Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapFailed) });
             }
-            finally { _busy = false; }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
 
         private async Task PrepareAsync(string target)

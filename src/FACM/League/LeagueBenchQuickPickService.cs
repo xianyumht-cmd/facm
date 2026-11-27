@@ -111,7 +111,11 @@ namespace FACM.League
                         championId, true, cancellationToken).ConfigureAwait(false);
                 }
                 else response = await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false);
-                return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, state).ConfigureAwait(false);
+                try
+                {
+                    return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, state).ConfigureAwait(false);
+                }
+                finally { Volatile.Write(ref _latest, null); }
             }
             finally { stopwatch.Stop(); _swapGate.Release(); }
         }
