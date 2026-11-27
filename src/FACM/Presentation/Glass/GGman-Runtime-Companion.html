@@ -120,6 +120,7 @@ html,body{font-size:12.6px;line-height:1.5}
 .actions button{min-height:31px;font-size:11px}
 #guideInfo{margin-top:5px}
 #recent:empty,#message:empty{display:none}
+#champ #quit{min-height:25px;padding:1px 8px;font-size:11px}
 </style>
 </head>
 <body>
@@ -132,7 +133,7 @@ html,body{font-size:12.6px;line-height:1.5}
 </header>
 <main id="content">
 <div id="status"><span id="dot"></span><span id="statusText">连接英雄选择中…</span></div>
-<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div></div>
+<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div><button id="quit" class="warn" title="退出选人" aria-label="退出选人">退</button></div>
 <section class="section" id="benchSection" hidden>
 <div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div>
 </section>
@@ -153,7 +154,7 @@ html,body{font-size:12.6px;line-height:1.5}
 <section class="section" id="teamSection" hidden><div id="teams" class="sub muted">等待队友数据…</div></section>
 <section class="section" id="detailSection" hidden>
 <div id="champHint" class="muted sub"></div><div id="recent"></div><div id="source"></div><div id="guideInfo"></div>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span id="message" class="muted sub"></span><button id="quit" class="warn">退出选人</button></div>
+<div id="message" class="muted sub"></div>
 </section>
 </main>
 </div>

@@ -75,6 +75,38 @@ namespace FACM.Services
             }
         }
 
+        internal static string InspectIntegrity()
+        {
+            try
+            {
+                using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(BundleResourceName))
+                {
+                    if (resource == null) return "embedded_resource_missing";
+                    using (var file = new FileStream(RuntimePaths.ToolBundlePath, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete))
+                    {
+                        if (file.Length != resource.Length) return "size_mismatch";
+                        using (var hash = SHA256.Create())
+                        {
+                            var expected = hash.ComputeHash(resource);
+                            var actual = hash.ComputeHash(file);
+                            return string.Equals(Convert.ToBase64String(expected), Convert.ToBase64String(actual),
+                                StringComparison.Ordinal) ? "hash_match" : "hash_mismatch";
+                        }
+                    }
+                }
+            }
+            catch (FileNotFoundException) { return "missing"; }
+            catch (DirectoryNotFoundException) { return "missing"; }
+            catch (UnauthorizedAccessException) { return "access_denied"; }
+            catch (IOException exception)
+            {
+                var code = exception.HResult & 0xffff;
+                return code == 225 || code == 226 ? "security_block_reported" : "io_error_" + code;
+            }
+            catch (Exception exception) { return "unknown_" + exception.GetType().Name; }
+        }
+
         private static void WriteAtomically(string destination, byte[] bytes, string expectedHash)
         {
             var temporaryPath = destination + ".tmp-" + Guid.NewGuid().ToString("N");
