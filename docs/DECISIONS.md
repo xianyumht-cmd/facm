@@ -1,3 +1,7 @@
+## 2026-11-27 — Direct LCU transport, opt-in health probe and compact companion
+
+Default local LCU pools to direct loopback and no redirects. Preserve one phase-read timeout for the next existing monitor cycle; repeated timeouts permit rediscovery and successful phase reads reset the evidence. Authentication and other transport errors keep existing invalidation behavior; do not add automatic write retries. Diagnostics export adds a bounded read-only phase probe, process metrics, proxy flags and component integrity, with transition logs rather than a new resident poller. In WebView2 companion use a compact champion row, horizontal available bench, explicit tabs and collapsed evidence; auto-select augments when available unless the user chose a tab. Preserve action contracts and all underlying data. Native fallback is unchanged.
+
 ## 2026-11-23 — One-click desktop actions with native safeguards
 
 GGman's active WebView2 desktop workspace uses direct-action buttons instead of extra Yes/Cancel overlays. This includes launching an official signed update, cloud publish/conflict resolution, game/lobby exit, champion recommendation apply, profile customization and match replay. Compact action labels convey intent, and the status/result line reports failure or success. Users retain the ability to cancel a running download; they are not required to affirm a second prompt.

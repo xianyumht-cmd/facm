@@ -16,6 +16,10 @@ namespace FACM.League
             ValidateCommandLineParser();
             ValidateSessionRefreshBoundary();
             ValidatePhaseTimeoutRecoveryBoundary();
+            using (var pool = new LeagueSessionHttpClientPool())
+            using (var handler = pool.CreateHandler())
+                Require(!handler.UseProxy && !handler.AllowAutoRedirect,
+                    "Local session traffic must not use system proxies or follow redirects.");
             ValidateLateStartRediscoveryBoundary();
             ValidateSessionHttpClientRetirementBoundary();
             ValidateDisconnectedModuleIsNonFatal();

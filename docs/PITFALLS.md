@@ -1,3 +1,7 @@
+## 2026-11-27 — Distinguish security block, LCU timeout and companion layout
+
+A 3.5.89 incident showed a security-product file-access block followed by successful tool-bundle loading and repeated LCU invalidation near the HTTP timeout. This does not establish the final network cause. Process fallback can hide the desktop entry without a connected LCU. Capture phase outcome and companion presentation evidence separately. The 360×442 WebView2 companion previously stacked the complete build ahead of augments; test first-viewport access, not just DOM element presence.
+
 ## 2026-11-23 — Update close must not be hidden or blocked at multiple layers
 
 The forced-update presentation combined a CSS rule hiding `body[data-force-update="true"] .header .close`, a JavaScript forced-action allowlist excluding `close`, and a host `CanDismiss` rule denying exit during a download. Merely rendering the X or changing one layer leaves the apparent close action broken. The fix is to keep the X visible, accept the close message through the forced-action allowlist, map forced close to application exit (never bypass `RequiresForce`), and map non-forced download close to cancellation followed by a lifecycle-settled hide. The online adapter must clear its install-busy flag even if its cancellation token was detached by navigation. Test UI, bridge, cancel/settle callbacks and host closing together.

@@ -203,7 +203,9 @@ namespace FACM.League
                         if (string.IsNullOrWhiteSpace(lockfile) || !File.Exists(lockfile)) continue;
 
                         LeagueClientSession session;
-                        if (LeagueClientSessionParser.TryParseLockfile(File.ReadAllText(lockfile), out session))
+                        string content;
+                        if (ResilientLeagueClientSessionDiscovery.TryReadSharedText(lockfile, out content) &&
+                            LeagueClientSessionParser.TryParseLockfile(content, out session))
                             return session;
                     }
                     catch
@@ -403,9 +405,14 @@ namespace FACM.League
             }
         }
 
+        internal HttpClientHandler CreateHandler()
+        {
+            return new HttpClientHandler { UseProxy = !_disableProxy, AllowAutoRedirect = false };
+        }
+
         private HttpClient CreateClient(LeagueClientSession session)
         {
-            var handler = new HttpClientHandler { UseProxy = !_disableProxy, AllowAutoRedirect = false };
+            var handler = CreateHandler();
             handler.ServerCertificateCustomValidationCallback = delegate { return true; };
             var client = new HttpClient(handler)
             {
