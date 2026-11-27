@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit harness correction
+
+On Windows runner, Get-Command curl.exe can return Windows and Git applications simultaneously. Select System32 curl explicitly or first application, preflight the selected executable, and capture nonzero native exit codes per route. Never interpret a harness failure as a network failure. Successful audit requires complete evidence and a verified package.
+
 ## 2026-11-27 — Public asset policy and EXE route audit
 
 Globalping Range requests may return redirect, ignored range, truncated body or API error; a 206 Content-Range is entry evidence only, not full integrity or throughput. Windows runner results are not mainland network evidence. Do not execute packages during mirror measurement.

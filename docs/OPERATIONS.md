@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit harness correction
+
+EXE audit now prints the single selected curl executable/version, records native failures per route, validates row count and requires a verified package. Previous mainland entry audit 46006055285 yielded 36 attempts; full-package job never reached a download. Re-run before ranking full-package routes.
+
 ## 2026-11-27 — Public asset policy and EXE route audit
 
 GGman EXE Route Audit checks five configured mirrors and GitHub direct against the checked-out official manifest. Mainland probes request bytes 0–1023 and validate TLS/status/range headers; the Windows hosted job downloads bounded files, checks SHA-256, expected release signer and version, deletes files, and exports CSV. For real full-transfer mainland evidence run scripts/Test-PackageRoutes.ps1 -NetworkLabel China-Telecom -Rounds 2 on that network (repeat for Unicom/Mobile). The script does not execute downloads. Review results before changing cloud priorities; signed config candidate remains unpublished.

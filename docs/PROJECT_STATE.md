@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit harness correction
+
+Exact head 66e746b3 passed Windows Build, Glass, UI Text, Mayhem Source, Mainland Public Route and COS Mainland gates. EXE audit 46006055285 failed before any full transfer because Get-Command returned two curl applications. Mainland Range evidence succeeded: gh-proxy 6/6 (1970/982/634.5 ms carrier medians), ghproxy-net 6/6 (5720/6104/5553), gh-dpik 6/6 (7265.5/6715/6915), ghfast 3/6, cors-isteed 0/6, direct returned redirects. These are Range entry results only, not throughput. Candidate fix chooses exactly one curl path and requires complete rows and at least one verified package; rerun pending. Production unchanged.
+
 ## 2026-11-27 — Public asset policy and EXE route audit
 
 Candidate adds Data Dragon metadata and the direct CommunityDragon/public image fetch boundary to signed source policy, plus two optional guide enrichment maintenance flags. Existing flags and defaults unchanged; local LCU asset reads stay first. New EXE audit uses mainland Range entry probes and a separate GitHub-hosted Windows full-package hash/signer/version check. No mainland throughput claim from Range or hosted runner. Previous head had two green and four running gates when work started; exact-head CI pending. COS production revision and 3.5.89 release remain unchanged.

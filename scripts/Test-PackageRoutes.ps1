@@ -25,7 +25,16 @@ foreach ($source in $control.sources) {
     $targets += @{name=$source.name; url=($source.prefix.TrimEnd('/') + '/' + $manifest.download_url)}
 }
 $targets += @{name='github-direct'; url=$manifest.download_url}
-$curl = (Get-Command curl.exe -CommandType Application -ErrorAction Stop).Source
+$curl = Join-Path $env:SystemRoot 'System32/curl.exe'
+if (-not (Test-Path -LiteralPath $curl -PathType Leaf)) {
+    $curl = (Get-Command curl.exe -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+}
+if (-not (Test-Path -LiteralPath $curl -PathType Leaf)) { throw 'No usable curl.exe found.' }
+Write-Host "Using curl: $curl"
+& $curl --version
+if ($LASTEXITCODE -ne 0) { throw 'curl preflight failed.' }
+# Expected network errors are recorded per route, not terminating script errors.
+$PSNativeCommandUseErrorActionPreference = $false
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $csv = Join-Path $OutputDirectory 'package-routes.csv'
 $temporary = Join-Path $OutputDirectory ('candidate-' + [Guid]::NewGuid().ToString('N') + '.exe')
@@ -69,3 +78,6 @@ try {
     }
 } finally { Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue }
 Write-Host "Report: $csv"
+$results = @(Import-Csv -LiteralPath $csv)
+if ($results.Count -ne ($targets.Count * $Rounds)) { throw 'Incomplete package route evidence.' }
+if (-not @($results | Where-Object evidence -eq 'verified-package').Count) { throw 'No route delivered a verified package.' }
