@@ -820,6 +820,15 @@ namespace FACM.League
             var clone = source.Clone();
             if (!clone.SessionAvailable || clone.LocalChampionId != 58 || !clone.HasBuild)
                 throw new InvalidOperationException("Runtime Companion snapshot clone lost ranked context fields.");
+            if (clone.HasBenchSurface || !clone.AllowsRunes)
+                throw new InvalidOperationException("Ranked mode must not reserve the ARAM bench or disable runes.");
+            var mayhem = source.Clone();
+            mayhem.GuideKind = LeagueRuntimeCompanionGuideKind.Mayhem;
+            if (!mayhem.Clone().HasBenchSurface || mayhem.Clone().AllowsRunes)
+                throw new InvalidOperationException("Mayhem must reserve the bench before it fills and hide ordinary runes.");
+            mayhem.LocalChampionId = 22;
+            if (mayhem.HasBuild)
+                throw new InvalidOperationException("A previous champion build must not be writable after a swap.");
             if (clone.BenchChampionIds == null || clone.BenchChampionIds.Count != 2 || clone.BenchChampionIds[0] != 266)
                 throw new InvalidOperationException("Runtime Companion snapshot clone lost Bench order.");
             if (clone.TimerMillisecondsLeft != 25000 || clone.AllyBans.Count != 2 || clone.EnemyBans.Count != 1 ||

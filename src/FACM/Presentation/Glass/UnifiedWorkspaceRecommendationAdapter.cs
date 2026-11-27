@@ -69,6 +69,7 @@ namespace FACM.Presentation.Glass
         private static string SerializeRecommendation(LeagueBuildAdvisorSnapshot snapshot)
         {
             var rec = snapshot == null ? null : snapshot.Recommendation;
+            var mayhem = snapshot != null && LeagueQueueModePolicy.IsAramMayhem(snapshot.QueueId, snapshot.GameMode);
             return new JavaScriptSerializer().Serialize(new
             {
                 type = "recommendation-details",
@@ -81,9 +82,12 @@ namespace FACM.Presentation.Glass
                 source = snapshot == null ? null : snapshot.Source,
                 cached = snapshot != null && snapshot.FromCache,
                 canApply = CanApply(snapshot),
+                allowsRunes = snapshot != null && !mayhem,
                 tier = rec == null ? null : rec.Tier,
                 winRate = rec == null ? null : rec.WinRate,
-                rows = rec == null ? new object[0] : rec.Rows.Take(24).Select(row => new
+                rows = rec == null ? new object[0] : rec.Rows.Where(row => row != null &&
+                    (!mayhem || !string.Equals(row.Category, "runes", StringComparison.OrdinalIgnoreCase)))
+                    .Take(24).Select(row => new
                 {
                     category = row.Category, title = row.Recommendation, evidence = row.Evidence
                 }).ToArray()
@@ -131,6 +135,11 @@ namespace FACM.Presentation.Glass
                 return;
             }
 
+            if (request.Runes && LeagueQueueModePolicy.IsAramMayhem(snapshot.QueueId, snapshot.GameMode))
+            {
+                PostStatus("recommendation-result", "mode-unavailable");
+                return;
+            }
             _busy = true;
             using (var source = new CancellationTokenSource())
             {
