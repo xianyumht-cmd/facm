@@ -1,3 +1,7 @@
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Do not mix queues, count remakes as losses, or infer trends from fewer than ten dated valid games. A champion row is a loaded sample, not a lifetime ranking.
+
 ## 2026-11-27 — Reconnect observation and recovery cadence
 
 An HTTP reconnect response or an InProgress phase does not establish playable game recovery. Record the observed phase separately from submission; lost observation and replaced session must not be labeled recovered.

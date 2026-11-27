@@ -851,6 +851,11 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     
     <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
     <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
+    <div id="historyAnalysis" hidden>
+      <label class="tool-search" for="historyAnalysisQueue">近期表现 · 已读取样本<select id="historyAnalysisQueue"></select></label>
+      <div class="guide-stats"><div class="guide-card"><small>胜率</small><strong id="historyAnalysisRate">—</strong></div><div class="guide-card"><small>胜负</small><strong id="historyAnalysisRecord">—</strong></div></div>
+      <p id="historyAnalysisTrend" class="muted"></p><div id="historyAnalysisHeroes" class="history-list"></div>
+    </div>
     <div class="history-filter" role="group" aria-label="筛选已读取战绩">
       <button type="button" data-history-filter="all" aria-pressed="true">全部</button>
       <button type="button" data-history-filter="win" aria-pressed="false">胜利</button>
@@ -1678,7 +1683,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("historyResult").textContent="无法读取当前账号，请检查游戏客户端连接或重新登录";
     get("historyAccount").textContent="未连接";
     get("historyLevel").textContent="—";
-    get("historyList").replaceChildren();historyRows=[];historyFilter="all";
+    get("historyList").replaceChildren();historyRows=[];historyFilter="all";renderHistoryAnalysis([]);
     get("historyMore").hidden=true;
     get("historySearch").value="";get("historySort").value="recent";
     document.querySelectorAll("[data-history-filter]").forEach(function(item){
@@ -2311,6 +2316,24 @@ get("mayhemChampion").addEventListener("keydown",function(event){
   if(event.key==="Enter"){event.preventDefault();get("mayhemQuery").click();}
 });
 var historyRows=[];
+var historyAnalysisRows=[];
+get("historyAnalysisQueue").addEventListener("change",drawHistoryAnalysis);
+function renderHistoryAnalysis(rows){
+  var select=get("historyAnalysisQueue"),previous=select.value;select.replaceChildren();
+  historyAnalysisRows=(Array.isArray(rows)?rows:[]).filter(function(r){return r&&r.wins+r.losses>0;}).slice(0,100);
+  historyAnalysisRows.forEach(function(r,i){var option=document.createElement("option");option.value=String(i);option.textContent=(modeName(r.mode)||r.mode)+" · 队列 "+r.queue+" · "+(r.wins+r.losses)+" 场";select.append(option);});
+  if(previous&&Number(previous)<historyAnalysisRows.length)select.value=previous;
+  drawHistoryAnalysis();
+}
+function drawHistoryAnalysis(){
+  var r=historyAnalysisRows[Number(get("historyAnalysisQueue").value)],panel=get("historyAnalysis");
+  panel.hidden=!r;if(!r){get("historyAnalysisHeroes").replaceChildren();return;}
+  get("historyAnalysisRate").textContent=Math.round(r.wins*100/(r.wins+r.losses))+"%";
+  get("historyAnalysisRecord").textContent=r.wins+"胜"+r.losses+"负";
+  get("historyAnalysisTrend").textContent=r.recentFive!=null&&r.previousFive!=null?"近5场 "+r.recentFive+"% · 前5场 "+r.previousFive+"%":"不足10场有效记录，暂不比较趋势";
+  var heroes=get("historyAnalysisHeroes");heroes.replaceChildren();
+  (r.champions||[]).slice(0,5).forEach(function(c){var row=document.createElement("div");row.className="history-match";var title=document.createElement("strong");title.textContent=c.name||"英雄 #"+c.id;var meta=document.createElement("small");meta.textContent=c.games+"场 · "+Math.round(c.wins*100/c.games)+"%胜率 · KDA "+Number(c.kda).toFixed(2);row.append(title,meta);heroes.append(row);});
+}
 var historyFilter="all";
 get("historySearch").addEventListener("input",drawHistoryRows);
 get("historySort").addEventListener("change",drawHistoryRows);
@@ -2337,7 +2360,7 @@ function drawHistoryRows(){
   if(sort==="oldest")rows.reverse();
   else if(sort==="kills"||sort==="kda"){
     var metric=function(match){
-      if(match.outcome==="unknown")return -1;
+      if(match.outcome!=="win"&&match.outcome!=="loss")return -1;
       var kills=Math.max(0,Number(match.kills)||0);
       if(sort==="kills")return kills;
       return (kills+Math.max(0,Number(match.assists)||0))/Math.max(1,Number(match.deaths)||0);
@@ -2348,14 +2371,14 @@ function drawHistoryRows(){
     var card=document.createElement("button");card.type="button";card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
     var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
-    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",unknown:"结果待补全"}[match.outcome]||"结果待补全");
+    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",remake:"重开",abort:"中止",unknown:"结果待补全"}[match.outcome]||"结果待补全");
     top.append(champ,outcome);
     var meta=document.createElement("small");
     var duration=Number(match.duration)||0;
     meta.textContent=[match.played,modeName(match.mode)||"队列 "+match.queueId,
       duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
     var score=document.createElement("small");
-    score.textContent=match.outcome==="unknown"?"对局数据待补全":
+    score.textContent=match.outcome!=="win"&&match.outcome!=="loss"?"不计入有效胜负":
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
     var id=String(match.gameId||"");
     if(/^\d{1,19}$/.test(id)&&id!=="0"){card.dataset.recentGameId=id;card.setAttribute("aria-label",champ.textContent+" · "+outcome.textContent+" · 查看对局详情");}else card.disabled=true;
@@ -2379,6 +2402,7 @@ function renderHistory(data){
   get("historyAccount").textContent=data.name||"当前召唤师";
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
   historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,100);
+  renderHistoryAnalysis(data.analysis);
   drawHistoryRows();
 }
 var remoteHistoryIds=new Set();

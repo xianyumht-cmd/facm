@@ -296,9 +296,11 @@ var automationPass=document.querySelector('[data-phase-note="autoSearch"]').text
  document.querySelector('[data-phase-note="autoAccept"]').textContent==='当前阶段 · 等待条件';
 sendFixture('detail:player');
 var gameId='9007199254740993';
-sendFixture({type:'history-details',name:'Fixture',level:30,rows:[{gameId:gameId,champion:'Ashe',outcome:'win',kills:3,deaths:2,assists:8}]});
+sendFixture({type:'history-details',name:'Fixture',level:30,analysis:[{queue:420,mode:'CLASSIC',wins:6,losses:4,recentFive:80,previousFive:40,champions:[{id:22,name:'Ashe',games:6,wins:4,kda:3.2}]},{queue:450,mode:'ARAM',wins:1,losses:0,champions:[]}],rows:[{gameId:gameId,champion:'Ashe',outcome:'win',kills:3,deaths:2,assists:8}]});
+var analysisPass=!document.querySelector('#historyAnalysis').hidden&&document.querySelector('#historyAnalysisRate').textContent==='60%'&&document.querySelector('#historyAnalysisTrend').textContent.includes('80%')&&document.querySelector('#historyAnalysisHeroes').textContent.includes('Ashe');
+var queue=document.querySelector('#historyAnalysisQueue');queue.value='1';queue.dispatchEvent(new Event('change'));analysisPass=analysisPass&&document.querySelector('#historyAnalysisRate').textContent==='100%'&&document.querySelector('#historyAnalysisTrend').textContent.includes('不足10场');
 document.querySelector('[data-recent-game-id]').click();
-var historyPass=window.__sceneCommands.includes('history-open-detail:'+gameId);
+var historyPass=analysisPass&&window.__sceneCommands.includes('history-open-detail:'+gameId);
 sendFixture('detail:player-advanced');
 sendFixture({type:'history-advanced-list',name:'Fixture',rows:[{id:gameId,champion:'Ashe',outcome:'win',queue:450}]});
 sendFixture({type:'history-select-local',id:gameId});

@@ -1,3 +1,7 @@
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Own-history WebView2 now projects existing LeaguePlayerHistoryAnalysis by positive queue ID and known mode, including effective wins/losses, recent/prior five and most-played champion sample statistics. Remake/abort/unknown are not wins or losses. No new API calls. Fresh exact-head CI pending.
+
 ## 2026-11-27 — Reconnect observation and recovery cadence
 
 Existing shared Gameflow monitor now uses the three-second cadence during confirmed Reconnect, retains the ordinary ten-second in-game cadence, and logs phase-only transitions. Reconnect exit traces distinguish observed InProgress, lost observation, changed session and other exits. One-write policy and opt-in setting are unchanged. Fresh CI pending; LCU InProgress is not proof that rendering or gameplay recovered.

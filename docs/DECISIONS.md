@@ -1,3 +1,7 @@
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Use explicit queue/mode selection and the existing native analysis, with no new polling or history storage. Show most-played sample champions rather than claim a best champion from small samples.
+
 ## 2026-11-27 — Reconnect observation and recovery cadence
 
 Keep one reconnect write per episode, default off, and reuse the shared three-second recovery cadence only during confirmed Reconnect. Ordinary in-game polling remains unchanged. Report InProgress as phase evidence rather than verified gameplay recovery.

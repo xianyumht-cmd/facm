@@ -112,6 +112,34 @@ namespace FACM.Presentation.Glass
             return merged;
         }
 
+        internal static object[] ProjectAnalysis(LeaguePlayerMatchPage page)
+        {
+            if (page == null) return new object[0];
+            return LeaguePlayerHistoryAnalysis.LoadedMatches(page.Matches)
+                .Where(m => m.QueueId > 0 && !string.IsNullOrWhiteSpace(m.GameMode))
+                .GroupBy(m => new { m.QueueId, Mode = m.GameMode.ToUpperInvariant() })
+                .Select(group => new { group.Key, Analysis = LeaguePlayerHistoryAnalysis.Calculate(group) })
+                .Where(row => row.Analysis.Wins + row.Analysis.Losses > 0)
+                .OrderByDescending(row => row.Analysis.Loaded).ThenBy(row => row.Key.QueueId)
+                .Select(row => (object)new
+                {
+                    queue = row.Key.QueueId, mode = row.Key.Mode,
+                    loaded = row.Analysis.Loaded, wins = row.Analysis.Wins, losses = row.Analysis.Losses,
+                    recentFive = row.Analysis.RecentFiveWinRate, previousFive = row.Analysis.PreviousFiveWinRate,
+                    kills = row.Analysis.Kills, deaths = row.Analysis.Deaths, assists = row.Analysis.Assists,
+                    champions = row.Analysis.Champions.Select(c => new
+                    {
+                        id = c.ChampionId, name = c.ChampionName, games = c.Games, wins = c.Wins,
+                        kda = (c.Kills + c.Assists) / (double)Math.Max(1, c.Deaths)
+                    }).ToArray()
+                }).ToArray();
+        }
+
+        private static string HistoryOutcome(LeaguePlayerMatchSummary match)
+        {
+            return LeaguePlayerHistoryAnalysis.Outcome(match).ToString().ToLowerInvariant();
+        }
+
         private static string SerializeHistory(LeagueUnifiedHistorySnapshot result, bool hasMore)
         {
             var page = result.Page;
@@ -122,6 +150,7 @@ namespace FACM.Presentation.Glass
                 level = result.Profile.SummonerLevel,
                 count = page == null ? 0 : page.Matches.Count,
                 hasMore = page != null && hasMore,
+                analysis = ProjectAnalysis(page),
                 rows = page == null ? new object[0] : page.Matches.Take(MaximumLoadedMatches).Select(match => new
                 {
                     gameId = match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -130,7 +159,7 @@ namespace FACM.Presentation.Glass
                     championId = match.ChampionId,
                     mode = match.GameMode,
                     queueId = match.QueueId,
-                    outcome = match.StatisticsAvailable ? (match.Win ? "win" : "loss") : "unknown",
+                    outcome = HistoryOutcome(match),
                     kills = match.Kills,
                     deaths = match.Deaths,
                     assists = match.Assists,
@@ -220,7 +249,7 @@ namespace FACM.Presentation.Glass
                     championId = m.ChampionId,
                     queue = m.QueueId,
                     mode = m.GameMode,
-                    outcome = m.StatisticsAvailable ? m.Win ? "win" : "loss" : "unknown",
+                    outcome = HistoryOutcome(m),
                     kills = m.Kills,
                     deaths = m.Deaths,
                     assists = m.Assists
@@ -239,6 +268,18 @@ namespace FACM.Presentation.Glass
             var merged = MergePages(page1, page2);
             if (merged.Matches.Count != 3 || merged.Matches[2].GameId != 1 || page1.Matches.Count != 2)
                 throw new InvalidOperationException("History paging overlap or source ownership regressed.");
+            var sample = new LeaguePlayerMatchPage();
+            for (var i = 0; i < 12; i++)
+                sample.Matches.Add(new LeaguePlayerMatchSummary { GameId = i + 1, QueueId = i < 10 ? 420 : 450,
+                    GameMode = i < 10 ? "CLASSIC" : "ARAM", ChampionId = 22, GameType = "MATCHED_GAME",
+                    GameCreationLocal = new DateTime(2026, 1, 1).AddHours(i), ParticipantResolved = true,
+                    StatisticsAvailable = true, WinResult = i == 11 ? "remake" : i < 5 ? "loss" : "win" });
+            var projection = new JavaScriptSerializer().Serialize(ProjectAnalysis(sample));
+            if (!projection.Contains("\"queue\":420") || !projection.Contains("\"queue\":450") ||
+                !projection.Contains("\"wins\":5,\"losses\":5") || !projection.Contains("\"recentFive\":100") ||
+                !projection.Contains("\"previousFive\":0") || !projection.Contains("\"wins\":1,\"losses\":0") ||
+                HistoryOutcome(sample.Matches[11]) != "remake" || ProjectAnalysis(null).Length != 0)
+                throw new InvalidOperationException("History analysis projection mixed queues or counted remakes.");
             var firstPosts = 0;
             var secondPosts = 0;
             var first = new UnifiedWorkspaceHistoryAdapter(() => false, () => false,

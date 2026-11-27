@@ -1,3 +1,7 @@
+## 2026-11-27 — Own-history queue-specific performance overview
+
+The history adapter groups loaded rows by queue and mode and invokes the existing native analysis once per group; renderer selects a projected group without network or additional service ownership.
+
 ## 2026-11-27 — Reconnect observation and recovery cadence
 
 GameflowMonitor remains the single observation owner; confirmed Reconnect uses its existing recovery cadence. ReconnectController classifies departure evidence against the existing session fence, with no new poller or write endpoint.

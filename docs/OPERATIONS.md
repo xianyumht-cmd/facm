@@ -1,3 +1,7 @@
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Verify queue switching, ten-game trend threshold, remake exclusion, champion rows and clearing on failed history refresh. Live Tencent acceptance remains separate.
+
 ## 2026-11-27 — Reconnect observation and recovery cadence
 
 Inspect reconnect trace after a submitted request: InProgress observed, session changed, observation lost, or another phase. Confirm actual playable recovery on Tencent Windows separately; test ordinary in-game cadence and no duplicate writes.
