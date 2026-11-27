@@ -10,7 +10,8 @@ namespace FACM.Presentation.Glass
 
         public bool Recognizes(string message)
         {
-            return message == "history-refresh" || message == "history-more";
+            return message == "history-refresh" || message == "history-more" ||
+                (message != null && message.StartsWith("history-open-detail:", StringComparison.Ordinal));
         }
 
         public void Open(UnifiedWorkspaceForm workspace, bool pushHistory)
@@ -25,7 +26,9 @@ namespace FACM.Presentation.Glass
 
         public void Handle(UnifiedWorkspaceForm workspace, string message)
         {
-            workspace.StartHistoryRead(message == "history-more" ? 20 : 10, true);
+            if (message.StartsWith("history-open-detail:", StringComparison.Ordinal))
+                workspace.OpenRecentMatchDetail(message.Substring("history-open-detail:".Length));
+            else workspace.StartHistoryRead(message == "history-more" ? 20 : 10, true);
         }
 
         public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)

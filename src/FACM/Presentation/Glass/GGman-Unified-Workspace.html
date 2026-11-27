@@ -616,6 +616,17 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 @media(prefers-reduced-motion:no-preference){#home .tile,#other .tile,#quicktools .quick-actions button{transition:background-color .12s ease,border-color .12s ease}}
 #clientPhase:empty,#statusPhase:empty,#statusHint:empty,#cloudModeNote:empty,#mayhemResult:empty,#recommendationResult:empty{display:none!important}
 #recommendationChoices label[hidden]{display:none!important}
+#home .home-context{display:flex;gap:6px;align-items:stretch}
+#home .home-context .status-home{flex:1;min-width:0;min-height:60px;padding:7px 10px;width:auto}
+#home .home-context #sceneShortcut{flex:0 0 94px;padding:5px 4px;border:1px solid var(--line);border-radius:10px;background:var(--card2);font-size:11.5px}
+#home .home-context #clientPhase{font-size:10.5px;padding-left:0}
+#home .home-context .status-heading{margin-bottom:2px}
+#home .tile{min-height:54px}
+#home .actions{margin-top:7px}
+.history-match{width:100%;text-align:left;color:var(--text)}
+.history-match:hover{background:var(--card2)}
+#advancedHistoryPage details.history-extra>summary{cursor:pointer;font-weight:650;font-size:13px}
+#recommendationPage .save-row{margin-bottom:8px}
 </style>
 </head>
 <body data-mode="home">
@@ -628,13 +639,13 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 </header>
 <main id="pages">
   <section id="home">
-    <button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
+    <div class="home-context"><button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
       <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 检测中</b><span class="status-chevron" aria-hidden="true">›</span></span>
       <span id="clientPhase"></span>
-    </button>
+    </button><button id="sceneShortcut" data-route="client-status">客户端状态</button></div>
     
     <div class="tiles">
-      <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong></span></button>
+      <button class="tile" data-route="live"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>实时对局</strong></span></button>
       <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong></span></button>
       <button class="tile" data-route="mayhem"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 2.1 6.5L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.5Z"/><path d="m19 17 1 2.5 2 1-2 .7-.7 2-1-2-.8-.7"/></svg></span><span class="tile-copy"><strong>海斗攻略</strong></span></button>
       <button class="tile" data-route="efficiency"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--card2)"/><circle cx="16" cy="12" r="2.2" fill="var(--card2)"/><circle cx="10" cy="18" r="2.2" fill="var(--card2)"/></svg></span><span class="tile-copy"><strong>快捷工具</strong></span></button>
@@ -669,8 +680,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     </div>
     <div class="tool-caption">全局快捷键</div>
     <div class="quick-hotkeys">
-      <label>关闭大厅<input id="closeLobbyHotkey" type="text" maxlength="60" placeholder="如 Ctrl+F9" spellcheck="false"></label>
-      <label>退出游戏<input id="exitGameHotkey" type="text" maxlength="60" placeholder="如 Ctrl+F8" spellcheck="false"></label>
+      <label>关闭大厅<input id="closeLobbyHotkey" type="text" maxlength="60" placeholder="按下组合键" spellcheck="false"></label>
+      <label>退出游戏<input id="exitGameHotkey" type="text" maxlength="60" placeholder="按下组合键" spellcheck="false"></label>
       <button data-action="hotkeys-save">保存快捷键</button>
     </div>
     <p id="toolResult" role="status" aria-live="polite"></p>
@@ -774,8 +785,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <label>队列模式<select id="advancedHistoryQueue"><option value="all">全部已读取队列</option></select></label>
       <label>排序<select id="advancedHistorySort"><option value="recent">最近优先</option><option value="oldest">较早优先</option><option value="kills">击杀优先</option><option value="kda">KDA 优先</option></select></label>
     </div>
-    <div class="history-extra">
-      <h3>Riot ID 跨区战绩查询</h3>
+    <details class="history-extra">
+      <summary>Riot ID 跨区战绩查询</summary>
       
       <div class="history-region-header">
         <label>Riot ID<input type="text" id="advancedRegionalRiotId" maxlength="52" autocomplete="off" placeholder="召唤师名称#编号"></label>
@@ -785,9 +796,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
         <button data-action="history-region-catalog">更新服务器列表</button></div>
       <p id="advancedRegionalStatus" role="status">等待选择服务器和输入 Riot ID</p>
       <div id="advancedRegionalResults"></div>
-    </div>
+    </details>
     <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
-    <div id="advancedHistoryRows"></div>
     <div class="guide-card" id="advancedHistoryDetail" hidden>
       <strong id="advancedHistoryDetailTitle">对局详情</strong>
       <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
@@ -825,8 +835,9 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
         </div>
       </div>
     </div>
+    <div id="advancedHistoryRows"></div>
     <div class="actions">
-      <button data-action="history-advanced-refresh">重新读取 20 场</button>
+      <button data-action="history-advanced-refresh">刷新战绩</button>
       
     </div>
   </section>
@@ -974,14 +985,6 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <h2>出装推荐</h2>
     
     <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
-    <div class="guide-results" id="recommendationOutput" hidden>
-      <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
-      <div class="guide-stats">
-        <div class="guide-card"><small>版本</small><strong id="recommendationVersion">—</strong></div>
-        <div class="guide-card"><small>胜率</small><strong id="recommendationWinRate">—</strong></div>
-      </div>
-      <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
-    </div>
     <div class="guide-checks" id="recommendationChoices">
       <label><input id="applyRunes" type="checkbox" checked> 应用符文</label>
       <label><input id="applySpells" type="checkbox" checked> 应用召唤师技能</label>
@@ -990,6 +993,14 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="save-row">
       <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
       <button data-action="recommendation-apply" id="recommendationApply" disabled>应用推荐</button>
+    </div>
+    <div class="guide-results" id="recommendationOutput" hidden>
+      <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
+      <div class="guide-stats">
+        <div class="guide-card"><small>版本</small><strong id="recommendationVersion">—</strong></div>
+        <div class="guide-card"><small>胜率</small><strong id="recommendationWinRate">—</strong></div>
+      </div>
+      <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
     </div>
     <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
   </section>
@@ -1209,6 +1220,22 @@ function modeName(value){
   var code=String(value==null?"":value).trim();
   return names[code.toUpperCase()]||code;
 }
+["closeLobbyHotkey","exitGameHotkey"].forEach(function(id){
+  get(id).addEventListener("keydown",function(event){
+    if(event.isComposing||event.keyCode===229)return;
+    var key=event.key,code=event.code||"";
+    if(key==="Tab"||key==="Escape"||["Control","Alt","Shift","Meta"].includes(key))return;
+    if((key==="Backspace"||key==="Delete")&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){event.preventDefault();this.value="";return;}
+    var modified=event.ctrlKey||event.altKey||event.shiftKey||event.metaKey;
+    if(!modified&&!/^F([1-9]|1[0-2])$/.test(key))return;
+    var main=/^Key[A-Z]$/.test(code)?code.slice(3):/^Digit[0-9]$/.test(code)?code.slice(5):/^Numpad[0-9]$/.test(code)?"NumPad"+code.slice(6):key;
+    var names={ArrowUp:"Up",ArrowDown:"Down",ArrowLeft:"Left",ArrowRight:"Right"," ":"Space",Enter:"Enter",Insert:"Insert",Delete:"Delete",Home:"Home",End:"End",PageUp:"PageUp",PageDown:"PageDown"};
+    main=names[main]||main;
+    if(!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|NumPad[0-9]|Up|Down|Left|Right|Space|Enter|Insert|Delete|Home|End|PageUp|PageDown)$/.test(main))return;
+    event.preventDefault();event.stopPropagation();
+    this.value=[event.ctrlKey?"Ctrl":"",event.altKey?"Alt":"",event.shiftKey?"Shift":"",event.metaKey?"Win":"",main].filter(Boolean).join("+");
+  });
+});
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
   var previous=mode;
@@ -1281,20 +1308,15 @@ document.addEventListener("click",function(event){
     get("advancedRegionalStatus").textContent="当前账号战绩已刷新，跨区记录需重新查询";
     post("history-advanced-refresh");return;
   }
+  if(target.dataset.recentGameId!==undefined){
+    var recentId=target.dataset.recentGameId;
+    if(historyRows.some(function(row){return String(row.gameId)===recentId;}))post("history-open-detail:"+recentId);
+    return;
+  }
   if(target.dataset.advancedGameId!==undefined){
     var gameId=target.dataset.advancedGameId;
     if(!advancedHistoryIds.has(gameId))return;
-    get("advancedHistoryDetail").hidden=false;
-    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
-    get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
-    get("advancedHistoryTeams").replaceChildren();
-    get("advancedHistoryParticipants").replaceChildren();
-    get("advancedHistoryExtras").hidden=true;
-    get("advancedHistoryRadar").replaceChildren();
-    get("advancedHistoryTimeline").replaceChildren();
-    get("advancedTimelineEvents").replaceChildren();
-    advancedTimelineFrames=[];
-    selectedAdvancedMatch=gameId;
+    selectLocalMatch(gameId);
     post("history-advanced-detail:"+gameId);return;
   }
   if(target.dataset.action==="profile-customization-refresh"){
@@ -1681,6 +1703,9 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     var statuses={success:"设置已保存，游戏客户端已确认",overridden:"游戏客户端更改了状态，请重新查看",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
   }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-select-local"){
+    if(mode==="player-advanced"&&advancedHistoryIds.has(String(e.data.id)))selectLocalMatch(String(e.data.id));return;
+  }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
     renderAdvancedHistoryList(e.data);return;
   }
@@ -1840,6 +1865,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     document.getElementById("statusPhase").textContent=secondary;
     document.getElementById("statusHint").textContent="";
     document.getElementById("clientPhase").textContent=secondary;
+    updateSceneShortcut(e.data);
     return;
   }
   if(value==="home"||value==="more")setMode(value);
@@ -2227,7 +2253,7 @@ function renderRecommendation(data){
     var title=document.createElement("strong");title.textContent=labels[row.category]||String(row.category||"推荐");
     var detail=document.createElement("small");detail.textContent=row.title||"来源未提供";
     item.append(title,detail);
-    if(row.evidence){var note=document.createElement("small");note.textContent=String(row.evidence);item.appendChild(note);}
+    if(row.evidence){var evidence=document.createElement("details"),summary=document.createElement("summary"),note=document.createElement("small");summary.textContent="详情";note.textContent=String(row.evidence);evidence.append(summary,note);item.appendChild(evidence);}
     list.appendChild(item);
   });
   if(!rows.length){var empty=document.createElement("div");empty.className="guide-card";empty.textContent="当前没有可用的推荐数据";list.appendChild(empty);}
@@ -2280,7 +2306,7 @@ function drawHistoryRows(){
     rows.sort(function(a,b){return metric(b)-metric(a);});
   }
   rows.forEach(function(match){
-    var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
+    var card=document.createElement("button");card.type="button";card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
     var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
     var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",unknown:"结果待补全"}[match.outcome]||"结果待补全");
@@ -2292,6 +2318,8 @@ function drawHistoryRows(){
     var score=document.createElement("small");
     score.textContent=match.outcome==="unknown"?"对局数据待补全":
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
+    var id=String(match.gameId||"");
+    if(/^\d{1,19}$/.test(id)&&id!=="0"){card.dataset.recentGameId=id;card.setAttribute("aria-label",champ.textContent+" · "+outcome.textContent+" · 查看对局详情");}else card.disabled=true;
     card.append(top,meta,score);list.appendChild(card);
   });
   var wins=rows.filter(function(match){return match.outcome==="win";}).length;
@@ -2519,6 +2547,20 @@ function drawAdvancedHistoryRows(){
     card.append(left,button);list.appendChild(card);
   });
   if(!rows.length){var empty=document.createElement("p");empty.textContent="已读取记录中没有符合条件的对局";list.append(empty);}
+}
+function selectLocalMatch(gameId){
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
+    get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryRadar").replaceChildren();
+    get("advancedHistoryTimeline").replaceChildren();
+    get("advancedTimelineEvents").replaceChildren();
+    advancedTimelineFrames=[];
+    selectedAdvancedMatch=gameId;
+    get("advancedHistoryDetail").scrollIntoView({block:"start"});
 }
 function renderAdvancedMatchDetail(data){
   if(String(data.id)!==selectedAdvancedMatch)return;
@@ -2856,6 +2898,19 @@ function filterToolCards(){
   document.getElementById("searchMessage").textContent=query?(count?"已找到 "+count+" 项功能":"没有匹配的功能"):"";
 }
 document.getElementById("toolSearch").addEventListener("input",filterToolCards);
+function updateSceneShortcut(state){
+  var route="client-status",label="客户端状态";
+  if(state.connected){
+    var phase=String(state.phase||"");
+    if(phase==="Lobby"){route="matchmaking-settings";label="排队设置";}
+    else if(phase==="Matchmaking"||phase==="ReadyCheck"||phase==="Reconnect"){route="efficiency";label="快捷工具";}
+    else if(phase==="ChampSelect"){route="recommendation";label="出装推荐";}
+    else if(phase==="InProgress"||phase==="GameStart"){route="live";label="实时对局";}
+    else if(["WaitingForStats","PreEndOfGame","EndOfGame"].includes(phase)){route="player";label="我的战绩";}
+    else {route="dashboard";label="LOL 工作台";}
+  }else if(state.clientProcess&&!state.gameProcess){route="repair";label="游戏修复";}
+  var button=get("sceneShortcut");button.dataset.route=route;button.textContent=label;
+}
 function phaseLabel(phase){
   var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
   return labels[String(phase||"")]||"已连接";

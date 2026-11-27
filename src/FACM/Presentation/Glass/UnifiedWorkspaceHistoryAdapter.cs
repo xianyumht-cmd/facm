@@ -83,7 +83,7 @@ namespace FACM.Presentation.Glass
                 hasMore = page != null && page.HasMore && count < 20,
                 rows = page == null ? new object[0] : page.Matches.Take(20).Select(match => new
                 {
-                    gameId = match.GameId,
+                    gameId = match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     played = match.GameCreationLocal.ToString("yyyy-MM-dd HH:mm"),
                     champion = match.ChampionName,
                     championId = match.ChampionId,
@@ -129,11 +129,27 @@ namespace FACM.Presentation.Glass
             Session = null;
         }
 
+        internal bool HasCurrentPage(LeaguePlayerModule module)
+        {
+            return module != null && Session != null && Snapshot != null && Snapshot.Profile != null &&
+                Snapshot.Page != null && LeagueEncounterReplayService.SessionMatches(Session, module.UnifiedHistorySession);
+        }
+
         internal bool HasAdvancedPage(LeaguePlayerModule module)
         {
-            return module != null && Session != null && Snapshot != null &&
-                Snapshot.Page != null && Snapshot.Page.Matches.Count >= 20 &&
-                LeagueEncounterReplayService.SessionMatches(Session, module.UnifiedHistorySession);
+            return HasCurrentPage(module) && (Snapshot.Page.Matches.Count >= 20 || !Snapshot.Page.HasMore);
+        }
+
+        internal bool ContainsMatch(LeaguePlayerModule module, long gameId)
+        {
+            return HasCurrentPage(module) && gameId > 0 && Snapshot.Page.Matches.Any(match => match.GameId == gameId);
+        }
+
+        internal bool PublishCurrent(LeaguePlayerModule module)
+        {
+            if (!_canPublish() || !HasCurrentPage(module)) return false;
+            _publish(SerializeHistory(Snapshot, Snapshot.Page.Matches.Count));
+            return true;
         }
 
         internal void SyncAdvancedList(LeaguePlayerModule module)
