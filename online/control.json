@@ -1,0 +1,36 @@
+{
+  "schema": "ggman-control.v1",
+  "revision": 20261127204800,
+  "sources": [
+    {
+      "name": "gh-dpik",
+      "prefix": "https://gh.dpik.top/",
+      "enabled": true,
+      "priority": 5
+    },
+    {
+      "name": "cors-isteed",
+      "prefix": "https://cors.isteed.cc/",
+      "enabled": true,
+      "priority": 10
+    },
+    {
+      "name": "gh-proxy",
+      "prefix": "https://gh-proxy.com/",
+      "enabled": true,
+      "priority": 15
+    },
+    {
+      "name": "ghfast",
+      "prefix": "https://ghfast.top/",
+      "enabled": true,
+      "priority": 35
+    },
+    {
+      "name": "ghproxy-net",
+      "prefix": "https://ghproxy.net/",
+      "enabled": true,
+      "priority": 45
+    }
+  ]
+}

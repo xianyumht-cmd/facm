@@ -1,3 +1,7 @@
+## 2026-11-27 — COS signed cloud control bootstrap
+
+The owner created the Guangzhou COS bucket and configured the two restricted repository Secrets. A trusted push workflow signs the bounded route-only payload using the existing release certificate, uploads only `control.json` with object-level public read, and verifies anonymous HTTPS bytes. Initial five routes use mainland manifest evidence, not EXE throughput. Initial publishing is permitted on the current trusted task branch; remove this branch trigger before merging. No current client consumes the new object yet. Upload/anonymous readback and signer compatibility require actual workflow evidence. No release or main change.
+
 ## 2026-11-27 — Mainland mirror measurement
 
 Baseline `30dad0e1` passed all four gates. A bounded Globalping public HTTPS audit requests mainland CN probes by carrier ASN, verifies their actual country/ASN, checks update metadata against the checkout, and records timing and measurement IDs. It does not download EXEs, use credentials, or auto-reorder mirrors. Missing probes/API failures are not carrier outages. GitHub Actions is the API caller, not the measuring location. Results pending; use only confirmed mainland probe evidence to determine whether further tests or priority changes are warranted.
