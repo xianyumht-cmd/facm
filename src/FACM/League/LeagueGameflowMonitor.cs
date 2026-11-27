@@ -115,7 +115,19 @@ namespace FACM.League
 
                 if (next != null)
                 {
-                    lock (_sync) _current = LeagueGameflowEventDispatcher.Clone(next);
+                    bool changed;
+                    lock (_sync)
+                    {
+                        changed = _current == null || _current.Connected != next.Connected ||
+                            _current.Activity != next.Activity ||
+                            _current.ClientProcessDetected != next.ClientProcessDetected ||
+                            _current.GameProcessDetected != next.GameProcessDetected;
+                        _current = LeagueGameflowEventDispatcher.Clone(next);
+                    }
+                    if (changed)
+                        AppLog.Info("Gameflow health; connected=" + next.Connected +
+                            "; activity=" + next.Activity + "; clientProcess=" + next.ClientProcessDetected +
+                            "; gameProcess=" + next.GameProcessDetected);
                     LeagueGameflowEventDispatcher.DispatchSafely(StateChanged, next, "monitor");
                 }
 

@@ -15,6 +15,7 @@ namespace FACM.League
             ValidateSharedLockfileRead();
             ValidateCommandLineParser();
             ValidateSessionRefreshBoundary();
+            ValidatePhaseTimeoutRecoveryBoundary();
             ValidateLateStartRediscoveryBoundary();
             ValidateSessionHttpClientRetirementBoundary();
             ValidateDisconnectedModuleIsNonFatal();
@@ -134,6 +135,26 @@ namespace FACM.League
             var refreshed = provider.GetSession(true);
             Require(refreshed != null && refreshed.Matches(second), "LeagueClient session provider did not refresh after invalidation.");
             Require(discovery.Calls == 2, "LeagueClient session provider refresh did not invoke discovery exactly once.");
+        }
+
+        private static void ValidatePhaseTimeoutRecoveryBoundary()
+        {
+            var first = new LeagueClientSession("LeagueClientUx", 1, 50001, "one", "https", "test");
+            var second = new LeagueClientSession("LeagueClientUx", 2, 50002, "two", "https", "test");
+            var discovery = new SequenceDiscovery(first, second);
+            var provider = new LeagueClientSessionProvider(discovery, TimeSpan.Zero);
+            provider.GetSession();
+            provider.ReportPhaseTimeout(first);
+            Require(provider.GetSession().Matches(first) && discovery.Calls == 1,
+                "A single phase timeout must preserve the session for recovery.");
+            provider.ReportPhaseSuccess(first);
+            provider.ReportPhaseTimeout(first);
+            Require(provider.GetSession().Matches(first), "A successful phase read must reset timeout evidence.");
+            provider.ReportPhaseTimeout(first);
+            Require(provider.GetSession().Matches(second) && discovery.Calls == 2,
+                "Repeated phase timeouts must allow rediscovery after a stale session.");
+            provider.ReportPhaseTimeout(first);
+            Require(provider.GetSession().Matches(second), "Stale timeout evidence must not affect the new session.");
         }
 
         private static void ValidateLateStartRediscoveryBoundary()

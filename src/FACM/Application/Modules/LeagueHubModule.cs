@@ -212,6 +212,7 @@ namespace FACM.AppHost.Modules
 
             if (!_champSelectEpisode)
             {
+                AppLog.Info("Runtime Companion Champion Select episode observed.");
                 _champSelectEpisode = true;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = false;
@@ -226,6 +227,7 @@ namespace FACM.AppHost.Modules
                     if (!_hubForm.Visible) _hubForm.Show();
                     _hubForm.BringToFront();
                     _surfacePresentedForEpisode = true;
+                    AppLog.Info("Runtime Companion presented through existing live hub.");
                 }
                 return;
             }
@@ -294,7 +296,10 @@ namespace FACM.AppHost.Modules
             if (form != null) form.FormClosed -= HandleAutomaticLivePopupClosed;
             if (ReferenceEquals(_automaticLivePopup, form)) _automaticLivePopup = null;
             if (!_closingAutomaticPopup && _champSelectEpisode)
+            {
                 _dismissedForEpisode = true;
+                AppLog.Info("Runtime Companion dismissed during Champion Select episode.");
+            }
         }
 
         private void CloseAutomaticLivePopup()
