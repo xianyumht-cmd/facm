@@ -77,11 +77,8 @@ namespace FACM.AppHost.Modules
                 var named = await _service.EnrichChampionNamesAsync(profile, page, cancellationToken);
                 if (named != null) page = named;
             }
-            if (startIndex > 0)
-            {
-                var current = await _service.LoadProfileAsync(true, cancellationToken);
-                if (current == null || !string.Equals(current.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
-            }
+            var current = await _service.LoadProfileAsync(true, cancellationToken);
+            if (current == null || !string.Equals(current.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
             return !cancellationToken.IsCancellationRequested &&
                 LeagueEncounterReplayService.SessionMatches(initial, _leagueClient.CurrentSession)
                 ? new LeagueUnifiedHistorySnapshot { Profile = profile, Page = page } : null;

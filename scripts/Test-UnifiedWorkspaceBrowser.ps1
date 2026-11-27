@@ -305,6 +305,22 @@ sendFixture({type:'history-select-local',id:gameId});
 historyPass=historyPass&&!document.querySelector('#advancedHistoryDetail').hidden&&
  document.querySelector('#advancedHistoryDetailTitle').textContent.includes(gameId)&&
  !document.querySelector('#advancedHistoryPage details.history-extra').open;
+var extended=Array.from({length:30},(_,i)=>({id:String(100+i),champion:'Ashe',championId:22,outcome:i===29?'unknown':i%2?'win':'loss',queue:450,kills:4,deaths:2,assists:6}));
+sendFixture({type:'history-advanced-list',name:'Fixture',rows:extended,hasMore:true});
+historyPass=historyPass&&document.querySelectorAll('#advancedHistoryRows [data-advanced-game-id]').length===30&&
+ document.querySelector('#historyChampionStatsRows').textContent.includes('29 场')&&
+ !document.querySelector('#advancedHistoryMore').hidden;
+document.querySelector('#advancedHistoryMore').click();
+historyPass=historyPass&&window.__sceneCommands.includes('history-advanced-more');
+sendFixture('detail:mayhem');
+sendFixture({type:'status',connected:true,phase:'InProgress'});
+var currentGuide=document.querySelector('#mayhemCurrent');
+var guidePass=!currentGuide.disabled;
+currentGuide.click();guidePass=guidePass&&currentGuide.disabled&&window.__sceneCommands.includes('mayhem-current');
+sendFixture({type:'mayhem-failed',status:'current-unavailable'});
+guidePass=guidePass&&!currentGuide.disabled;
+sendFixture({type:'status',connected:true,phase:'Lobby'});
+guidePass=guidePass&&currentGuide.disabled;
 sendFixture('detail:recommendation');
 sendFixture({type:'status',connected:true,phase:'ChampSelect'});
 sendFixture({type:'recommendation-details',status:'ready',canApply:true,allowsRunes:true,rows:[{category:'runes',title:'Fixture',evidence:'Fixture evidence'}]});
@@ -317,7 +333,7 @@ recommendationPass=recommendationPass&&!apply.disabled;
 sendFixture({type:'status',connected:true,phase:'InProgress'});
 recommendationPass=recommendationPass&&apply.disabled;
 sendFixture('home');
-pass=pass&&scenePass&&keysPass&&automationPass&&historyPass&&recommendationPass;
+pass=pass&&scenePass&&keysPass&&automationPass&&historyPass&&recommendationPass&&guidePass;
 var marker=document.createElement('span');
 marker.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
  (pass?'#00ff00':'#ff0000');

@@ -36,7 +36,7 @@ namespace FACM.Presentation.Glass
         internal void Start(LeaguePlayerModule module, int count, bool force)
         {
             Cancel();
-            if (module == null) { PostError(); return; }
+            if (module == null) { _resetAdvanced(); PostError(); return; }
             var source = new CancellationTokenSource();
             _cancellation = source;
             _resetAdvanced();
@@ -69,6 +69,8 @@ namespace FACM.Presentation.Glass
                 }
                 if (result == null || result.Profile == null || result.Page == null ||
                     result.Page.StartIndex != start)
+                { _resetAdvanced(); PostError(); return; }
+                if (result.Page.Matches.Count > count)
                 { _resetAdvanced(); PostError(); return; }
                 var received = result.Page.Matches.Count;
                 var more = result.Page.HasMore;
@@ -209,6 +211,7 @@ namespace FACM.Presentation.Glass
                 type = "history-advanced-list",
                 name = loaded.Profile.AccountName,
                 hasMore = _hasMore,
+                limitReached = _nextIndex >= MaximumLoadedMatches,
                 rows = loaded.Page.Matches.Take(MaximumLoadedMatches).Select(m => new
                 {
                     id = m.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture),

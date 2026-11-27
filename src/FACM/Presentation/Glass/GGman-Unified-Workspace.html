@@ -801,6 +801,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <div id="advancedRegionalResults"></div>
     </details>
     <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
+    <details class="history-extra" id="historyChampionStats" hidden><summary>英雄统计 · 已读取样本</summary><div id="historyChampionStatsRows"></div></details>
     <div class="guide-card" id="advancedHistoryDetail" hidden>
       <strong id="advancedHistoryDetailTitle">对局详情</strong>
       <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
@@ -2089,12 +2090,12 @@ function renderCloudState(data){
 }
 get("cloudAutoSync").addEventListener("change",function(){
   if(cloudBusy)return;cloudBusy=true;
-  get("cloudAutoSync").disabled=true;
+  ["cloudAutoSync","cloudGameRestore","cloudPublish","cloudKeepLocal"].forEach(id=>get(id).disabled=true);
   post("cloud-toggle:config:"+(get("cloudAutoSync").checked?"true":"false"));
 });
 get("cloudGameRestore").addEventListener("change",function(){
   if(cloudBusy)return;cloudBusy=true;
-  get("cloudGameRestore").disabled=true;
+  ["cloudAutoSync","cloudGameRestore","cloudPublish","cloudKeepLocal"].forEach(id=>get(id).disabled=true);
   post("cloud-toggle:game:"+(get("cloudGameRestore").checked?"true":"false"));
 });
 get("updateAuto").addEventListener("change",function(){
@@ -2551,8 +2552,26 @@ function renderAdvancedHistoryList(data){
   if(Array.from(queue.options).some(function(o){return o.value===before;}))queue.value=before;
   get("advancedHistoryStatus").textContent=data.error?"读取失败或当前游戏账号已切换":
     "当前账号 "+(data.name||"")+" · 已读取 "+advancedHistoryRows.length+" 场"+
-    (data.hasMore?" · 可读取更多":advancedHistoryRows.length>=100?" · 本次已读取上限":"");
+    (data.hasMore?" · 可读取更多":data.limitReached?" · 本次已读取上限":"");
   drawAdvancedHistoryRows();
+}
+function drawChampionStats(rows){
+  var group=new Map();
+  rows.forEach(function(match){
+    if(!["win","loss"].includes(match.outcome)||Number(match.championId)<=0)return;
+    var id=String(match.championId),item=group.get(id);
+    if(!item){item={name:match.champion||"英雄 #"+id,games:0,wins:0,k:0,d:0,a:0};group.set(id,item);}
+    item.games++;if(match.outcome==="win")item.wins++;
+    item.k+=Number(match.kills)||0;item.d+=Number(match.deaths)||0;item.a+=Number(match.assists)||0;
+  });
+  var list=get("historyChampionStatsRows");list.replaceChildren();
+  get("historyChampionStats").hidden=group.size===0;
+  Array.from(group.values()).sort(function(a,b){return b.games-a.games||b.wins-a.wins;}).forEach(function(item){
+    var row=document.createElement("div");row.className="history-advanced-row";
+    var name=document.createElement("strong");name.textContent=item.name;
+    var stats=document.createElement("small");stats.textContent=item.games+" 场 · "+item.wins+"胜 "+(item.games-item.wins)+"负 · "+Math.round(item.wins/item.games*100)+"% · "+[item.k,item.d,item.a].map(x=>(x/item.games).toFixed(1)).join("/");
+    row.append(name,stats);list.append(row);
+  });
 }
 function drawAdvancedHistoryRows(){
   var list=get("advancedHistoryRows");list.replaceChildren();
@@ -2565,11 +2584,12 @@ function drawAdvancedHistoryRows(){
       return String(value==null?"":value).toLocaleLowerCase().includes(search);
     });
   });
+  drawChampionStats(rows);
   var sort=get("advancedHistorySort").value;
   if(sort==="oldest")rows.reverse();
   if(sort==="kills"||sort==="kda"){
     rows.sort(function(a,b){
-      var metric=function(x){return sort==="kills"?Number(x.kills)||0:
+      var metric=function(x){if(x.outcome==="unknown")return -1;return sort==="kills"?Number(x.kills)||0:
         ((Number(x.kills)||0)+(Number(x.assists)||0))/Math.max(1,Number(x.deaths)||0);};
       return metric(b)-metric(a);
     });
@@ -2580,7 +2600,7 @@ function drawAdvancedHistoryRows(){
     heading.textContent=String(match.champion||"英雄 #"+match.championId)+" · "+(
       {win:"胜利",loss:"失败",unknown:"结果未确认"}[match.outcome]||"未确认");
     meta.textContent=[match.played,modeName(match.mode)||"队列 #"+match.queue,
-      "K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
+      match.outcome==="unknown"?"数据待补全":"K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
     left.append(heading,meta);
     var button=document.createElement("button");button.dataset.advancedGameId=String(match.id);
     button.textContent="查看完整对局";button.setAttribute("aria-label","读取对局 "+match.id+" 的真实明细");
@@ -2610,7 +2630,8 @@ function renderAdvancedMatchDetail(data){
   get("advancedHistoryDetailStatus").textContent=labels[data.status]||"读取状态待确认";
   if(data.status==="WrongAccount"){
     advancedHistoryRows=[];advancedHistoryIds.clear();
-    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryRows").replaceChildren();drawChampionStats([]);
+    get("advancedHistoryMore").hidden=true;
     get("advancedHistoryStatus").textContent="游戏账号已切换，旧记录已清空，请重新读取";
   }
   var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();

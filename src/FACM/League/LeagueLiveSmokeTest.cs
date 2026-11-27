@@ -20,6 +20,7 @@ namespace FACM.League
             ValidatePollingBudget();
             ValidateCancellation();
             ValidateSgpLiveTeamEnrichment();
+            ValidateCurrentMayhemGuideContext();
             if (!LeagueLiveUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("League Live tray bridge lost MainForm tray access.");
         }
@@ -381,10 +382,38 @@ namespace FACM.League
                 "Duplicate GSM team identities must be rejected.");
         }
 
+        private static void ValidateCurrentMayhemGuideContext()
+        {
+            var api = new SgpLiveFixtureApi { QueueId = 3270 };
+            var service = new LeagueLiveDataService(api, new PerformanceBudgetProvider());
+            var context = service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(context != null && context.GameId == 123456 &&
+                context.Players.Count(row => row.IsLocalPlayer) == 1 &&
+                context.Players.Single(row => row.IsLocalPlayer).ChampionId == 22,
+                "Current Mayhem guide must resolve the authenticated player without prior draft observation.");
+            api.QueueId = 450;
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Base ARAM must not be treated as Mayhem.");
+            api.QueueId = 2400;
+            api.Phase = "Lobby";
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Current Mayhem guide must require an active match.");
+            api.Phase = "InProgress";
+            api.Puuid = "missing-puuid";
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Missing owner must not fall back to another player's champion.");
+            api.Puuid = "local-puuid";
+            api.ChangeOwnerAfterGameRead = true;
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Account replacement during gameflow read must reject current hero context.");
+        }
+
         private sealed class SgpLiveFixtureApi : ILeagueClientApi
         {
             internal string Puuid = "local-puuid";
             internal string Phase = "InProgress";
+            internal int QueueId = 420;
+            internal bool ChangeOwnerAfterGameRead;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -393,10 +422,13 @@ namespace FACM.League
                 if (path == LeagueDashboardDetailsService.SummonerPath)
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + Puuid + "\"}"));
                 if (path == LeagueLiveDataService.GameflowSessionPath)
+                {
+                    if (ChangeOwnerAfterGameRead) Puuid = "switched-puuid";
                     return Task.FromResult(Encoding.UTF8.GetBytes(
-                        "{\"phase\":\"" + Phase + "\",\"gameData\":{\"gameId\":123456," +
+                        "{\"phase\":\"" + Phase + "\",\"gameData\":{\"gameId\":123456,\"queue\":{\"id\":" + QueueId + "}," +
                         "\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":22}]," +
                         "\"teamTwo\":[{\"puuid\":\"enemy-puuid\",\"championId\":55}]}}"));
+                }
                 return Task.FromResult<byte[]>(null);
             }
         }
