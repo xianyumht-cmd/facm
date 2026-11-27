@@ -1,3 +1,7 @@
+## 2026-11-27 — Selected match review summary
+
+Avoid treating missing numeric fields as zero or presenting incomplete-team shares as confirmed. Never infer a target from another roster entry; Arena placement is not a five-player lane metric.
+
 ## 2026-11-27 — Own-history queue-specific performance overview
 
 Do not mix queues, count remakes as losses, or infer trends from fewer than ten dated valid games. A champion row is a loaded sample, not a lifetime ranking.

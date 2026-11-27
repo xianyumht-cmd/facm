@@ -307,6 +307,17 @@ sendFixture({type:'history-select-local',id:gameId});
 historyPass=historyPass&&!document.querySelector('#advancedHistoryDetail').hidden&&
  document.querySelector('#advancedHistoryDetailTitle').textContent.includes(gameId)&&
  !document.querySelector('#advancedHistoryPage details.history-extra').open;
+sendFixture({type:'history-advanced-detail',id:gameId,status:'Ready',mode:'CLASSIC',queue:420,duration:1200,review:{champion:'Ashe',outcome:'win',kills:4,deaths:2,assists:8,kda:6,damage:15000,damageShare:0.3,participation:0.6,csPerMinute:7,vision:null,dragons:2},players:[],teams:[]});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidden&&
+ document.querySelector('#advancedReviewMetrics').textContent.includes('30.0%')&&
+ document.querySelector('#advancedReviewMetrics').textContent.includes('每分钟补刀')&&
+ !document.querySelector('#advancedReviewMetrics').textContent.includes('视野得分')&&
+ document.querySelector('#advancedReviewObjectives').textContent.includes('小龙 2');
+sendFixture({type:'history-advanced-detail',id:'123',status:'Unavailable'});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidden;
+sendFixture({type:'history-advanced-detail',id:gameId,status:'Unavailable'});
+historyPass=historyPass&&document.querySelector('#advancedHistoryReview').hidden&&
+ !document.querySelector('#advancedReviewMetrics').textContent;
 var extended=Array.from({length:30},(_,i)=>({id:String(100+i),champion:'Ashe',championId:22,outcome:i===29?'unknown':i%2?'win':'loss',queue:450,kills:4,deaths:2,assists:6}));
 sendFixture({type:'history-advanced-list',name:'Fixture',rows:extended,hasMore:true});
 historyPass=historyPass&&document.querySelectorAll('#advancedHistoryRows [data-advanced-game-id]').length===30&&

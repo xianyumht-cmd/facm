@@ -1,3 +1,7 @@
+## 2026-11-27 — Selected match review summary
+
+Show a short match review from existing native data before the detailed scoreboard. Suppress team ratios and objectives unless supported map/mode and complete five-player evidence are present. Keep timeline loading explicit.
+
 ## 2026-11-27 — Own-history queue-specific performance overview
 
 Use explicit queue/mode selection and the existing native analysis, with no new polling or history storage. Show most-played sample champions rather than claim a best champion from small samples.

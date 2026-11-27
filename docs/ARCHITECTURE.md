@@ -1,3 +1,7 @@
+## 2026-11-27 — Selected match review summary
+
+UnifiedWorkspaceHistoryDetailAdapter owns review projection from the existing verified match breakdown; WebView2 renders compact values before the existing scoreboard. Missing fields remain null and review is cleared on selection/failure.
+
 ## 2026-11-27 — Own-history queue-specific performance overview
 
 The history adapter groups loaded rows by queue and mode and invokes the existing native analysis once per group; renderer selects a projected group without network or additional service ownership.

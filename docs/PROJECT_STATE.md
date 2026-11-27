@@ -1,3 +1,7 @@
+## 2026-11-27 — Selected match review summary
+
+Match review now projects confirmed target identity, outcome/placement, KDA, nullable personal metrics, and bounded contribution ratios using existing detail data. Five-player supported mode/team evidence gates ratios and team objectives; Arena keeps placement without incompatible lane/objective metrics. No additional requests. New native and browser fixtures; exact-head CI pending.
+
 ## 2026-11-27 — Own-history queue-specific performance overview
 
 Own-history WebView2 now projects existing LeaguePlayerHistoryAnalysis by positive queue ID and known mode, including effective wins/losses, recent/prior five and most-played champion sample statistics. Remake/abort/unknown are not wins or losses. No new API calls. Fresh exact-head CI pending.

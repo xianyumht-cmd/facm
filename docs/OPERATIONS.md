@@ -1,3 +1,7 @@
+## 2026-11-27 — Selected match review summary
+
+Check target identity, 5-player and incomplete roster, known zero versus missing values, Arena placement, stale detail, and failed selection clearing. Existing replay and timeline behavior remain; real Tencent client verification is separate.
+
 ## 2026-11-27 — Own-history queue-specific performance overview
 
 Verify queue switching, ten-game trend threshold, remake exclusion, champion rows and clearing on failed history refresh. Live Tencent acceptance remains separate.
