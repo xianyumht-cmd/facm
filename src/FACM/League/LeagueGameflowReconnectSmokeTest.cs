@@ -27,6 +27,16 @@ namespace FACM.League
                     !LeagueGameflowReconnectController.IsReconnectPhase(Bytes("{\"phase\":\"Reconnect\"}")),
                 "Reconnect phase validation accepted ambiguous LCU data.");
 
+            Require(LeagueGameflowReconnectController.ClassifyObservedExit(
+                new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" }, true) == "in_progress_observed" &&
+                LeagueGameflowReconnectController.ClassifyObservedExit(
+                    new LeagueDashboardPhaseState { Connected = false, Phase = "InProgress" }, true) == "observation_lost" &&
+                LeagueGameflowReconnectController.ClassifyObservedExit(
+                    new LeagueDashboardPhaseState { Connected = true, Phase = "InProgress" }, false) == "session_changed" &&
+                LeagueGameflowReconnectController.ClassifyObservedExit(
+                    new LeagueDashboardPhaseState { Connected = true, Phase = "EndOfGame" }, true) == "left_reconnect",
+                "Reconnect outcome must distinguish phase evidence, lost observation and replaced session.");
+
             ValidateDefaultsAndRepeatedEvents();
             ValidatePhaseCancellation();
             ValidateDisableAndFreshEpisode();

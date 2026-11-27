@@ -1,3 +1,7 @@
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+An HTTP reconnect response or an InProgress phase does not establish playable game recovery. Record the observed phase separately from submission; lost observation and replaced session must not be labeled recovered.
+
 ## 2026-11-27 — Disconnect and history bounds
 
 A disconnected phase is not proof that a draft ended. Preserve manual dismissal over a short process-backed disconnect; suspend the writable popup and only reopen on confirmed draft recovery. Never identify the current hero from stale draft state or an arbitrary roster row. Do not present page size as all-time match count; keep source offset separate from unique ID count and exclude unknown outcomes from hero statistics. Cloud toggle rejection must publish authoritative checkbox state instead of leaving controls stuck.

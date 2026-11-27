@@ -1,3 +1,7 @@
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+Inspect reconnect trace after a submitted request: InProgress observed, session changed, observation lost, or another phase. Confirm actual playable recovery on Tencent Windows separately; test ordinary in-game cadence and no duplicate writes.
+
 ## 2026-11-27 — Recovery and deeper history acceptance
 
 Test a short LCU disconnect in selection with and without manual dismissal, recovery and confirmed non-draft transition, and 12-second expiry. From game, explicitly open More > Mayhem and current hero; reject base ARAM, missing owner, changed match or hero, and verify manual search fallback. No automatic in-game overlay. Exercise 10/20 windows past 20, duplicates, end-of-source and 100-position bound, wrong owner, late detail, and resolved-only filtered hero stats. Verify cloud busy/rejection resets both switches. Synthetic tests do not certify fullscreen or Tencent live behavior.

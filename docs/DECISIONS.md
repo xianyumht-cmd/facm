@@ -1,3 +1,7 @@
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+Keep one reconnect write per episode, default off, and reuse the shared three-second recovery cadence only during confirmed Reconnect. Ordinary in-game polling remains unchanged. Report InProgress as phase evidence rather than verified gameplay recovery.
+
 ## 2026-11-27 — Explicit current guide and bounded history depth
 
 Use the existing More tray group (fixed five-root contract), no game-focus stealing or new global key registration. Current hero guide is a read-only explicit native request; verify active Mayhem match and authenticated player before/after, never infer another player's hero. Draft suspension retains dismissal for at most 12 seconds only when the lobby process remains and no game process exists. A confirmed non-draft phase ends the episode. History uses existing offset API in small windows, bounded to 100 source positions, with stable ID deduplication, owner checks and sample-only statistics; no background crawl.

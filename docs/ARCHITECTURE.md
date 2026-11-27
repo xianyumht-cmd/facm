@@ -1,3 +1,7 @@
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+GameflowMonitor remains the single observation owner; confirmed Reconnect uses its existing recovery cadence. ReconnectController classifies departure evidence against the existing session fence, with no new poller or write endpoint.
+
 ## 2026-11-27 — Read-only current guide, bounded history and draft recovery
 
 LeagueHubModule retains short draft episode ownership without another timer. MainForm uses existing More tray action; MayhemGuideShard routes explicit current-hero requests through LeagueLiveModule's bounded local owner/gameflow read and existing MayhemAutomaticGuideService, with generation/session and after-read game identity checks. UnifiedWorkspaceHistoryAdapter holds an independent source cursor and deduplicated snapshot; LeaguePlayerModule uses existing 10/20 window API and current-owner checks, advanced view computes sample aggregates locally. CloudSyncAdapter publishes authoritative state on rejected toggles.

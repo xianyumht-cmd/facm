@@ -105,6 +105,9 @@ namespace FACM
             LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
             LeagueMatchmakingStopSmokeTest.Validate();
+            Require(LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState
+                { Connected = true, Phase = "Reconnect", Activity = LeagueActivityLevel.InGame }) == TimeSpan.FromSeconds(3),
+                "Reconnect must use the recovery cadence rather than the ordinary in-game cadence.");
             LeagueGameflowReconnectSmokeTest.Validate();
             LeagueRespawnTimerSmokeTest.Validate();
             LeagueAutoPickBanSmokeTest.Validate();

@@ -88,6 +88,7 @@ namespace FACM.League
                 string.Equals(state.Phase, "Reconnect", StringComparison.OrdinalIgnoreCase);
             CancellationTokenSource previous = null;
             string previousTrace = null;
+            string previousOutcome = null;
             lock (_sync)
             {
                 if (_disposed) return;
@@ -97,8 +98,12 @@ namespace FACM.League
                 {
                     previous = _episode;
                     _episode = null;
+                    if (_inReconnect && _writeAttemptedThisPhase)
+                    {
+                        previousTrace = _trace;
+                        previousOutcome = ClassifyObservedExit(state, !sessionChanged && SameEpisodeSession());
+                    }
                     _episodeSession = null;
-                    if (!reconnect && _inReconnect && _writeAttemptedThisPhase) previousTrace = _trace;
                     _writeAttemptedThisPhase = false;
                 }
                 else if (!_inReconnect)
@@ -109,7 +114,7 @@ namespace FACM.League
             }
             Cancel(previous);
             if (previousTrace != null)
-                CompactTraceLog.Record(previousTrace, "reconnect", "phase", "left_reconnect", 0);
+                CompactTraceLog.Record(previousTrace, "reconnect", "phase", previousOutcome, 0);
             if (reconnect) StartIfEligible();
         }
 
@@ -202,6 +207,15 @@ namespace FACM.League
         {
             return _sessionProvider == null ||
                 LeagueMatchmakingAutomationController.SameOwner(_episodeSession, _sessionProvider());
+        }
+
+        internal static string ClassifyObservedExit(LeagueDashboardPhaseState state, bool sameSession)
+        {
+            if (!sameSession) return "session_changed";
+            if (state == null || !state.Connected) return "observation_lost";
+            if (string.Equals(state.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
+                return "in_progress_observed";
+            return "left_reconnect";
         }
 
         internal static bool IsReconnectPhase(byte[] payload)
