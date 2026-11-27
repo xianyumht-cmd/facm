@@ -139,7 +139,8 @@ namespace FACM.Online
 
             var result = new List<UpdateDownloadCandidate>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var effectiveSources = sources == null ? GetBuiltInSources() : MergeWithBuiltIns(sources);
+            var effectiveSources = sources == null ? GetBuiltInSources() :
+                MirrorHealthStore.Order(sources.Where(source => source != null && source.Enabled)).ToArray();
             foreach (var source in effectiveSources)
             {
                 var url = BuildUrl(source, originUrl);

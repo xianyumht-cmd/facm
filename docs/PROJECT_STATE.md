@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed COS route client
+
+Signed cloud route client is integrated into existing update snapshot checks: fixed COS origin, 2-second linked deadline, current release signer RSA verification, monotonic revision, atomic signed cache, authoritative enabled routes plus direct origin. Unsigned builds and no-cache failures retain the existing legacy path. New smoke cases cover omitted routes, tampered signature, rollback and conflicting revision. Exact-head CI and signed real-client acceptance pending.
+
 ## 2026-11-27 — COS signed cloud control bootstrap
 
 The owner created the Guangzhou COS bucket and configured the two restricted repository Secrets. A trusted push workflow signs the bounded route-only payload using the existing release certificate, uploads only `control.json` with object-level public read, and verifies anonymous HTTPS bytes. Initial five routes use mainland manifest evidence, not EXE throughput. Initial publishing is permitted on the current trusted task branch; remove this branch trigger before merging. No current client consumes the new object yet. Upload/anonymous readback and signer compatibility require actual workflow evidence. No release or main change.

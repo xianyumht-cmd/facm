@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed COS route client
+
+Never treat an unsigned COS response as configuration authority; do not re-merge built-ins after accepting a signed route list, or discard the accepted revision on transient failure. A fresh client without cached revision cannot prove the newest revision independently. Certificate rotation needs an explicit migration.
+
 ## 2026-11-27 — Public endpoint measurement pitfalls
 
 A successful parallel fetch must survive an unrelated optional source timeout; caller cancellation still wins. HTTP 200 alone does not prove a usable ranking or update manifest. A cloud fetch, GitHub runner or DNS lookup is not mainland operator latency evidence. Never choose public proxy routes for authenticated LCU/SGP/CloudBase requests or bypass update integrity checks.

@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed COS route client
+
+CloudRouteControl verifies a bounded signed payload against the running executable signer, persists the original envelope atomically, and returns the authoritative allowed routes for the existing update service. Legacy catalogs cannot merge omitted routes back into a verified selection. No new polling, credentials or version-manifest origin.
+
 ## 2026-11-27 — Partial-source deadlines and network evidence
 
 Mayhem and Tencent patch acquisition treat optional source deadline cancellation as an absent result, retaining completed siblings while propagating original caller cancellation. Public-data transport reuses the existing bounded, dispose-on-cancel response-body reader. Request logs include elapsed time; no resident probing or extra production endpoint.

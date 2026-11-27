@@ -37,12 +37,15 @@ namespace FACM.Online
 
             try
             {
-                var sources = UpdateMirrorRouter.LoadCachedAndBuiltInSources();
+                var cloudSources = await CloudRouteControl.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var sources = cloudSources ?? UpdateMirrorRouter.LoadCachedAndBuiltInSources();
 
                 // Refresh transport configuration and fetch the required version manifest in
                 // parallel. A slow mirrors.json or a blocked GitHub announcement must never hold
                 // up a version check that has already succeeded through another mirror.
-                var catalogTask = TryDownloadFromMirrorsAsync<UpdateMirrorCatalog>(
+                var catalogTask = cloudSources != null
+                    ? Task.FromResult(new MirrorFetchResult<UpdateMirrorCatalog>())
+                    : TryDownloadFromMirrorsAsync<UpdateMirrorCatalog>(
                     new[]
                     {
                         UpdateMirrorRouter.GiteeCatalogOriginUrl,

@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed COS route client
+
+Use COS as a signed route-only control plane; continue canonical GitHub release metadata and package integrity checks. An unsigned build cannot adopt production control data. Client rejection/timeout keeps the verified cached catalog, or legacy bootstrap when none exists.
+
 ## 2026-11-27 — Network source policy
 
 Keep patch/identity/completeness-based source selection and existing updater health ordering. Do not globally reorder or delete routes based on a single off-network 403 or unmeasured geographic assumption. Improve bounded partial-result behavior and collect direct public-endpoint response evidence before changing defaults.
