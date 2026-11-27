@@ -17,6 +17,9 @@ namespace FACM.Presentation.Glass
         private readonly Action _syncAdvanced;
         private CancellationTokenSource _cancellation;
         private int _generation;
+        internal const int MaximumLoadedMatches = 100;
+        private int _nextIndex;
+        private bool _hasMore;
         internal LeagueUnifiedHistorySnapshot Snapshot { get; private set; }
         internal LeagueClientSession Session { get; private set; }
 
@@ -37,32 +40,57 @@ namespace FACM.Presentation.Glass
             var source = new CancellationTokenSource();
             _cancellation = source;
             _resetAdvanced();
-            ReadAsync(module, count, force, source, _generation);
+            ReadAsync(module, count, force, source, _generation, 0, null);
+        }
+
+        internal void More(LeaguePlayerModule module)
+        {
+            if (_cancellation != null || !_canPublish()) return;
+            if (!HasCurrentPage(module)) { ClearSnapshot(); PostError(); return; }
+            if (!_hasMore) { PublishCurrent(module); if (_isAdvanced()) _syncAdvanced(); return; }
+            var previous = Snapshot;
+            var source = new CancellationTokenSource();
+            _cancellation = source;
+            ReadAsync(module, Math.Min(20, MaximumLoadedMatches - _nextIndex), true, source, _generation, _nextIndex, previous);
         }
 
         private async void ReadAsync(LeaguePlayerModule module, int count, bool force,
-            CancellationTokenSource source, int generation)
+            CancellationTokenSource source, int generation, int start, LeagueUnifiedHistorySnapshot previous)
         {
             try
             {
                 var session = module.UnifiedHistorySession;
-                var result = await module.ReadUnifiedHistoryAsync(count, force, source.Token);
+                var result = await module.ReadUnifiedHistoryAsync(count, force, source.Token, start,
+                    previous == null ? null : previous.Profile.PuuId);
                 if (!Current(module, session, source, generation))
                 {
-                    if (Current(module, null, source, generation, false)) PostError();
+                    if (Current(module, null, source, generation, false)) { _resetAdvanced(); PostError(); }
                     return;
                 }
-                if (result == null || result.Profile == null) { PostError(); return; }
+                if (result == null || result.Profile == null || result.Page == null ||
+                    result.Page.StartIndex != start)
+                { _resetAdvanced(); PostError(); return; }
+                var received = result.Page.Matches.Count;
+                var more = result.Page.HasMore;
+                if (previous != null)
+                {
+                    if (!string.Equals(previous.Profile.PuuId, result.Profile.PuuId, StringComparison.Ordinal))
+                    { _resetAdvanced(); PostError(); return; }
+                    result.Page = MergePages(previous.Page, result.Page);
+                }
+                _nextIndex = start + received;
+                _hasMore = more && received > 0 && _nextIndex < MaximumLoadedMatches &&
+                    (previous == null || result.Page.Matches.Count > previous.Page.Matches.Count);
                 Snapshot = result;
                 Session = session;
                 if (_isAdvanced()) _syncAdvanced();
-                _publish(SerializeHistory(result, count));
+                _publish(SerializeHistory(result, _hasMore));
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
             {
                 AppLog.Info("Unified recent history read skipped: " + exception.GetType().Name);
-                if (Current(module, null, source, generation, false)) PostError();
+                if (Current(module, null, source, generation, false)) { _resetAdvanced(); PostError(); }
             }
             finally
             {
@@ -71,7 +99,18 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private static string SerializeHistory(LeagueUnifiedHistorySnapshot result, int count)
+        internal static LeaguePlayerMatchPage MergePages(LeaguePlayerMatchPage first, LeaguePlayerMatchPage next)
+        {
+            var merged = new LeaguePlayerMatchPage { StartIndex = 0, ClientSession = next.ClientSession,
+                RequestedCount = first.RequestedCount + next.RequestedCount, ReportedGameCount = next.ReportedGameCount };
+            var ids = new System.Collections.Generic.HashSet<long>();
+            foreach (var match in first.Matches.Concat(next.Matches))
+                if (match != null && match.GameId > 0 && ids.Add(match.GameId) &&
+                    merged.Matches.Count < MaximumLoadedMatches) merged.Matches.Add(match);
+            return merged;
+        }
+
+        private static string SerializeHistory(LeagueUnifiedHistorySnapshot result, bool hasMore)
         {
             var page = result.Page;
             return new JavaScriptSerializer().Serialize(new
@@ -80,8 +119,8 @@ namespace FACM.Presentation.Glass
                 name = result.Profile.AccountName,
                 level = result.Profile.SummonerLevel,
                 count = page == null ? 0 : page.Matches.Count,
-                hasMore = page != null && page.HasMore && count < 20,
-                rows = page == null ? new object[0] : page.Matches.Take(20).Select(match => new
+                hasMore = page != null && hasMore,
+                rows = page == null ? new object[0] : page.Matches.Take(MaximumLoadedMatches).Select(match => new
                 {
                     gameId = match.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     played = match.GameCreationLocal.ToString("yyyy-MM-dd HH:mm"),
@@ -127,6 +166,8 @@ namespace FACM.Presentation.Glass
         {
             Snapshot = null;
             Session = null;
+            _nextIndex = 0;
+            _hasMore = false;
         }
 
         internal bool HasCurrentPage(LeaguePlayerModule module)
@@ -137,7 +178,7 @@ namespace FACM.Presentation.Glass
 
         internal bool HasAdvancedPage(LeaguePlayerModule module)
         {
-            return HasCurrentPage(module) && (Snapshot.Page.Matches.Count >= 20 || !Snapshot.Page.HasMore);
+            return HasCurrentPage(module) && (Snapshot.Page.Matches.Count >= 10 || !_hasMore);
         }
 
         internal bool ContainsMatch(LeaguePlayerModule module, long gameId)
@@ -148,7 +189,7 @@ namespace FACM.Presentation.Glass
         internal bool PublishCurrent(LeaguePlayerModule module)
         {
             if (!_canPublish() || !HasCurrentPage(module)) return false;
-            _publish(SerializeHistory(Snapshot, Snapshot.Page.Matches.Count));
+            _publish(SerializeHistory(Snapshot, _hasMore));
             return true;
         }
 
@@ -167,8 +208,8 @@ namespace FACM.Presentation.Glass
             {
                 type = "history-advanced-list",
                 name = loaded.Profile.AccountName,
-                hasMore = loaded.Page.HasMore,
-                rows = loaded.Page.Matches.Take(20).Select(m => new
+                hasMore = _hasMore,
+                rows = loaded.Page.Matches.Take(MaximumLoadedMatches).Select(m => new
                 {
                     id = m.GameId.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     played = m.GameCreationLocal.ToString("yyyy-MM-dd HH:mm"),
@@ -186,6 +227,15 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            var page1 = new LeaguePlayerMatchPage { RequestedCount = 2 };
+            page1.Matches.Add(new LeaguePlayerMatchSummary { GameId = 3 });
+            page1.Matches.Add(new LeaguePlayerMatchSummary { GameId = 2 });
+            var page2 = new LeaguePlayerMatchPage { StartIndex = 2, RequestedCount = 2 };
+            page2.Matches.Add(new LeaguePlayerMatchSummary { GameId = 2 });
+            page2.Matches.Add(new LeaguePlayerMatchSummary { GameId = 1 });
+            var merged = MergePages(page1, page2);
+            if (merged.Matches.Count != 3 || merged.Matches[2].GameId != 1 || page1.Matches.Count != 2)
+                throw new InvalidOperationException("History paging overlap or source ownership regressed.");
             var firstPosts = 0;
             var secondPosts = 0;
             var first = new UnifiedWorkspaceHistoryAdapter(() => false, () => false,

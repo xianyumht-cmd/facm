@@ -58,6 +58,14 @@ namespace FACM.Presentation.Glass
             HistoryAdapter.Start(LeagueHubUiBridge.UnifiedPlayer, count, force);
         }
 
+        internal void LoadMoreHistory()
+        {
+            // Detail actions must not continue against a page being expanded.
+            CancelAdvancedHistoryDetail();
+            CancelRegionalHistoryRead();
+            HistoryAdapter.More(LeagueHubUiBridge.UnifiedPlayer);
+        }
+
         internal void CancelHistoryRead()
         {
             if (_historyAdapter != null) _historyAdapter.Cancel();

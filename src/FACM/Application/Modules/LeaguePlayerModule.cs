@@ -58,21 +58,29 @@ namespace FACM.AppHost.Modules
         internal LeagueClientSession UnifiedHistorySession { get { return _leagueClient.CurrentSession; } }
 
         internal async Task<LeagueUnifiedHistorySnapshot> ReadUnifiedHistoryAsync(
-            int count, bool force, CancellationToken cancellationToken)
+            int count, bool force, CancellationToken cancellationToken, int startIndex = 0, string expectedOwner = null)
         {
-            if (_service == null || (count != 10 && count != 20)) return null;
+            if (_service == null || (count != 10 && count != 20) || startIndex < 0 || startIndex > 100 ||
+                (startIndex > 0 && string.IsNullOrWhiteSpace(expectedOwner))) return null;
             var initial = _leagueClient.CurrentSession;
             if (initial == null) return null;
-            var profile = await _service.LoadProfileAsync(force, cancellationToken);
+            var profile = await _service.LoadProfileAsync(force || startIndex > 0, cancellationToken);
             if (profile == null || string.IsNullOrWhiteSpace(profile.PuuId) ||
+                (expectedOwner != null && !string.Equals(profile.PuuId, expectedOwner, StringComparison.Ordinal)) ||
                 !LeagueEncounterReplayService.SessionMatches(initial, _leagueClient.CurrentSession)) return null;
-            var page = await _service.LoadRecentMatchesAsync(profile, 0, count, force, cancellationToken);
+            var page = await _service.LoadRecentMatchesAsync(profile, startIndex, count, force, cancellationToken,
+                expectedOwnerPuuid: profile.PuuId);
             if (page != null && !cancellationToken.IsCancellationRequested)
             {
                 var enriched = await _service.EnrichIncompleteMatchesAsync(profile, page, cancellationToken);
                 if (enriched != null) page = enriched;
                 var named = await _service.EnrichChampionNamesAsync(profile, page, cancellationToken);
                 if (named != null) page = named;
+            }
+            if (startIndex > 0)
+            {
+                var current = await _service.LoadProfileAsync(true, cancellationToken);
+                if (current == null || !string.Equals(current.PuuId, profile.PuuId, StringComparison.Ordinal)) return null;
             }
             return !cancellationToken.IsCancellationRequested &&
                 LeagueEncounterReplayService.SessionMatches(initial, _leagueClient.CurrentSession)

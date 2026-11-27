@@ -840,7 +840,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     </div>
     <div id="advancedHistoryRows"></div>
     <div class="actions">
-      <button data-action="history-advanced-refresh">刷新战绩</button>
+      <button data-action="history-advanced-refresh" id="advancedHistoryRefresh">刷新战绩</button>
+      <button data-action="history-advanced-more" id="advancedHistoryMore" hidden>读取更多</button>
       
     </div>
   </section>
@@ -1304,8 +1305,15 @@ document.addEventListener("click",function(event){
       post("history-advanced-replay:"+selectedAdvancedMatch);
     }return;
   }
+  if(target.dataset.action==="history-advanced-more"){
+    get("advancedHistoryMore").disabled=true;get("advancedHistoryRefresh").disabled=true;
+    get("advancedHistoryStatus").textContent="正在读取更早对局";
+    get("advancedHistoryDetail").hidden=true;selectedAdvancedMatch="";
+    post("history-advanced-more");return;
+  }
   if(target.dataset.action==="history-advanced-refresh"){
-    get("advancedHistoryStatus").textContent="正在读取当前账号最多 20 场历史对局";
+    get("advancedHistoryRefresh").disabled=true;get("advancedHistoryMore").disabled=true;
+    get("advancedHistoryStatus").textContent="正在读取战绩";
     get("advancedHistoryRows").replaceChildren();
     get("advancedHistoryDetail").hidden=true;
     get("advancedHistoryExtras").hidden=true;
@@ -1452,7 +1460,7 @@ document.addEventListener("click",function(event){
   }
   if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
     get("historyRefresh").disabled=true;get("historyMore").disabled=true;
-    get("historyResult").textContent="正在读取战绩";
+    get("historyResult").textContent=target.dataset.action==="history-more"?"正在读取更早对局":"正在读取战绩";
     post(target.dataset.action==="history-more"?"history-more":"history-refresh");return;
   }
   if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
@@ -2356,7 +2364,7 @@ function renderHistory(data){
   get("historyMore").hidden=!data.hasMore;
   get("historyAccount").textContent=data.name||"当前召唤师";
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
-  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
+  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,100);
   drawHistoryRows();
 }
 var remoteHistoryIds=new Set();
@@ -2511,7 +2519,9 @@ var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch=""
   get(id).addEventListener(id==="advancedHistorySearch"?"input":"change",drawAdvancedHistoryRows);
 });
 function renderAdvancedHistoryList(data){
-  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  get("advancedHistoryRefresh").disabled=false;
+  get("advancedHistoryMore").disabled=!data.hasMore;get("advancedHistoryMore").hidden=!data.hasMore;
+  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,100):[];
   advancedHistoryIds=new Set(advancedHistoryRows.map(function(item){return String(item.id);}));
   remoteHistoryIds.clear();
   get("advancedRegionalResults").replaceChildren();
@@ -2528,7 +2538,7 @@ function renderAdvancedHistoryList(data){
   if(Array.from(queue.options).some(function(o){return o.value===before;}))queue.value=before;
   get("advancedHistoryStatus").textContent=data.error?"读取失败或当前游戏账号已切换":
     "当前账号 "+(data.name||"")+" · 已读取 "+advancedHistoryRows.length+" 场"+
-    (data.hasMore?"（还有历史对局未读取）":"");
+    (data.hasMore?" · 可读取更多":advancedHistoryRows.length>=100?" · 本次已读取上限":"");
   drawAdvancedHistoryRows();
 }
 function drawAdvancedHistoryRows(){
