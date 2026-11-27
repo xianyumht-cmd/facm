@@ -1,3 +1,7 @@
+## 2026-11-27 — LCU health diagnostics and first-viewport companion candidate
+
+On branch `fix/ggman-lcu-health-diagnostics-20261127`, source changes address repeated LCU phase timeouts, proxy isolation, recovery evidence, on-demand component/LCU probes and first-screen companion priorities. Tests cover timeout rediscovery, direct transport, diagnostic summary and browser viewport/tab persistence. Exact-head Windows CI and real Tencent/Windows verification are pending. Signed production remains 3.5.89; no production update has been requested or published in this task. Full module/action coverage, endpoint-security event attribution, updater and performance sampling remain incomplete. Native fallback is unchanged.
+
 ## 2026-11-23 — GGman 3.5.89 signed compact quick-actions officially released
 
 User-approved visual polish and direct-action layout were delivered through [PR #367](https://github.com/xianyumht-cmd/facm/pull/367), merged as `0ecf174bcb29c58ef1ad4fb25ddad5a7ae06791f`. All four exact PR-head `f59b780001b160f74bb1f85ae78d6ee8680d0ba5` Windows CI gates passed:

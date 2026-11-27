@@ -1,3 +1,7 @@
+## 2026-11-27 — LCU health and compact Champion Select candidate
+
+The shared LCU phase client records bounded outcome transitions, Gameflow monitor logs connection/activity/process transitions, and Hub records actual companion episode/presentation. The existing diagnostics export adds a read-only direct-lockfile phase probe, process/registry flags and embedded tool hash status; no resident polling owner, external network access, proxy address or raw phase payload is added. The WebView2 overlay keeps the existing native controller and bridge, compact champion row, horizontal available bench and independent ranking/build/team/details views.
+
 ## 2026-11-08 — Final quick-tools, skin, pet and status presentation boundary (Draft #364)
 
 `UnifiedWorkspaceQuickToolsAdapter` owns the five exact, allowlisted efficiency
