@@ -1,3 +1,7 @@
+## 2026-11-27 — Network source policy
+
+Keep patch/identity/completeness-based source selection and existing updater health ordering. Do not globally reorder or delete routes based on a single off-network 403 or unmeasured geographic assumption. Improve bounded partial-result behavior and collect direct public-endpoint response evidence before changing defaults.
+
 ## 2026-11-27 — Key timeline review
 
 Use explicit timeline reads, key events before raw event details, and restrict Rift resources and CS to appropriate modes. Dense combat denotes a bounded event window only; no tactical rating.

@@ -16,12 +16,40 @@ namespace FACM.Mayhem
                 VerifyNormalRead();
                 VerifyStalledBodyCanBeCancelled();
                 VerifySizeLimit();
+                VerifyOptionalSourceDeadline();
                 return 0;
             }
             catch (Exception exception)
             {
                 Console.Error.WriteLine(exception);
                 return 10;
+            }
+        }
+
+        private static void VerifyOptionalSourceDeadline()
+        {
+            using (var deadline = new CancellationTokenSource())
+            using (var caller = new CancellationTokenSource())
+            {
+                deadline.Cancel();
+                var completed = CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                    Task.FromResult("usable"), caller.Token);
+                var slow = CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                    Task.FromCanceled<string>(deadline.Token), caller.Token);
+                var results = Task.WhenAll(completed, slow).GetAwaiter().GetResult();
+                if (results[0] != "usable" || results[1] != null)
+                    throw new InvalidOperationException("An optional source deadline discarded usable data.");
+
+                caller.Cancel();
+                var cancelled = false;
+                try
+                {
+                    CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                        Task.FromResult("usable"), caller.Token).GetAwaiter().GetResult();
+                }
+                catch (OperationCanceledException) { cancelled = true; }
+                if (!cancelled)
+                    throw new InvalidOperationException("Optional source recovery ignored caller cancellation.");
             }
         }
 

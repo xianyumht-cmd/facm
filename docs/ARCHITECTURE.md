@@ -1,3 +1,7 @@
+## 2026-11-27 — Partial-source deadlines and network evidence
+
+Mayhem and Tencent patch acquisition treat optional source deadline cancellation as an absent result, retaining completed siblings while propagating original caller cancellation. Public-data transport reuses the existing bounded, dispose-on-cancel response-body reader. Request logs include elapsed time; no resident probing or extra production endpoint.
+
 ## 2026-11-27 — Key timeline review
 
 Existing extras adapter projects key events and observed frame metrics from one on-demand timeline, using existing parser/metric helpers and selected identity. No additional data service or polling.

@@ -1,3 +1,7 @@
+## 2026-11-27 — Mainland public route verification
+
+Run `scripts/Test-PublicNetworkRoutes.ps1 -NetworkLabel China-Telecom -Rounds 3` on a real mainland connection (repeat on China-Unicom and China-Mobile). The script makes explicit HTTPS GETs without proxy, records DNS/connect/TLS/TTFB/total and response evidence, checks update manifest shape and checkout version/hash, and outputs a CSV; no authentication or EXE downloads. On ITDOG/BOCE use the exact public URLs rather than host-only ping; record per-carrier failure rate and median/p95 response time against the client's deadline. Different networks, repeated samples and parser/source completeness must be reviewed before changing priority. A manifest match is not proof of EXE availability or signature. Current session cannot submit multi-node browser measurements.
+
 ## 2026-11-27 — Key timeline review
 
 Verify late events beyond the raw event cap, actual checkpoint time, missing fields, unknown/enemy objective attribution, Arena restrictions, stale response rejection and failed read clearing. Real Tencent timeline acceptance remains open.

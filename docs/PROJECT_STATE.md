@@ -1,3 +1,35 @@
+## 2026-11-27 — Player-value and public route audit
+
+PR #368 baseline `8964a02b` passed all four exact-head gates (Windows 45993511562, Glass 45993511590, UI 45993511681, Mayhem 45993511549). The 23 registered shards and their dispatch owners were reviewed; the matrix below is source triage, not 23 live-client acceptance passes. Public web retrieval returned Hexdata, OP.GG build/augments, ARAMMayhem, Tencent news, Data Dragon versions and CommunityDragon champion JSON; ARAMGG returned HTTP 403 to the web environment. Akari catalog access was not established. No mainland carrier latency or availability measurements were obtained. The candidate isolates optional-source deadlines, retains successful siblings, adds source durations, and reuses the tested cancellable response-body reader. Existing source ranking, update origins, mirror priorities and credentials are unchanged. New exact-head CI and mainland/Tencent runtime verification remain pending.
+
+| Shard | Player task / value | Priority acceptance or remaining risk |
+|---|---|---|
+| QuickMessages | In-match communication | Game-phase eligibility, focus and hotkey conflict |
+| AdvancedTools | Configure existing automation | Action eligibility and actual result versus configured state |
+| PlayerHistory | Own recent performance | Queue isolation, stale account, paging |
+| AdvancedHistory | Match review and timeline | Partial data, cancellation, regional source and replay |
+| MayhemGuide | Current champion guide | Domestic multi-source availability and patch consistency |
+| Recommendation | Apply runes/items/spells in draft | Public source latency, write/readback, changed champion |
+| LiveMatch | Identify current match and players | LCU-first, optional SGP latency and owner fence |
+| LiveBench | Pick or swap available champions | Correct mode/action and draft revision |
+| Dashboard | Current game/client state | Accurate unavailable versus idle |
+| AdvancedDashboard | Game details/respawn | Timing evidence, no stale overlay |
+| Presence | Online state and signature | LCU write/readback, session change |
+| ProfileCustomization | Personal profile cosmetics | Local catalog/verified account, write result |
+| LocalProfile | Local player profile | Correct current account and meaningful data |
+| Repair | Recover client/game | Explicit action and native process ownership |
+| ClientStatus | Diagnose connection | State freshness and actual endpoint status |
+| PostgameSettings | Honor/return automation | Phase exit, one action, observable result |
+| AutoSelection | Draft configuration | LCU and optional catalog fallback, phase/owner checks |
+| MatchmakingSettings | Queue configuration | User intent and cancellation, no stale action |
+| Efficiency | Quick close/restart/hotkeys | Direct action, duplicate-binding protection |
+| Appearance | Themes/pet settings | Actual rendered skin, no unnecessary resident resources |
+| Cleanup | Recover disk space | Bounded preview, path protection |
+| CloudSync | Cross-machine configuration | CloudBase availability, owner/overwrite boundary |
+| Updates | Verified official update | Manifest freshness, mainland mirror health, signature/hash |
+
+The highest network priority is Mayhem/recommendation and update metadata; LCU operations stay local, SGP and CloudBase authenticated traffic must not be sent through public mirrors or external speed testers. `scripts/Test-PublicNetworkRoutes.ps1` provides a bounded, opt-in direct HTTP probe for public endpoints and configured update mirrors from an actual Windows network. No installer or resident service changes. Production remains 3.5.89.
+
 ## 2026-11-27 — Key timeline review
 
 Timeline read now produces selected-target deaths/takedowns from all parsed champion-kill events, explicit-team Rift objectives, conservative 30-second kill clusters, and observed 5-minute checkpoints for supported modes. Key list capped at 80; raw events remain available. No new reads. Exact-head CI pending.

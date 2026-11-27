@@ -12,6 +12,24 @@ namespace FACM.Mayhem
         internal const int DefaultTextLimitBytes = 12 * 1024 * 1024;
         internal const int DefaultImageLimitBytes = 20 * 1024 * 1024;
 
+        // An optional source timing out must not discard other completed sources.
+        // Only the original caller's cancellation aborts the whole operation.
+        internal static async Task<T> AwaitOptionalSourceAsync<T>(Task<T> source,
+            CancellationToken callerToken) where T : class
+        {
+            try
+            {
+                var result = await source.ConfigureAwait(false);
+                callerToken.ThrowIfCancellationRequested();
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                callerToken.ThrowIfCancellationRequested();
+                return null;
+            }
+        }
+
         public static async Task<string> ReadStringAsync(
             HttpContent content,
             CancellationToken cancellationToken,
