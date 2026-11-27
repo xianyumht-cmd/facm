@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit native signature verification
+
+Full-package audit now compiles the existing SignatureInspector source in the Windows PowerShell process and calls only its native verifier; no downloaded package is executed or installed. It logs native_trust alongside PowerShell status. Prior complete transfers: direct 0.268 s, gh-proxy 0.334 s, ghfast 1.106 s, ghproxy-net 20.669 s, gh-dpik 21.386 s; cors-isteed HTTP 429. These are hosted-runner results, not mainland throughput. Mainland Range medians and complete-transfer evidence must remain separate.
+
 ## 2026-11-27 — EXE audit harness correction
 
 EXE audit now prints the single selected curl executable/version, records native failures per route, validates row count and requires a verified package. Previous mainland entry audit 46006055285 yielded 36 attempts; full-package job never reached a download. Re-run before ranking full-package routes.

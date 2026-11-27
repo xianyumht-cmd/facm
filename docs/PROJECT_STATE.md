@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit native signature verification
+
+Exact head e73dfc54 passed all six client/public checks. Full-package audit 46007022260 completed all six routes: five exact 7,185,816-byte release downloads with matching manifest SHA-256, expected signer thumbprint and version 3.5.89.0; cors-isteed returned HTTP 429. PowerShell reported UnknownError for all five, so none passed the original trust criterion. The candidate audit now invokes the existing updater native WinVerifyTrust method and accepts only success or the same two self-signed chain errors, retaining hash, signer and version checks. Exact-head rerun pending; production unchanged.
+
 ## 2026-11-27 — EXE audit harness correction
 
 Exact head 66e746b3 passed Windows Build, Glass, UI Text, Mayhem Source, Mainland Public Route and COS Mainland gates. EXE audit 46006055285 failed before any full transfer because Get-Command returned two curl applications. Mainland Range evidence succeeded: gh-proxy 6/6 (1970/982/634.5 ms carrier medians), ghproxy-net 6/6 (5720/6104/5553), gh-dpik 6/6 (7265.5/6715/6915), ghfast 3/6, cors-isteed 0/6, direct returned redirects. These are Range entry results only, not throughput. Candidate fix chooses exactly one curl path and requires complete rows and at least one verified package; rerun pending. Production unchanged.

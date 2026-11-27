@@ -1,3 +1,7 @@
+## 2026-11-27 — EXE audit native signature verification
+
+Get-AuthenticodeSignature can report UnknownError for the existing release signer on a hosted Windows runner. Do not accept UnknownError alone. Invoke the existing SignatureInspector native trust check; require matching pinned thumbprint, version and manifest digest, and allow only the updater's explicit self-signed chain warnings. Keep the PowerShell status and native HRESULT in evidence.
+
 ## 2026-11-27 — EXE audit harness correction
 
 On Windows runner, Get-Command curl.exe can return Windows and Git applications simultaneously. Select System32 curl explicitly or first application, preflight the selected executable, and capture nonzero native exit codes per route. Never interpret a harness failure as a network failure. Successful audit requires complete evidence and a verified package.

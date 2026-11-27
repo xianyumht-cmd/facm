@@ -35,8 +35,17 @@ Write-Host "Using curl: $curl"
 if ($LASTEXITCODE -ne 0) { throw 'curl preflight failed.' }
 # Expected network errors are recorded per route, not terminating script errors.
 $PSNativeCommandUseErrorActionPreference = $false
+# Use the same native Authenticode verifier as the production updater.
+Add-Type -Path (Join-Path $root 'src/FACM/Services/SignatureInspector.cs') -IgnoreWarnings
+$inspector = [AppDomain]::CurrentDomain.GetAssemblies() |
+    ForEach-Object { $_.GetType('FACM.Services.SignatureInspector', $false) } |
+    Where-Object { $null -ne $_ } | Select-Object -First 1
+if (-not $inspector) { throw 'Cannot load updater signature verifier.' }
+$verifyAuthenticode = $inspector.GetMethod('VerifyAuthenticode', [Reflection.BindingFlags]'NonPublic,Static')
+if (-not $verifyAuthenticode) { throw 'Cannot resolve updater signature verifier.' }
 New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $csv = Join-Path $OutputDirectory 'package-routes.csv'
+if (Test-Path -LiteralPath $csv) { throw 'Output directory already contains a route report.' }
 $temporary = Join-Path $OutputDirectory ('candidate-' + [Guid]::NewGuid().ToString('N') + '.exe')
 $format = '%{http_code}|%{time_starttransfer}|%{time_total}|%{size_download}|%{speed_download}|%{num_redirects}'
 try {
@@ -47,7 +56,7 @@ try {
             $exitCode = $LASTEXITCODE
             $parts = ([string]$raw).Split('|')
             if ($parts.Count -ne 6) { $parts = @('000','','','','','') }
-            $hash = ''; $signer = ''; $signatureStatus = ''; $actualVersion = ''; $evidence = 'download-failed'
+            $hash = ''; $signer = ''; $signatureStatus = ''; $nativeTrust = ''; $actualVersion = ''; $evidence = 'download-failed'
             if ($exitCode -eq 0 -and $parts[0] -eq '200' -and (Test-Path -LiteralPath $temporary)) {
                 $hash = (Get-FileHash -LiteralPath $temporary -Algorithm SHA256).Hash
                 if ($hash -ne $manifest.sha256) { $evidence = 'hash-mismatch' }
@@ -61,7 +70,11 @@ try {
                     $matches = [version]::TryParse($actualVersion,[ref]$parsedVersion) -and
                         $parsedVersion.Major -eq $expectedVersion.Major -and
                         $parsedVersion.Minor -eq $expectedVersion.Minor -and $parsedVersion.Build -eq $expectedVersion.Build
-                    $acceptableTrust = $sig.Status -eq 'Valid' -or ($sig.Status -eq 'NotTrusted' -and $sig.SignerCertificate -and $sig.SignerCertificate.Subject -eq $sig.SignerCertificate.Issuer)
+                    $trustCode = [int]$verifyAuthenticode.Invoke($null, [object[]]@([IO.Path]::GetFullPath($temporary)))
+                    $nativeTrust = '0x' + $trustCode.ToString('X8')
+                    $selfSigned = $sig.SignerCertificate -and $sig.SignerCertificate.Subject -eq $sig.SignerCertificate.Issuer
+                    $acceptableTrust = $trustCode -eq 0 -or ($selfSigned -and $nativeTrust -in @('0x800B0109','0x800B010A'))
+                    if ($sig.Status -in @('NotSigned','HashMismatch','NotSupportedFileFormat')) { $acceptableTrust = $false }
                     $evidence = if ($signer -eq $expectedSigner -and $matches -and $acceptableTrust) {'verified-package'} else {'hash-match-signer-or-version-unverified'}
                 }
             }
@@ -69,7 +82,7 @@ try {
                 utc=(Get-Date).ToUniversalTime().ToString('o'); network=$NetworkLabel; round=$round; source=$target.name
                 version=$manifest.version; curl_exit=$exitCode; http_status=$parts[0]; ttfb_s=$parts[1]; total_s=$parts[2]
                 bytes=$parts[3]; bytes_per_second=$parts[4]; redirects=$parts[5]; sha256=$hash; signer=$signer
-                signature_status=$signatureStatus; file_version=$actualVersion; evidence=$evidence
+                signature_status=$signatureStatus; native_trust=$nativeTrust; file_version=$actualVersion; evidence=$evidence
             }
             $row | Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8 -Append
             Write-Host ($row | ConvertTo-Json -Compress)
