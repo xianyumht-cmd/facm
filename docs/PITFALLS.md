@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed cloud policy expansion
+
+Do not treat a signed cloud switch as permission to start gameplay automation, or let optional public source policy redirect authenticated traffic. An announcement committed by GITHUB_TOKEN does not itself trigger downstream push workflows. Use explicit reusable publication and increment revision on every content change; current client supports an older signed cache when unavailable.
+
 ## 2026-11-27 — Signed COS route client
 
 Never treat an unsigned COS response as configuration authority; do not re-merge built-ins after accepting a signed route list, or discard the accepted revision on transient failure. A fresh client without cached revision cannot prove the newest revision independently. Certificate rotation needs an explicit migration.

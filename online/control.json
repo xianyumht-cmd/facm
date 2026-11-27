@@ -1,6 +1,6 @@
 {
   "schema": "ggman-control.v1",
-  "revision": 20261127204800,
+  "revision": 20261127205500,
   "sources": [
     {
       "name": "gh-dpik",
@@ -32,5 +32,46 @@
       "enabled": true,
       "priority": 45
     }
-  ]
+  ],
+  "announcement": {
+    "enabled": false,
+    "id": "",
+    "title": "",
+    "body": "",
+    "level": "info",
+    "popup": false,
+    "updated_at": "2026-11-27T12:55:00Z",
+    "link_url": ""
+  },
+  "public_sources": [
+    {
+      "id": "hexdata",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "aramgg",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "arammayhem",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "opgg",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "tencent-news",
+      "enabled": true,
+      "timeout_ms": 0
+    }
+  ],
+  "features": {
+    "history_timeline": true,
+    "history_radar": true
+  }
 }

@@ -37,7 +37,8 @@ namespace FACM.Online
 
             try
             {
-                var cloudSources = await CloudRouteControl.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var cloud = await CloudRouteControl.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var cloudSources = CloudRouteControl.Resolve(cloud);
                 var sources = cloudSources ?? UpdateMirrorRouter.LoadCachedAndBuiltInSources();
 
                 // Refresh transport configuration and fetch the required version manifest in
@@ -64,8 +65,21 @@ namespace FACM.Online
                     sources,
                     snapshot.CurrentVersion,
                     cancellationToken);
-                var announcementTask = TryDownloadAnnouncementAsync(cancellationToken);
+                var announcementTask = cloud != null && cloud.Announcement != null
+                    ? Task.FromResult(new AnnouncementManifest
+                    {
+                        Enabled = cloud.Announcement.Enabled, Id = cloud.Announcement.Id,
+                        Title = cloud.Announcement.Title, Body = cloud.Announcement.Body,
+                        Level = cloud.Announcement.Level, Popup = cloud.Announcement.Popup,
+                        UpdatedAt = cloud.Announcement.UpdatedAt, LinkUrl = cloud.Announcement.LinkUrl
+                    })
+                    : TryDownloadAnnouncementAsync(cancellationToken);
                 snapshot.AnnouncementPending = announcementTask;
+                if (cloud != null && cloud.Announcement != null)
+                {
+                    snapshot.Announcement = await announcementTask.ConfigureAwait(false);
+                    snapshot.AnnouncementPending = null;
+                }
 
                 var updateResult = await updateTask.ConfigureAwait(false);
                 if (updateResult.Value == null)

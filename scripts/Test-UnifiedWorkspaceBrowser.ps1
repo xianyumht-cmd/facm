@@ -320,6 +320,10 @@ historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidd
  document.querySelector('#advancedTimelineKeyEvents').textContent.includes('30秒内 3 次击杀');
 sendFixture({type:'history-advanced-timeline',id:'123',status:'unavailable'});
 historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidden;
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'maintenance'});
+historyPass=historyPass&&document.querySelector('#advancedTimelineStatus').textContent.includes('维护');
+sendFixture({type:'history-advanced-radar',id:gameId,status:'maintenance'});
+historyPass=historyPass&&document.querySelector('#advancedRadarStatus').textContent.includes('维护');
 sendFixture({type:'history-advanced-timeline',id:gameId,status:'unavailable'});
 historyPass=historyPass&&document.querySelector('#advancedTimelineReview').hidden;
 sendFixture({type:'history-advanced-detail',id:'123',status:'Unavailable'});

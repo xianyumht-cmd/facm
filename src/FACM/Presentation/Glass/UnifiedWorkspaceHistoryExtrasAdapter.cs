@@ -6,6 +6,7 @@ using System.Web.Script.Serialization;
 using FACM.AppHost.Modules;
 using FACM.League;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Presentation.Glass
 {
@@ -78,6 +79,7 @@ namespace FACM.Presentation.Glass
             if (!int.TryParse(raw, NumberStyles.None, CultureInfo.InvariantCulture, out participantId) ||
                 participantId < 1 || participantId > 20) return;
             if (!SelectedCurrent(module)) { PostStatus("radar", "unavailable"); return; }
+            if (!CloudRouteControl.HistoryRadarEnabled) { PostStatus("radar", "maintenance"); return; }
             var selected = _detail.Participants == null ? null :
                 _detail.Participants.FirstOrDefault(p => p.ParticipantId == participantId);
             if (selected == null) { PostStatus("radar", "unavailable"); return; }
@@ -184,6 +186,7 @@ namespace FACM.Presentation.Glass
         {
             if (!SelectedCurrent(module) || _gameId != requestedId || _detail.LoadTimeline == null)
             { PostStatus("timeline", "unavailable"); return; }
+            if (!CloudRouteControl.HistoryTimelineEnabled) { PostStatus("timeline", "maintenance"); return; }
             CancelRead();
             var source = new CancellationTokenSource(TimeSpan.FromSeconds(14));
             _cancellation = source;

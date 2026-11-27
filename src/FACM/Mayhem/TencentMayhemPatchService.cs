@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -193,6 +194,8 @@ namespace FACM.Mayhem
 
         private static async Task<string> ReadSafeAsync(string url, TimeSpan budget, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+            if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return null;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 timeout.CancelAfter(budget);

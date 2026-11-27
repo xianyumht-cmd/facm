@@ -25,12 +25,39 @@ namespace FACM.Online
         public long Revision { get; set; }
         [DataMember(Name = "sources", IsRequired = true)]
         public UpdateMirrorSource[] Sources { get; set; }
+        [DataMember(Name = "announcement", EmitDefaultValue = false)]
+        public AnnouncementManifest Announcement { get; set; }
+        [DataMember(Name = "public_sources", EmitDefaultValue = false)]
+        public CloudPublicSource[] PublicSources { get; set; }
+        [DataMember(Name = "features", EmitDefaultValue = false)]
+        public CloudFeatureFlags Features { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class CloudPublicSource
+    {
+        [DataMember(Name = "id", IsRequired = true)]
+        public string Id { get; set; }
+        [DataMember(Name = "enabled", IsRequired = true)]
+        public bool Enabled { get; set; }
+        [DataMember(Name = "timeout_ms", EmitDefaultValue = false)]
+        public int TimeoutMs { get; set; }
+    }
+
+    [DataContract]
+    internal sealed class CloudFeatureFlags
+    {
+        [DataMember(Name = "history_timeline", EmitDefaultValue = false)]
+        public bool? HistoryTimeline { get; set; }
+        [DataMember(Name = "history_radar", EmitDefaultValue = false)]
+        public bool? HistoryRadar { get; set; }
     }
 
     internal static class CloudRouteControl
     {
         internal const string Url = "https://ggman-config-1305353165.cos.ap-guangzhou.myqcloud.com/control.json";
         private const int MaxEnvelopeBytes = 65536, MaxPayloadBytes = 16384;
+        private static CloudRouteCatalog _active;
         private static readonly SemaphoreSlim Gate = new SemaphoreSlim(1, 1);
         private static readonly HttpClient Client = new HttpClient(new HttpClientHandler
         {
@@ -53,7 +80,7 @@ namespace FACM.Online
             internal byte[] Bytes, Payload;
         }
 
-        internal static async Task<UpdateMirrorSource[]> LoadAsync(CancellationToken token)
+        internal static async Task<CloudRouteCatalog> LoadAsync(CancellationToken token)
         {
             // Unsigned development builds cannot establish the production signing identity.
             try
@@ -102,12 +129,13 @@ namespace FACM.Online
                             catch (Exception ex) when (!(ex is OperationCanceledException))
                             { AppLog.Info("Cloud route control unavailable: " + ex.GetType().Name); }
                             token.ThrowIfCancellationRequested();
-                            return cached == null ? null : Resolve(cached.Catalog);
+                            if (cached != null) Volatile.Write(ref _active, cached.Catalog);
+                            return Volatile.Read(ref _active);
                         }
                         catch (OperationCanceledException) when (!token.IsCancellationRequested)
                         {
                             var cached = ReadCache(path, rsa);
-                            return cached == null ? null : Resolve(cached.Catalog);
+                            return Volatile.Read(ref _active) ?? (cached == null ? null : cached.Catalog);
                         }
                         finally { if (entered) Gate.Release(); }
                     }
@@ -141,7 +169,73 @@ namespace FACM.Online
                     uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0 ||
                     uri.AbsolutePath != "/" || !names.Add(source.Name) || !prefixes.Add(uri.AbsoluteUri)) return false;
             }
+            if (catalog.Announcement != null && !ValidAnnouncement(catalog.Announcement)) return false;
+            if (catalog.PublicSources != null)
+            {
+                var ids = new HashSet<string>(StringComparer.Ordinal);
+                if (catalog.PublicSources.Length > 5) return false;
+                foreach (var source in catalog.PublicSources)
+                    if (source == null || !KnownSource(source.Id) || !ids.Add(source.Id) ||
+                        (source.TimeoutMs != 0 && (source.TimeoutMs < 500 || source.TimeoutMs > 5500))) return false;
+            }
             return true;
+        }
+
+        private static bool ValidAnnouncement(AnnouncementManifest value)
+        {
+            if ((value.Id ?? "").Length > 96 || (value.Title ?? "").Length > 120 ||
+                (value.Body ?? "").Length > 2000 || (value.UpdatedAt ?? "").Length > 64 ||
+                (value.LinkUrl ?? "").Length > 512) return false;
+            if (value.Enabled && (string.IsNullOrWhiteSpace(value.Id) ||
+                string.IsNullOrWhiteSpace(value.Title) || string.IsNullOrWhiteSpace(value.Body))) return false;
+            if (value.Level != "info" && value.Level != "warning" && value.Level != "critical") return false;
+            Uri uri;
+            return string.IsNullOrWhiteSpace(value.LinkUrl) ||
+                (Uri.TryCreate(value.LinkUrl, UriKind.Absolute, out uri) && uri.Scheme == Uri.UriSchemeHttps &&
+                 uri.Port == 443 && !uri.IsLoopback && uri.HostNameType == UriHostNameType.Dns &&
+                 uri.UserInfo.Length == 0 && uri.Host.IndexOf('.') >= 0);
+        }
+
+        private static bool KnownSource(string id)
+        {
+            return id == "hexdata" || id == "aramgg" || id == "arammayhem" || id == "opgg" || id == "tencent-news";
+        }
+
+        internal static bool PublicSourceAllowed(string url, ref TimeSpan budget)
+        {
+            return ApplyPublicSource(Volatile.Read(ref _active), url, ref budget);
+        }
+
+        private static bool ApplyPublicSource(CloudRouteCatalog catalog, string url, ref TimeSpan budget)
+        {
+            Uri uri;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)) return false;
+            var id = uri.Host == "hexdata.com.cn" ? "hexdata" :
+                uri.Host == "aramgg.com" ? "aramgg" :
+                uri.Host == "arammayhem.com" ? "arammayhem" :
+                uri.Host == "op.gg" ? "opgg" : uri.Host == "lol.qq.com" ? "tencent-news" : null;
+            var policy = catalog == null || catalog.PublicSources == null ? null :
+                catalog.PublicSources.FirstOrDefault(s => s.Id == id);
+            if (policy == null) return true;
+            if (!policy.Enabled) return false;
+            if (policy.TimeoutMs > 0 && budget.TotalMilliseconds > policy.TimeoutMs)
+                budget = TimeSpan.FromMilliseconds(policy.TimeoutMs);
+            return true;
+        }
+
+        internal static bool HistoryTimelineEnabled
+        {
+            get { return TimelineEnabled(Volatile.Read(ref _active)); }
+        }
+
+        internal static bool HistoryRadarEnabled
+        {
+            get { var active = Volatile.Read(ref _active); return active == null || active.Features == null || active.Features.HistoryRadar != false; }
+        }
+
+        private static bool TimelineEnabled(CloudRouteCatalog active)
+        {
+            return active == null || active.Features == null || active.Features.HistoryTimeline != false;
         }
 
         internal static UpdateMirrorSource[] Resolve(CloudRouteCatalog catalog)
@@ -225,6 +319,26 @@ namespace FACM.Online
                 if (sources.Length != 2 || sources.Any(s => s.Name == "disabled") ||
                     UpdateMirrorRouter.BuildCandidates(OnlineService.UpdateManifestUrl, sources).Length != 2)
                     throw new InvalidOperationException("Cloud route selection resurrected an omitted or disabled mirror.");
+                catalog.PublicSources = new[] {
+                    new CloudPublicSource { Id = "hexdata", Enabled = false },
+                    new CloudPublicSource { Id = "opgg", Enabled = true, TimeoutMs = 800 }
+                };
+                catalog.Features = new CloudFeatureFlags { HistoryTimeline = false };
+                catalog.Announcement = new AnnouncementManifest { Enabled = false, Level = "info" };
+                catalog.Revision = 3;
+                var policy = Verify(sign(catalog), rsa);
+                var timeout = TimeSpan.FromSeconds(3);
+                if (policy == null || TimelineEnabled(policy.Catalog) ||
+                    ApplyPublicSource(policy.Catalog, "https://hexdata.com.cn/heroes", ref timeout) ||
+                    !ApplyPublicSource(policy.Catalog, "https://op.gg/guide", ref timeout) ||
+                    timeout.TotalMilliseconds != 800 || policy.Catalog.Announcement.Enabled)
+                    throw new InvalidOperationException("Signed cloud policy was not applied.");
+                catalog.PublicSources[0].Id = "unknown";
+                if (Verify(sign(catalog), rsa) != null)
+                    throw new InvalidOperationException("Unrecognized public source accepted.");
+                catalog.PublicSources = null;
+                catalog.Features = null;
+                catalog.Announcement = null;
                 catalog.Revision = 1;
                 if (AcceptRevision(verified, Verify(sign(catalog), rsa)))
                     throw new InvalidOperationException("Cloud route rollback accepted.");

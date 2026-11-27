@@ -1026,7 +1026,8 @@ namespace FACM
                 if (IsDisposed) return;
 
                 var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
-                if (IsDisposed || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage)) return;
+                if (IsDisposed || _exiting || snapshot == null) return;
+                if (!string.IsNullOrWhiteSpace(snapshot.ErrorMessage) && snapshot.Announcement == null) return;
 
                 if (!snapshot.UpdateAvailable && !snapshot.ForceUpdateRequired &&
                     snapshot.AnnouncementPending != null)
@@ -1055,7 +1056,7 @@ namespace FACM
                     return;
                 }
 
-                if (newPopupAnnouncement)
+                if (newPopupAnnouncement && string.IsNullOrWhiteSpace(snapshot.ErrorMessage))
                 {
                     _settings.LastAnnouncementId = announcement.Id;
                     _settings.Save();

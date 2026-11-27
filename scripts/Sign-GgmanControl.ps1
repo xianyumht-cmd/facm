@@ -17,6 +17,37 @@ foreach ($item in $config.sources) {
     $names[$item.name] = $true; $prefixes[$uri.AbsoluteUri] = $true
 }
 if (-not @($config.sources | Where-Object enabled).Count) { throw 'At least one enabled route is required.' }
+if ($config.PSObject.Properties.Name -contains 'announcement') {
+    $a = $config.announcement
+    if ($null -eq $a -or $a.enabled -isnot [bool] -or $a.popup -isnot [bool] -or
+        $a.level -cnotin @('info','warning','critical') -or
+        ([string]$a.id).Length -gt 96 -or ([string]$a.title).Length -gt 120 -or
+        ([string]$a.body).Length -gt 2000 -or ([string]$a.updated_at).Length -gt 64 -or
+        ([string]$a.link_url).Length -gt 512) { throw 'Invalid control announcement.' }
+    if ($a.enabled -and ([string]::IsNullOrWhiteSpace($a.id) -or
+        [string]::IsNullOrWhiteSpace($a.title) -or [string]::IsNullOrWhiteSpace($a.body))) { throw 'Incomplete enabled announcement.' }
+    if (-not [string]::IsNullOrWhiteSpace($a.link_url)) {
+        $link = $null
+        if (-not [Uri]::TryCreate($a.link_url,[UriKind]::Absolute,[ref]$link) -or
+            $link.Scheme -ne 'https' -or $link.Port -ne 443 -or $link.IsLoopback -or
+            $link.HostNameType -ne [UriHostNameType]::Dns -or $link.UserInfo -or $link.Host.IndexOf('.') -lt 0) { throw 'Invalid announcement link.' }
+    }
+}
+if ($config.PSObject.Properties.Name -contains 'public_sources') {
+    $known = @('hexdata','aramgg','arammayhem','opgg','tencent-news')
+    $seen = @{}
+    if (@($config.public_sources).Count -gt 5) { throw 'Too many public source policies.' }
+    foreach ($policy in $config.public_sources) {
+        if ($policy.id -cnotin $known -or $seen.ContainsKey($policy.id) -or $policy.enabled -isnot [bool] -or
+            ($policy.timeout_ms -ne 0 -and ($policy.timeout_ms -lt 500 -or $policy.timeout_ms -gt 5500))) { throw 'Invalid public source policy.' }
+        $seen[$policy.id] = $true
+    }
+}
+if ($config.PSObject.Properties.Name -contains 'features') {
+    foreach ($flag in $config.features.PSObject.Properties) {
+        if ($flag.Name -cnotin @('history_timeline','history_radar') -or $flag.Value -isnot [bool]) { throw 'Invalid feature policy.' }
+    }
+}
 if (-not $env:FACM_PFX_BASE64) { throw 'Release signing secret unavailable.' }
 $cert = $null; $rsa = $null
 try {

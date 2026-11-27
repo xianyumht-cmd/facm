@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed cloud policy expansion
+
+Edit online/control.json and increment revision for route/feature policy changes; merge only after validation. Existing FACM Online Management workflow writes both announcement.json and control.json, then calls the main-only cloud publisher. Verify publication and anonymous download before claiming effect. The initial live COS reference hash used by the mainland probe must be updated after a new deployment; no candidate cloud publication during PR testing. Test disabled notice, outage, tampering, rollback, unknown source ID and maintenance response before release.
+
 ## 2026-11-27 — COS bootstrap verified
 
 The initial COS deployment succeeded in run 46002004522 at 12:51:09 UTC: revision 20261127204800, signer A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568, anonymous HTTPS readback 1529 bytes, SHA-256 17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb. The temporary branch publication trigger is now removed; future deployment is main-only. Mainland probe compares exact published bytes for the initial revision; update the reference hash after later deployment before interpreting that probe. Candidate client has not shipped.

@@ -2483,7 +2483,7 @@ function renderAdvancedRadar(data){
   if(data.id!==selectedAdvancedMatch)return;
   var svg=get("advancedHistoryRadar");svg.replaceChildren();
   if(data.status!=="ready"||!Array.isArray(data.player)){
-    get("advancedRadarStatus").textContent="当前对局没有可核实的雷达统计";return;
+    get("advancedRadarStatus").textContent=data.status==="maintenance"?"雷达图暂时维护":"当前对局没有可核实的雷达统计";return;
   }
   var labels=["英雄伤害","承受伤害","经济","补刀","KDA","参团率","治疗"];
   var point=function(axis,ratio){
@@ -2538,7 +2538,7 @@ function renderAdvancedTimeline(data){
   get("advancedTimelineEvents").replaceChildren();
   advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
   if(data.status!=="ready"){
-    get("advancedTimelineStatus").textContent=data.status==="session-changed"?
+    get("advancedTimelineStatus").textContent=data.status==="maintenance"?"时间线暂时维护":data.status==="session-changed"?
       "当前 LOL 账号或对局已切换，请重新选择比赛":"当前比赛没有可用的完整时间线";
     drawAdvancedTimeline();return;
   }

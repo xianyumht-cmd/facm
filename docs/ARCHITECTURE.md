@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed cloud policy expansion
+
+CloudRouteControl retains the verified catalog in process after signature and atomic-cache acceptance. OnlineService consumes its announcement independently of mirror metadata; fixed public guide fetchers consult the bounded per-source policy; history extras native entry points enforce two maintenance flags. No arbitrary URL substitution, remote code, credentials or automation activation.
+
 ## 2026-11-27 — Signed COS route client
 
 CloudRouteControl verifies a bounded signed payload against the running executable signer, persists the original envelope atomically, and returns the authoritative allowed routes for the existing update service. Legacy catalogs cannot merge omitted routes back into a verified selection. No new polling, credentials or version-manifest origin.

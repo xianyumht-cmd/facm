@@ -1,3 +1,7 @@
+## 2026-11-27 — Signed cloud policy expansion
+
+Use optional backward-compatible signed fields; explicit disabled notice is authoritative, missing field uses legacy notice. Public source policy can disable supported fetches or shorten existing budgets, not redirect credentials or increase deadlines. Optional feature gates only suppress on-demand read-only timeline and radar operations. Local data and defaults remain available.
+
 ## 2026-11-27 — Signed COS route client
 
 Use COS as a signed route-only control plane; continue canonical GitHub release metadata and package integrity checks. An unsigned build cannot adopt production control data. Client rejection/timeout keeps the verified cached catalog, or legacy bootstrap when none exists.

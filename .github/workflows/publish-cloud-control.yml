@@ -9,6 +9,7 @@ on:
       - 'scripts/Sign-GgmanControl.ps1'
       - 'scripts/Publish-GgmanControl.py'
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 concurrency:
@@ -22,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           persist-credentials: false
       - name: Sign control payload
         shell: pwsh
