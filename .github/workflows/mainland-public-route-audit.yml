@@ -1,0 +1,24 @@
+name: GGman Mainland Public Route Audit
+on:
+  pull_request:
+    paths:
+      - 'scripts/Test-MainlandPublicRoutes.py'
+      - '.github/workflows/mainland-public-route-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect mainland HTTP evidence
+        run: python3 scripts/Test-MainlandPublicRoutes.py
+      - name: Upload measurement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mainland-public-route-results
+          path: mainland-route-results/
+          retention-days: 7

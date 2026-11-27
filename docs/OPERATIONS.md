@@ -1,3 +1,7 @@
+## 2026-11-27 — Mainland mirror measurement
+
+Baseline `30dad0e1` passed all four gates. A bounded Globalping public HTTPS audit requests mainland CN probes by carrier ASN, verifies their actual country/ASN, checks update metadata against the checkout, and records timing and measurement IDs. It does not download EXEs, use credentials, or auto-reorder mirrors. Missing probes/API failures are not carrier outages. GitHub Actions is the API caller, not the measuring location. Results pending; use only confirmed mainland probe evidence to determine whether further tests or priority changes are warranted.
+
 ## 2026-11-27 — Mainland public route verification
 
 Run `scripts/Test-PublicNetworkRoutes.ps1 -NetworkLabel China-Telecom -Rounds 3` on a real mainland connection (repeat on China-Unicom and China-Mobile). The script makes explicit HTTPS GETs without proxy, records DNS/connect/TLS/TTFB/total and response evidence, checks update manifest shape and checkout version/hash, and outputs a CSV; no authentication or EXE downloads. On ITDOG/BOCE use the exact public URLs rather than host-only ping; record per-carrier failure rate and median/p95 response time against the client's deadline. Different networks, repeated samples and parser/source completeness must be reviewed before changing priority. A manifest match is not proof of EXE availability or signature. Current session cannot submit multi-node browser measurements.

@@ -1,3 +1,7 @@
+## 2026-11-27 — Mainland mirror measurement
+
+Baseline `30dad0e1` passed all four gates. A bounded Globalping public HTTPS audit requests mainland CN probes by carrier ASN, verifies their actual country/ASN, checks update metadata against the checkout, and records timing and measurement IDs. It does not download EXEs, use credentials, or auto-reorder mirrors. Missing probes/API failures are not carrier outages. GitHub Actions is the API caller, not the measuring location. Results pending; use only confirmed mainland probe evidence to determine whether further tests or priority changes are warranted.
+
 ## 2026-11-27 — Player-value and public route audit
 
 PR #368 baseline `8964a02b` passed all four exact-head gates (Windows 45993511562, Glass 45993511590, UI 45993511681, Mayhem 45993511549). The 23 registered shards and their dispatch owners were reviewed; the matrix below is source triage, not 23 live-client acceptance passes. Public web retrieval returned Hexdata, OP.GG build/augments, ARAMMayhem, Tencent news, Data Dragon versions and CommunityDragon champion JSON; ARAMGG returned HTTP 403 to the web environment. Akari catalog access was not established. No mainland carrier latency or availability measurements were obtained. The candidate isolates optional-source deadlines, retains successful siblings, adds source durations, and reuses the tested cancellable response-body reader. Existing source ranking, update origins, mirror priorities and credentials are unchanged. New exact-head CI and mainland/Tencent runtime verification remain pending.
