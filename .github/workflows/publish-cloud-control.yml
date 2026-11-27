@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - fix/ggman-lcu-health-diagnostics-20261127
     paths:
       - 'online/control.json'
       - '.github/workflows/publish-cloud-control.yml'
@@ -17,7 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'xianyumht-cmd/facm' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/ggman-lcu-health-diagnostics-20261127')
+    if: github.repository == 'xianyumht-cmd/facm' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     timeout-minutes: 8
     steps:

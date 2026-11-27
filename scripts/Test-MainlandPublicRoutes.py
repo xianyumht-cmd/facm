@@ -1,10 +1,12 @@
 """Opt-in mainland public HTTPS measurement; never submits authenticated APIs."""
 import concurrent.futures
 import csv
+import hashlib
 import json
 import pathlib
 import re
 import statistics
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -27,7 +29,15 @@ def api(path, payload=None):
         return json.load(response)
 
 
+CONTROL_URL = "https://ggman-config-1305353165.cos.ap-guangzhou.myqcloud.com/control.json"
+# Exact byte hash from the successful signed upload and anonymous readback.
+CONTROL_SHA256 = "17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb"
+
+
 def targets():
+    control = ("cos-control", CONTROL_URL, "control")
+    if "--control-only" in sys.argv:
+        return [control]
     result = [("github-direct", ORIGIN, True)]
     catalog = json.loads((ROOT / "online/mirrors.json").read_text(encoding="utf-8-sig"))
     for item in catalog["sources"]:
@@ -45,7 +55,7 @@ def targets():
         ("tencent-news", "https://lol.qq.com/news/index.shtml", False),
         ("akari-catalog", "https://akari-api.yuru-yuri.com/config/v1/sgp/league-servers", False),
     ]
-    return result
+    return result + [control]
 
 
 def available_asns():
@@ -68,6 +78,11 @@ def classify(result, is_manifest):
         return "http-" + str(code)
     if result.get("tls", {}).get("authorized") is not True:
         return "tls-unverified"
+    if is_manifest == "control":
+        body = result.get("rawBody")
+        if result.get("truncated") or not isinstance(body, str):
+            return "body-unavailable"
+        return "control-matches-published" if hashlib.sha256(body.encode("utf-8")).hexdigest() == CONTROL_SHA256 else "control-other-content"
     if not is_manifest:
         return "http-reachable-only"
     if result.get("truncated") or not isinstance(result.get("rawBody"), str):
@@ -157,7 +172,7 @@ def main():
     for name, _, manifest in targets():
         for carrier in CARRIERS:
             group = [r for r in rows if r["source"] == name and r["carrier"] == carrier]
-            expected = "manifest-matches-checkout" if manifest else "http-reachable-only"
+            expected = "control-matches-published" if manifest == "control" else "manifest-matches-checkout" if manifest else "http-reachable-only"
             usable = [r for r in group if r["evidence"] == expected and isinstance(r.get("total_ms"), (int, float))]
             attempted = sum(r.get("country") == "CN" and r.get("asn") in asns[carrier] for r in group)
             summary.append(dict(source=name, carrier=carrier, attempted=attempted, usable=len(usable),

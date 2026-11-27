@@ -1,3 +1,7 @@
+## 2026-11-27 — COS bootstrap verified
+
+The initial COS deployment succeeded in run 46002004522 at 12:51:09 UTC: revision 20261127204800, signer A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568, anonymous HTTPS readback 1529 bytes, SHA-256 17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb. The temporary branch publication trigger is now removed; future deployment is main-only. Mainland probe compares exact published bytes for the initial revision; update the reference hash after later deployment before interpreting that probe. Candidate client has not shipped.
+
 ## 2026-11-27 — Signed COS route client
 
 Signed cloud route client is integrated into existing update snapshot checks: fixed COS origin, 2-second linked deadline, current release signer RSA verification, monotonic revision, atomic signed cache, authoritative enabled routes plus direct origin. Unsigned builds and no-cache failures retain the existing legacy path. New smoke cases cover omitted routes, tampered signature, rollback and conflicting revision. Exact-head CI and signed real-client acceptance pending.

@@ -1,3 +1,7 @@
+## 2026-11-27 — COS bootstrap verified
+
+The initial COS deployment succeeded in run 46002004522 at 12:51:09 UTC: revision 20261127204800, signer A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568, anonymous HTTPS readback 1529 bytes, SHA-256 17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb. The temporary branch publication trigger is now removed; future deployment is main-only. Mainland probe compares exact published bytes for the initial revision; update the reference hash after later deployment before interpreting that probe. Candidate client has not shipped.
+
 ## 2026-11-27 — COS signed cloud control bootstrap
 
 The owner created the Guangzhou COS bucket and configured the two restricted repository Secrets. A trusted push workflow signs the bounded route-only payload using the existing release certificate, uploads only `control.json` with object-level public read, and verifies anonymous HTTPS bytes. Initial five routes use mainland manifest evidence, not EXE throughput. Initial publishing is permitted on the current trusted task branch; remove this branch trigger before merging. No current client consumes the new object yet. Upload/anonymous readback and signer compatibility require actual workflow evidence. No release or main change.
