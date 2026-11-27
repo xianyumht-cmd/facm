@@ -305,7 +305,7 @@ namespace FACM.Presentation.Glass
             if (build != null && snapshot.LocalChampionId > 0 && build.ChampionId != snapshot.LocalChampionId)
                 build = null;
             var recommendation = build == null ? null : build.Recommendation;
-            var guide = snapshot.Guide;
+            var guide = snapshot.HasGuide ? snapshot.Guide : null;
             var ids = snapshot.BenchEnabled && snapshot.BenchChampionIds != null
                 ? snapshot.BenchChampionIds.Where(id => id > 0).Distinct().ToArray()
                 : new int[0];

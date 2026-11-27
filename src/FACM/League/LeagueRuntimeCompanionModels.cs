@@ -201,7 +201,8 @@ namespace FACM.League
 
         public bool HasGuide
         {
-            get { return Guide != null && string.IsNullOrWhiteSpace(GuideError); }
+            get { return Guide != null && LocalChampionId > 0 && GuideChampionId == LocalChampionId &&
+                string.IsNullOrWhiteSpace(GuideError); }
         }
 
         public bool HasVisibleChampSelectContext

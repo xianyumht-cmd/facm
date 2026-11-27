@@ -28,8 +28,7 @@ namespace FACM.League
         internal const int DesignWidth = 320;
         internal const int HeaderHeight = 36;
         internal const int ContextHeight = 82;
-        internal const int BenchHeight = 64;
-        internal const int BenchLabelHeight = 16;
+        internal const int BenchHeight = 84;
         internal const int BenchButtonHeight = 38;
         private const int BenchHostVerticalPadding = 2;
         private const int BenchControlVerticalMargin = 2;
@@ -50,7 +49,8 @@ namespace FACM.League
         private const int AugmentRowHeight = 36;
         private const int GuideTokenSize = 28;
         private const int GuideTokenGap = 4;
-        private const int BenchPageSize = 4;
+        private const int BenchColumns = 5;
+        private const int BenchPageSize = 10;
         private const int SbHorz = 0;
         private const int SbVert = 1;
 
@@ -318,28 +318,17 @@ namespace FACM.League
                 Padding = new Padding(8, BenchHostVerticalPadding, 8, BenchHostVerticalPadding),
                 Visible = false
             };
-            var benchLabel = new Label
-            {
-                Text = BenchText(LeagueBenchQuickPickUiTextKeys.Title),
-                Dock = DockStyle.Top,
-                Height = BenchLabelHeight,
-                AutoEllipsis = true,
-                ForeColor = FacmDesignSystem.TextMuted,
-                BackColor = Color.Transparent,
-                Font = new Font(FacmThemeRuntime.Current.FontName, 8F, FontStyle.Bold)
-            };
             _benchPanel = new FlowLayoutPanel
             {
                 Dock = DockStyle.Fill,
                 FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
+                WrapContents = true,
                 AutoScroll = false,
                 BackColor = FacmDesignSystem.Canvas,
                 Padding = Padding.Empty,
                 Margin = Padding.Empty
             };
             _benchHost.Controls.Add(_benchPanel);
-            _benchHost.Controls.Add(benchLabel);
 
             _body = new Panel
             {
@@ -654,8 +643,8 @@ namespace FACM.League
                 Opacity = 1d;
             }
 
-            _benchHost.Visible = snapshot.BenchEnabled && !_collapsed;
-            if (snapshot.BenchEnabled) RenderBench(snapshot);
+            _benchHost.Visible = snapshot.HasBenchSurface && !_collapsed;
+            if (snapshot.HasBenchSurface) RenderBench(snapshot);
             else ClearBenchButtons();
 
             if (snapshot.Build != null)
@@ -666,6 +655,10 @@ namespace FACM.League
                 SetBuildUnavailableState();
             else if (hasContext && snapshot.LocalChampionId <= 0 && _renderedBuildFingerprint == null)
                 SetChampionWaitingState();
+
+            if (snapshot.GuideKind == LeagueRuntimeCompanionGuideKind.Mayhem)
+                _runes.Host.Visible = false;
+            SetActionButtonsEnabled(!_actionBusy);
 
             if (snapshot.GuideChampionId > 0 && snapshot.GuideChampionId != _renderedGuideChampionId)
             {
@@ -1296,7 +1289,7 @@ namespace FACM.League
             if (_quitButton != null)
                 _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.SessionAvailable;
             if (_runes.Action != null)
-                _runes.Action.Enabled = enabled && _controller.SupportsBuildApply && _runes.Host.Visible;
+                _runes.Action.Enabled = enabled && _controller.CurrentSnapshot.AllowsRunes && _controller.SupportsBuildApply && _runes.Host.Visible;
             if (_spells.Action != null)
                 _spells.Action.Enabled = enabled && _controller.SupportsBuildApply && _spells.Host.Visible;
             if (_core.Action != null)
@@ -2157,7 +2150,9 @@ namespace FACM.League
 
         private void RenderBench(LeagueRuntimeCompanionSnapshot snapshot)
         {
-            var ids = (snapshot.BenchChampionIds ?? Array.Empty<int>()).Where(id => id > 0).Distinct().ToArray();
+            var ids = snapshot.BenchEnabled && snapshot.SessionAvailable
+                ? (snapshot.BenchChampionIds ?? Array.Empty<int>()).Where(id => id > 0).Distinct().ToArray()
+                : Array.Empty<int>();
             var rosterFingerprint = string.Join(",", ids.Select(id => id.ToString(CultureInfo.InvariantCulture)));
             if (!string.Equals(_benchRosterFingerprint, rosterFingerprint, StringComparison.Ordinal))
             {
@@ -2167,17 +2162,31 @@ namespace FACM.League
             }
             var pages = Math.Max(1, (int)Math.Ceiling(ids.Length / (double)BenchPageSize));
             _benchPage = Math.Max(0, Math.Min(_benchPage, pages - 1));
-            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.LocalChampionId + "|" + snapshot.SwapRoute;
+            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.LocalChampionId + "|" + snapshot.SwapRoute + "|" + snapshot.BenchEnabled;
             if (string.Equals(_benchRenderFingerprint, fingerprint, StringComparison.Ordinal)) return;
             _benchRenderFingerprint = fingerprint;
 
             var old = _benchPanel.Controls.Cast<Control>().ToArray();
             _benchPanel.Controls.Clear();
             foreach (var control in old) control.Dispose();
-            if (pages > 1) _benchPanel.Controls.Add(CreateBenchNavButton(false));
-            foreach (var championId in ids.Skip(_benchPage * BenchPageSize).Take(BenchPageSize))
+            // Ten visible slots even if the bench has not populated yet. Only an unexpected
+            // future mode with more than ten choices uses the separate overflow navigation row.
+            _benchHost.Height = (int)Math.Round((BenchHeight + (pages > 1 ? BenchButtonHeight + BenchControlVerticalMargin : 0)) *
+                LeagueRuntimeCompanionWindowState.ResolveDpiScale(this));
+            var pageIds = ids.Skip(_benchPage * BenchPageSize).Take(BenchPageSize).ToArray();
+            for (var index = 0; index < BenchPageSize; index++)
             {
+                var championId = index < pageIds.Length ? pageIds[index] : 0;
                 var button = CreateBenchButton(championId);
+                _benchPanel.Controls.Add(button);
+                if ((index + 1) % BenchColumns == 0) _benchPanel.SetFlowBreak(button, true);
+                if (championId == 0)
+                {
+                    button.Text = string.Empty;
+                    button.Enabled = false;
+                    button.TabStop = false;
+                    continue;
+                }
                 button.Tag = new BenchTarget { ChampionId = championId, Route = snapshot.SwapRoute };
                 button.Click += async delegate
                 {
@@ -2188,10 +2197,13 @@ namespace FACM.League
                 var benchLabelText = BenchText(LeagueBenchQuickPickUiTextKeys.Tooltip) + " #" + championId.ToString(CultureInfo.InvariantCulture);
                 button.AccessibleName = benchLabelText;
                 _toolTip.SetToolTip(button, benchLabelText);
-                _benchPanel.Controls.Add(button);
                 _ = LoadBenchIconAsync(button, championId);
             }
-            if (pages > 1) _benchPanel.Controls.Add(CreateBenchNavButton(true));
+            if (pages > 1)
+            {
+                _benchPanel.Controls.Add(CreateBenchNavButton(false));
+                _benchPanel.Controls.Add(CreateBenchNavButton(true));
+            }
         }
 
         private Button CreateBenchNavButton(bool next)
@@ -2394,7 +2406,7 @@ namespace FACM.League
             if (_collapsed == collapsed) return;
             _collapsed = collapsed;
             _context.Visible = !collapsed;
-            _benchHost.Visible = !collapsed && _controller.CurrentSnapshot.BenchEnabled;
+            _benchHost.Visible = !collapsed && _controller.CurrentSnapshot.HasBenchSurface;
             _bodyShell.Visible = !collapsed;
             _collapseButton.Text = collapsed ? "+" : "−";
             _collapseButton.AccessibleName = CompanionText(
@@ -2744,12 +2756,13 @@ namespace FACM.League
                 throw new InvalidOperationException("Runtime Companion maximum height cap drifted.");
             if (HeaderHeight + ContextHeight + BenchHeight >= MinimumExpandedHeight)
                 throw new InvalidOperationException("Runtime Companion fixed regions leave no useful scroll body.");
-            var benchRequiredHeight = (BenchHostVerticalPadding * 2) + BenchLabelHeight + BenchButtonHeight + BenchControlVerticalMargin;
+            var benchRequiredHeight = (BenchHostVerticalPadding * 2) + 2 * (BenchButtonHeight + BenchControlVerticalMargin);
             if (benchRequiredHeight > BenchHeight)
                 throw new InvalidOperationException("Runtime Companion Bench controls exceed the fixed Bench host height.");
             if (AugmentColumnTotalWidth > BodyContentWidth)
                 throw new InvalidOperationException("Runtime Companion compact content width contract drifted.");
-            if (AugmentPageSize != 5 || BenchPageSize != 4 || AugmentRowHeight < 32)
+            if (AugmentPageSize != 5 || BenchPageSize != 10 || BenchColumns != 5 ||
+                BenchPageSize != 2 * BenchColumns || AugmentRowHeight < 32)
                 throw new InvalidOperationException("Runtime Companion compact paging contract drifted.");
             if (new MayhemAugmentRow { Rarity = "kPrismatic" }.RarityKind != "prism" ||
                 new MayhemAugmentRow { Rarity = "kGold" }.RarityKind != "gold" ||
