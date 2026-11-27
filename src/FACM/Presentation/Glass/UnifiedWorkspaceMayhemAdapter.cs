@@ -52,7 +52,7 @@ namespace FACM.Presentation.Glass
                     return;
                 }
                 var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
-                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name)).Take(8).ToArray();
+                    .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name)).Take(MayhemRankedAugmentService.MaximumRows).ToArray();
                 _publish(SerializeGuide(result, rows));
                 await PublishIconsAsync(module, result, rows, session, source, generation);
             }
@@ -75,7 +75,7 @@ namespace FACM.Presentation.Glass
 
         private static string SerializeGuide(MayhemChampionResult result, MayhemAugmentRow[] rows)
         {
-            return new JavaScriptSerializer().Serialize(new
+            return new JavaScriptSerializer { MaxJsonLength = 2097152 }.Serialize(new
             {
                 type = "mayhem-details",
                 champion = result.ChampionName,

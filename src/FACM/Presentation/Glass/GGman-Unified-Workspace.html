@@ -964,7 +964,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
         <div class="guide-card"><small>胜率</small><strong id="mayhemWinRate">—</strong></div>
       </div>
       <div class="guide-card"><strong>本版本平衡</strong><small id="mayhemBalance">暂无可信数据</small></div>
-      <div class="guide-card"><strong>强化推荐</strong><small class="guide-source" id="mayhemAugmentSource"></small><ul class="guide-list" id="mayhemAugments"></ul></div>
+      <div class="guide-card"><strong>强化推荐</strong><small class="guide-source" id="mayhemAugmentSource"></small><div class="guide-search"><input id="mayhemAugmentSearch" type="search" placeholder="搜索强化" aria-label="搜索强化"><select id="mayhemAugmentRarity" aria-label="强化品质"><option value="all">全部</option><option value="prism">棱彩</option><option value="gold">黄金</option><option value="silver">白银</option></select></div><ul class="guide-list" id="mayhemAugments"></ul><button id="mayhemAugmentMore" hidden>更多</button></div>
       <div class="guide-card"><strong>核心装备</strong><ul class="guide-list" id="mayhemItems"></ul></div>
       <div class="guide-card"><strong>技能顺序</strong><small id="mayhemSkills">暂无</small></div>
       <div class="guide-card"><strong>前十英雄</strong><ul class="guide-list" id="mayhemTop"></ul></div>
@@ -2086,17 +2086,26 @@ function iconPlaceholder(label){
   var icon=document.createElement("span");icon.className="guide-thumb";
   icon.textContent=String(label||"荐").trim().slice(0,1)||"荐";return icon;
 }
+var mayhemAugmentData=null,mayhemAugmentLimit=20,mayhemAugmentIcons=new Map();
+get("mayhemAugmentSearch").oninput=get("mayhemAugmentRarity").onchange=function(){mayhemAugmentLimit=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
+get("mayhemAugmentMore").onclick=function(){mayhemAugmentLimit+=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
+function mayhemPointPercent(value){return Number.isFinite(Number(value))?Number(value).toFixed(1)+"%":"—";}
 function renderRankedAugments(data){
   var list=get("mayhemAugments");list.replaceChildren();
   var rows=Array.isArray(data.augmentDetails)?data.augmentDetails:[];
-  if(!rows.length){
+  var query=get("mayhemAugmentSearch").value.trim().toLowerCase(),rarityFilter=get("mayhemAugmentRarity").value;
+  var matched=rows.map(function(row,index){return {row:row,index:index};}).filter(function(x){return (rarityFilter==="all"||x.row.rarityKind===rarityFilter)&&(!query||String(x.row.name||"").toLowerCase().includes(query));});
+  get("mayhemAugmentMore").hidden=matched.length<=mayhemAugmentLimit;
+  if(!rows.length&&rarityFilter==="all"){
     (Array.isArray(data.augments)?data.augments:[]).slice(0,8).forEach(function(name,index){
+      if(query&&!String(name).toLowerCase().includes(query))return;
       var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
       var icon=iconPlaceholder(name),copy=document.createElement("div");copy.className="guide-copy";
       var title=document.createElement("strong");title.textContent=String(name);copy.append(title);li.append(icon,copy);list.append(li);
     });
   }else{
-    rows.forEach(function(row,index){
+    matched.slice(0,mayhemAugmentLimit).forEach(function(entry){
+      var row=entry.row,index=entry.index;
       var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
       var icon=iconPlaceholder(row.name);
       var copy=document.createElement("div");copy.className="guide-copy";
@@ -2109,19 +2118,20 @@ function renderRankedAugments(data){
       title.appendChild(document.createTextNode(String(row.name||"未知强化")));
       copy.appendChild(title);
       var evidence=[Number(row.rank)>0?"第 "+row.rank+" 名":"",
-        row.winRate==null?"":"胜率 "+guidePercent(row.winRate),
-        row.pickRate==null?"":"选取率 "+guidePercent(row.pickRate),
+        row.winRate==null?"":"胜率 "+mayhemPointPercent(row.winRate),
+        row.pickRate==null?"":"选取率 "+mayhemPointPercent(row.pickRate),
         row.games>0?"样本 "+row.games:""].filter(Boolean).join(" · ");
       if(evidence){var meta=document.createElement("small");meta.textContent=evidence;copy.appendChild(meta);}
-      if(row.description){var desc=document.createElement("small");desc.textContent=String(row.description);copy.appendChild(desc);}
+      if(row.description){var detail=document.createElement("details"),summary=document.createElement("summary"),desc=document.createElement("small");summary.textContent="详情";desc.textContent=String(row.description);detail.append(summary,desc);copy.appendChild(detail);}
       li.append(icon,copy);list.append(li);
     });
   }
-  if(!list.children.length){var empty=document.createElement("li");empty.textContent="暂无来源确认的强化推荐";list.appendChild(empty);}
+  mayhemAugmentIcons.forEach(function(image,index){renderMayhemIcon({kind:"augment",index:index,image:image});});
+  if(!list.children.length){var empty=document.createElement("li");empty.textContent=rows.length?"无匹配强化":"暂无来源确认的强化推荐";list.appendChild(empty);}
   var route=String(data.augmentSource||"");
   get("mayhemAugmentSource").dataset.stale=data.augmentStale?"true":"false";
   get("mayhemAugmentSource").textContent=data.augmentStale?"当前为历史缓存数据，需注意版本差异":
-    route==="fresh-cache"?"强化数据来自近期缓存":"强化信息来自当前已读取的数据源";
+    "";
 }
 function renderItemIcons(items){
   var list=get("mayhemItems");list.replaceChildren();
@@ -2137,6 +2147,7 @@ function renderItemIcons(items){
 function renderMayhemIcon(data){
   if(mode!=="mayhem"||typeof data.image!=="string"||
       !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image)||data.image.length>35000)return;
+  if(data.kind==="augment")mayhemAugmentIcons.set(data.index,data.image);
   var holder=null;
   if(data.kind==="champion")holder=get("mayhemChampionIcon");
   else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<8){
@@ -2147,6 +2158,7 @@ function renderMayhemIcon(data){
   if(holder){var img=document.createElement("img");img.src=data.image;img.alt="";img.decoding="async";holder.replaceChildren(img);}
 }
 function renderMayhem(data){
+  mayhemAugmentData=data;mayhemAugmentLimit=20;mayhemAugmentIcons.clear();get("mayhemAugmentSearch").value="";get("mayhemAugmentRarity").value="all";
   get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
   get("mayhemOutput").hidden=false;
   get("mayhemChampionIcon").textContent=String(data.champion||"英").slice(0,1);
@@ -2162,7 +2174,7 @@ function renderMayhem(data){
     return "#"+row.rank+" "+(row.name||"未知英雄")+(row.tier?" · "+row.tier:"")+
       (row.winRate==null?"":" · "+guidePercent(row.winRate));
   }),"当前来源未提供可信的前十排行");
-  get("mayhemResult").textContent="数据读取完成";
+  get("mayhemResult").textContent="";
 }
 function renderRecommendationFeedback(data){
   get("recommendationRefresh").disabled=false;

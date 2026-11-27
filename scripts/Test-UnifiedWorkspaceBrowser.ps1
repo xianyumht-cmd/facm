@@ -152,12 +152,12 @@ var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,ph
       {category:'runes',title:'Rune fixture',evidence:'local'},
       {category:'core',title:'Build fixture',evidence:'local'}]},
   guide:{champion:'Ashe',tier:'S',winRate:0.52,core:['A','B'],augments:[
-    {id:'fixture',name:'Augment fixture',rank:1,rarity:'gold',winRate:0.54}]}};
+    {id:'fixture',assetKey:'augment:0',name:'Augment fixture',rank:1,rarity:'gold',winRate:54,pickRate:0.5}]}};
 window.__companionReceive({data:sample});
 window.__companionReceive({data:{type:'skin',id:'cloud-light',light:true,
  background:'#F4F7FD',surface:'#FFFFFF',surfaceRaised:'#EBF2FF',
  text:'#1A2743',muted:'#667797',accent:'#4E7EFF',border:'#D3DCEE',warning:'#EA8B39'}});
-window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
+window.__companionReceive({data:{type:'asset',key:'augment:0',value:
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
 var slots=Array.from(document.querySelectorAll('#bench button'));
 var gridPass=slots.length===10 && slots[0].offsetTop===slots[4].offsetTop &&
@@ -185,6 +185,15 @@ var normalPass=document.querySelector('#benchSection').hidden &&
 window.__companionReceive({data:sample});
 document.querySelector('[data-champion-id="99"]').click();
 var swapPass=window.__companionCommands.includes('swap:99:2');
+var extra=Array.from({length:26},(_,i)=>({id:'id'+i,assetKey:'augment:'+i,name:'Augment '+i,rank:i+1,rarity:i<24?'gold':'silver',winRate:54,pickRate:0.5}));
+window.__companionReceive({data:Object.assign({},sample,{guide:Object.assign({},sample.guide,{augments:extra})})});
+var morePass=!document.querySelector('#augmentMore').hidden&&document.querySelectorAll('#augments .augment').length===20;
+document.querySelector('[data-filter="silver"]').click();
+var filterPass=document.querySelectorAll('#augments .augment').length===2&&document.querySelector('#augments').textContent.includes('0.5%');
+var search=document.querySelector('#augmentSearch');search.value='25';search.dispatchEvent(new Event('input'));
+var searchPass=document.querySelectorAll('#augments .augment').length===1&&document.querySelector('#augments').textContent.includes('Augment 25');
+search.value='';search.dispatchEvent(new Event('input'));document.querySelector('[data-filter="all"]').click();
+window.__companionReceive({data:sample});
 var firstRow=document.querySelector('#augments .augment');
 var defaultVisible=!document.querySelector('#augmentSection').hidden &&
  document.querySelector('#buildSection').hidden && firstRow &&
@@ -197,7 +206,7 @@ var explicitTabKept=!document.querySelector('#buildSection').hidden &&
  document.querySelector('#runes').hidden &&
  document.querySelector('#items').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
 document.querySelector('[data-tab="augments"]').click();
-var pass=gridPass && emptyPass && partialPass && cardPass && swapPass && normalPass && defaultVisible && explicitTabKept &&
+var pass=morePass && filterPass && searchPass && gridPass && emptyPass && partialPass && cardPass && swapPass && normalPass && defaultVisible && explicitTabKept &&
  document.querySelectorAll('#bench button').length===10 &&
  document.querySelectorAll('#recommend .rec').length===1 &&
  document.querySelectorAll('#augments .augment').length===1 &&
