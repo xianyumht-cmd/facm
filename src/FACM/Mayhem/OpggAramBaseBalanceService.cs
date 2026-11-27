@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -136,9 +137,11 @@ namespace FACM.Mayhem
             foreach (var url in urls)
             {
                 token.ThrowIfCancellationRequested();
+                var budget = TimeSpan.FromSeconds(2.2);
+                if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return Unavailable("maintenance");
                 using (var requestTimeout = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    requestTimeout.CancelAfter(TimeSpan.FromSeconds(2.2));
+                    requestTimeout.CancelAfter(budget);
                     try
                     {
                         using (var request = new HttpRequestMessage(HttpMethod.Get, url))

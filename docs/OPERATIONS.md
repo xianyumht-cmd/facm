@@ -1,3 +1,7 @@
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Inspect update-metadata-health-v2.json and update-package-health-v2.json in cache; samples older than seven days are ignored. Eight named public source policies and five update routes are staged, not deployed. Verify package throughput separately before changing package priorities.
+
 ## 2026-11-27 — Signed cloud policy expansion
 
 Edit online/control.json and increment revision for route/feature policy changes; merge only after validation. Existing FACM Online Management workflow writes both announcement.json and control.json, then calls the main-only cloud publisher. Verify publication and anonymous download before claiming effect. The initial live COS reference hash used by the mainland probe must be updated after a new deployment; no candidate cloud publication during PR testing. Test disabled notice, outage, tampering, rollback, unknown source ID and maintenance response before release.

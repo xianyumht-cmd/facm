@@ -1,3 +1,7 @@
+## 2026-11-27 — Separate updater health and expanded public policy
+
+UpdateMirrorRouter selects independent metadata/package health stores; installer records verified package outcomes. Shared public-data transport honors cloud source policy before network requests while retaining cache and host/path allowlists.
+
 ## 2026-11-27 — Signed cloud policy expansion
 
 CloudRouteControl retains the verified catalog in process after signature and atomic-cache acceptance. OnlineService consumes its announcement independently of mirror metadata; fixed public guide fetchers consult the bounded per-source policy; history extras native entry points enforce two maintenance flags. No arbitrary URL substitution, remote code, credentials or automation activation.

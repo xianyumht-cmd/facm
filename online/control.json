@@ -1,6 +1,6 @@
 {
   "schema": "ggman-control.v1",
-  "revision": 20261127205500,
+  "revision": 20261127211000,
   "sources": [
     {
       "name": "gh-dpik",
@@ -66,6 +66,21 @@
     },
     {
       "id": "tencent-news",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "communitydragon",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "akari-catalog",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "opgg-api",
       "enabled": true,
       "timeout_ms": 0
     }

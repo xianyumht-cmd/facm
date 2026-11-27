@@ -34,9 +34,9 @@ if ($config.PSObject.Properties.Name -contains 'announcement') {
     }
 }
 if ($config.PSObject.Properties.Name -contains 'public_sources') {
-    $known = @('hexdata','aramgg','arammayhem','opgg','tencent-news')
+    $known = @('hexdata','aramgg','arammayhem','opgg','tencent-news','communitydragon','akari-catalog','opgg-api')
     $seen = @{}
-    if (@($config.public_sources).Count -gt 5) { throw 'Too many public source policies.' }
+    if (@($config.public_sources).Count -gt 8) { throw 'Too many public source policies.' }
     foreach ($policy in $config.public_sources) {
         if ($policy.id -cnotin $known -or $seen.ContainsKey($policy.id) -or $policy.enabled -isnot [bool] -or
             ($policy.timeout_ms -ne 0 -and ($policy.timeout_ms -lt 500 -or $policy.timeout_ms -gt 5500))) { throw 'Invalid public source policy.' }

@@ -1,3 +1,7 @@
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Baseline 08ce8cb8 passed all six gates. Candidate separates metadata/package scoring and expands managed public sources to eight IDs. Exact-head CI, signed-client acceptance, remaining direct fetchers, EXE throughput and additional maintenance gates remain open. Production COS unchanged.
+
 ## 2026-11-27 — Signed cloud policy expansion
 
 Candidate extends the signed control envelope with optional announcement, five fixed public guide source policies, and timeline/radar maintenance gates. Defaults preserve existing behavior, no active announcement. Initial COS revision remains live; this candidate has not been published. Baseline 3f7f0607 six gates passed, COS verified 5/5 mainland reads (230–320 ms). New exact-head CI pending. Existing announcement management dispatch dual-writes legacy and control JSON and explicitly invokes reusable publisher because bot pushes do not trigger push workflows. Full signed-client acceptance, EXE throughput and remaining source adapters are open.

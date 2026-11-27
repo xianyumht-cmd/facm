@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.League
 {
@@ -73,6 +74,9 @@ namespace FACM.League
                 var started = Stopwatch.StartNew();
                 try
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!CloudRouteControl.PublicSourceAllowed(uri.AbsoluteUri, ref timeout))
+                        throw new InvalidOperationException("Public source temporarily disabled.");
                     var bytes = await DownloadAsync(uri, timeout, cancellationToken).ConfigureAwait(false);
                     WriteCache(cachePath, bytes);
                     started.Stop();

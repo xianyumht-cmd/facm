@@ -23,6 +23,7 @@ namespace FACM.Online
         {
             UpdateInstaller.ValidateEmbeddedUpdaterForSmokeTest();
             CloudRouteControl.ValidateForSmokeTest();
+            UpdateMirrorRouter.ValidateHealthForSmokeTest();
 
             var notes = "版本更新说明第一行" + Environment.NewLine + "第二行：更新稳定性与界面提示";
             var checkedUpdate = new OnlineSnapshot

@@ -173,7 +173,7 @@ namespace FACM.Online
             if (catalog.PublicSources != null)
             {
                 var ids = new HashSet<string>(StringComparer.Ordinal);
-                if (catalog.PublicSources.Length > 5) return false;
+                if (catalog.PublicSources.Length > 8) return false;
                 foreach (var source in catalog.PublicSources)
                     if (source == null || !KnownSource(source.Id) || !ids.Add(source.Id) ||
                         (source.TimeoutMs != 0 && (source.TimeoutMs < 500 || source.TimeoutMs > 5500))) return false;
@@ -198,7 +198,7 @@ namespace FACM.Online
 
         private static bool KnownSource(string id)
         {
-            return id == "hexdata" || id == "aramgg" || id == "arammayhem" || id == "opgg" || id == "tencent-news";
+            return id == "hexdata" || id == "aramgg" || id == "arammayhem" || id == "opgg" || id == "tencent-news" || id == "communitydragon" || id == "akari-catalog" || id == "opgg-api";
         }
 
         internal static bool PublicSourceAllowed(string url, ref TimeSpan budget)
@@ -213,7 +213,11 @@ namespace FACM.Online
             var id = uri.Host == "hexdata.com.cn" ? "hexdata" :
                 uri.Host == "aramgg.com" ? "aramgg" :
                 uri.Host == "arammayhem.com" ? "arammayhem" :
-                uri.Host == "op.gg" ? "opgg" : uri.Host == "lol.qq.com" ? "tencent-news" : null;
+                uri.Host == "op.gg" || uri.Host == "opgg.gg" ? "opgg" :
+                uri.Host == "lol.qq.com" ? "tencent-news" :
+                uri.Host == "lol-api-champion.op.gg" ? "opgg-api" :
+                uri.Host == "raw.communitydragon.org" ? "communitydragon" :
+                uri.Host == "akari-api.yuru-yuri.com" ? "akari-catalog" : null;
             var policy = catalog == null || catalog.PublicSources == null ? null :
                 catalog.PublicSources.FirstOrDefault(s => s.Id == id);
             if (policy == null) return true;

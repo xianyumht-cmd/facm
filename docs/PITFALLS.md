@@ -1,3 +1,7 @@
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Fast JSON is not evidence of fast EXE delivery. Disabled source policies suppress managed fetches, not valid cached data. Direct fetchers not yet integrated remain outside policy scope.
+
 ## 2026-11-27 — Signed cloud policy expansion
 
 Do not treat a signed cloud switch as permission to start gameplay automation, or let optional public source policy redirect authenticated traffic. An announcement committed by GITHUB_TOKEN does not itself trigger downstream push workflows. Use explicit reusable publication and increment revision on every content change; current client supports an older signed cache when unavailable.

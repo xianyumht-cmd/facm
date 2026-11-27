@@ -43,7 +43,7 @@ namespace FACM.Online
             var version = SanitizeFileName(manifest.Version ?? "latest");
             var destination = Path.Combine(directory, "GGman-" + version + ".exe");
             var temporary = destination + ".download";
-            var candidates = UpdateMirrorRouter.BuildCandidates(manifest.DownloadUrl, manifest.ResolvedSources);
+            var candidates = UpdateMirrorRouter.BuildCandidates(manifest.DownloadUrl, manifest.ResolvedSources, true);
             if (candidates.Length == 0)
                 throw new InvalidDataException("没有可用的更新下载线路。");
 
@@ -67,7 +67,7 @@ namespace FACM.Online
 
                         SignatureInspector.ValidateUpdatePackage(temporary, manifest.Version);
                         stopwatch.Stop();
-                        UpdateMirrorRouter.RecordSuccess(candidate.SourceName, stopwatch.ElapsedMilliseconds);
+                        UpdateMirrorRouter.RecordSuccess(candidate.SourceName, stopwatch.ElapsedMilliseconds, true);
                         AppLog.Info("Update source succeeded: " + candidate.SourceName);
 
                         if (File.Exists(destination)) File.Delete(destination);
@@ -85,7 +85,7 @@ namespace FACM.Online
                     {
                         stopwatch.Stop();
                         lastFailure = exception;
-                        UpdateMirrorRouter.RecordFailure(candidate.SourceName, stopwatch.ElapsedMilliseconds);
+                        UpdateMirrorRouter.RecordFailure(candidate.SourceName, stopwatch.ElapsedMilliseconds, true);
                         AppLog.Info("Update source failed: " + candidate.SourceName + "; " + exception.GetType().Name);
                         TryDelete(temporary);
                     }

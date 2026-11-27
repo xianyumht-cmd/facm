@@ -1,3 +1,7 @@
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Ignore old mixed health statistics. Use bounded recent samples, successful latency only, and seven-day decay. Fixed-ID cloud policies may shorten existing budgets and disable new public fetches, not redirect authenticated requests.
+
 ## 2026-11-27 — Signed cloud policy expansion
 
 Use optional backward-compatible signed fields; explicit disabled notice is authoritative, missing field uses legacy notice. Public source policy can disable supported fetches or shorten existing budgets, not redirect credentials or increase deadlines. Optional feature gates only suppress on-demand read-only timeline and radar operations. Local data and defaults remain available.
