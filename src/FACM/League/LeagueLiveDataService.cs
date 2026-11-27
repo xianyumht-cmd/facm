@@ -14,6 +14,8 @@ namespace FACM.League
     {
         internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
         internal const string TeamBuilderChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
+        internal const string SubsetChampionListPath = "/lol-lobby-team-builder/champ-select/v1/subset-champion-list";
+        internal const string PickableChampionIdsPath = "/lol-champ-select/v1/pickable-champion-ids";
         internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
         internal const string ChampionIconPathPrefix = "/lol-game-data/assets/v1/champion-icons/";
@@ -34,6 +36,7 @@ namespace FACM.League
         private DateTime _sgpUntilUtc;
         private string _lastLocalPuuid;
         private int _lastBenchSwapRoute;
+        private LeagueBenchQuickPickState _quickPickOptions;
 
         public LeagueLiveDataService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
             ILeagueSgpGsmApi sgpGsm = null, Func<LeagueClientSession> session = null)
@@ -325,7 +328,8 @@ namespace FACM.League
         /// Team Builder is queried only as a narrow compatibility fallback when the generic session
         /// identifies a Team Builder bench but does not expose the actual bench list.
         /// </summary>
-        public async Task<LeagueBenchQuickPickState> RefreshBenchAsync(CancellationToken cancellationToken)
+        public async Task<LeagueBenchQuickPickState> RefreshBenchAsync(CancellationToken cancellationToken,
+            bool includeSelectionOptions = false, bool forceSelectionOptions = false)
         {
             await _requestGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
@@ -333,6 +337,7 @@ namespace FACM.League
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                 {
                     timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    var startSession = _session == null ? null : _session();
                     var bytes = await _client.TryGetBytesAsync(ChampSelectSessionPath, timeout.Token).ConfigureAwait(false);
                     var state = ParseBenchState(bytes);
 
@@ -340,8 +345,10 @@ namespace FACM.League
                                                !state.SessionAvailable ||
                                                (state.BenchEnabled &&
                                                 state.SwapRoute == LeagueBenchSwapRoute.TeamBuilder &&
-                                                state.ChampionIds.Count == 0);
-                    if (!shouldTryTeamBuilder) return state;
+                                                state.ChampionIds.Count == 0 && !state.IsSubsetPhase);
+                    if (!shouldTryTeamBuilder)
+                        return await CompleteQuickPickStateAsync(state, startSession, includeSelectionOptions,
+                            forceSelectionOptions, timeout.Token).ConfigureAwait(false);
 
                     var teamBuilderBytes = await _client.TryGetBytesAsync(
                         TeamBuilderChampSelectSessionPath,
@@ -359,6 +366,11 @@ namespace FACM.League
                             teamBuilderState.GameMode = state.GameMode;
                         if (state != null)
                         {
+                            if (teamBuilderState.GameId <= 0) teamBuilderState.GameId = state.GameId;
+                            if (string.IsNullOrEmpty(teamBuilderState.SelectionId)) teamBuilderState.SelectionId = state.SelectionId;
+                            teamBuilderState.AllowsSubsetChampionPicks |= state.AllowsSubsetChampionPicks;
+                            if (!teamBuilderState.LocalPickActionId.HasValue)
+                                teamBuilderState.LocalPickActionId = state.LocalPickActionId;
                             if (string.IsNullOrWhiteSpace(teamBuilderState.TimerPhase))
                                 teamBuilderState.TimerPhase = state.TimerPhase;
                             if (teamBuilderState.TimerMillisecondsLeft <= 0)
@@ -372,16 +384,94 @@ namespace FACM.League
                         }
                         teamBuilderState.SwapRoute = LeagueBenchSwapRoute.TeamBuilder;
                         RememberBenchSwapRoute(LeagueBenchSwapRoute.TeamBuilder);
-                        return teamBuilderState;
+                        return await CompleteQuickPickStateAsync(teamBuilderState, startSession, includeSelectionOptions,
+                            forceSelectionOptions, timeout.Token).ConfigureAwait(false);
                     }
 
-                    return state ?? new LeagueBenchQuickPickState();
+                    return await CompleteQuickPickStateAsync(state ?? new LeagueBenchQuickPickState(), startSession,
+                        includeSelectionOptions, forceSelectionOptions, timeout.Token).ConfigureAwait(false);
                 }
             }
             finally
             {
                 _requestGate.Release();
             }
+        }
+
+        // Option reads are only for the visible manual quick picker; the normal live/automation
+        // parser keeps its existing request budget. Cache successful options briefly within one draft.
+        private async Task<LeagueBenchQuickPickState> CompleteQuickPickStateAsync(LeagueBenchQuickPickState state,
+            LeagueClientSession startSession, bool includeOptions, bool force, CancellationToken token)
+        {
+            state.ClientSession = _session == null ? null : _session();
+            if (startSession != null && (state.ClientSession == null ||
+                !LeagueEncounterReplayService.SessionMatches(startSession, state.ClientSession)))
+                return new LeagueBenchQuickPickState();
+            state.ObservedAtUtc = DateTime.UtcNow;
+            if (!includeOptions) return state;
+            if (!state.SessionAvailable || !state.BenchEnabled ||
+                (!state.IsSubsetPhase && !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal)))
+            {
+                _quickPickOptions = null;
+                return state;
+            }
+            var previous = _quickPickOptions;
+            if (!force && previous != null && previous.SameDraft(state) &&
+                string.Equals(previous.TimerPhase, state.TimerPhase, StringComparison.Ordinal) &&
+                previous.LocalChampionId == state.LocalChampionId && previous.LocalPickActionId == state.LocalPickActionId &&
+                DateTime.UtcNow - previous.ObservedAtUtc < TimeSpan.FromMilliseconds(400))
+            {
+                state.SubsetChampionIds.AddRange(previous.SubsetChampionIds);
+                state.PickableChampionIds.AddRange(previous.PickableChampionIds);
+                state.PickableKnown = previous.PickableKnown;
+                return state;
+            }
+            if (state.IsSubsetPhase)
+                ReadQuickPickIds(await _client.TryGetBytesAsync(SubsetChampionListPath, token).ConfigureAwait(false),
+                    state.SubsetChampionIds);
+            state.PickableKnown = ReadQuickPickIds(
+                await _client.TryGetBytesAsync(PickableChampionIdsPath, token).ConfigureAwait(false), state.PickableChampionIds);
+            if (_session != null && (state.ClientSession == null ||
+                !LeagueEncounterReplayService.SessionMatches(state.ClientSession, _session())))
+            {
+                _quickPickOptions = null;
+                return new LeagueBenchQuickPickState();
+            }
+            state.ObservedAtUtc = DateTime.UtcNow;
+            _quickPickOptions = state;
+            return state;
+        }
+
+        private static bool ReadQuickPickIds(byte[] bytes, ICollection<int> ids)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 65536) return false;
+            try
+            {
+                var parsed = new JavaScriptSerializer { MaxJsonLength = 65536 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (parsed == null) return false;
+                var unique = new HashSet<int>();
+                foreach (var item in parsed)
+                {
+                    int id;
+                    if (item == null || !int.TryParse(Convert.ToString(item), out id) || id <= 0 || id > 10000)
+                        return false;
+                    unique.Add(id);
+                }
+                foreach (var id in parsed.Select(item => Convert.ToInt32(item)).Distinct()) ids.Add(id);
+                return true;
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
+        }
+
+        internal bool IsQuickPickClientCurrent(LeagueBenchQuickPickState state)
+        {
+            if (state == null) return false;
+            if (_session == null) return true; // deterministic fixture / local read-only service
+            var current = _session();
+            return state.ClientSession != null && current != null &&
+                LeagueEncounterReplayService.SessionMatches(state.ClientSession, current);
         }
 
         /// <summary>
@@ -489,6 +579,9 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
+            state.AllowsSubsetChampionPicks = ReadBool(data, "allowSubsetChampionPicks");
+            state.GameId = ReadLong(data, "gameId");
+            state.SelectionId = ReadString(data, "id");
             state.AutoSelectGroup = ReadString(data, "autoSelectGroup");
             state.AutoSelectContext = ReadString(data, "autoSelectContext");
             state.QueueId = ReadInt(data, "queueId");
@@ -500,6 +593,24 @@ namespace FACM.League
             var timer = ReadDictionary(data, "timer");
             state.TimerPhase = ReadString(timer, "phase");
             state.TimerMillisecondsLeft = ReadInt(timer, "adjustedTimeLeftInPhase");
+            if (state.IsSubsetPhase && ReadValue(data, "localPlayerCellId") != null)
+            {
+                foreach (var group in EnumerateValues(ReadValue(data, "actions")))
+                {
+                    foreach (var action in EnumerateDictionaries(group))
+                    {
+                        int actor, actionId;
+                        if (!int.TryParse(ReadString(action, "actorCellId"), out actor) ||
+                            actor != state.LocalPlayerCellId ||
+                            !string.Equals(ReadString(action, "type"), "pick", StringComparison.Ordinal) ||
+                            ReadBool(action, "completed") || !ReadBool(action, "isInProgress") ||
+                            !int.TryParse(ReadString(action, "id"), out actionId) || actionId < 0) continue;
+                        state.LocalPickActionId = actionId;
+                        break;
+                    }
+                    if (state.LocalPickActionId.HasValue) break;
+                }
+            }
 
             var bans = ReadDictionary(data, "bans");
             AppendInts(state.AllyBans, ReadValue(bans, "myTeamBans"));

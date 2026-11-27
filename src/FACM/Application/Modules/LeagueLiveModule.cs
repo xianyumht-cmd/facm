@@ -35,7 +35,8 @@ namespace FACM.AppHost.Modules
         {
             _service = new LeagueLiveDataService(_leagueClient, _performance.Budgets,
                 (ILeagueSgpGsmApi)_leagueClient, () => _leagueClient.CurrentSession);
-            _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient);
+            _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient,
+                (ILeagueChampSelectActionWriteApi)_leagueClient);
         }
 
         internal LeagueClientSession UnifiedLiveSession { get { return _leagueClient.CurrentSession; } }

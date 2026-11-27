@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FACM.Performance;
 
 namespace FACM.League
@@ -65,6 +66,51 @@ namespace FACM.League
 
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public bool AllowsSubsetChampionPicks { get; set; }
+        public long GameId { get; set; }
+        public string SelectionId { get; set; }
+        internal LeagueClientSession ClientSession { get; set; }
+        public int? LocalPickActionId { get; set; }
+        public List<int> SubsetChampionIds { get; } = new List<int>();
+        public List<int> PickableChampionIds { get; } = new List<int>();
+        public bool PickableKnown { get; set; }
+        public DateTime ObservedAtUtc { get; set; }
+        public bool IsSubsetPhase
+        {
+            get { return AllowsSubsetChampionPicks && string.Equals(TimerPhase, "BAN_PICK", StringComparison.Ordinal); }
+        }
+        public bool IsInitialCardSelection { get { return IsSubsetPhase && LocalChampionId <= 0; } }
+
+        public IEnumerable<int> DisplayChampionIds
+        {
+            get { return (IsSubsetPhase ? SubsetChampionIds.Concat(ChampionIds) : ChampionIds)
+                .Where(id => id > 0 && id != LocalChampionId).Distinct(); }
+        }
+
+        public bool CanChoose(int championId)
+        {
+            if (!SessionAvailable || !BenchEnabled || championId <= 0 || championId == LocalChampionId) return false;
+            if (IsSubsetPhase)
+                return PickableKnown && PickableChampionIds.Contains(championId) &&
+                    SubsetChampionIds.Contains(championId) && (!IsInitialCardSelection || LocalPickActionId.HasValue);
+            return string.Equals(TimerPhase, "FINALIZATION", StringComparison.Ordinal) &&
+                ChampionIds.Contains(championId) &&
+                (PickableKnown ? PickableChampionIds.Contains(championId) : !AllowsSubsetChampionPicks);
+        }
+
+        public bool SameDraft(LeagueBenchQuickPickState other)
+        {
+            if (other == null || !SessionAvailable || !other.SessionAvailable ||
+                LocalPlayerCellId != other.LocalPlayerCellId || QueueId != other.QueueId) return false;
+            if ((ClientSession != null || other.ClientSession != null) &&
+                (ClientSession == null || other.ClientSession == null ||
+                !LeagueEncounterReplayService.SessionMatches(ClientSession, other.ClientSession))) return false;
+            if (GameId > 0 && other.GameId > 0 && GameId != other.GameId) return false;
+            if (!string.IsNullOrEmpty(SelectionId) && !string.IsNullOrEmpty(other.SelectionId))
+                return string.Equals(SelectionId, other.SelectionId, StringComparison.Ordinal);
+            return GameId > 0 && GameId == other.GameId;
+        }
+
         public int QueueId { get; set; }
         public string GameMode { get; set; }
         public int LocalPlayerCellId { get; set; }
