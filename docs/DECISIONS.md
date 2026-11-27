@@ -1,3 +1,7 @@
+## 2026-11-27 — Explicit current guide and bounded history depth
+
+Use the existing More tray group (fixed five-root contract), no game-focus stealing or new global key registration. Current hero guide is a read-only explicit native request; verify active Mayhem match and authenticated player before/after, never infer another player's hero. Draft suspension retains dismissal for at most 12 seconds only when the lobby process remains and no game process exists. A confirmed non-draft phase ends the episode. History uses existing offset API in small windows, bounded to 100 source positions, with stable ID deduplication, owner checks and sample-only statistics; no background crawl.
+
 ## 2026-11-27 — Fixed entry positions, contextual shortcut and action-first layout
 
 Keep home muscle memory with four fixed entries and one contextual shortcut to existing allowlisted routes, not automatic navigation. Direct own-history detail validates the current account/session and loaded match ID before opening the existing advanced detail owner. Keep match identifiers as decimal strings across the WebView2 bridge. Automation phase notes express eligibility/waiting conditions, not execution success. Keep existing hotkey conflict checks and dirty edit protection. Optional guide artwork must not invalidate an already published result; regional live enrichment requires an active known match.

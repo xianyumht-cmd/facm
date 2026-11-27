@@ -1,3 +1,7 @@
+## 2026-11-27 — Recovery and deeper history acceptance
+
+Test a short LCU disconnect in selection with and without manual dismissal, recovery and confirmed non-draft transition, and 12-second expiry. From game, explicitly open More > Mayhem and current hero; reject base ARAM, missing owner, changed match or hero, and verify manual search fallback. No automatic in-game overlay. Exercise 10/20 windows past 20, duplicates, end-of-source and 100-position bound, wrong owner, late detail, and resolved-only filtered hero stats. Verify cloud busy/rejection resets both switches. Synthetic tests do not certify fullscreen or Tencent live behavior.
+
 ## 2026-11-27 — Player journey acceptance
 
 Check fixed home positions and the phase shortcut from disconnected through postgame; click a loaded history card, verify exact match detail and back navigation, reject stale/session-changed IDs. Record and clear hotkeys, verify conflicts and unsaved edit retention. Test recommendation busy lock and phase exit, and distinguish configured automation from stage eligibility. Verify SGP button disabled outside an active match; timeout optional guide artwork without removing existing rows. Browser fixtures are not real Tencent client or Windows DPI acceptance. Do not release until exact-head required gates and acceptance are reviewed.

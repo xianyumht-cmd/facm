@@ -1,3 +1,7 @@
+## 2026-11-27 — Disconnect and history bounds
+
+A disconnected phase is not proof that a draft ended. Preserve manual dismissal over a short process-backed disconnect; suspend the writable popup and only reopen on confirmed draft recovery. Never identify the current hero from stale draft state or an arbitrary roster row. Do not present page size as all-time match count; keep source offset separate from unique ID count and exclude unknown outcomes from hero statistics. Cloud toggle rejection must publish authoritative checkbox state instead of leaving controls stuck.
+
 ## 2026-11-27 — Contextual interaction pitfalls
 
 Avoid relocating fixed home buttons as gameflow changes; change only the explicit contextual shortcut. Do not confuse enabled automation with executed automation. Never convert 64-bit match IDs to JavaScript numbers, overwrite unsaved hotkeys on state sync, or unlock recommendation writes from checkbox events while busy. Optional artwork timeout is not a guide-data failure. A connected lobby is not an active match eligible for SGP enrichment. Legacy tray AddLeagueAction is a no-op and does not establish an accessible in-game guide.

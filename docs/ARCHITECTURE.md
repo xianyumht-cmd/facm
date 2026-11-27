@@ -1,3 +1,7 @@
+## 2026-11-27 — Read-only current guide, bounded history and draft recovery
+
+LeagueHubModule retains short draft episode ownership without another timer. MainForm uses existing More tray action; MayhemGuideShard routes explicit current-hero requests through LeagueLiveModule's bounded local owner/gameflow read and existing MayhemAutomaticGuideService, with generation/session and after-read game identity checks. UnifiedWorkspaceHistoryAdapter holds an independent source cursor and deduplicated snapshot; LeaguePlayerModule uses existing 10/20 window API and current-owner checks, advanced view computes sample aggregates locally. CloudSyncAdapter publishes authoritative state on rejected toggles.
+
 ## 2026-11-27 — Player journey projection
 
 Unified workspace retains existing shards and route ownership. The renderer projects the current gameflow into a contextual home link and phase notes; no new pollers. PlayerHistoryShard accepts a membership-checked direct-detail command, reuses the loaded session snapshot in AdvancedHistoryShard, and sends decimal string IDs. RecommendationAdapter reports current-generation context changes and UI busy state prevents duplicate applications. LeagueLiveModule gates optional SGP work by phase and match ID. MayhemAdapter separates usable data publication from optional icon completion.
