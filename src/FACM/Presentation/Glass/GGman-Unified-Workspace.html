@@ -2086,7 +2086,7 @@ function iconPlaceholder(label){
   var icon=document.createElement("span");icon.className="guide-thumb";
   icon.textContent=String(label||"荐").trim().slice(0,1)||"荐";return icon;
 }
-var mayhemAugmentData=null,mayhemAugmentLimit=20,mayhemAugmentIcons=new Map();
+var mayhemAugmentData=null,mayhemAugmentLimit=20,mayhemAugmentIcons=new Map(),mayhemRequestedIcons=new Set();
 get("mayhemAugmentSearch").oninput=get("mayhemAugmentRarity").onchange=function(){mayhemAugmentLimit=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
 get("mayhemAugmentMore").onclick=function(){mayhemAugmentLimit+=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
 function mayhemPointPercent(value){return Number.isFinite(Number(value))?Number(value).toFixed(1)+"%":"—";}
@@ -2127,6 +2127,10 @@ function renderRankedAugments(data){
     });
   }
   mayhemAugmentIcons.forEach(function(image,index){renderMayhemIcon({kind:"augment",index:index,image:image});});
+  if(Number.isInteger(data.generation)){
+    var wanted=matched.slice(0,mayhemAugmentLimit).map(function(entry){return entry.index;}).filter(function(i){return !mayhemRequestedIcons.has(i);});
+    for(var i=0;i<wanted.length;i+=24){var batch=wanted.slice(i,i+24);batch.forEach(function(index){mayhemRequestedIcons.add(index);});post("mayhem-icons:"+data.generation+":"+batch.join(","));}
+  }
   if(!list.children.length){var empty=document.createElement("li");empty.textContent=rows.length?"无匹配强化":"暂无来源确认的强化推荐";list.appendChild(empty);}
   var route=String(data.augmentSource||"");
   get("mayhemAugmentSource").dataset.stale=data.augmentStale?"true":"false";
@@ -2147,10 +2151,11 @@ function renderItemIcons(items){
 function renderMayhemIcon(data){
   if(mode!=="mayhem"||typeof data.image!=="string"||
       !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image)||data.image.length>35000)return;
+  if(data.kind==="augment"&&data.generation!==undefined&&(!mayhemAugmentData||data.generation!==mayhemAugmentData.generation))return;
   if(data.kind==="augment")mayhemAugmentIcons.set(data.index,data.image);
   var holder=null;
   if(data.kind==="champion")holder=get("mayhemChampionIcon");
-  else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<8){
+  else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<(data.kind==="augment"?512:8)){
     var list=get(data.kind==="augment"?"mayhemAugments":"mayhemItems");
     var row=list.querySelector('[data-icon-index="'+data.index+'"]');
     if(row)holder=row.querySelector(".guide-thumb");
@@ -2158,7 +2163,7 @@ function renderMayhemIcon(data){
   if(holder){var img=document.createElement("img");img.src=data.image;img.alt="";img.decoding="async";holder.replaceChildren(img);}
 }
 function renderMayhem(data){
-  mayhemAugmentData=data;mayhemAugmentLimit=20;mayhemAugmentIcons.clear();get("mayhemAugmentSearch").value="";get("mayhemAugmentRarity").value="all";
+  mayhemAugmentData=data;mayhemAugmentLimit=20;mayhemAugmentIcons.clear();mayhemRequestedIcons.clear();get("mayhemAugmentSearch").value="";get("mayhemAugmentRarity").value="all";
   get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
   get("mayhemOutput").hidden=false;
   get("mayhemChampionIcon").textContent=String(data.champion||"英").slice(0,1);

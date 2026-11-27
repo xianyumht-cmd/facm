@@ -17,6 +17,12 @@ namespace FACM.Presentation.Glass
         private readonly Action<string> _publish;
         private CancellationTokenSource _cancellation;
         private int _generation;
+        private CancellationTokenSource _iconsCancellation;
+        private MayhemModule _iconModule;
+        private LeagueClientSession _iconSession;
+        private string[] _augmentIconReferences = new string[0];
+        private readonly HashSet<int> _requestedIcons = new HashSet<int>();
+        private readonly SemaphoreSlim _iconGate = new SemaphoreSlim(1, 1);
 
         internal UnifiedWorkspaceMayhemAdapter(Func<bool> canPublish, Action<string> publish)
         {
@@ -53,7 +59,11 @@ namespace FACM.Presentation.Glass
                 }
                 var rows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
                     .Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name)).Take(MayhemRankedAugmentService.MaximumRows).ToArray();
-                _publish(SerializeGuide(result, rows));
+                _iconModule = module;
+                _iconSession = session;
+                _iconsCancellation = new CancellationTokenSource();
+                _augmentIconReferences = rows.Select(row => row.IconUrl).ToArray();
+                _publish(SerializeGuide(result, rows, generation));
                 await PublishIconsAsync(module, result, rows, session, source, generation);
             }
             catch (OperationCanceledException)
@@ -73,11 +83,11 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        private static string SerializeGuide(MayhemChampionResult result, MayhemAugmentRow[] rows)
+        private static string SerializeGuide(MayhemChampionResult result, MayhemAugmentRow[] rows, int generation)
         {
             return new JavaScriptSerializer { MaxJsonLength = 2097152 }.Serialize(new
             {
-                type = "mayhem-details",
+                type = "mayhem-details", generation,
                 champion = result.ChampionName,
                 patch = result.Patch,
                 rankingPatch = result.RankingPatch,
@@ -113,12 +123,7 @@ namespace FACM.Presentation.Glass
         {
             if (!Current(module, session, source, generation)) return;
             await PublishIconAsync(module, "champion", 0, result.ChampionIconUrl, session, source, generation);
-            for (var index = 0; index < Math.Min(8, rows.Length); index++)
-            {
-                if (!Current(module, session, source, generation)) return;
-                await PublishIconAsync(module, "augment", index, rows[index].IconUrl, session, source, generation);
-            }
-            if (rows.Length == 0 && result.AugmentIconUrls != null)
+             if (rows.Length == 0 && result.AugmentIconUrls != null)
             {
                 for (var index = 0; index < Math.Min(8, result.AugmentIconUrls.Count); index++)
                 {
@@ -145,6 +150,49 @@ namespace FACM.Presentation.Glass
             _publish(new JavaScriptSerializer().Serialize(new { type = "mayhem-icon", kind, index, image }));
         }
 
+        internal async void RequestAugmentIcons(string command)
+        {
+            if (string.IsNullOrEmpty(command) || command.Length > 512 || !_canPublish()) return;
+            var parts = command.Split(new[] { ':' }, 2);
+            int generation;
+            if (parts.Length != 2 || !int.TryParse(parts[0], out generation) || generation != _generation || _iconsCancellation == null) return;
+            var module = _iconModule;
+            var session = _iconSession;
+            var source = _iconsCancellation;
+            var token = source.Token;
+            var pending = new List<KeyValuePair<int, string>>();
+            foreach (var value in parts[1].Split(',').Take(24))
+            {
+                int index;
+                if (int.TryParse(value, out index) && index >= 0 && index < _augmentIconReferences.Length && _requestedIcons.Add(index))
+                    pending.Add(new KeyValuePair<int, string>(index, _augmentIconReferences[index]));
+            }
+            if (pending.Count == 0 || module == null) return;
+            try
+            {
+                await _iconGate.WaitAsync(token);
+                try
+                {
+                    foreach (var item in pending)
+                    {
+                        if (!IconCurrent(module, session, token, generation)) return;
+                        var image = await module.ReadUnifiedIconAsync(item.Value, token);
+                        if (!string.IsNullOrEmpty(image) && IconCurrent(module, session, token, generation))
+                            _publish(new JavaScriptSerializer().Serialize(new { type = "mayhem-icon", kind = "augment", index = item.Key, image, generation }));
+                    }
+                }
+                finally { _iconGate.Release(); }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { AppLog.Info("Unified Mayhem icon skipped: " + exception.GetType().Name); }
+        }
+
+        private bool IconCurrent(MayhemModule module, LeagueClientSession session, CancellationToken token, int generation)
+        {
+            return !token.IsCancellationRequested && generation == _generation && _canPublish() &&
+                (session == null ? module.UnifiedLookupSession == null : LeagueEncounterReplayService.SessionMatches(session, module.UnifiedLookupSession));
+        }
+
         private bool Owned(CancellationTokenSource source, int generation)
         {
             return generation == _generation && ReferenceEquals(_cancellation, source) && _canPublish();
@@ -167,6 +215,13 @@ namespace FACM.Presentation.Glass
         internal void Cancel()
         {
             _generation++;
+            var icons = _iconsCancellation;
+            _iconsCancellation = null;
+            _iconModule = null;
+            _iconSession = null;
+            _augmentIconReferences = new string[0];
+            _requestedIcons.Clear();
+            if (icons != null) { icons.Cancel(); icons.Dispose(); }
             var source = _cancellation;
             _cancellation = null;
             if (source != null && !source.IsCancellationRequested) source.Cancel();
