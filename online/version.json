@@ -1,10 +1,10 @@
 {
-  "enabled": false,
+  "enabled": true,
   "version": "3.5.90",
   "minimum_version": "3.0.0",
   "force_update": false,
   "download_url": "https://github.com/xianyumht-cmd/facm/releases/download/v3.5.90/FACM.exe",
   "sha256": "136DEF7E3C1BAE4378C473EFE083E0276D2AB2CFF591133849F6DD4EDC027444",
   "release_notes": "GGman 3.5.90：优化国服客户端连接恢复、选人助手、战绩分页和海斗攻略；新增签名云端配置、公告及公共数据源维护策略；分离更新检查与安装包下载线路评分，改善离线回退。非强制正式在线更新。",
-  "published_at": "2026-11-27T14:22:28.5310121+00:00"
+  "published_at": "2026-11-27T14:22:37.6745132+00:00"
 }
