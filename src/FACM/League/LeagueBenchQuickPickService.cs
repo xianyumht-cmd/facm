@@ -49,17 +49,75 @@ namespace FACM.League
     {
         private readonly LeagueLiveDataService _live;
         private readonly ILeagueBenchSwapWriteApi _writer;
+        private readonly ILeagueChampSelectActionWriteApi _actionWriter;
+        private LeagueBenchQuickPickState _latest;
         private readonly SemaphoreSlim _swapGate = new SemaphoreSlim(1, 1);
 
-        public LeagueBenchQuickPickService(LeagueLiveDataService live, ILeagueBenchSwapWriteApi writer)
+        public LeagueBenchQuickPickService(LeagueLiveDataService live, ILeagueBenchSwapWriteApi writer,
+            ILeagueChampSelectActionWriteApi actionWriter = null)
         {
             _live = live ?? throw new ArgumentNullException(nameof(live));
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+            _actionWriter = actionWriter;
         }
 
-        public Task<LeagueBenchQuickPickState> RefreshAsync(CancellationToken cancellationToken)
+        public async Task<LeagueBenchQuickPickState> RefreshAsync(CancellationToken cancellationToken)
         {
-            return _live.RefreshBenchAsync(cancellationToken);
+            try
+            {
+                var state = await _live.RefreshBenchAsync(cancellationToken, true).ConfigureAwait(false);
+                Volatile.Write(ref _latest, state);
+                return state;
+            }
+            catch
+            {
+                Volatile.Write(ref _latest, null);
+                throw;
+            }
+        }
+
+        // The UI supplies the observed draft and operation kind, never an arbitrary LCU action ID.
+        // Initial card selection must re-read the active action and allowed choices. The fast bench
+        // path keeps its single POST when the latest observation is still current.
+        internal async Task<LeagueBenchSwapResult> TryChooseAsync(int championId, LeagueBenchQuickPickState expected,
+            CancellationToken cancellationToken)
+        {
+            await _swapGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var stopwatch = Stopwatch.StartNew();
+            try
+            {
+                var state = Volatile.Read(ref _latest);
+                if (expected == null || !expected.CanChoose(championId) || !expected.SameDraft(state))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, championId, 0, stopwatch);
+                if (expected.IsInitialCardSelection || DateTime.UtcNow - state.ObservedAtUtc > TimeSpan.FromMilliseconds(750))
+                {
+                    state = await _live.RefreshBenchAsync(cancellationToken, true, true).ConfigureAwait(false);
+                    Volatile.Write(ref _latest, state);
+                }
+                if (!expected.SameDraft(state) || !_live.IsQuickPickClientCurrent(state) ||
+                    expected.IsInitialCardSelection != state.IsInitialCardSelection ||
+                    !string.Equals(expected.TimerPhase, state.TimerPhase, StringComparison.Ordinal) ||
+                    expected.LocalChampionId != state.LocalChampionId ||
+                    expected.SwapRoute != state.SwapRoute ||
+                    expected.LocalPickActionId != state.LocalPickActionId || !state.CanChoose(championId))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, championId, 0, stopwatch);
+
+                LeagueClientWriteResponse response;
+                if (state.IsInitialCardSelection)
+                {
+                    if (_actionWriter == null || !state.LocalPickActionId.HasValue)
+                        return Result(LeagueBenchSwapStatus.BenchDisabled, championId, 0, stopwatch);
+                    response = await _actionWriter.TryApplyAsync("pick", state.LocalPickActionId.Value,
+                        championId, true, cancellationToken).ConfigureAwait(false);
+                }
+                else response = await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, state).ConfigureAwait(false);
+                }
+                finally { Volatile.Write(ref _latest, null); }
+            }
+            finally { stopwatch.Stop(); _swapGate.Release(); }
         }
 
         public Task<byte[]> LoadChampionIconAsync(int championId, CancellationToken cancellationToken)
@@ -84,29 +142,7 @@ namespace FACM.League
             try
             {
                 var response = await _writer.TrySwapAsync(championId, route, cancellationToken).ConfigureAwait(false);
-                if (response == null)
-                    return Result(LeagueBenchSwapStatus.SessionUnavailable, championId, 0, stopwatch);
-                if (!response.IsSuccessStatusCode)
-                {
-                    var status = response.StatusCode == 404 || response.StatusCode == 409
-                        ? LeagueBenchSwapStatus.TargetUnavailable
-                        : LeagueBenchSwapStatus.WriteRejected;
-                    return Result(status, championId, response.StatusCode, stopwatch);
-                }
-
-                // LCU can acknowledge before the Champ Select model settles. Verification is read-
-                // only and bounded; a single click still produces exactly one POST.
-                var settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(35), cancellationToken).ConfigureAwait(false);
-                if (!settled)
-                    settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(70), cancellationToken).ConfigureAwait(false);
-                if (!settled)
-                    settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(140), cancellationToken).ConfigureAwait(false);
-
-                return Result(
-                    settled ? LeagueBenchSwapStatus.Success : LeagueBenchSwapStatus.VerificationFailed,
-                    championId,
-                    response.StatusCode,
-                    stopwatch);
+                return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, null).ConfigureAwait(false);
             }
             finally
             {
@@ -115,11 +151,41 @@ namespace FACM.League
             }
         }
 
-        private async Task<bool> VerifyChampionAsync(int championId, TimeSpan delay, CancellationToken cancellationToken)
+        private async Task<LeagueBenchSwapResult> VerifyResponseAsync(LeagueClientWriteResponse response,
+            int championId, Stopwatch stopwatch, CancellationToken cancellationToken, LeagueBenchQuickPickState expected)
+        {
+            if (response == null)
+                return Result(LeagueBenchSwapStatus.SessionUnavailable, championId, 0, stopwatch);
+            if (!response.IsSuccessStatusCode)
+            {
+                var status = response.StatusCode == 404 || response.StatusCode == 409
+                    ? LeagueBenchSwapStatus.TargetUnavailable
+                    : LeagueBenchSwapStatus.WriteRejected;
+                return Result(status, championId, response.StatusCode, stopwatch);
+            }
+
+            // LCU can acknowledge before the Champ Select model settles. Verification is read-
+            // only and bounded; a single click still produces exactly one POST.
+            var settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(35), cancellationToken, expected).ConfigureAwait(false);
+            if (!settled)
+                settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(70), cancellationToken, expected).ConfigureAwait(false);
+            if (!settled)
+                settled = await VerifyChampionAsync(championId, TimeSpan.FromMilliseconds(140), cancellationToken, expected).ConfigureAwait(false);
+
+            return Result(
+                settled ? LeagueBenchSwapStatus.Success : LeagueBenchSwapStatus.VerificationFailed,
+                championId,
+                response.StatusCode,
+                stopwatch);
+        }
+
+        private async Task<bool> VerifyChampionAsync(int championId, TimeSpan delay, CancellationToken cancellationToken,
+            LeagueBenchQuickPickState expected)
         {
             if (delay > TimeSpan.Zero) await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
             var state = await _live.RefreshBenchAsync(cancellationToken).ConfigureAwait(false);
-            return state != null && state.SessionAvailable && state.LocalChampionId == championId;
+            return state != null && state.SessionAvailable && state.LocalChampionId == championId &&
+                (expected == null || expected.SameDraft(state));
         }
 
         private static LeagueBenchSwapResult Result(

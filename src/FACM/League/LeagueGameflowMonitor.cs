@@ -115,7 +115,20 @@ namespace FACM.League
 
                 if (next != null)
                 {
-                    lock (_sync) _current = LeagueGameflowEventDispatcher.Clone(next);
+                    bool changed;
+                    lock (_sync)
+                    {
+                        changed = _current == null || _current.Connected != next.Connected ||
+                            _current.Activity != next.Activity ||
+                            !string.Equals(_current.Phase, next.Phase, StringComparison.OrdinalIgnoreCase) ||
+                            _current.ClientProcessDetected != next.ClientProcessDetected ||
+                            _current.GameProcessDetected != next.GameProcessDetected;
+                        _current = LeagueGameflowEventDispatcher.Clone(next);
+                    }
+                    if (changed)
+                        AppLog.Info("Gameflow health; connected=" + next.Connected +
+                            "; phase=" + next.Phase + "; activity=" + next.Activity + "; clientProcess=" + next.ClientProcessDetected +
+                            "; gameProcess=" + next.GameProcessDetected);
                     LeagueGameflowEventDispatcher.DispatchSafely(StateChanged, next, "monitor");
                 }
 
@@ -136,6 +149,8 @@ namespace FACM.League
             // noticeable: startup and reconnect automation cannot react until this monitor
             // observes the new session. Match the established lightweight recovery cadence.
             if (state == null || !state.Connected) return TimeSpan.FromSeconds(3);
+            if (string.Equals(state.Phase, "Reconnect", StringComparison.OrdinalIgnoreCase))
+                return TimeSpan.FromSeconds(3);
             switch (state.Activity)
             {
                 case LeagueActivityLevel.ChampSelect: return TimeSpan.FromSeconds(2);

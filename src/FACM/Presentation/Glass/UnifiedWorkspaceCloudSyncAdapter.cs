@@ -92,18 +92,19 @@ namespace FACM.Presentation.Glass
 
         internal void Toggle(string request)
         {
-            if (!_canPublish() || _busy) return;
-            if (_settings.LocalOnlyMode) { PostResult("local-only"); return; }
+            if (!_canPublish()) return;
+            if (_busy) { Sync(); PostResult("busy"); return; }
+            if (_settings.LocalOnlyMode) { Sync(); PostResult("local-only"); return; }
             var parts = (request ?? string.Empty).Split(':');
             if (parts.Length != 2 || (parts[1] != "true" && parts[1] != "false"))
-            { PostResult("invalid"); return; }
+            { Sync(); PostResult("invalid"); return; }
             var service = GgmanAutoSyncService.Current;
-            if (service == null || service.IsBusy) { PostResult("busy"); return; }
+            if (service == null || service.IsBusy) { Sync(); PostResult("busy"); return; }
             try
             {
                 if (parts[0] == "config") service.SetEnabled(parts[1] == "true");
                 else if (parts[0] == "game") service.SetGameAutoRestoreEnabled(parts[1] == "true");
-                else { PostResult("invalid"); return; }
+                else { Sync(); PostResult("invalid"); return; }
                 Sync();
                 PostResult("saved");
             }

@@ -1,3 +1,115 @@
+## 2026-11-27 — EXE audit native signature verification
+
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+PR #368 base 9145e3ff passed all seven exact-head workflows (Windows 46007862717, Glass 46007862762, UI 46007862611, Mayhem 46007862706, mainland 46007862654, COS 46007862626, EXE 46007862610). Three mainland Range rounds: gh-proxy 17/18, gh-dpik 17/18, ghfast 8/18, ghproxy-net 12/18, cors-isteed 0/18; direct redirects are not full-transfer evidence. Hosted Windows completed five of six package routes. Candidate adds separate default priorities, signed cache in-process revision retention, dynamic COS comparison and publisher rollback check. Release request 3.5.90, non-forced, production only on green exact-head CI and merge. Owner explicitly waives personal installation/gameplay acceptance for this release; real mainland full-transfer and Tencent live-client/DPI performance are not measured. Production still 3.5.89 at preparation.
+
+Exact head e73dfc54 passed all six client/public checks. Full-package audit 46007022260 completed all six routes: five exact 7,185,816-byte release downloads with matching manifest SHA-256, expected signer thumbprint and version 3.5.89.0; cors-isteed returned HTTP 429. PowerShell reported UnknownError for all five, so none passed the original trust criterion. The candidate audit now invokes the existing updater native WinVerifyTrust method and accepts only success or the same two self-signed chain errors, retaining hash, signer and version checks. Exact-head rerun pending; production unchanged.
+
+## 2026-11-27 — EXE audit harness correction
+
+Exact head 66e746b3 passed Windows Build, Glass, UI Text, Mayhem Source, Mainland Public Route and COS Mainland gates. EXE audit 46006055285 failed before any full transfer because Get-Command returned two curl applications. Mainland Range evidence succeeded: gh-proxy 6/6 (1970/982/634.5 ms carrier medians), ghproxy-net 6/6 (5720/6104/5553), gh-dpik 6/6 (7265.5/6715/6915), ghfast 3/6, cors-isteed 0/6, direct returned redirects. These are Range entry results only, not throughput. Candidate fix chooses exactly one curl path and requires complete rows and at least one verified package; rerun pending. Production unchanged.
+
+## 2026-11-27 — Public asset policy and EXE route audit
+
+Candidate adds Data Dragon metadata and the direct CommunityDragon/public image fetch boundary to signed source policy, plus two optional guide enrichment maintenance flags. Existing flags and defaults unchanged; local LCU asset reads stay first. New EXE audit uses mainland Range entry probes and a separate GitHub-hosted Windows full-package hash/signer/version check. No mainland throughput claim from Range or hosted runner. Previous head had two green and four running gates when work started; exact-head CI pending. COS production revision and 3.5.89 release remain unchanged.
+
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Baseline 08ce8cb8 passed all six gates. Candidate separates metadata/package scoring and expands managed public sources to eight IDs. Exact-head CI, signed-client acceptance, remaining direct fetchers, EXE throughput and additional maintenance gates remain open. Production COS unchanged.
+
+## 2026-11-27 — Signed cloud policy expansion
+
+Candidate extends the signed control envelope with optional announcement, five fixed public guide source policies, and timeline/radar maintenance gates. Defaults preserve existing behavior, no active announcement. Initial COS revision remains live; this candidate has not been published. Baseline 3f7f0607 six gates passed, COS verified 5/5 mainland reads (230–320 ms). New exact-head CI pending. Existing announcement management dispatch dual-writes legacy and control JSON and explicitly invokes reusable publisher because bot pushes do not trigger push workflows. Full signed-client acceptance, EXE throughput and remaining source adapters are open.
+
+## 2026-11-27 — COS bootstrap verified
+
+The initial COS deployment succeeded in run 46002004522 at 12:51:09 UTC: revision 20261127204800, signer A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568, anonymous HTTPS readback 1529 bytes, SHA-256 17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb. The temporary branch publication trigger is now removed; future deployment is main-only. Mainland probe compares exact published bytes for the initial revision; update the reference hash after later deployment before interpreting that probe. Candidate client has not shipped.
+
+## 2026-11-27 — Signed COS route client
+
+Signed cloud route client is integrated into existing update snapshot checks: fixed COS origin, 2-second linked deadline, current release signer RSA verification, monotonic revision, atomic signed cache, authoritative enabled routes plus direct origin. Unsigned builds and no-cache failures retain the existing legacy path. New smoke cases cover omitted routes, tampered signature, rollback and conflicting revision. Exact-head CI and signed real-client acceptance pending.
+
+## 2026-11-27 — COS signed cloud control bootstrap
+
+The owner created the Guangzhou COS bucket and configured the two restricted repository Secrets. A trusted push workflow signs the bounded route-only payload using the existing release certificate, uploads only `control.json` with object-level public read, and verifies anonymous HTTPS bytes. Initial five routes use mainland manifest evidence, not EXE throughput. Initial publishing is permitted on the current trusted task branch; remove this branch trigger before merging. No current client consumes the new object yet. Upload/anonymous readback and signer compatibility require actual workflow evidence. No release or main change.
+
+## 2026-11-27 — Mainland mirror measurement
+
+Baseline `30dad0e1` passed all four gates. A bounded Globalping public HTTPS audit requests mainland CN probes by carrier ASN, verifies their actual country/ASN, checks update metadata against the checkout, and records timing and measurement IDs. It does not download EXEs, use credentials, or auto-reorder mirrors. Missing probes/API failures are not carrier outages. GitHub Actions is the API caller, not the measuring location. Results pending; use only confirmed mainland probe evidence to determine whether further tests or priority changes are warranted.
+
+## 2026-11-27 — Player-value and public route audit
+
+PR #368 baseline `8964a02b` passed all four exact-head gates (Windows 45993511562, Glass 45993511590, UI 45993511681, Mayhem 45993511549). The 23 registered shards and their dispatch owners were reviewed; the matrix below is source triage, not 23 live-client acceptance passes. Public web retrieval returned Hexdata, OP.GG build/augments, ARAMMayhem, Tencent news, Data Dragon versions and CommunityDragon champion JSON; ARAMGG returned HTTP 403 to the web environment. Akari catalog access was not established. No mainland carrier latency or availability measurements were obtained. The candidate isolates optional-source deadlines, retains successful siblings, adds source durations, and reuses the tested cancellable response-body reader. Existing source ranking, update origins, mirror priorities and credentials are unchanged. New exact-head CI and mainland/Tencent runtime verification remain pending.
+
+| Shard | Player task / value | Priority acceptance or remaining risk |
+|---|---|---|
+| QuickMessages | In-match communication | Game-phase eligibility, focus and hotkey conflict |
+| AdvancedTools | Configure existing automation | Action eligibility and actual result versus configured state |
+| PlayerHistory | Own recent performance | Queue isolation, stale account, paging |
+| AdvancedHistory | Match review and timeline | Partial data, cancellation, regional source and replay |
+| MayhemGuide | Current champion guide | Domestic multi-source availability and patch consistency |
+| Recommendation | Apply runes/items/spells in draft | Public source latency, write/readback, changed champion |
+| LiveMatch | Identify current match and players | LCU-first, optional SGP latency and owner fence |
+| LiveBench | Pick or swap available champions | Correct mode/action and draft revision |
+| Dashboard | Current game/client state | Accurate unavailable versus idle |
+| AdvancedDashboard | Game details/respawn | Timing evidence, no stale overlay |
+| Presence | Online state and signature | LCU write/readback, session change |
+| ProfileCustomization | Personal profile cosmetics | Local catalog/verified account, write result |
+| LocalProfile | Local player profile | Correct current account and meaningful data |
+| Repair | Recover client/game | Explicit action and native process ownership |
+| ClientStatus | Diagnose connection | State freshness and actual endpoint status |
+| PostgameSettings | Honor/return automation | Phase exit, one action, observable result |
+| AutoSelection | Draft configuration | LCU and optional catalog fallback, phase/owner checks |
+| MatchmakingSettings | Queue configuration | User intent and cancellation, no stale action |
+| Efficiency | Quick close/restart/hotkeys | Direct action, duplicate-binding protection |
+| Appearance | Themes/pet settings | Actual rendered skin, no unnecessary resident resources |
+| Cleanup | Recover disk space | Bounded preview, path protection |
+| CloudSync | Cross-machine configuration | CloudBase availability, owner/overwrite boundary |
+| Updates | Verified official update | Manifest freshness, mainland mirror health, signature/hash |
+
+The highest network priority is Mayhem/recommendation and update metadata; LCU operations stay local, SGP and CloudBase authenticated traffic must not be sent through public mirrors or external speed testers. `scripts/Test-PublicNetworkRoutes.ps1` provides a bounded, opt-in direct HTTP probe for public endpoints and configured update mirrors from an actual Windows network. No installer or resident service changes. Production remains 3.5.89.
+
+## 2026-11-27 — Key timeline review
+
+Timeline read now produces selected-target deaths/takedowns from all parsed champion-kill events, explicit-team Rift objectives, conservative 30-second kill clusters, and observed 5-minute checkpoints for supported modes. Key list capped at 80; raw events remain available. No new reads. Exact-head CI pending.
+
+## 2026-11-27 — Selected match review summary
+
+Match review now projects confirmed target identity, outcome/placement, KDA, nullable personal metrics, and bounded contribution ratios using existing detail data. Five-player supported mode/team evidence gates ratios and team objectives; Arena keeps placement without incompatible lane/objective metrics. No additional requests. New native and browser fixtures; exact-head CI pending.
+
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Own-history WebView2 now projects existing LeaguePlayerHistoryAnalysis by positive queue ID and known mode, including effective wins/losses, recent/prior five and most-played champion sample statistics. Remake/abort/unknown are not wins or losses. No new API calls. Fresh exact-head CI pending.
+
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+Existing shared Gameflow monitor now uses the three-second cadence during confirmed Reconnect, retains the ordinary ten-second in-game cadence, and logs phase-only transitions. Reconnect exit traces distinguish observed InProgress, lost observation, changed session and other exits. One-write policy and opt-in setting are unchanged. Fresh CI pending; LCU InProgress is not proof that rendering or gameplay recovered.
+
+## 2026-11-27 — Player journey: recovery, current guide and history depth (PR #368)
+
+Baseline `0aec5650` passed all four exact-head gates: Windows 45981905407, Glass 45981905342, UI 45981905351, Mayhem 45981905457. Candidate `d44d65e0` adds on-demand own-history paging in 10/20-row windows up to 100 source positions; duplicate IDs are removed, owner/session and before/after profile checks fence reads. Both own-history routes expose more rows and advanced local filters project resolved hero sample stats. A 12-second client-process-only disconnect grace retains draft dismissal intent, closes the automatic popup during disconnect and permits reopening on confirmed Champ Select recovery. The real tray More action opens Mayhem; explicit current hero lookup verifies authenticated owner, Mayhem queue, active match and hero before and after remote guide retrieval. Cloud toggle failures resync the authoritative state. No new resident polling or gameplay overlay. New tests cover current-hero identification, wrong mode, wrong owner, disconnect grace, paging overlap and browser actions. Exact latest-code CI and real Tencent/Windows acceptance remain pending. Production remains 3.5.89; no merge or release. The 100-position bound is not an archive; index pagination can drift if new matches arrive. Fullscreen tray access requires leaving fullscreen; native current-hero shortcut and complete 23-shard runtime acceptance remain open.
+
+### Remaining route acceptance by player task
+
+- Dashboard, advanced dashboard and client status: retain the short state entry and diagnostic workbench; verify session changes and distinguish actual failure from idle. Avoid duplicating dashboard metrics in the launcher.
+- Player/advanced history, live/bench, Mayhem/recommendation: phase-specific paths now exist; exercise true client data, sparse history, overlap, mode compatibility, render latency and draft identity. Do not claim all-time history or full ranked-data coverage.
+- Quick messages, advanced tools, efficiency, matchmaking, auto selection, postgame: retain configured policies and existing hotkey validation; check actual action results, owner/phase eligibility and cancellation. Configured does not mean executed.
+- Presence, profile customization, local profile: verify owner scope, readback and actual usefulness; profile metrics must not be mistaken for gameplay history. No new account features.
+- Repair, cleanup, appearance, updates, cloud sync: preserve native execution and verified update/cleanup boundaries; validate direct actions, cancel, theme redraw and unavailable cloud account. Cloud upload remains restricted while the game process exists; no backend migration. None of these groups is claimed fully live-tested.
+
+## 2026-11-27 — Player-journey priority pass (PR #368)
+
+Baseline `2df9e07c` passed all four exact-head gates (Windows 45980309992, Glass 45980309990, UI 45980310012, Mayhem 45980310056). This candidate keeps four fixed home entries and adds a phase-aware route shortcut; direct own-history card detail uses the current session and loaded membership; recommendation actions precede optional evidence, with busy and phase guards; quick tools report stage applicability and accept recorded hotkeys without overwriting dirty edits. Live regional enrichment is gated to a known active match, and optional guide artwork failures no longer replace published rankings. Browser fixtures exercise navigation, detail IDs, hotkeys and recommendation guards. Latest exact-head gates and real-client acceptance are pending. Remaining: real in-game current-hero guide access (legacy tray registration is a no-op), companion reconnect/dismissal lifecycle, history beyond the existing 20-match bound, detailed per-shard validation and Tencent live-client/DPI acceptance. No production promotion.
+
+## 2026-11-27 — Game-mode-specific selection and complete augment browsing candidate
+
+PR #368 continues on the existing LCU/companion branch. Baseline `bda3483f` passed all four exact-head Windows gates; `3eb536db` also passed all four after the manual initial-card/subset and shared-bench action separation, draft checks, and ranking parser expansion. At `416a1e3f`, the WebView2 companion and standalone Mayhem route expose searchable rarity-filtered rows before display pagination; both use bounded native thumbnail requests scoped to the current view generation. The recommendation projection includes stat shards, up to nine artwork references, and the native live form uses the same observed-draft action contract. Browser fixtures cover ten slots, distinct pick/swap commands, disabled choices, late rarity coverage and 0.5% values. Exact latest-head CI, actual Tencent game sessions, Windows DPI, source completeness and in-game guide entry remain to be verified. Production remains signed 3.5.89; PR unmerged. No live game overlay, automatic augment selection, or new resident service was added.
+
+## 2026-11-27 — LCU health diagnostics and first-viewport companion candidate
+
+On branch `fix/ggman-lcu-health-diagnostics-20261127`, source changes address repeated LCU phase timeouts, proxy isolation, recovery evidence, on-demand component/LCU probes and first-screen companion priorities. Tests cover timeout rediscovery, direct transport, diagnostic summary and browser viewport/tab persistence. Original candidate passed all four Windows gates; subsequent scenario-specific changes require fresh exact-head CI and Tencent/Windows verification. Signed production remains 3.5.89; no production update has been requested or published in this task. Full module/action coverage, endpoint-security event attribution, updater and performance sampling remain incomplete. Native fallback now displays ten bench positions in five columns; actual DPI validation remains pending. At executable head `4593a40d`, the Mayhem and ordinary mode projections, rune/Exhaust guards, stale champion build invalidation, compact status and quick-action priority are implemented. This historical candidate state is superseded by the scenario-specific entry above; in-game read-only guide access remains outstanding. PR #368 remains open; production unchanged.
+
 ## 2026-11-23 — GGman 3.5.89 signed compact quick-actions officially released
 
 User-approved visual polish and direct-action layout were delivered through [PR #367](https://github.com/xianyumht-cmd/facm/pull/367), merged as `0ecf174bcb29c58ef1ad4fb25ddad5a7ae06791f`. All four exact PR-head `f59b780001b160f74bb1f85ae78d6ee8680d0ba5` Windows CI gates passed:

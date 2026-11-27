@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using FACM.League;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -131,19 +132,25 @@ namespace FACM.Mayhem
 
             try
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Get, reference))
-                using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                token.ThrowIfCancellationRequested();
+                var budget = TimeSpan.FromSeconds(5);
+                if (!CloudRouteControl.PublicSourceAllowed(reference, ref budget)) return null;
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    if (!response.IsSuccessStatusCode) return null;
-                    return await CancelableHttpContentReader.ReadBytesAsync(
-                        response.Content,
-                        token,
-                        CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                    deadline.CancelAfter(budget);
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, reference))
+                    using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode) return null;
+                        return await CancelableHttpContentReader.ReadBytesAsync(
+                            response.Content, deadline.Token, CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                throw;
+                if (token.IsCancellationRequested) throw;
+                return null;
             }
             catch
             {
@@ -166,17 +173,26 @@ namespace FACM.Mayhem
 
             try
             {
-                using (var request = new HttpRequestMessage(HttpMethod.Get, CommunityDragonBase + relativePath))
-                using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+                token.ThrowIfCancellationRequested();
+                var url = CommunityDragonBase + relativePath;
+                var budget = TimeSpan.FromSeconds(5);
+                if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return null;
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
-                    if (!response.IsSuccessStatusCode) return null;
-                    var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
-                    return Json.DeserializeObject(text);
+                    deadline.CancelAfter(budget);
+                    using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                    using (var response = await PublicClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                    {
+                        if (!response.IsSuccessStatusCode) return null;
+                        var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, deadline.Token).ConfigureAwait(false);
+                        return Json.DeserializeObject(text);
+                    }
                 }
             }
             catch (OperationCanceledException)
             {
-                throw;
+                if (token.IsCancellationRequested) throw;
+                return null;
             }
             catch
             {

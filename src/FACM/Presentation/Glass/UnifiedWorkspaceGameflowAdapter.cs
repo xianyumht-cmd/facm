@@ -37,7 +37,10 @@ namespace FACM.Presentation.Glass
             var connected = state != null && state.Connected;
             return new JavaScriptSerializer().Serialize(new
             {
-                type = "status", connected, phase = connected ? (state.Phase ?? string.Empty) : string.Empty
+                type = "status", connected, phase = connected ? (state.Phase ?? string.Empty) : string.Empty,
+                observed = state != null,
+                clientProcess = state != null && state.ClientProcessDetected,
+                gameProcess = state != null && state.GameProcessDetected
             });
         }
 
@@ -51,6 +54,14 @@ namespace FACM.Presentation.Glass
                 !Serialize(new LeagueDashboardPhaseState { Connected = false, Phase = "ChampSelect" })
                     .Contains("\"phase\":\"\""))
                 throw new InvalidOperationException("Gameflow status retained a disconnected phase.");
+            var runningDisconnected = Serialize(new LeagueDashboardPhaseState
+            {
+                Connected = false, ClientProcessDetected = true, GameProcessDetected = false
+            });
+            if (!runningDisconnected.Contains("\"observed\":true") ||
+                !runningDisconnected.Contains("\"clientProcess\":true") ||
+                !Serialize(null).Contains("\"observed\":false"))
+                throw new InvalidOperationException("Gameflow must distinguish initial detection, idle and a running disconnected client.");
             var posted = 0;
             var hidden = new UnifiedWorkspaceGameflowAdapter(() => false,
                 delegate { throw new InvalidOperationException("Hidden gameflow status published."); });

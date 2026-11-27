@@ -1,0 +1,104 @@
+{
+  "schema": "ggman-control.v1",
+  "revision": 20261127211002,
+  "sources": [
+    {
+      "name": "gh-dpik",
+      "prefix": "https://gh.dpik.top/",
+      "enabled": true,
+      "priority": 5,
+      "package_priority": 10
+    },
+    {
+      "name": "cors-isteed",
+      "prefix": "https://cors.isteed.cc/",
+      "enabled": true,
+      "priority": 10,
+      "package_priority": 1000
+    },
+    {
+      "name": "gh-proxy",
+      "prefix": "https://gh-proxy.com/",
+      "enabled": true,
+      "priority": 15,
+      "package_priority": 5
+    },
+    {
+      "name": "ghfast",
+      "prefix": "https://ghfast.top/",
+      "enabled": true,
+      "priority": 35,
+      "package_priority": 30
+    },
+    {
+      "name": "ghproxy-net",
+      "prefix": "https://ghproxy.net/",
+      "enabled": true,
+      "priority": 45,
+      "package_priority": 60
+    }
+  ],
+  "announcement": {
+    "enabled": false,
+    "id": "",
+    "title": "",
+    "body": "",
+    "level": "info",
+    "popup": false,
+    "updated_at": "2026-11-27T12:55:00Z",
+    "link_url": ""
+  },
+  "public_sources": [
+    {
+      "id": "hexdata",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "aramgg",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "arammayhem",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "opgg",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "tencent-news",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "communitydragon",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "akari-catalog",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "opgg-api",
+      "enabled": true,
+      "timeout_ms": 0
+    },
+    {
+      "id": "ddragon",
+      "enabled": true,
+      "timeout_ms": 0
+    }
+  ],
+  "features": {
+    "history_timeline": true,
+    "history_radar": true,
+    "guide_ranked_details": true,
+    "aram_balance": true
+  }
+}

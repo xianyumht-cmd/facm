@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using FACM.League;
+using FACM.Mayhem;
 using FACM.Services;
 using FACM.Theming;
 using Microsoft.Web.WebView2.Core;
@@ -34,7 +35,7 @@ namespace FACM.Presentation.Glass
         private readonly System.Windows.Forms.Timer _refreshTimer;
         private readonly System.Windows.Forms.Timer _startupTimer;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 350000 };
+        private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2097152 };
         private bool _starting;
         private bool _ready;
         private bool _documentReady;
@@ -51,6 +52,12 @@ namespace FACM.Presentation.Glass
         private Point _windowStart;
         private string _lastIconKey;
         private int _iconGeneration;
+        private int _assetGeneration;
+        private string _assetKey;
+        private MayhemChampionResult _publishedGuide;
+        private readonly Dictionary<string, string> _assetReferences = new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _requestedAssets = new HashSet<string>(StringComparer.Ordinal);
+        private readonly SemaphoreSlim _assetGate = new SemaphoreSlim(1, 1);
         private LeagueRuntimeCompanionApplyPreparation _pendingLoadout;
         private LeagueItemSetPlan _pendingItems;
 
@@ -302,21 +309,61 @@ namespace FACM.Presentation.Glass
             if (!_ready || _unavailable || IsDisposed || snapshot == null) return;
             if (snapshot.HasVisibleChampSelectContext && Opacity < 1d) Opacity = 1d;
             var build = snapshot.Build;
+            if (build != null && snapshot.LocalChampionId > 0 && build.ChampionId != snapshot.LocalChampionId)
+                build = null;
             var recommendation = build == null ? null : build.Recommendation;
-            var guide = snapshot.Guide;
+            var guide = snapshot.HasGuide ? snapshot.Guide : null;
             var ids = snapshot.BenchEnabled && snapshot.BenchChampionIds != null
-                ? snapshot.BenchChampionIds.Where(id => id > 0).Distinct().Take(24).ToArray()
+                ? snapshot.BenchChampionIds.Where(id => id > 0).Distinct().ToArray()
                 : new int[0];
+            var augmentRows = guide == null || guide.AugmentRows == null
+                ? new MayhemAugmentRow[0] : guide.AugmentRows.Where(x => x != null).Take(512).ToArray();
+            var assets = new List<KeyValuePair<string, string>>();
+            if (recommendation != null && recommendation.Rows != null)
+            {
+                var rows = recommendation.Rows.Take(30).ToArray();
+                for (var i = 0; i < rows.Length; i++)
+                {
+                    var references = rows[i] == null ? null : rows[i].IconReferences;
+                    if (references == null) continue;
+                    for (var j = 0; j < Math.Min(9, references.Count); j++)
+                        if (!string.IsNullOrWhiteSpace(references[j]))
+                            assets.Add(new KeyValuePair<string, string>("build:" + i + ":" + j, references[j]));
+                }
+            }
+            for (var i = 0; i < augmentRows.Length; i++)
+                if (!string.IsNullOrWhiteSpace(augmentRows[i].IconUrl))
+                    assets.Add(new KeyValuePair<string, string>("augment:" + i, augmentRows[i].IconUrl));
+            var assetKey = snapshot.LocalChampionId + "|" + string.Join("|", assets.Select(x => x.Key + ":" + x.Value));
+            if (!string.Equals(assetKey, _assetKey, StringComparison.Ordinal))
+            {
+                _assetKey = assetKey;
+                _assetReferences.Clear();
+                _requestedAssets.Clear();
+                foreach (var item in assets) _assetReferences[item.Key] = item.Value;
+                Post(new { type = "assets-reset", generation = ++_assetGeneration });
+            }
+            var guideChanged = !ReferenceEquals(guide, _publishedGuide);
+            _publishedGuide = guide;
             Post(new
             {
                 type = "snapshot",
+                assetGeneration = _assetGeneration,
+                guideChanged,
                 connected = snapshot.SessionAvailable,
                 championId = snapshot.LocalChampionId,
                 name = build == null ? string.Empty : build.ChampionName,
                 timer = Math.Max(0, snapshot.TimerMillisecondsLeft / 1000),
                 phase = snapshot.TimerPhase,
                 bench = snapshot.BenchEnabled,
+                benchSurface = snapshot.HasBenchSurface,
+                guideKind = snapshot.GuideKind.ToString(),
+                allowsRunes = snapshot.AllowsRunes,
+                canApply = snapshot.HasBuild,
                 choices = ids,
+                selectable = ids.Where(snapshot.CanChoose).ToArray(),
+                initialPick = snapshot.InitialCardSelection,
+                choiceRevision = snapshot.ChoiceRevision,
                 busy = _busy,
                 teams = snapshot.Players == null ? new object[0] : snapshot.Players.Take(12).Select(p => new {
                     side = p.Side, championId = p.ChampionId, name = p.DisplayName,
@@ -329,7 +376,8 @@ namespace FACM.Presentation.Glass
                     rank = recommendation == null ? 0 : recommendation.Rank,
                     winRate = recommendation == null ? null : recommendation.WinRate,
                     rows = recommendation == null ? new object[0] : recommendation.Rows.Take(30).Select(row => new {
-                        category = row.Category, title = row.Recommendation, evidence = row.Evidence
+                        category = row.Category, title = row.Recommendation, evidence = row.Evidence,
+                        iconCount = row.IconReferences == null ? 0 : Math.Min(9, row.IconReferences.Count)
                     }).ToArray()
                 },
                 recent = snapshot.RecentChampion == null ? null : new {
@@ -340,7 +388,7 @@ namespace FACM.Presentation.Glass
                     deaths = snapshot.RecentChampion.AverageDeaths,
                     assists = snapshot.RecentChampion.AverageAssists
                 },
-                guide = guide == null ? null : new {
+                guide = guide == null || !guideChanged ? null : new {
                     champion = guide.ChampionName,
                     tier = guide.Tier, rank = guide.Rank,
                     winRate = guide.WinRate, pickRate = guide.PickRate,
@@ -349,8 +397,8 @@ namespace FACM.Presentation.Glass
                     starter = guide.StarterItems == null ? new string[0] : guide.StarterItems.Take(5).Select(x => x.Name).ToArray(),
                     boots = guide.BootItems == null ? new string[0] : guide.BootItems.Take(3).Select(x => x.Name).ToArray(),
                     core = guide.CoreItems == null ? new string[0] : guide.CoreItems.Take(8).ToArray(),
-                    augments = guide.AugmentRows == null ? new object[0] : guide.AugmentRows.Take(20).Select(x => new {
-                        id = x.Id, rank = x.Rank, name = x.Name, rarity = x.RarityKind,
+                    augments = augmentRows.Select((x, index) => new {
+                        id = x.Id, assetKey = "augment:" + index, rank = x.Rank, name = x.Name, rarity = x.RarityKind,
                         winRate = x.WinRate, pickRate = x.PickRate, games = x.Games, description = x.Description
                     }).ToArray()
                 },
@@ -359,37 +407,15 @@ namespace FACM.Presentation.Glass
                 guideError = snapshot.GuideError,
                 buildError = snapshot.BuildError
             });
-            var assets = new List<KeyValuePair<string, string>>();
-            if (recommendation != null && recommendation.Rows != null)
-            {
-                var rows = recommendation.Rows.Take(30).ToArray();
-                for (var i = 0; i < rows.Length; i++)
-                {
-                    var references = rows[i] == null ? null : rows[i].IconReferences;
-                    if (references == null) continue;
-                    for (var j = 0; j < Math.Min(3, references.Count); j++)
-                        if (!string.IsNullOrWhiteSpace(references[j]))
-                            assets.Add(new KeyValuePair<string, string>("build:" + i + ":" + j, references[j]));
-                }
-            }
-            if (guide != null && guide.AugmentRows != null)
-            {
-                foreach (var augment in guide.AugmentRows.Take(12))
-                    if (augment != null && !string.IsNullOrWhiteSpace(augment.IconUrl))
-                        assets.Add(new KeyValuePair<string, string>("augment:" + augment.Id, augment.IconUrl));
-            }
-            var key = snapshot.LocalChampionId + "|" + string.Join(",", ids) + "|" +
-                string.Join("|", assets.Select(item => item.Key + ":" + item.Value));
+            var key = string.Join(",", ids);
             if (!string.Equals(key, _lastIconKey, StringComparison.Ordinal))
             {
                 _lastIconKey = key;
-                Post(new { type = "assets-reset" });
-                _ = LoadIconsAsync(ids, assets, ++_iconGeneration);
+                _ = LoadIconsAsync(ids, ++_iconGeneration);
             }
         }
 
-        private async Task LoadIconsAsync(int[] ids,
-            IReadOnlyList<KeyValuePair<string, string>> assets, int generation)
+        private async Task LoadIconsAsync(int[] ids, int generation)
         {
             foreach (var id in ids.Take(20))
             {
@@ -415,14 +441,39 @@ namespace FACM.Presentation.Glass
                 catch (ObjectDisposedException) { return; }
                 catch (Exception e) { AppLog.Info("Runtime Companion icon unavailable: " + e.GetType().Name); }
             }
-            foreach (var asset in assets.Take(42))
+        }
+
+        private bool CurrentAsset(int generation)
+        {
+            return !IsDisposed && !_unavailable && _ready && !_lifetime.IsCancellationRequested && generation == _assetGeneration;
+        }
+
+        private async Task LoadRequestedAssetsAsync(string command)
+        {
+            if (command.Length > 2048) return;
+            var parts = command.Split(new[] { ':' }, 3);
+            int generation;
+            if (parts.Length != 3 || !int.TryParse(parts[1], out generation) || !CurrentAsset(generation)) return;
+            var assets = new List<KeyValuePair<string, string>>();
+            foreach (var key in parts[2].Split(',').Take(24))
             {
-                if (!Current(generation)) return;
+                string reference;
+                if (_assetReferences.TryGetValue(key, out reference) && _requestedAssets.Add(key))
+                    assets.Add(new KeyValuePair<string, string>(key, reference));
+            }
+            if (assets.Count == 0) return;
+            try { await _assetGate.WaitAsync(_lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            try
+            {
+            foreach (var asset in assets)
+            {
+                if (!CurrentAsset(generation)) return;
                 try
                 {
                     using (var image = await _controller.LoadGuideAssetAsync(asset.Value, _lifetime.Token))
                     {
-                        if (!Current(generation) || image == null) continue;
+                        if (!CurrentAsset(generation) || image == null) continue;
                         using (var thumb = new Bitmap(28, 28))
                         using (var output = new MemoryStream())
                         {
@@ -430,7 +481,7 @@ namespace FACM.Presentation.Glass
                                 graphics.DrawImage(image, new Rectangle(0, 0, 28, 28));
                             thumb.Save(output, ImageFormat.Png);
                             if (output.Length <= 22000)
-                                Post(new { type = "asset", key = asset.Key,
+                                Post(new { type = "asset", generation, key = asset.Key,
                                     value = "data:image/png;base64," +
                                         Convert.ToBase64String(output.ToArray()) });
                         }
@@ -440,6 +491,8 @@ namespace FACM.Presentation.Glass
                 catch (ObjectDisposedException) { return; }
                 catch (Exception e) { AppLog.Info("Runtime Companion visual unavailable: " + e.GetType().Name); }
             }
+            }
+            finally { _assetGate.Release(); }
         }
 
         private bool Current(int generation)
@@ -484,6 +537,7 @@ namespace FACM.Presentation.Glass
                 return;
             }
             if (!_ready || string.IsNullOrWhiteSpace(command)) return;
+            if (command.StartsWith("asset-request:", StringComparison.Ordinal)) { _ = LoadRequestedAssetsAsync(command); return; }
             if (command == "close") { Close(); return; }
             if (command == "pin")
             {
@@ -531,10 +585,14 @@ namespace FACM.Presentation.Glass
             }
             if (command == "confirm:yes") { _ = ApplyPreparedAsync(); return; }
             if (command == "quit:yes") { _ = QuitAsync(); return; }
-            if (command.StartsWith("swap:", StringComparison.Ordinal))
+            if (command.StartsWith("swap:", StringComparison.Ordinal) ||
+                command.StartsWith("pick:", StringComparison.Ordinal))
             {
-                int id;
-                if (int.TryParse(command.Substring(5), out id)) _ = SwapAsync(id);
+                int id, revision;
+                var parts = command.Split(':');
+                if (parts.Length == 3 && int.TryParse(parts[1], out id) &&
+                    int.TryParse(parts[2], out revision))
+                    _ = SwapAsync(id, parts[0] == "pick", revision);
                 return;
             }
             if (command == "apply:runes" || command == "apply:spells" || command == "apply:items")
@@ -560,17 +618,18 @@ namespace FACM.Presentation.Glass
             _settings.Save();
         }
 
-        private async Task SwapAsync(int championId)
+        private async Task SwapAsync(int championId, bool initialPick, int revision)
         {
             if (_busy || championId <= 0) return;
             var state = _controller.CurrentSnapshot;
-            if (!state.SessionAvailable || !state.BenchEnabled ||
-                state.BenchChampionIds == null || !state.BenchChampionIds.Contains(championId)) return;
+            if (!state.SessionAvailable || !state.CanChoose(championId) ||
+                state.InitialCardSelection != initialPick || state.ChoiceRevision != revision) return;
             _busy = true;
+            PublishSnapshot(state);
             Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapBusy) });
             try
             {
-                var result = await _controller.TrySwapAsync(championId, state.SwapRoute, _lifetime.Token);
+                var result = await _controller.TryChooseAsync(championId, state, _lifetime.Token);
                 Post(new { type = "status", message = result != null && result.Success ?
                     Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapSuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapRejected) });
                 await RefreshAsync();
@@ -581,12 +640,13 @@ namespace FACM.Presentation.Glass
                 AppLog.Info("Runtime Companion HTML swap failed: " + error.GetType().Name);
                 Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapFailed) });
             }
-            finally { _busy = false; }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
 
         private async Task PrepareAsync(string target)
         {
             if (_busy) return;
+            if (target == "runes" && !_controller.CurrentSnapshot.AllowsRunes) return;
             _pendingLoadout = null;
             _pendingItems = null;
             _busy = true;

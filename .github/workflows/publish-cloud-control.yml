@@ -1,0 +1,44 @@
+name: GGman Cloud Control Publish
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'online/control.json'
+      - '.github/workflows/publish-cloud-control.yml'
+      - 'scripts/Sign-GgmanControl.ps1'
+      - 'scripts/Publish-GgmanControl.py'
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: ggman-cloud-control
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'xianyumht-cmd/facm' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Sign control payload
+        shell: pwsh
+        env:
+          FACM_PFX_BASE64: ${{ secrets.FACM_PFX_BASE64 }}
+          FACM_PFX_PASSWORD: ${{ secrets.FACM_PFX_PASSWORD }}
+        run: ./scripts/Sign-GgmanControl.ps1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install COS SDK
+        run: python -m pip install --disable-pip-version-check cos-python-sdk-v5==1.9.45
+      - name: Upload and verify public control object
+        shell: pwsh
+        env:
+          TENCENT_COS_SECRET_ID: ${{ secrets.TENCENT_COS_SECRET_ID }}
+          TENCENT_COS_SECRET_KEY: ${{ secrets.TENCENT_COS_SECRET_KEY }}
+        run: python scripts/Publish-GgmanControl.py "$env:RUNNER_TEMP/control.json"

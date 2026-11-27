@@ -28,7 +28,8 @@ namespace FACM.Presentation.Glass
 
         internal void Start(LeagueBuildAdvisorModule module, bool force)
         {
-            if (!_canPublish() || _busy) return;
+            if (!_canPublish()) return;
+            if (_busy) { PostStatus("recommendation-failed", "busy"); return; }
             Cancel();
             if (module == null) { PostStatus("recommendation-failed", "unavailable"); return; }
             var source = new CancellationTokenSource();
@@ -69,6 +70,7 @@ namespace FACM.Presentation.Glass
         private static string SerializeRecommendation(LeagueBuildAdvisorSnapshot snapshot)
         {
             var rec = snapshot == null ? null : snapshot.Recommendation;
+            var mayhem = snapshot != null && LeagueQueueModePolicy.IsAramMayhem(snapshot.QueueId, snapshot.GameMode);
             return new JavaScriptSerializer().Serialize(new
             {
                 type = "recommendation-details",
@@ -81,9 +83,12 @@ namespace FACM.Presentation.Glass
                 source = snapshot == null ? null : snapshot.Source,
                 cached = snapshot != null && snapshot.FromCache,
                 canApply = CanApply(snapshot),
+                allowsRunes = snapshot != null && !mayhem,
                 tier = rec == null ? null : rec.Tier,
                 winRate = rec == null ? null : rec.WinRate,
-                rows = rec == null ? new object[0] : rec.Rows.Take(24).Select(row => new
+                rows = rec == null ? new object[0] : rec.Rows.Where(row => row != null &&
+                    (!mayhem || !string.Equals(row.Category, "runes", StringComparison.OrdinalIgnoreCase)))
+                    .Take(24).Select(row => new
                 {
                     category = row.Category, title = row.Recommendation, evidence = row.Evidence
                 }).ToArray()
@@ -115,7 +120,8 @@ namespace FACM.Presentation.Glass
 
         internal async void Apply(LeagueBuildAdvisorModule module, string json)
         {
-            if (!_canPublish() || _busy) return;
+            if (!_canPublish()) return;
+            if (_busy) { PostStatus("recommendation-result", "busy"); return; }
             UnifiedRecommendationApplyChange request;
             if (!UnifiedWorkspaceSettingsContract.TryParseRecommendationApply(json, out request))
             {
@@ -131,6 +137,11 @@ namespace FACM.Presentation.Glass
                 return;
             }
 
+            if (request.Runes && LeagueQueueModePolicy.IsAramMayhem(snapshot.QueueId, snapshot.GameMode))
+            {
+                PostStatus("recommendation-result", "mode-unavailable");
+                return;
+            }
             _busy = true;
             using (var source = new CancellationTokenSource())
             {
@@ -141,10 +152,20 @@ namespace FACM.Presentation.Glass
                     LeagueItemSetPlan itemPlan = null;
                     if (request.Runes || request.Spells)
                         original = await module.RuntimeCompanionApplyService.PrepareAsync(snapshot, source.Token);
-                    if (!SessionCurrent(module, session, generation)) return;
+                    if (!SessionCurrent(module, session, generation))
+                    {
+                        if (SessionCurrent(module, session, generation, false))
+                            PostStatus("recommendation-result", "context-changed");
+                        return;
+                    }
                     if (request.Items)
                         itemPlan = await module.RuntimeCompanionItemSetService.PrepareAsync(snapshot, source.Token);
-                    if (!SessionCurrent(module, session, generation)) return;
+                    if (!SessionCurrent(module, session, generation))
+                    {
+                        if (SessionCurrent(module, session, generation, false))
+                            PostStatus("recommendation-result", "context-changed");
+                        return;
+                    }
 
                     LeagueBuildApplyPlan scoped = null;
                     if (original != null)
@@ -185,10 +206,20 @@ namespace FACM.Presentation.Glass
                     LeagueItemSetWriteResult itemResult = null;
                     if (canLoadout)
                         loadoutResult = await module.RuntimeCompanionApplyService.ApplyAsync(scoped, source.Token);
-                    if (!SessionCurrent(module, session, generation)) return;
+                    if (!SessionCurrent(module, session, generation))
+                    {
+                        if (SessionCurrent(module, session, generation, false))
+                            PostStatus("recommendation-result", "context-changed");
+                        return;
+                    }
                     if (canItems)
                         itemResult = await module.RuntimeCompanionItemSetService.ApplyAsync(itemPlan, source.Token);
-                    if (!SessionCurrent(module, session, generation)) return;
+                    if (!SessionCurrent(module, session, generation))
+                    {
+                        if (SessionCurrent(module, session, generation, false))
+                            PostStatus("recommendation-result", "context-changed");
+                        return;
+                    }
 
                     var selected = (request.Runes ? 1 : 0) + (request.Spells ? 1 : 0) + (request.Items ? 1 : 0);
                     var succeeded = (request.Runes && loadoutResult != null && loadoutResult.RunesApplied ? 1 : 0) +
@@ -202,14 +233,14 @@ namespace FACM.Presentation.Glass
                 }
                 catch (OperationCanceledException)
                 {
-                    if (SessionCurrent(module, session, generation))
+                    if (SessionCurrent(module, session, generation, false))
                         PostStatus("recommendation-result", "context-changed");
                 }
                 catch (Exception exception)
                 {
                     AppLog.Info("Unified recommendation apply skipped: " + exception.GetType().Name);
-                    if (SessionCurrent(module, session, generation))
-                        PostStatus("recommendation-result", "failed");
+                    if (SessionCurrent(module, session, generation, false))
+                        PostStatus("recommendation-result", SessionCurrent(module, session, generation) ? "failed" : "context-changed");
                 }
                 finally
                 {

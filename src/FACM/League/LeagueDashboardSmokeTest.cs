@@ -89,6 +89,15 @@ namespace FACM
 
             ValidateGameflowSubscriberIsolation();
             await ValidateRankedQueueCaptureAsync().ConfigureAwait(false);
+            var disconnectedAt = DateTime.UtcNow;
+            var transient = new LeagueDashboardPhaseState { Connected = false, ClientProcessDetected = true };
+            Require(LeagueHubModule.CanRetainChampSelectEpisode(transient, disconnectedAt, disconnectedAt.AddSeconds(5)),
+                "Short disconnect must preserve manual dismissal and episode ownership.");
+            Require(!LeagueHubModule.CanRetainChampSelectEpisode(transient, disconnectedAt, disconnectedAt.AddSeconds(13)),
+                "Disconnect grace must be bounded.");
+            transient.GameProcessDetected = true;
+            Require(!LeagueHubModule.CanRetainChampSelectEpisode(transient, disconnectedAt, disconnectedAt.AddSeconds(1)),
+                "Game process must terminate the retained draft episode.");
             ValidateDesktopEntryGameflowPolicy();
             ValidateLeagueHubResponsiveLayout();
             LeagueChampSelectAssistantForm.ValidateForSmokeTest();
@@ -96,6 +105,9 @@ namespace FACM
             LeagueDodgeProbeService.ValidateForSmokeTest();
             LeagueMatchmakingAutomationSmokeTest.Validate();
             LeagueMatchmakingStopSmokeTest.Validate();
+            Require(LeagueGameflowMonitor.ResolveDelay(new LeagueDashboardPhaseState
+                { Connected = true, Phase = "Reconnect", Activity = LeagueActivityLevel.InGame }) == TimeSpan.FromSeconds(3),
+                "Reconnect must use the recovery cadence rather than the ordinary in-game cadence.");
             LeagueGameflowReconnectSmokeTest.Validate();
             LeagueRespawnTimerSmokeTest.Validate();
             LeagueAutoPickBanSmokeTest.Validate();

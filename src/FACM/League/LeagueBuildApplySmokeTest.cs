@@ -21,6 +21,7 @@ namespace FACM.League
             ValidateDelayedSpellSettlementDoesNotRetry();
             ValidateRuneCapacityFailsClosed();
             ValidateContextDriftBlocksAllWrites();
+            ValidateMayhemModeRestrictions();
             ValidateRuneFalseSuccessIsRejected();
             ValidateSpellFalseSuccessIsRejected();
             ValidateCancellation();
@@ -200,6 +201,31 @@ namespace FACM.League
                 Require(result.Status == "blocked" && result.BlockReason == "queue-changed" &&
                     changedQueueType.Writes.Count == 0,
                     "A ranked queue-type change must block both rune and spell writes.");
+            }
+        }
+
+        private static void ValidateMayhemModeRestrictions()
+        {
+            foreach (var queueId in new[] { 2400, 3270 })
+            {
+                var lcu = new FakeLeagueApi { QueueId = queueId };
+                using (var service = CreateService(lcu, new FakeOpggApi()))
+                {
+                    var plan = Prepare(service);
+                    plan.QueueId = queueId;
+                    plan.Spell1Id = 3;
+                    plan.Spell2Id = 4;
+                    var result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                    Require(!result.AnyApplied && result.RuneStatus == "mode-unavailable" &&
+                            result.SpellStatus == "mode-unavailable" && lcu.Writes.Count == 0,
+                        "Mayhem must not write standard runes or Exhaust.");
+                    plan.Spell1Id = 4;
+                    plan.Spell2Id = 7;
+                    result = service.ApplyAsync(plan, CancellationToken.None).GetAwaiter().GetResult();
+                    Require(result.Status == "partial" && !result.RunesApplied && result.SpellsApplied &&
+                            lcu.Writes.Count == 1 && lcu.Writes[0].Path == LeagueBuildApplyService.MySelectionPath,
+                        "Mayhem must preserve an eligible spell action while blocking rune writes.");
+                }
             }
         }
 

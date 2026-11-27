@@ -127,10 +127,16 @@ namespace FACM.Presentation.Glass
                 !Routes["efficiency-advanced"].Recognizes("advanced-save:{}") ||
                 Routes["efficiency-advanced"].Recognizes("quick-message-send:0") ||
                 !Routes[LeagueHubNavigation.Player].Recognizes("history-more") ||
+                !Routes["player-advanced"].Recognizes("history-advanced-more") ||
+                Routes[LeagueHubNavigation.Player].Recognizes("history-advanced-more") ||
+                !Routes[LeagueHubNavigation.Player].Recognizes("history-open-detail:1") ||
+                Routes["player-advanced"].Recognizes("history-open-detail:1") ||
                 Routes[LeagueHubNavigation.Player].Recognizes("history-advanced-refresh") ||
                 !Routes["player-advanced"].Recognizes("history-region-search:{}") ||
                 Routes["player-advanced"].Recognizes("history-more") ||
                 !Routes[LeagueHubNavigation.Mayhem].Recognizes("mayhem-cancel") ||
+                !Routes[LeagueHubNavigation.Mayhem].Recognizes("mayhem-current") ||
+                Routes[LeagueHubNavigation.Recommendation].Recognizes("mayhem-current") ||
                 Routes[LeagueHubNavigation.Mayhem].Recognizes("recommendation-refresh") ||
                 !Routes[LeagueHubNavigation.Recommendation].Recognizes("recommendation-apply:{}") ||
                 Routes[LeagueHubNavigation.Recommendation].Recognizes("mayhem-query:test") ||

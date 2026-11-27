@@ -10,6 +10,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.League
 {
@@ -73,6 +74,9 @@ namespace FACM.League
                 var started = Stopwatch.StartNew();
                 try
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!CloudRouteControl.PublicSourceAllowed(uri.AbsoluteUri, ref timeout))
+                        throw new InvalidOperationException("Public source temporarily disabled.");
                     var bytes = await DownloadAsync(uri, timeout, cancellationToken).ConfigureAwait(false);
                     WriteCache(cachePath, bytes);
                     started.Stop();
@@ -95,10 +99,10 @@ namespace FACM.League
                     started.Stop();
                     if (allowStale && TryReadCache(cachePath, StaleCacheAge, true, out cached))
                     {
-                        AppLog.Info("LOL public data fallback: stale-cache; host=" + uri.Host + "; error=" + exception.GetType().Name);
+                        AppLog.Info("LOL public data fallback: stale-cache; host=" + uri.Host + "; ms=" + started.ElapsedMilliseconds + "; error=" + exception.GetType().Name);
                         return cached;
                     }
-                    AppLog.Info("LOL public data source failed: direct; host=" + uri.Host + "; error=" + exception.GetType().Name);
+                    AppLog.Info("LOL public data source failed: direct; host=" + uri.Host + "; ms=" + started.ElapsedMilliseconds + "; error=" + exception.GetType().Name);
                     throw;
                 }
             }
@@ -163,25 +167,8 @@ namespace FACM.League
                 using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false))
                 {
                     response.EnsureSuccessStatusCode();
-                    var length = response.Content.Headers.ContentLength;
-                    if (length.HasValue && length.Value > MaximumBodyBytes)
-                        throw new InvalidDataException("LOL 公共数据响应过大。");
-
-                    using (var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false))
-                    using (var output = new MemoryStream())
-                    {
-                        var buffer = new byte[65536];
-                        long total = 0;
-                        while (true)
-                        {
-                            var read = await input.ReadAsync(buffer, 0, buffer.Length, linked.Token).ConfigureAwait(false);
-                            if (read <= 0) break;
-                            total += read;
-                            if (total > MaximumBodyBytes) throw new InvalidDataException("LOL 公共数据响应过大。");
-                            output.Write(buffer, 0, read);
-                        }
-                        return output.ToArray();
-                    }
+                    return await FACM.Mayhem.CancelableHttpContentReader.ReadBytesAsync(
+                        response.Content, linked.Token, (int)MaximumBodyBytes).ConfigureAwait(false);
                 }
             }
         }

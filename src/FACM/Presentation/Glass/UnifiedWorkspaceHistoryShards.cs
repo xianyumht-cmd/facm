@@ -10,7 +10,8 @@ namespace FACM.Presentation.Glass
 
         public bool Recognizes(string message)
         {
-            return message == "history-refresh" || message == "history-more";
+            return message == "history-refresh" || message == "history-more" ||
+                (message != null && message.StartsWith("history-open-detail:", StringComparison.Ordinal));
         }
 
         public void Open(UnifiedWorkspaceForm workspace, bool pushHistory)
@@ -25,7 +26,10 @@ namespace FACM.Presentation.Glass
 
         public void Handle(UnifiedWorkspaceForm workspace, string message)
         {
-            workspace.StartHistoryRead(message == "history-more" ? 20 : 10, true);
+            if (message.StartsWith("history-open-detail:", StringComparison.Ordinal))
+                workspace.OpenRecentMatchDetail(message.Substring("history-open-detail:".Length));
+            else if (message == "history-more") workspace.LoadMoreHistory();
+            else workspace.StartHistoryRead(10, true);
         }
 
         public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)
@@ -44,7 +48,7 @@ namespace FACM.Presentation.Glass
         {
             return message == "history-advanced-replay-folder" ||
                 message == "history-region-options" || message == "history-region-catalog" ||
-                message == "history-advanced-refresh" ||
+                message == "history-advanced-refresh" || message == "history-advanced-more" ||
                 (message != null && (
                     message.StartsWith("history-advanced-timeline:", StringComparison.Ordinal) ||
                     message.StartsWith("history-advanced-radar:", StringComparison.Ordinal) ||
@@ -71,6 +75,7 @@ namespace FACM.Presentation.Glass
             else if (message == "history-region-options") workspace.SendRegionalOptions();
             else if (message == "history-region-catalog") workspace.RefreshRegionalCatalog();
             else if (message == "history-advanced-refresh") workspace.StartHistoryRead(20, true);
+            else if (message == "history-advanced-more") workspace.LoadMoreHistory();
             else if (message.StartsWith("history-advanced-timeline:", StringComparison.Ordinal))
                 workspace.ReadAdvancedTimeline(message.Substring("history-advanced-timeline:".Length));
             else if (message.StartsWith("history-advanced-radar:", StringComparison.Ordinal))

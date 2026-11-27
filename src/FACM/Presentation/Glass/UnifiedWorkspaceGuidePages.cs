@@ -47,6 +47,18 @@ namespace FACM.Presentation.Glass
                 MayhemAdapter.Start(LeagueHubUiBridge.UnifiedMayhem, query);
         }
 
+        internal void StartCurrentMayhemQuery()
+        {
+            if (CanPublishOnRoute(LeagueHubNavigation.Mayhem))
+                MayhemAdapter.StartCurrent(LeagueHubUiBridge.UnifiedMayhem, LeagueHubUiBridge.UnifiedLive);
+        }
+
+        internal void RequestMayhemAugmentIcons(string request)
+        {
+            if (_navigation.Current == LeagueHubNavigation.Mayhem && _mayhemAdapter != null)
+                _mayhemAdapter.RequestAugmentIcons(request);
+        }
+
         internal void CancelMayhemRead()
         {
             if (_mayhemAdapter != null) _mayhemAdapter.Cancel();

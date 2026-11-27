@@ -162,9 +162,17 @@ namespace FACM.League
     {
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public LeagueRuntimeCompanionGuideKind GuideKind { get; set; }
+        public bool HasBenchSurface { get { return BenchEnabled || GuideKind != LeagueRuntimeCompanionGuideKind.None; } }
+        public bool AllowsRunes { get { return SessionAvailable && GuideKind != LeagueRuntimeCompanionGuideKind.Mayhem; } }
         public int LocalChampionId { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public IReadOnlyList<int> BenchChampionIds { get; set; } = Array.Empty<int>();
+        // Internal observation is immutable after publication; no identity is sent to HTML.
+        internal LeagueBenchQuickPickState QuickPickState { get; set; }
+        public int ChoiceRevision { get; set; }
+        public bool InitialCardSelection { get { return QuickPickState != null && QuickPickState.IsInitialCardSelection; } }
+        public bool CanChoose(int id) { return QuickPickState != null && QuickPickState.CanChoose(id); }
         public string TimerPhase { get; set; }
         public int TimerMillisecondsLeft { get; set; }
         public IReadOnlyList<int> AllyBans { get; set; } = Array.Empty<int>();
@@ -189,7 +197,8 @@ namespace FACM.League
                 return Build != null &&
                        Build.Connected &&
                        Build.Activity == Performance.LeagueActivityLevel.ChampSelect &&
-                       Build.ChampionId > 0 &&
+                       SessionAvailable && LocalChampionId > 0 &&
+                       Build.ChampionId == LocalChampionId &&
                        Build.Recommendation != null &&
                        string.Equals(Build.Status, "ready", StringComparison.OrdinalIgnoreCase);
             }
@@ -197,7 +206,8 @@ namespace FACM.League
 
         public bool HasGuide
         {
-            get { return Guide != null && string.IsNullOrWhiteSpace(GuideError); }
+            get { return Guide != null && LocalChampionId > 0 && GuideChampionId == LocalChampionId &&
+                string.IsNullOrWhiteSpace(GuideError); }
         }
 
         public bool HasVisibleChampSelectContext
@@ -219,11 +229,14 @@ namespace FACM.League
             {
                 SessionAvailable = SessionAvailable,
                 BenchEnabled = BenchEnabled,
+                GuideKind = GuideKind,
                 LocalChampionId = LocalChampionId,
                 SwapRoute = SwapRoute,
                 BenchChampionIds = BenchChampionIds == null
                     ? Array.Empty<int>()
                     : new List<int>(BenchChampionIds).AsReadOnly(),
+                QuickPickState = QuickPickState,
+                ChoiceRevision = ChoiceRevision,
                 TimerPhase = TimerPhase,
                 TimerMillisecondsLeft = TimerMillisecondsLeft,
                 AllyBans = AllyBans == null ? Array.Empty<int>() : new List<int>(AllyBans).AsReadOnly(),

@@ -203,7 +203,9 @@ namespace FACM.League
                         if (string.IsNullOrWhiteSpace(lockfile) || !File.Exists(lockfile)) continue;
 
                         LeagueClientSession session;
-                        if (LeagueClientSessionParser.TryParseLockfile(File.ReadAllText(lockfile), out session))
+                        string content;
+                        if (ResilientLeagueClientSessionDiscovery.TryReadSharedText(lockfile, out content) &&
+                            LeagueClientSessionParser.TryParseLockfile(content, out session))
                             return session;
                     }
                     catch
@@ -229,6 +231,7 @@ namespace FACM.League
         private DateTime _lastDiscoveryAttemptUtc = DateTime.MinValue;
         private string _lastLoggedSessionKey;
         private string _lastInvalidatedSessionKey;
+        private bool _phaseTimeoutObserved;
 
         public LeagueClientSessionProvider(ILeagueClientSessionDiscovery discovery, TimeSpan? retryInterval = null)
         {
@@ -248,6 +251,7 @@ namespace FACM.League
 
                 var discovered = _discovery.TryDiscover();
                 _session = discovered;
+                _phaseTimeoutObserved = false;
                 if (discovered != null && !string.Equals(_lastLoggedSessionKey, discovered.IdentityKey, StringComparison.Ordinal))
                 {
                     _lastLoggedSessionKey = discovered.IdentityKey;
@@ -261,6 +265,24 @@ namespace FACM.League
             }
         }
 
+        internal void ReportPhaseSuccess(LeagueClientSession expected)
+        {
+            lock (_sync)
+            {
+                if (_session != null && _session.Matches(expected)) _phaseTimeoutObserved = false;
+            }
+        }
+
+        internal void ReportPhaseTimeout(LeagueClientSession expected)
+        {
+            lock (_sync)
+            {
+                if (_session == null || !_session.Matches(expected)) return;
+                if (_phaseTimeoutObserved) Invalidate(expected);
+                else _phaseTimeoutObserved = true;
+            }
+        }
+
         public void Invalidate(LeagueClientSession expected)
         {
             if (expected == null) return;
@@ -268,6 +290,7 @@ namespace FACM.League
             {
                 if (_session == null || !_session.Matches(expected)) return;
                 _session = null;
+                _phaseTimeoutObserved = false;
                 _lastDiscoveryAttemptUtc = DateTime.UtcNow;
                 if (!string.Equals(_lastInvalidatedSessionKey, expected.IdentityKey, StringComparison.Ordinal))
                 {
@@ -336,7 +359,7 @@ namespace FACM.League
         private Entry _current;
         private bool _disposed;
 
-        internal LeagueSessionHttpClientPool(TimeSpan? timeout = null, bool disableProxy = false)
+        internal LeagueSessionHttpClientPool(TimeSpan? timeout = null, bool disableProxy = true)
         {
             _timeout = timeout ?? TimeSpan.FromSeconds(2);
             _disableProxy = disableProxy;
@@ -382,9 +405,14 @@ namespace FACM.League
             }
         }
 
+        internal HttpClientHandler CreateHandler()
+        {
+            return new HttpClientHandler { UseProxy = !_disableProxy, AllowAutoRedirect = false };
+        }
+
         private HttpClient CreateClient(LeagueClientSession session)
         {
-            var handler = new HttpClientHandler { UseProxy = !_disableProxy };
+            var handler = CreateHandler();
             handler.ServerCertificateCustomValidationCallback = delegate { return true; };
             var client = new HttpClient(handler)
             {
@@ -465,7 +493,9 @@ namespace FACM.League
     internal sealed class LeagueClientApiClient : ILeagueClientApi, ILeagueMasteryReadApi, IDisposable
     {
         private readonly LeagueClientSessionProvider _sessions;
-        private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool();
+        private readonly LeagueSessionHttpClientPool _clients = new LeagueSessionHttpClientPool(TimeSpan.FromMilliseconds(2500));
+        private readonly object _phaseLogSync = new object();
+        private string _lastPhaseOutcome;
         private bool _disposed;
 
         public LeagueClientApiClient(LeagueClientSessionProvider sessions)
@@ -492,8 +522,14 @@ namespace FACM.League
             if (string.IsNullOrWhiteSpace(path)) return null;
             cancellationToken.ThrowIfCancellationRequested();
 
+            var phaseRead = string.Equals(path, LeagueDashboardPhaseService.PhasePath, StringComparison.Ordinal);
+            var watch = phaseRead ? Stopwatch.StartNew() : null;
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null)
+            {
+                RecordPhaseRead(watch, "no_session");
+                return null;
+            }
             if (expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
@@ -518,22 +554,36 @@ namespace FACM.League
                         {
                             if (response.StatusCode == HttpStatusCode.Unauthorized || response.StatusCode == HttpStatusCode.Forbidden)
                                 _sessions.Invalidate(session);
-                            if (!response.IsSuccessStatusCode) return null;
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                RecordPhaseRead(watch, "http_" + (int)response.StatusCode);
+                                return null;
+                            }
                             var bytes = await CancelableHttpContentReader.ReadBytesAsync(
                                 response.Content, cancellationToken,
                                 CancelableHttpContentReader.DefaultImageLimitBytes).ConfigureAwait(false);
+                            if (phaseRead && bytes.Length > 0) _sessions.ReportPhaseSuccess(session);
+                            RecordPhaseRead(watch, bytes.Length == 0 ? "empty_response" : "ok");
                             return expected == null || LeagueEncounterReplayService.SessionMatches(expected, _sessions.GetSession()) ? bytes : null;
                         }
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    if (cancellationToken.IsCancellationRequested) throw;
-                    _sessions.Invalidate(session);
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        RecordPhaseRead(watch, "caller_cancelled");
+                        throw;
+                    }
+                    RecordPhaseRead(watch, "timeout");
+                    if (phaseRead) _sessions.ReportPhaseTimeout(session);
+                    else _sessions.Invalidate(session);
                     return null;
                 }
-                catch (HttpRequestException)
+                catch (HttpRequestException exception)
                 {
+                    var web = exception.InnerException as WebException;
+                    RecordPhaseRead(watch, web == null ? "http_request_error" : "web_" + web.Status);
                     _sessions.Invalidate(session);
                     return null;
                 }
@@ -541,11 +591,24 @@ namespace FACM.League
                 {
                     return null;
                 }
-                catch
+                catch (Exception exception)
                 {
+                    RecordPhaseRead(watch, "error_" + exception.GetType().Name);
                     _sessions.Invalidate(session);
                     return null;
                 }
+            }
+        }
+
+        private void RecordPhaseRead(Stopwatch watch, string outcome)
+        {
+            if (watch == null) return;
+            lock (_phaseLogSync)
+            {
+                if (string.Equals(_lastPhaseOutcome, outcome, StringComparison.Ordinal)) return;
+                _lastPhaseOutcome = outcome;
+                AppLog.Info("LCU phase read; outcome=" + outcome +
+                    "; elapsedMs=" + watch.ElapsedMilliseconds + "; transport=direct-loopback");
             }
         }
 

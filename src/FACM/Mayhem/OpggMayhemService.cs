@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
@@ -8,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -63,8 +65,9 @@ namespace FACM.Mayhem
                 try
                 {
                     Report(progress, "正在读取国内排行与国服版本...");
-                    var hexdataTask = GetSafeAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(2.8), requestToken);
-                    var officialTask = TencentMayhemPatchService.FetchLatestAsync(requestToken);
+                    var hexdataTask = GetQuerySourceAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(2.8), requestToken, token);
+                    var officialTask = CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                        TencentMayhemPatchService.FetchLatestAsync(requestToken), token);
 
                     string slug;
                     string hexdataHtml = null;
@@ -74,14 +77,17 @@ namespace FACM.Mayhem
                         slug = ResolveSlugFromHexdata(hexdataHtml, query);
                         if (string.IsNullOrWhiteSpace(slug))
                         {
-                            var opggIndex = await GetSafeAsync(OpggBaseUrl, TimeSpan.FromSeconds(1.5), requestToken).ConfigureAwait(false);
+                            var opggIndex = await GetQuerySourceAsync(OpggBaseUrl, TimeSpan.FromSeconds(1.5), requestToken, token).ConfigureAwait(false);
                             slug = ResolveSlugFromOpgg(opggIndex, query);
                         }
                     }
 
                     if (string.IsNullOrWhiteSpace(slug))
                     {
-                        result.ErrorMessage = "没有识别到这个英雄，请尝试官方中文名、英文名或常见简称。";
+                        token.ThrowIfCancellationRequested();
+                        result.ErrorMessage = requestToken.IsCancellationRequested
+                            ? "查询超时，暂未识别到英雄。"
+                            : "没有识别到这个英雄，请尝试官方中文名、英文名或常见简称。";
                         return result;
                     }
 
@@ -90,10 +96,10 @@ namespace FACM.Mayhem
                     result.RankingSourceUrl = RankingBaseUrl + "/build/" + slug + "/";
 
                     Report(progress, "正在并行读取排行、平衡与攻略补充...");
-                    var rankingTask = GetSafeAsync(result.RankingSourceUrl, TimeSpan.FromSeconds(3.8), requestToken);
-                    var rankingTopTask = GetSafeAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.4), requestToken);
-                    var aramggTask = GetSafeAsync(AramggRankingUrl, TimeSpan.FromSeconds(3.4), requestToken);
-                    var opggTask = GetSafeAsync(result.SourceUrl, TimeSpan.FromSeconds(2.2), requestToken);
+                    var rankingTask = GetQuerySourceAsync(result.RankingSourceUrl, TimeSpan.FromSeconds(3.8), requestToken, token);
+                    var rankingTopTask = GetQuerySourceAsync(RankingBaseUrl + "/", TimeSpan.FromSeconds(3.4), requestToken, token);
+                    var aramggTask = GetQuerySourceAsync(AramggRankingUrl, TimeSpan.FromSeconds(3.4), requestToken, token);
+                    var opggTask = GetQuerySourceAsync(result.SourceUrl, TimeSpan.FromSeconds(2.2), requestToken, token);
 
                     if (hexdataHtml == null) hexdataHtml = await hexdataTask.ConfigureAwait(false);
                     await Task.WhenAll(rankingTask, rankingTopTask, aramggTask, opggTask).ConfigureAwait(false);
@@ -102,6 +108,7 @@ namespace FACM.Mayhem
                     var aramggHtml = aramggTask.Result;
                     var opggHtml = opggTask.Result;
 
+                    token.ThrowIfCancellationRequested();
                     Report(progress, "正在合并国内排行、当前平衡和攻略字段...");
                     var hexRows = ParseHexdataRows(hexdataHtml);
                     var hexChampion = new MayhemChampionResult();
@@ -129,6 +136,7 @@ namespace FACM.Mayhem
                     TencentMayhemPatchSnapshot official = null;
                     try { official = await officialTask.ConfigureAwait(false); }
                     catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
+                    token.ThrowIfCancellationRequested();
                     ApplyOfficialPatch(result, official, !string.IsNullOrWhiteSpace(rankingHtml), query);
 
                     var anyPrimary = ranking != null || result.Rank.HasValue ||
@@ -600,11 +608,21 @@ namespace FACM.Mayhem
             return string.Join("；", parts);
         }
 
+        private static Task<string> GetQuerySourceAsync(string url, TimeSpan budget,
+            CancellationToken deadline, CancellationToken caller)
+        {
+            return CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                GetSafeAsync(url, budget, deadline), caller);
+        }
+
         private static async Task<string> GetSafeAsync(string url, TimeSpan budget, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+            if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return null;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 timeout.CancelAfter(budget);
+                var watch = Stopwatch.StartNew();
                 try
                 {
                     using (var request = new HttpRequestMessage(HttpMethod.Get, url))
@@ -612,21 +630,24 @@ namespace FACM.Mayhem
                     {
                         if (!response.IsSuccessStatusCode)
                         {
-                            AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url);
+                            AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url + "; ms=" + watch.ElapsedMilliseconds);
                             return null;
                         }
-                        return await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                        var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                        AppLog.Info("Mayhem source response: " + url + "; ms=" + watch.ElapsedMilliseconds +
+                            "; chars=" + text.Length);
+                        return text;
                     }
                 }
                 catch (OperationCanceledException)
                 {
+                    AppLog.Info("Mayhem source budget expired: " + url + "; ms=" + watch.ElapsedMilliseconds);
                     if (token.IsCancellationRequested) throw;
-                    AppLog.Info("Mayhem source budget expired: " + url);
                     return null;
                 }
                 catch (Exception exception)
                 {
-                    AppLog.Info("Mayhem source request failed: " + url + "; " + exception.Message);
+                    AppLog.Info("Mayhem source request failed: " + url + "; ms=" + watch.ElapsedMilliseconds + "; " + exception.GetType().Name);
                     return null;
                 }
             }

@@ -91,44 +91,74 @@ html,body{font-size:12.6px;line-height:1.5}
 .actions .primary{background:color-mix(in srgb,var(--cyan) 18%,var(--tile))}
 #augmentFilters button{font-size:11px;min-height:28px}
 #quit{background:color-mix(in srgb,#9e4b53 26%,var(--tile));border-color:color-mix(in srgb,#e19c9c 50%,var(--line));color:#f4c1bc;min-height:32px}
+#head{height:46px}
+#content{height:calc(100% - 46px);padding:6px 8px 9px}
+#status{min-height:0;font-size:11px;margin-bottom:4px}
+#status.connected{display:none}
+#champ{gap:5px;margin-bottom:4px;min-height:23px}
+#champTitle{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#champ>div:first-child{min-width:0}
+#tier{color:var(--cyan);white-space:nowrap}
+#tabs{display:flex;gap:4px;position:sticky;top:0;background:var(--bg);z-index:2;padding:3px 0 5px}
+#tabs button{flex:1;min-width:0;font-size:11px;min-height:30px;padding:3px 2px}
+#tabs button.active{border-color:var(--cyan);color:var(--cyan);background:color-mix(in srgb,var(--cyan) 14%,var(--tile))}
+.section{margin-top:4px;padding:6px 7px!important}
+.section[hidden]{display:none!important}
+#benchSection{margin-bottom:4px}
+#bench{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;overflow:visible}
+.bench-choice{min-width:0;height:38px;min-height:38px;padding:2px;gap:1px}
+.bench-choice img,.bench-choice .placeholder{width:32px;height:32px}
+.bench-choice.empty{opacity:.65;cursor:default;background:var(--panel);border:1px dashed var(--line)}
+#tabs button[hidden],#runes[hidden]{display:none!important}
+.actions.mayhem{grid-template-columns:repeat(2,minmax(0,1fr))}
+.bench-choice span:not(.placeholder){display:none}
+#benchEmpty:empty{display:none}
+#augmentFilters{margin:0 0 4px}
+.augment{padding:5px 0;align-items:center;gap:5px}
+.augment details summary,.rec details summary{cursor:pointer;color:var(--soft);font-size:10px}
+.rec{padding:5px 6px}
+.rec-label{font-size:11px}
+.rec-text{line-height:1.35}
+.actions{margin:0 0 6px;gap:4px}
+.actions button{min-height:31px;font-size:11px}
+#guideInfo{margin-top:5px}
+#recent:empty,#message:empty{display:none}
+#champ #quit{min-height:25px;padding:1px 8px;font-size:11px}
 </style>
 </head>
 <body>
 <div id="shell">
 <header id="head">
-<div id="drag" aria-label="拖动对局助手"><span id="logo">G</span><span id="title">GGman · 实时对局助手</span><span id="timer">--</span></div>
+<div id="drag" aria-label="拖动对局助手"><span id="logo">G</span><span id="title">对局助手</span><span id="timer">--</span></div>
 <button id="pin" class="chrome" title="固定置顶" aria-label="固定置顶">●</button>
 <button id="collapse" class="chrome" title="折叠或展开" aria-label="折叠或展开">−</button>
 <button id="close" class="chrome" title="关闭本局助手" aria-label="关闭本局助手">×</button>
 </header>
 <main id="content">
 <div id="status"><span id="dot"></span><span id="statusText">连接英雄选择中…</span></div>
-<section class="section">
-<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div><div id="champHint">当前选人阶段同步推荐</div></div><div id="tier"></div></div>
-<div id="recent"></div>
+<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div><button id="quit" class="warn" title="退出选人" aria-label="退出选人">退</button></div>
+<section class="section" id="benchSection" hidden>
+<div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div>
 </section>
-<section class="section">
-<h3>快速选择 · 大乱斗替补席</h3>
-<div id="benchEmpty">正在确认替补席是否可用…</div>
-<div id="bench" role="group" aria-label="可交换的英雄"></div>
+<nav id="tabs" aria-label="对局助手功能">
+<button data-tab="augments" aria-controls="augmentSection">强化排行</button>
+<button data-tab="build" class="active" aria-controls="buildSection">符文出装</button>
+<button data-tab="team" aria-controls="teamSection">队伍</button>
+<button data-tab="details" aria-controls="detailSection">详情</button>
+</nav>
+<section class="section" id="buildSection">
+<div class="actions"><button class="primary" id="runes">应用符文</button><button id="spells">应用召唤师技能</button><button id="items">导入出装</button></div>
+<div id="recommend"><div class="muted sub">等待推荐…</div></div>
 </section>
-<section class="section">
-<h3><span>符文 · 出装 · 技能推荐</span><span id="source"></span></h3>
-<div id="recommend"><div class="muted sub">等待当前英雄推荐…</div></div>
-<div class="actions">
-<button class="primary" id="runes">应用符文</button>
-<button id="spells">应用召唤师技能</button>
-<button id="items">导入出装</button>
-</div>
-</section>
-<section class="section">
-<h3>海斗强化 · 大乱斗数据</h3>
-<div id="guideInfo"></div><div id="emptyGuide">等待强化数据…</div>
+<section class="section" id="augmentSection" hidden>
 <div id="augmentFilters"><button data-filter="all" class="active">全部</button><button data-filter="prism">棱彩</button><button data-filter="gold">黄金</button><button data-filter="silver">白银</button></div>
-<div id="augments"></div>
+<input id="augmentSearch" type="search" placeholder="搜索强化" aria-label="搜索强化" autocomplete="off" style="width:100%;box-sizing:border-box;margin:3px 0 5px;padding:5px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px"><div id="emptyGuide">等待强化数据…</div><div id="augments"></div><button id="augmentMore" hidden>更多</button>
 </section>
-<section class="section"><h3>本局队伍</h3><div id="teams" class="sub muted">等待队友数据…</div></section>
-<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span id="message" class="muted sub"></span><button id="quit" class="warn">退出选人</button></div>
+<section class="section" id="teamSection" hidden><div id="teams" class="sub muted">等待队友数据…</div></section>
+<section class="section" id="detailSection" hidden>
+<div id="champHint" class="muted sub"></div><div id="recent"></div><div id="source"></div><div id="guideInfo"></div>
+<div id="message" class="muted sub"></div>
+</section>
 </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -138,8 +168,35 @@ html,body{font-size:12.6px;line-height:1.5}
 const $ = id=>document.getElementById(id);
 const send = text=>{if(window.chrome && window.chrome.webview)window.chrome.webview.postMessage(text)};
 const elem=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
-const icons=new Map(),assetIcons=new Map();
-let snapshot=null,filter='all',dragging=false,toastTimer=null;
+const icons=new Map(),assetIcons=new Map(),requestedAssets=new Set();
+let augmentLimit=20,assetGeneration=0;
+function requestAssets(keys){
+ const pending=Array.from(new Set(keys)).filter(k=>!assetIcons.has(k)&&!requestedAssets.has(k));
+ for(let i=0;i<pending.length;i+=24){const batch=pending.slice(i,i+24);batch.forEach(k=>requestedAssets.add(k));send('asset-request:'+assetGeneration+':'+batch.join(','));}
+}
+const fmtPoints=x=>x===null||x===undefined||!Number.isFinite(Number(x))?'—':Number(x).toFixed(1)+'%';
+let snapshot=null,filter='all',dragging=false,toastTimer=null,activeTab='build',manualTab=false;
+let benchSlots=Array(10).fill(0),benchFingerprint='',lastGuideKind=null;
+const panels={augments:'augmentSection',build:'buildSection',team:'teamSection',details:'detailSection'};
+function selectTab(tab,manual){
+ if(!panels[tab])return;
+ if(manual)manualTab=true;
+ const changed=activeTab!==tab;
+ if(activeTab!==tab)$('content').scrollTop=0;
+ activeTab=tab;
+ Object.keys(panels).forEach(key=>$(panels[key]).hidden=key!==tab);
+ $('tabs').querySelectorAll('button').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});
+ if(changed&&snapshot){if(tab==='build')renderBuild();if(tab==='augments')renderAugments();}
+}
+$('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab,true));
+selectTab('build',false);
+const openedDetails=new Set();
+function disclosure(value,key){
+ const d=elem('details','');d.appendChild(elem('summary','','详情'));
+ d.appendChild(elem('div','rec-note',value));d.open=openedDetails.has(key);
+ d.addEventListener('toggle',()=>{if(!d.isConnected)return;if(d.open)openedDetails.add(key);else openedDetails.delete(key)});
+ return d;
+}
 const fmtRate=x=>{if(x===null||x===undefined||!isFinite(Number(x)))return '—';let n=Number(x);if(n>=0&&n<=1)n*=100;return n.toFixed(1)+'%'};
 const nice=(value,fallback='—')=>value===null||value===undefined||String(value).trim()===''?fallback:String(value);
 function showToast(message){
@@ -158,73 +215,119 @@ $('spells').onclick=()=>send('apply:spells');
 $('items').onclick=()=>send('apply:items');
 $('quit').onclick=()=>send('quit:yes');
 $('augmentFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{
- filter=b.dataset.filter;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
+ filter=b.dataset.filter;augmentLimit=20;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
 });
+$('augmentSearch').oninput=()=>{augmentLimit=20;renderAugments()};
+$('augmentMore').onclick=()=>{augmentLimit+=20;renderAugments()};
 const drag=$('drag');
 drag.addEventListener('pointerdown',e=>{if(e.button!==0)return;dragging=true;drag.setPointerCapture(e.pointerId);send('drag-start:'+e.screenX+','+e.screenY)});
 drag.addEventListener('pointermove',e=>{if(dragging)send('drag-move:'+e.screenX+','+e.screenY)});
 function endDrag(){if(dragging){dragging=false;send('drag-end')}}
 drag.addEventListener('pointerup',endDrag);drag.addEventListener('pointercancel',endDrag);
 function renderBench(){
-const host=$('bench');host.replaceChildren();const ids=snapshot&&snapshot.bench?snapshot.choices||[]:[];
-$('benchEmpty').style.display=ids.length?'none':'block';
-$('benchEmpty').textContent=snapshot&&snapshot.bench?'暂无可交换英雄':'当前模式未开放替补席交换';
-for(const id of ids){
- const b=elem('button','bench-choice');b.title='交换英雄 #'+id;
+const host=$('bench');
+const ids=snapshot&&snapshot.bench&&Array.isArray(snapshot.choices)?
+ Array.from(new Set(snapshot.choices.filter(id=>Number.isInteger(id)&&id>0))):[];
+const visible=!!(snapshot&&(snapshot.benchSurface||snapshot.bench));
+$('benchSection').hidden=!visible;
+if(!visible){benchSlots=Array(10).fill(0);benchFingerprint='';host.replaceChildren();return;}
+const total=Math.max(10,Math.ceil(ids.length/5)*5);
+const remaining=new Set(ids);
+const next=Array.from({length:total},(_,i)=>remaining.has(benchSlots[i])?benchSlots[i]:0);
+next.forEach(id=>remaining.delete(id));
+remaining.forEach(id=>{const pos=next.indexOf(0);if(pos>=0)next[pos]=id;});
+benchSlots=next;
+const usable=!!(snapshot.connected&&snapshot.bench&&!snapshot.busy);
+const selectable=new Set(Array.isArray(snapshot.selectable)?snapshot.selectable:[]);
+const initial=!!snapshot.initialPick,revision=Number(snapshot.choiceRevision)||0;
+const fingerprint=next.join(',')+'|'+usable+'|'+Array.from(selectable).join(',')+'|'+initial+'|'+revision;
+if(fingerprint===benchFingerprint && host.childElementCount===next.length){
+ Array.from(host.children).forEach((button,i)=>{
+  const id=next[i],image=icons.get(id);
+  if(id&&image&&!button.querySelector('img')){
+   const img=elem('img');img.src=image;img.alt='英雄 #'+id;button.replaceChildren(img);
+  }
+ });
+ return;
+}
+benchFingerprint=fingerprint;host.replaceChildren();
+for(const id of next){
+ const b=elem('button','bench-choice'+(id?'':' empty'));
+ b.type='button';b.disabled=!id||!usable||!selectable.has(id);
+ if(!id){b.setAttribute('aria-label','空替补位置');host.appendChild(b);continue;}
+ b.title=(initial?'选择英雄 #':'交换英雄 #')+id;b.setAttribute('aria-label',b.title);b.dataset.championId=String(id);
  const image=icons.get(id);
  if(image){const img=elem('img');img.src=image;img.alt='英雄 #'+id;b.appendChild(img)}
  else b.appendChild(elem('span','placeholder',String(id)));
- b.appendChild(elem('span','',String(id)));b.onclick=()=>send('swap:'+id);host.appendChild(b);
+ b.onclick=()=>send((initial?'pick:':'swap:')+id+':'+revision);host.appendChild(b);
 }
 }
-const categories={runes:'符文',spells:'召唤师技能',skills:'技能顺序',starter:'出门装',boots:'鞋子',core:'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
+const categories={runes:'符文',spells:'召唤师技能','summoner-spells':'召唤师技能',skills:'技能加点',starter:'出门装','starter-items':'出门装',boots:'鞋子',core:'核心出装','core-items':'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
 function renderBuild(){
-const host=$('recommend');host.replaceChildren();const b=snapshot&&snapshot.build;
+const host=$('recommend');host.replaceChildren();const b=snapshot&&snapshot.build;const keys=[];
 $('source').textContent=b?nice(b.source,'来源待确认'):'';
 if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(elem('div','muted sub',snapshot&&snapshot.buildLoading?'正在载入推荐…':'暂无可用的符文与出装推荐'));
 }else{
  b.rows.forEach((r,index)=>{
+ if(snapshot.guideKind==='Mayhem'&&r.category==='runes')return;
  const card=elem('div','rec');card.appendChild(elem('div','rec-label',categories[r.category]||nice(r.category,'推荐')));
  const iconsHost=elem('div','iconline');
- for(let n=0;n<3;n++){
- const asset=assetIcons.get('build:'+index+':'+n);if(!asset)continue;
+ for(let n=0;n<Math.min(9,r.iconCount||0);n++){
+ const key='build:'+index+':'+n;keys.push(key);const asset=assetIcons.get(key);if(!asset)continue;
  const img=elem('img');img.src=asset;img.alt=nice(r.category,'推荐')+' 图标';iconsHost.appendChild(img);
  }
  if(iconsHost.childNodes.length)card.appendChild(iconsHost);
  card.appendChild(elem('div','rec-text',nice(r.title,'暂无数据')));
- if(r.evidence)card.appendChild(elem('div','rec-note',r.evidence));
+ if(r.evidence)card.appendChild(disclosure(r.evidence,'build:'+snapshot.championId+':'+index));
  host.appendChild(card);
  });
 }
-const canApply=!!(b&&b.status==='ready');
-for(const id of ['runes','spells','items'])$(id).disabled=!canApply;
+if(activeTab==='build')requestAssets(keys);
+const canApply=!!(b&&snapshot.connected&&!snapshot.busy&&snapshot.canApply);
+const mayhem=snapshot.guideKind==='Mayhem';
+$('runes').hidden=mayhem;$('runes').closest('.actions').classList.toggle('mayhem',mayhem);
+for(const id of ['runes','spells','items'])$(id).disabled=!canApply||(id==='runes'&&!snapshot.allowsRunes);
+$('quit').disabled=!snapshot.connected||!!snapshot.busy;
 }
 function renderAugments(){
 const host=$('augments');host.replaceChildren();
 const guide=snapshot&&snapshot.guide;const all=guide&&Array.isArray(guide.augments)?guide.augments:[];
-const rows=all.filter(x=>filter==='all'||x.rarity===filter).slice(0,20);
-if(!rows.length){host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
+const query=$('augmentSearch').value.trim().toLowerCase();
+const matched=all.filter(x=>(filter==='all'||x.rarity===filter)&&(!query||String(x.name||'').toLowerCase().includes(query)));
+const rows=matched.slice(0,augmentLimit);const keys=[];
+$('augmentMore').hidden=matched.length<=augmentLimit;
+if(!rows.length){if(all.length)host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
 for(const r of rows){
- const row=elem('div','augment');row.appendChild(elem('div','augmentRank','#'+nice(r.rank,'—')));
- const asset=assetIcons.get('augment:'+r.id);
+ const row=elem('div','augment');row.appendChild(elem('div','augmentRank',r.rank>0?'#'+r.rank:''));
+ const key=r.assetKey||'augment:'+r.id;keys.push(key);const asset=assetIcons.get(key);
  if(asset){const image=elem('img','augmentIcon');image.src=asset;image.alt=nice(r.name,'强化');row.appendChild(image)}
  const body=elem('div','augmentBody');const name=elem('div','augmentName',nice(r.name));
- name.appendChild(elem('span','augmentRarity',nice(r.rarity,'')));
+ name.appendChild(elem('span','augmentRarity',({prism:'棱彩',gold:'黄金',silver:'白银'})[r.rarity]||nice(r.rarity,'')));
  body.appendChild(name);
- body.appendChild(elem('div','augmentMeta','胜率 '+fmtRate(r.winRate)+' · 选取 '+fmtRate(r.pickRate)+(r.games?' · '+r.games+' 场':'')));
- if(r.description)body.appendChild(elem('div','augmentDesc',r.description));
+ body.appendChild(elem('div','augmentMeta','胜率 '+fmtPoints(r.winRate)+' · 选取 '+fmtPoints(r.pickRate)+(r.games?' · '+r.games+' 场':'')));
+ if(r.description)body.appendChild(disclosure(r.description,key));
  row.appendChild(body);host.appendChild(row);
 }
+if(activeTab==='augments')requestAssets(keys);
 }
 function render(){
 if(!snapshot)return;
 $('timer').textContent=Number(snapshot.timer)>0?snapshot.timer+'s':'--';
 $('dot').classList.toggle('on',!!snapshot.connected);
-$('statusText').textContent=snapshot.connected?'英雄选择中 · '+nice(snapshot.phase,''):'正在连接 LOL 选人会话';
-$('champTitle').textContent=nice(snapshot.name,snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
+$('status').classList.toggle('connected',!!snapshot.connected);
+$('statusText').textContent=snapshot.connected?'':'正在连接 LOL';
+$('champTitle').textContent=snapshot.initialPick?'选择英雄':nice(snapshot.name,snapshot.guide&&snapshot.guide.champion?snapshot.guide.champion:snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
 const b=snapshot.build,g=snapshot.guide;
-$('champHint').textContent=b?nice(b.mode,'当前模式')+' · '+nice(b.status,'等待推荐'):'等待选定英雄';
+const kind=snapshot.guideKind||'None';
+if(lastGuideKind!==kind){lastGuideKind=kind;manualTab=false;filter='all';
+ $('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.filter==='all'));}
+const mayhem=kind==='Mayhem';
+$('tabs').querySelector('[data-tab="augments"]').hidden=!mayhem;
+$('tabs').querySelector('[data-tab="build"]').textContent=mayhem?'出装技能':'符文出装';
+$('title').textContent=mayhem?'海斗助手':'对局助手';
+if(!manualTab||(!mayhem&&activeTab==='augments'))selectTab(mayhem?'augments':'build',false);
+$('champHint').textContent='';
 $('tier').textContent=b&&b.tier?b.tier+(b.rank?' · #'+b.rank:''):g&&g.tier?g.tier:'';
 const recent=snapshot.recent;
 $('recent').textContent=recent&&recent.games?
@@ -235,8 +338,8 @@ $('guideInfo').textContent=g?[
  nice(g.summary,''),g.skills?'加点：'+g.skills:'',
  g.core&&g.core.length?'核心装备：'+g.core.join('、'):''
 ].filter(Boolean).join('\n'):'';
-$('emptyGuide').textContent=snapshot.guideLoading?'正在获取海斗攻略…':nice(snapshot.guideError,'当前没有海斗强化数据');
-$('emptyGuide').style.display=g?'none':'block';
+$('emptyGuide').textContent=snapshot.guideLoading?'加载中…':nice(snapshot.guideError,'暂无强化数据');
+$('emptyGuide').style.display=g&&Array.isArray(g.augments)&&g.augments.length?'none':'block';
 renderAugments();
 const teams=$('teams');teams.replaceChildren();
 for(const p of snapshot.teams||[]){
@@ -248,10 +351,14 @@ if(!teams.childNodes.length)teams.textContent='等待队伍数据';
 if(window.chrome&&window.chrome.webview){
 window.chrome.webview.addEventListener('message',e=>{
 const m=e.data||{};
-if(m.type==='snapshot'){snapshot=m;render()}
+if(m.type==='snapshot'){
+ if(snapshot&&snapshot.championId!==m.championId){$('augmentSearch').value='';augmentLimit=20;openedDetails.clear();}
+ if(m.guideChanged===false&&snapshot&&snapshot.championId===m.championId)m.guide=snapshot.guide;
+ snapshot=m;assetGeneration=Number(m.assetGeneration)||0;render()
+}
 else if(m.type==='icon'){if(m.id&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){icons.set(m.id,m.value);if(snapshot)renderBench()}}
-else if(m.type==='assets-reset'){assetIcons.clear();if(snapshot){renderBuild();renderAugments()}}
-else if(m.type==='asset'){if(typeof m.key==='string'&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){assetIcons.set(m.key,m.value);if(snapshot){renderBuild();renderAugments()}}}
+else if(m.type==='assets-reset'){assetIcons.clear();requestedAssets.clear();assetGeneration=Number(m.generation)||0;}
+else if(m.type==='asset'){if((m.generation===undefined||m.generation===assetGeneration)&&typeof m.key==='string'&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){assetIcons.set(m.key,m.value);if(snapshot){renderBuild();renderAugments()}}}
 else if(m.type==='skin'){
  const values=[['--bg',m.background],['--panel',m.surface],['--tile',m.surfaceRaised],
   ['--text',m.text],['--soft',m.muted],['--cyan',m.accent],

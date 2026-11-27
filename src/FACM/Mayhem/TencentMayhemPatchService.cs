@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -7,6 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -60,27 +62,21 @@ namespace FACM.Mayhem
                 var ct = overall.Token;
                 var candidates = new List<string> { KnownFallbackArticle };
 
-                var indexHtml = await ReadSafeAsync(NewsIndexUrl, TimeSpan.FromSeconds(1.8), ct).ConfigureAwait(false);
+                var indexHtml = await CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                    ReadSafeAsync(NewsIndexUrl, TimeSpan.FromSeconds(1.8), ct), token).ConfigureAwait(false);
                 if (!string.IsNullOrWhiteSpace(indexHtml))
                     candidates.InsertRange(0, ExtractArticleUrls(indexHtml).Take(6));
                 candidates = candidates.Distinct(StringComparer.OrdinalIgnoreCase).Take(7).ToList();
 
                 var tasks = candidates.Select(async url =>
                 {
-                    var html = await ReadSafeAsync(url, TimeSpan.FromSeconds(2.4), ct).ConfigureAwait(false);
+                    var html = await CancelableHttpContentReader.AwaitOptionalSourceAsync(
+                        ReadSafeAsync(url, TimeSpan.FromSeconds(2.4), ct), token).ConfigureAwait(false);
                     return string.IsNullOrWhiteSpace(html) ? null : ParseArticle(html, url);
                 }).ToArray();
 
-                TencentMayhemPatchSnapshot[] snapshots;
-                try
-                {
-                    snapshots = await Task.WhenAll(tasks).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    if (token.IsCancellationRequested) throw;
-                    snapshots = new TencentMayhemPatchSnapshot[0];
-                }
+                var snapshots = await Task.WhenAll(tasks).ConfigureAwait(false);
+                token.ThrowIfCancellationRequested();
 
                 var latest = snapshots
                     .Where(item => item != null && !string.IsNullOrWhiteSpace(item.Patch))
@@ -198,26 +194,37 @@ namespace FACM.Mayhem
 
         private static async Task<string> ReadSafeAsync(string url, TimeSpan budget, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+            if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return null;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 timeout.CancelAfter(budget);
+                var watch = Stopwatch.StartNew();
                 try
                 {
                     using (var request = new HttpRequestMessage(HttpMethod.Get, url))
                     using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false))
                     {
-                        if (!response.IsSuccessStatusCode) return null;
-                        return await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            AppLog.Info("Tencent Mayhem patch source HTTP " + (int)response.StatusCode +
+                                "; ms=" + watch.ElapsedMilliseconds + "; url=" + url);
+                            return null;
+                        }
+                        var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);
+                        AppLog.Info("Tencent Mayhem patch source response; ms=" + watch.ElapsedMilliseconds + "; url=" + url);
+                        return text;
                     }
                 }
                 catch (OperationCanceledException)
                 {
+                    AppLog.Info("Tencent Mayhem patch source budget expired; ms=" + watch.ElapsedMilliseconds + "; url=" + url);
                     if (token.IsCancellationRequested) throw;
                     return null;
                 }
                 catch (Exception exception)
                 {
-                    AppLog.Info("Tencent Mayhem patch source skipped: " + exception.Message);
+                    AppLog.Info("Tencent Mayhem patch source skipped; ms=" + watch.ElapsedMilliseconds + "; " + exception.GetType().Name);
                     return null;
                 }
             }

@@ -182,10 +182,20 @@ namespace FACM.League
                     }
                 }
 
+                var mayhem = LeagueQueueModePolicy.IsAramMayhem(live.QueueId, live.GameMode);
+                // Mayhem uses augments instead of ordinary rune pages. Reject unsupported
+                // selections at the native write owner, including old UI and direct callers.
                 if (plan.HasRunes)
-                    await ApplyRunesAsync(plan, result, cancellationToken).ConfigureAwait(false);
+                {
+                    if (mayhem) result.RuneStatus = "mode-unavailable";
+                    else await ApplyRunesAsync(plan, result, cancellationToken).ConfigureAwait(false);
+                }
                 if (plan.HasSpells)
-                    await ApplySpellsAsync(plan, result, cancellationToken).ConfigureAwait(false);
+                {
+                    if (mayhem && (plan.Spell1Id == 3 || plan.Spell2Id == 3))
+                        result.SpellStatus = "mode-unavailable";
+                    else await ApplySpellsAsync(plan, result, cancellationToken).ConfigureAwait(false);
+                }
 
                 var allExpectedSucceeded = (!plan.HasRunes || result.RunesApplied) &&
                                            (!plan.HasSpells || result.SpellsApplied);

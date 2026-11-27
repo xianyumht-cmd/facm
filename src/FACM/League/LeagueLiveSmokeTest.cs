@@ -16,9 +16,11 @@ namespace FACM.League
             ValidateCurrentMayhemBenchShape();
             ValidateTeamBuilderFallback();
             ValidateBenchQuickPick();
+            ValidateSubsetCardAndBenchChoice();
             ValidatePollingBudget();
             ValidateCancellation();
             ValidateSgpLiveTeamEnrichment();
+            ValidateCurrentMayhemGuideContext();
             if (!LeagueLiveUiBridge.HasTrayAccessForSmokeTest())
                 throw new InvalidOperationException("League Live tray bridge lost MainForm tray access.");
         }
@@ -161,6 +163,110 @@ namespace FACM.League
             Require(LeagueBenchQuickPickText.DefaultsForSmokeTest().Count >= 10, "Bench quick-pick UI text defaults are incomplete.");
         }
 
+        private static void ValidateSubsetCardAndBenchChoice()
+        {
+            var api = new SubsetChoiceFixture();
+            var service = new LeagueBenchQuickPickService(
+                new LeagueLiveDataService(api, new PerformanceBudgetProvider()), api, api);
+            var initial = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(initial.IsInitialCardSelection && initial.LocalPickActionId == 0 &&
+                initial.DisplayChampionIds.SequenceEqual(new[] { 22, 55, 99, 88 }),
+                "The initial ARAM cards must precede the shared bench, including action ID zero.");
+            Require(initial.CanChoose(22) && initial.CanChoose(55) &&
+                !initial.CanChoose(99) && !initial.CanChoose(88),
+                "Card selection must intersect the current subset and pickable IDs.");
+            var blocked = service.TryChooseAsync(88, initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!blocked.Success && api.Picks == 0 && api.Swaps == 0,
+                "An early shared bench choice must not be written as a card pick.");
+            var picked = service.TryChooseAsync(55, initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(picked.Success && api.Picks == 1 && api.Swaps == 0 && api.LocalChampionId == 55,
+                "Initial hero choice must send exactly one local pick action and settle on the hero.");
+            var final = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!final.IsInitialCardSelection && final.CanChoose(88) && !final.CanChoose(55),
+                "Finalization must expose only available shared bench choices.");
+            var swapped = service.TryChooseAsync(88, final, CancellationToken.None).GetAwaiter().GetResult();
+            Require(swapped.Success && api.Picks == 1 && api.Swaps == 1 && api.LocalChampionId == 88,
+                "Finalization must use the separate bench write and verify the same draft.");
+
+            api.LocalChampionId = 0;
+            api.Phase = "BAN_PICK";
+            api.ActionId = 3;
+            var stale = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.ActionId = 4;
+            blocked = service.TryChooseAsync(22, stale, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!blocked.Success && api.Picks == 1 && api.Swaps == 1,
+                "A changed local pick action must reject the old click before writing.");
+            var changedDraft = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.GameId++;
+            blocked = service.TryChooseAsync(22, changedDraft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!blocked.Success && api.Picks == 1 && api.Swaps == 1,
+                "A new draft must reject the prior draft's action before writing.");
+            api.PickablePayload = "[22,\"invalid\"]";
+            var unknown = new LeagueBenchQuickPickService(
+                new LeagueLiveDataService(api, new PerformanceBudgetProvider()), api, api)
+                .RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!unknown.PickableKnown && !unknown.CanChoose(22),
+                "A malformed pickable list must not publish a partially writable card list.");
+            api.Phase = "GAME_STARTING";
+            var locked = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(!locked.CanChoose(88), "Game starting must disable every bench action.");
+        }
+
+        private sealed class SubsetChoiceFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi,
+            ILeagueChampSelectActionWriteApi
+        {
+            public int GameId = 100;
+            public int ActionId;
+            public int LocalChampionId;
+            public string Phase = "BAN_PICK";
+            public string PickablePayload = "[22,55,88]";
+            public int Picks;
+            public int Swaps;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.SubsetChampionListPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[22,55,99]"));
+                if (path == LeagueLiveDataService.PickableChampionIdsPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes(PickablePayload));
+                if (path != LeagueLiveDataService.ChampSelectSessionPath &&
+                    path != LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
+                    return Task.FromResult<byte[]>(null);
+                var json = "{\"gameId\":" + GameId + ",\"id\":\"draft-" + GameId +
+                    "\",\"queueId\":3270,\"localPlayerCellId\":1,\"benchEnabled\":true," +
+                    "\"allowSubsetChampionPicks\":true,\"isLegacyChampSelect\":false," +
+                    "\"timer\":{\"phase\":\"" + Phase + "\"},\"benchChampions\":[{\"championId\":88}]," +
+                    "\"myTeam\":[{\"cellId\":1,\"championId\":" + LocalChampionId + "}]," +
+                    "\"actions\":[[{\"id\":99,\"actorCellId\":2,\"type\":\"pick\",\"isInProgress\":true,\"completed\":false}," +
+                    "{\"id\":" + ActionId + ",\"actorCellId\":1,\"type\":\"pick\",\"isInProgress\":true,\"completed\":false}]]}";
+                return Task.FromResult(Encoding.UTF8.GetBytes(json));
+            }
+            public Task<LeagueClientWriteResponse> TryApplyAsync(string actionType, int actionId, int championId,
+                bool completed, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Require(actionType == "pick" && actionId == ActionId && completed && LocalChampionId == 0,
+                    "The manual card picker used a foreign or completed action.");
+                Picks++;
+                LocalChampionId = championId;
+                Phase = "FINALIZATION";
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+            public Task<LeagueClientWriteResponse> TryIntentAsync(int actionId, int championId, CancellationToken token)
+            {
+                throw new InvalidOperationException("The manual card picker must not send an intent-only write.");
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Require(Phase == "FINALIZATION" && route == LeagueBenchSwapRoute.TeamBuilder,
+                    "The bench writer used an unverified route or phase.");
+                Swaps++;
+                LocalChampionId = championId;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
         private static void ValidatePollingBudget()
         {
             Require(LeagueLivePolling.ResolveDelay(LeagueActivityLevel.ChampSelect, false) >= TimeSpan.FromSeconds(2), "Normal Champ Select live polling became too aggressive.");
@@ -276,10 +382,38 @@ namespace FACM.League
                 "Duplicate GSM team identities must be rejected.");
         }
 
+        private static void ValidateCurrentMayhemGuideContext()
+        {
+            var api = new SgpLiveFixtureApi { QueueId = 3270 };
+            var service = new LeagueLiveDataService(api, new PerformanceBudgetProvider());
+            var context = service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(context != null && context.GameId == 123456 &&
+                context.Players.Count(row => row.IsLocalPlayer) == 1 &&
+                context.Players.Single(row => row.IsLocalPlayer).ChampionId == 22,
+                "Current Mayhem guide must resolve the authenticated player without prior draft observation.");
+            api.QueueId = 450;
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Base ARAM must not be treated as Mayhem.");
+            api.QueueId = 2400;
+            api.Phase = "Lobby";
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Current Mayhem guide must require an active match.");
+            api.Phase = "InProgress";
+            api.Puuid = "missing-puuid";
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Missing owner must not fall back to another player's champion.");
+            api.Puuid = "local-puuid";
+            api.ChangeOwnerAfterGameRead = true;
+            Require(service.ReadCurrentMayhemContextAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Account replacement during gameflow read must reject current hero context.");
+        }
+
         private sealed class SgpLiveFixtureApi : ILeagueClientApi
         {
             internal string Puuid = "local-puuid";
             internal string Phase = "InProgress";
+            internal int QueueId = 420;
+            internal bool ChangeOwnerAfterGameRead;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -288,10 +422,13 @@ namespace FACM.League
                 if (path == LeagueDashboardDetailsService.SummonerPath)
                     return Task.FromResult(Encoding.UTF8.GetBytes("{\"puuid\":\"" + Puuid + "\"}"));
                 if (path == LeagueLiveDataService.GameflowSessionPath)
+                {
+                    if (ChangeOwnerAfterGameRead) Puuid = "switched-puuid";
                     return Task.FromResult(Encoding.UTF8.GetBytes(
-                        "{\"phase\":\"" + Phase + "\",\"gameData\":{\"gameId\":123456," +
+                        "{\"phase\":\"" + Phase + "\",\"gameData\":{\"gameId\":123456,\"queue\":{\"id\":" + QueueId + "}," +
                         "\"teamOne\":[{\"puuid\":\"local-puuid\",\"championId\":22}]," +
                         "\"teamTwo\":[{\"puuid\":\"enemy-puuid\",\"championId\":55}]}}"));
+                }
                 return Task.FromResult<byte[]>(null);
             }
         }

@@ -1,3 +1,71 @@
+## 2026-11-27 — EXE audit native signature verification
+
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Do not pin a stale initial COS object hash across revisions. Compare mainland reads against the current canonical HTTPS reference, and separately verify signed payload in the client. Do not overwrite newer accepted in-memory state with older/corrupt disk cache.
+
+Get-AuthenticodeSignature can report UnknownError for the existing release signer on a hosted Windows runner. Do not accept UnknownError alone. Invoke the existing SignatureInspector native trust check; require matching pinned thumbprint, version and manifest digest, and allow only the updater's explicit self-signed chain warnings. Keep the PowerShell status and native HRESULT in evidence.
+
+## 2026-11-27 — EXE audit harness correction
+
+On Windows runner, Get-Command curl.exe can return Windows and Git applications simultaneously. Select System32 curl explicitly or first application, preflight the selected executable, and capture nonzero native exit codes per route. Never interpret a harness failure as a network failure. Successful audit requires complete evidence and a verified package.
+
+## 2026-11-27 — Public asset policy and EXE route audit
+
+Globalping Range requests may return redirect, ignored range, truncated body or API error; a 206 Content-Range is entry evidence only, not full integrity or throughput. Windows runner results are not mainland network evidence. Do not execute packages during mirror measurement.
+
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Fast JSON is not evidence of fast EXE delivery. Disabled source policies suppress managed fetches, not valid cached data. Direct fetchers not yet integrated remain outside policy scope.
+
+## 2026-11-27 — Signed cloud policy expansion
+
+Do not treat a signed cloud switch as permission to start gameplay automation, or let optional public source policy redirect authenticated traffic. An announcement committed by GITHUB_TOKEN does not itself trigger downstream push workflows. Use explicit reusable publication and increment revision on every content change; current client supports an older signed cache when unavailable.
+
+## 2026-11-27 — Signed COS route client
+
+Never treat an unsigned COS response as configuration authority; do not re-merge built-ins after accepting a signed route list, or discard the accepted revision on transient failure. A fresh client without cached revision cannot prove the newest revision independently. Certificate rotation needs an explicit migration.
+
+## 2026-11-27 — Public endpoint measurement pitfalls
+
+A successful parallel fetch must survive an unrelated optional source timeout; caller cancellation still wins. HTTP 200 alone does not prove a usable ranking or update manifest. A cloud fetch, GitHub runner or DNS lookup is not mainland operator latency evidence. Never choose public proxy routes for authenticated LCU/SGP/CloudBase requests or bypass update integrity checks.
+
+## 2026-11-27 — Key timeline review
+
+A short kill cluster is not verified teamfight evidence. Use observed timestamps, never fabricate missing checkpoint data or infer unknown objective ownership; do not derive review from truncated raw event list.
+
+## 2026-11-27 — Selected match review summary
+
+Avoid treating missing numeric fields as zero or presenting incomplete-team shares as confirmed. Never infer a target from another roster entry; Arena placement is not a five-player lane metric.
+
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Do not mix queues, count remakes as losses, or infer trends from fewer than ten dated valid games. A champion row is a loaded sample, not a lifetime ranking.
+
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+An HTTP reconnect response or an InProgress phase does not establish playable game recovery. Record the observed phase separately from submission; lost observation and replaced session must not be labeled recovered.
+
+## 2026-11-27 — Disconnect and history bounds
+
+A disconnected phase is not proof that a draft ended. Preserve manual dismissal over a short process-backed disconnect; suspend the writable popup and only reopen on confirmed draft recovery. Never identify the current hero from stale draft state or an arbitrary roster row. Do not present page size as all-time match count; keep source offset separate from unique ID count and exclude unknown outcomes from hero statistics. Cloud toggle rejection must publish authoritative checkbox state instead of leaving controls stuck.
+
+## 2026-11-27 — Contextual interaction pitfalls
+
+Avoid relocating fixed home buttons as gameflow changes; change only the explicit contextual shortcut. Do not confuse enabled automation with executed automation. Never convert 64-bit match IDs to JavaScript numbers, overwrite unsaved hotkeys on state sync, or unlock recommendation writes from checkbox events while busy. Optional artwork timeout is not a guide-data failure. A connected lobby is not an active match eligible for SGP enrichment. Legacy tray AddLeagueAction is a no-op and does not establish an accessible in-game guide.
+
+## 2026-11-27 — Selection contracts and ranked-data truncation
+
+An initial hero card is not a bench swap. Validate the actual local action (including ID zero), current draft, phase, pickable list and current hero; stale/unavailable actions must not write. Never enable choices from an incomplete synthetic live summary. Truncating a mixed-rarity array before filtering silently removes rarer entries; verify with a fixture whose late rows are silver/prismatic. The normalized value 0.5 percentage points is 0.5%, not 50%. Use stable index keys for thumbnail rows whose source ID may be missing or duplicated, and reject stale generations. Keep Windows build/browser fixture evidence distinct from real Tencent gameplay verification.
+
+## 2026-11-27 — Game rules before layout
+
+A horizontally scrolling bench (and a four-item native page) hid selectable heroes in a time-critical draft. Pinned League Akari 1.5.1 [BenchChampionsMini.vue](https://github.com/LeagueAkari/LeagueAkari/blob/14557723706ccc0e0a9d62c470141d4cb7190fcd/src/renderer/src-aux-window/components/BenchChampionsMini.vue) uses five columns and pads to ten positions; ten is the expected layout, not a proven universal LCU maximum. Preserve surviving slot positions, disable empty/unavailable slots, and verify every normal slot is visible without scrolling. Do not confuse initial subset card selection (unfinished local pick action) with later bench swaps. Mayhem disables standard runes and Exhaust; UI hiding alone is not a native write guard. A rarity filter after a global top-12 truncation does not prove category coverage. Inspect real game rules, phase, mode, cardinality, write eligibility and actual viewport before implementing controls. Remove redundant descriptions, not meaningful failure or operation outcomes.
+
+## 2026-11-27 — Distinguish security block, LCU timeout and companion layout
+
+A 3.5.89 incident showed a security-product file-access block followed by successful tool-bundle loading and repeated LCU invalidation near the HTTP timeout. This does not establish the final network cause. Process fallback can hide the desktop entry without a connected LCU. Capture phase outcome and companion presentation evidence separately. The 360×442 WebView2 companion previously stacked the complete build ahead of augments; test first-viewport access, not just DOM element presence.
+
 ## 2026-11-23 — Update close must not be hidden or blocked at multiple layers
 
 The forced-update presentation combined a CSS rule hiding `body[data-force-update="true"] .header .close`, a JavaScript forced-action allowlist excluding `close`, and a host `CanDismiss` rule denying exit during a download. Merely rendering the X or changing one layer leaves the apparent close action broken. The fix is to keep the X visible, accept the close message through the forced-action allowlist, map forced close to application exit (never bypass `RequiresForce`), and map non-forced download close to cancellation followed by a lifecycle-settled hide. The online adapter must clear its install-busy flag even if its cancellation token was detached by navigation. Test UI, bridge, cancel/settle callbacks and host closing together.

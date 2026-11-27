@@ -1,6 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Win32;
+using FACM.League;
+using FACM.Mayhem;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -52,14 +59,16 @@ namespace FACM.Services
                 RuntimePaths.LogsDirectory,
                 RuntimePaths.DiagnosticsDirectory,
                 DateTime.Now,
-                ResolveAppVersion());
+                ResolveAppVersion(),
+                CaptureHealth());
         }
 
         internal static DiagnosticsExportReceipt Export(
             string logsDirectory,
             string outputDirectory,
             DateTime localNow,
-            string appVersion)
+            string appVersion,
+            string health = null)
         {
             if (string.IsNullOrWhiteSpace(logsDirectory)) throw new ArgumentException("Logs directory is required.", nameof(logsDirectory));
             if (string.IsNullOrWhiteSpace(outputDirectory)) throw new ArgumentException("Diagnostics output directory is required.", nameof(outputDirectory));
@@ -105,7 +114,8 @@ namespace FACM.Services
                 }
             }
 
-            var summary = BuildSummary(localNow, appVersion, selectedLogs.Count, skipped, totalInput);
+            var summary = BuildSummary(localNow, appVersion, selectedLogs.Count, skipped, totalInput) +
+                (health ?? "HealthProbe=not_run" + Environment.NewLine);
             if (summary.Length > MaxSummaryChars)
                 summary = summary.Substring(0, MaxSummaryChars - 24) + Environment.NewLine + "[summary-truncated]";
 
@@ -174,6 +184,122 @@ namespace FACM.Services
             safe = WindowsPathRegex.Replace(safe, "[path]");
             safe = UncPathRegex.Replace(safe, "[path]");
             return safe;
+        }
+
+        private static string CaptureHealth()
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine("HealthSchema=1");
+            builder.Append("HealthCapturedUtc=").AppendLine(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
+            try
+            {
+                using (var process = Process.GetCurrentProcess())
+                {
+                    builder.Append("WorkingSetBytes=").AppendLine(process.WorkingSet64.ToString(CultureInfo.InvariantCulture));
+                    builder.Append("PrivateMemoryBytes=").AppendLine(process.PrivateMemorySize64.ToString(CultureInfo.InvariantCulture));
+                    builder.Append("ThreadCount=").AppendLine(process.Threads.Count.ToString(CultureInfo.InvariantCulture));
+                    builder.Append("TotalCpuMs=").AppendLine(((long)process.TotalProcessorTime.TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch (Exception exception)
+            {
+                builder.Append("ProcessMetrics=unavailable_").AppendLine(exception.GetType().Name);
+            }
+            builder.Append("ToolBundleIntegrity=").AppendLine(ToolBundleLoader.InspectIntegrity());
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Internet Settings"))
+                {
+                    builder.Append("UserProxyEnabled=").AppendLine((key != null && Convert.ToInt32(key.GetValue("ProxyEnable", 0)) != 0).ToString());
+                    builder.Append("UserProxyPacPresent=").AppendLine((key != null && !string.IsNullOrWhiteSpace(key.GetValue("AutoConfigURL") as string)).ToString());
+                }
+            }
+            catch (Exception exception)
+            {
+                builder.Append("UserProxySettings=unavailable_").AppendLine(exception.GetType().Name);
+            }
+            builder.AppendLine("LCUProbeTransport=direct_loopback");
+            builder.AppendLine("LCUProbeDiscovery=process_lockfile_only");
+            var watch = Stopwatch.StartNew();
+            try { CaptureLcuHealthAsync(builder).GetAwaiter().GetResult(); }
+            finally { builder.Append("LCUProbeElapsedMs=").AppendLine(watch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)); }
+            return builder.ToString();
+        }
+
+        private static async Task CaptureLcuHealthAsync(StringBuilder builder)
+        {
+            try
+            {
+                var clientDetected = LeagueDashboardPhaseService.IsAnyProcessRunning(
+                    new[] { "LeagueClientUx", "LeagueClient" });
+                builder.Append("LCUClientProcessDetected=").AppendLine(clientDetected.ToString());
+                builder.Append("LeagueGameProcessDetected=").AppendLine(LeagueDashboardPhaseService.IsAnyProcessRunning(
+                    new[] { "League of Legends" }).ToString());
+                if (!clientDetected)
+                {
+                    builder.AppendLine("LCUProbe=client_not_running");
+                    return;
+                }
+
+                // This export probe is narrower than runtime discovery: no WMI or external request.
+                var session = new ProcessLockfileLeagueClientSessionDiscovery().TryDiscover();
+                if (session == null)
+                {
+                    builder.AppendLine("LCUProbe=lockfile_not_resolved");
+                    return;
+                }
+                using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
+                using (var pool = new LeagueSessionHttpClientPool(TimeSpan.FromMilliseconds(2500)))
+                using (var lease = pool.Acquire(session))
+                using (var response = await lease.Client.GetAsync(LeagueDashboardPhaseService.PhasePath,
+                    HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                {
+                    builder.Append("LCUProbeHttpStatus=").AppendLine(((int)response.StatusCode).ToString(CultureInfo.InvariantCulture));
+                    if (!response.IsSuccessStatusCode)
+                        builder.AppendLine("LCUProbe=http_error");
+                    else
+                    {
+                        var body = await CancelableHttpContentReader.ReadStringAsync(response.Content, deadline.Token, 1024)
+                            .ConfigureAwait(false);
+                        var phase = ClassifyProbePhase(body);
+                        builder.Append("LCUProbe=").AppendLine(phase == "unknown" ? "unexpected_phase" : "ok");
+                        builder.Append("LCUProbePhase=").AppendLine(phase);
+                    }
+                }
+            }
+            catch (OperationCanceledException) { builder.AppendLine("LCUProbe=timeout"); }
+            catch (HttpRequestException exception)
+            {
+                builder.Append("LCUProbe=http_request_error");
+                var web = exception.InnerException as System.Net.WebException;
+                if (web != null) builder.Append("_").Append(web.Status);
+                builder.AppendLine();
+            }
+            catch (Exception exception)
+            {
+                builder.Append("LCUProbe=error_").AppendLine(exception.GetType().Name);
+            }
+        }
+
+        internal static string ClassifyProbePhase(string body)
+        {
+            var phase = (body ?? string.Empty).Trim();
+            switch (phase)
+            {
+                case "\"None\"": return "None";
+                case "\"Lobby\"": return "Lobby";
+                case "\"Matchmaking\"": return "Matchmaking";
+                case "\"ReadyCheck\"": return "ReadyCheck";
+                case "\"ChampSelect\"": return "ChampSelect";
+                case "\"GameStart\"": return "GameStart";
+                case "\"InProgress\"": return "InProgress";
+                case "\"Reconnect\"": return "Reconnect";
+                case "\"WaitingForStats\"": return "WaitingForStats";
+                case "\"PreEndOfGame\"": return "PreEndOfGame";
+                case "\"EndOfGame\"": return "EndOfGame";
+                case "\"TerminatedInError\"": return "TerminatedInError";
+                default: return "unknown";
+            }
         }
 
         private static string BuildSummary(DateTime localNow, string appVersion, int included, int skipped, long inputBytes)
@@ -248,7 +374,11 @@ namespace FACM.Services
                 File.WriteAllText(Path.Combine(logs, "compact-20260903.log"),
                     "trace=a12345678912 component=aram step=query outcome=failed_Timeout ms=3000\r\n",
                     new UTF8Encoding(false));
-                var receipt = Export(logs, output, now, "3.5.19-smoke");
+                if (ClassifyProbePhase("\"ChampSelect\"") != "ChampSelect" ||
+                    ClassifyProbePhase("\"private-account-data\"") != "unknown")
+                    throw new InvalidOperationException("Diagnostics phase probe must classify only known phases.");
+                var receipt = Export(logs, output, now, "3.5.19-smoke",
+                    "HealthSchema=1\r\nLCUProbe=timeout\r\nToolBundleIntegrity=hash_match\r\n");
                 if (!File.Exists(receipt.BundlePath) || receipt.LogFilesIncluded != 4 || receipt.LogFilesSkipped != 0)
                     throw new InvalidOperationException("Diagnostics export smoke receipt is invalid.");
                 if (receipt.BundleBytes <= 0 || receipt.BundleBytes > MaxBundleBytes)
@@ -280,6 +410,9 @@ namespace FACM.Services
                         throw new InvalidOperationException("Diagnostics export lost an expected allowlisted entry.");
 
                     var exported = allText.ToString();
+                    if (!exported.Contains("HealthSchema=1") || !exported.Contains("LCUProbe=timeout") ||
+                        !exported.Contains("ToolBundleIntegrity=hash_match"))
+                        throw new InvalidOperationException("Diagnostics export lost the health snapshot.");
                     if (exported.IndexOf("abc.def.123", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         exported.IndexOf("super-secret", StringComparison.OrdinalIgnoreCase) >= 0 ||
                         exported.IndexOf("older-secret", StringComparison.OrdinalIgnoreCase) >= 0 ||

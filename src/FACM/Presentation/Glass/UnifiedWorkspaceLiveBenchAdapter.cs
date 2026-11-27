@@ -23,6 +23,7 @@ namespace FACM.Presentation.Glass
         private CancellationTokenSource _liveBenchSwap;
         private int _liveBenchGeneration;
         private LeagueClientSession _liveBenchSession;
+        private LeagueBenchQuickPickState _liveBenchState;
         private HashSet<int> _liveBenchChoices = new HashSet<int>();
         private bool _liveBenchSwapping;
 
@@ -62,11 +63,12 @@ namespace FACM.Presentation.Glass
                     return;
                 }
                 var ids = state == null || !state.SessionAvailable || !state.BenchEnabled
-                    ? new int[0] : state.ChampionIds.Where(id => id > 0 && id <= 10000)
-                        .Distinct().Take(32).ToArray();
+                    ? new int[0] : state.DisplayChampionIds.Where(id => id > 0 && id <= 10000).ToArray();
                 _liveBenchSession = state != null && state.SessionAvailable && state.BenchEnabled
                     ? session : null;
-                _liveBenchChoices = new HashSet<int>(ids);
+                _liveBenchState = state;
+                var selectable = state == null ? new int[0] : ids.Where(state.CanChoose).ToArray();
+                _liveBenchChoices = new HashSet<int>(selectable);
                 _publish(new JavaScriptSerializer().Serialize(new
                 {
                     type = "bench-state",
@@ -76,12 +78,14 @@ namespace FACM.Presentation.Glass
                     phase = state == null ? null : state.TimerPhase,
                     queue = state == null ? 0 : state.QueueId,
                     mode = state == null ? null : state.GameMode,
-                    championIds = ids
+                    championIds = ids,
+                    selectable,
+                    initialPick = state != null && state.IsInitialCardSelection
                 }));
 
                 // Native LCU icon cache only, no WebView browser fetch; images are
                 // bounded, optional and never block showing the selectable champions.
-                foreach (var championId in ids.Take(16))
+                foreach (var championId in ids.Take(32))
                 {
                     if (!LiveBenchCurrent(module, session, source, generation))
                     {
@@ -180,7 +184,7 @@ namespace FACM.Presentation.Glass
             {
                 // One explicit click produces one native POST, followed by its
                 // bounded verification; there is no browser-side auto retry.
-                var outcome = await module.UnifiedBenchQuickPick.TrySwapAsync(championId, source.Token);
+                var outcome = await module.UnifiedBenchQuickPick.TryChooseAsync(championId, _liveBenchState, source.Token);
                 if (!_canPublish() || source.IsCancellationRequested ||
                     !ReferenceEquals(source, _liveBenchSwap) ||
                     !ReferenceEquals(module, _owner()) || generation != _liveBenchGeneration)
@@ -235,6 +239,7 @@ namespace FACM.Presentation.Glass
         {
             _liveBenchGeneration++;
             _liveBenchSession = null;
+            _liveBenchState = null;
             _liveBenchChoices.Clear();
             _liveBenchSwapping = false;
             var read = _liveBenchRead;

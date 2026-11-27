@@ -137,28 +137,78 @@ if (-not $companion.Contains('shell-ready') -or -not $companion.Contains('swap:'
 $companionMock = @'
 <script>
 window.chrome={webview:{
-  postMessage:function(){},
+  postMessage:function(value){(window.__companionCommands||(window.__companionCommands=[])).push(value);},
   addEventListener:function(kind,cb){if(kind==='message')window.__companionReceive=cb;}
 }};
 </script>
 '@
 $companionProbe = @'
 <script>
-var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'BAN_PICK',
-  bench:true,choices:[22,99],teams:[],build:{
+var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'FINALIZATION',
+  bench:true,benchSurface:true,guideKind:'Mayhem',allowsRunes:false,canApply:true,
+  choices:[99,81,51,12,15,1,2,3,4,5],selectable:[99,81,51,12,15,1,2,3,4,5],
+  initialPick:false,choiceRevision:2,teams:[],build:{
     status:'ready',source:'local-test',mode:'ARAM',tier:'S',rows:[
       {category:'runes',title:'Rune fixture',evidence:'local'},
       {category:'core',title:'Build fixture',evidence:'local'}]},
   guide:{champion:'Ashe',tier:'S',winRate:0.52,core:['A','B'],augments:[
-    {id:'fixture',name:'Augment fixture',rank:1,rarity:'gold',winRate:0.54}]}};
+    {id:'fixture',assetKey:'augment:0',name:'Augment fixture',rank:1,rarity:'gold',winRate:54,pickRate:0.5}]}};
 window.__companionReceive({data:sample});
 window.__companionReceive({data:{type:'skin',id:'cloud-light',light:true,
  background:'#F4F7FD',surface:'#FFFFFF',surfaceRaised:'#EBF2FF',
  text:'#1A2743',muted:'#667797',accent:'#4E7EFF',border:'#D3DCEE',warning:'#EA8B39'}});
-window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
+window.__companionReceive({data:{type:'asset',key:'augment:0',value:
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
-var pass=document.querySelectorAll('#bench button').length===2 &&
- document.querySelectorAll('#recommend .rec').length===2 &&
+var slots=Array.from(document.querySelectorAll('#bench button'));
+var gridPass=slots.length===10 && slots[0].offsetTop===slots[4].offsetTop &&
+ slots[5].offsetTop===slots[9].offsetTop && slots[5].offsetTop>slots[0].offsetTop &&
+ slots.every(x=>x.getBoundingClientRect().right<=document.querySelector('#content').getBoundingClientRect().right) &&
+ slots[9].getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
+window.__companionReceive({data:Object.assign({},sample,{choices:[]})});
+var emptyPass=document.querySelectorAll('#bench button').length===10 &&
+ Array.from(document.querySelectorAll('#bench button')).every(x=>x.disabled);
+window.__companionReceive({data:Object.assign({},sample,{choices:[99,81],selectable:[99,81]})});
+var partialPass=document.querySelectorAll('#bench button').length===10 &&
+ document.querySelectorAll('#bench button:not([disabled])').length===2;
+window.__companionReceive({data:Object.assign({},sample,{phase:'BAN_PICK',championId:0,name:'',build:null,guide:null,
+ initialPick:true,choiceRevision:3,choices:[22,55,99,88],selectable:[22,55],canApply:false})});
+var cardPass=document.querySelector('#champTitle').textContent==='选择英雄' &&
+ document.querySelectorAll('#bench button:not([disabled])').length===2 &&
+ document.querySelector('[data-champion-id="88"]').disabled;
+document.querySelector('[data-champion-id="22"]').click();
+document.querySelector('[data-champion-id="88"]').click();
+cardPass=cardPass&&window.__companionCommands.includes('pick:22:3')&&
+ !window.__companionCommands.includes('pick:88:3');
+window.__companionReceive({data:Object.assign({},sample,{guideKind:'None',bench:false,benchSurface:false,choices:[],allowsRunes:true,guide:null})});
+var normalPass=document.querySelector('#benchSection').hidden &&
+ document.querySelector('[data-tab="augments"]').hidden && !document.querySelector('#runes').hidden;
+window.__companionReceive({data:sample});
+document.querySelector('[data-champion-id="99"]').click();
+var swapPass=window.__companionCommands.includes('swap:99:2');
+var extra=Array.from({length:26},(_,i)=>({id:'id'+i,assetKey:'augment:'+i,name:'Augment '+i,rank:i+1,rarity:i<24?'gold':'silver',winRate:54,pickRate:0.5}));
+window.__companionReceive({data:Object.assign({},sample,{guide:Object.assign({},sample.guide,{augments:extra})})});
+var morePass=!document.querySelector('#augmentMore').hidden&&document.querySelectorAll('#augments .augment').length===20;
+document.querySelector('[data-filter="silver"]').click();
+var filterPass=document.querySelectorAll('#augments .augment').length===2&&document.querySelector('#augments').textContent.includes('0.5%');
+var search=document.querySelector('#augmentSearch');search.value='25';search.dispatchEvent(new Event('input'));
+var searchPass=document.querySelectorAll('#augments .augment').length===1&&document.querySelector('#augments').textContent.includes('Augment 25');
+search.value='';search.dispatchEvent(new Event('input'));document.querySelector('[data-filter="all"]').click();
+window.__companionReceive({data:sample});
+var firstRow=document.querySelector('#augments .augment');
+var defaultVisible=!document.querySelector('#augmentSection').hidden &&
+ document.querySelector('#buildSection').hidden && firstRow &&
+ firstRow.getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom &&
+ document.querySelector('#status').classList.contains('connected');
+document.querySelector('[data-tab="build"]').click();
+window.__companionReceive({data:sample});
+var explicitTabKept=!document.querySelector('#buildSection').hidden &&
+ document.querySelector('#augmentSection').hidden &&
+ document.querySelector('#runes').hidden &&
+ document.querySelector('#items').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
+document.querySelector('[data-tab="augments"]').click();
+var pass=morePass && filterPass && searchPass && gridPass && emptyPass && partialPass && cardPass && swapPass && normalPass && defaultVisible && explicitTabKept &&
+ document.querySelectorAll('#bench button').length===10 &&
+ document.querySelectorAll('#recommend .rec').length===1 &&
  document.querySelectorAll('#augments .augment').length===1 &&
  document.querySelectorAll('#augmentFilters button').length===4 &&
  document.querySelector('#timer').textContent==='14s' &&
@@ -204,7 +254,7 @@ Write-Host 'Champion Select WebView2 overlay HTML fixture rendered.'
 $skinMock = @'
 <script>
 window.chrome={webview:{
-  postMessage:function(){},
+  postMessage:function(value){(window.__sceneCommands||(window.__sceneCommands=[])).push(value);},
   addEventListener:function(kind,cb){if(kind==='message')window.__skinReceive=cb;}
 }};
 </script>
@@ -223,6 +273,93 @@ var pass=document.body.dataset.mode==='home' &&
  actual.getPropertyValue('--accent').trim().toLowerCase()===palette.accent.toLowerCase() &&
  document.querySelectorAll('#themeList .theme-card.selected').length===1 &&
  document.getElementById('themeResult').textContent.indexOf('当前皮肤：')===0;
+var sendFixture=function(data){window.__skinReceive({data:data});};
+var tiles=Array.from(document.querySelectorAll('#home .tile')).map(x=>x.dataset.route).join(',');
+var scenePass=tiles==='live,player,mayhem,efficiency';
+var cases=[['Lobby','matchmaking-settings'],['Matchmaking','efficiency'],['ReadyCheck','efficiency'],
+ ['ChampSelect','recommendation'],['InProgress','live'],['EndOfGame','player']];
+cases.forEach(function(pair){
+ sendFixture({type:'status',connected:true,phase:pair[0]});
+ scenePass=scenePass&&document.querySelector('#sceneShortcut').dataset.route===pair[1]&&
+  Array.from(document.querySelectorAll('#home .tile')).map(x=>x.dataset.route).join(',')===tiles;
+});
+sendFixture({type:'status',connected:false,observed:true,clientProcess:true,gameProcess:false});
+scenePass=scenePass&&document.querySelector('#sceneShortcut').dataset.route==='repair';
+sendFixture('detail:efficiency');
+sendFixture({type:'quick-tools',values:{autoSearch:true,autoAccept:true,autoReconnect:false,autoHonor:false,autoReturn:false},exitHotkey:'Ctrl+F8',lobbyHotkey:'Ctrl+F9'});
+var hotkey=document.querySelector('#exitGameHotkey');
+hotkey.dispatchEvent(new KeyboardEvent('keydown',{key:'F7',code:'F7',ctrlKey:true,bubbles:true,cancelable:true}));
+sendFixture({type:'quick-tools',values:{autoSearch:true,autoAccept:true},exitHotkey:'Ctrl+F8',lobbyHotkey:'Ctrl+F9'});
+var keysPass=hotkey.value==='Ctrl+F7';
+sendFixture({type:'status',connected:true,phase:'ReadyCheck'});
+var automationPass=document.querySelector('[data-phase-note="autoSearch"]').textContent==='等待组队大厅'&&
+ document.querySelector('[data-phase-note="autoAccept"]').textContent==='当前阶段 · 等待条件';
+sendFixture('detail:player');
+var gameId='9007199254740993';
+sendFixture({type:'history-details',name:'Fixture',level:30,analysis:[{queue:420,mode:'CLASSIC',wins:6,losses:4,recentFive:80,previousFive:40,champions:[{id:22,name:'Ashe',games:6,wins:4,kda:3.2}]},{queue:450,mode:'ARAM',wins:1,losses:0,champions:[]}],rows:[{gameId:gameId,champion:'Ashe',outcome:'win',kills:3,deaths:2,assists:8}]});
+var analysisPass=!document.querySelector('#historyAnalysis').hidden&&document.querySelector('#historyAnalysisRate').textContent==='60%'&&document.querySelector('#historyAnalysisTrend').textContent.includes('80%')&&document.querySelector('#historyAnalysisHeroes').textContent.includes('Ashe');
+var queue=document.querySelector('#historyAnalysisQueue');queue.value='1';queue.dispatchEvent(new Event('change'));analysisPass=analysisPass&&document.querySelector('#historyAnalysisRate').textContent==='100%'&&document.querySelector('#historyAnalysisTrend').textContent.includes('不足10场');
+document.querySelector('[data-recent-game-id]').click();
+var historyPass=analysisPass&&window.__sceneCommands.includes('history-open-detail:'+gameId);
+sendFixture('detail:player-advanced');
+sendFixture({type:'history-advanced-list',name:'Fixture',rows:[{id:gameId,champion:'Ashe',outcome:'win',queue:450}]});
+sendFixture({type:'history-select-local',id:gameId});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryDetail').hidden&&
+ document.querySelector('#advancedHistoryDetailTitle').textContent.includes(gameId)&&
+ !document.querySelector('#advancedHistoryPage details.history-extra').open;
+sendFixture({type:'history-advanced-detail',id:gameId,status:'Ready',mode:'CLASSIC',queue:420,duration:1200,review:{champion:'Ashe',outcome:'win',kills:4,deaths:2,assists:8,kda:6,damage:15000,damageShare:0.3,participation:0.6,csPerMinute:7,vision:null,dragons:2},players:[],teams:[]});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidden&&
+ document.querySelector('#advancedReviewMetrics').textContent.includes('30.0%')&&
+ document.querySelector('#advancedReviewMetrics').textContent.includes('每分钟补刀')&&
+ !document.querySelector('#advancedReviewMetrics').textContent.includes('视野得分')&&
+ document.querySelector('#advancedReviewObjectives').textContent.includes('小龙 2');
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'ready',review:{deaths:1,takedowns:2,objectives:1,clusters:1,nodeCount:3,checkpoints:[{time:600000,gold:4000,cs:80}],nodes:[{time:600000,kind:'death',value:''},{time:610000,kind:'DRAGON',value:'enemy'},{time:620000,kind:'cluster',value:'3'}]},frames:[],events:[]});
+historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidden&&
+ document.querySelector('#advancedTimelineCheckpoints').textContent.includes('10:00 · 经济 4000')&&
+ document.querySelector('#advancedTimelineKeyEvents').textContent.includes('敌方取得')&&
+ document.querySelector('#advancedTimelineKeyEvents').textContent.includes('30秒内 3 次击杀');
+sendFixture({type:'history-advanced-timeline',id:'123',status:'unavailable'});
+historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidden;
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'maintenance'});
+historyPass=historyPass&&document.querySelector('#advancedTimelineStatus').textContent.includes('维护');
+sendFixture({type:'history-advanced-radar',id:gameId,status:'maintenance'});
+historyPass=historyPass&&document.querySelector('#advancedRadarStatus').textContent.includes('维护');
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'unavailable'});
+historyPass=historyPass&&document.querySelector('#advancedTimelineReview').hidden;
+sendFixture({type:'history-advanced-detail',id:'123',status:'Unavailable'});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidden;
+sendFixture({type:'history-advanced-detail',id:gameId,status:'Unavailable'});
+historyPass=historyPass&&document.querySelector('#advancedHistoryReview').hidden&&
+ !document.querySelector('#advancedReviewMetrics').textContent;
+var extended=Array.from({length:30},(_,i)=>({id:String(100+i),champion:'Ashe',championId:22,outcome:i===29?'unknown':i%2?'win':'loss',queue:450,kills:4,deaths:2,assists:6}));
+sendFixture({type:'history-advanced-list',name:'Fixture',rows:extended,hasMore:true});
+historyPass=historyPass&&document.querySelectorAll('#advancedHistoryRows [data-advanced-game-id]').length===30&&
+ document.querySelector('#historyChampionStatsRows').textContent.includes('29 场')&&
+ !document.querySelector('#advancedHistoryMore').hidden;
+document.querySelector('#advancedHistoryMore').click();
+historyPass=historyPass&&window.__sceneCommands.includes('history-advanced-more');
+sendFixture('detail:mayhem');
+sendFixture({type:'status',connected:true,phase:'InProgress'});
+var currentGuide=document.querySelector('#mayhemCurrent');
+var guidePass=!currentGuide.disabled;
+currentGuide.click();guidePass=guidePass&&currentGuide.disabled&&window.__sceneCommands.includes('mayhem-current');
+sendFixture({type:'mayhem-failed',status:'current-unavailable'});
+guidePass=guidePass&&!currentGuide.disabled;
+sendFixture({type:'status',connected:true,phase:'Lobby'});
+guidePass=guidePass&&currentGuide.disabled;
+sendFixture('detail:recommendation');
+sendFixture({type:'status',connected:true,phase:'ChampSelect'});
+sendFixture({type:'recommendation-details',status:'ready',canApply:true,allowsRunes:true,rows:[{category:'runes',title:'Fixture',evidence:'Fixture evidence'}]});
+var apply=document.querySelector('#recommendationApply');
+var recommendationPass=!apply.disabled&&apply.getBoundingClientRect().top<document.querySelector('#recommendationRows').getBoundingClientRect().top;
+apply.click();document.querySelector('#applyItems').dispatchEvent(new Event('change'));
+recommendationPass=recommendationPass&&apply.disabled;
+sendFixture({type:'recommendation-result',status:'failed'});
+recommendationPass=recommendationPass&&!apply.disabled;
+sendFixture({type:'status',connected:true,phase:'InProgress'});
+recommendationPass=recommendationPass&&apply.disabled;
+sendFixture('home');
+pass=pass&&scenePass&&keysPass&&automationPass&&historyPass&&recommendationPass&&guidePass;
 var marker=document.createElement('span');
 marker.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
  (pass?'#00ff00':'#ff0000');

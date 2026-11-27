@@ -1,3 +1,75 @@
+## 2026-11-27 — EXE audit native signature verification
+
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+After exact-head gates pass, merge PR #368 containing `release/3.5-request.json` (3.5.90) to trigger the existing production publisher and signed COS publisher. Verify public release bytes, signer, enabled manifest and anonymous COS readback. The owner waives personal installation/gameplay acceptance only. Mainland probe now obtains current HTTPS reference at runtime; unavailable reference is explicitly labeled. Do not interpret matching transport bytes as signature verification.
+
+Full-package audit now compiles the existing SignatureInspector source in the Windows PowerShell process and calls only its native verifier; no downloaded package is executed or installed. It logs native_trust alongside PowerShell status. Prior complete transfers: direct 0.268 s, gh-proxy 0.334 s, ghfast 1.106 s, ghproxy-net 20.669 s, gh-dpik 21.386 s; cors-isteed HTTP 429. These are hosted-runner results, not mainland throughput. Mainland Range medians and complete-transfer evidence must remain separate.
+
+## 2026-11-27 — EXE audit harness correction
+
+EXE audit now prints the single selected curl executable/version, records native failures per route, validates row count and requires a verified package. Previous mainland entry audit 46006055285 yielded 36 attempts; full-package job never reached a download. Re-run before ranking full-package routes.
+
+## 2026-11-27 — Public asset policy and EXE route audit
+
+GGman EXE Route Audit checks five configured mirrors and GitHub direct against the checked-out official manifest. Mainland probes request bytes 0–1023 and validate TLS/status/range headers; the Windows hosted job downloads bounded files, checks SHA-256, expected release signer and version, deletes files, and exports CSV. For real full-transfer mainland evidence run scripts/Test-PackageRoutes.ps1 -NetworkLabel China-Telecom -Rounds 2 on that network (repeat for Unicom/Mobile). The script does not execute downloads. Review results before changing cloud priorities; signed config candidate remains unpublished.
+
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Inspect update-metadata-health-v2.json and update-package-health-v2.json in cache; samples older than seven days are ignored. Eight named public source policies and five update routes are staged, not deployed. Verify package throughput separately before changing package priorities.
+
+## 2026-11-27 — Signed cloud policy expansion
+
+Edit online/control.json and increment revision for route/feature policy changes; merge only after validation. Existing FACM Online Management workflow writes both announcement.json and control.json, then calls the main-only cloud publisher. Verify publication and anonymous download before claiming effect. The initial live COS reference hash used by the mainland probe must be updated after a new deployment; no candidate cloud publication during PR testing. Test disabled notice, outage, tampering, rollback, unknown source ID and maintenance response before release.
+
+## 2026-11-27 — COS bootstrap verified
+
+The initial COS deployment succeeded in run 46002004522 at 12:51:09 UTC: revision 20261127204800, signer A5E4FC54FBD6B5EC2E1002D3DD2E465D533B3568, anonymous HTTPS readback 1529 bytes, SHA-256 17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb. The temporary branch publication trigger is now removed; future deployment is main-only. Mainland probe compares exact published bytes for the initial revision; update the reference hash after later deployment before interpreting that probe. Candidate client has not shipped.
+
+## 2026-11-27 — COS signed cloud control bootstrap
+
+The owner created the Guangzhou COS bucket and configured the two restricted repository Secrets. A trusted push workflow signs the bounded route-only payload using the existing release certificate, uploads only `control.json` with object-level public read, and verifies anonymous HTTPS bytes. Initial five routes use mainland manifest evidence, not EXE throughput. Initial publishing is permitted on the current trusted task branch; remove this branch trigger before merging. No current client consumes the new object yet. Upload/anonymous readback and signer compatibility require actual workflow evidence. No release or main change.
+
+## 2026-11-27 — Mainland mirror measurement
+
+Baseline `30dad0e1` passed all four gates. A bounded Globalping public HTTPS audit requests mainland CN probes by carrier ASN, verifies their actual country/ASN, checks update metadata against the checkout, and records timing and measurement IDs. It does not download EXEs, use credentials, or auto-reorder mirrors. Missing probes/API failures are not carrier outages. GitHub Actions is the API caller, not the measuring location. Results pending; use only confirmed mainland probe evidence to determine whether further tests or priority changes are warranted.
+
+## 2026-11-27 — Mainland public route verification
+
+Run `scripts/Test-PublicNetworkRoutes.ps1 -NetworkLabel China-Telecom -Rounds 3` on a real mainland connection (repeat on China-Unicom and China-Mobile). The script makes explicit HTTPS GETs without proxy, records DNS/connect/TLS/TTFB/total and response evidence, checks update manifest shape and checkout version/hash, and outputs a CSV; no authentication or EXE downloads. On ITDOG/BOCE use the exact public URLs rather than host-only ping; record per-carrier failure rate and median/p95 response time against the client's deadline. Different networks, repeated samples and parser/source completeness must be reviewed before changing priority. A manifest match is not proof of EXE availability or signature. Current session cannot submit multi-node browser measurements.
+
+## 2026-11-27 — Key timeline review
+
+Verify late events beyond the raw event cap, actual checkpoint time, missing fields, unknown/enemy objective attribution, Arena restrictions, stale response rejection and failed read clearing. Real Tencent timeline acceptance remains open.
+
+## 2026-11-27 — Selected match review summary
+
+Check target identity, 5-player and incomplete roster, known zero versus missing values, Arena placement, stale detail, and failed selection clearing. Existing replay and timeline behavior remain; real Tencent client verification is separate.
+
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Verify queue switching, ten-game trend threshold, remake exclusion, champion rows and clearing on failed history refresh. Live Tencent acceptance remains separate.
+
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+Inspect reconnect trace after a submitted request: InProgress observed, session changed, observation lost, or another phase. Confirm actual playable recovery on Tencent Windows separately; test ordinary in-game cadence and no duplicate writes.
+
+## 2026-11-27 — Recovery and deeper history acceptance
+
+Test a short LCU disconnect in selection with and without manual dismissal, recovery and confirmed non-draft transition, and 12-second expiry. From game, explicitly open More > Mayhem and current hero; reject base ARAM, missing owner, changed match or hero, and verify manual search fallback. No automatic in-game overlay. Exercise 10/20 windows past 20, duplicates, end-of-source and 100-position bound, wrong owner, late detail, and resolved-only filtered hero stats. Verify cloud busy/rejection resets both switches. Synthetic tests do not certify fullscreen or Tencent live behavior.
+
+## 2026-11-27 — Player journey acceptance
+
+Check fixed home positions and the phase shortcut from disconnected through postgame; click a loaded history card, verify exact match detail and back navigation, reject stale/session-changed IDs. Record and clear hotkeys, verify conflicts and unsaved edit retention. Test recommendation busy lock and phase exit, and distinguish configured automation from stage eligibility. Verify SGP button disabled outside an active match; timeout optional guide artwork without removing existing rows. Browser fixtures are not real Tencent client or Windows DPI acceptance. Do not release until exact-head required gates and acceptance are reviewed.
+
+## 2026-11-27 — Scenario-specific candidate acceptance
+
+Verify initial card selection and subsequent swap separately in Tencent ARAM/Mayhem: valid local action only, unavailable cards disabled, no second write, stale draft/phase rejected, ordinary ranked hides bench. Exercise 5×2 empty/full slots at native and WebView2 normal DPI. Verify late silver/prismatic results through rarity and search, 0.5% rate, missing-rank display, more rows and current-generation artwork in both Mayhem routes. Verify rune shards and existing application guards. No gameplay injection or automatic augment selection. Exact-head four Windows gates required; actual in-game guide access and live-client evidence remain outstanding before any production claim.
+
+## 2026-11-27 — Lobby connectivity / runtime companion health export
+
+Inspect exported summary.txt HealthSchema, LCUProbe, HTTP status, allowlisted phase, latency, process flags, user proxy flags and ToolBundleIntegrity together with current and rotated logs: LCU phase read, Gameflow health, companion episode/presentation/dismissal. Direct probe is a point-in-time read and lockfile-only discovery is narrower than runtime WMI discovery. A hash match proves component integrity, not antivirus safety. Do not remove endpoint security as a requirement. No credentials, proxy addresses or raw API payloads are exported. Validate compact overlay at its normal size: Mayhem augment tab selected before data arrival, manual tab selection preserved, direct apply/quit and ten bench positions visible in 5×2 without horizontal scrolling or paging; empty slots disabled, survivors stable in WebView2, actual swap reflected, ordinary ranked no bench, ordinary ARAM retains runes, Mayhem no standard rune button or native rune/Exhaust writes, mode/hero transitions invalidate stale recommendations. Test native fallback and Windows DPI. Initial hero-card pick and later bench swap require separate fixtures and real-client evidence; rarity coverage must be verified before claiming a complete ranking. Retain four exact-head CI gates.
+
 ## 2026-11-23 — GGman 3.5.89 production publishing evidence
 
 The owner-authorized PR #367 was merged at `0ecf174bcb29c58ef1ad4fb25ddad5a7ae06791f` after four same-HEAD CI checks passed on `f59b780`. Release request `2335f951` triggered [official signed publisher #45169654506](https://github.com/xianyumht-cmd/facm/actions/runs/45169654506). The publisher completed successfully including signature checks, public-executable byte/signature checks, and manifest activation; [v3.5.89 release](https://github.com/xianyumht-cmd/facm/releases/tag/v3.5.89) and `online/version.json` version 3.5.89 were verified after the run. Both GGman.exe and FACM.exe are 7,185,816 bytes with SHA-256 `3CB699C6A3BABFE3C549471E8B786D27A60B31314117524098D0920628859FAD`. `force_update` remains false, `minimum_version` remains 3.0.0.

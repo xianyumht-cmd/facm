@@ -804,11 +804,8 @@ namespace FACM
             menu.Items.Add(more);
             menu.Items.Add(exit);
 
-            ShellMenuGroups.AddLeagueAction(
-                menu,
-                ShellMenuGroups.MayhemActionName,
-                _ui.Get(UiTextKeys.MayhemRanking),
-                ShellMenuGroups.MayhemOrder,
+            ShellMenuGroups.AddMoreAction(menu, ShellMenuGroups.MayhemActionName,
+                _ui.Get(UiTextKeys.MayhemRanking), 5,
                 delegate { OpenMayhemLookup(); });
 
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.PanelTheme", _ui.Get(UiTextKeys.PanelTheme), 10,
@@ -1029,7 +1026,8 @@ namespace FACM
                 if (IsDisposed) return;
 
                 var snapshot = await _online.FetchSnapshotAsync(CancellationToken.None);
-                if (IsDisposed || !string.IsNullOrWhiteSpace(snapshot.ErrorMessage)) return;
+                if (IsDisposed || _exiting || snapshot == null) return;
+                if (!string.IsNullOrWhiteSpace(snapshot.ErrorMessage) && snapshot.Announcement == null) return;
 
                 if (!snapshot.UpdateAvailable && !snapshot.ForceUpdateRequired &&
                     snapshot.AnnouncementPending != null)
@@ -1058,7 +1056,7 @@ namespace FACM
                     return;
                 }
 
-                if (newPopupAnnouncement)
+                if (newPopupAnnouncement && string.IsNullOrWhiteSpace(snapshot.ErrorMessage))
                 {
                     _settings.LastAnnouncementId = announcement.Id;
                     _settings.Save();

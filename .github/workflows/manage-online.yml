@@ -50,6 +50,7 @@ concurrency:
 
 jobs:
   publish-announcement:
+    if: github.repository == 'xianyumht-cmd/facm' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       INPUT_ENABLED: ${{ inputs.enabled }}
@@ -100,17 +101,33 @@ jobs:
 
           New-Item -ItemType Directory -Path online -Force | Out-Null
           $data | ConvertTo-Json | Set-Content online/announcement.json -Encoding utf8
-          Get-Content online/announcement.json
+          $control = Get-Content online/control.json -Raw | ConvertFrom-Json -AsHashtable
+          $control['announcement'] = $data
+          $control['revision'] = [Math]::Max(([long]$control['revision'] + 1), [long][DateTimeOffset]::UtcNow.ToString('yyyyMMddHHmmss'))
+          $control | ConvertTo-Json -Depth 12 | Set-Content online/control.json -Encoding utf8NoBOM
+          if ($data.title.Length -gt 120 -or $data.body.Length -gt 2000 -or $data.id.Length -gt 96 -or ([string]$data.link_url).Length -gt 512) { throw 'Announcement exceeds cloud control limits.' }
+          if ($data.link_url) {
+            $link = [Uri]$data.link_url
+            if ($link.Port -ne 443 -or $link.IsLoopback -or $link.HostNameType -ne [UriHostNameType]::Dns -or $link.UserInfo -or $link.Host.IndexOf('.') -lt 0) { throw 'Invalid announcement link.' }
+          }
 
       - name: Commit announcement
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add online/announcement.json
+          git add online/announcement.json online/control.json
           if git diff --cached --quiet; then
             echo "Announcement did not change."
             exit 0
           fi
           git commit -m "更新 FACM 联网公告"
           git push origin main
+
+  publish-cloud:
+    needs: publish-announcement
+    if: github.repository == 'xianyumht-cmd/facm' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish-cloud-control.yml
+    secrets: inherit

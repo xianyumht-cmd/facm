@@ -22,7 +22,7 @@ namespace FACM.Presentation.Glass
             }
         }
 
-        internal void OpenAdvancedHistoryPage(bool pushHistory)
+        internal void OpenAdvancedHistoryPage(bool pushHistory, bool reuseRecent = false)
         {
             if (pushHistory) _navigation.Open("player-advanced");
             _browser.Dock = DockStyle.Fill;
@@ -30,7 +30,8 @@ namespace FACM.Presentation.Glass
             SyncWebNavigation();
             if (_ready)
             {
-                OpenAdvancedHistoryData();
+                if (reuseRecent) SyncAdvancedHistoryList();
+                else OpenAdvancedHistoryData();
                 SendRegionalOptions();
             }
         }

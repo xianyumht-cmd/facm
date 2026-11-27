@@ -1,3 +1,61 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Keep metadata defaults gh-dpik, cors-isteed, gh-proxy, ghfast, ghproxy-net, direct; package defaults gh-proxy, gh-dpik, ghfast, direct, ghproxy-net, cors-isteed. Independent observed health may reorder candidates. These are conservative defaults based on mainland Range reliability plus hosted complete-download evidence, not mainland throughput ranking.
+
+Keep local game resources and existing caches available regardless of optional source maintenance. All four feature flags default enabled; they only suppress optional read operations. Do not claim complete EXE performance from bounded HTTP probes; full download evidence includes exact manifest hash, signer identity and version.
+
+## 2026-11-27 — Separate updater health and expanded public policy
+
+Ignore old mixed health statistics. Use bounded recent samples, successful latency only, and seven-day decay. Fixed-ID cloud policies may shorten existing budgets and disable new public fetches, not redirect authenticated requests.
+
+## 2026-11-27 — Signed cloud policy expansion
+
+Use optional backward-compatible signed fields; explicit disabled notice is authoritative, missing field uses legacy notice. Public source policy can disable supported fetches or shorten existing budgets, not redirect credentials or increase deadlines. Optional feature gates only suppress on-demand read-only timeline and radar operations. Local data and defaults remain available.
+
+## 2026-11-27 — Signed COS route client
+
+Use COS as a signed route-only control plane; continue canonical GitHub release metadata and package integrity checks. An unsigned build cannot adopt production control data. Client rejection/timeout keeps the verified cached catalog, or legacy bootstrap when none exists.
+
+## 2026-11-27 — Network source policy
+
+Keep patch/identity/completeness-based source selection and existing updater health ordering. Do not globally reorder or delete routes based on a single off-network 403 or unmeasured geographic assumption. Improve bounded partial-result behavior and collect direct public-endpoint response evidence before changing defaults.
+
+## 2026-11-27 — Key timeline review
+
+Use explicit timeline reads, key events before raw event details, and restrict Rift resources and CS to appropriate modes. Dense combat denotes a bounded event window only; no tactical rating.
+
+## 2026-11-27 — Selected match review summary
+
+Show a short match review from existing native data before the detailed scoreboard. Suppress team ratios and objectives unless supported map/mode and complete five-player evidence are present. Keep timeline loading explicit.
+
+## 2026-11-27 — Own-history queue-specific performance overview
+
+Use explicit queue/mode selection and the existing native analysis, with no new polling or history storage. Show most-played sample champions rather than claim a best champion from small samples.
+
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+Keep one reconnect write per episode, default off, and reuse the shared three-second recovery cadence only during confirmed Reconnect. Ordinary in-game polling remains unchanged. Report InProgress as phase evidence rather than verified gameplay recovery.
+
+## 2026-11-27 — Explicit current guide and bounded history depth
+
+Use the existing More tray group (fixed five-root contract), no game-focus stealing or new global key registration. Current hero guide is a read-only explicit native request; verify active Mayhem match and authenticated player before/after, never infer another player's hero. Draft suspension retains dismissal for at most 12 seconds only when the lobby process remains and no game process exists. A confirmed non-draft phase ends the episode. History uses existing offset API in small windows, bounded to 100 source positions, with stable ID deduplication, owner checks and sample-only statistics; no background crawl.
+
+## 2026-11-27 — Fixed entry positions, contextual shortcut and action-first layout
+
+Keep home muscle memory with four fixed entries and one contextual shortcut to existing allowlisted routes, not automatic navigation. Direct own-history detail validates the current account/session and loaded match ID before opening the existing advanced detail owner. Keep match identifiers as decimal strings across the WebView2 bridge. Automation phase notes express eligibility/waiting conditions, not execution success. Keep existing hotkey conflict checks and dirty edit protection. Optional guide artwork must not invalidate an already published result; regional live enrichment requires an active known match.
+
+## 2026-11-27 — Draft identity and rarity-first data retention
+
+Initial subset card selection requires a current local unfinished pick action and pickable membership; subsequent shared-bench swaps use the existing distinct endpoint and verified readback. Reject old draft/action/hero/phase, disable unavailable cards, do not retry writes. Only the manual quick-pick reader enriches subset/pickable options; retain a short same-draft cache. Preserve source-provided augment rows up to a 512-row defensive limit, not a global product top-N; filter before pagination. Render normalized percentage points without ratio conversion; don't invent ranks for catalog-only rows. Thumbnail requests are bounded and native-reference allowlisted, scoped to the current generation. No direct renderer network or new resident poller. A source may still omit rows/statistics; do not advertise exhaustive game-catalog coverage.
+
+## 2026-11-27 — Direct LCU transport, opt-in health probe and compact companion
+
+Default local LCU pools to direct loopback and no redirects. Preserve one phase-read timeout for the next existing monitor cycle; repeated timeouts permit rediscovery and successful phase reads reset the evidence. Authentication and other transport errors keep existing invalidation behavior; do not add automatic write retries. Diagnostics export adds a bounded read-only phase probe, process metrics, proxy flags and component integrity, with transition logs rather than a new resident poller. In WebView2 companion use a compact champion row, explicit tabs and collapsed evidence; auto-select augments in Mayhem before data arrival unless the user chose a tab. Superseded horizontal bench: reserve five columns by two rows, preserve surviving positions in WebView2, pad empty slots, hide in modes without a bench, and handle anomalous overflow without discarding candidates. Native fallback uses five columns and ten positions per normal page. Native owner rejects Mayhem ordinary rune and Exhaust writes; other eligible spells retain existing verification. Keep stale hero recommendations non-applicable.
+
+Product invariant: derive controls from the real game mode and phase, not a generic dashboard template. Initial card pick and subsequent swap require distinct verified action contracts; do not enable speculative write routes. Keep function names as primary copy; show context or error only when useful. In-game augment access and tier-specific data coverage need explicit evidence before implementation.
+
 ## 2026-11-23 — One-click desktop actions with native safeguards
 
 GGman's active WebView2 desktop workspace uses direct-action buttons instead of extra Yes/Cancel overlays. This includes launching an official signed update, cloud publish/conflict resolution, game/lobby exit, champion recommendation apply, profile customization and match replay. Compact action labels convey intent, and the status/result line reports failure or success. Users retain the ability to cancel a running download; they are not required to affirm a second prompt.

@@ -1,3 +1,59 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Signed source `package_priority` is optional (0–1000); JSON priority stays independent. Known legacy routes have package-specific defaults. The verified in-memory envelope is preferred to older/conflicting/missing disk data and exposed before the bounded refresh; durable cache precedes new revision acceptance. COS publisher rejects older/conflicting revisions; mainland probe compares against the current canonical HTTPS object, not a pinned historical hash or independent signature verification.
+
+RiotDataDragonService and RiotGameDataService honor existing cloud policy and bounded linked deadlines at public request boundaries. GuideRankedDetails gates rich build/augment enrichment (base guide remains); AramBalance gates base-balance enrichment. Updater audit is opt-in CI tooling, never a resident client task.
+
+## 2026-11-27 — Separate updater health and expanded public policy
+
+UpdateMirrorRouter selects independent metadata/package health stores; installer records verified package outcomes. Shared public-data transport honors cloud source policy before network requests while retaining cache and host/path allowlists.
+
+## 2026-11-27 — Signed cloud policy expansion
+
+CloudRouteControl retains the verified catalog in process after signature and atomic-cache acceptance. OnlineService consumes its announcement independently of mirror metadata; fixed public guide fetchers consult the bounded per-source policy; history extras native entry points enforce two maintenance flags. No arbitrary URL substitution, remote code, credentials or automation activation.
+
+## 2026-11-27 — Signed COS route client
+
+CloudRouteControl verifies a bounded signed payload against the running executable signer, persists the original envelope atomically, and returns the authoritative allowed routes for the existing update service. Legacy catalogs cannot merge omitted routes back into a verified selection. No new polling, credentials or version-manifest origin.
+
+## 2026-11-27 — Partial-source deadlines and network evidence
+
+Mayhem and Tencent patch acquisition treat optional source deadline cancellation as an absent result, retaining completed siblings while propagating original caller cancellation. Public-data transport reuses the existing bounded, dispose-on-cancel response-body reader. Request logs include elapsed time; no resident probing or extra production endpoint.
+
+## 2026-11-27 — Key timeline review
+
+Existing extras adapter projects key events and observed frame metrics from one on-demand timeline, using existing parser/metric helpers and selected identity. No additional data service or polling.
+
+## 2026-11-27 — Selected match review summary
+
+UnifiedWorkspaceHistoryDetailAdapter owns review projection from the existing verified match breakdown; WebView2 renders compact values before the existing scoreboard. Missing fields remain null and review is cleared on selection/failure.
+
+## 2026-11-27 — Own-history queue-specific performance overview
+
+The history adapter groups loaded rows by queue and mode and invokes the existing native analysis once per group; renderer selects a projected group without network or additional service ownership.
+
+## 2026-11-27 — Reconnect observation and recovery cadence
+
+GameflowMonitor remains the single observation owner; confirmed Reconnect uses its existing recovery cadence. ReconnectController classifies departure evidence against the existing session fence, with no new poller or write endpoint.
+
+## 2026-11-27 — Read-only current guide, bounded history and draft recovery
+
+LeagueHubModule retains short draft episode ownership without another timer. MainForm uses existing More tray action; MayhemGuideShard routes explicit current-hero requests through LeagueLiveModule's bounded local owner/gameflow read and existing MayhemAutomaticGuideService, with generation/session and after-read game identity checks. UnifiedWorkspaceHistoryAdapter holds an independent source cursor and deduplicated snapshot; LeaguePlayerModule uses existing 10/20 window API and current-owner checks, advanced view computes sample aggregates locally. CloudSyncAdapter publishes authoritative state on rejected toggles.
+
+## 2026-11-27 — Player journey projection
+
+Unified workspace retains existing shards and route ownership. The renderer projects the current gameflow into a contextual home link and phase notes; no new pollers. PlayerHistoryShard accepts a membership-checked direct-detail command, reuses the loaded session snapshot in AdvancedHistoryShard, and sends decimal string IDs. RecommendationAdapter reports current-generation context changes and UI busy state prevents duplicate applications. LeagueLiveModule gates optional SGP work by phase and match ID. MayhemAdapter separates usable data publication from optional icon completion.
+
+## 2026-11-27 — Scenario-specific quick-pick and Mayhem presentation
+
+`LeagueLiveDataService` owns manual subset/pickable observation; `LeagueBenchQuickPickService.TryChooseAsync` owns phase-appropriate action validation and readback, with existing transport writers. Companion controller and standalone live adapters project only available actions, with revision-bound WebView2 commands. Native live view consumes actual observations instead of synthesizing writeable state. `MayhemRankedAugmentService` retains bounded source rows and quality-aware fallback; companion and desktop guide views filter and paginate locally. Companion native bridge resolves requested asset keys to existing native references; standalone `MayhemGuideShard` routes bounded generation/index thumbnail requests to `UnifiedWorkspaceMayhemAdapter`. No renderer access to arbitrary URLs; cancellation and current route/session checks remain authoritative.
+
+## 2026-11-27 — LCU health and compact Champion Select candidate
+
+The shared LCU phase client records bounded outcome transitions, Gameflow monitor logs connection/activity/process transitions, and Hub records actual companion episode/presentation. The existing diagnostics export adds a read-only direct-lockfile phase probe, process/registry flags and embedded tool hash status; no resident polling owner, external network access, proxy address or raw phase payload is added. The WebView2 overlay keeps the existing native controller and bridge, compact champion row, ten reserved bench positions in a five-column grid and independent ranking/build/team/details views. `LeagueRuntimeCompanionModels` projects mode capabilities, controller invalidates stale champion recommendations, and `LeagueBuildApplyService` independently rejects Mayhem rune/Exhaust writes. Native and WebView2 presentations consume the same mode policy. Existing Gameflow/LCU owners remain authoritative; do not create new resident polling solely for presentation.
+
 ## 2026-11-08 — Final quick-tools, skin, pet and status presentation boundary (Draft #364)
 
 `UnifiedWorkspaceQuickToolsAdapter` owns the five exact, allowlisted efficiency
@@ -1170,3 +1226,4 @@ configuration. The existing strict request codecs remain unchanged and the
 Form's methods are limited to navigation and delegating to those adapters.
 WebView2 route and message publishers are injected, and the native
 `LeagueEfficiencyModule` remains the only feature backend.
+

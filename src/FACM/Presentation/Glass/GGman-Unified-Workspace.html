@@ -459,13 +459,14 @@ body[data-mode="bench"] .brand-icon,body[data-mode="bench"] .brand-text{display:
 body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;overflow-y:auto}
 #benchPage h2{font-size:18px;margin:8px 0 6px}
 #benchPage p{font-size:12px;color:var(--muted);line-height:1.6}
-#benchChampions{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:9px;margin:12px 0}
+#benchChampions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
 #benchChampions button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-height:72px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);font:inherit;cursor:pointer}
 #benchChampions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #benchChampions button:disabled{opacity:.6;cursor:default}
 #benchChampions img{width:36px;height:36px;object-fit:cover;border-radius:7px}
 #benchChampions .bench-champ-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--card);color:var(--accent);border-radius:7px}
 #benchChampions small{font-size:11px}
+#benchReadStatus:empty,#benchActionStatus:empty{display:none}
 #benchRefresh{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
 #advancedDashboardPage{display:none;padding:4px 2px}
 body[data-mode="dashboard-advanced"] #shell{padding:9px 13px;gap:6px}
@@ -613,6 +614,22 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 #quicktools #toolResult:empty{display:none}
 #quicktools .quick-hotkeys button:hover{border-color:var(--accent)}
 @media(prefers-reduced-motion:no-preference){#home .tile,#other .tile,#quicktools .quick-actions button{transition:background-color .12s ease,border-color .12s ease}}
+#clientPhase:empty,#statusPhase:empty,#statusHint:empty,#cloudModeNote:empty,#mayhemResult:empty,#recommendationResult:empty{display:none!important}
+#recommendationChoices label[hidden]{display:none!important}
+#home .home-context{display:flex;gap:6px;align-items:stretch}
+#home .home-context .status-home{flex:1;min-width:0;min-height:60px;padding:7px 10px;width:auto}
+#home .home-context #sceneShortcut{flex:0 0 94px;padding:5px 4px;border:1px solid var(--line);border-radius:10px;background:var(--card2);font-size:11.5px}
+#home .home-context #clientPhase{font-size:10.5px;padding-left:0}
+#home .home-context .status-heading{margin-bottom:2px}
+#home .tile{min-height:54px}
+#home .actions{margin-top:7px}
+.history-match{width:100%;text-align:left;color:var(--text)}
+.history-match:hover{background:var(--card2)}
+#advancedHistoryPage details.history-extra>summary{cursor:pointer;font-weight:650;font-size:13px}
+#recommendationPage .save-row{margin-bottom:8px}
+#quickSettings .phase-note{display:block;font-size:10.5px;color:var(--muted);font-weight:400;margin-top:2px}
+#quickSettings .phase-note:empty{display:none}
+#recommendationFeedback[hidden]{display:none}
 </style>
 </head>
 <body data-mode="home">
@@ -625,13 +642,13 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 </header>
 <main id="pages">
   <section id="home">
-    <button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
-      <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 等待连接</b><span class="status-chevron" aria-hidden="true">›</span></span>
-      <span id="clientPhase">正在等候当前客户端状态</span>
-    </button>
+    <div class="home-context"><button class="status status-home" data-route="client-status" aria-label="查看英雄联盟客户端状态">
+      <span class="status-heading"><span class="status-indicator" aria-hidden="true"></span><b id="clientConnection">LOL · 检测中</b><span class="status-chevron" aria-hidden="true">›</span></span>
+      <span id="clientPhase"></span>
+    </button><button id="sceneShortcut" data-route="client-status">客户端状态</button></div>
     
     <div class="tiles">
-      <button class="tile" data-route="dashboard"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>LOL 工作台</strong></span></button>
+      <button class="tile" data-route="live"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span><span class="tile-copy"><strong>实时对局</strong></span></button>
       <button class="tile" data-route="player"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 20h18M6 17v-5m6 5V5m6 12V9"/><path d="M4 9l5-3 4 2 6-5"/></svg></span><span class="tile-copy"><strong>我的战绩</strong></span></button>
       <button class="tile" data-route="mayhem"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 2 2.1 6.5L21 11l-6.9 2.4L12 20l-2.1-6.6L3 11l6.9-2.5Z"/><path d="m19 17 1 2.5 2 1-2 .7-.7 2-1-2-.8-.7"/></svg></span><span class="tile-copy"><strong>海斗攻略</strong></span></button>
       <button class="tile" data-route="efficiency"><span class="glyph" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--card2)"/><circle cx="16" cy="12" r="2.2" fill="var(--card2)"/><circle cx="10" cy="18" r="2.2" fill="var(--card2)"/></svg></span><span class="tile-copy"><strong>快捷工具</strong></span></button>
@@ -645,18 +662,10 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
   <section id="clientStatus">
     <h2>LOL 客户端状态</h2>
     
-    <div class="status"><b id="statusConnection">未连接</b><span id="statusPhase">等待客户端连接</span><span id="statusHint">启动英雄联盟后自动同步</span></div>
+    <div class="status"><b id="statusConnection">检测中</b><span id="statusPhase"></span><span id="statusHint"></span></div>
     <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
   </section>
   <section id="quicktools">
-    <div class="tool-caption">自动化</div>
-    <div class="tools" id="quickSettings">
-      <div class="tool-row"><span><strong>自动开始排队</strong></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
-      <div class="tool-row"><span><strong>自动接受对局</strong></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
-      <div class="tool-row"><span><strong>断线自动重连</strong></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
-      <div class="tool-row"><span><strong>赛后自动点赞</strong></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
-      <div class="tool-row"><span><strong>赛后返回大厅</strong></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
-    </div>
     <div class="tool-caption">快捷操作</div>
     <div class="quick-actions" role="group" aria-label="游戏快捷操作">
       <button data-quick-action="close-lobby"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="m9 9 6 5m0-5-6 5"/></svg><span>关闭大厅</span></button>
@@ -664,13 +673,21 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <button data-repair-action="restart"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/></svg><span>重启客户端</span></button>
       <button data-repair-action="window"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 10h18M8 14l2-2m4 6 3-3"/></svg><span>恢复窗口</span></button>
     </div>
+    <p id="toolResult" role="status" aria-live="polite"></p>
+    <div class="tool-caption">自动化</div>
+    <div class="tools" id="quickSettings">
+      <div class="tool-row"><span><strong>自动开始排队</strong><small class="phase-note" data-phase-note="autoSearch"></small></span><button class="toggle" data-setting="autoSearch" aria-pressed="false" aria-label="自动开始排队"></button></div>
+      <div class="tool-row"><span><strong>自动接受对局</strong><small class="phase-note" data-phase-note="autoAccept"></small></span><button class="toggle" data-setting="autoAccept" aria-pressed="false" aria-label="自动接受对局"></button></div>
+      <div class="tool-row"><span><strong>断线自动重连</strong><small class="phase-note" data-phase-note="autoReconnect"></small></span><button class="toggle" data-setting="autoReconnect" aria-pressed="false" aria-label="断线自动重连"></button></div>
+      <div class="tool-row"><span><strong>赛后自动点赞</strong><small class="phase-note" data-phase-note="autoHonor"></small></span><button class="toggle" data-setting="autoHonor" aria-pressed="false" aria-label="赛后自动点赞"></button></div>
+      <div class="tool-row"><span><strong>赛后返回大厅</strong><small class="phase-note" data-phase-note="autoReturn"></small></span><button class="toggle" data-setting="autoReturn" aria-pressed="false" aria-label="赛后返回大厅"></button></div>
+    </div>
     <div class="tool-caption">全局快捷键</div>
     <div class="quick-hotkeys">
-      <label>关闭大厅<input id="closeLobbyHotkey" type="text" maxlength="60" placeholder="如 Ctrl+F9" spellcheck="false"></label>
-      <label>退出游戏<input id="exitGameHotkey" type="text" maxlength="60" placeholder="如 Ctrl+F8" spellcheck="false"></label>
+      <label>关闭大厅<input id="closeLobbyHotkey" type="text" maxlength="60" placeholder="按下组合键" spellcheck="false"></label>
+      <label>退出游戏<input id="exitGameHotkey" type="text" maxlength="60" placeholder="按下组合键" spellcheck="false"></label>
       <button data-action="hotkeys-save">保存快捷键</button>
     </div>
-    <p id="toolResult" role="status" aria-live="polite"></p>
     <div class="actions"><button data-route="matchmaking-settings">排队设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
   </section>
   <section id="advancedDashboardPage">
@@ -771,23 +788,28 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <label>队列模式<select id="advancedHistoryQueue"><option value="all">全部已读取队列</option></select></label>
       <label>排序<select id="advancedHistorySort"><option value="recent">最近优先</option><option value="oldest">较早优先</option><option value="kills">击杀优先</option><option value="kda">KDA 优先</option></select></label>
     </div>
-    <div class="history-extra">
-      <h3>Riot ID 跨区战绩查询</h3>
-      <p>输入玩家的 Riot ID 并选择服务器，可查询能够访问的大区战绩。部分服务器可能暂时不支持。</p>
+    <details class="history-extra">
+      <summary>Riot ID 跨区战绩查询</summary>
+      
       <div class="history-region-header">
         <label>Riot ID<input type="text" id="advancedRegionalRiotId" maxlength="52" autocomplete="off" placeholder="召唤师名称#编号"></label>
         <label>服务器<select id="advancedRegionalServer" aria-label="战绩查询服务器"></select></label>
       </div>
-      <div class="actions"><button data-action="history-region-search">搜索玩家并读取 20 场</button>
+      <div class="actions"><button data-action="history-region-search">查询玩家</button>
         <button data-action="history-region-catalog">更新服务器列表</button></div>
       <p id="advancedRegionalStatus" role="status">等待选择服务器和输入 Riot ID</p>
       <div id="advancedRegionalResults"></div>
-    </div>
+    </details>
     <p id="advancedHistoryStatus" role="status" aria-live="polite">正在读取当前账号</p>
-    <div id="advancedHistoryRows"></div>
+    <details class="history-extra" id="historyChampionStats" hidden><summary>英雄统计 · 已读取样本</summary><div id="historyChampionStatsRows"></div></details>
     <div class="guide-card" id="advancedHistoryDetail" hidden>
       <strong id="advancedHistoryDetailTitle">对局详情</strong>
       <p id="advancedHistoryDetailStatus" role="status" aria-live="polite"></p>
+      <div id="advancedHistoryReview" hidden>
+        <strong id="advancedReviewHeading"></strong>
+        <div id="advancedReviewMetrics" class="guide-stats"></div>
+        <p id="advancedReviewObjectives" class="muted" hidden></p>
+      </div>
       <div id="advancedHistoryTeams"></div>
       <div id="advancedHistoryParticipants"></div>
       <div id="advancedHistoryExtras" hidden>
@@ -809,11 +831,17 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
           <div class="actions"><button data-action="history-timeline">读取时间线</button></div>
           <p id="advancedTimelineStatus" role="status">尚未读取时间线</p>
           <svg id="advancedHistoryTimeline" viewBox="0 0 320 180" role="img" aria-label="按真实比赛时间绘制的成长曲线"></svg>
-          <div id="advancedTimelineEvents"></div>
+          <div id="advancedTimelineReview" hidden>
+            <strong>关键节点</strong>
+            <p id="advancedTimelineReviewSummary" class="muted"></p>
+            <div id="advancedTimelineCheckpoints"></div>
+            <div id="advancedTimelineKeyEvents"></div>
+          </div>
+          <details><summary>原始事件</summary><div id="advancedTimelineEvents"></div></details>
         </div>
         <div class="history-extra">
           <h3>本地回放</h3>
-          <p>可使用英雄联盟客户端下载或观看回放。部分旧对局可能因游戏版本或服务器限制而无法回放。</p>
+          
           <div class="actions">
             <button data-action="history-replay-folder">查看本机回放目录</button>
             <button data-action="history-replay">下载或观看本场回放</button>
@@ -822,8 +850,10 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
         </div>
       </div>
     </div>
+    <div id="advancedHistoryRows"></div>
     <div class="actions">
-      <button data-action="history-advanced-refresh">重新读取 20 场</button>
+      <button data-action="history-advanced-refresh" id="advancedHistoryRefresh">刷新战绩</button>
+      <button data-action="history-advanced-more" id="advancedHistoryMore" hidden>读取更多</button>
       
     </div>
   </section>
@@ -832,6 +862,11 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     
     <div class="history-profile"><strong id="historyAccount">等待读取</strong><span id="historyLevel" class="muted">—</span></div>
     <p id="historyResult" role="status" aria-live="polite">正在读取当前账号</p>
+    <div id="historyAnalysis" hidden>
+      <label class="tool-search" for="historyAnalysisQueue">近期表现 · 已读取样本<select id="historyAnalysisQueue"></select></label>
+      <div class="guide-stats"><div class="guide-card"><small>胜率</small><strong id="historyAnalysisRate">—</strong></div><div class="guide-card"><small>胜负</small><strong id="historyAnalysisRecord">—</strong></div></div>
+      <p id="historyAnalysisTrend" class="muted"></p><div id="historyAnalysisHeroes" class="history-list"></div>
+    </div>
     <div class="history-filter" role="group" aria-label="筛选已读取战绩">
       <button type="button" data-history-filter="all" aria-pressed="true">全部</button>
       <button type="button" data-history-filter="win" aria-pressed="false">胜利</button>
@@ -847,7 +882,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="actions"><button data-route="player-advanced">筛选与战绩详情</button><button data-route="live">实时对局</button></div>
   </section>
   <section id="benchPage">
-    <h2>ARAM 替补席 · 快速换英雄</h2>
+    <h2 id="benchHeading">替补席</h2>
     
     <div class="guide-stats">
       <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
@@ -881,7 +916,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
     <div class="save-row">
       <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
-      <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
+      <button id="liveSgpRefresh" disabled data-action="live-sgp">补全区域阵容</button>
     </div>
     <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
   </section>
@@ -909,7 +944,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
   </section>
   <section id="cloudSyncPage">
     <h2>云同步</h2>
-    <p id="cloudModeNote">云账号同步属于可选功能，不影响本地游戏工具与单独的正式在线更新。</p>
+    <p id="cloudModeNote"></p>
     <div class="guide-results">
       <div class="guide-card"><strong>当前 GGman 账号</strong><small id="cloudAccount">未登录</small></div>
       <div class="guide-card"><strong>云同步状态</strong><small id="cloudStatus" role="status" aria-live="polite">等待读取</small></div>
@@ -953,7 +988,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
       <button data-action="mayhem-cancel" id="mayhemCancel" disabled>取消</button>
     </div>
-    <p id="mayhemResult" role="status" aria-live="polite">输入英雄名称开始查询</p>
+    <div class="actions"><button id="mayhemCurrent" data-action="mayhem-current" disabled>当前英雄</button></div>
+    <p id="mayhemResult" role="status" aria-live="polite"></p>
     <div id="mayhemOutput" class="guide-results" hidden>
       <div class="guide-card"><div class="guide-icon-row"><div class="guide-thumb" id="mayhemChampionIcon">英</div><div class="guide-copy"><strong id="mayhemName">—</strong><small id="mayhemSource">—</small></div></div></div>
       <div class="guide-stats">
@@ -961,7 +997,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
         <div class="guide-card"><small>胜率</small><strong id="mayhemWinRate">—</strong></div>
       </div>
       <div class="guide-card"><strong>本版本平衡</strong><small id="mayhemBalance">暂无可信数据</small></div>
-      <div class="guide-card"><strong>强化推荐</strong><small class="guide-source" id="mayhemAugmentSource"></small><ul class="guide-list" id="mayhemAugments"></ul></div>
+      <div class="guide-card"><strong>强化推荐</strong><small class="guide-source" id="mayhemAugmentSource"></small><div class="guide-search"><input id="mayhemAugmentSearch" type="search" placeholder="搜索强化" aria-label="搜索强化"><select id="mayhemAugmentRarity" aria-label="强化品质"><option value="all">全部</option><option value="prism">棱彩</option><option value="gold">黄金</option><option value="silver">白银</option></select></div><ul class="guide-list" id="mayhemAugments"></ul><button id="mayhemAugmentMore" hidden>更多</button></div>
       <div class="guide-card"><strong>核心装备</strong><ul class="guide-list" id="mayhemItems"></ul></div>
       <div class="guide-card"><strong>技能顺序</strong><small id="mayhemSkills">暂无</small></div>
       <div class="guide-card"><strong>前十英雄</strong><ul class="guide-list" id="mayhemTop"></ul></div>
@@ -971,6 +1007,16 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <h2>出装推荐</h2>
     
     <p id="recommendationResult" role="status" aria-live="polite">正在读取当前英雄推荐</p>
+    <div class="guide-checks" id="recommendationChoices">
+      <label><input id="applyRunes" type="checkbox" checked> 应用符文</label>
+      <label><input id="applySpells" type="checkbox" checked> 应用召唤师技能</label>
+      <label><input id="applyItems" type="checkbox"> 导入装备</label>
+    </div>
+    <div class="save-row">
+      <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
+      <button data-action="recommendation-apply" id="recommendationApply" disabled>应用推荐</button>
+    </div>
+    <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
     <div class="guide-results" id="recommendationOutput" hidden>
       <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
       <div class="guide-stats">
@@ -979,16 +1025,6 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       </div>
       <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
     </div>
-    <div class="guide-checks" id="recommendationChoices">
-      <label><input id="applyRunes" type="checkbox" checked> 应用符文</label>
-      <label><input id="applySpells" type="checkbox" checked> 应用召唤师技能</label>
-      <label><input id="applyItems" type="checkbox"> 导入装备</label>
-    </div>
-    <div class="save-row">
-      <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
-      <button data-action="recommendation-apply" id="recommendationApply" disabled>选择应用内容</button>
-    </div>
-    <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
   </section>
   <section id="cleanupPage">
     <h2>清理与修复</h2>
@@ -1197,6 +1233,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 "use strict";
 var titles={"profile-customization":"LOL 个性资料","bench":"ARAM 替补席","live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"皮肤","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
+var sceneState=null,quickSettingsState=null,hotkeyDirty=new Set(),savedHotkeys={};
 var updateForced=false;
 function get(id){return document.getElementById(id);}
 function modeName(value){
@@ -1206,6 +1243,24 @@ function modeName(value){
   var code=String(value==null?"":value).trim();
   return names[code.toUpperCase()]||code;
 }
+["closeLobbyHotkey","exitGameHotkey"].forEach(function(id){
+  get(id).addEventListener("input",function(){hotkeyDirty.add(id);});
+  get(id).addEventListener("keydown",function(event){
+    if(event.isComposing||event.keyCode===229)return;
+    var key=event.key,code=event.code||"";
+    if(key==="Tab"||key==="Escape"||["Control","Alt","Shift","Meta"].includes(key))return;
+    if((key==="Backspace"||key==="Delete")&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){event.preventDefault();this.value="";hotkeyDirty.add(id);return;}
+    var modified=event.ctrlKey||event.altKey||event.shiftKey||event.metaKey;
+    if(!modified&&!/^F([1-9]|1[0-2])$/.test(key))return;
+    var main=/^Key[A-Z]$/.test(code)?code.slice(3):/^Digit[0-9]$/.test(code)?code.slice(5):/^Numpad[0-9]$/.test(code)?"NumPad"+code.slice(6):key;
+    var names={ArrowUp:"Up",ArrowDown:"Down",ArrowLeft:"Left",ArrowRight:"Right"," ":"Space",Enter:"Enter",Insert:"Insert",Delete:"Delete",Home:"Home",End:"End",PageUp:"PageUp",PageDown:"PageDown"};
+    main=names[main]||main;
+    if(!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|NumPad[0-9]|Up|Down|Left|Right|Space|Enter|Insert|Delete|Home|End|PageUp|PageDown)$/.test(main))return;
+    event.preventDefault();event.stopPropagation();
+    hotkeyDirty.add(id);
+    this.value=[event.ctrlKey?"Ctrl":"",event.altKey?"Alt":"",event.shiftKey?"Shift":"",event.metaKey?"Win":"",main].filter(Boolean).join("+");
+  });
+});
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
 function setMode(next,title){
   var previous=mode;
@@ -1252,11 +1307,13 @@ document.addEventListener("click",function(event){
     get("advancedHistoryDetailStatus").textContent="通过当前账号权限读取目标区域比赛明细";
     get("advancedHistoryTeams").replaceChildren();
     get("advancedHistoryParticipants").replaceChildren();
+    renderAdvancedReview(null);renderTimelineReview(null);
     post("history-region-detail:"+remoteId);return;
   }
   if(target.dataset.action==="history-timeline"){
     if(selectedAdvancedMatch && (advancedHistoryIds.has(selectedAdvancedMatch) ||
         remoteHistoryIds.has(selectedAdvancedMatch))){
+      renderTimelineReview(null);
       get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
       post("history-advanced-timeline:"+selectedAdvancedMatch);
     }return;
@@ -1268,8 +1325,15 @@ document.addEventListener("click",function(event){
       post("history-advanced-replay:"+selectedAdvancedMatch);
     }return;
   }
+  if(target.dataset.action==="history-advanced-more"){
+    get("advancedHistoryMore").disabled=true;get("advancedHistoryRefresh").disabled=true;
+    get("advancedHistoryStatus").textContent="正在读取更早对局";
+    get("advancedHistoryDetail").hidden=true;selectedAdvancedMatch="";
+    post("history-advanced-more");return;
+  }
   if(target.dataset.action==="history-advanced-refresh"){
-    get("advancedHistoryStatus").textContent="正在读取当前账号最多 20 场历史对局";
+    get("advancedHistoryRefresh").disabled=true;get("advancedHistoryMore").disabled=true;
+    get("advancedHistoryStatus").textContent="正在读取战绩";
     get("advancedHistoryRows").replaceChildren();
     get("advancedHistoryDetail").hidden=true;
     get("advancedHistoryExtras").hidden=true;
@@ -1278,20 +1342,17 @@ document.addEventListener("click",function(event){
     get("advancedRegionalStatus").textContent="当前账号战绩已刷新，跨区记录需重新查询";
     post("history-advanced-refresh");return;
   }
+  if(target.dataset.recentGameId!==undefined){
+    if(get("historyRefresh").disabled)return;
+    var recentId=target.dataset.recentGameId;
+    if(historyRows.some(function(row){return String(row.gameId)===recentId;}))post("history-open-detail:"+recentId);
+    return;
+  }
   if(target.dataset.advancedGameId!==undefined){
+    if(get("advancedHistoryRefresh").disabled)return;
     var gameId=target.dataset.advancedGameId;
     if(!advancedHistoryIds.has(gameId))return;
-    get("advancedHistoryDetail").hidden=false;
-    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
-    get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
-    get("advancedHistoryTeams").replaceChildren();
-    get("advancedHistoryParticipants").replaceChildren();
-    get("advancedHistoryExtras").hidden=true;
-    get("advancedHistoryRadar").replaceChildren();
-    get("advancedHistoryTimeline").replaceChildren();
-    get("advancedTimelineEvents").replaceChildren();
-    advancedTimelineFrames=[];
-    selectedAdvancedMatch=gameId;
+    selectLocalMatch(gameId);
     post("history-advanced-detail:"+gameId);return;
   }
   if(target.dataset.action==="profile-customization-refresh"){
@@ -1325,7 +1386,7 @@ document.addEventListener("click",function(event){
     if(!Number.isSafeInteger(id)||id<1||!benchIds.has(id))return;
     get("benchChampions").querySelectorAll("button").forEach(function(b){b.disabled=true;});
     get("benchRefresh").disabled=true;
-    get("benchActionStatus").textContent="正在交换英雄 #"+id;
+    get("benchActionStatus").textContent="处理中…";
     post("bench-swap:"+id);return;
   }
   if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
@@ -1391,20 +1452,25 @@ document.addEventListener("click",function(event){
   if(target.dataset.action==="updates-exit"){post("updates-exit");return;}
   if(target.dataset.action==="updates-link"){post("updates-link");return;}
   if(target.dataset.action==="updates-stop"){get("updateCancelDownload").disabled=true;post("updates-stop");return;}
+  if(target.dataset.action==="mayhem-current"){
+    if(target.disabled)return;
+    mayhemBusy=true;updateMayhemControls();get("mayhemOutput").hidden=true;
+    get("mayhemResult").textContent="正在读取当前英雄攻略";post("mayhem-current");return;
+  }
   if(target.dataset.action==="mayhem-query"){
     var query=get("mayhemChampion").value.trim();
     if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
-    get("mayhemQuery").disabled=true;get("mayhemCancel").disabled=false;
+    mayhemBusy=true;updateMayhemControls();
     get("mayhemOutput").hidden=true;get("mayhemChampionIcon").replaceChildren();
     get("mayhemResult").textContent="正在读取英雄攻略";
     post("mayhem-query:"+query);return;
   }
   if(target.dataset.action==="mayhem-cancel"){
-    post("mayhem-cancel");get("mayhemCancel").disabled=true;get("mayhemQuery").disabled=false;return;
+    post("mayhem-cancel");mayhemBusy=false;updateMayhemControls();return;
   }
   if(target.dataset.action==="recommendation-refresh"){
-    get("recommendationApply").disabled=true;
-    get("recommendationRefresh").disabled=true;get("recommendationOutput").hidden=true;
+    recommendationBusy=true;recommendationCanApply=false;updateRecommendationControls();
+    get("recommendationOutput").hidden=true;
     get("recommendationRows").replaceChildren();
     get("recommendationFeedback").hidden=true;
     get("recommendationResult").textContent="正在读取当前选人推荐";
@@ -1415,14 +1481,13 @@ document.addEventListener("click",function(event){
     if(!get("applyRunes").checked&&!get("applySpells").checked&&!get("applyItems").checked){
       get("recommendationResult").textContent="请至少选择一项";return;
     }
-    get("recommendationApply").disabled=true;
-    get("recommendationRefresh").disabled=true;
+    recommendationBusy=true;updateRecommendationControls();
     get("recommendationResult").textContent="正在将所选推荐应用到游戏";
     post("recommendation-apply:"+JSON.stringify({runes:get("applyRunes").checked,spells:get("applySpells").checked,items:get("applyItems").checked}));return;
   }
   if(target.dataset.action==="history-refresh"||target.dataset.action==="history-more"){
     get("historyRefresh").disabled=true;get("historyMore").disabled=true;
-    get("historyResult").textContent="正在读取战绩";
+    get("historyResult").textContent=target.dataset.action==="history-more"?"正在读取更早对局":"正在读取战绩";
     post(target.dataset.action==="history-more"?"history-more":"history-refresh");return;
   }
   if(target.dataset.action==="live-refresh"||target.dataset.action==="live-sgp"){
@@ -1597,19 +1662,19 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-icon"){renderMayhemIcon(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
-    get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+    mayhemBusy=false;updateMayhemControls();
     get("mayhemOutput").hidden=true;
     var err={ready:"输入英雄名称开始查询",invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
-      timeout:"查询超时，请稍后重试","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
+      timeout:"查询超时，请稍后重试","current-unavailable":"未确认当前海斗英雄，请手动查询","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
     get("mayhemResult").textContent=err[e.data.status]||"读取失败";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-details"){renderRecommendation(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-failed"){
-    get("recommendationRefresh").disabled=false;get("recommendationApply").disabled=true;
-    recommendationCanApply=false;
+    recommendationBusy=false;recommendationCanApply=false;updateRecommendationControls();
     get("recommendationOutput").hidden=true;
     get("recommendationFeedback").hidden=true;get("recommendationRows").replaceChildren();
     get("recommendationResult").textContent=e.data.status==="loading"?"正在读取当前英雄推荐":
+      e.data.status==="busy"?"上一项操作尚未结束，请稍后刷新":
       e.data.status==="context-changed"?"账号或游戏会话已变化，推荐已清空，请重新读取":
       "读取失败，检查 LOL 客户端后重试";return;
   }
@@ -1617,11 +1682,12 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     renderRecommendationFeedback(e.data);return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-result"){
-    get("recommendationRefresh").disabled=false;
-    get("recommendationApply").disabled=!recommendationCanApply;
+    recommendationBusy=false;
+    if(e.data.status==="context-changed"||e.data.status==="mode-unavailable")recommendationCanApply=false;
+    updateRecommendationControls();
     var statuses={success:"所选推荐已成功应用",partial:"部分推荐已应用，请检查当前客户端",
-      failed:"应用未成功",invalid:"无效的应用选项", "no-data":"当前没有可应用的推荐",
-      "context-changed":"当前选人或账号发生变化，未继续写入"};
+      failed:"应用未成功",busy:"上一项操作尚未结束",invalid:"无效的应用选项", "no-data":"当前没有可应用的推荐",
+      "context-changed":"当前选人或账号发生变化，未继续写入","mode-unavailable":"当前模式不支持符文"};
     get("recommendationResult").textContent=statuses[e.data.status]||"操作结束";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-details"){renderHistory(e.data);return;}
@@ -1630,7 +1696,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     get("historyResult").textContent="无法读取当前账号，请检查游戏客户端连接或重新登录";
     get("historyAccount").textContent="未连接";
     get("historyLevel").textContent="—";
-    get("historyList").replaceChildren();historyRows=[];historyFilter="all";
+    get("historyList").replaceChildren();historyRows=[];historyFilter="all";renderHistoryAnalysis([]);
     get("historyMore").hidden=true;
     get("historySearch").value="";get("historySort").value="recent";
     document.querySelectorAll("[data-history-filter]").forEach(function(item){
@@ -1677,6 +1743,9 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="presence-result"){
     var statuses={success:"设置已保存，游戏客户端已确认",overridden:"游戏客户端更改了状态，请重新查看",unavailable:"客户端未连接或账号已切换",invalid:"无效的设置项","write-failed":"设置未成功写入客户端"};
     get("presenceResult").textContent=statuses[e.data.status]||"请重新读取当前状态";return;
+  }
+  if(e.data&&typeof e.data==="object"&&e.data.type==="history-select-local"){
+    if(mode==="player-advanced"&&advancedHistoryIds.has(String(e.data.id)))selectLocalMatch(String(e.data.id));return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="history-advanced-list"){
     renderAdvancedHistoryList(e.data);return;
@@ -1795,13 +1864,15 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       var button=document.querySelector("[data-setting=\""+key+"\"]");
       if(button){button.setAttribute("aria-pressed",e.data.values[key]?"true":"false");button.disabled=false;}
     });
-    if(document.activeElement!==get("exitGameHotkey"))get("exitGameHotkey").value=e.data.exitHotkey||"";
-    if(document.activeElement!==get("closeLobbyHotkey"))get("closeLobbyHotkey").value=e.data.lobbyHotkey||"";
+    quickSettingsState=e.data.values||{};renderAutomationPhaseNotes();
+    savedHotkeys={exitGameHotkey:e.data.exitHotkey||"",closeLobbyHotkey:e.data.lobbyHotkey||""};
+    Object.keys(savedHotkeys).forEach(function(id){if(!hotkeyDirty.has(id)&&document.activeElement!==get(id))get(id).value=savedHotkeys[id];});
     document.getElementById("toolResult").textContent=e.data.message||"";
     return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-hotkeys-result"){
     document.querySelectorAll("#quicktools button[data-action=hotkeys-save]").forEach(function(button){button.disabled=false;});
+    if(e.data.ok){hotkeyDirty.clear();Object.keys(savedHotkeys).forEach(function(id){get(id).value=savedHotkeys[id];});}
     get("toolResult").textContent=e.data.message||(e.data.ok?"快捷键已保存":"快捷键保存失败");return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-action-result"){
@@ -1827,12 +1898,21 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="status"){
     document.body.dataset.connected=e.data.connected?"true":"false";
-    document.getElementById("clientConnection").textContent=e.data.connected?"LOL · 已连接":"LOL · 未连接";
-    document.getElementById("statusConnection").textContent=e.data.connected?"客户端已连接":"客户端未连接";
-    document.getElementById("statusPhase").textContent=e.data.connected?("当前阶段 · "+phaseLabel(e.data.phase)):"等待英雄联盟客户端";
-    document.getElementById("statusHint").textContent=e.data.connected?"状态由当前游戏会话同步":"启动客户端后自动同步，无需手动刷新";
-    document.getElementById("clientPhase").textContent=e.data.connected?
-      ("当前阶段 · "+phaseLabel(e.data.phase)):"请先启动英雄联盟客户端";
+    var headline=e.data.connected?phaseLabel(e.data.phase):
+      e.data.observed===false?"检测中":e.data.gameProcess?"游戏中":
+      e.data.clientProcess?"连接异常":"待命";
+    var secondary=e.data.connected?"":e.data.clientProcess?"大厅已启动，接口未连接":
+      e.data.gameProcess?"大厅接口未连接":"";
+    document.getElementById("clientConnection").textContent="LOL · "+headline;
+    document.getElementById("statusConnection").textContent=headline;
+    document.getElementById("statusPhase").textContent=secondary;
+    document.getElementById("statusHint").textContent="";
+    document.getElementById("clientPhase").textContent=secondary;
+    sceneState=e.data;updateSceneShortcut(e.data);renderAutomationPhaseNotes();updateMayhemControls();
+    if(!sceneState.connected||sceneState.phase!=="InProgress")get("liveSgpRefresh").disabled=true;
+    if(mode==="recommendation"&&(!e.data.connected||e.data.phase!=="ChampSelect")){
+      recommendationCanApply=false;updateRecommendationControls();
+    }
     return;
   }
   if(value==="home"||value==="more")setMode(value);
@@ -2015,9 +2095,7 @@ var cloudBusy=false;
 var onlineCanInstall=false;
 function renderCloudState(data){
   guideText("cloudAccount",data.localOnly?"本地模式（无需登录）":(data.loggedIn?data.account:"未登录 GGman"));
-  get("cloudModeNote").textContent=data.localOnly?
-    "目前免费云服务额度已耗尽，GGman 已进入免登录本地模式；云同步和验证码功能暂缓，所有本地游戏功能继续可用。":
-    "已启用云端模式，账号验证和自动同步使用已有服务.";
+  get("cloudModeNote").textContent="";
   get("cloudStatus").textContent=data.localOnly?"正在使用本地模式，云同步暂不可用":(data.status||"同步状态待确认");
   get("cloudAutoSync").checked=!data.localOnly&&!!data.autoSync;
   get("cloudGameRestore").checked=!data.localOnly&&!!data.autoGameRestore;
@@ -2030,12 +2108,12 @@ function renderCloudState(data){
 }
 get("cloudAutoSync").addEventListener("change",function(){
   if(cloudBusy)return;cloudBusy=true;
-  get("cloudAutoSync").disabled=true;
+  ["cloudAutoSync","cloudGameRestore","cloudPublish","cloudKeepLocal"].forEach(id=>get(id).disabled=true);
   post("cloud-toggle:config:"+(get("cloudAutoSync").checked?"true":"false"));
 });
 get("cloudGameRestore").addEventListener("change",function(){
   if(cloudBusy)return;cloudBusy=true;
-  get("cloudGameRestore").disabled=true;
+  ["cloudAutoSync","cloudGameRestore","cloudPublish","cloudKeepLocal"].forEach(id=>get(id).disabled=true);
   post("cloud-toggle:game:"+(get("cloudGameRestore").checked?"true":"false"));
 });
 get("updateAuto").addEventListener("change",function(){
@@ -2065,7 +2143,13 @@ function renderOnlineState(data){
     data.available?"发现更新，但尚未通过安装条件":
     data.latest?"当前已是最新版本":"在线版本信息暂不可用";
 }
-var recommendationCanApply=false;
+var recommendationCanApply=false,recommendationBusy=false;
+function updateRecommendationControls(){
+  get("recommendationRefresh").disabled=recommendationBusy;
+  ["applySpells","applyItems"].forEach(function(id){get(id).disabled=recommendationBusy;});
+  get("applyRunes").disabled=recommendationBusy||get("applyRunes").closest("label").hidden;
+  get("recommendationApply").disabled=recommendationBusy||!recommendationCanApply||!["applyRunes","applySpells","applyItems"].some(function(id){return get(id).checked&&!get(id).disabled;});
+}
 function guideText(id,value){get(id).textContent=value==null||value===""?"—":String(value);}
 function guidePercent(value){
   var n=Number(value);if(value==null||!Number.isFinite(n))return "—";
@@ -2081,17 +2165,31 @@ function iconPlaceholder(label){
   var icon=document.createElement("span");icon.className="guide-thumb";
   icon.textContent=String(label||"荐").trim().slice(0,1)||"荐";return icon;
 }
+var mayhemBusy=false;
+function updateMayhemControls(){
+  get("mayhemQuery").disabled=mayhemBusy;get("mayhemCancel").disabled=!mayhemBusy;
+  get("mayhemCurrent").disabled=mayhemBusy||!sceneState||!sceneState.connected||sceneState.phase!=="InProgress";
+}
+var mayhemAugmentData=null,mayhemAugmentLimit=20,mayhemAugmentIcons=new Map(),mayhemRequestedIcons=new Set();
+get("mayhemAugmentSearch").oninput=get("mayhemAugmentRarity").onchange=function(){mayhemAugmentLimit=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
+get("mayhemAugmentMore").onclick=function(){mayhemAugmentLimit+=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
+function mayhemPointPercent(value){return Number.isFinite(Number(value))?Number(value).toFixed(1)+"%":"—";}
 function renderRankedAugments(data){
   var list=get("mayhemAugments");list.replaceChildren();
   var rows=Array.isArray(data.augmentDetails)?data.augmentDetails:[];
-  if(!rows.length){
+  var query=get("mayhemAugmentSearch").value.trim().toLowerCase(),rarityFilter=get("mayhemAugmentRarity").value;
+  var matched=rows.map(function(row,index){return {row:row,index:index};}).filter(function(x){return (rarityFilter==="all"||x.row.rarityKind===rarityFilter)&&(!query||String(x.row.name||"").toLowerCase().includes(query));});
+  get("mayhemAugmentMore").hidden=matched.length<=mayhemAugmentLimit;
+  if(!rows.length&&rarityFilter==="all"){
     (Array.isArray(data.augments)?data.augments:[]).slice(0,8).forEach(function(name,index){
+      if(query&&!String(name).toLowerCase().includes(query))return;
       var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
       var icon=iconPlaceholder(name),copy=document.createElement("div");copy.className="guide-copy";
       var title=document.createElement("strong");title.textContent=String(name);copy.append(title);li.append(icon,copy);list.append(li);
     });
   }else{
-    rows.forEach(function(row,index){
+    matched.slice(0,mayhemAugmentLimit).forEach(function(entry){
+      var row=entry.row,index=entry.index;
       var li=document.createElement("li");li.className="guide-icon-row";li.dataset.iconKind="augment";li.dataset.iconIndex=String(index);
       var icon=iconPlaceholder(row.name);
       var copy=document.createElement("div");copy.className="guide-copy";
@@ -2104,19 +2202,24 @@ function renderRankedAugments(data){
       title.appendChild(document.createTextNode(String(row.name||"未知强化")));
       copy.appendChild(title);
       var evidence=[Number(row.rank)>0?"第 "+row.rank+" 名":"",
-        row.winRate==null?"":"胜率 "+guidePercent(row.winRate),
-        row.pickRate==null?"":"选取率 "+guidePercent(row.pickRate),
+        row.winRate==null?"":"胜率 "+mayhemPointPercent(row.winRate),
+        row.pickRate==null?"":"选取率 "+mayhemPointPercent(row.pickRate),
         row.games>0?"样本 "+row.games:""].filter(Boolean).join(" · ");
       if(evidence){var meta=document.createElement("small");meta.textContent=evidence;copy.appendChild(meta);}
-      if(row.description){var desc=document.createElement("small");desc.textContent=String(row.description);copy.appendChild(desc);}
+      if(row.description){var detail=document.createElement("details"),summary=document.createElement("summary"),desc=document.createElement("small");summary.textContent="详情";desc.textContent=String(row.description);detail.append(summary,desc);copy.appendChild(detail);}
       li.append(icon,copy);list.append(li);
     });
   }
-  if(!list.children.length){var empty=document.createElement("li");empty.textContent="暂无来源确认的强化推荐";list.appendChild(empty);}
+  mayhemAugmentIcons.forEach(function(image,index){renderMayhemIcon({kind:"augment",index:index,image:image});});
+  if(Number.isInteger(data.generation)){
+    var wanted=matched.slice(0,mayhemAugmentLimit).map(function(entry){return entry.index;}).filter(function(i){return !mayhemRequestedIcons.has(i);});
+    for(var i=0;i<wanted.length;i+=24){var batch=wanted.slice(i,i+24);batch.forEach(function(index){mayhemRequestedIcons.add(index);});post("mayhem-icons:"+data.generation+":"+batch.join(","));}
+  }
+  if(!list.children.length){var empty=document.createElement("li");empty.textContent=rows.length?"无匹配强化":"暂无来源确认的强化推荐";list.appendChild(empty);}
   var route=String(data.augmentSource||"");
   get("mayhemAugmentSource").dataset.stale=data.augmentStale?"true":"false";
   get("mayhemAugmentSource").textContent=data.augmentStale?"当前为历史缓存数据，需注意版本差异":
-    route==="fresh-cache"?"强化数据来自近期缓存":"强化信息来自当前已读取的数据源";
+    "";
 }
 function renderItemIcons(items){
   var list=get("mayhemItems");list.replaceChildren();
@@ -2132,9 +2235,11 @@ function renderItemIcons(items){
 function renderMayhemIcon(data){
   if(mode!=="mayhem"||typeof data.image!=="string"||
       !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(data.image)||data.image.length>35000)return;
+  if(data.kind==="augment"&&data.generation!==undefined&&(!mayhemAugmentData||data.generation!==mayhemAugmentData.generation))return;
+  if(data.kind==="augment")mayhemAugmentIcons.set(data.index,data.image);
   var holder=null;
   if(data.kind==="champion")holder=get("mayhemChampionIcon");
-  else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<8){
+  else if((data.kind==="augment"||data.kind==="item")&&Number.isInteger(data.index)&&data.index>=0&&data.index<(data.kind==="augment"?512:8)){
     var list=get(data.kind==="augment"?"mayhemAugments":"mayhemItems");
     var row=list.querySelector('[data-icon-index="'+data.index+'"]');
     if(row)holder=row.querySelector(".guide-thumb");
@@ -2142,7 +2247,8 @@ function renderMayhemIcon(data){
   if(holder){var img=document.createElement("img");img.src=data.image;img.alt="";img.decoding="async";holder.replaceChildren(img);}
 }
 function renderMayhem(data){
-  get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+  mayhemAugmentData=data;mayhemAugmentLimit=20;mayhemAugmentIcons.clear();mayhemRequestedIcons.clear();get("mayhemAugmentSearch").value="";get("mayhemAugmentRarity").value="all";
+  mayhemBusy=false;updateMayhemControls();
   get("mayhemOutput").hidden=false;
   get("mayhemChampionIcon").textContent=String(data.champion||"英").slice(0,1);
   guideText("mayhemName",data.champion);
@@ -2157,15 +2263,15 @@ function renderMayhem(data){
     return "#"+row.rank+" "+(row.name||"未知英雄")+(row.tier?" · "+row.tier:"")+
       (row.winRate==null?"":" · "+guidePercent(row.winRate));
   }),"当前来源未提供可信的前十排行");
-  get("mayhemResult").textContent="数据读取完成";
+  get("mayhemResult").textContent="";
 }
 function renderRecommendationFeedback(data){
-  get("recommendationRefresh").disabled=false;
-  get("recommendationApply").disabled=!recommendationCanApply;
+  recommendationBusy=false;if(data.status==="context-changed")recommendationCanApply=false;updateRecommendationControls();
   var labels={runes:"符文",spells:"召唤师技能",items:"装备"};
   var statuses={"success":"已成功","failed":"执行未成功","unavailable":"无可应用内容","not-selected":"未选择"};
   var box=get("recommendationFeedback");box.replaceChildren();box.hidden=false;
   ["runes","spells","items"].forEach(function(key){
+    if(data[key]==="not-selected")return;
     var card=document.createElement("div");card.className="guide-card";card.dataset.result=String(data[key]||"unavailable");
     var name=document.createElement("strong");name.textContent=labels[key];
     var state=document.createElement("span");state.textContent=statuses[data[key]]||"结果待确认";
@@ -2182,9 +2288,14 @@ function renderRecommendationFeedback(data){
   get("recommendationResult").textContent=statuses2[data.status]||"请查看各项执行结果";
 }
 function renderRecommendation(data){
-  get("recommendationRefresh").disabled=false;
-  recommendationCanApply=!!data.canApply;
-  get("recommendationApply").disabled=!recommendationCanApply;
+  recommendationBusy=false;
+  recommendationCanApply=!!data.canApply&&(!sceneState||(sceneState.connected&&sceneState.phase==="ChampSelect"));
+  var runes=get("applyRunes"),allowsRunes=data.allowsRunes!==false;
+  if(!allowsRunes)runes.checked=false;
+  else if(runes.closest("label").hidden)runes.checked=true;
+  runes.disabled=!allowsRunes;
+  runes.closest("label").hidden=!allowsRunes;
+  updateRecommendationControls();
   var rows=Array.isArray(data.rows)?data.rows:[];
   get("recommendationOutput").hidden=false;
   guideText("recommendationChampion",data.champion|| (data.championId>0?"英雄 #"+data.championId:"当前英雄未确认"));
@@ -2199,7 +2310,7 @@ function renderRecommendation(data){
     var title=document.createElement("strong");title.textContent=labels[row.category]||String(row.category||"推荐");
     var detail=document.createElement("small");detail.textContent=row.title||"来源未提供";
     item.append(title,detail);
-    if(row.evidence){var note=document.createElement("small");note.textContent=String(row.evidence);item.appendChild(note);}
+    if(row.evidence){var evidence=document.createElement("details"),summary=document.createElement("summary"),note=document.createElement("small");summary.textContent="详情";note.textContent=String(row.evidence);evidence.append(summary,note);item.appendChild(evidence);}
     list.appendChild(item);
   });
   if(!rows.length){var empty=document.createElement("div");empty.className="guide-card";empty.textContent="当前没有可用的推荐数据";list.appendChild(empty);}
@@ -2208,16 +2319,34 @@ function renderRecommendation(data){
     "in-game-cache":"已读取当前游戏的缓存推荐，游戏中不可写入","in-game-no-cache":"游戏中暂无已缓存的推荐",
     "opgg-unavailable":"推荐来源暂时不可用","timeout":"读取超时"};
   get("recommendationResult").textContent=data.status==="ready"?
-    "推荐已读取，可选择应用到当前选人阶段":(statuses[data.status]||"暂时无法应用推荐");
+    "":(statuses[data.status]||"暂时无法应用推荐");
 }
 ["applyRunes","applySpells","applyItems"].forEach(function(id){
-  get(id).addEventListener("change",function(){get("recommendationApply").disabled=!recommendationCanApply;});
+  get(id).addEventListener("change",updateRecommendationControls);
 });
 get("mayhemChampion").addEventListener("keydown",function(event){
   if(event.isComposing||event.keyCode===229)return;
   if(event.key==="Enter"){event.preventDefault();get("mayhemQuery").click();}
 });
 var historyRows=[];
+var historyAnalysisRows=[];
+get("historyAnalysisQueue").addEventListener("change",drawHistoryAnalysis);
+function renderHistoryAnalysis(rows){
+  var select=get("historyAnalysisQueue"),previous=select.value;select.replaceChildren();
+  historyAnalysisRows=(Array.isArray(rows)?rows:[]).filter(function(r){return r&&r.wins+r.losses>0;}).slice(0,100);
+  historyAnalysisRows.forEach(function(r,i){var option=document.createElement("option");option.value=String(i);option.textContent=(modeName(r.mode)||r.mode)+" · 队列 "+r.queue+" · "+(r.wins+r.losses)+" 场";select.append(option);});
+  if(previous&&Number(previous)<historyAnalysisRows.length)select.value=previous;
+  drawHistoryAnalysis();
+}
+function drawHistoryAnalysis(){
+  var r=historyAnalysisRows[Number(get("historyAnalysisQueue").value)],panel=get("historyAnalysis");
+  panel.hidden=!r;if(!r){get("historyAnalysisHeroes").replaceChildren();return;}
+  get("historyAnalysisRate").textContent=Math.round(r.wins*100/(r.wins+r.losses))+"%";
+  get("historyAnalysisRecord").textContent=r.wins+"胜"+r.losses+"负";
+  get("historyAnalysisTrend").textContent=r.recentFive!=null&&r.previousFive!=null?"近5场 "+r.recentFive+"% · 前5场 "+r.previousFive+"%":"不足10场有效记录，暂不比较趋势";
+  var heroes=get("historyAnalysisHeroes");heroes.replaceChildren();
+  (r.champions||[]).slice(0,5).forEach(function(c){var row=document.createElement("div");row.className="history-match";var title=document.createElement("strong");title.textContent=c.name||"英雄 #"+c.id;var meta=document.createElement("small");meta.textContent=c.games+"场 · "+Math.round(c.wins*100/c.games)+"%胜率 · KDA "+Number(c.kda).toFixed(2);row.append(title,meta);heroes.append(row);});
+}
 var historyFilter="all";
 get("historySearch").addEventListener("input",drawHistoryRows);
 get("historySort").addEventListener("change",drawHistoryRows);
@@ -2244,7 +2373,7 @@ function drawHistoryRows(){
   if(sort==="oldest")rows.reverse();
   else if(sort==="kills"||sort==="kda"){
     var metric=function(match){
-      if(match.outcome==="unknown")return -1;
+      if(match.outcome!=="win"&&match.outcome!=="loss")return -1;
       var kills=Math.max(0,Number(match.kills)||0);
       if(sort==="kills")return kills;
       return (kills+Math.max(0,Number(match.assists)||0))/Math.max(1,Number(match.deaths)||0);
@@ -2252,18 +2381,20 @@ function drawHistoryRows(){
     rows.sort(function(a,b){return metric(b)-metric(a);});
   }
   rows.forEach(function(match){
-    var card=document.createElement("div");card.className="history-match"+(match.outcome==="win"?" win":"");
+    var card=document.createElement("button");card.type="button";card.className="history-match"+(match.outcome==="win"?" win":"");
     var top=document.createElement("div");top.className="top";
     var champ=document.createElement("strong");champ.textContent=String(match.champion|| (Number(match.championId)>0?"英雄 #"+match.championId:"英雄未确认"));
-    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",unknown:"结果待补全"}[match.outcome]||"结果待补全");
+    var outcome=document.createElement("span");outcome.textContent=({win:"胜利",loss:"失败",remake:"重开",abort:"中止",unknown:"结果待补全"}[match.outcome]||"结果待补全");
     top.append(champ,outcome);
     var meta=document.createElement("small");
     var duration=Number(match.duration)||0;
     meta.textContent=[match.played,modeName(match.mode)||"队列 "+match.queueId,
       duration>0?Math.floor(duration/60)+" 分钟":"时长未记录"].filter(Boolean).join(" · ");
     var score=document.createElement("small");
-    score.textContent=match.outcome==="unknown"?"对局数据待补全":
+    score.textContent=match.outcome!=="win"&&match.outcome!=="loss"?"不计入有效胜负":
       "K / D / A · "+(Number(match.kills)||0)+" / "+(Number(match.deaths)||0)+" / "+(Number(match.assists)||0);
+    var id=String(match.gameId||"");
+    if(/^\d{1,19}$/.test(id)&&id!=="0"){card.dataset.recentGameId=id;card.setAttribute("aria-label",champ.textContent+" · "+outcome.textContent+" · 查看对局详情");}else card.disabled=true;
     card.append(top,meta,score);list.appendChild(card);
   });
   var wins=rows.filter(function(match){return match.outcome==="win";}).length;
@@ -2283,7 +2414,8 @@ function renderHistory(data){
   get("historyMore").hidden=!data.hasMore;
   get("historyAccount").textContent=data.name||"当前召唤师";
   get("historyLevel").textContent=data.level>0?"等级 "+data.level:"等级未读取";
-  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,20);
+  historyRows=(Array.isArray(data.rows)?data.rows:[]).slice(0,100);
+  renderHistoryAnalysis(data.analysis);
   drawHistoryRows();
 }
 var remoteHistoryIds=new Set();
@@ -2351,7 +2483,7 @@ function renderAdvancedRadar(data){
   if(data.id!==selectedAdvancedMatch)return;
   var svg=get("advancedHistoryRadar");svg.replaceChildren();
   if(data.status!=="ready"||!Array.isArray(data.player)){
-    get("advancedRadarStatus").textContent="当前对局没有可核实的雷达统计";return;
+    get("advancedRadarStatus").textContent=data.status==="maintenance"?"雷达图暂时维护":"当前对局没有可核实的雷达统计";return;
   }
   var labels=["英雄伤害","承受伤害","经济","补刀","KDA","参团率","治疗"];
   var point=function(axis,ratio){
@@ -2378,12 +2510,35 @@ function renderAdvancedRadar(data){
     "青色为所选玩家"+(team?"；淡紫色为所在队伍平均":"；队伍完整统计不可用")+
     "。每个轴相对本场已知最大值归一化。":"部分必需指标缺失，无法绘制完整多边形";
 }
+function renderTimelineReview(review){
+  var panel=get("advancedTimelineReview"),points=get("advancedTimelineCheckpoints"),events=get("advancedTimelineKeyEvents");
+  points.replaceChildren();events.replaceChildren();get("advancedTimelineReviewSummary").textContent="";
+  panel.hidden=!review;if(!review)return;
+  function time(ms){var s=Math.floor(Math.max(0,Number(ms)||0)/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+  function line(container,text){var row=document.createElement("div");row.className="history-event";row.textContent=text;container.append(row);}
+  var parts=["死亡 "+review.deaths+" 次","击杀参与 "+review.takedowns+" 次"];
+  if(review.objectives!=null)parts.push("资源事件 "+review.objectives+" 次");
+  if(review.clusters!=null)parts.push("密集交战 "+review.clusters+" 段");
+  if(review.nodeCount>80)parts.push("展示前80个关键节点");
+  get("advancedTimelineReviewSummary").textContent="已记录 · "+parts.join(" · ");
+  (review.checkpoints||[]).slice(0,6).forEach(function(p){
+    var values=[p.gold!=null?"经济 "+p.gold:"",p.cs!=null?"补刀 "+p.cs:""].filter(Boolean);
+    if(values.length)line(points,time(p.time)+" · "+values.join(" · "));
+  });
+  var names={death:"死亡",kill:"击杀",assist:"助攻",DRAGON:"小龙",HORDE:"巢虫",RIFTHERALD:"先锋",BARON_NASHOR:"大龙",cluster:"密集交战"};
+  (review.nodes||[]).slice(0,80).forEach(function(e){
+    if(!names[e.kind])return;
+    var suffix=e.kind==="cluster"?" · 30秒内 "+e.value+" 次击杀":({ally:" · 己方取得",enemy:" · 敌方取得",unknown:" · 归属未确认"}[e.value]||"");
+    line(events,time(e.time)+" · "+names[e.kind]+suffix);
+  });
+}
 function renderAdvancedTimeline(data){
   if(data.id!==selectedAdvancedMatch)return;
+  renderTimelineReview(data.status==="ready"?data.review:null);
   get("advancedTimelineEvents").replaceChildren();
   advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
   if(data.status!=="ready"){
-    get("advancedTimelineStatus").textContent=data.status==="session-changed"?
+    get("advancedTimelineStatus").textContent=data.status==="maintenance"?"时间线暂时维护":data.status==="session-changed"?
       "当前 LOL 账号或对局已切换，请重新选择比赛":"当前比赛没有可用的完整时间线";
     drawAdvancedTimeline();return;
   }
@@ -2438,7 +2593,9 @@ var advancedHistoryRows=[],advancedHistoryIds=new Set(),selectedAdvancedMatch=""
   get(id).addEventListener(id==="advancedHistorySearch"?"input":"change",drawAdvancedHistoryRows);
 });
 function renderAdvancedHistoryList(data){
-  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,20):[];
+  get("advancedHistoryRefresh").disabled=false;
+  get("advancedHistoryMore").disabled=!data.hasMore;get("advancedHistoryMore").hidden=!data.hasMore;
+  advancedHistoryRows=Array.isArray(data.rows)?data.rows.slice(0,100):[];
   advancedHistoryIds=new Set(advancedHistoryRows.map(function(item){return String(item.id);}));
   remoteHistoryIds.clear();
   get("advancedRegionalResults").replaceChildren();
@@ -2455,8 +2612,26 @@ function renderAdvancedHistoryList(data){
   if(Array.from(queue.options).some(function(o){return o.value===before;}))queue.value=before;
   get("advancedHistoryStatus").textContent=data.error?"读取失败或当前游戏账号已切换":
     "当前账号 "+(data.name||"")+" · 已读取 "+advancedHistoryRows.length+" 场"+
-    (data.hasMore?"（还有历史对局未读取）":"");
+    (data.hasMore?" · 可读取更多":data.limitReached?" · 本次已读取上限":"");
   drawAdvancedHistoryRows();
+}
+function drawChampionStats(rows){
+  var group=new Map();
+  rows.forEach(function(match){
+    if(!["win","loss"].includes(match.outcome)||Number(match.championId)<=0)return;
+    var id=String(match.championId),item=group.get(id);
+    if(!item){item={name:match.champion||"英雄 #"+id,games:0,wins:0,k:0,d:0,a:0};group.set(id,item);}
+    item.games++;if(match.outcome==="win")item.wins++;
+    item.k+=Number(match.kills)||0;item.d+=Number(match.deaths)||0;item.a+=Number(match.assists)||0;
+  });
+  var list=get("historyChampionStatsRows");list.replaceChildren();
+  get("historyChampionStats").hidden=group.size===0;
+  Array.from(group.values()).sort(function(a,b){return b.games-a.games||b.wins-a.wins;}).forEach(function(item){
+    var row=document.createElement("div");row.className="history-advanced-row";
+    var name=document.createElement("strong");name.textContent=item.name;
+    var stats=document.createElement("small");stats.textContent=item.games+" 场 · "+item.wins+"胜 "+(item.games-item.wins)+"负 · "+Math.round(item.wins/item.games*100)+"% · "+[item.k,item.d,item.a].map(x=>(x/item.games).toFixed(1)).join("/");
+    row.append(name,stats);list.append(row);
+  });
 }
 function drawAdvancedHistoryRows(){
   var list=get("advancedHistoryRows");list.replaceChildren();
@@ -2469,11 +2644,12 @@ function drawAdvancedHistoryRows(){
       return String(value==null?"":value).toLocaleLowerCase().includes(search);
     });
   });
+  drawChampionStats(rows);
   var sort=get("advancedHistorySort").value;
   if(sort==="oldest")rows.reverse();
   if(sort==="kills"||sort==="kda"){
     rows.sort(function(a,b){
-      var metric=function(x){return sort==="kills"?Number(x.kills)||0:
+      var metric=function(x){if(x.outcome==="unknown")return -1;return sort==="kills"?Number(x.kills)||0:
         ((Number(x.kills)||0)+(Number(x.assists)||0))/Math.max(1,Number(x.deaths)||0);};
       return metric(b)-metric(a);
     });
@@ -2484,13 +2660,57 @@ function drawAdvancedHistoryRows(){
     heading.textContent=String(match.champion||"英雄 #"+match.championId)+" · "+(
       {win:"胜利",loss:"失败",unknown:"结果未确认"}[match.outcome]||"未确认");
     meta.textContent=[match.played,modeName(match.mode)||"队列 #"+match.queue,
-      "K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
+      match.outcome==="unknown"?"数据待补全":"K/D/A "+(match.kills||0)+"/"+(match.deaths||0)+"/"+(match.assists||0)].filter(Boolean).join(" · ");
     left.append(heading,meta);
     var button=document.createElement("button");button.dataset.advancedGameId=String(match.id);
     button.textContent="查看完整对局";button.setAttribute("aria-label","读取对局 "+match.id+" 的真实明细");
     card.append(left,button);list.appendChild(card);
   });
   if(!rows.length){var empty=document.createElement("p");empty.textContent="已读取记录中没有符合条件的对局";list.append(empty);}
+}
+function selectLocalMatch(gameId){
+    get("advancedHistoryDetail").hidden=false;
+    get("advancedHistoryDetailTitle").textContent="对局 #"+gameId;
+    get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
+    get("advancedHistoryTeams").replaceChildren();
+    get("advancedHistoryParticipants").replaceChildren();
+    renderAdvancedReview(null);renderTimelineReview(null);
+    get("advancedHistoryExtras").hidden=true;
+    get("advancedHistoryRadar").replaceChildren();
+    get("advancedHistoryTimeline").replaceChildren();
+    get("advancedTimelineEvents").replaceChildren();
+    advancedTimelineFrames=[];
+    selectedAdvancedMatch=gameId;
+    get("advancedHistoryDetail").scrollIntoView({block:"start"});
+}
+function renderAdvancedReview(review){
+  var panel=get("advancedHistoryReview"),metrics=get("advancedReviewMetrics"),objectives=get("advancedReviewObjectives");
+  metrics.replaceChildren();objectives.textContent="";objectives.hidden=true;
+  panel.hidden=!review;if(!review)return;
+  var outcome={win:"胜利",loss:"失败",remake:"重开",abort:"中止",unknown:"结果未确认"}[review.outcome]||"结果未确认";
+  get("advancedReviewHeading").textContent=(review.champion||"英雄 #"+review.championId)+" · "+(review.placement!=null?"第 "+review.placement+" 名":outcome);
+  function add(label,value,suffix,precision){
+    if(value==null||!Number.isFinite(Number(value))||Number(value)<0)return;
+    var card=document.createElement("div"),name=document.createElement("small"),number=document.createElement("strong");
+    card.className="guide-card";name.textContent=label;
+    number.textContent=Number(value).toFixed(precision||0)+(suffix||"");card.append(name,number);metrics.append(card);
+  }
+  if(review.kills!=null&&review.deaths!=null&&review.assists!=null){
+    var card=document.createElement("div"),name=document.createElement("small"),number=document.createElement("strong");
+    card.className="guide-card";name.textContent="击杀 / 死亡 / 助攻";number.textContent=[review.kills,review.deaths,review.assists].join(" / ");card.append(name,number);metrics.append(card);
+  }
+  add("KDA",review.kda,"",2);
+  function contribution(label,value){if(value!=null)add(label,Number(value)*100,"%",1);}
+  contribution("参团率",review.participation);
+  contribution("队伍伤害占比",review.damageShare);
+  contribution("队伍经济占比",review.goldShare);
+  contribution("队伍承伤占比",review.takenShare);
+  add("英雄伤害",review.damage);add("总经济",review.gold);add("承受伤害",review.taken);
+  add("每分钟补刀",review.csPerMinute,"",1);add("视野得分",review.vision);
+  var resources=[["推塔",review.towers],["小龙",review.dragons],["大龙",review.barons],["先锋",review.heralds]]
+    .filter(function(row){return row[1]!=null&&Number.isFinite(Number(row[1]));})
+    .map(function(row){return row[0]+" "+row[1];});
+  if(resources.length){objectives.textContent="所在队伍 · "+resources.join(" · ");objectives.hidden=false;}
 }
 function renderAdvancedMatchDetail(data){
   if(String(data.id)!==selectedAdvancedMatch)return;
@@ -2500,10 +2720,13 @@ function renderAdvancedMatchDetail(data){
   get("advancedHistoryDetailStatus").textContent=labels[data.status]||"读取状态待确认";
   if(data.status==="WrongAccount"){
     advancedHistoryRows=[];advancedHistoryIds.clear();
-    get("advancedHistoryRows").replaceChildren();
+    get("advancedHistoryRows").replaceChildren();drawChampionStats([]);
+    get("advancedHistoryMore").hidden=true;
     get("advancedHistoryStatus").textContent="游戏账号已切换，旧记录已清空，请重新读取";
   }
   var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
+  renderAdvancedReview(data.status==="Ready"?data.review:null);
+  renderTimelineReview(null);
   if(data.status!=="Ready"){
     get("advancedHistoryExtras").hidden=true;
     return;
@@ -2611,23 +2834,29 @@ function renderBenchState(data){
   benchIds.clear();get("benchRefresh").disabled=false;
   get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
   get("benchMode").textContent=modeName(data.mode)|| (data.queue>0?"队列 #"+data.queue:"—");
-  var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
-    disabled:"当前游戏模式没有开放替补席","session-changed":"游戏账号或选人会话已切换，请重新读取",timeout:"读取超时，请稍后再试",
-    failed:"替补席读取失败，检查客户端后重试"};
-  get("benchReadStatus").textContent=status[data.status]||"正在读取替补席";
+  get("benchHeading").textContent=data.initialPick?"选择英雄":"替补席";
+  var status={ready:"",unavailable:"等待选人",disabled:"当前模式无替补席",
+    "session-changed":"选人会话已切换",timeout:"读取超时",failed:"读取失败"};
+  get("benchReadStatus").textContent=status[data.status]===undefined?"加载中…":status[data.status];
   if(data.status!=="ready")return;
-  var ids=Array.isArray(data.championIds)?data.championIds.slice(0,32):[];
+  var ids=Array.isArray(data.championIds)?data.championIds:[];
+  var eligible=new Set(Array.isArray(data.selectable)?data.selectable:[]);
   ids.forEach(function(raw){
     var id=Number(raw);
     if(!Number.isSafeInteger(id)||id<1||id>10000||benchIds.has(id))return;
     benchIds.add(id);
     var button=document.createElement("button");button.dataset.benchSwap=String(id);
-    button.setAttribute("aria-label","交换到英雄 "+id);
+    button.setAttribute("aria-label",(data.initialPick?"选择英雄 ":"交换英雄 ")+id);
+    button.disabled=!eligible.has(id);
     var icon=document.createElement("span");icon.className="bench-champ-icon";icon.textContent="英";
     var label=document.createElement("small");label.textContent="英雄 #"+id;
     button.append(icon,label);list.appendChild(button);
   });
-  if(!benchIds.size)get("benchReadStatus").textContent="替补席已启用，但当前没有可交换的英雄";
+  var total=Math.max(10,Math.ceil(benchIds.size/5)*5);
+  for(var i=benchIds.size;i<total;i++){
+    var blank=document.createElement("button");blank.disabled=true;blank.setAttribute("aria-label","空替补位置");
+    list.appendChild(blank);
+  }
 }
 function renderBenchIcon(data){
   if(mode!=="bench"||!benchIds.has(data.id)||typeof data.image!=="string"||
@@ -2702,7 +2931,7 @@ function renderLive(data){
       bans.appendChild(line);bans.hidden=false;
     });
   }
-  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
+  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!(data.connected&&data.phase==="InProgress"&&Number(data.gameId)>0&&(!sceneState||(sceneState.connected&&sceneState.phase==="InProgress")));
   get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
   get("livePhase").textContent=phaseLabel(data.phase);
   get("liveQueue").textContent=modeName(data.queue)||modeName(data.mode)||"—";
@@ -2822,6 +3051,28 @@ function filterToolCards(){
   document.getElementById("searchMessage").textContent=query?(count?"已找到 "+count+" 项功能":"没有匹配的功能"):"";
 }
 document.getElementById("toolSearch").addEventListener("input",filterToolCards);
+function renderAutomationPhaseNotes(){
+  var rules={autoSearch:{phases:["Lobby"],waiting:"等待组队大厅"},autoAccept:{phases:["ReadyCheck"],waiting:"等待确认对局"},autoReconnect:{phases:["Reconnect"],waiting:"等待重连"},autoHonor:{phases:["WaitingForStats","PreEndOfGame","EndOfGame"],waiting:"等待赛后"},autoReturn:{phases:["WaitingForStats","PreEndOfGame","EndOfGame"],waiting:"等待赛后"}};
+  Object.keys(rules).forEach(function(key){
+    var note=document.querySelector('[data-phase-note="'+key+'"]'),rule=rules[key];
+    note.textContent=!(quickSettingsState&&quickSettingsState[key])?"":
+      !sceneState||!sceneState.connected?"等待客户端连接":
+      rule.phases.includes(sceneState.phase)?"当前阶段 · 等待条件":rule.waiting;
+  });
+}
+function updateSceneShortcut(state){
+  var route="client-status",label="客户端状态";
+  if(state.connected){
+    var phase=String(state.phase||"");
+    if(phase==="Lobby"){route="matchmaking-settings";label="排队设置";}
+    else if(phase==="Matchmaking"||phase==="ReadyCheck"||phase==="Reconnect"){route="efficiency";label="快捷工具";}
+    else if(phase==="ChampSelect"){route="recommendation";label="出装推荐";}
+    else if(phase==="InProgress"||phase==="GameStart"){route="live";label="实时对局";}
+    else if(["WaitingForStats","PreEndOfGame","EndOfGame"].includes(phase)){route="player";label="我的战绩";}
+    else {route="dashboard";label="LOL 工作台";}
+  }else if(state.clientProcess&&!state.gameProcess){route="repair";label="游戏修复";}
+  var button=get("sceneShortcut");button.dataset.route=route;button.textContent=label;
+}
 function phaseLabel(phase){
   var labels={None:"空闲",Disconnected:"未连接",Lobby:"组队大厅",Matchmaking:"正在匹配",ReadyCheck:"确认对局",ChampSelect:"选择英雄",InProgress:"游戏中",GameStart:"准备进入游戏",WaitingForStats:"结算中",PreEndOfGame:"赛后结算",EndOfGame:"赛后大厅",Reconnect:"重连中",TerminatedInError:"客户端异常"};
   return labels[String(phase||"")]||"已连接";

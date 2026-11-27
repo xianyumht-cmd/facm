@@ -35,7 +35,8 @@ namespace FACM.AppHost.Modules
         {
             _service = new LeagueLiveDataService(_leagueClient, _performance.Budgets,
                 (ILeagueSgpGsmApi)_leagueClient, () => _leagueClient.CurrentSession);
-            _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient);
+            _benchQuickPick = new LeagueBenchQuickPickService(_service, (ILeagueBenchSwapWriteApi)_leagueClient,
+                (ILeagueChampSelectActionWriteApi)_leagueClient);
         }
 
         internal LeagueClientSession UnifiedLiveSession { get { return _leagueClient.CurrentSession; } }
@@ -48,9 +49,18 @@ namespace FACM.AppHost.Modules
             var initial = _leagueClient.CurrentSession;
             var snapshot = await _service.RefreshAsync(token);
             if (token.IsCancellationRequested || !SessionStillMatches(initial)) return null;
-            if (includeSgp && snapshot != null && snapshot.Connected)
+            if (includeSgp && snapshot != null && snapshot.Connected && snapshot.GameId > 0 &&
+                string.Equals(snapshot.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
                 await _service.TryRefreshSgpTeamsAsync(snapshot, token);
             return !token.IsCancellationRequested && SessionStillMatches(initial) ? snapshot : null;
+        }
+
+        internal async Task<LeagueLiveSnapshot> ReadCurrentMayhemContextAsync(CancellationToken token)
+        {
+            var initial = _leagueClient.CurrentSession;
+            if (_service == null || initial == null) return null;
+            var result = await _service.ReadCurrentMayhemContextAsync(token);
+            return !token.IsCancellationRequested && SessionStillMatches(initial) ? result : null;
         }
 
         private bool SessionStillMatches(LeagueClientSession initial)

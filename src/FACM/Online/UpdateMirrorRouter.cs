@@ -129,7 +129,7 @@ namespace FACM.Online
 
         public static UpdateDownloadCandidate[] BuildCandidates(
             string originUrl,
-            IEnumerable<UpdateMirrorSource> sources)
+            IEnumerable<UpdateMirrorSource> sources, bool package = false)
         {
             Uri origin;
             if (!Uri.TryCreate(originUrl, UriKind.Absolute, out origin) || origin.Scheme != Uri.UriSchemeHttps)
@@ -139,7 +139,8 @@ namespace FACM.Online
 
             var result = new List<UpdateDownloadCandidate>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var effectiveSources = sources == null ? GetBuiltInSources() : MergeWithBuiltIns(sources);
+            var effectiveSources = MirrorHealthStore.Order(
+                (sources ?? GetBuiltInSources()).Where(source => source != null && source.Enabled), package).ToArray();
             foreach (var source in effectiveSources)
             {
                 var url = BuildUrl(source, originUrl);
@@ -182,14 +183,14 @@ namespace FACM.Online
             return true;
         }
 
-        public static void RecordSuccess(string sourceName, long elapsedMilliseconds)
+        public static void RecordSuccess(string sourceName, long elapsedMilliseconds, bool package = false)
         {
-            MirrorHealthStore.Record(sourceName, true, elapsedMilliseconds);
+            MirrorHealthStore.Record(sourceName, true, elapsedMilliseconds, package);
         }
 
-        public static void RecordFailure(string sourceName, long elapsedMilliseconds)
+        public static void RecordFailure(string sourceName, long elapsedMilliseconds, bool package = false)
         {
-            MirrorHealthStore.Record(sourceName, false, elapsedMilliseconds);
+            MirrorHealthStore.Record(sourceName, false, elapsedMilliseconds, package);
         }
 
         private static UpdateMirrorSource[] NormalizeRemoteSources(IEnumerable<UpdateMirrorSource> sources)
@@ -226,7 +227,8 @@ namespace FACM.Online
                 Name = source.Name,
                 Prefix = source.Prefix,
                 Enabled = source.Enabled,
-                Priority = source.Priority
+                Priority = source.Priority,
+                PackagePriority = source.PackagePriority
             };
         }
 
@@ -249,6 +251,8 @@ namespace FACM.Online
             return Path.Combine(RuntimePaths.CacheDirectory, "update-mirrors.json");
         }
 
+        internal static void ValidateHealthForSmokeTest() { MirrorHealthStore.ValidateForSmokeTest(); }
+
         [DataContract]
         private sealed class MirrorHealthFile
         {
@@ -270,40 +274,59 @@ namespace FACM.Online
 
             [DataMember(Name = "average_ms")]
             public double AverageMilliseconds { get; set; }
+
+            [DataMember(Name = "last_observed_utc")]
+            public long LastObservedUtc { get; set; }
         }
 
         private static class MirrorHealthStore
         {
             private static readonly object Sync = new object();
 
-            public static IEnumerable<UpdateMirrorSource> Order(IEnumerable<UpdateMirrorSource> sources)
+            private static readonly TimeSpan MaximumAge = TimeSpan.FromDays(7);
+
+            public static IEnumerable<UpdateMirrorSource> Order(IEnumerable<UpdateMirrorSource> sources, bool package = false)
             {
-                var health = Load();
-                return sources.OrderBy(source => Score(source, health)).ThenBy(source => source.Priority);
+                lock (Sync)
+                {
+                    var health = Load(package);
+                    var now = DateTime.UtcNow;
+                    return sources.OrderBy(source => Score(source, health, package, now))
+                        .ThenBy(source => EffectivePriority(source, package)).ToArray();
+                }
             }
 
-            public static void Record(string sourceName, bool success, long elapsedMilliseconds)
+            public static void Record(string sourceName, bool success, long elapsedMilliseconds, bool package)
             {
                 if (string.IsNullOrWhiteSpace(sourceName)) return;
                 try
                 {
                     lock (Sync)
                     {
-                        var health = Load();
+                        var health = Load(package);
+                        var now = DateTime.UtcNow;
                         MirrorHealthEntry entry;
-                        if (!health.TryGetValue(sourceName, out entry))
+                        if (!health.TryGetValue(sourceName, out entry) || !IsRecent(entry, now))
                         {
                             entry = new MirrorHealthEntry { Name = sourceName };
                             health[sourceName] = entry;
                         }
-
-                        if (success) entry.Successes++;
+                        if (entry.Successes + entry.Failures >= 16)
+                        {
+                            entry.Successes /= 2;
+                            entry.Failures /= 2;
+                        }
+                        if (success)
+                        {
+                            entry.Successes++;
+                            var elapsed = Math.Max(1L, Math.Min(package ? 600000L : 60000L, elapsedMilliseconds));
+                            entry.AverageMilliseconds = entry.AverageMilliseconds <= 0
+                                ? elapsed : entry.AverageMilliseconds * 0.75 + elapsed * 0.25;
+                        }
                         else entry.Failures++;
-                        var elapsed = Math.Max(1L, Math.Min(60000L, elapsedMilliseconds));
-                        entry.AverageMilliseconds = entry.AverageMilliseconds <= 0
-                            ? elapsed
-                            : entry.AverageMilliseconds * 0.75 + elapsed * 0.25;
-                        Save(health.Values.Take(32).ToArray());
+                        entry.LastObservedUtc = now.Ticks;
+                        Save(health.Values.Where(item => IsRecent(item, now))
+                            .OrderByDescending(item => item.LastObservedUtc).Take(32).ToArray(), package);
                     }
                 }
                 catch
@@ -312,29 +335,76 @@ namespace FACM.Online
                 }
             }
 
-            private static double Score(
-                UpdateMirrorSource source,
-                IDictionary<string, MirrorHealthEntry> health)
+            private static bool IsRecent(MirrorHealthEntry entry, DateTime now)
             {
-                MirrorHealthEntry entry;
-                if (!health.TryGetValue(source.Name ?? string.Empty, out entry))
+                return entry != null && entry.LastObservedUtc > 0 && entry.LastObservedUtc <= now.Ticks &&
+                    now.Ticks - entry.LastObservedUtc <= MaximumAge.Ticks &&
+                    entry.Successes >= 0 && entry.Successes <= 16 && entry.Failures >= 0 && entry.Failures <= 16 &&
+                    !double.IsNaN(entry.AverageMilliseconds) && !double.IsInfinity(entry.AverageMilliseconds);
+            }
+
+            private static int EffectivePriority(UpdateMirrorSource source, bool package)
+            {
+                if (!package) return source.Priority;
+                if (source.PackagePriority.HasValue) return Math.Max(0, Math.Min(1000, source.PackagePriority.Value));
+                switch (source.Name)
                 {
-                    return Math.Max(0, source.Priority) * 10d + 800d;
+                    case "gh-proxy": return 5;
+                    case "gh-dpik": return 10;
+                    case "ghfast": return 30;
+                    case "github": return 40;
+                    case "ghproxy-net": return 60;
+                    case "cors-isteed": return 1000;
+                    default: return source.Priority;
                 }
+            }
+
+            internal static double Score(UpdateMirrorSource source,
+                IDictionary<string, MirrorHealthEntry> health, bool package, DateTime now)
+            {
+                var baseline = package ? 8000d : 800d;
+                var priority = Math.Max(0, EffectivePriority(source, package)) * (package ? 40d : 10d);
+                MirrorHealthEntry entry;
+                if (!health.TryGetValue(source.Name ?? string.Empty, out entry) || !IsRecent(entry, now))
+                    return baseline + priority;
 
                 var attempts = Math.Max(1, entry.Successes + entry.Failures);
                 var failureRate = (double)entry.Failures / attempts;
-                var latency = entry.AverageMilliseconds <= 0 ? 800d : entry.AverageMilliseconds;
-                return failureRate * 5000d + latency + Math.Max(0, source.Priority) * 10d;
+                var latency = entry.AverageMilliseconds <= 0 ? baseline : entry.AverageMilliseconds;
+                var weight = Math.Max(0, 1d - (now.Ticks - entry.LastObservedUtc) / (double)MaximumAge.Ticks);
+                return priority + baseline * (1 - weight) +
+                    (failureRate * (package ? 30000d : 5000d) + latency) * weight;
             }
 
-            private static Dictionary<string, MirrorHealthEntry> Load()
+            internal static void ValidateForSmokeTest()
+            {
+                var source = new UpdateMirrorSource { Name = "sample", Priority = 5 };
+                var now = new DateTime(2026, 11, 27, 0, 0, 0, DateTimeKind.Utc);
+                var empty = new Dictionary<string, MirrorHealthEntry>();
+                var first = new UpdateMirrorSource { Name = "first", Priority = 1, PackagePriority = 50 };
+                var second = new UpdateMirrorSource { Name = "second", Priority = 10, PackagePriority = 5 };
+                if (Score(first, empty, false, now) >= Score(second, empty, false, now) ||
+                    Score(first, empty, true, now) <= Score(second, empty, true, now) || Clone(first).PackagePriority != 50)
+                    throw new InvalidOperationException("Metadata and package default priorities are not independent.");
+                var metadata = new Dictionary<string, MirrorHealthEntry> {
+                    { "sample", new MirrorHealthEntry { Name = "sample", Successes = 4,
+                        AverageMilliseconds = 100, LastObservedUtc = now.Ticks } } };
+                var packages = new Dictionary<string, MirrorHealthEntry> {
+                    { "sample", new MirrorHealthEntry { Name = "sample", Failures = 4,
+                        LastObservedUtc = now.Ticks } } };
+                if (Score(source, metadata, false, now) >= Score(source, empty, false, now) ||
+                    Score(source, packages, true, now) <= Score(source, empty, true, now) ||
+                    Score(source, packages, true, now.AddDays(8)) != Score(source, empty, true, now.AddDays(8)))
+                    throw new InvalidOperationException("Mirror health isolation or expiration failed.");
+            }
+
+            private static Dictionary<string, MirrorHealthEntry> Load(bool package)
             {
                 var result = new Dictionary<string, MirrorHealthEntry>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
                     RuntimePaths.Initialize();
-                    var path = Path.Combine(RuntimePaths.CacheDirectory, "update-mirror-health.json");
+                    var path = Path.Combine(RuntimePaths.CacheDirectory, package ? "update-package-health-v2.json" : "update-metadata-health-v2.json");
                     if (!File.Exists(path) || new FileInfo(path).Length > MaxCatalogBytes) return result;
                     using (var stream = File.OpenRead(path))
                     {
@@ -354,18 +424,18 @@ namespace FACM.Online
                 return result;
             }
 
-            private static void Save(MirrorHealthEntry[] entries)
+            private static void Save(MirrorHealthEntry[] entries, bool package)
             {
                 RuntimePaths.Initialize();
-                var path = Path.Combine(RuntimePaths.CacheDirectory, "update-mirror-health.json");
+                var path = Path.Combine(RuntimePaths.CacheDirectory, package ? "update-package-health-v2.json" : "update-metadata-health-v2.json");
                 var temporary = path + ".tmp";
                 using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
                     var serializer = new DataContractJsonSerializer(typeof(MirrorHealthFile));
                     serializer.WriteObject(stream, new MirrorHealthFile { Entries = entries });
                 }
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(temporary, path);
+                if (File.Exists(path)) File.Replace(temporary, path, null);
+                else File.Move(temporary, path);
             }
         }
     }
