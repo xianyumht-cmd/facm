@@ -459,13 +459,14 @@ body[data-mode="bench"] .brand-icon,body[data-mode="bench"] .brand-text{display:
 body[data-mode="bench"] #benchPage,body[data-mode="bench"] main{display:block;overflow-y:auto}
 #benchPage h2{font-size:18px;margin:8px 0 6px}
 #benchPage p{font-size:12px;color:var(--muted);line-height:1.6}
-#benchChampions{display:grid;grid-template-columns:repeat(auto-fit,minmax(68px,1fr));gap:9px;margin:12px 0}
+#benchChampions{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin:8px 0}
 #benchChampions button{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;min-height:72px;border:1px solid var(--line);border-radius:10px;background:var(--card2);color:var(--text);font:inherit;cursor:pointer}
 #benchChampions button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #benchChampions button:disabled{opacity:.6;cursor:default}
 #benchChampions img{width:36px;height:36px;object-fit:cover;border-radius:7px}
 #benchChampions .bench-champ-icon{width:36px;height:36px;display:grid;place-items:center;background:var(--card);color:var(--accent);border-radius:7px}
 #benchChampions small{font-size:11px}
+#benchReadStatus:empty,#benchActionStatus:empty{display:none}
 #benchRefresh{min-height:38px;padding:8px 13px;border-radius:8px;background:var(--card2);color:var(--text)}
 #advancedDashboardPage{display:none;padding:4px 2px}
 body[data-mode="dashboard-advanced"] #shell{padding:9px 13px;gap:6px}
@@ -849,7 +850,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="actions"><button data-route="player-advanced">筛选与战绩详情</button><button data-route="live">实时对局</button></div>
   </section>
   <section id="benchPage">
-    <h2>ARAM 替补席 · 快速换英雄</h2>
+    <h2 id="benchHeading">替补席</h2>
     
     <div class="guide-stats">
       <div class="guide-card"><small>当前英雄</small><strong id="benchCurrent">—</strong></div>
@@ -1327,7 +1328,7 @@ document.addEventListener("click",function(event){
     if(!Number.isSafeInteger(id)||id<1||!benchIds.has(id))return;
     get("benchChampions").querySelectorAll("button").forEach(function(b){b.disabled=true;});
     get("benchRefresh").disabled=true;
-    get("benchActionStatus").textContent="正在交换英雄 #"+id;
+    get("benchActionStatus").textContent="处理中…";
     post("bench-swap:"+id);return;
   }
   if(target.dataset.action==="quick-message-refresh"){post("quick-message-refresh");return;}
@@ -2621,23 +2622,29 @@ function renderBenchState(data){
   benchIds.clear();get("benchRefresh").disabled=false;
   get("benchCurrent").textContent=data.localChampion>0?"#"+data.localChampion:"未选择";
   get("benchMode").textContent=modeName(data.mode)|| (data.queue>0?"队列 #"+data.queue:"—");
-  var status={ready:"替补席已读取；请选择想要交换的英雄",unavailable:"等待进入可用的 ARAM 选人阶段",
-    disabled:"当前游戏模式没有开放替补席","session-changed":"游戏账号或选人会话已切换，请重新读取",timeout:"读取超时，请稍后再试",
-    failed:"替补席读取失败，检查客户端后重试"};
-  get("benchReadStatus").textContent=status[data.status]||"正在读取替补席";
+  get("benchHeading").textContent=data.initialPick?"选择英雄":"替补席";
+  var status={ready:"",unavailable:"等待选人",disabled:"当前模式无替补席",
+    "session-changed":"选人会话已切换",timeout:"读取超时",failed:"读取失败"};
+  get("benchReadStatus").textContent=status[data.status]===undefined?"加载中…":status[data.status];
   if(data.status!=="ready")return;
-  var ids=Array.isArray(data.championIds)?data.championIds.slice(0,32):[];
+  var ids=Array.isArray(data.championIds)?data.championIds:[];
+  var eligible=new Set(Array.isArray(data.selectable)?data.selectable:[]);
   ids.forEach(function(raw){
     var id=Number(raw);
     if(!Number.isSafeInteger(id)||id<1||id>10000||benchIds.has(id))return;
     benchIds.add(id);
     var button=document.createElement("button");button.dataset.benchSwap=String(id);
-    button.setAttribute("aria-label","交换到英雄 "+id);
+    button.setAttribute("aria-label",(data.initialPick?"选择英雄 ":"交换英雄 ")+id);
+    button.disabled=!eligible.has(id);
     var icon=document.createElement("span");icon.className="bench-champ-icon";icon.textContent="英";
     var label=document.createElement("small");label.textContent="英雄 #"+id;
     button.append(icon,label);list.appendChild(button);
   });
-  if(!benchIds.size)get("benchReadStatus").textContent="替补席已启用，但当前没有可交换的英雄";
+  var total=Math.max(10,Math.ceil(benchIds.size/5)*5);
+  for(var i=benchIds.size;i<total;i++){
+    var blank=document.createElement("button");blank.disabled=true;blank.setAttribute("aria-label","空替补位置");
+    list.appendChild(blank);
+  }
 }
 function renderBenchIcon(data){
   if(mode!=="bench"||!benchIds.has(data.id)||typeof data.image!=="string"||

@@ -137,15 +137,17 @@ if (-not $companion.Contains('shell-ready') -or -not $companion.Contains('swap:'
 $companionMock = @'
 <script>
 window.chrome={webview:{
-  postMessage:function(){},
+  postMessage:function(value){(window.__companionCommands||(window.__companionCommands=[])).push(value);},
   addEventListener:function(kind,cb){if(kind==='message')window.__companionReceive=cb;}
 }};
 </script>
 '@
 $companionProbe = @'
 <script>
-var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'BAN_PICK',
-  bench:true,benchSurface:true,guideKind:'Mayhem',allowsRunes:false,canApply:true,choices:[22,99,81,51,12,15,1,2,3,4],teams:[],build:{
+var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'FINALIZATION',
+  bench:true,benchSurface:true,guideKind:'Mayhem',allowsRunes:false,canApply:true,
+  choices:[99,81,51,12,15,1,2,3,4,5],selectable:[99,81,51,12,15,1,2,3,4,5],
+  initialPick:false,choiceRevision:2,teams:[],build:{
     status:'ready',source:'local-test',mode:'ARAM',tier:'S',rows:[
       {category:'runes',title:'Rune fixture',evidence:'local'},
       {category:'core',title:'Build fixture',evidence:'local'}]},
@@ -165,13 +167,24 @@ var gridPass=slots.length===10 && slots[0].offsetTop===slots[4].offsetTop &&
 window.__companionReceive({data:Object.assign({},sample,{choices:[]})});
 var emptyPass=document.querySelectorAll('#bench button').length===10 &&
  Array.from(document.querySelectorAll('#bench button')).every(x=>x.disabled);
-window.__companionReceive({data:Object.assign({},sample,{choices:[22,99]})});
+window.__companionReceive({data:Object.assign({},sample,{choices:[99,81],selectable:[99,81]})});
 var partialPass=document.querySelectorAll('#bench button').length===10 &&
  document.querySelectorAll('#bench button:not([disabled])').length===2;
+window.__companionReceive({data:Object.assign({},sample,{phase:'BAN_PICK',championId:0,name:'',build:null,guide:null,
+ initialPick:true,choiceRevision:3,choices:[22,55,99,88],selectable:[22,55],canApply:false})});
+var cardPass=document.querySelector('#champTitle').textContent==='选择英雄' &&
+ document.querySelectorAll('#bench button:not([disabled])').length===2 &&
+ document.querySelector('[data-champion-id="88"]').disabled;
+document.querySelector('[data-champion-id="22"]').click();
+document.querySelector('[data-champion-id="88"]').click();
+cardPass=cardPass&&window.__companionCommands.includes('pick:22:3')&&
+ !window.__companionCommands.includes('pick:88:3');
 window.__companionReceive({data:Object.assign({},sample,{guideKind:'None',bench:false,benchSurface:false,choices:[],allowsRunes:true,guide:null})});
 var normalPass=document.querySelector('#benchSection').hidden &&
  document.querySelector('[data-tab="augments"]').hidden && !document.querySelector('#runes').hidden;
 window.__companionReceive({data:sample});
+document.querySelector('[data-champion-id="99"]').click();
+var swapPass=window.__companionCommands.includes('swap:99:2');
 var firstRow=document.querySelector('#augments .augment');
 var defaultVisible=!document.querySelector('#augmentSection').hidden &&
  document.querySelector('#buildSection').hidden && firstRow &&
@@ -184,7 +197,7 @@ var explicitTabKept=!document.querySelector('#buildSection').hidden &&
  document.querySelector('#runes').hidden &&
  document.querySelector('#items').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
 document.querySelector('[data-tab="augments"]').click();
-var pass=gridPass && emptyPass && partialPass && normalPass && defaultVisible && explicitTabKept &&
+var pass=gridPass && emptyPass && partialPass && cardPass && swapPass && normalPass && defaultVisible && explicitTabKept &&
  document.querySelectorAll('#bench button').length===10 &&
  document.querySelectorAll('#recommend .rec').length===1 &&
  document.querySelectorAll('#augments .augment').length===1 &&
