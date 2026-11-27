@@ -1,3 +1,7 @@
+## 2026-11-27 — Key timeline review
+
+A short kill cluster is not verified teamfight evidence. Use observed timestamps, never fabricate missing checkpoint data or infer unknown objective ownership; do not derive review from truncated raw event list.
+
 ## 2026-11-27 — Selected match review summary
 
 Avoid treating missing numeric fields as zero or presenting incomplete-team shares as confirmed. Never infer a target from another roster entry; Arena placement is not a five-player lane metric.

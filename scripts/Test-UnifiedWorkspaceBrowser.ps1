@@ -313,6 +313,15 @@ historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidde
  document.querySelector('#advancedReviewMetrics').textContent.includes('每分钟补刀')&&
  !document.querySelector('#advancedReviewMetrics').textContent.includes('视野得分')&&
  document.querySelector('#advancedReviewObjectives').textContent.includes('小龙 2');
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'ready',review:{deaths:1,takedowns:2,objectives:1,clusters:1,nodeCount:3,checkpoints:[{time:600000,gold:4000,cs:80}],nodes:[{time:600000,kind:'death',value:''},{time:610000,kind:'DRAGON',value:'enemy'},{time:620000,kind:'cluster',value:'3'}]},frames:[],events:[]});
+historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidden&&
+ document.querySelector('#advancedTimelineCheckpoints').textContent.includes('10:00 · 经济 4000')&&
+ document.querySelector('#advancedTimelineKeyEvents').textContent.includes('敌方取得')&&
+ document.querySelector('#advancedTimelineKeyEvents').textContent.includes('30秒内 3 次击杀');
+sendFixture({type:'history-advanced-timeline',id:'123',status:'unavailable'});
+historyPass=historyPass&&!document.querySelector('#advancedTimelineReview').hidden;
+sendFixture({type:'history-advanced-timeline',id:gameId,status:'unavailable'});
+historyPass=historyPass&&document.querySelector('#advancedTimelineReview').hidden;
 sendFixture({type:'history-advanced-detail',id:'123',status:'Unavailable'});
 historyPass=historyPass&&!document.querySelector('#advancedHistoryReview').hidden;
 sendFixture({type:'history-advanced-detail',id:gameId,status:'Unavailable'});

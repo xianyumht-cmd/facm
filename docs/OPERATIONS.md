@@ -1,3 +1,7 @@
+## 2026-11-27 — Key timeline review
+
+Verify late events beyond the raw event cap, actual checkpoint time, missing fields, unknown/enemy objective attribution, Arena restrictions, stale response rejection and failed read clearing. Real Tencent timeline acceptance remains open.
+
 ## 2026-11-27 — Selected match review summary
 
 Check target identity, 5-player and incomplete roster, known zero versus missing values, Arena placement, stale detail, and failed selection clearing. Existing replay and timeline behavior remain; real Tencent client verification is separate.

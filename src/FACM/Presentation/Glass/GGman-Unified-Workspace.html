@@ -831,7 +831,13 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
           <div class="actions"><button data-action="history-timeline">读取时间线</button></div>
           <p id="advancedTimelineStatus" role="status">尚未读取时间线</p>
           <svg id="advancedHistoryTimeline" viewBox="0 0 320 180" role="img" aria-label="按真实比赛时间绘制的成长曲线"></svg>
-          <div id="advancedTimelineEvents"></div>
+          <div id="advancedTimelineReview" hidden>
+            <strong>关键节点</strong>
+            <p id="advancedTimelineReviewSummary" class="muted"></p>
+            <div id="advancedTimelineCheckpoints"></div>
+            <div id="advancedTimelineKeyEvents"></div>
+          </div>
+          <details><summary>原始事件</summary><div id="advancedTimelineEvents"></div></details>
         </div>
         <div class="history-extra">
           <h3>本地回放</h3>
@@ -1301,12 +1307,13 @@ document.addEventListener("click",function(event){
     get("advancedHistoryDetailStatus").textContent="通过当前账号权限读取目标区域比赛明细";
     get("advancedHistoryTeams").replaceChildren();
     get("advancedHistoryParticipants").replaceChildren();
-    renderAdvancedReview(null);
+    renderAdvancedReview(null);renderTimelineReview(null);
     post("history-region-detail:"+remoteId);return;
   }
   if(target.dataset.action==="history-timeline"){
     if(selectedAdvancedMatch && (advancedHistoryIds.has(selectedAdvancedMatch) ||
         remoteHistoryIds.has(selectedAdvancedMatch))){
+      renderTimelineReview(null);
       get("advancedTimelineStatus").textContent="正在向本地客户端读取时间线";
       post("history-advanced-timeline:"+selectedAdvancedMatch);
     }return;
@@ -2503,8 +2510,31 @@ function renderAdvancedRadar(data){
     "青色为所选玩家"+(team?"；淡紫色为所在队伍平均":"；队伍完整统计不可用")+
     "。每个轴相对本场已知最大值归一化。":"部分必需指标缺失，无法绘制完整多边形";
 }
+function renderTimelineReview(review){
+  var panel=get("advancedTimelineReview"),points=get("advancedTimelineCheckpoints"),events=get("advancedTimelineKeyEvents");
+  points.replaceChildren();events.replaceChildren();get("advancedTimelineReviewSummary").textContent="";
+  panel.hidden=!review;if(!review)return;
+  function time(ms){var s=Math.floor(Math.max(0,Number(ms)||0)/1000);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0");}
+  function line(container,text){var row=document.createElement("div");row.className="history-event";row.textContent=text;container.append(row);}
+  var parts=["死亡 "+review.deaths+" 次","击杀参与 "+review.takedowns+" 次"];
+  if(review.objectives!=null)parts.push("资源事件 "+review.objectives+" 次");
+  if(review.clusters!=null)parts.push("密集交战 "+review.clusters+" 段");
+  if(review.nodeCount>80)parts.push("展示前80个关键节点");
+  get("advancedTimelineReviewSummary").textContent="已记录 · "+parts.join(" · ");
+  (review.checkpoints||[]).slice(0,6).forEach(function(p){
+    var values=[p.gold!=null?"经济 "+p.gold:"",p.cs!=null?"补刀 "+p.cs:""].filter(Boolean);
+    if(values.length)line(points,time(p.time)+" · "+values.join(" · "));
+  });
+  var names={death:"死亡",kill:"击杀",assist:"助攻",DRAGON:"小龙",HORDE:"巢虫",RIFTHERALD:"先锋",BARON_NASHOR:"大龙",cluster:"密集交战"};
+  (review.nodes||[]).slice(0,80).forEach(function(e){
+    if(!names[e.kind])return;
+    var suffix=e.kind==="cluster"?" · 30秒内 "+e.value+" 次击杀":({ally:" · 己方取得",enemy:" · 敌方取得",unknown:" · 归属未确认"}[e.value]||"");
+    line(events,time(e.time)+" · "+names[e.kind]+suffix);
+  });
+}
 function renderAdvancedTimeline(data){
   if(data.id!==selectedAdvancedMatch)return;
+  renderTimelineReview(data.status==="ready"?data.review:null);
   get("advancedTimelineEvents").replaceChildren();
   advancedTimelineFrames=Array.isArray(data.frames)?data.frames.slice(0,160):[];
   if(data.status!=="ready"){
@@ -2644,7 +2674,7 @@ function selectLocalMatch(gameId){
     get("advancedHistoryDetailStatus").textContent="正在读取本场对局详情";
     get("advancedHistoryTeams").replaceChildren();
     get("advancedHistoryParticipants").replaceChildren();
-    renderAdvancedReview(null);
+    renderAdvancedReview(null);renderTimelineReview(null);
     get("advancedHistoryExtras").hidden=true;
     get("advancedHistoryRadar").replaceChildren();
     get("advancedHistoryTimeline").replaceChildren();
@@ -2696,6 +2726,7 @@ function renderAdvancedMatchDetail(data){
   }
   var teams=get("advancedHistoryTeams"),players=get("advancedHistoryParticipants");teams.replaceChildren();players.replaceChildren();
   renderAdvancedReview(data.status==="Ready"?data.review:null);
+  renderTimelineReview(null);
   if(data.status!=="Ready"){
     get("advancedHistoryExtras").hidden=true;
     return;

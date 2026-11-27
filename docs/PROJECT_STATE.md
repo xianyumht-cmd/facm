@@ -1,3 +1,7 @@
+## 2026-11-27 — Key timeline review
+
+Timeline read now produces selected-target deaths/takedowns from all parsed champion-kill events, explicit-team Rift objectives, conservative 30-second kill clusters, and observed 5-minute checkpoints for supported modes. Key list capped at 80; raw events remain available. No new reads. Exact-head CI pending.
+
 ## 2026-11-27 — Selected match review summary
 
 Match review now projects confirmed target identity, outcome/placement, KDA, nullable personal metrics, and bounded contribution ratios using existing detail data. Five-player supported mode/team evidence gates ratios and team objectives; Arena keeps placement without incompatible lane/objective metrics. No additional requests. New native and browser fixtures; exact-head CI pending.

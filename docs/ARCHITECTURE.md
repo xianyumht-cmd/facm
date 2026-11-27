@@ -1,3 +1,7 @@
+## 2026-11-27 — Key timeline review
+
+Existing extras adapter projects key events and observed frame metrics from one on-demand timeline, using existing parser/metric helpers and selected identity. No additional data service or polling.
+
 ## 2026-11-27 — Selected match review summary
 
 UnifiedWorkspaceHistoryDetailAdapter owns review projection from the existing verified match breakdown; WebView2 renders compact values before the existing scoreboard. Missing fields remain null and review is cleared on selection/failure.
