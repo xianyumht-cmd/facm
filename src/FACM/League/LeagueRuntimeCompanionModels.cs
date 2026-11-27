@@ -162,6 +162,9 @@ namespace FACM.League
     {
         public bool SessionAvailable { get; set; }
         public bool BenchEnabled { get; set; }
+        public LeagueRuntimeCompanionGuideKind GuideKind { get; set; }
+        public bool HasBenchSurface { get { return BenchEnabled || GuideKind != LeagueRuntimeCompanionGuideKind.None; } }
+        public bool AllowsRunes { get { return SessionAvailable && GuideKind != LeagueRuntimeCompanionGuideKind.Mayhem; } }
         public int LocalChampionId { get; set; }
         public LeagueBenchSwapRoute SwapRoute { get; set; }
         public IReadOnlyList<int> BenchChampionIds { get; set; } = Array.Empty<int>();
@@ -189,7 +192,8 @@ namespace FACM.League
                 return Build != null &&
                        Build.Connected &&
                        Build.Activity == Performance.LeagueActivityLevel.ChampSelect &&
-                       Build.ChampionId > 0 &&
+                       SessionAvailable && LocalChampionId > 0 &&
+                       Build.ChampionId == LocalChampionId &&
                        Build.Recommendation != null &&
                        string.Equals(Build.Status, "ready", StringComparison.OrdinalIgnoreCase);
             }
@@ -219,6 +223,7 @@ namespace FACM.League
             {
                 SessionAvailable = SessionAvailable,
                 BenchEnabled = BenchEnabled,
+                GuideKind = GuideKind,
                 LocalChampionId = LocalChampionId,
                 SwapRoute = SwapRoute,
                 BenchChampionIds = BenchChampionIds == null

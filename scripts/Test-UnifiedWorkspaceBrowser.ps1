@@ -145,7 +145,7 @@ window.chrome={webview:{
 $companionProbe = @'
 <script>
 var sample={type:'snapshot',connected:true,championId:22,name:'Ashe',timer:14,phase:'BAN_PICK',
-  bench:true,choices:[22,99],teams:[],build:{
+  bench:true,benchSurface:true,guideKind:'Mayhem',allowsRunes:false,canApply:true,choices:[22,99,81,51,12,15,1,2,3,4],teams:[],build:{
     status:'ready',source:'local-test',mode:'ARAM',tier:'S',rows:[
       {category:'runes',title:'Rune fixture',evidence:'local'},
       {category:'core',title:'Build fixture',evidence:'local'}]},
@@ -157,6 +157,21 @@ window.__companionReceive({data:{type:'skin',id:'cloud-light',light:true,
  text:'#1A2743',muted:'#667797',accent:'#4E7EFF',border:'#D3DCEE',warning:'#EA8B39'}});
 window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
+var slots=Array.from(document.querySelectorAll('#bench button'));
+var gridPass=slots.length===10 && slots[0].offsetTop===slots[4].offsetTop &&
+ slots[5].offsetTop===slots[9].offsetTop && slots[5].offsetTop>slots[0].offsetTop &&
+ slots.every(x=>x.getBoundingClientRect().right<=document.querySelector('#content').getBoundingClientRect().right) &&
+ slots[9].getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
+window.__companionReceive({data:Object.assign({},sample,{choices:[]})});
+var emptyPass=document.querySelectorAll('#bench button').length===10 &&
+ Array.from(document.querySelectorAll('#bench button')).every(x=>x.disabled);
+window.__companionReceive({data:Object.assign({},sample,{choices:[22,99]})});
+var partialPass=document.querySelectorAll('#bench button').length===10 &&
+ document.querySelectorAll('#bench button:not([disabled])').length===2;
+window.__companionReceive({data:Object.assign({},sample,{guideKind:'None',bench:false,benchSurface:false,choices:[],allowsRunes:true,guide:null})});
+var normalPass=document.querySelector('#benchSection').hidden &&
+ document.querySelector('[data-tab="augments"]').hidden && !document.querySelector('#runes').hidden;
+window.__companionReceive({data:sample});
 var firstRow=document.querySelector('#augments .augment');
 var defaultVisible=!document.querySelector('#augmentSection').hidden &&
  document.querySelector('#buildSection').hidden && firstRow &&
@@ -166,10 +181,12 @@ document.querySelector('[data-tab="build"]').click();
 window.__companionReceive({data:sample});
 var explicitTabKept=!document.querySelector('#buildSection').hidden &&
  document.querySelector('#augmentSection').hidden &&
- document.querySelector('#runes').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
+ document.querySelector('#runes').hidden &&
+ document.querySelector('#items').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
 document.querySelector('[data-tab="augments"]').click();
-var pass=defaultVisible && explicitTabKept && document.querySelectorAll('#bench button').length===2 &&
- document.querySelectorAll('#recommend .rec').length===2 &&
+var pass=gridPass && emptyPass && partialPass && normalPass && defaultVisible && explicitTabKept &&
+ document.querySelectorAll('#bench button').length===10 &&
+ document.querySelectorAll('#recommend .rec').length===1 &&
  document.querySelectorAll('#augments .augment').length===1 &&
  document.querySelectorAll('#augmentFilters button').length===4 &&
  document.querySelector('#timer').textContent==='14s' &&

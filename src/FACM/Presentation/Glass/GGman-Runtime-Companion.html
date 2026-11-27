@@ -105,9 +105,12 @@ html,body{font-size:12.6px;line-height:1.5}
 .section{margin-top:4px;padding:6px 7px!important}
 .section[hidden]{display:none!important}
 #benchSection{margin-bottom:4px}
-#bench{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
-.bench-choice{flex:0 0 40px;min-height:37px;padding:2px;gap:1px}
-.bench-choice img,.bench-choice .placeholder{width:30px;height:30px}
+#bench{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;overflow:visible}
+.bench-choice{min-width:0;height:38px;min-height:38px;padding:2px;gap:1px}
+.bench-choice img,.bench-choice .placeholder{width:32px;height:32px}
+.bench-choice.empty{opacity:.65;cursor:default;background:var(--panel);border:1px dashed var(--line)}
+#tabs button[hidden],#runes[hidden]{display:none!important}
+.actions.mayhem{grid-template-columns:repeat(2,minmax(0,1fr))}
 .bench-choice span:not(.placeholder){display:none}
 #benchEmpty:empty{display:none}
 #augmentFilters{margin:0 0 4px}
@@ -126,7 +129,7 @@ html,body{font-size:12.6px;line-height:1.5}
 <body>
 <div id="shell">
 <header id="head">
-<div id="drag" aria-label="拖动对局助手"><span id="logo">G</span><span id="title">GGman · 实时对局助手</span><span id="timer">--</span></div>
+<div id="drag" aria-label="拖动对局助手"><span id="logo">G</span><span id="title">对局助手</span><span id="timer">--</span></div>
 <button id="pin" class="chrome" title="固定置顶" aria-label="固定置顶">●</button>
 <button id="collapse" class="chrome" title="折叠或展开" aria-label="折叠或展开">−</button>
 <button id="close" class="chrome" title="关闭本局助手" aria-label="关闭本局助手">×</button>
@@ -167,6 +170,7 @@ const send = text=>{if(window.chrome && window.chrome.webview)window.chrome.webv
 const elem=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
 const icons=new Map(),assetIcons=new Map();
 let snapshot=null,filter='all',dragging=false,toastTimer=null,activeTab='build',manualTab=false;
+let benchSlots=Array(10).fill(0),benchFingerprint='',lastGuideKind=null;
 const panels={augments:'augmentSection',build:'buildSection',team:'teamSection',details:'detailSection'};
 function selectTab(tab,manual){
  if(!panels[tab])return;
@@ -211,18 +215,42 @@ drag.addEventListener('pointermove',e=>{if(dragging)send('drag-move:'+e.screenX+
 function endDrag(){if(dragging){dragging=false;send('drag-end')}}
 drag.addEventListener('pointerup',endDrag);drag.addEventListener('pointercancel',endDrag);
 function renderBench(){
-const host=$('bench');host.replaceChildren();const ids=snapshot&&snapshot.bench?snapshot.choices||[]:[];
-$('benchSection').hidden=!ids.length;
-$('benchEmpty').textContent='';
-for(const id of ids){
- const b=elem('button','bench-choice');b.title='交换英雄 #'+id;b.setAttribute('aria-label',b.title);
+const host=$('bench');
+const ids=snapshot&&snapshot.bench&&Array.isArray(snapshot.choices)?
+ Array.from(new Set(snapshot.choices.filter(id=>Number.isInteger(id)&&id>0))):[];
+const visible=!!(snapshot&&(snapshot.benchSurface||snapshot.bench));
+$('benchSection').hidden=!visible;
+if(!visible){benchSlots=Array(10).fill(0);benchFingerprint='';host.replaceChildren();return;}
+const total=Math.max(10,Math.ceil(ids.length/5)*5);
+const remaining=new Set(ids);
+const next=Array.from({length:total},(_,i)=>remaining.has(benchSlots[i])?benchSlots[i]:0);
+next.forEach(id=>remaining.delete(id));
+remaining.forEach(id=>{const pos=next.indexOf(0);if(pos>=0)next[pos]=id;});
+benchSlots=next;
+const usable=!!(snapshot.connected&&snapshot.bench&&!snapshot.busy);
+const fingerprint=next.join(',')+'|'+usable;
+if(fingerprint===benchFingerprint && host.childElementCount===next.length){
+ Array.from(host.children).forEach((button,i)=>{
+  const id=next[i],image=icons.get(id);
+  if(id&&image&&!button.querySelector('img')){
+   const img=elem('img');img.src=image;img.alt='英雄 #'+id;button.replaceChildren(img);
+  }
+ });
+ return;
+}
+benchFingerprint=fingerprint;host.replaceChildren();
+for(const id of next){
+ const b=elem('button','bench-choice'+(id?'':' empty'));
+ b.type='button';b.disabled=!id||!usable;
+ if(!id){b.setAttribute('aria-label','空替补位置');host.appendChild(b);continue;}
+ b.title='交换英雄 #'+id;b.setAttribute('aria-label',b.title);b.dataset.championId=String(id);
  const image=icons.get(id);
  if(image){const img=elem('img');img.src=image;img.alt='英雄 #'+id;b.appendChild(img)}
  else b.appendChild(elem('span','placeholder',String(id)));
- b.appendChild(elem('span','',String(id)));b.onclick=()=>send('swap:'+id);host.appendChild(b);
+ b.onclick=()=>send('swap:'+id);host.appendChild(b);
 }
 }
-const categories={runes:'符文',spells:'召唤师技能',skills:'技能顺序',starter:'出门装',boots:'鞋子',core:'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
+const categories={runes:'符文',spells:'召唤师技能','summoner-spells':'召唤师技能',skills:'技能加点',starter:'出门装','starter-items':'出门装',boots:'鞋子',core:'核心出装','core-items':'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
 function renderBuild(){
 const host=$('recommend');host.replaceChildren();const b=snapshot&&snapshot.build;
 $('source').textContent=b?nice(b.source,'来源待确认'):'';
@@ -230,6 +258,7 @@ if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(elem('div','muted sub',snapshot&&snapshot.buildLoading?'正在载入推荐…':'暂无可用的符文与出装推荐'));
 }else{
  b.rows.forEach((r,index)=>{
+ if(snapshot.guideKind==='Mayhem'&&r.category==='runes')return;
  const card=elem('div','rec');card.appendChild(elem('div','rec-label',categories[r.category]||nice(r.category,'推荐')));
  const iconsHost=elem('div','iconline');
  for(let n=0;n<3;n++){
@@ -242,8 +271,11 @@ if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(card);
  });
 }
-const canApply=!!(b&&b.status==='ready');
-for(const id of ['runes','spells','items'])$(id).disabled=!canApply;
+const canApply=!!(b&&snapshot.connected&&!snapshot.busy&&snapshot.canApply);
+const mayhem=snapshot.guideKind==='Mayhem';
+$('runes').hidden=mayhem;$('runes').closest('.actions').classList.toggle('mayhem',mayhem);
+for(const id of ['runes','spells','items'])$(id).disabled=!canApply||(id==='runes'&&!snapshot.allowsRunes);
+$('quit').disabled=!snapshot.connected||!!snapshot.busy;
 }
 function renderAugments(){
 const host=$('augments');host.replaceChildren();
@@ -268,10 +300,17 @@ $('timer').textContent=Number(snapshot.timer)>0?snapshot.timer+'s':'--';
 $('dot').classList.toggle('on',!!snapshot.connected);
 $('status').classList.toggle('connected',!!snapshot.connected);
 $('statusText').textContent=snapshot.connected?'':'正在连接 LOL';
-$('champTitle').textContent=nice(snapshot.name,snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
+$('champTitle').textContent=nice(snapshot.name,snapshot.guide&&snapshot.guide.champion?snapshot.guide.champion:snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
 const b=snapshot.build,g=snapshot.guide;
-if(!manualTab&&g&&Array.isArray(g.augments)&&g.augments.length)selectTab('augments',false);
-$('champHint').textContent=b?nice(b.mode,'当前模式')+' · '+nice(b.status,'等待推荐'):'等待选定英雄';
+const kind=snapshot.guideKind||'None';
+if(lastGuideKind!==kind){lastGuideKind=kind;manualTab=false;filter='all';
+ $('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x.dataset.filter==='all'));}
+const mayhem=kind==='Mayhem';
+$('tabs').querySelector('[data-tab="augments"]').hidden=!mayhem;
+$('tabs').querySelector('[data-tab="build"]').textContent=mayhem?'出装技能':'符文出装';
+$('title').textContent=mayhem?'海斗助手':'对局助手';
+if(!manualTab||(!mayhem&&activeTab==='augments'))selectTab(mayhem?'augments':'build',false);
+$('champHint').textContent='';
 $('tier').textContent=b&&b.tier?b.tier+(b.rank?' · #'+b.rank:''):g&&g.tier?g.tier:'';
 const recent=snapshot.recent;
 $('recent').textContent=recent&&recent.games?
@@ -282,7 +321,7 @@ $('guideInfo').textContent=g?[
  nice(g.summary,''),g.skills?'加点：'+g.skills:'',
  g.core&&g.core.length?'核心装备：'+g.core.join('、'):''
 ].filter(Boolean).join('\n'):'';
-$('emptyGuide').textContent=snapshot.guideLoading?'正在获取海斗攻略…':nice(snapshot.guideError,'当前没有海斗强化数据');
+$('emptyGuide').textContent=snapshot.guideLoading?'加载中…':nice(snapshot.guideError,'暂无强化数据');
 $('emptyGuide').style.display=g&&Array.isArray(g.augments)&&g.augments.length?'none':'block';
 renderAugments();
 const teams=$('teams');teams.replaceChildren();

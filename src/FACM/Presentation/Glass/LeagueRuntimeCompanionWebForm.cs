@@ -302,10 +302,12 @@ namespace FACM.Presentation.Glass
             if (!_ready || _unavailable || IsDisposed || snapshot == null) return;
             if (snapshot.HasVisibleChampSelectContext && Opacity < 1d) Opacity = 1d;
             var build = snapshot.Build;
+            if (build != null && snapshot.LocalChampionId > 0 && build.ChampionId != snapshot.LocalChampionId)
+                build = null;
             var recommendation = build == null ? null : build.Recommendation;
             var guide = snapshot.Guide;
             var ids = snapshot.BenchEnabled && snapshot.BenchChampionIds != null
-                ? snapshot.BenchChampionIds.Where(id => id > 0).Distinct().Take(24).ToArray()
+                ? snapshot.BenchChampionIds.Where(id => id > 0).Distinct().ToArray()
                 : new int[0];
             Post(new
             {
@@ -316,6 +318,10 @@ namespace FACM.Presentation.Glass
                 timer = Math.Max(0, snapshot.TimerMillisecondsLeft / 1000),
                 phase = snapshot.TimerPhase,
                 bench = snapshot.BenchEnabled,
+                benchSurface = snapshot.HasBenchSurface,
+                guideKind = snapshot.GuideKind.ToString(),
+                allowsRunes = snapshot.AllowsRunes,
+                canApply = snapshot.HasBuild,
                 choices = ids,
                 busy = _busy,
                 teams = snapshot.Players == null ? new object[0] : snapshot.Players.Take(12).Select(p => new {
@@ -587,6 +593,7 @@ namespace FACM.Presentation.Glass
         private async Task PrepareAsync(string target)
         {
             if (_busy) return;
+            if (target == "runes" && !_controller.CurrentSnapshot.AllowsRunes) return;
             _pendingLoadout = null;
             _pendingItems = null;
             _busy = true;

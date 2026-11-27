@@ -133,6 +133,8 @@ namespace FACM.League
                 }
 
                 var sessionAvailable = state != null && state.SessionAvailable;
+                var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(
+                    sessionAvailable, state == null ? 0 : state.QueueId, state == null ? null : state.GameMode);
                 var championHint = sessionAvailable ? state.LocalChampionId : 0;
                 var championIds = new List<int>();
                 if (state != null)
@@ -147,6 +149,7 @@ namespace FACM.League
                 {
                     _snapshot.SessionAvailable = sessionAvailable;
                     _snapshot.BenchEnabled = sessionAvailable && state.BenchEnabled;
+                    _snapshot.GuideKind = guideKind;
                     _snapshot.LocalChampionId = championHint;
                     _snapshot.SwapRoute = state == null ? LeagueBenchSwapRoute.Legacy : state.SwapRoute;
                     _snapshot.BenchChampionIds = championIds.AsReadOnly();
@@ -161,10 +164,6 @@ namespace FACM.League
                 MaybeStartRecentChampionRequest(championHint);
                 MaybeStartBuildRequest(championHint);
 
-                var guideKind = LeagueRuntimeCompanionModePolicy.Resolve(
-                    sessionAvailable,
-                    state == null ? 0 : state.QueueId,
-                    state == null ? null : state.GameMode);
                 if (championHint <= 0 || guideKind == LeagueRuntimeCompanionGuideKind.None)
                 {
                     ClearGuideSurface();
@@ -239,7 +238,8 @@ namespace FACM.League
 
             var snapshot = CurrentSnapshot;
             var build = snapshot.Build;
-            if (build == null || !snapshot.HasBuild) return null;
+            if (build == null || !snapshot.HasBuild ||
+                (target == LeagueRuntimeCompanionApplyTarget.Runes && !snapshot.AllowsRunes)) return null;
 
             var plan = await _apply.PrepareAsync(build, cancellationToken).ConfigureAwait(false);
             if (plan == null) return null;
@@ -482,7 +482,7 @@ namespace FACM.League
 
             lock (_stateGate)
             {
-                var championChanged = championHint > 0 && championHint != _buildChampionHint;
+                var championChanged = championHint != _buildChampionHint;
                 if (_buildRequest != null && !championChanged) return;
                 if (!championChanged && now - _lastBuildStartedUtc < BuildRefreshInterval) return;
 
@@ -493,6 +493,7 @@ namespace FACM.League
                 generation = ++_buildGeneration;
                 _buildChampionHint = championHint;
                 _lastBuildStartedUtc = now;
+                if (championChanged) _snapshot.Build = null;
                 _snapshot.BuildLoading = true;
                 _snapshot.BuildError = null;
                 _snapshot.UpdatedAtUtc = now;
@@ -533,10 +534,12 @@ namespace FACM.League
                 if (!_disposed && generation == _buildGeneration && ReferenceEquals(_buildRequest, request))
                 {
                     _snapshot.BuildLoading = false;
-                    _snapshot.Build = result;
+                    // A delayed advisor response must not project another champion's build.
+                    _snapshot.Build = result != null && _snapshot.LocalChampionId > 0 &&
+                        result.ChampionId != _snapshot.LocalChampionId ? null : result;
                     _snapshot.BuildError = error;
                     _snapshot.UpdatedAtUtc = DateTime.UtcNow;
-                    if (result != null && result.ChampionId > 0) _buildChampionHint = result.ChampionId;
+                    if (_snapshot.Build != null && result.ChampionId > 0) _buildChampionHint = result.ChampionId;
                     _buildRequest = null;
                     publish = true;
                 }
