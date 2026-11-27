@@ -44,6 +44,7 @@ namespace FACM.Presentation.Glass
         private async void ReadAsync(MayhemModule module, string query, LeagueClientSession session,
             CancellationTokenSource source, int generation)
         {
+            var published = false;
             try
             {
                 var result = await module.ReadUnifiedGuideAsync(query, source.Token);
@@ -64,17 +65,18 @@ namespace FACM.Presentation.Glass
                 _iconsCancellation = new CancellationTokenSource();
                 _augmentIconReferences = rows.Select(row => row.IconUrl).ToArray();
                 _publish(SerializeGuide(result, rows, generation));
+                published = true;
                 await PublishIconsAsync(module, result, rows, session, source, generation);
             }
             catch (OperationCanceledException)
             {
                 // A deadline may cancel its token without changing the active generation.
-                if (Owned(source, generation)) PostStatus("timeout");
+                if (!published && Owned(source, generation)) PostStatus("timeout");
             }
             catch (Exception exception)
             {
                 AppLog.Info("Unified Mayhem query skipped: " + exception.GetType().Name);
-                if (Current(module, null, source, generation, false)) PostStatus("unavailable");
+                if (!published && Current(module, null, source, generation, false)) PostStatus("unavailable");
             }
             finally
             {

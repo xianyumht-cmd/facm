@@ -1,3 +1,7 @@
+## 2026-11-27 — Player journey acceptance
+
+Check fixed home positions and the phase shortcut from disconnected through postgame; click a loaded history card, verify exact match detail and back navigation, reject stale/session-changed IDs. Record and clear hotkeys, verify conflicts and unsaved edit retention. Test recommendation busy lock and phase exit, and distinguish configured automation from stage eligibility. Verify SGP button disabled outside an active match; timeout optional guide artwork without removing existing rows. Browser fixtures are not real Tencent client or Windows DPI acceptance. Do not release until exact-head required gates and acceptance are reviewed.
+
 ## 2026-11-27 — Scenario-specific candidate acceptance
 
 Verify initial card selection and subsequent swap separately in Tencent ARAM/Mayhem: valid local action only, unavailable cards disabled, no second write, stale draft/phase rejected, ordinary ranked hides bench. Exercise 5×2 empty/full slots at native and WebView2 normal DPI. Verify late silver/prismatic results through rarity and search, 0.5% rate, missing-rank display, more rows and current-generation artwork in both Mayhem routes. Verify rune shards and existing application guards. No gameplay injection or automatic augment selection. Exact-head four Windows gates required; actual in-game guide access and live-client evidence remain outstanding before any production claim.

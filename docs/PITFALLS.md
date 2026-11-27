@@ -1,3 +1,7 @@
+## 2026-11-27 — Contextual interaction pitfalls
+
+Avoid relocating fixed home buttons as gameflow changes; change only the explicit contextual shortcut. Do not confuse enabled automation with executed automation. Never convert 64-bit match IDs to JavaScript numbers, overwrite unsaved hotkeys on state sync, or unlock recommendation writes from checkbox events while busy. Optional artwork timeout is not a guide-data failure. A connected lobby is not an active match eligible for SGP enrichment. Legacy tray AddLeagueAction is a no-op and does not establish an accessible in-game guide.
+
 ## 2026-11-27 — Selection contracts and ranked-data truncation
 
 An initial hero card is not a bench swap. Validate the actual local action (including ID zero), current draft, phase, pickable list and current hero; stale/unavailable actions must not write. Never enable choices from an incomplete synthetic live summary. Truncating a mixed-rarity array before filtering silently removes rarer entries; verify with a fixture whose late rows are silver/prismatic. The normalized value 0.5 percentage points is 0.5%, not 50%. Use stable index keys for thumbnail rows whose source ID may be missing or duplicated, and reject stale generations. Keep Windows build/browser fixture evidence distinct from real Tencent gameplay verification.

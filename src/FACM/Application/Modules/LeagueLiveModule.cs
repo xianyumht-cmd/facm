@@ -49,7 +49,8 @@ namespace FACM.AppHost.Modules
             var initial = _leagueClient.CurrentSession;
             var snapshot = await _service.RefreshAsync(token);
             if (token.IsCancellationRequested || !SessionStillMatches(initial)) return null;
-            if (includeSgp && snapshot != null && snapshot.Connected)
+            if (includeSgp && snapshot != null && snapshot.Connected && snapshot.GameId > 0 &&
+                string.Equals(snapshot.Phase, "InProgress", StringComparison.OrdinalIgnoreCase))
                 await _service.TryRefreshSgpTeamsAsync(snapshot, token);
             return !token.IsCancellationRequested && SessionStillMatches(initial) ? snapshot : null;
         }

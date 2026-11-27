@@ -898,7 +898,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="live-roster" id="livePlayers" aria-label="当前对局玩家"></div>
     <div class="save-row">
       <button id="liveRefresh" data-action="live-refresh">读取当前阵容</button>
-      <button id="liveSgpRefresh" data-action="live-sgp">补全区域阵容</button>
+      <button id="liveSgpRefresh" disabled data-action="live-sgp">补全区域阵容</button>
     </div>
     <div class="actions"><button data-route="live-advanced">高级实时操作</button><button data-route="player">查看历史战绩</button></div>
   </section>
@@ -1874,6 +1874,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     document.getElementById("statusHint").textContent="";
     document.getElementById("clientPhase").textContent=secondary;
     sceneState=e.data;updateSceneShortcut(e.data);renderAutomationPhaseNotes();
+    if(!sceneState.connected||sceneState.phase!=="InProgress")get("liveSgpRefresh").disabled=true;
     if(mode==="recommendation"&&(!e.data.connected||e.data.phase!=="ChampSelect")){
       recommendationCanApply=false;updateRecommendationControls();
     }
@@ -2794,7 +2795,7 @@ function renderLive(data){
       bans.appendChild(line);bans.hidden=false;
     });
   }
-  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!data.connected;
+  get("liveRefresh").disabled=false;get("liveSgpRefresh").disabled=!(data.connected&&data.phase==="InProgress"&&Number(data.gameId)>0&&(!sceneState||(sceneState.connected&&sceneState.phase==="InProgress")));
   get("liveConnection").textContent=data.connected?"客户端已连接":"客户端未连接";
   get("livePhase").textContent=phaseLabel(data.phase);
   get("liveQueue").textContent=modeName(data.queue)||modeName(data.mode)||"—";

@@ -1,3 +1,7 @@
+## 2026-11-27 — Player journey projection
+
+Unified workspace retains existing shards and route ownership. The renderer projects the current gameflow into a contextual home link and phase notes; no new pollers. PlayerHistoryShard accepts a membership-checked direct-detail command, reuses the loaded session snapshot in AdvancedHistoryShard, and sends decimal string IDs. RecommendationAdapter reports current-generation context changes and UI busy state prevents duplicate applications. LeagueLiveModule gates optional SGP work by phase and match ID. MayhemAdapter separates usable data publication from optional icon completion.
+
 ## 2026-11-27 — Scenario-specific quick-pick and Mayhem presentation
 
 `LeagueLiveDataService` owns manual subset/pickable observation; `LeagueBenchQuickPickService.TryChooseAsync` owns phase-appropriate action validation and readback, with existing transport writers. Companion controller and standalone live adapters project only available actions, with revision-bound WebView2 commands. Native live view consumes actual observations instead of synthesizing writeable state. `MayhemRankedAugmentService` retains bounded source rows and quality-aware fallback; companion and desktop guide views filter and paginate locally. Companion native bridge resolves requested asset keys to existing native references; standalone `MayhemGuideShard` routes bounded generation/index thumbnail requests to `UnifiedWorkspaceMayhemAdapter`. No renderer access to arbitrary URLs; cancellation and current route/session checks remain authoritative.
