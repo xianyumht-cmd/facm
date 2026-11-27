@@ -662,6 +662,7 @@ namespace FACM.League
                     var ids = new List<int>();
                     ids.AddRange(ReadIntArray(ReadValue(build, "primary_rune_ids")));
                     ids.AddRange(ReadIntArray(ReadValue(build, "secondary_rune_ids")));
+                    ids.AddRange(ReadIntArray(ReadValue(build, "stat_mod_ids")));
                     if (ids.Count == 0) continue;
                     output.Rows.Add(new LeagueBuildAdvisorRow
                     {

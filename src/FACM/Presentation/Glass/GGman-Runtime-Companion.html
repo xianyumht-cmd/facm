@@ -152,7 +152,7 @@ html,body{font-size:12.6px;line-height:1.5}
 </section>
 <section class="section" id="augmentSection" hidden>
 <div id="augmentFilters"><button data-filter="all" class="active">全部</button><button data-filter="prism">棱彩</button><button data-filter="gold">黄金</button><button data-filter="silver">白银</button></div>
-<div id="emptyGuide">等待强化数据…</div><div id="augments"></div>
+<input id="augmentSearch" type="search" placeholder="搜索强化" aria-label="搜索强化" autocomplete="off" style="width:100%;box-sizing:border-box;margin:3px 0 5px;padding:5px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px"><div id="emptyGuide">等待强化数据…</div><div id="augments"></div><button id="augmentMore" hidden>更多</button>
 </section>
 <section class="section" id="teamSection" hidden><div id="teams" class="sub muted">等待队友数据…</div></section>
 <section class="section" id="detailSection" hidden>
@@ -168,17 +168,25 @@ html,body{font-size:12.6px;line-height:1.5}
 const $ = id=>document.getElementById(id);
 const send = text=>{if(window.chrome && window.chrome.webview)window.chrome.webview.postMessage(text)};
 const elem=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
-const icons=new Map(),assetIcons=new Map();
+const icons=new Map(),assetIcons=new Map(),requestedAssets=new Set();
+let augmentLimit=20,assetGeneration=0;
+function requestAssets(keys){
+ const pending=Array.from(new Set(keys)).filter(k=>!assetIcons.has(k)&&!requestedAssets.has(k));
+ for(let i=0;i<pending.length;i+=24){const batch=pending.slice(i,i+24);batch.forEach(k=>requestedAssets.add(k));send('asset-request:'+assetGeneration+':'+batch.join(','));}
+}
+const fmtPoints=x=>x===null||x===undefined||!Number.isFinite(Number(x))?'—':Number(x).toFixed(1)+'%';
 let snapshot=null,filter='all',dragging=false,toastTimer=null,activeTab='build',manualTab=false;
 let benchSlots=Array(10).fill(0),benchFingerprint='',lastGuideKind=null;
 const panels={augments:'augmentSection',build:'buildSection',team:'teamSection',details:'detailSection'};
 function selectTab(tab,manual){
  if(!panels[tab])return;
  if(manual)manualTab=true;
+ const changed=activeTab!==tab;
  if(activeTab!==tab)$('content').scrollTop=0;
  activeTab=tab;
  Object.keys(panels).forEach(key=>$(panels[key]).hidden=key!==tab);
  $('tabs').querySelectorAll('button').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});
+ if(changed&&snapshot){if(tab==='build')renderBuild();if(tab==='augments')renderAugments();}
 }
 $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab,true));
 selectTab('build',false);
@@ -207,8 +215,10 @@ $('spells').onclick=()=>send('apply:spells');
 $('items').onclick=()=>send('apply:items');
 $('quit').onclick=()=>send('quit:yes');
 $('augmentFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{
- filter=b.dataset.filter;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
+ filter=b.dataset.filter;augmentLimit=20;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
 });
+$('augmentSearch').oninput=()=>{augmentLimit=20;renderAugments()};
+$('augmentMore').onclick=()=>{augmentLimit+=20;renderAugments()};
 const drag=$('drag');
 drag.addEventListener('pointerdown',e=>{if(e.button!==0)return;dragging=true;drag.setPointerCapture(e.pointerId);send('drag-start:'+e.screenX+','+e.screenY)});
 drag.addEventListener('pointermove',e=>{if(dragging)send('drag-move:'+e.screenX+','+e.screenY)});
@@ -254,7 +264,7 @@ for(const id of next){
 }
 const categories={runes:'符文',spells:'召唤师技能','summoner-spells':'召唤师技能',skills:'技能加点',starter:'出门装','starter-items':'出门装',boots:'鞋子',core:'核心出装','core-items':'核心出装',counters:'克制分析',allyTeam:'队友配合',enemyTeam:'敌方阵容',items:'出装'};
 function renderBuild(){
-const host=$('recommend');host.replaceChildren();const b=snapshot&&snapshot.build;
+const host=$('recommend');host.replaceChildren();const b=snapshot&&snapshot.build;const keys=[];
 $('source').textContent=b?nice(b.source,'来源待确认'):'';
 if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(elem('div','muted sub',snapshot&&snapshot.buildLoading?'正在载入推荐…':'暂无可用的符文与出装推荐'));
@@ -263,8 +273,8 @@ if(!b||!Array.isArray(b.rows)||!b.rows.length){
  if(snapshot.guideKind==='Mayhem'&&r.category==='runes')return;
  const card=elem('div','rec');card.appendChild(elem('div','rec-label',categories[r.category]||nice(r.category,'推荐')));
  const iconsHost=elem('div','iconline');
- for(let n=0;n<3;n++){
- const asset=assetIcons.get('build:'+index+':'+n);if(!asset)continue;
+ for(let n=0;n<Math.min(9,r.iconCount||0);n++){
+ const key='build:'+index+':'+n;keys.push(key);const asset=assetIcons.get(key);if(!asset)continue;
  const img=elem('img');img.src=asset;img.alt=nice(r.category,'推荐')+' 图标';iconsHost.appendChild(img);
  }
  if(iconsHost.childNodes.length)card.appendChild(iconsHost);
@@ -273,6 +283,7 @@ if(!b||!Array.isArray(b.rows)||!b.rows.length){
  host.appendChild(card);
  });
 }
+if(activeTab==='build')requestAssets(keys);
 const canApply=!!(b&&snapshot.connected&&!snapshot.busy&&snapshot.canApply);
 const mayhem=snapshot.guideKind==='Mayhem';
 $('runes').hidden=mayhem;$('runes').closest('.actions').classList.toggle('mayhem',mayhem);
@@ -282,19 +293,23 @@ $('quit').disabled=!snapshot.connected||!!snapshot.busy;
 function renderAugments(){
 const host=$('augments');host.replaceChildren();
 const guide=snapshot&&snapshot.guide;const all=guide&&Array.isArray(guide.augments)?guide.augments:[];
-const rows=all.filter(x=>filter==='all'||x.rarity===filter).slice(0,20);
+const query=$('augmentSearch').value.trim().toLowerCase();
+const matched=all.filter(x=>(filter==='all'||x.rarity===filter)&&(!query||String(x.name||'').toLowerCase().includes(query)));
+const rows=matched.slice(0,augmentLimit);const keys=[];
+$('augmentMore').hidden=matched.length<=augmentLimit;
 if(!rows.length){if(all.length)host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
 for(const r of rows){
- const row=elem('div','augment');row.appendChild(elem('div','augmentRank','#'+nice(r.rank,'—')));
- const asset=assetIcons.get('augment:'+r.id);
+ const row=elem('div','augment');row.appendChild(elem('div','augmentRank',r.rank>0?'#'+r.rank:''));
+ const key=r.assetKey||'augment:'+r.id;keys.push(key);const asset=assetIcons.get(key);
  if(asset){const image=elem('img','augmentIcon');image.src=asset;image.alt=nice(r.name,'强化');row.appendChild(image)}
  const body=elem('div','augmentBody');const name=elem('div','augmentName',nice(r.name));
  name.appendChild(elem('span','augmentRarity',({prism:'棱彩',gold:'黄金',silver:'白银'})[r.rarity]||nice(r.rarity,'')));
  body.appendChild(name);
- body.appendChild(elem('div','augmentMeta','胜率 '+fmtRate(r.winRate)+' · 选取 '+fmtRate(r.pickRate)+(r.games?' · '+r.games+' 场':'')));
- if(r.description)body.appendChild(disclosure(r.description,'augment:'+r.id));
+ body.appendChild(elem('div','augmentMeta','胜率 '+fmtPoints(r.winRate)+' · 选取 '+fmtPoints(r.pickRate)+(r.games?' · '+r.games+' 场':'')));
+ if(r.description)body.appendChild(disclosure(r.description,key));
  row.appendChild(body);host.appendChild(row);
 }
+if(activeTab==='augments')requestAssets(keys);
 }
 function render(){
 if(!snapshot)return;
@@ -336,10 +351,14 @@ if(!teams.childNodes.length)teams.textContent='等待队伍数据';
 if(window.chrome&&window.chrome.webview){
 window.chrome.webview.addEventListener('message',e=>{
 const m=e.data||{};
-if(m.type==='snapshot'){snapshot=m;render()}
+if(m.type==='snapshot'){
+ if(snapshot&&snapshot.championId!==m.championId){$('augmentSearch').value='';augmentLimit=20;openedDetails.clear();}
+ if(m.guideChanged===false&&snapshot&&snapshot.championId===m.championId)m.guide=snapshot.guide;
+ snapshot=m;assetGeneration=Number(m.assetGeneration)||0;render()
+}
 else if(m.type==='icon'){if(m.id&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){icons.set(m.id,m.value);if(snapshot)renderBench()}}
-else if(m.type==='assets-reset'){assetIcons.clear();if(snapshot){renderBuild();renderAugments()}}
-else if(m.type==='asset'){if(typeof m.key==='string'&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){assetIcons.set(m.key,m.value);if(snapshot){renderBuild();renderAugments()}}}
+else if(m.type==='assets-reset'){assetIcons.clear();requestedAssets.clear();assetGeneration=Number(m.generation)||0;}
+else if(m.type==='asset'){if((m.generation===undefined||m.generation===assetGeneration)&&typeof m.key==='string'&&typeof m.value==='string'&&m.value.startsWith('data:image/png;base64,')){assetIcons.set(m.key,m.value);if(snapshot){renderBuild();renderAugments()}}}
 else if(m.type==='skin'){
  const values=[['--bg',m.background],['--panel',m.surface],['--tile',m.surfaceRaised],
   ['--text',m.text],['--soft',m.muted],['--cyan',m.accent],
