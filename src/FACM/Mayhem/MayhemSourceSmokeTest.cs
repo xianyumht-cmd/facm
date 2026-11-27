@@ -21,6 +21,7 @@ namespace FACM.Mayhem
                 MayhemRankedAugmentService.ValidatePartialAugmentFallbackForSmokeTest();
                 ValidateRankingHomeFixture();
                 ValidateRichAugmentFixture();
+                ValidateAugmentCoverageFixture();
                 ValidateBuildDetailsFixture();
                 ValidatePublicCompanionFallbackFixture();
                 ValidateLocalizedProjectionFixture();
@@ -208,6 +209,37 @@ namespace FACM.Mayhem
             var strength = MayhemCardRenderer.BuildStrengthTextForSmokeTest(result);
             if (strength.IndexOf("S+", StringComparison.Ordinal) < 0 || strength.IndexOf("#6", StringComparison.Ordinal) < 0 || strength.IndexOf("55.83%", StringComparison.Ordinal) < 0)
                 throw new InvalidOperationException("Decision-card strength projection lost source-backed tier/rank/winrate.");
+        }
+
+        private static void ValidateAugmentCoverageFixture()
+        {
+            var rows = Enumerable.Range(1, 26).Select(index =>
+                "{\"id\":\"" + index + "\",\"rank\":" + index +
+                ",\"name\":\"Augment " + index + "\",\"rarity\":\"" +
+                (index <= 20 ? "gold" : index <= 23 ? "silver" : "prismatic") +
+                "\",\"winRate\":0.55,\"pickRate\":0.005,\"icon\":\"https://example.invalid/aram-augment/" +
+                index + ".png\"}").ToArray();
+            var unrelated = Enumerable.Range(1, 100).Select(index =>
+                "{\"name\":\"Item " + index + "\",\"icon\":\"https://example.invalid/items/" + index + ".png\"}");
+            var html = "<script>{\"data\":[" + string.Join(",", unrelated) +
+                "],\"augments\":[" + string.Join(",", rows) + "]}</script>";
+            var result = new MayhemChampionResult();
+            MayhemRankedAugmentService.ApplyFromHtmlForSmokeTest(result, html);
+            if (result.AugmentRows.Count != 26 ||
+                result.AugmentRows.Count(row => row.RarityKind == "silver") != 3 ||
+                result.AugmentRows.Count(row => row.RarityKind == "prism") != 3 ||
+                result.AugmentRows.Last().Rank != 26 || result.Augments.Count != 5 ||
+                Math.Abs(result.AugmentRows.Last().PickRate.GetValueOrDefault() - 0.5) > 0.001)
+                throw new InvalidOperationException("The retained ranking lost late rarity rows or percentage precision.");
+            MayhemAutomaticGuideService.Sanitize(result);
+            if (result.AugmentRows.Count != 26)
+                throw new InvalidOperationException("Automatic guide sanitized away valid rarity coverage.");
+            var catalog = new MayhemChampionResult();
+            MayhemRankedAugmentService.ApplyFromHtmlForSmokeTest(catalog,
+                "<img src='https://example.invalid/aram-augment/test.png' alt='Catalog only'>");
+            if (catalog.AugmentRows.Count != 1 || catalog.AugmentRows[0].Rank != 0 ||
+                catalog.AugmentRows[0].WinRate.HasValue || catalog.AugmentRoutes.Count != 0)
+                throw new InvalidOperationException("An unranked rendered catalog must not invent statistical ranks.");
         }
 
         private static void ValidateBuildDetailsFixture()

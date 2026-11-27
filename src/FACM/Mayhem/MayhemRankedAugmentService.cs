@@ -18,6 +18,9 @@ namespace FACM.Mayhem
     {
         private const string KiwiIconBase = "https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default/assets/ux/kiwi/augments/icons/";
         internal const int MinimumUsableRows = 3;
+        // Input safety bound, not a product ranking length. Filter by rarity after retaining
+        // the source rows, including those outside the global first viewport.
+        internal const int MaximumRows = 512;
         private static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
 
         private sealed class LegacyAugment
@@ -44,13 +47,13 @@ namespace FACM.Mayhem
                     var response = await LeaguePublicDataTransport.GetAsync(
                         url, TimeSpan.FromSeconds(5.5), token, true).ConfigureAwait(false);
                     var html = response == null ? null : response.ReadUtf8();
-                    var richRows = ParseOpggRows(html).Take(12).ToList();
+                    var richRows = ParseOpggRows(html).Take(MaximumRows).ToList();
                     var rows = richRows;
                     var renderedFallback = false;
                     if (rows.Count < MinimumUsableRows)
                     {
-                        var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
-                        if (rendered.Count > rows.Count)
+                        var rendered = ParseRenderedAugmentRows(html).Take(MaximumRows).ToList();
+                        if (ScoreRows(rendered) > ScoreRows(rows))
                         {
                             rows = rendered;
                             renderedFallback = true;
@@ -86,19 +89,19 @@ namespace FACM.Mayhem
 
         internal static int ApplyFromHtmlForSmokeTest(MayhemChampionResult result, string html)
         {
-            var rich = ParseOpggRows(html).Take(12).ToList();
+            var rich = ParseOpggRows(html).Take(MaximumRows).ToList();
             var preferred = rich;
             if (rich.Count < MinimumUsableRows)
             {
-                var rendered = ParseRenderedAugmentRows(html).Take(12).ToList();
-                if (rendered.Count > rich.Count) preferred = rendered;
+                var rendered = ParseRenderedAugmentRows(html).Take(MaximumRows).ToList();
+                if (ScoreRows(rendered) > ScoreRows(rich)) preferred = rendered;
             }
             if (preferred.Count > 0)
             {
                 ApplyRich(result, preferred);
                 return preferred.Count;
             }
-            var legacy = ParseLegacyPicks(html).Take(5).ToList();
+            var legacy = ParseLegacyPicks(html).Take(MaximumRows).ToList();
             ApplyLegacy(result, legacy);
             return legacy.Count;
         }
@@ -127,7 +130,12 @@ namespace FACM.Mayhem
 
         private static bool ApplyLegacyIfRicher(MayhemChampionResult result, IList<LegacyAugment> picks)
         {
-            if (result == null || picks == null || picks.Count <= result.AugmentRows.Count) return false;
+            if (result == null || picks == null) return false;
+            var existing = result.AugmentRows ?? new List<MayhemAugmentRow>();
+            var existingStats = existing.Count(row => row != null && (row.WinRate.HasValue || row.PickRate.HasValue));
+            var fallbackStats = picks.Count(row => row != null && (row.WinRate.HasValue || row.PickRate.HasValue));
+            if (fallbackStats < existingStats || (fallbackStats == existingStats && picks.Count <= existing.Count))
+                return false;
             ApplyLegacy(result, picks);
             return true;
         }
@@ -149,7 +157,7 @@ namespace FACM.Mayhem
         {
             if (!IsCompatibleFallbackPatch(result, html))
                 return new List<MayhemAugmentRow>();
-            ApplyLegacyIfRicher(result, ParseLegacyPicks(html).Take(12).ToList());
+            ApplyLegacyIfRicher(result, ParseLegacyPicks(html).Take(MaximumRows).ToList());
             return result.AugmentRows;
         }
 
@@ -169,7 +177,7 @@ namespace FACM.Mayhem
                         "; detail=" + (MayhemRankingSourceService.ReadPatch(html) ?? "unknown"));
                     return;
                 }
-                var picks = ParseLegacyPicks(html).Take(12).ToList();
+                var picks = ParseLegacyPicks(html).Take(MaximumRows).ToList();
                 var augmentsApplied = ApplyLegacyIfRicher(result, picks);
                 if (augmentsApplied)
                 {
@@ -254,12 +262,13 @@ namespace FACM.Mayhem
                 if (name.Length < 2 || !seen.Add(name)) continue;
                 rows.Add(new MayhemAugmentRow
                 {
-                    Rank = rows.Count + 1,
+                    Rank = 0, // Rendered catalog order is not a statistical rank.
                     Name = name,
                     Slug = Slugify(name),
                     Rarity = MayhemUiCopy.Unknown,
                     IconUrl = CleanIconUrl(icon)
                 });
+                if (rows.Count >= MaximumRows) break;
             }
             return rows;
         }
@@ -269,7 +278,9 @@ namespace FACM.Mayhem
             if (rows == null || rows.Count == 0) return 0;
             var stats = rows.Count(row => row.WinRate.HasValue || row.PickRate.HasValue);
             var samples = rows.Count(row => row.Games.HasValue && row.Games.Value > 0);
-            return rows.Count * 10 + stats * 4 + samples;
+            var tiers = rows.Count(row => row.RarityKind != "other");
+            // A long icon catalog must never displace a source-backed ranking.
+            return stats * 16384 + samples * 16 + tiers * 4 + rows.Count;
         }
 
         private static int FindNextArrayMarker(string text, int start)
@@ -300,6 +311,7 @@ namespace FACM.Mayhem
                     if (row == null) continue;
                     rows.Add(row);
                     rank++;
+                    if (rows.Count >= MaximumRows) break;
                 }
             }
             catch { }
@@ -322,14 +334,21 @@ namespace FACM.Mayhem
             if (string.IsNullOrWhiteSpace(icon)) return null;
 
             var rarity = NormalizeRarity(FirstText(item, "rarity", "grade", "tier"));
+            var iconKind = icon.IndexOf("/aram-augment/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                icon.IndexOf("/kiwi/augments/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                icon.IndexOf("/cherry/augments/", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                icon.IndexOf("/arena-augment/", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (new MayhemAugmentRow { Rarity = rarity }.RarityKind == "other" && !iconKind &&
+                !item.ContainsKey("augmentId") && !item.ContainsKey("augment_id")) return null;
             var description = CleanDescription(FirstText(item, "description", "desc", "tooltip"));
             var games = FirstInteger(item, "games", "gameCount", "sampleCount", "sampleSize", "totalGames", "count");
-            var rank = FirstInteger(item, "rank", "order") ?? fallbackRank;
+            var rank = FirstInteger(item, "rank", "order") ??
+                (performance.HasValue || popular.HasValue ? fallbackRank : 0);
             if (string.IsNullOrWhiteSpace(slug)) slug = Slugify(name);
             return new MayhemAugmentRow
             {
                 Id = id,
-                Rank = Math.Max(1, rank),
+                Rank = Math.Max(0, rank),
                 Name = WebUtility.HtmlDecode(name).Trim(),
                 Slug = slug,
                 Rarity = rarity,
@@ -344,7 +363,11 @@ namespace FACM.Mayhem
         private static void ApplyRich(MayhemChampionResult result, IList<MayhemAugmentRow> rows)
         {
             if (result == null || rows == null || rows.Count == 0) return;
-            result.AugmentRows = rows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name)).Take(12).ToList();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            result.AugmentRows = rows.Where(row => row != null && !string.IsNullOrWhiteSpace(row.Name))
+                .Where(row => seen.Add(!string.IsNullOrWhiteSpace(row.Id) ? "id:" + row.Id :
+                    "name:" + row.Name.Trim()))
+                .Take(MaximumRows).ToList();
             result.Augments = result.AugmentRows.Take(5).Select(row => row.Name).ToList();
             result.AugmentIconUrls = result.AugmentRows.Take(5).Select(row => row.IconUrl).ToList();
             result.AugmentRoutes = BuildRoutes(result.AugmentRows);
@@ -399,7 +422,7 @@ namespace FACM.Mayhem
             result.Augments.Clear();
             result.AugmentIconUrls.Clear();
             result.AugmentRows.Clear();
-            for (var i = 0; i < picks.Count && i < 12; i++)
+            for (var i = 0; i < picks.Count && i < MaximumRows; i++)
             {
                 var pick = picks[i];
                 if (i < 5)
@@ -428,8 +451,8 @@ namespace FACM.Mayhem
             var start = normalized.IndexOf("Best Augments for", StringComparison.OrdinalIgnoreCase);
             if (start < 0) return Enumerable.Empty<LegacyAugment>();
             var end = normalized.IndexOf("Augment Combos", start, StringComparison.OrdinalIgnoreCase);
-            if (end < 0 || end <= start) end = Math.Min(normalized.Length, start + 24000);
-            var section = normalized.Substring(start, Math.Min(end - start, 24000));
+            if (end < 0 || end <= start) end = Math.Min(normalized.Length, start + 262144);
+            var section = normalized.Substring(start, Math.Min(end - start, 262144));
             var picks = new List<LegacyAugment>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (Match match in Regex.Matches(section,
@@ -457,8 +480,8 @@ namespace FACM.Mayhem
                 var prism = prefix.LastIndexOf("Prismatic Augments", StringComparison.OrdinalIgnoreCase);
                 var gold = prefix.LastIndexOf("Gold Augments", StringComparison.OrdinalIgnoreCase);
                 var silver = prefix.LastIndexOf("Silver Augments", StringComparison.OrdinalIgnoreCase);
-                var rarity = prism >= gold && prism >= silver ? "prismatic"
-                    : gold >= silver ? "gold" : "silver";
+                var rarity = prism < 0 && gold < 0 && silver < 0 ? MayhemUiCopy.Unknown :
+                    prism >= gold && prism >= silver ? "prismatic" : gold >= silver ? "gold" : "silver";
                 picks.Add(new LegacyAugment
                 {
                     Name = name,
@@ -472,6 +495,7 @@ namespace FACM.Mayhem
                             CultureInfo.InvariantCulture, out pick) ? pick : (double?)null,
                     IconUrl = KiwiIconBase + NormalizeName(slug) + "_small.png"
                 });
+                if (picks.Count >= MaximumRows) break;
             }
             return picks;
         }

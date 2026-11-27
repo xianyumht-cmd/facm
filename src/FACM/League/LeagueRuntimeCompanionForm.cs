@@ -1329,7 +1329,7 @@ namespace FACM.League
                 .Where(value => value != null && !string.IsNullOrWhiteSpace(value.Name))
                 .OrderBy(value => value.Rank <= 0 ? int.MaxValue : value.Rank)
                 .ThenBy(value => value.Name, StringComparer.OrdinalIgnoreCase)
-                .Take(40).ToList().AsReadOnly();
+                .Take(MayhemRankedAugmentService.MaximumRows).ToList().AsReadOnly();
             SetAugmentPage(0);
         }
 

@@ -393,7 +393,7 @@ namespace FACM.Mayhem
             result.Augments = result.Augments.Where(value => !LooksLikeTechnicalFallback(value)).Take(5).ToList();
             result.AugmentRows = result.AugmentRows
                 .Where(value => value != null && !LooksLikeTechnicalFallback(value.Name))
-                .Take(12)
+                .Take(MayhemRankedAugmentService.MaximumRows)
                 .ToList();
             while (result.CoreItemIconUrls.Count > result.CoreItems.Count) result.CoreItemIconUrls.RemoveAt(result.CoreItemIconUrls.Count - 1);
             while (result.AugmentIconUrls.Count > result.Augments.Count) result.AugmentIconUrls.RemoveAt(result.AugmentIconUrls.Count - 1);

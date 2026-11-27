@@ -136,7 +136,7 @@ namespace FACM.Mayhem
                 .ToList();
             result.AugmentRows = (result.AugmentRows ?? new List<MayhemAugmentRow>())
                 .Where(value => value != null && !LooksTechnical(value.Name))
-                .Take(40)
+                .Take(MayhemRankedAugmentService.MaximumRows)
                 .ToList();
             while (result.CoreItemIconUrls.Count > result.CoreItems.Count)
                 result.CoreItemIconUrls.RemoveAt(result.CoreItemIconUrls.Count - 1);
