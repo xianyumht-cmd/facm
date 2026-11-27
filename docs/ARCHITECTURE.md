@@ -1,6 +1,6 @@
 ## 2026-11-27 — LCU health and compact Champion Select candidate
 
-The shared LCU phase client records bounded outcome transitions, Gameflow monitor logs connection/activity/process transitions, and Hub records actual companion episode/presentation. The existing diagnostics export adds a read-only direct-lockfile phase probe, process/registry flags and embedded tool hash status; no resident polling owner, external network access, proxy address or raw phase payload is added. The WebView2 overlay keeps the existing native controller and bridge, compact champion row, horizontal available bench and independent ranking/build/team/details views.
+The shared LCU phase client records bounded outcome transitions, Gameflow monitor logs connection/activity/process transitions, and Hub records actual companion episode/presentation. The existing diagnostics export adds a read-only direct-lockfile phase probe, process/registry flags and embedded tool hash status; no resident polling owner, external network access, proxy address or raw phase payload is added. The WebView2 overlay keeps the existing native controller and bridge, compact champion row, ten reserved bench positions in a five-column grid and independent ranking/build/team/details views. `LeagueRuntimeCompanionModels` projects mode capabilities, controller invalidates stale champion recommendations, and `LeagueBuildApplyService` independently rejects Mayhem rune/Exhaust writes. Native and WebView2 presentations consume the same mode policy. Existing Gameflow/LCU owners remain authoritative; do not create new resident polling solely for presentation.
 
 ## 2026-11-08 — Final quick-tools, skin, pet and status presentation boundary (Draft #364)
 
@@ -1174,3 +1174,4 @@ configuration. The existing strict request codecs remain unchanged and the
 Form's methods are limited to navigation and delegating to those adapters.
 WebView2 route and message publishers are injected, and the native
 `LeagueEfficiencyModule` remains the only feature backend.
+
