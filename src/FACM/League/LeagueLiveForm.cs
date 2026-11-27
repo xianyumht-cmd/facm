@@ -34,6 +34,7 @@ namespace FACM.League
         private bool _benchRefreshing;
         private bool _benchSwapping;
         private bool _benchActive;
+        private LeagueBenchQuickPickState _benchObserved;
         private string _benchSignature = string.Empty;
         private LeagueActivityLevel _lastActivity = LeagueActivityLevel.None;
 
@@ -77,7 +78,7 @@ namespace FACM.League
             _benchCard = new Panel
             {
                 Location = new Point(28, 238),
-                Size = new Size(844, 100),
+                Size = new Size(844, 152),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = FacmDesignSystem.Surface
             };
@@ -101,11 +102,11 @@ namespace FACM.League
             _benchFlow = new FlowLayoutPanel
             {
                 Location = new Point(9, 34),
-                Size = new Size(826, 58),
+                Size = new Size(826, 110),
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = FacmDesignSystem.CanvasRaised,
                 FlowDirection = FlowDirection.LeftToRight,
-                WrapContents = false,
+                WrapContents = true,
                 AutoScroll = true,
                 Padding = new Padding(4, 2, 4, 2)
             };
@@ -115,8 +116,8 @@ namespace FACM.League
 
             _playersList = new ListView
             {
-                Location = new Point(28, 350),
-                Size = new Size(844, 258),
+                Location = new Point(28, 402),
+                Size = new Size(844, 206),
                 Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
                 BackColor = FacmDesignSystem.Surface,
                 ForeColor = FacmDesignSystem.Text,
@@ -212,7 +213,7 @@ namespace FACM.League
             while (!_lifetime.IsCancellationRequested && !IsDisposed)
             {
                 var minimized = IsEffectivelyMinimized();
-                if (!minimized && _lastActivity != LeagueActivityLevel.InGame)
+                if (!minimized && _lastActivity == LeagueActivityLevel.ChampSelect)
                     await RefreshBenchOnceAsync();
 
                 if (_lifetime.IsCancellationRequested || IsDisposed) break;
@@ -265,7 +266,7 @@ namespace FACM.League
             {
                 var state = await _benchQuickPick.RefreshAsync(_lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
-                ApplyBenchState(state);
+                ApplyBenchState(_lastActivity == LeagueActivityLevel.ChampSelect ? state : null);
             }
             catch (OperationCanceledException)
             {
@@ -317,13 +318,7 @@ namespace FACM.League
                 if (!_benchSwapping)
                     _statusLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.ManualOnly);
 
-                ApplyBenchState(new LeagueBenchQuickPickState
-                {
-                    SessionAvailable = true,
-                    BenchEnabled = snapshot.BenchEnabled,
-                    LocalPlayerCellId = snapshot.LocalPlayerCellId,
-                    LocalChampionId = ResolveLocalChampion(snapshot)
-                }, snapshot.BenchChampionIds);
+                if (!snapshot.BenchEnabled) ApplyBenchState(null);
             }
             else if (snapshot.Activity == LeagueActivityLevel.InGame)
             {
@@ -346,21 +341,15 @@ namespace FACM.League
                 _detailLabel.Text = string.Empty;
                 _bansLabel.Text = string.Empty;
                 _statusLabel.Text = _ui.Get(UiTextKeys.LeagueLiveReadOnly);
+                ApplyBenchState(null);
             }
 
             ApplyPlayers(snapshot);
         }
 
-        private void ApplyBenchState(LeagueBenchQuickPickState state, IEnumerable<int> championIds = null)
+        private void ApplyBenchState(LeagueBenchQuickPickState state)
         {
-            if (state != null && championIds != null)
-            {
-                foreach (var championId in championIds)
-                {
-                    if (championId > 0) state.ChampionIds.Add(championId);
-                }
-            }
-
+            _benchObserved = state;
             if (state == null || !state.SessionAvailable)
             {
                 _benchActive = false;
@@ -378,7 +367,7 @@ namespace FACM.League
             }
 
             _benchActive = true;
-            var ids = state.ChampionIds.Where(value => value > 0).Distinct().ToArray();
+            var ids = state.DisplayChampionIds.Where(value => value > 0).Distinct().ToArray();
             _benchStateLabel.Text = ids.Length == 0
                 ? LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Waiting)
                 : LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Hint);
@@ -388,6 +377,7 @@ namespace FACM.League
         private void RebuildBenchButtons(IEnumerable<int> championIds)
         {
             var ids = championIds == null ? new int[0] : championIds.Where(value => value > 0).Distinct().ToArray();
+            if (_benchActive && ids.Length < 10) ids = ids.Concat(Enumerable.Repeat(0, 10 - ids.Length)).ToArray();
             var signature = string.Join(",", ids);
             if (string.Equals(signature, _benchSignature, StringComparison.Ordinal))
             {
@@ -403,13 +393,14 @@ namespace FACM.League
                 control.Dispose();
             }
 
+            var index = 0;
             foreach (var championId in ids)
             {
                 var capturedId = championId;
                 var button = new Button
                 {
                     Tag = capturedId,
-                    Text = capturedId.ToString(),
+                    Text = capturedId > 0 ? capturedId.ToString() : string.Empty,
                     Size = new Size(58, 50),
                     Margin = new Padding(2, 1, 4, 1),
                     FlatStyle = FlatStyle.Flat,
@@ -419,7 +410,7 @@ namespace FACM.League
                     Font = new Font(FacmThemeRuntime.Current.FontName, 7F, FontStyle.Regular),
                     TextAlign = ContentAlignment.BottomCenter,
                     ImageAlign = ContentAlignment.TopCenter,
-                    Enabled = !_benchSwapping,
+                    Enabled = !_benchSwapping && _benchObserved != null && _benchObserved.CanChoose(capturedId),
                     TabStop = false
                 };
                 button.FlatAppearance.BorderColor = FacmDesignSystem.Border;
@@ -429,6 +420,8 @@ namespace FACM.League
                     button,
                     LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Tooltip) + " · #" + capturedId);
                 _benchFlow.Controls.Add(button);
+                _benchFlow.SetFlowBreak(button, ++index % 5 == 0);
+                if (capturedId <= 0) continue;
 
                 Image cached;
                 if (_benchImages.TryGetValue(capturedId, out cached)) button.Image = cached;
@@ -468,13 +461,15 @@ namespace FACM.League
         private async Task SwapBenchChampionAsync(int championId)
         {
             if (_benchSwapping || championId <= 0 || IsDisposed || _lifetime.IsCancellationRequested) return;
+            var expected = _benchObserved;
+            if (expected == null || !expected.CanChoose(championId)) return;
             _benchSwapping = true;
             SetBenchButtonsEnabled(false);
             _statusLabel.Text = LeagueBenchQuickPickText.Get(_ui, LeagueBenchQuickPickUiTextKeys.Swapping) + " #" + championId + "...";
 
             try
             {
-                var result = await _benchQuickPick.TrySwapAsync(championId, _lifetime.Token);
+                var result = await _benchQuickPick.TryChooseAsync(championId, expected, _lifetime.Token);
                 if (IsDisposed || _lifetime.IsCancellationRequested) return;
                 _statusLabel.Text = FormatBenchSwapResult(result);
             }
@@ -529,7 +524,8 @@ namespace FACM.League
             foreach (Control control in _benchFlow.Controls)
             {
                 var button = control as Button;
-                if (button != null) button.Enabled = enabled;
+                if (button != null) button.Enabled = enabled && button.Tag is int &&
+                    _benchObserved != null && _benchObserved.CanChoose((int)button.Tag);
             }
         }
 
