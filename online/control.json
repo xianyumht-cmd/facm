@@ -1,6 +1,6 @@
 {
   "schema": "ggman-control.v1",
-  "revision": 20261127211000,
+  "revision": 20261127211001,
   "sources": [
     {
       "name": "gh-dpik",
@@ -83,10 +83,17 @@
       "id": "opgg-api",
       "enabled": true,
       "timeout_ms": 0
+    },
+    {
+      "id": "ddragon",
+      "enabled": true,
+      "timeout_ms": 0
     }
   ],
   "features": {
     "history_timeline": true,
-    "history_radar": true
+    "history_radar": true,
+    "guide_ranked_details": true,
+    "aram_balance": true
   }
 }

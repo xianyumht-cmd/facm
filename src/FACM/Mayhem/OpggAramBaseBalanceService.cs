@@ -85,6 +85,11 @@ namespace FACM.Mayhem
             if (string.IsNullOrWhiteSpace(result.MayhemBalanceSummary))
                 result.MayhemBalanceSummary = result.BalanceSummary;
 
+            if (!CloudRouteControl.AramBalanceEnabled)
+            {
+                ApplySnapshot(result, Unavailable("maintenance"));
+                return;
+            }
             AramBaseBalanceSnapshot snapshot;
             try
             {

@@ -34,9 +34,9 @@ if ($config.PSObject.Properties.Name -contains 'announcement') {
     }
 }
 if ($config.PSObject.Properties.Name -contains 'public_sources') {
-    $known = @('hexdata','aramgg','arammayhem','opgg','tencent-news','communitydragon','akari-catalog','opgg-api')
+    $known = @('hexdata','aramgg','arammayhem','opgg','tencent-news','communitydragon','akari-catalog','opgg-api','ddragon')
     $seen = @{}
-    if (@($config.public_sources).Count -gt 8) { throw 'Too many public source policies.' }
+    if (@($config.public_sources).Count -gt 9) { throw 'Too many public source policies.' }
     foreach ($policy in $config.public_sources) {
         if ($policy.id -cnotin $known -or $seen.ContainsKey($policy.id) -or $policy.enabled -isnot [bool] -or
             ($policy.timeout_ms -ne 0 -and ($policy.timeout_ms -lt 500 -or $policy.timeout_ms -gt 5500))) { throw 'Invalid public source policy.' }
@@ -45,7 +45,7 @@ if ($config.PSObject.Properties.Name -contains 'public_sources') {
 }
 if ($config.PSObject.Properties.Name -contains 'features') {
     foreach ($flag in $config.features.PSObject.Properties) {
-        if ($flag.Name -cnotin @('history_timeline','history_radar') -or $flag.Value -isnot [bool]) { throw 'Invalid feature policy.' }
+        if ($flag.Name -cnotin @('history_timeline','history_radar','guide_ranked_details','aram_balance') -or $flag.Value -isnot [bool]) { throw 'Invalid feature policy.' }
     }
 }
 if (-not $env:FACM_PFX_BASE64) { throw 'Release signing secret unavailable.' }

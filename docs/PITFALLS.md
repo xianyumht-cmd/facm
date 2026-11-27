@@ -1,3 +1,7 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+Globalping Range requests may return redirect, ignored range, truncated body or API error; a 206 Content-Range is entry evidence only, not full integrity or throughput. Windows runner results are not mainland network evidence. Do not execute packages during mirror measurement.
+
 ## 2026-11-27 — Separate updater health and expanded public policy
 
 Fast JSON is not evidence of fast EXE delivery. Disabled source policies suppress managed fetches, not valid cached data. Direct fetchers not yet integrated remain outside policy scope.

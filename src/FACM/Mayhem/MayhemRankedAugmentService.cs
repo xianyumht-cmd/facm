@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Web.Script.Serialization;
 using FACM.League;
 using FACM.Services;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -35,7 +36,8 @@ namespace FACM.Mayhem
 
         public static async Task EnrichAsync(MayhemChampionResult result, CancellationToken token)
         {
-            if (result == null) return;
+            token.ThrowIfCancellationRequested();
+            if (result == null || !CloudRouteControl.GuideRankedDetailsEnabled) return;
 
             var buildTask = MayhemBuildDetailsService.EnrichAsync(result, token);
             var slug = (result.ChampionSlug ?? string.Empty).Trim().ToLowerInvariant();

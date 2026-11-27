@@ -1,0 +1,37 @@
+name: GGman EXE Route Audit
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/exe-route-audit.yml'
+      - 'scripts/Test-PackageRoutes.ps1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mainland-entry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mainland release entry and bounded Range probe
+        run: python3 scripts/Test-MainlandPublicRoutes.py --exe-only
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mainland-exe-entry
+          path: mainland-route-results/
+          retention-days: 7
+  full-package:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify published package without executing
+        shell: pwsh
+        run: ./scripts/Test-PackageRoutes.ps1 -NetworkLabel 'GitHub-hosted-Windows-not-mainland' -OutputDirectory package-route-results
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-exe-route-results
+          path: package-route-results/
+          retention-days: 7

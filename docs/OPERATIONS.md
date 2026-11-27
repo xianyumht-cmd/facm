@@ -1,3 +1,7 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+GGman EXE Route Audit checks five configured mirrors and GitHub direct against the checked-out official manifest. Mainland probes request bytes 0–1023 and validate TLS/status/range headers; the Windows hosted job downloads bounded files, checks SHA-256, expected release signer and version, deletes files, and exports CSV. For real full-transfer mainland evidence run scripts/Test-PackageRoutes.ps1 -NetworkLabel China-Telecom -Rounds 2 on that network (repeat for Unicom/Mobile). The script does not execute downloads. Review results before changing cloud priorities; signed config candidate remains unpublished.
+
 ## 2026-11-27 — Separate updater health and expanded public policy
 
 Inspect update-metadata-health-v2.json and update-package-health-v2.json in cache; samples older than seven days are ignored. Eight named public source policies and five update routes are staged, not deployed. Verify package throughput separately before changing package priorities.

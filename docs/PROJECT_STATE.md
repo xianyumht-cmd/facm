@@ -1,3 +1,7 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+Candidate adds Data Dragon metadata and the direct CommunityDragon/public image fetch boundary to signed source policy, plus two optional guide enrichment maintenance flags. Existing flags and defaults unchanged; local LCU asset reads stay first. New EXE audit uses mainland Range entry probes and a separate GitHub-hosted Windows full-package hash/signer/version check. No mainland throughput claim from Range or hosted runner. Previous head had two green and four running gates when work started; exact-head CI pending. COS production revision and 3.5.89 release remain unchanged.
+
 ## 2026-11-27 — Separate updater health and expanded public policy
 
 Baseline 08ce8cb8 passed all six gates. Candidate separates metadata/package scoring and expands managed public sources to eight IDs. Exact-head CI, signed-client acceptance, remaining direct fetchers, EXE throughput and additional maintenance gates remain open. Production COS unchanged.

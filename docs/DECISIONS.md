@@ -1,3 +1,7 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+Keep local game resources and existing caches available regardless of optional source maintenance. All four feature flags default enabled; they only suppress optional read operations. Do not claim complete EXE performance from bounded HTTP probes; full download evidence includes exact manifest hash, signer identity and version.
+
 ## 2026-11-27 — Separate updater health and expanded public policy
 
 Ignore old mixed health statistics. Use bounded recent samples, successful latency only, and seven-day decay. Fixed-ID cloud policies may shorten existing budgets and disable new public fetches, not redirect authenticated requests.

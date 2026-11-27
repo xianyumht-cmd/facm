@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
+using FACM.Online;
 
 namespace FACM.Mayhem
 {
@@ -182,11 +183,19 @@ namespace FACM.Mayhem
 
         private static async Task<string> GetStringAsync(string url, CancellationToken token)
         {
-            using (var request = new HttpRequestMessage(HttpMethod.Get, url))
-            using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false))
+            token.ThrowIfCancellationRequested();
+            var budget = TimeSpan.FromSeconds(3);
+            if (!CloudRouteControl.PublicSourceAllowed(url, ref budget))
+                throw new InvalidOperationException("Data Dragon source temporarily disabled.");
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
-                response.EnsureSuccessStatusCode();
-                return await CancelableHttpContentReader.ReadStringAsync(response.Content, token).ConfigureAwait(false);
+                deadline.CancelAfter(budget);
+                using (var request = new HttpRequestMessage(HttpMethod.Get, url))
+                using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, deadline.Token).ConfigureAwait(false))
+                {
+                    response.EnsureSuccessStatusCode();
+                    return await CancelableHttpContentReader.ReadStringAsync(response.Content, deadline.Token).ConfigureAwait(false);
+                }
             }
         }
 

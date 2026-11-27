@@ -1,3 +1,7 @@
+## 2026-11-27 — Public asset policy and EXE route audit
+
+RiotDataDragonService and RiotGameDataService honor existing cloud policy and bounded linked deadlines at public request boundaries. GuideRankedDetails gates rich build/augment enrichment (base guide remains); AramBalance gates base-balance enrichment. Updater audit is opt-in CI tooling, never a resident client task.
+
 ## 2026-11-27 — Separate updater health and expanded public policy
 
 UpdateMirrorRouter selects independent metadata/package health stores; installer records verified package outcomes. Shared public-data transport honors cloud source policy before network requests while retaining cache and host/path allowlists.

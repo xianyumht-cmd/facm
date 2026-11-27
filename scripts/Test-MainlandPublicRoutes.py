@@ -38,6 +38,11 @@ def targets():
     control = ("cos-control", CONTROL_URL, "control")
     if "--control-only" in sys.argv:
         return [control]
+    if "--exe-only" in sys.argv:
+        origin = REFERENCE["download_url"]
+        catalog = json.loads((ROOT / "online/control.json").read_text(encoding="utf-8-sig"))
+        return [(item["name"], item["prefix"].rstrip("/") + "/" + origin, "exe-range")
+                for item in catalog["sources"] if item["enabled"]] + [("github-direct", origin, "exe-range")]
     result = [("github-direct", ORIGIN, True)]
     catalog = json.loads((ROOT / "online/mirrors.json").read_text(encoding="utf-8-sig"))
     for item in catalog["sources"]:
@@ -83,6 +88,11 @@ def classify(result, is_manifest):
         if result.get("truncated") or not isinstance(body, str):
             return "body-unavailable"
         return "control-matches-published" if hashlib.sha256(body.encode("utf-8")).hexdigest() == CONTROL_SHA256 else "control-other-content"
+    if is_manifest == "exe-range":
+        headers = result.get("rawHeaders") or ""
+        if code == 206 and re.search(r"(?im)^content-range:\s*bytes\s+0-1023/\d+\s*$", headers):
+            return "range-headers-confirmed"
+        return "exe-http-response-only"
     if not is_manifest:
         return "http-reachable-only"
     if result.get("truncated") or not isinstance(result.get("rawBody"), str):
@@ -121,6 +131,9 @@ def measure(target, carrier, asns):
                 "headers": {"User-Agent": "GGman-Windows/3.5", "Cache-Control": "no-cache"}}
         }
     }
+    if is_manifest == "exe-range":
+        payload["measurementOptions"]["request"]["headers"]["Range"] = "bytes=0-1023"
+        payload["measurementOptions"]["request"]["headers"]["Accept-Encoding"] = "identity"
     try:
         mid = api("/measurements", payload)["id"]
         if not re.fullmatch(r"[a-zA-Z0-9_-]+", mid):
@@ -172,7 +185,7 @@ def main():
     for name, _, manifest in targets():
         for carrier in CARRIERS:
             group = [r for r in rows if r["source"] == name and r["carrier"] == carrier]
-            expected = "control-matches-published" if manifest == "control" else "manifest-matches-checkout" if manifest else "http-reachable-only"
+            expected = ("control-matches-published" if manifest == "control" else "range-headers-confirmed" if manifest == "exe-range" else "manifest-matches-checkout" if manifest else "http-reachable-only")
             usable = [r for r in group if r["evidence"] == expected and isinstance(r.get("total_ms"), (int, float))]
             attempted = sum(r.get("country") == "CN" and r.get("asn") in asns[carrier] for r in group)
             summary.append(dict(source=name, carrier=carrier, attempted=attempted, usable=len(usable),

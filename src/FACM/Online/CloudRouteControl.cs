@@ -51,6 +51,10 @@ namespace FACM.Online
         public bool? HistoryTimeline { get; set; }
         [DataMember(Name = "history_radar", EmitDefaultValue = false)]
         public bool? HistoryRadar { get; set; }
+        [DataMember(Name = "guide_ranked_details", EmitDefaultValue = false)]
+        public bool? GuideRankedDetails { get; set; }
+        [DataMember(Name = "aram_balance", EmitDefaultValue = false)]
+        public bool? AramBalance { get; set; }
     }
 
     internal static class CloudRouteControl
@@ -173,7 +177,7 @@ namespace FACM.Online
             if (catalog.PublicSources != null)
             {
                 var ids = new HashSet<string>(StringComparer.Ordinal);
-                if (catalog.PublicSources.Length > 8) return false;
+                if (catalog.PublicSources.Length > 9) return false;
                 foreach (var source in catalog.PublicSources)
                     if (source == null || !KnownSource(source.Id) || !ids.Add(source.Id) ||
                         (source.TimeoutMs != 0 && (source.TimeoutMs < 500 || source.TimeoutMs > 5500))) return false;
@@ -198,7 +202,7 @@ namespace FACM.Online
 
         private static bool KnownSource(string id)
         {
-            return id == "hexdata" || id == "aramgg" || id == "arammayhem" || id == "opgg" || id == "tencent-news" || id == "communitydragon" || id == "akari-catalog" || id == "opgg-api";
+            return id == "hexdata" || id == "aramgg" || id == "arammayhem" || id == "opgg" || id == "tencent-news" || id == "communitydragon" || id == "akari-catalog" || id == "opgg-api" || id == "ddragon";
         }
 
         internal static bool PublicSourceAllowed(string url, ref TimeSpan budget)
@@ -217,7 +221,8 @@ namespace FACM.Online
                 uri.Host == "lol.qq.com" ? "tencent-news" :
                 uri.Host == "lol-api-champion.op.gg" ? "opgg-api" :
                 uri.Host == "raw.communitydragon.org" ? "communitydragon" :
-                uri.Host == "akari-api.yuru-yuri.com" ? "akari-catalog" : null;
+                uri.Host == "akari-api.yuru-yuri.com" ? "akari-catalog" :
+                uri.Host == "ddragon.leagueoflegends.com" ? "ddragon" : null;
             var policy = catalog == null || catalog.PublicSources == null ? null :
                 catalog.PublicSources.FirstOrDefault(s => s.Id == id);
             if (policy == null) return true;
@@ -235,6 +240,26 @@ namespace FACM.Online
         internal static bool HistoryRadarEnabled
         {
             get { var active = Volatile.Read(ref _active); return active == null || active.Features == null || active.Features.HistoryRadar != false; }
+        }
+
+        internal static bool GuideRankedDetailsEnabled
+        {
+            get { return RankedDetailsEnabled(Volatile.Read(ref _active)); }
+        }
+
+        internal static bool AramBalanceEnabled
+        {
+            get { return BalanceEnabled(Volatile.Read(ref _active)); }
+        }
+
+        private static bool RankedDetailsEnabled(CloudRouteCatalog active)
+        {
+            return active == null || active.Features == null || active.Features.GuideRankedDetails != false;
+        }
+
+        private static bool BalanceEnabled(CloudRouteCatalog active)
+        {
+            return active == null || active.Features == null || active.Features.AramBalance != false;
         }
 
         private static bool TimelineEnabled(CloudRouteCatalog active)
@@ -327,12 +352,12 @@ namespace FACM.Online
                     new CloudPublicSource { Id = "hexdata", Enabled = false },
                     new CloudPublicSource { Id = "opgg", Enabled = true, TimeoutMs = 800 }
                 };
-                catalog.Features = new CloudFeatureFlags { HistoryTimeline = false };
+                catalog.Features = new CloudFeatureFlags { HistoryTimeline = false, GuideRankedDetails = false, AramBalance = false };
                 catalog.Announcement = new AnnouncementManifest { Enabled = false, Level = "info" };
                 catalog.Revision = 3;
                 var policy = Verify(sign(catalog), rsa);
                 var timeout = TimeSpan.FromSeconds(3);
-                if (policy == null || TimelineEnabled(policy.Catalog) ||
+                if (policy == null || TimelineEnabled(policy.Catalog) || RankedDetailsEnabled(policy.Catalog) || BalanceEnabled(policy.Catalog) ||
                     ApplyPublicSource(policy.Catalog, "https://hexdata.com.cn/heroes", ref timeout) ||
                     !ApplyPublicSource(policy.Catalog, "https://op.gg/guide", ref timeout) ||
                     timeout.TotalMilliseconds != 800 || policy.Catalog.Announcement.Enabled)
