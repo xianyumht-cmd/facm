@@ -10,7 +10,7 @@ namespace FACM.Presentation.Glass
 
         public bool Recognizes(string message)
         {
-            return message == "mayhem-cancel" ||
+            return message == "mayhem-cancel" || message == "mayhem-current" ||
                 (message != null && (message.StartsWith("mayhem-query:", StringComparison.Ordinal) ||
                     message.StartsWith("mayhem-icons:", StringComparison.Ordinal)));
         }
@@ -29,6 +29,7 @@ namespace FACM.Presentation.Glass
                 workspace.CancelMayhemRead();
                 workspace.PostLeaguePageStatus("mayhem-failed", "canceled");
             }
+            else if (message == "mayhem-current") workspace.StartCurrentMayhemQuery();
             else if (message.StartsWith("mayhem-icons:", StringComparison.Ordinal))
                 workspace.RequestMayhemAugmentIcons(message.Substring("mayhem-icons:".Length));
             else workspace.StartMayhemQuery(message.Substring("mayhem-query:".Length));

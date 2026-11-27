@@ -106,6 +106,34 @@ namespace FACM.League
         }
 
 
+        // Explicit current-hero guide lookup: never infer ownership from a prior draft.
+        internal async Task<LeagueLiveSnapshot> ReadCurrentMayhemContextAsync(CancellationToken token)
+        {
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    deadline.CancelAfter(TimeSpan.FromSeconds(4));
+                    var owner = await ReadLocalPuuidAsync(deadline.Token).ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(owner)) return null;
+                    var snapshot = new LeagueLiveSnapshot();
+                    ApplyCurrentGame(snapshot, await _client.TryGetBytesAsync(GameflowSessionPath, deadline.Token).ConfigureAwait(false));
+                    if (!string.Equals(snapshot.Phase, "InProgress", StringComparison.OrdinalIgnoreCase) ||
+                        snapshot.GameId <= 0 || !LeagueQueueModePolicy.IsAramMayhem(snapshot.QueueId, snapshot.GameMode)) return null;
+                    var local = snapshot.Players.Where(row => string.Equals(row.PuuId, owner, StringComparison.Ordinal)).ToArray();
+                    if (local.Length != 1 || local[0].ChampionId <= 0) return null;
+                    var after = await ReadLocalPuuidAsync(deadline.Token).ConfigureAwait(false);
+                    if (!string.Equals(owner, after, StringComparison.Ordinal)) return null;
+                    foreach (var row in snapshot.Players) row.IsLocalPlayer = ReferenceEquals(row, local[0]);
+                    snapshot.Connected = true;
+                    return snapshot;
+                }
+            }
+            catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+            finally { _requestGate.Release(); }
+        }
+
         // SGP is explicitly requested from the visible Live refresh button. The normal phase
         // observer never performs a remote SGP request.
         internal async Task<bool> TryRefreshSgpTeamsAsync(LeagueLiveSnapshot snapshot, CancellationToken token)

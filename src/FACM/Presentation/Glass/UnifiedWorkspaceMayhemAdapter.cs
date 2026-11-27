@@ -41,13 +41,40 @@ namespace FACM.Presentation.Glass
             ReadAsync(module, query, module.UnifiedLookupSession, source, _generation);
         }
 
+        internal void StartCurrent(MayhemModule module, LeagueLiveModule live)
+        {
+            Cancel();
+            if (module == null || live == null || module.UnifiedLookupSession == null)
+            { PostStatus("current-unavailable"); return; }
+            var source = new CancellationTokenSource(TimeSpan.FromSeconds(23));
+            _cancellation = source;
+            ReadAsync(module, null, module.UnifiedLookupSession, source, _generation, live);
+        }
+
         private async void ReadAsync(MayhemModule module, string query, LeagueClientSession session,
-            CancellationTokenSource source, int generation)
+            CancellationTokenSource source, int generation, LeagueLiveModule live = null)
         {
             var published = false;
             try
             {
-                var result = await module.ReadUnifiedGuideAsync(query, source.Token);
+                MayhemChampionResult result;
+                if (live == null) result = await module.ReadUnifiedGuideAsync(query, source.Token);
+                else
+                {
+                    var context = await live.ReadCurrentMayhemContextAsync(source.Token);
+                    var local = context == null ? null : context.Players.SingleOrDefault(row => row.IsLocalPlayer);
+                    if (!Current(module, session, source, generation) || local == null)
+                    { if (Owned(source, generation)) PostStatus("current-unavailable"); return; }
+                    result = await module.ReadUnifiedCurrentGuideAsync(local.ChampionId, source.Token);
+                    if (!Current(module, session, source, generation))
+                    { if (Owned(source, generation)) PostStatus("context-changed"); return; }
+                    var after = await live.ReadCurrentMayhemContextAsync(source.Token);
+                    var current = after == null ? null : after.Players.SingleOrDefault(row => row.IsLocalPlayer);
+                    if (after == null || current == null || after.GameId != context.GameId ||
+                        current.ChampionId != local.ChampionId ||
+                        !string.Equals(current.PuuId, local.PuuId, StringComparison.Ordinal))
+                    { if (Owned(source, generation)) PostStatus("context-changed"); return; }
+                }
                 if (!Current(module, session, source, generation))
                 {
                     if (Current(module, null, source, generation, false)) PostStatus("context-changed");

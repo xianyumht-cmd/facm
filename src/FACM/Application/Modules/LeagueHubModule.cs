@@ -43,6 +43,8 @@ namespace FACM.AppHost.Modules
         private bool _surfacePresentedForEpisode;
         private bool _dismissedForEpisode;
         private bool _closingAutomaticPopup;
+        private DateTime? _champSelectDisconnectedUtc;
+        internal static readonly TimeSpan ChampSelectDisconnectGrace = TimeSpan.FromSeconds(12);
 
         public LeagueHubModule(
             LeagueDashboardModule dashboard,
@@ -203,6 +205,21 @@ namespace FACM.AppHost.Modules
 
             if (!inChampSelect)
             {
+                var now = DateTime.UtcNow;
+                if (_champSelectEpisode && state != null && !state.Connected &&
+                    !_champSelectDisconnectedUtc.HasValue)
+                    _champSelectDisconnectedUtc = now;
+                if (_champSelectEpisode && CanRetainChampSelectEpisode(state, _champSelectDisconnectedUtc, now))
+                {
+                    if (_automaticLivePopup != null)
+                    {
+                        CloseAutomaticLivePopup();
+                        _surfacePresentedForEpisode = false;
+                        AppLog.Info("Runtime Companion suspended during a transient client disconnect.");
+                    }
+                    return;
+                }
+                _champSelectDisconnectedUtc = null;
                 _champSelectEpisode = false;
                 _surfacePresentedForEpisode = false;
                 _dismissedForEpisode = false;
@@ -210,6 +227,7 @@ namespace FACM.AppHost.Modules
                 return;
             }
 
+            _champSelectDisconnectedUtc = null;
             if (!_champSelectEpisode)
             {
                 AppLog.Info("Runtime Companion Champion Select episode observed.");
@@ -234,6 +252,14 @@ namespace FACM.AppHost.Modules
 
             if (_dismissedForEpisode || _automaticLivePopup != null || _surfacePresentedForEpisode) return;
             ShowAutomaticLivePopup(unifiedWorkspaceActive);
+        }
+
+        internal static bool CanRetainChampSelectEpisode(LeagueDashboardPhaseState state,
+            DateTime? disconnectedUtc, DateTime now)
+        {
+            return state != null && !state.Connected && state.ClientProcessDetected &&
+                !state.GameProcessDetected && disconnectedUtc.HasValue &&
+                now >= disconnectedUtc.Value && now - disconnectedUtc.Value < ChampSelectDisconnectGrace;
         }
 
         internal static bool ShouldShowRuntimeCompanion(

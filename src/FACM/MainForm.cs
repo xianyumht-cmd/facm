@@ -804,11 +804,8 @@ namespace FACM
             menu.Items.Add(more);
             menu.Items.Add(exit);
 
-            ShellMenuGroups.AddLeagueAction(
-                menu,
-                ShellMenuGroups.MayhemActionName,
-                _ui.Get(UiTextKeys.MayhemRanking),
-                ShellMenuGroups.MayhemOrder,
+            ShellMenuGroups.AddMoreAction(menu, ShellMenuGroups.MayhemActionName,
+                _ui.Get(UiTextKeys.MayhemRanking), 5,
                 delegate { OpenMayhemLookup(); });
 
             ShellMenuGroups.AddMoreAction(menu, "FACM.More.PanelTheme", _ui.Get(UiTextKeys.PanelTheme), 10,

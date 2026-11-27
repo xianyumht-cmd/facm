@@ -971,6 +971,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <button data-action="mayhem-query" id="mayhemQuery">查询英雄</button>
       <button data-action="mayhem-cancel" id="mayhemCancel" disabled>取消</button>
     </div>
+    <div class="actions"><button id="mayhemCurrent" data-action="mayhem-current" disabled>当前英雄</button></div>
     <p id="mayhemResult" role="status" aria-live="polite"></p>
     <div id="mayhemOutput" class="guide-results" hidden>
       <div class="guide-card"><div class="guide-icon-row"><div class="guide-thumb" id="mayhemChampionIcon">英</div><div class="guide-copy"><strong id="mayhemName">—</strong><small id="mayhemSource">—</small></div></div></div>
@@ -1323,11 +1324,13 @@ document.addEventListener("click",function(event){
     post("history-advanced-refresh");return;
   }
   if(target.dataset.recentGameId!==undefined){
+    if(get("historyRefresh").disabled)return;
     var recentId=target.dataset.recentGameId;
     if(historyRows.some(function(row){return String(row.gameId)===recentId;}))post("history-open-detail:"+recentId);
     return;
   }
   if(target.dataset.advancedGameId!==undefined){
+    if(get("advancedHistoryRefresh").disabled)return;
     var gameId=target.dataset.advancedGameId;
     if(!advancedHistoryIds.has(gameId))return;
     selectLocalMatch(gameId);
@@ -1430,16 +1433,21 @@ document.addEventListener("click",function(event){
   if(target.dataset.action==="updates-exit"){post("updates-exit");return;}
   if(target.dataset.action==="updates-link"){post("updates-link");return;}
   if(target.dataset.action==="updates-stop"){get("updateCancelDownload").disabled=true;post("updates-stop");return;}
+  if(target.dataset.action==="mayhem-current"){
+    if(target.disabled)return;
+    mayhemBusy=true;updateMayhemControls();get("mayhemOutput").hidden=true;
+    get("mayhemResult").textContent="正在读取当前英雄攻略";post("mayhem-current");return;
+  }
   if(target.dataset.action==="mayhem-query"){
     var query=get("mayhemChampion").value.trim();
     if(!query){get("mayhemResult").textContent="请输入英雄名称";return;}
-    get("mayhemQuery").disabled=true;get("mayhemCancel").disabled=false;
+    mayhemBusy=true;updateMayhemControls();
     get("mayhemOutput").hidden=true;get("mayhemChampionIcon").replaceChildren();
     get("mayhemResult").textContent="正在读取英雄攻略";
     post("mayhem-query:"+query);return;
   }
   if(target.dataset.action==="mayhem-cancel"){
-    post("mayhem-cancel");get("mayhemCancel").disabled=true;get("mayhemQuery").disabled=false;return;
+    post("mayhem-cancel");mayhemBusy=false;updateMayhemControls();return;
   }
   if(target.dataset.action==="recommendation-refresh"){
     recommendationBusy=true;recommendationCanApply=false;updateRecommendationControls();
@@ -1635,10 +1643,10 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-details"){renderMayhem(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-icon"){renderMayhemIcon(e.data);return;}
   if(e.data&&typeof e.data==="object"&&e.data.type==="mayhem-failed"){
-    get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+    mayhemBusy=false;updateMayhemControls();
     get("mayhemOutput").hidden=true;
     var err={ready:"输入英雄名称开始查询",invalid:"请输入有效的英雄名称",unavailable:"攻略服务暂时不可用",canceled:"查询已取消",
-      timeout:"查询超时，请稍后重试","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
+      timeout:"查询超时，请稍后重试","current-unavailable":"未确认当前海斗英雄，请手动查询","context-changed":"游戏会话已变更，请重新查询","no-data":"当前英雄没有可用的攻略数据"};
     get("mayhemResult").textContent=err[e.data.status]||"读取失败";return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="recommendation-details"){renderRecommendation(e.data);return;}
@@ -1881,7 +1889,7 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
     document.getElementById("statusPhase").textContent=secondary;
     document.getElementById("statusHint").textContent="";
     document.getElementById("clientPhase").textContent=secondary;
-    sceneState=e.data;updateSceneShortcut(e.data);renderAutomationPhaseNotes();
+    sceneState=e.data;updateSceneShortcut(e.data);renderAutomationPhaseNotes();updateMayhemControls();
     if(!sceneState.connected||sceneState.phase!=="InProgress")get("liveSgpRefresh").disabled=true;
     if(mode==="recommendation"&&(!e.data.connected||e.data.phase!=="ChampSelect")){
       recommendationCanApply=false;updateRecommendationControls();
@@ -2138,6 +2146,11 @@ function iconPlaceholder(label){
   var icon=document.createElement("span");icon.className="guide-thumb";
   icon.textContent=String(label||"荐").trim().slice(0,1)||"荐";return icon;
 }
+var mayhemBusy=false;
+function updateMayhemControls(){
+  get("mayhemQuery").disabled=mayhemBusy;get("mayhemCancel").disabled=!mayhemBusy;
+  get("mayhemCurrent").disabled=mayhemBusy||!sceneState||!sceneState.connected||sceneState.phase!=="InProgress";
+}
 var mayhemAugmentData=null,mayhemAugmentLimit=20,mayhemAugmentIcons=new Map(),mayhemRequestedIcons=new Set();
 get("mayhemAugmentSearch").oninput=get("mayhemAugmentRarity").onchange=function(){mayhemAugmentLimit=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
 get("mayhemAugmentMore").onclick=function(){mayhemAugmentLimit+=20;if(mayhemAugmentData)renderRankedAugments(mayhemAugmentData);};
@@ -2216,7 +2229,7 @@ function renderMayhemIcon(data){
 }
 function renderMayhem(data){
   mayhemAugmentData=data;mayhemAugmentLimit=20;mayhemAugmentIcons.clear();mayhemRequestedIcons.clear();get("mayhemAugmentSearch").value="";get("mayhemAugmentRarity").value="all";
-  get("mayhemQuery").disabled=false;get("mayhemCancel").disabled=true;
+  mayhemBusy=false;updateMayhemControls();
   get("mayhemOutput").hidden=false;
   get("mayhemChampionIcon").textContent=String(data.champion||"英").slice(0,1);
   guideText("mayhemName",data.champion);

@@ -56,6 +56,11 @@ namespace FACM.AppHost.Modules
             return result;
         }
 
+        internal Task<MayhemChampionResult> ReadUnifiedCurrentGuideAsync(int championId, CancellationToken token)
+        {
+            return new MayhemAutomaticGuideService(_leagueClient).QueryForChampionIdAsync(championId, token);
+        }
+
         // Send only bounded, locally encoded thumbnails to the offline WebView2 page.
         // URLs are consumed by the same native Riot/Mayhem image cache used by the existing card renderer.
         internal async Task<string> ReadUnifiedIconAsync(string reference, CancellationToken token)

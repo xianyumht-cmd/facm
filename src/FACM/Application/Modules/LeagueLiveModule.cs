@@ -55,6 +55,14 @@ namespace FACM.AppHost.Modules
             return !token.IsCancellationRequested && SessionStillMatches(initial) ? snapshot : null;
         }
 
+        internal async Task<LeagueLiveSnapshot> ReadCurrentMayhemContextAsync(CancellationToken token)
+        {
+            var initial = _leagueClient.CurrentSession;
+            if (_service == null || initial == null) return null;
+            var result = await _service.ReadCurrentMayhemContextAsync(token);
+            return !token.IsCancellationRequested && SessionStillMatches(initial) ? result : null;
+        }
+
         private bool SessionStillMatches(LeagueClientSession initial)
         {
             var current = _leagueClient.CurrentSession;
