@@ -91,6 +91,35 @@ html,body{font-size:12.6px;line-height:1.5}
 .actions .primary{background:color-mix(in srgb,var(--cyan) 18%,var(--tile))}
 #augmentFilters button{font-size:11px;min-height:28px}
 #quit{background:color-mix(in srgb,#9e4b53 26%,var(--tile));border-color:color-mix(in srgb,#e19c9c 50%,var(--line));color:#f4c1bc;min-height:32px}
+#head{height:46px}
+#content{height:calc(100% - 46px);padding:6px 8px 9px}
+#status{min-height:0;font-size:11px;margin-bottom:4px}
+#status.connected{display:none}
+#champ{gap:5px;margin-bottom:4px;min-height:23px}
+#champTitle{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#champ>div:first-child{min-width:0}
+#tier{color:var(--cyan);white-space:nowrap}
+#tabs{display:flex;gap:4px;position:sticky;top:0;background:var(--bg);z-index:2;padding:3px 0 5px}
+#tabs button{flex:1;min-width:0;font-size:11px;min-height:30px;padding:3px 2px}
+#tabs button.active{border-color:var(--cyan);color:var(--cyan);background:color-mix(in srgb,var(--cyan) 14%,var(--tile))}
+.section{margin-top:4px;padding:6px 7px!important}
+.section[hidden]{display:none!important}
+#benchSection{margin-bottom:4px}
+#bench{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}
+.bench-choice{flex:0 0 40px;min-height:37px;padding:2px;gap:1px}
+.bench-choice img,.bench-choice .placeholder{width:30px;height:30px}
+.bench-choice span:not(.placeholder){display:none}
+#benchEmpty:empty{display:none}
+#augmentFilters{margin:0 0 4px}
+.augment{padding:5px 0;align-items:center;gap:5px}
+.augment details summary,.rec details summary{cursor:pointer;color:var(--soft);font-size:10px}
+.rec{padding:5px 6px}
+.rec-label{font-size:11px}
+.rec-text{line-height:1.35}
+.actions{margin:0 0 6px;gap:4px}
+.actions button{min-height:31px;font-size:11px}
+#guideInfo{margin-top:5px}
+#recent:empty,#message:empty{display:none}
 </style>
 </head>
 <body>
@@ -103,32 +132,29 @@ html,body{font-size:12.6px;line-height:1.5}
 </header>
 <main id="content">
 <div id="status"><span id="dot"></span><span id="statusText">连接英雄选择中…</span></div>
-<section class="section">
-<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div><div id="champHint">当前选人阶段同步推荐</div></div><div id="tier"></div></div>
-<div id="recent"></div>
+<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div></div>
+<section class="section" id="benchSection" hidden>
+<div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div>
 </section>
-<section class="section">
-<h3>快速选择 · 大乱斗替补席</h3>
-<div id="benchEmpty">正在确认替补席是否可用…</div>
-<div id="bench" role="group" aria-label="可交换的英雄"></div>
+<nav id="tabs" aria-label="对局助手功能">
+<button data-tab="augments" aria-controls="augmentSection">强化排行</button>
+<button data-tab="build" class="active" aria-controls="buildSection">符文出装</button>
+<button data-tab="team" aria-controls="teamSection">队伍</button>
+<button data-tab="details" aria-controls="detailSection">详情</button>
+</nav>
+<section class="section" id="buildSection">
+<div class="actions"><button class="primary" id="runes">应用符文</button><button id="spells">应用召唤师技能</button><button id="items">导入出装</button></div>
+<div id="recommend"><div class="muted sub">等待推荐…</div></div>
 </section>
-<section class="section">
-<h3><span>符文 · 出装 · 技能推荐</span><span id="source"></span></h3>
-<div id="recommend"><div class="muted sub">等待当前英雄推荐…</div></div>
-<div class="actions">
-<button class="primary" id="runes">应用符文</button>
-<button id="spells">应用召唤师技能</button>
-<button id="items">导入出装</button>
-</div>
-</section>
-<section class="section">
-<h3>海斗强化 · 大乱斗数据</h3>
-<div id="guideInfo"></div><div id="emptyGuide">等待强化数据…</div>
+<section class="section" id="augmentSection" hidden>
 <div id="augmentFilters"><button data-filter="all" class="active">全部</button><button data-filter="prism">棱彩</button><button data-filter="gold">黄金</button><button data-filter="silver">白银</button></div>
-<div id="augments"></div>
+<div id="emptyGuide">等待强化数据…</div><div id="augments"></div>
 </section>
-<section class="section"><h3>本局队伍</h3><div id="teams" class="sub muted">等待队友数据…</div></section>
+<section class="section" id="teamSection" hidden><div id="teams" class="sub muted">等待队友数据…</div></section>
+<section class="section" id="detailSection" hidden>
+<div id="champHint" class="muted sub"></div><div id="recent"></div><div id="source"></div><div id="guideInfo"></div>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span id="message" class="muted sub"></span><button id="quit" class="warn">退出选人</button></div>
+</section>
 </main>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
@@ -139,7 +165,25 @@ const $ = id=>document.getElementById(id);
 const send = text=>{if(window.chrome && window.chrome.webview)window.chrome.webview.postMessage(text)};
 const elem=(tag,cls,value)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(value!==undefined)e.textContent=String(value);return e};
 const icons=new Map(),assetIcons=new Map();
-let snapshot=null,filter='all',dragging=false,toastTimer=null;
+let snapshot=null,filter='all',dragging=false,toastTimer=null,activeTab='build',manualTab=false;
+const panels={augments:'augmentSection',build:'buildSection',team:'teamSection',details:'detailSection'};
+function selectTab(tab,manual){
+ if(!panels[tab])return;
+ if(manual)manualTab=true;
+ if(activeTab!==tab)$('content').scrollTop=0;
+ activeTab=tab;
+ Object.keys(panels).forEach(key=>$(panels[key]).hidden=key!==tab);
+ $('tabs').querySelectorAll('button').forEach(b=>{const on=b.dataset.tab===tab;b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on))});
+}
+$('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>selectTab(b.dataset.tab,true));
+selectTab('build',false);
+const openedDetails=new Set();
+function disclosure(value,key){
+ const d=elem('details','');d.appendChild(elem('summary','','详情'));
+ d.appendChild(elem('div','rec-note',value));d.open=openedDetails.has(key);
+ d.addEventListener('toggle',()=>{if(!d.isConnected)return;if(d.open)openedDetails.add(key);else openedDetails.delete(key)});
+ return d;
+}
 const fmtRate=x=>{if(x===null||x===undefined||!isFinite(Number(x)))return '—';let n=Number(x);if(n>=0&&n<=1)n*=100;return n.toFixed(1)+'%'};
 const nice=(value,fallback='—')=>value===null||value===undefined||String(value).trim()===''?fallback:String(value);
 function showToast(message){
@@ -167,10 +211,10 @@ function endDrag(){if(dragging){dragging=false;send('drag-end')}}
 drag.addEventListener('pointerup',endDrag);drag.addEventListener('pointercancel',endDrag);
 function renderBench(){
 const host=$('bench');host.replaceChildren();const ids=snapshot&&snapshot.bench?snapshot.choices||[]:[];
-$('benchEmpty').style.display=ids.length?'none':'block';
-$('benchEmpty').textContent=snapshot&&snapshot.bench?'暂无可交换英雄':'当前模式未开放替补席交换';
+$('benchSection').hidden=!ids.length;
+$('benchEmpty').textContent='';
 for(const id of ids){
- const b=elem('button','bench-choice');b.title='交换英雄 #'+id;
+ const b=elem('button','bench-choice');b.title='交换英雄 #'+id;b.setAttribute('aria-label',b.title);
  const image=icons.get(id);
  if(image){const img=elem('img');img.src=image;img.alt='英雄 #'+id;b.appendChild(img)}
  else b.appendChild(elem('span','placeholder',String(id)));
@@ -193,7 +237,7 @@ if(!b||!Array.isArray(b.rows)||!b.rows.length){
  }
  if(iconsHost.childNodes.length)card.appendChild(iconsHost);
  card.appendChild(elem('div','rec-text',nice(r.title,'暂无数据')));
- if(r.evidence)card.appendChild(elem('div','rec-note',r.evidence));
+ if(r.evidence)card.appendChild(disclosure(r.evidence,'build:'+snapshot.championId+':'+index));
  host.appendChild(card);
  });
 }
@@ -204,16 +248,16 @@ function renderAugments(){
 const host=$('augments');host.replaceChildren();
 const guide=snapshot&&snapshot.guide;const all=guide&&Array.isArray(guide.augments)?guide.augments:[];
 const rows=all.filter(x=>filter==='all'||x.rarity===filter).slice(0,20);
-if(!rows.length){host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
+if(!rows.length){if(all.length)host.appendChild(elem('div','muted sub','当前筛选没有强化数据'));return;}
 for(const r of rows){
  const row=elem('div','augment');row.appendChild(elem('div','augmentRank','#'+nice(r.rank,'—')));
  const asset=assetIcons.get('augment:'+r.id);
  if(asset){const image=elem('img','augmentIcon');image.src=asset;image.alt=nice(r.name,'强化');row.appendChild(image)}
  const body=elem('div','augmentBody');const name=elem('div','augmentName',nice(r.name));
- name.appendChild(elem('span','augmentRarity',nice(r.rarity,'')));
+ name.appendChild(elem('span','augmentRarity',({prism:'棱彩',gold:'黄金',silver:'白银'})[r.rarity]||nice(r.rarity,'')));
  body.appendChild(name);
  body.appendChild(elem('div','augmentMeta','胜率 '+fmtRate(r.winRate)+' · 选取 '+fmtRate(r.pickRate)+(r.games?' · '+r.games+' 场':'')));
- if(r.description)body.appendChild(elem('div','augmentDesc',r.description));
+ if(r.description)body.appendChild(disclosure(r.description,'augment:'+r.id));
  row.appendChild(body);host.appendChild(row);
 }
 }
@@ -221,9 +265,11 @@ function render(){
 if(!snapshot)return;
 $('timer').textContent=Number(snapshot.timer)>0?snapshot.timer+'s':'--';
 $('dot').classList.toggle('on',!!snapshot.connected);
-$('statusText').textContent=snapshot.connected?'英雄选择中 · '+nice(snapshot.phase,''):'正在连接 LOL 选人会话';
+$('status').classList.toggle('connected',!!snapshot.connected);
+$('statusText').textContent=snapshot.connected?'':'正在连接 LOL';
 $('champTitle').textContent=nice(snapshot.name,snapshot.championId>0?'英雄 #'+snapshot.championId:'等待选定英雄');
 const b=snapshot.build,g=snapshot.guide;
+if(!manualTab&&g&&Array.isArray(g.augments)&&g.augments.length)selectTab('augments',false);
 $('champHint').textContent=b?nice(b.mode,'当前模式')+' · '+nice(b.status,'等待推荐'):'等待选定英雄';
 $('tier').textContent=b&&b.tier?b.tier+(b.rank?' · #'+b.rank:''):g&&g.tier?g.tier:'';
 const recent=snapshot.recent;
@@ -236,7 +282,7 @@ $('guideInfo').textContent=g?[
  g.core&&g.core.length?'核心装备：'+g.core.join('、'):''
 ].filter(Boolean).join('\n'):'';
 $('emptyGuide').textContent=snapshot.guideLoading?'正在获取海斗攻略…':nice(snapshot.guideError,'当前没有海斗强化数据');
-$('emptyGuide').style.display=g?'none':'block';
+$('emptyGuide').style.display=g&&Array.isArray(g.augments)&&g.augments.length?'none':'block';
 renderAugments();
 const teams=$('teams');teams.replaceChildren();
 for(const p of snapshot.teams||[]){

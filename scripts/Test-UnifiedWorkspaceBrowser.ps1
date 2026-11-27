@@ -157,7 +157,18 @@ window.__companionReceive({data:{type:'skin',id:'cloud-light',light:true,
  text:'#1A2743',muted:'#667797',accent:'#4E7EFF',border:'#D3DCEE',warning:'#EA8B39'}});
 window.__companionReceive({data:{type:'asset',key:'augment:fixture',value:
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WW3h8kAAAAASUVORK5CYII='}});
-var pass=document.querySelectorAll('#bench button').length===2 &&
+var firstRow=document.querySelector('#augments .augment');
+var defaultVisible=!document.querySelector('#augmentSection').hidden &&
+ document.querySelector('#buildSection').hidden && firstRow &&
+ firstRow.getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom &&
+ document.querySelector('#status').classList.contains('connected');
+document.querySelector('[data-tab="build"]').click();
+window.__companionReceive({data:sample});
+var explicitTabKept=!document.querySelector('#buildSection').hidden &&
+ document.querySelector('#augmentSection').hidden &&
+ document.querySelector('#runes').getBoundingClientRect().bottom<=document.querySelector('#content').getBoundingClientRect().bottom;
+document.querySelector('[data-tab="augments"]').click();
+var pass=defaultVisible && explicitTabKept && document.querySelectorAll('#bench button').length===2 &&
  document.querySelectorAll('#recommend .rec').length===2 &&
  document.querySelectorAll('#augments .augment').length===1 &&
  document.querySelectorAll('#augmentFilters button').length===4 &&
