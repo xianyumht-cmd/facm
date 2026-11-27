@@ -254,7 +254,7 @@ Write-Host 'Champion Select WebView2 overlay HTML fixture rendered.'
 $skinMock = @'
 <script>
 window.chrome={webview:{
-  postMessage:function(){},
+  postMessage:function(value){(window.__sceneCommands||(window.__sceneCommands=[])).push(value);},
   addEventListener:function(kind,cb){if(kind==='message')window.__skinReceive=cb;}
 }};
 </script>
@@ -273,6 +273,51 @@ var pass=document.body.dataset.mode==='home' &&
  actual.getPropertyValue('--accent').trim().toLowerCase()===palette.accent.toLowerCase() &&
  document.querySelectorAll('#themeList .theme-card.selected').length===1 &&
  document.getElementById('themeResult').textContent.indexOf('当前皮肤：')===0;
+var sendFixture=function(data){window.__skinReceive({data:data});};
+var tiles=Array.from(document.querySelectorAll('#home .tile')).map(x=>x.dataset.route).join(',');
+var scenePass=tiles==='live,player,mayhem,efficiency';
+var cases=[['Lobby','matchmaking-settings'],['Matchmaking','efficiency'],['ReadyCheck','efficiency'],
+ ['ChampSelect','recommendation'],['InProgress','live'],['EndOfGame','player']];
+cases.forEach(function(pair){
+ sendFixture({type:'status',connected:true,phase:pair[0]});
+ scenePass=scenePass&&document.querySelector('#sceneShortcut').dataset.route===pair[1]&&
+  Array.from(document.querySelectorAll('#home .tile')).map(x=>x.dataset.route).join(',')===tiles;
+});
+sendFixture({type:'status',connected:false,observed:true,clientProcess:true,gameProcess:false});
+scenePass=scenePass&&document.querySelector('#sceneShortcut').dataset.route==='repair';
+sendFixture('detail:efficiency');
+sendFixture({type:'quick-tools',values:{autoSearch:true,autoAccept:true,autoReconnect:false,autoHonor:false,autoReturn:false},exitHotkey:'Ctrl+F8',lobbyHotkey:'Ctrl+F9'});
+var hotkey=document.querySelector('#exitGameHotkey');
+hotkey.dispatchEvent(new KeyboardEvent('keydown',{key:'F7',code:'F7',ctrlKey:true,bubbles:true,cancelable:true}));
+sendFixture({type:'quick-tools',values:{autoSearch:true,autoAccept:true},exitHotkey:'Ctrl+F8',lobbyHotkey:'Ctrl+F9'});
+var keysPass=hotkey.value==='Ctrl+F7';
+sendFixture({type:'status',connected:true,phase:'ReadyCheck'});
+var automationPass=document.querySelector('[data-phase-note="autoSearch"]').textContent==='等待组队大厅'&&
+ document.querySelector('[data-phase-note="autoAccept"]').textContent==='当前阶段 · 等待条件';
+sendFixture('detail:player');
+var gameId='9007199254740993';
+sendFixture({type:'history-details',name:'Fixture',level:30,rows:[{gameId:gameId,champion:'Ashe',outcome:'win',kills:3,deaths:2,assists:8}]});
+document.querySelector('[data-recent-game-id]').click();
+var historyPass=window.__sceneCommands.includes('history-open-detail:'+gameId);
+sendFixture('detail:player-advanced');
+sendFixture({type:'history-advanced-list',name:'Fixture',rows:[{id:gameId,champion:'Ashe',outcome:'win',queue:450}]});
+sendFixture({type:'history-select-local',id:gameId});
+historyPass=historyPass&&!document.querySelector('#advancedHistoryDetail').hidden&&
+ document.querySelector('#advancedHistoryDetailTitle').textContent.includes(gameId)&&
+ !document.querySelector('#advancedHistoryPage details.history-extra').open;
+sendFixture('detail:recommendation');
+sendFixture({type:'status',connected:true,phase:'ChampSelect'});
+sendFixture({type:'recommendation-details',status:'ready',canApply:true,allowsRunes:true,rows:[{category:'runes',title:'Fixture',evidence:'Fixture evidence'}]});
+var apply=document.querySelector('#recommendationApply');
+var recommendationPass=!apply.disabled&&apply.getBoundingClientRect().top<document.querySelector('#recommendationRows').getBoundingClientRect().top;
+apply.click();document.querySelector('#applyItems').dispatchEvent(new Event('change'));
+recommendationPass=recommendationPass&&apply.disabled;
+sendFixture({type:'recommendation-result',status:'failed'});
+recommendationPass=recommendationPass&&!apply.disabled;
+sendFixture({type:'status',connected:true,phase:'InProgress'});
+recommendationPass=recommendationPass&&apply.disabled;
+sendFixture('home');
+pass=pass&&scenePass&&keysPass&&automationPass&&historyPass&&recommendationPass;
 var marker=document.createElement('span');
 marker.style.cssText='position:fixed;left:0;top:0;width:12px;height:12px;z-index:2147483647;background:'+
  (pass?'#00ff00':'#ff0000');

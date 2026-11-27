@@ -997,6 +997,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <button data-action="recommendation-refresh" id="recommendationRefresh">刷新推荐</button>
       <button data-action="recommendation-apply" id="recommendationApply" disabled>应用推荐</button>
     </div>
+    <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
     <div class="guide-results" id="recommendationOutput" hidden>
       <div class="guide-card"><strong id="recommendationChampion">—</strong><small id="recommendationContext">—</small></div>
       <div class="guide-stats">
@@ -1005,7 +1006,6 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       </div>
       <div id="recommendationRows" class="guide-results" aria-label="当前推荐明细"></div>
     </div>
-    <div class="guide-feedback" id="recommendationFeedback" aria-live="polite" hidden></div>
   </section>
   <section id="cleanupPage">
     <h2>清理与修复</h2>
@@ -1214,7 +1214,7 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
 "use strict";
 var titles={"profile-customization":"LOL 个性资料","bench":"ARAM 替补席","live-advanced":"ARAM 替补席","quick-messages":"快捷消息", "cloud-sync":"云同步",updates:"更新中心",dashboard:"LOL 工作台",player:"我的战绩",live:"实时对局",mayhem:"海斗攻略",profile:"我的 GGman",recommendation:"出装推荐",efficiency:"快捷工具",repair:"游戏修复",presence:"在线状态",cleanup:"清理与修复",appearance:"皮肤","client-status":"客户端状态","efficiency-advanced":"高级工具设置","matchmaking-settings":"排队详细设置","auto-selection":"自动选禁","postgame-settings":"赛后处理","dashboard-advanced":"完整工作台","presence-advanced":"LOL 个性资料","player-advanced":"高级战绩与对局详情"};
 var mode="home";
-var sceneState=null,quickSettingsState=null;
+var sceneState=null,quickSettingsState=null,hotkeyDirty=new Set(),savedHotkeys={};
 var updateForced=false;
 function get(id){return document.getElementById(id);}
 function modeName(value){
@@ -1225,11 +1225,12 @@ function modeName(value){
   return names[code.toUpperCase()]||code;
 }
 ["closeLobbyHotkey","exitGameHotkey"].forEach(function(id){
+  get(id).addEventListener("input",function(){hotkeyDirty.add(id);});
   get(id).addEventListener("keydown",function(event){
     if(event.isComposing||event.keyCode===229)return;
     var key=event.key,code=event.code||"";
     if(key==="Tab"||key==="Escape"||["Control","Alt","Shift","Meta"].includes(key))return;
-    if((key==="Backspace"||key==="Delete")&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){event.preventDefault();this.value="";return;}
+    if((key==="Backspace"||key==="Delete")&&!event.ctrlKey&&!event.altKey&&!event.shiftKey&&!event.metaKey){event.preventDefault();this.value="";hotkeyDirty.add(id);return;}
     var modified=event.ctrlKey||event.altKey||event.shiftKey||event.metaKey;
     if(!modified&&!/^F([1-9]|1[0-2])$/.test(key))return;
     var main=/^Key[A-Z]$/.test(code)?code.slice(3):/^Digit[0-9]$/.test(code)?code.slice(5):/^Numpad[0-9]$/.test(code)?"NumPad"+code.slice(6):key;
@@ -1237,6 +1238,7 @@ function modeName(value){
     main=names[main]||main;
     if(!/^(?:[A-Z0-9]|F(?:[1-9]|1[0-2])|NumPad[0-9]|Up|Down|Left|Right|Space|Enter|Insert|Delete|Home|End|PageUp|PageDown)$/.test(main))return;
     event.preventDefault();event.stopPropagation();
+    hotkeyDirty.add(id);
     this.value=[event.ctrlKey?"Ctrl":"",event.altKey?"Alt":"",event.shiftKey?"Shift":"",event.metaKey?"Win":"",main].filter(Boolean).join("+");
   });
 });
@@ -1828,13 +1830,14 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
       if(button){button.setAttribute("aria-pressed",e.data.values[key]?"true":"false");button.disabled=false;}
     });
     quickSettingsState=e.data.values||{};renderAutomationPhaseNotes();
-    if(document.activeElement!==get("exitGameHotkey"))get("exitGameHotkey").value=e.data.exitHotkey||"";
-    if(document.activeElement!==get("closeLobbyHotkey"))get("closeLobbyHotkey").value=e.data.lobbyHotkey||"";
+    savedHotkeys={exitGameHotkey:e.data.exitHotkey||"",closeLobbyHotkey:e.data.lobbyHotkey||""};
+    Object.keys(savedHotkeys).forEach(function(id){if(!hotkeyDirty.has(id)&&document.activeElement!==get(id))get(id).value=savedHotkeys[id];});
     document.getElementById("toolResult").textContent=e.data.message||"";
     return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-hotkeys-result"){
     document.querySelectorAll("#quicktools button[data-action=hotkeys-save]").forEach(function(button){button.disabled=false;});
+    if(e.data.ok){hotkeyDirty.clear();Object.keys(savedHotkeys).forEach(function(id){get(id).value=savedHotkeys[id];});}
     get("toolResult").textContent=e.data.message||(e.data.ok?"快捷键已保存":"快捷键保存失败");return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-action-result"){
@@ -2107,9 +2110,9 @@ function renderOnlineState(data){
 var recommendationCanApply=false,recommendationBusy=false;
 function updateRecommendationControls(){
   get("recommendationRefresh").disabled=recommendationBusy;
-  get("recommendationApply").disabled=recommendationBusy||!recommendationCanApply||!["applyRunes","applySpells","applyItems"].some(function(id){return get(id).checked&&!get(id).disabled;});
   ["applySpells","applyItems"].forEach(function(id){get(id).disabled=recommendationBusy;});
   get("applyRunes").disabled=recommendationBusy||get("applyRunes").closest("label").hidden;
+  get("recommendationApply").disabled=recommendationBusy||!recommendationCanApply||!["applyRunes","applySpells","applyItems"].some(function(id){return get(id).checked&&!get(id).disabled;});
 }
 function guideText(id,value){get(id).textContent=value==null||value===""?"—":String(value);}
 function guidePercent(value){
@@ -2917,7 +2920,7 @@ function renderAutomationPhaseNotes(){
     var note=document.querySelector('[data-phase-note="'+key+'"]'),rule=rules[key];
     note.textContent=!(quickSettingsState&&quickSettingsState[key])?"":
       !sceneState||!sceneState.connected?"等待客户端连接":
-      rule.phases.includes(sceneState.phase)?"当前阶段 · 按设置执行":rule.waiting;
+      rule.phases.includes(sceneState.phase)?"当前阶段 · 等待条件":rule.waiting;
   });
 }
 function updateSceneShortcut(state){
