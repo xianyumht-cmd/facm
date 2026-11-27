@@ -1,4 +1,5 @@
 """Opt-in mainland public HTTPS measurement; never submits authenticated APIs."""
+import base64
 import concurrent.futures
 import csv
 import hashlib
@@ -30,8 +31,25 @@ def api(path, payload=None):
 
 
 CONTROL_URL = "https://ggman-config-1305353165.cos.ap-guangzhou.myqcloud.com/control.json"
-# Exact byte hash from the successful signed upload and anonymous readback.
-CONTROL_SHA256 = "17c072a1a662d808cb7b0ba66de25f29f637450c930f1d4d735da4ed03d223bb"
+# Compare mainland responses against the current canonical HTTPS object.
+# This is a transport comparison, not cryptographic signature verification.
+CONTROL_SHA256 = None
+
+def load_control_reference():
+    request = urllib.request.Request(CONTROL_URL, headers={"Cache-Control": "no-cache", "User-Agent": "GGman-public-route-audit/1"})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        data = response.read(65537)
+    if not data or len(data) > 65536:
+        raise ValueError("Invalid control envelope size")
+    envelope = json.loads(data)
+    payload = base64.b64decode(envelope["payload"], validate=True)
+    signature = base64.b64decode(envelope["signature"], validate=True)
+    catalog = json.loads(payload.decode("utf-8-sig"))
+    if not signature or len(payload) > 16384 or catalog["schema"] != "ggman-control.v1" or type(catalog["revision"]) is not int or catalog["revision"] <= 0:
+        raise ValueError("Invalid control reference")
+    digest = hashlib.sha256(data).hexdigest()
+    print("Canonical HTTPS control reference:", catalog["revision"], digest, flush=True)
+    return digest
 
 
 def targets():
@@ -87,6 +105,8 @@ def classify(result, is_manifest):
         body = result.get("rawBody")
         if result.get("truncated") or not isinstance(body, str):
             return "body-unavailable"
+        if CONTROL_SHA256 is None:
+            return "control-reference-unavailable"
         return "control-matches-published" if hashlib.sha256(body.encode("utf-8")).hexdigest() == CONTROL_SHA256 else "control-other-content"
     if is_manifest == "exe-range":
         headers = result.get("rawHeaders") or ""
@@ -165,7 +185,13 @@ def measure(target, carrier, asns):
 
 
 def main():
+    global CONTROL_SHA256
     OUT.mkdir(exist_ok=True)
+    if "--exe-only" not in sys.argv:
+        try:
+            CONTROL_SHA256 = load_control_reference()
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print("Control reference unavailable:", type(exc).__name__, flush=True)
     asns = available_asns()
     print("Mainland probe ASNs:", json.dumps(asns), flush=True)
     jobs = [(target, carrier, nums) for target in targets() for carrier, nums in asns.items()]

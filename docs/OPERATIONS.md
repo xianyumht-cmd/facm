@@ -1,5 +1,9 @@
 ## 2026-11-27 — EXE audit native signature verification
 
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+After exact-head gates pass, merge PR #368 containing `release/3.5-request.json` (3.5.90) to trigger the existing production publisher and signed COS publisher. Verify public release bytes, signer, enabled manifest and anonymous COS readback. The owner waives personal installation/gameplay acceptance only. Mainland probe now obtains current HTTPS reference at runtime; unavailable reference is explicitly labeled. Do not interpret matching transport bytes as signature verification.
+
 Full-package audit now compiles the existing SignatureInspector source in the Windows PowerShell process and calls only its native verifier; no downloaded package is executed or installed. It logs native_trust alongside PowerShell status. Prior complete transfers: direct 0.268 s, gh-proxy 0.334 s, ghfast 1.106 s, ghproxy-net 20.669 s, gh-dpik 21.386 s; cors-isteed HTTP 429. These are hosted-runner results, not mainland throughput. Mainland Range medians and complete-transfer evidence must remain separate.
 
 ## 2026-11-27 — EXE audit harness correction

@@ -1,5 +1,9 @@
 ## 2026-11-27 — EXE audit native signature verification
 
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Do not pin a stale initial COS object hash across revisions. Compare mainland reads against the current canonical HTTPS reference, and separately verify signed payload in the client. Do not overwrite newer accepted in-memory state with older/corrupt disk cache.
+
 Get-AuthenticodeSignature can report UnknownError for the existing release signer on a hosted Windows runner. Do not accept UnknownError alone. Invoke the existing SignatureInspector native trust check; require matching pinned thumbprint, version and manifest digest, and allow only the updater's explicit self-signed chain warnings. Keep the PowerShell status and native HRESULT in evidence.
 
 ## 2026-11-27 — EXE audit harness correction

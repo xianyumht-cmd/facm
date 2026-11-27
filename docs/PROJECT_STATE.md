@@ -1,5 +1,9 @@
 ## 2026-11-27 — EXE audit native signature verification
 
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+PR #368 base 9145e3ff passed all seven exact-head workflows (Windows 46007862717, Glass 46007862762, UI 46007862611, Mayhem 46007862706, mainland 46007862654, COS 46007862626, EXE 46007862610). Three mainland Range rounds: gh-proxy 17/18, gh-dpik 17/18, ghfast 8/18, ghproxy-net 12/18, cors-isteed 0/18; direct redirects are not full-transfer evidence. Hosted Windows completed five of six package routes. Candidate adds separate default priorities, signed cache in-process revision retention, dynamic COS comparison and publisher rollback check. Release request 3.5.90, non-forced, production only on green exact-head CI and merge. Owner explicitly waives personal installation/gameplay acceptance for this release; real mainland full-transfer and Tencent live-client/DPI performance are not measured. Production still 3.5.89 at preparation.
+
 Exact head e73dfc54 passed all six client/public checks. Full-package audit 46007022260 completed all six routes: five exact 7,185,816-byte release downloads with matching manifest SHA-256, expected signer thumbprint and version 3.5.89.0; cors-isteed returned HTTP 429. PowerShell reported UnknownError for all five, so none passed the original trust criterion. The candidate audit now invokes the existing updater native WinVerifyTrust method and accepts only success or the same two self-signed chain errors, retaining hash, signer and version checks. Exact-head rerun pending; production unchanged.
 
 ## 2026-11-27 — EXE audit harness correction

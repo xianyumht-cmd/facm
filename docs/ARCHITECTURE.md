@@ -1,5 +1,9 @@
 ## 2026-11-27 — Public asset policy and EXE route audit
 
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Signed source `package_priority` is optional (0–1000); JSON priority stays independent. Known legacy routes have package-specific defaults. The verified in-memory envelope is preferred to older/conflicting/missing disk data and exposed before the bounded refresh; durable cache precedes new revision acceptance. COS publisher rejects older/conflicting revisions; mainland probe compares against the current canonical HTTPS object, not a pinned historical hash or independent signature verification.
+
 RiotDataDragonService and RiotGameDataService honor existing cloud policy and bounded linked deadlines at public request boundaries. GuideRankedDetails gates rich build/augment enrichment (base guide remains); AramBalance gates base-balance enrichment. Updater audit is opt-in CI tooling, never a resident client task.
 
 ## 2026-11-27 — Separate updater health and expanded public policy

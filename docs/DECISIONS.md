@@ -1,5 +1,9 @@
 ## 2026-11-27 — Public asset policy and EXE route audit
 
+## 2026-11-27 — Release 3.5.90 closure candidate
+
+Keep metadata defaults gh-dpik, cors-isteed, gh-proxy, ghfast, ghproxy-net, direct; package defaults gh-proxy, gh-dpik, ghfast, direct, ghproxy-net, cors-isteed. Independent observed health may reorder candidates. These are conservative defaults based on mainland Range reliability plus hosted complete-download evidence, not mainland throughput ranking.
+
 Keep local game resources and existing caches available regardless of optional source maintenance. All four feature flags default enabled; they only suppress optional read operations. Do not claim complete EXE performance from bounded HTTP probes; full download evidence includes exact manifest hash, signer identity and version.
 
 ## 2026-11-27 — Separate updater health and expanded public policy

@@ -90,6 +90,9 @@ namespace FACM.Online
 
         [DataMember(Name = "priority")]
         public int Priority { get; set; }
+
+        [DataMember(Name = "package_priority", EmitDefaultValue = false)]
+        public int? PackagePriority { get; set; }
     }
 
     internal sealed class UpdateDownloadCandidate

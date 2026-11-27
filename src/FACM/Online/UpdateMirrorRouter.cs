@@ -227,7 +227,8 @@ namespace FACM.Online
                 Name = source.Name,
                 Prefix = source.Prefix,
                 Enabled = source.Enabled,
-                Priority = source.Priority
+                Priority = source.Priority,
+                PackagePriority = source.PackagePriority
             };
         }
 
@@ -291,7 +292,7 @@ namespace FACM.Online
                     var health = Load(package);
                     var now = DateTime.UtcNow;
                     return sources.OrderBy(source => Score(source, health, package, now))
-                        .ThenBy(source => source.Priority).ToArray();
+                        .ThenBy(source => EffectivePriority(source, package)).ToArray();
                 }
             }
 
@@ -342,11 +343,27 @@ namespace FACM.Online
                     !double.IsNaN(entry.AverageMilliseconds) && !double.IsInfinity(entry.AverageMilliseconds);
             }
 
+            private static int EffectivePriority(UpdateMirrorSource source, bool package)
+            {
+                if (!package) return source.Priority;
+                if (source.PackagePriority.HasValue) return Math.Max(0, Math.Min(1000, source.PackagePriority.Value));
+                switch (source.Name)
+                {
+                    case "gh-proxy": return 5;
+                    case "gh-dpik": return 10;
+                    case "ghfast": return 30;
+                    case "github": return 40;
+                    case "ghproxy-net": return 60;
+                    case "cors-isteed": return 1000;
+                    default: return source.Priority;
+                }
+            }
+
             internal static double Score(UpdateMirrorSource source,
                 IDictionary<string, MirrorHealthEntry> health, bool package, DateTime now)
             {
                 var baseline = package ? 8000d : 800d;
-                var priority = Math.Max(0, source.Priority) * (package ? 40d : 10d);
+                var priority = Math.Max(0, EffectivePriority(source, package)) * (package ? 40d : 10d);
                 MirrorHealthEntry entry;
                 if (!health.TryGetValue(source.Name ?? string.Empty, out entry) || !IsRecent(entry, now))
                     return baseline + priority;
@@ -364,6 +381,11 @@ namespace FACM.Online
                 var source = new UpdateMirrorSource { Name = "sample", Priority = 5 };
                 var now = new DateTime(2026, 11, 27, 0, 0, 0, DateTimeKind.Utc);
                 var empty = new Dictionary<string, MirrorHealthEntry>();
+                var first = new UpdateMirrorSource { Name = "first", Priority = 1, PackagePriority = 50 };
+                var second = new UpdateMirrorSource { Name = "second", Priority = 10, PackagePriority = 5 };
+                if (Score(first, empty, false, now) >= Score(second, empty, false, now) ||
+                    Score(first, empty, true, now) <= Score(second, empty, true, now) || Clone(first).PackagePriority != 50)
+                    throw new InvalidOperationException("Metadata and package default priorities are not independent.");
                 var metadata = new Dictionary<string, MirrorHealthEntry> {
                     { "sample", new MirrorHealthEntry { Name = "sample", Successes = 4,
                         AverageMilliseconds = 100, LastObservedUtc = now.Ticks } } };

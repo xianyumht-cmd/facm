@@ -14,6 +14,10 @@ foreach ($item in $config.sources) {
         $uri.UserInfo -or $uri.Query -or $uri.Fragment -or $uri.AbsolutePath -ne '/' -or
         $item.enabled -isnot [bool] -or $item.priority -lt 0 -or $item.priority -gt 1000 -or
         $names.ContainsKey($item.name) -or $prefixes.ContainsKey($uri.AbsoluteUri)) { throw 'Invalid or duplicate control route.' }
+    if ($item.PSObject.Properties.Name -contains 'package_priority') {
+        $priority = $item.package_priority
+        if (($priority -isnot [int] -and $priority -isnot [long]) -or $priority -lt 0 -or $priority -gt 1000) { throw 'Invalid package priority.' }
+    }
     $names[$item.name] = $true; $prefixes[$uri.AbsoluteUri] = $true
 }
 if (-not @($config.sources | Where-Object enabled).Count) { throw 'At least one enabled route is required.' }

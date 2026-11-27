@@ -61,7 +61,11 @@ namespace FACM.Online
     {
         internal const string Url = "https://ggman-config-1305353165.cos.ap-guangzhou.myqcloud.com/control.json";
         private const int MaxEnvelopeBytes = 65536, MaxPayloadBytes = 16384;
-        private static CloudRouteCatalog _active;
+        private static Verified _active;
+        private static CloudRouteCatalog ActiveCatalog
+        {
+            get { return Volatile.Read(ref _active)?.Catalog; }
+        }
         private static readonly SemaphoreSlim Gate = new SemaphoreSlim(1, 1);
         private static readonly HttpClient Client = new HttpClient(new HttpClientHandler
         {
@@ -104,7 +108,8 @@ namespace FACM.Online
                         {
                             await Gate.WaitAsync(budget.Token).ConfigureAwait(false);
                             entered = true;
-                            var cached = ReadCache(path, rsa);
+                            var cached = PreferAccepted(Volatile.Read(ref _active), ReadCache(path, rsa));
+                            if (cached != null) Volatile.Write(ref _active, cached);
                             try
                             {
                                 using (var request = new HttpRequestMessage(HttpMethod.Get, Url))
@@ -133,13 +138,13 @@ namespace FACM.Online
                             catch (Exception ex) when (!(ex is OperationCanceledException))
                             { AppLog.Info("Cloud route control unavailable: " + ex.GetType().Name); }
                             token.ThrowIfCancellationRequested();
-                            if (cached != null) Volatile.Write(ref _active, cached.Catalog);
-                            return Volatile.Read(ref _active);
+                            if (cached != null) Volatile.Write(ref _active, cached);
+                            return ActiveCatalog;
                         }
                         catch (OperationCanceledException) when (!token.IsCancellationRequested)
                         {
-                            var cached = ReadCache(path, rsa);
-                            return Volatile.Read(ref _active) ?? (cached == null ? null : cached.Catalog);
+                            var cached = PreferAccepted(Volatile.Read(ref _active), ReadCache(path, rsa));
+                            return cached == null ? null : cached.Catalog;
                         }
                         finally { if (entered) Gate.Release(); }
                     }
@@ -167,6 +172,7 @@ namespace FACM.Online
                     source.Name == "github" || source.Name == "gitee" ||
                     !System.Text.RegularExpressions.Regex.IsMatch(source.Name, "^[a-z0-9][a-z0-9-]*$") ||
                     source.Priority < 0 || source.Priority > 1000 ||
+                    (source.PackagePriority.HasValue && (source.PackagePriority.Value < 0 || source.PackagePriority.Value > 1000)) ||
                     !Uri.TryCreate(source.Prefix, UriKind.Absolute, out uri) ||
                     uri.Scheme != Uri.UriSchemeHttps || uri.Port != 443 || uri.IsLoopback ||
                     uri.HostNameType != UriHostNameType.Dns || uri.Host.IndexOf('.') < 0 ||
@@ -207,7 +213,7 @@ namespace FACM.Online
 
         internal static bool PublicSourceAllowed(string url, ref TimeSpan budget)
         {
-            return ApplyPublicSource(Volatile.Read(ref _active), url, ref budget);
+            return ApplyPublicSource(ActiveCatalog, url, ref budget);
         }
 
         private static bool ApplyPublicSource(CloudRouteCatalog catalog, string url, ref TimeSpan budget)
@@ -234,22 +240,22 @@ namespace FACM.Online
 
         internal static bool HistoryTimelineEnabled
         {
-            get { return TimelineEnabled(Volatile.Read(ref _active)); }
+            get { return TimelineEnabled(ActiveCatalog); }
         }
 
         internal static bool HistoryRadarEnabled
         {
-            get { var active = Volatile.Read(ref _active); return active == null || active.Features == null || active.Features.HistoryRadar != false; }
+            get { var active = ActiveCatalog; return active == null || active.Features == null || active.Features.HistoryRadar != false; }
         }
 
         internal static bool GuideRankedDetailsEnabled
         {
-            get { return RankedDetailsEnabled(Volatile.Read(ref _active)); }
+            get { return RankedDetailsEnabled(ActiveCatalog); }
         }
 
         internal static bool AramBalanceEnabled
         {
-            get { return BalanceEnabled(Volatile.Read(ref _active)); }
+            get { return BalanceEnabled(ActiveCatalog); }
         }
 
         private static bool RankedDetailsEnabled(CloudRouteCatalog active)
@@ -271,7 +277,7 @@ namespace FACM.Online
         {
             if (!IsValid(catalog)) return null;
             return catalog.Sources.Where(s => s.Enabled)
-                .Concat(new[] { new UpdateMirrorSource { Name = "github", Prefix = "", Enabled = true, Priority = 1000 } }).ToArray();
+                .Concat(new[] { new UpdateMirrorSource { Name = "github", Prefix = "", Enabled = true, Priority = 1000, PackagePriority = 40 } }).ToArray();
         }
 
         private static Verified Verify(byte[] bytes, RSA rsa)
@@ -295,6 +301,11 @@ namespace FACM.Online
         {
             using (var stream = new MemoryStream(bytes, false))
                 return (T)new DataContractJsonSerializer(typeof(T)).ReadObject(stream);
+        }
+
+        private static Verified PreferAccepted(Verified active, Verified disk)
+        {
+            return AcceptRevision(active, disk) ? disk : active;
         }
 
         private static bool AcceptRevision(Verified cached, Verified next)
@@ -333,7 +344,7 @@ namespace FACM.Online
                 rsa.KeySize = 2048;
                 var catalog = new CloudRouteCatalog { Schema = "ggman-control.v1", Revision = 2,
                     Sources = new[] {
-                        new UpdateMirrorSource { Name = "selected", Prefix = "https://mirror.example/", Enabled = true, Priority = 1 },
+                        new UpdateMirrorSource { Name = "selected", Prefix = "https://mirror.example/", Enabled = true, Priority = 1, PackagePriority = 5 },
                         new UpdateMirrorSource { Name = "disabled", Prefix = "https://disabled.example/", Enabled = false, Priority = 2 }
                     } };
                 Func<byte[], byte[], byte[]> wrap = (payload, sig) => Serialize(new Envelope {
@@ -346,6 +357,8 @@ namespace FACM.Online
                 if (verified == null) throw new InvalidOperationException("Signed cloud route catalog rejected.");
                 var sources = Resolve(verified.Catalog);
                 if (sources.Length != 2 || sources.Any(s => s.Name == "disabled") ||
+                    sources.First(s => s.Name == "selected").PackagePriority != 5 ||
+                    sources.First(s => s.Name == "github").PackagePriority != 40 ||
                     UpdateMirrorRouter.BuildCandidates(OnlineService.UpdateManifestUrl, sources).Length != 2)
                     throw new InvalidOperationException("Cloud route selection resurrected an omitted or disabled mirror.");
                 catalog.PublicSources = new[] {
@@ -369,7 +382,9 @@ namespace FACM.Online
                 catalog.Features = null;
                 catalog.Announcement = null;
                 catalog.Revision = 1;
-                if (AcceptRevision(verified, Verify(sign(catalog), rsa)))
+                if (AcceptRevision(verified, Verify(sign(catalog), rsa)) ||
+                    !ReferenceEquals(PreferAccepted(verified, Verify(sign(catalog), rsa)), verified) ||
+                    !ReferenceEquals(PreferAccepted(verified, null), verified))
                     throw new InvalidOperationException("Cloud route rollback accepted.");
                 catalog.Revision = 2;
                 catalog.Sources[0].Priority = 3;
@@ -377,6 +392,10 @@ namespace FACM.Online
                     throw new InvalidOperationException("Conflicting cloud route revision accepted.");
                 if (Verify(wrap(verified.Payload, new byte[rsa.KeySize / 8]), rsa) != null)
                     throw new InvalidOperationException("Forged cloud route signature accepted.");
+                catalog.Sources[0].PackagePriority = 1001;
+                if (Verify(sign(catalog), rsa) != null)
+                    throw new InvalidOperationException("Invalid package priority accepted.");
+                catalog.Sources[0].PackagePriority = 5;
                 catalog.Sources[0].Prefix = "https://127.0.0.1/";
                 if (Verify(sign(catalog), rsa) != null)
                     throw new InvalidOperationException("Invalid cloud route endpoint accepted.");
