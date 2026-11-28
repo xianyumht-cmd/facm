@@ -19,17 +19,19 @@ namespace FACM.League
         private readonly ILeagueClientApi _client;
         private readonly PerformanceBudgetProvider _budgets;
         private readonly bool _captureRankedQueue;
+        private readonly Func<string[], bool?> _processProbe;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer();
         private bool _selectionQueueChecked;
         private bool _gameQueueChecked;
         private bool? _rankedQueue;
 
         public LeagueDashboardPhaseService(ILeagueClientApi client, PerformanceBudgetProvider budgets,
-            bool captureRankedQueue = false)
+            bool captureRankedQueue = false, Func<string[], bool?> processProbe = null)
         {
             _client = client ?? throw new ArgumentNullException(nameof(client));
             _budgets = budgets ?? throw new ArgumentNullException(nameof(budgets));
             _captureRankedQueue = captureRankedQueue;
+            _processProbe = processProbe ?? ProbeProcessPresence;
         }
 
         public async Task<LeagueDashboardPhaseState> RefreshAsync(CancellationToken cancellationToken)
@@ -71,13 +73,10 @@ namespace FACM.League
                     }
                 }
 
-                var clientProcessDetected = connected;
-                var gameProcessDetected = false;
-                if (!connected)
-                {
-                    clientProcessDetected = IsAnyProcessRunning(ClientProcessNames);
-                    gameProcessDetected = IsAnyProcessRunning(GameProcessNames);
-                }
+                // A connected LCU proves client presence, not the presence or absence of the game executable.
+                var clientProcessDetected = connected || _processProbe(ClientProcessNames) == true;
+                var gameProcessObserved = _processProbe(GameProcessNames);
+                var gameProcessDetected = gameProcessObserved == true;
 
                 var activity = LeagueGameflowActivityMapper.Map(
                     phase,
@@ -90,6 +89,7 @@ namespace FACM.League
                     Connected = connected,
                     ClientProcessDetected = clientProcessDetected,
                     GameProcessDetected = gameProcessDetected,
+                    GameProcessObserved = gameProcessObserved,
                     Phase = phase,
                     IsRankedQueue = _rankedQueue,
                     Activity = activity,
@@ -142,7 +142,13 @@ namespace FACM.League
 
         internal static bool IsAnyProcessRunning(string[] processNames)
         {
-            if (processNames == null) return false;
+            return ProbeProcessPresence(processNames) == true;
+        }
+
+        internal static bool? ProbeProcessPresence(string[] processNames)
+        {
+            if (processNames == null || processNames.Length == 0) return null;
+            var unavailable = false;
             foreach (var processName in processNames)
             {
                 Process[] processes = null;
@@ -153,7 +159,7 @@ namespace FACM.League
                 }
                 catch
                 {
-                    // Process presence is only a fallback signal; LCU remains authoritative when available.
+                    unavailable = true;
                 }
                 finally
                 {
@@ -163,7 +169,7 @@ namespace FACM.League
                     }
                 }
             }
-            return false;
+            return unavailable ? (bool?)null : false;
         }
     }
 }

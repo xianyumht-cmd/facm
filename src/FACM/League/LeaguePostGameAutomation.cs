@@ -860,7 +860,8 @@ namespace FACM.League
                 var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
                 List<string> choices;
                 string shape;
-                if (TryParseTeamChoices(choicesBytes, out choices, out shape))
+                var hasChoices = TryParseTeamChoices(choicesBytes, out choices, out shape);
+                if (hasChoices)
                 {
                     teamChoicesRead = true;
                     teamChoicesCount = choices.Count;
@@ -875,7 +876,7 @@ namespace FACM.League
                 {
                     sameGameBallotSeen = true;
                     string matchKind;
-                    if (teamChoicesRead && MatchesTeamChoice(choices, selected, out matchKind))
+                    if (hasChoices && MatchesTeamChoice(choices, selected, out matchKind))
                         return Verification("confirmed", "team-choices-confirmed:" + matchKind);
                     if (!string.IsNullOrWhiteSpace(selected.Puuid) &&
                         after.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal))

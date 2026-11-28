@@ -32,6 +32,7 @@ namespace FACM.League
                 Connected = phase.Connected,
                 ClientProcessDetected = phase.ClientProcessDetected,
                 GameProcessDetected = phase.GameProcessDetected,
+                GameProcessObserved = phase.GameProcessObserved,
                 Phase = phase.Phase,
                 IsRankedQueue = phase.IsRankedQueue,
                 Activity = phase.Activity,

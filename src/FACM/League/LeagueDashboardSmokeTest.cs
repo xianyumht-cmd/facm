@@ -89,6 +89,7 @@ namespace FACM
 
             ValidateGameflowSubscriberIsolation();
             await ValidateRankedQueueCaptureAsync().ConfigureAwait(false);
+            await ValidateGameProcessObservationAsync().ConfigureAwait(false);
             var disconnectedAt = DateTime.UtcNow;
             var transient = new LeagueDashboardPhaseState { Connected = false, ClientProcessDetected = true };
             Require(LeagueHubModule.CanRetainChampSelectEpisode(transient, disconnectedAt, disconnectedAt.AddSeconds(5)),
@@ -151,6 +152,43 @@ namespace FACM
             Require(Contains(module.Dependencies, LeagueClientModule.ModuleId), "Dashboard must depend on LeagueClient.");
             Require(Contains(module.Dependencies, PerformanceModule.ModuleId), "Dashboard must depend on Performance.");
             Require(LeagueDashboardUiBridge.HasTrayAccessForSmokeTest(), "Dashboard tray bridge lost the MainForm tray contract.");
+        }
+
+        private static async Task ValidateGameProcessObservationAsync()
+        {
+            var api = new FakeLeagueClientApi { PhaseName = "InProgress" };
+            bool? game = true;
+            var gameProbes = 0;
+            var clientProbes = 0;
+            var service = new LeagueDashboardPhaseService(api, new PerformanceBudgetProvider(), false, names =>
+            {
+                if (names.Length == 1 && names[0] == "League of Legends")
+                {
+                    gameProbes++;
+                    return game;
+                }
+                clientProbes++;
+                return true;
+            });
+            var state = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(state.Connected && state.GameProcessDetected && state.GameProcessObserved == true &&
+                state.Activity == LeagueActivityLevel.InGame && clientProbes == 0 && gameProbes == 1,
+                "Connected Gameflow must independently observe the game executable without re-probing client presence.");
+            game = false;
+            state = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(!state.GameProcessDetected && state.GameProcessObserved == false && state.Activity == LeagueActivityLevel.InGame,
+                "Missing executable must not override an authoritative connected in-game phase.");
+            game = null;
+            state = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(!state.GameProcessDetected && !state.GameProcessObserved.HasValue &&
+                !LeagueGameflowEventDispatcher.Clone(state).GameProcessObserved.HasValue,
+                "Unavailable process evidence must remain unknown across dispatch.");
+            game = true;
+            api.PhaseName = null;
+            state = await service.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+            Require(!state.Connected && state.ClientProcessDetected && state.GameProcessDetected &&
+                state.Activity == LeagueActivityLevel.InGame && clientProbes == 1 && gameProbes == 4 &&
+                api.QueueSessionReads == 0, "Disconnected process fallback or network budget changed.");
         }
 
         private static async Task ValidateRankedQueueCaptureAsync()
@@ -373,7 +411,7 @@ namespace FACM
                 try
                 {
                     await Task.Delay(20, cancellationToken).ConfigureAwait(false);
-                    if (path == LeagueDashboardPhaseService.PhasePath) return Utf8("\"" + PhaseName + "\"");
+                    if (path == LeagueDashboardPhaseService.PhasePath) return PhaseName == null ? null : Utf8("\"" + PhaseName + "\"");
                     if (path == LeagueDashboardDetailsService.SummonerPath)
                         return Utf8("{\"gameName\":\"FACM测试\",\"tagLine\":\"CN1\",\"summonerLevel\":88,\"profileIconId\":123}");
                     if (path == LeagueDashboardDetailsService.SessionPath)
