@@ -1,3 +1,34 @@
+## 2026-11-28 — LCU capability survey and client-side read/write owners
+
+The local client `/help` schema was fully exported: 1452 functions (1432 map to HTTP routes), 692
+events (680 resolve to routes), 3569 types. Artifacts live in `docs/lcu/`: `endpoints-full.md`,
+`events-full.md`, `types-full.md`, `endpoints.csv`, plus `README.md` (tiered analysis T0–T6),
+`QUIT-INVESTIGATION.md` and `CAPABILITY-MATRIX.md`.
+
+Champion Select exit is gated server-side, not by the UI. The plugin source (recovered from Ux
+process memory) posts to `/lol-lobby-team-builder/champ-select/v1/session/quit`, and button
+visibility reads only `session.showQuitButton`. Training/custom returns `showQuitButton=true` and the
+quit returns `204` with no penalty; PvP returns `false`, quit returns `400`
+`Current champ select does not allow quitting`, and `request-lobby` returns `200 false`. Seven exit
+paths were measured; the only one that changes phase in PvP is terminating `LeagueClient.exe`, which
+kills the whole chain and recovers in 17–21 seconds.
+
+New client-side owners added on branch `feat/champ-select-mute-20261128` (all compile with
+`dotnet build src\FACM\FACM.csproj`, .NET SDK 8.0.428 is now installed locally):
+
+- `LeagueChampSelectMuteRuntime` — mute-all in Champion Select (wired into the Companion header)
+- `LeagueLeaverBusterService` — penalty remaining time
+- `LeagueQueueStatusService` — queue estimate and low-priority seconds
+- `LeagueFriendActivityService` — real friend presence (mode/champion/joinable)
+- `LeagueEndOfGameStatsService` — post-game damage/gold/CS per player
+- `LeagueRewardsOverviewService` — loot and mission counts
+- `LeagueRankedStatusService` — standings and LP change notice
+- `LeagueBlockedPlayersService` — block list read and toggle
+- `LeagueInsightService` — parallel aggregate, registered in `LeagueClientModule`
+
+Only the mute action is wired to UI. Runtime verification is pending: mute needs one Champion Select,
+end-of-game stats need one completed game; the remaining reads work immediately.
+
 ## 2026-11-27 — EXE audit native signature verification
 
 ## 2026-11-27 — Release 3.5.90 closure candidate

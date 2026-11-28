@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -23,6 +23,8 @@ namespace FACM.AppHost.Modules
         private LeagueChampSelectActionWriteApiClient _champSelectActionWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
         private LeagueChampSelectQuitWriteApiClient _champSelectQuitWriter;
+        private LeagueChampSelectMuteWriteApiClient _champSelectMuteWriter;
+        private LeagueInsightService _insights;
         private LeaguePresenceWriteApiClient _presenceWriter;
         private LeagueProfileWriteApiClient _profileWriter;
         private LeagueRegaliaWriteApiClient _regaliaWriter;
@@ -55,6 +57,8 @@ namespace FACM.AppHost.Modules
             _champSelectActionWriter = new LeagueChampSelectActionWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
             _champSelectQuitWriter = new LeagueChampSelectQuitWriteApiClient(_sessions);
+            _champSelectMuteWriter = new LeagueChampSelectMuteWriteApiClient(_sessions);
+            _insights = new LeagueInsightService(_api);
             _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
             _profileWriter = new LeagueProfileWriteApiClient(_sessions);
             _regaliaWriter = new LeagueRegaliaWriteApiClient(_sessions);
@@ -273,6 +277,15 @@ namespace FACM.AppHost.Modules
                 : writer.TryQuitAsync(cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueChampSelectMuteWriteApi.TryToggleAsync(
+            int cellId, CancellationToken cancellationToken)
+        {
+            var writer = _champSelectMuteWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryToggleAsync(cellId, cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryRequestLobbyAsync(CancellationToken cancellationToken)
         {
             var writer = _champSelectQuitWriter;
@@ -344,6 +357,7 @@ namespace FACM.AppHost.Modules
             var presenceWriter = _presenceWriter;
             var benchSwapWriter = _benchSwapWriter;
             var champSelectQuitWriter = _champSelectQuitWriter;
+            var champSelectMuteWriter = _champSelectMuteWriter;
             var matchmakingWriter = _matchmakingWriter;
             var champSelectActionWriter = _champSelectActionWriter;
             var postGameWriter = _postGameWriter;
@@ -360,6 +374,7 @@ namespace FACM.AppHost.Modules
             _presenceWriter = null;
             _benchSwapWriter = null;
             _champSelectQuitWriter = null;
+            _champSelectMuteWriter = null;
             _matchmakingWriter = null;
             _champSelectActionWriter = null;
             _postGameWriter = null;
@@ -377,6 +392,7 @@ namespace FACM.AppHost.Modules
             if (presenceWriter != null) presenceWriter.Dispose();
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (champSelectQuitWriter != null) champSelectQuitWriter.Dispose();
+            if (champSelectMuteWriter != null) champSelectMuteWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
             if (champSelectActionWriter != null) champSelectActionWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();

@@ -1,3 +1,35 @@
+## 2026-11-28 — LCU route probing and Champion Select exit
+
+Two 404s mean opposite things. `RESOURCE_NOT_FOUND / Invalid URI format` means the route is not
+registered; `RPC_ERROR / No champ select session in progress` (or `No active delegate`,
+`LOBBY_NOT_FOUND`) means the route exists and the session is simply absent. Judge availability by
+which 404 you get, never by the status code alone.
+
+Champion Select runs on two different plugins. PvP uses `lol-lobby-team-builder`
+(`/lol-lobby-team-builder/champ-select/v1/*`); custom and training use the legacy
+`/lol-champ-select/v1/*`. `GET /lol-lobby-team-builder/champ-select/v1/implementation-active` is the
+discriminator. Rewriting one prefix onto the other must be limited to paths that exist on both
+sides: `session`, `session/timer`, `session/actions` only exist under team-builder during PvP,
+while `toggle-player-muted` and `muted-players` exist **only** under the legacy prefix. A blanket
+prefix rewrite silently turns mute into a 404.
+
+A 2xx is not success. `POST /lol-gameflow/v1/session/request-lobby` returns `200` with body
+`false` during PvP Champion Select, and `POST /lol-gameflow/v1/session/dodge` returns `204` without
+changing the phase. Writes must verify the body or re-read `gameflow-phase`.
+
+Leaver penalties live in `GET /lol-leaver-buster/v1/notifications`; `ranked-restriction` only
+reports ranked bans. Judging "no penalty" from `ranked-restriction` led to repeated retries and
+escalated the lock from 5 to 30 minutes.
+
+Champion Select plugin JavaScript is not on disk: `assets.wad` files are zstd resource packs and
+`resources.pak` holds only CEF service-worker code. The only way to read it is to scan the running
+`LeagueClientUx` process memory for feature strings and dump the surrounding bytes. The same
+technique yields other plugins.
+
+Inspect the nearest existing implementation before adding an owner. Two writers were duplicated in
+this pass because `ILeaguePresenceWriteApi` (`PUT /lol-chat/v1/me`) and the message sender in
+`LeagueMatchmakingWriteRuntime` already existed.
+
 ## 2026-11-27 — EXE audit native signature verification
 
 ## 2026-11-27 — Release 3.5.90 closure candidate

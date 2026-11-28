@@ -47,6 +47,7 @@ namespace FACM.League
         private readonly LeagueItemSetService _itemSet;
         private readonly LeaguePlayerDataService _player;
         private readonly LeagueChampSelectQuitService _quitService;
+        private readonly LeagueChampSelectMuteService _muteService;
         private readonly MayhemAutomaticGuideService _guide;
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly SemaphoreSlim _refreshGate = new SemaphoreSlim(1, 1);
@@ -83,6 +84,8 @@ namespace FACM.League
             _player = player;
             var quitWriter = leagueClient as ILeagueChampSelectQuitWriteApi;
             _quitService = quitWriter == null ? null : new LeagueChampSelectQuitService(_leagueClient, quitWriter);
+            var muteWriter = leagueClient as ILeagueChampSelectMuteWriteApi;
+            _muteService = muteWriter == null ? null : new LeagueChampSelectMuteService(_leagueClient, muteWriter);
             _guide = new MayhemAutomaticGuideService(_leagueClient);
         }
 
@@ -101,6 +104,11 @@ namespace FACM.League
         public bool SupportsChampSelectQuit
         {
             get { return _quitService != null && !_disposed; }
+        }
+
+        public bool SupportsChampSelectMute
+        {
+            get { return _muteService != null && !_disposed; }
         }
 
         public LeagueRuntimeCompanionSnapshot CurrentSnapshot
@@ -297,6 +305,14 @@ namespace FACM.League
             if (_quitService == null)
                 throw new InvalidOperationException("Runtime Companion Champion Select quit owner is unavailable.");
             return _quitService.QuitAsync(cancellationToken);
+        }
+
+        public Task<LeagueChampSelectMuteResult> MuteAllChampSelectAsync(CancellationToken cancellationToken)
+        {
+            ThrowIfDisposed();
+            if (_muteService == null)
+                throw new InvalidOperationException("Runtime Companion Champion Select mute owner is unavailable.");
+            return _muteService.MuteAllAsync(cancellationToken);
         }
 
         internal static void TrimPlanForTarget(
