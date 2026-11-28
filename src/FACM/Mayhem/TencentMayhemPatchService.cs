@@ -50,6 +50,7 @@ namespace FACM.Mayhem
 
         public static async Task<TencentMayhemPatchSnapshot> FetchLatestAsync(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             lock (Sync)
             {
                 if (_cache != null && DateTime.UtcNow - _cacheTime < TimeSpan.FromMinutes(30))
@@ -224,6 +225,12 @@ namespace FACM.Mayhem
                 }
                 catch (Exception exception)
                 {
+                    token.ThrowIfCancellationRequested();
+                    if (timeout.IsCancellationRequested && CancelableHttpContentReader.IsCancellationSideEffect(exception))
+                    {
+                        AppLog.Info("Tencent Mayhem patch source budget expired; ms=" + watch.ElapsedMilliseconds + "; url=" + url);
+                        return null;
+                    }
                     AppLog.Info("Tencent Mayhem patch source skipped; ms=" + watch.ElapsedMilliseconds + "; " + exception.GetType().Name);
                     return null;
                 }

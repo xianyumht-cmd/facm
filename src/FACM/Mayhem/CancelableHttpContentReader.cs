@@ -1,6 +1,9 @@
 using System;
 using System.IO;
 using System.Net.Http;
+using System.Net;
+using System.Collections.Generic;
+using FACM.Services;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -51,6 +54,7 @@ namespace FACM.Mayhem
                 encoding = Encoding.UTF8;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             return encoding.GetString(bytes);
         }
 
@@ -71,8 +75,6 @@ namespace FACM.Mayhem
             try
             {
                 input = await content.ReadAsStreamAsync().ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-
                 using (input)
                 using (var registration = cancellationToken.Register(SafeDispose, input))
                 using (var output = new MemoryStream(contentLength.HasValue && contentLength.Value > 0 && contentLength.Value <= maxBytes
@@ -113,12 +115,31 @@ namespace FACM.Mayhem
             }
         }
 
-        private static bool IsCancellationSideEffect(Exception exception)
+        internal static bool IsCancellationSideEffect(Exception exception)
         {
-            return exception is OperationCanceledException ||
-                   exception is ObjectDisposedException ||
-                   exception is IOException ||
-                   exception is HttpRequestException;
+            for (var cause = exception; cause != null; cause = cause.InnerException)
+            {
+                if (cause is OperationCanceledException || cause is ObjectDisposedException ||
+                    cause is IOException || cause is HttpRequestException || cause is WebException)
+                    return true;
+            }
+            return false;
+        }
+
+        internal static async Task CancelAndObserveSourcesAsync(CancellationTokenSource scope, IEnumerable<Task> sources)
+        {
+            // Keep the parent cancellation source alive until every started child has settled.
+            try { scope.Cancel(); }
+            catch (AggregateException exception)
+            {
+                AppLog.Info("Mayhem source cancellation callback failed: " + exception.GetType().Name);
+            }
+            try { await Task.WhenAll(sources).ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Mayhem source cleanup observed: " + exception.GetType().Name);
+            }
         }
 
         private static void SafeDispose(object state)

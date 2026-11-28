@@ -17,6 +17,7 @@ namespace FACM.Mayhem
                 VerifyStalledBodyCanBeCancelled();
                 VerifySizeLimit();
                 VerifyOptionalSourceDeadline();
+                VerifyEarlyReturnCleanup();
                 return 0;
             }
             catch (Exception exception)
@@ -51,6 +52,27 @@ namespace FACM.Mayhem
                 if (!cancelled)
                     throw new InvalidOperationException("Optional source recovery ignored caller cancellation.");
             }
+        }
+
+        private static void VerifyEarlyReturnCleanup()
+        {
+            using (var scope = new CancellationTokenSource())
+            {
+                var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                using (scope.Token.Register(() => pending.TrySetCanceled()))
+                {
+                    var success = Task.FromResult("complete");
+                    CancelableHttpContentReader.CancelAndObserveSourcesAsync(scope,
+                        new Task[] { success, pending.Task }).GetAwaiter().GetResult();
+                    if (!pending.Task.IsCanceled || success.Result != "complete" || !scope.IsCancellationRequested)
+                        throw new InvalidOperationException("Source scope leaked an unfinished request on early return.");
+                }
+            }
+            if (!CancelableHttpContentReader.IsCancellationSideEffect(
+                    new System.Net.Http.HttpRequestException("fixture", new ObjectDisposedException("fixture"))) ||
+                !CancelableHttpContentReader.IsCancellationSideEffect(new System.Net.WebException("fixture")) ||
+                CancelableHttpContentReader.IsCancellationSideEffect(new FormatException("fixture")))
+                throw new InvalidOperationException("Response transport cancellation classification regressed.");
         }
 
         private static void VerifyNormalRead()

@@ -1,3 +1,7 @@
+## 2026-11-28 — Optional source scope ownership
+
+Returning the first usable ranking or an unresolved champion must not dispose a linked cancellation source while started child requests still depend on it. Cancel and observe remaining tasks before scope disposal. Normalize closed-stream and wrapped transport failures as cancellation only when the relevant token is cancelled; an ordinary I/O failure is still a failure. Caller cancellation wins over stale-cache fallback. Preserve the available sibling result and the existing source budgets. A historical closed-stream log is evidence of a symptom, not proof of which disposal path triggered it.
+
 ## 2026-11-28 — Tool bundle integrity is not safety
 
 The current ToolBundle embeds only one historical executable despite the six-entry extracted-tool inventory. A signed outer EXE and matching SHA-256 values do not independently authenticate or establish safety of an opaque embedded binary. Windows 225/226 errors are explicit security-product evidence, unlike sharing violations or general access denied. The candidate stops repeated loading after such a report and preserves diagnostics; never bypass a protection verdict or equate a later successful hash with a false positive.
