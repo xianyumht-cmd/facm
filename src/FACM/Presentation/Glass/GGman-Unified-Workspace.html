@@ -693,7 +693,13 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="actions"><button data-route="matchmaking-settings">排队设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
     </div>
     <div id="quickInsights" style="display:none">
-      <div class="actions"><button data-action="insight-refresh">刷新</button></div>
+      <div class="actions"><button data-action="insight-refresh">刷新</button><button data-room-action="read">房间管理</button></div>
+      <div id="roomPanel" hidden>
+        <div class="tool-row"><strong id="roomDescription">—</strong><button data-room-action="read">刷新房间</button></div>
+        <div class="actions"><select id="roomQueue" aria-label="队列" disabled></select><button data-room-action="Queue" disabled>创建/切换队列</button><button data-room-action="Leave" disabled>退出房间</button></div>
+        <div class="actions"><select id="roomMember" aria-label="队员" disabled></select><button data-room-action="Kick" disabled>踢出队员</button><button data-room-action="Promote" disabled>转让队长</button></div>
+        <div id="roomStatus" class="muted" role="status" aria-live="polite"></div>
+      </div>
       <div id="quickInsightRows" class="dashboard-cards" role="status" aria-live="polite">
         <div class="dashboard-card"><span class="small">排队限制</span><strong id="insightPenalty">—</strong></div>
         <div class="dashboard-card"><span class="small">排队时间</span><strong id="insightQueue">—</strong></div>
@@ -1276,7 +1282,36 @@ function modeName(value){
   });
 });
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
+var roomRevision=0;
+function roomLoading(){
+  get("roomPanel").hidden=false;
+  get("roomStatus").textContent="读取中…";
+  get("roomPanel").querySelectorAll("button,select").forEach(function(x){x.disabled=true;});
+}
+function renderRoom(state){
+  var panel=get("roomPanel");panel.hidden=false;
+  roomRevision=Number(state.revision)||0;
+  get("roomDescription").textContent=String(state.description||"房间状态不可用");
+  get("roomStatus").textContent=String(state.status||"");
+  var queues=get("roomQueue"),members=get("roomMember");
+  queues.replaceChildren();members.replaceChildren();
+  (state.queues||[]).forEach(function(row){
+    var option=document.createElement("option");option.value=String(row.id);option.textContent=String(row.label||"");
+    queues.appendChild(option);
+  });
+  if(Array.from(queues.options).some(function(x){return x.value===String(state.queueId);}))queues.value=String(state.queueId);
+  (state.members||[]).forEach(function(row){
+    var option=document.createElement("option");option.value=String(row.id);option.textContent=String(row.label||"");
+    members.appendChild(option);
+  });
+  queues.disabled=!state.canQueue;members.disabled=!state.canManage;
+  panel.querySelectorAll("button[data-room-action]").forEach(function(button){
+    var action=button.dataset.roomAction;
+    button.disabled=action==="read"?false:action==="Queue"?!state.canQueue:action==="Leave"?!state.canLeave:!state.canManage;
+  });
+}
 function resetQuickInsights(open){
+  get("roomPanel").hidden=true;roomRevision=0;
   get("quickToolsActions").style.display=open?"none":"block";
   get("quickInsights").style.display=open?"block":"none";
   document.querySelector("[data-action=insight-open]").setAttribute("aria-pressed",String(open));
@@ -1527,6 +1562,16 @@ document.addEventListener("click",function(event){
     if(target.disabled)return;
     get("toolResult").textContent="正在关闭大厅";
     post("quick-action:close-lobby");return;
+  }
+  if(mode==="quicktools"&&target.dataset.roomAction&&get("quickInsights").style.display!=="none"){
+    if(target.disabled)return;
+    var roomAction=target.dataset.roomAction;
+    if(roomAction==="read"){roomLoading();post("room:read");return;}
+    var roomValue=roomAction==="Queue"?get("roomQueue").value:roomAction==="Leave"?"0":get("roomMember").value;
+    if(roomRevision>0&&/^\d+$/.test(roomValue)){
+      roomLoading();post("room:apply:"+roomRevision+":"+roomAction+":"+roomValue);
+    }
+    return;
   }
   if(mode==="quicktools"&&["insight-open","insight-close","insight-refresh"].includes(target.dataset.action)){
     if(target.dataset.action==="insight-open")resetQuickInsights(true);
@@ -1885,6 +1930,11 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-result"){
     document.getElementById("saveMatchmaking").disabled=false;
     document.getElementById("matchmakingResult").textContent=e.data.ok?"设置已保存":String(e.data.message||"设置保存失败");return;
+  }
+  if(e.data&&typeof e.data==="object"&&(e.data.type==="room-state"||e.data.type==="room-loading")){
+    if(mode==="quicktools"&&get("quickInsights").style.display!=="none"){
+      if(e.data.type==="room-loading")roomLoading();else renderRoom(e.data);
+    }return;
   }
   if(e.data&&typeof e.data==="object"&&(e.data.type==="quick-insights"||e.data.type==="quick-insights-loading")){
     if(mode==="quicktools"&&get("quickInsights").style.display!=="none"){

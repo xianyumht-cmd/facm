@@ -47,6 +47,7 @@ namespace FACM.Presentation.Glass
         }
 
         internal void OpenQuickInsights() { QuickToolsAdapter.OpenInsights(); }
+        internal void HandleQuickRoom(string message) { QuickToolsAdapter.HandleRoom(message); }
         internal void RefreshQuickInsights() { QuickToolsAdapter.RefreshInsights(); }
         internal void CancelQuickInsights() { if (_quickToolsAdapter != null) _quickToolsAdapter.CancelInsights(); }
 

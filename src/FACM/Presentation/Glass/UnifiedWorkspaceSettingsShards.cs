@@ -69,9 +69,17 @@ namespace FACM.Presentation.Glass
                 message.StartsWith("hotkeys-save:", StringComparison.Ordinal) ||
                 message == "quick-action:close-lobby" ||
                 message == "insight:open" || message == "insight:refresh" || message == "insight:close" ||
+                message == "room:read" || RecognizesRoom(message) ||
                 message == "repair-action:exit" ||
                 message == "repair-action:restart" ||
                 message == "repair-action:window");
+        }
+        private static bool RecognizesRoom(string message)
+        {
+            int revision;
+            LeagueLobbyRoomAction action;
+            long value;
+            return UnifiedWorkspaceQuickToolsAdapter.TryParseRoomCommand(message, out revision, out action, out value);
         }
         public void Open(UnifiedWorkspaceForm workspace, bool pushHistory)
         { workspace.OpenQuickTools(pushHistory); }
@@ -90,6 +98,7 @@ namespace FACM.Presentation.Glass
             else if (message == "insight:open") workspace.OpenQuickInsights();
             else if (message == "insight:refresh") workspace.RefreshQuickInsights();
             else if (message == "insight:close") workspace.CancelQuickInsights();
+            else if (message == "room:read" || RecognizesRoom(message)) workspace.HandleQuickRoom(message);
             else workspace.ApplyRepairAction(message.Substring("repair-action:".Length));
         }
         public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)

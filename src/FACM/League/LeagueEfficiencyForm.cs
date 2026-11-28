@@ -61,6 +61,7 @@ namespace FACM.League
         private bool _loading = true;
         private bool _loginSignatureDirty;
         private TableLayoutPanel _settingsRoot, _insightsRoot;
+        private LeagueLobbyRoomPanel _roomPanel;
         private readonly Dictionary<string, Label> _insightLabels = new Dictionary<string, Label>();
         private CancellationTokenSource _insightRequest;
         private string _shownInsightPhase;
@@ -499,7 +500,7 @@ namespace FACM.League
             Controls.Add(root);
             VisibleChanged += delegate
             {
-                if (!Visible) CancelInsightRead();
+                if (!Visible) { CancelInsightRead(); _roomPanel?.CancelRoom(); }
                 else if (_insightsOpen) RefreshInsights();
             };
             root.SizeChanged += delegate { if (Visible) ReflowSettingRows(root); };
@@ -516,7 +517,7 @@ namespace FACM.League
                 _insightsRoot = new TableLayoutPanel
                 {
                     Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1,
-                    RowCount = 7, AutoScroll = true, BackColor = FacmDesignSystem.Canvas
+                    RowCount = 8, AutoScroll = true, BackColor = FacmDesignSystem.Canvas
                 };
                 _insightsRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
                 _insightsRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
@@ -525,6 +526,7 @@ namespace FACM.League
                 back.Click += delegate
                 {
                     _insightsOpen = false;
+                    _roomPanel?.CancelRoom();
                     CancelInsightRead();
                     _insightsRoot.Hide();
                     _settingsRoot.Show();
@@ -534,6 +536,9 @@ namespace FACM.League
                 actions.Controls.Add(back);
                 actions.Controls.Add(refresh);
                 _insightsRoot.Controls.Add(actions, 0, 0);
+                _roomPanel = new LeagueLobbyRoomPanel(_module, _ui);
+                _insightsRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                _insightsRoot.Controls.Add(_roomPanel, 0, 1);
                 var keys = new[] { "penalty", "queue", "friends", "rewards", "ranked", "postgame" };
                 var titles = new[] { LeagueEfficiencyUiTextKeys.InsightPenalty, LeagueEfficiencyUiTextKeys.InsightQueue,
                     LeagueEfficiencyUiTextKeys.InsightFriends, LeagueEfficiencyUiTextKeys.InsightRewards,
@@ -548,7 +553,7 @@ namespace FACM.League
                         Margin = new Padding(0, 4, 0, 4), Text = T(LeagueEfficiencyUiTextKeys.InsightLoading) };
                     row.Controls.Add(value, 0, 1);
                     _insightLabels.Add(keys[i], value);
-                    _insightsRoot.Controls.Add(row, 0, i + 1);
+                    _insightsRoot.Controls.Add(row, 0, i + 2);
                 }
                 Controls.Add(_insightsRoot);
             }
@@ -568,7 +573,10 @@ namespace FACM.League
                 {
                     if (!IsDisposed && Visible && _insightsOpen &&
                         !string.Equals(_shownInsightPhase, _module.InsightPhase, StringComparison.Ordinal))
+                    {
+                        _roomPanel?.ObservePhase(_module.InsightPhase);
                         RefreshInsights();
+                    }
                 }));
             }
             catch (InvalidOperationException) { }
@@ -1664,6 +1672,7 @@ namespace FACM.League
         private void HandleFormClosed(object sender, FormClosedEventArgs e)
         {
             _insightsOpen = false;
+            _roomPanel?.CancelRoom();
             CancelInsightRead();
             _module.DynamicMessageContextChanged -= HandleInsightContextChanged;
             _catalogRequest.Cancel();

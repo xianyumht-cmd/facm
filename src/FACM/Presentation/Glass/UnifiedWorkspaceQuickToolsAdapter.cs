@@ -18,6 +18,9 @@ namespace FACM.Presentation.Glass
         private bool _insightsOpen;
         private string _insightPhase;
         private CancellationTokenSource _insightCancellation;
+        private CancellationTokenSource _roomCancellation;
+        private LeagueLobbyRoomSnapshot _roomSnapshot;
+        private int _roomRevision;
 
         internal UnifiedWorkspaceQuickToolsAdapter(Func<bool> canPublish,
             Action<string> publish, Func<LeagueEfficiencyModule> owner)
@@ -160,12 +163,19 @@ namespace FACM.Presentation.Glass
         {
             if (!_insightsOpen || !_canPublish()) return;
             var phase = state != null && state.Connected ? state.Phase : null;
+            if (_roomCancellation == null && _roomSnapshot != null && _roomSnapshot.Phase != phase)
+                PublishRoom(null, "房间状态已变化，请刷新");
             if (!string.Equals(_insightPhase, phase, StringComparison.Ordinal)) RefreshInsights();
         }
 
         internal void CancelInsights()
         {
             _insightsOpen = false;
+            var room = _roomCancellation;
+            _roomCancellation = null;
+            _roomSnapshot = null;
+            _roomRevision++;
+            if (room != null) room.Cancel();
             CancelInsightRequest();
             _insightPhase = null;
         }
@@ -226,6 +236,102 @@ namespace FACM.Presentation.Glass
             _publish(new JavaScriptSerializer().Serialize(values));
         }
 
+        internal static bool TryParseRoomCommand(string message, out int revision, out LeagueLobbyRoomAction action, out long value)
+        {
+            revision = 0;
+            action = LeagueLobbyRoomAction.Queue;
+            value = 0;
+            if (string.IsNullOrEmpty(message) || message.Length > 96) return false;
+            var parts = message.Split(':');
+            if (parts.Length != 5 || parts[0] != "room" || parts[1] != "apply" ||
+                !int.TryParse(parts[2], out revision) || revision <= 0 ||
+                !Enum.TryParse(parts[3], false, out action) || !Enum.IsDefined(typeof(LeagueLobbyRoomAction), action) ||
+                action.ToString() != parts[3] || !long.TryParse(parts[4], System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out value)) return false;
+            string method, path, body;
+            return LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(action, value, out method, out path, out body);
+        }
+
+        internal async void HandleRoom(string request)
+        {
+            if (!_insightsOpen || !_canPublish() || _roomCancellation != null) return;
+            var module = _owner();
+            if (module == null) { PublishRoom(null, "房间状态不可用"); return; }
+            var read = request == "room:read";
+            int revision = 0;
+            var action = LeagueLobbyRoomAction.Queue;
+            long value = 0;
+            if (!read && (!TryParseRoomCommand(request, out revision, out action, out value) ||
+                revision != _roomRevision || _roomSnapshot == null || !_roomSnapshot.Allows(action, value)))
+            {
+                PublishRoom(null, "房间状态已变化，请刷新");
+                return;
+            }
+            var expected = _roomSnapshot;
+            var source = new CancellationTokenSource();
+            _roomCancellation = source;
+            _publish("{\"type\":\"room-loading\"}");
+            try
+            {
+                if (read)
+                {
+                    var snapshot = await module.ReadLobbyRoomAsync(source.Token);
+                    if (RoomCurrent(module, source))
+                        PublishRoom(snapshot, null);
+                }
+                else
+                {
+                    var result = await module.ApplyLobbyRoomAsync(expected, action, value, source.Token);
+                    if (RoomCurrent(module, source))
+                        PublishRoom(result.Snapshot, LeagueLobbyRoomText.Status(result.State));
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                AppLog.Info("League room action unavailable: " + error.GetType().Name);
+                if (RoomCurrent(module, source)) PublishRoom(null, "房间状态不可用");
+            }
+            finally
+            {
+                if (ReferenceEquals(_roomCancellation, source)) _roomCancellation = null;
+                source.Dispose();
+            }
+        }
+
+        private bool RoomCurrent(LeagueEfficiencyModule module, CancellationTokenSource source)
+        {
+            return _insightsOpen && _canPublish() && ReferenceEquals(_roomCancellation, source) &&
+                !source.IsCancellationRequested && ReferenceEquals(module, _owner());
+        }
+
+        private void PublishRoom(LeagueLobbyRoomSnapshot snapshot, string status)
+        {
+            if (!_insightsOpen || !_canPublish()) return;
+            _roomSnapshot = snapshot;
+            _roomRevision++;
+            var members = snapshot == null ? new LeagueLobbyRoomMember[0] :
+                snapshot.Members.Where(x => x.Id != snapshot.SelfId).ToArray();
+            _publish(new JavaScriptSerializer().Serialize(new
+            {
+                type = "room-state", revision = _roomRevision,
+                available = snapshot != null,
+                canQueue = snapshot != null && snapshot.CanQueue,
+                canLeave = snapshot != null && snapshot.CanLeave,
+                canManage = snapshot != null && snapshot.CanManageMembers && members.Length > 0,
+                queueId = snapshot == null ? 0 : snapshot.QueueId,
+                description = snapshot == null ? "房间状态不可用" : snapshot.Phase == "None" ? "未加入房间" :
+                    LeagueLobbyRoomText.QueueLabel(snapshot.QueueId) + " · " + snapshot.Members.Count + " 人" +
+                    (snapshot.IsLeader ? " · 队长" : ""),
+                status = status ?? string.Empty,
+                queues = LeagueLobbyRoomService.Queues.Select(id => new { id, label = LeagueLobbyRoomText.QueueLabel(id) }).ToArray(),
+                members = members.Select(x => new
+                {
+                    id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), label = x.Name
+                }).ToArray()
+            }));
+        }
+
         private static bool TryParseSetting(string request, out string key, out bool enabled)
         {
             key = null;
@@ -244,6 +350,15 @@ namespace FACM.Presentation.Glass
 
         internal static void ValidateForSmokeTest()
         {
+            int revision;
+            LeagueLobbyRoomAction action;
+            long value;
+            if (!TryParseRoomCommand("room:apply:3:Kick:3000000002", out revision, out action, out value) ||
+                revision != 3 || action != LeagueLobbyRoomAction.Kick || value != 3000000002L ||
+                TryParseRoomCommand("room:apply:3:Queue:999999", out revision, out action, out value) ||
+                TryParseRoomCommand("room:apply:3:99:1", out revision, out action, out value) ||
+                TryParseRoomCommand("room:apply:0:Leave:0", out revision, out action, out value))
+                throw new InvalidOperationException("Room commands escaped their revision, action or value contract.");
             string key;
             bool enabled;
             foreach (var name in new[] { "autoSearch", "autoAccept", "autoReconnect", "autoHonor", "autoReturn" })
