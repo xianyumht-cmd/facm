@@ -129,7 +129,7 @@ namespace FACM.League
             switch (action)
             {
                 case LeagueLobbyRoomAction.Queue:
-                    if (!LeagueLobbyRoomService.IsKnownQueue(value)) return false;
+                    if (!LeagueLobbyRoomService.IsQueueId(value)) return false;
                     method = "POST";
                     path = lobby;
                     body = "{\"queueId\":" + value.ToString(CultureInfo.InvariantCulture) + "}";

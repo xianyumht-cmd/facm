@@ -27,7 +27,18 @@ namespace FACM.League
         internal int QueueId { get; set; }
         internal bool IsLeader { get; set; }
         internal List<LeagueLobbyRoomMember> Members { get; } = new List<LeagueLobbyRoomMember>();
-        internal bool CanQueue { get { return Phase == "None" || Phase == "Lobby" && IsLeader; } }
+        internal Dictionary<int, string> QueueChoices { get; set; }
+        internal bool CanQueue { get { return (Phase == "None" || Phase == "Lobby" && IsLeader) &&
+            QueueChoices != null && QueueChoices.Count > 0; } }
+        internal string QueueName
+        {
+            get
+            {
+                string name;
+                return QueueChoices != null && QueueChoices.TryGetValue(QueueId, out name)
+                    ? name : LeagueLobbyRoomText.QueueLabel(QueueId);
+            }
+        }
         internal bool CanLeave { get { return Phase == "Lobby"; } }
         internal bool CanManageMembers { get { return Phase == "Lobby" && IsLeader; } }
 
@@ -35,7 +46,7 @@ namespace FACM.League
         {
             switch (action)
             {
-                case LeagueLobbyRoomAction.Queue: return CanQueue && LeagueLobbyRoomService.IsKnownQueue(value);
+                case LeagueLobbyRoomAction.Queue: return CanQueue && LeagueLobbyRoomService.IsQueueId(value) && QueueChoices.ContainsKey((int)value);
                 case LeagueLobbyRoomAction.Leave: return CanLeave && value == 0;
                 case LeagueLobbyRoomAction.Kick:
                 case LeagueLobbyRoomAction.Promote:
@@ -61,8 +72,7 @@ namespace FACM.League
 
     internal sealed class LeagueLobbyRoomService
     {
-        private static readonly int[] KnownQueues = { 420, 440, 430, 400, 450, 3270 };
-        internal static IReadOnlyList<int> Queues { get { return Array.AsReadOnly(KnownQueues); } }
+        internal const string QueueCatalogPath = "/lol-game-queues/v1/queues";
         private readonly ILeagueClientApi _read;
         private readonly ILeagueLobbyRoomWriteApi _write;
         private readonly Func<LeagueClientSession> _session;
@@ -76,9 +86,50 @@ namespace FACM.League
             _session = session ?? throw new ArgumentNullException(nameof(session));
         }
 
-        internal static bool IsKnownQueue(long id) { return KnownQueues.Any(x => x == id); }
+        internal static bool IsQueueId(long id) { return id > 0 && id <= 100000; }
 
-        internal async Task<LeagueLobbyRoomSnapshot> ReadAsync(CancellationToken token)
+        internal static Dictionary<int, string> ParseQueueCatalog(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024) return null;
+            object[] rows;
+            try { rows = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[]; }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+            if (rows == null || rows.Length > 2048) return null;
+            var choices = new Dictionary<int, string>();
+            var seen = new HashSet<int>();
+            foreach (var entry in rows)
+            {
+                var row = entry as Dictionary<string, object>;
+                if (row == null) return null;
+                var id = Long(row, "id");
+                if (!IsQueueId(id)) continue;
+                if (!seen.Add((int)id)) return null;
+                var visible = Value(row, "isVisible");
+                var name = Value(row, "name") as string;
+                if (!string.Equals(Value(row, "queueAvailability") as string, "Available", StringComparison.Ordinal) ||
+                    !(visible is bool) || !(bool)visible ||
+                    string.IsNullOrWhiteSpace(name) || name.Length > 80 || name.Any(char.IsControl)) continue;
+                choices.Add((int)id, name.Trim());
+            }
+            return choices;
+        }
+
+        private async Task<Dictionary<int, string>> ReadQueueCatalogAsync(CancellationToken token)
+        {
+            using (var budget = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                budget.CancelAfter(TimeSpan.FromSeconds(2));
+                try
+                {
+                    return ParseQueueCatalog(await _read.TryGetBytesAsync(QueueCatalogPath, budget.Token).ConfigureAwait(false));
+                }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
+            }
+        }
+
+        internal async Task<LeagueLobbyRoomSnapshot> ReadAsync(CancellationToken token, bool includeQueues = true)
         {
             await _gate.WaitAsync(token).ConfigureAwait(false);
             try
@@ -86,7 +137,7 @@ namespace FACM.League
                 using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
                     deadline.CancelAfter(TimeSpan.FromSeconds(5));
-                    try { return await ReadCoreAsync(_session(), deadline.Token).ConfigureAwait(false); }
+                    try { return await ReadCoreAsync(_session(), deadline.Token, includeQueues).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
                 }
             }
@@ -107,7 +158,9 @@ namespace FACM.League
                     var ct = deadline.Token;
                     try
                     {
-                        var fresh = await ReadCoreAsync(expected.Owner, ct).ConfigureAwait(false);
+                        var fresh = await ReadCoreAsync(expected.Owner, ct, action == LeagueLobbyRoomAction.Queue).ConfigureAwait(false);
+                        if (fresh != null && action != LeagueLobbyRoomAction.Queue && fresh.SelfId == expected.SelfId)
+                            fresh.QueueChoices = expected.QueueChoices;
                         if (!expected.SameRoom(fresh) || !fresh.Allows(action, value)) return Result("stale", fresh);
                         if (action == LeagueLobbyRoomAction.Queue && fresh.Phase == "Lobby" && fresh.QueueId == value)
                             return Result("already", fresh);
@@ -128,7 +181,8 @@ namespace FACM.League
                         {
                             if (attempt > 0) await Task.Delay(350, ct).ConfigureAwait(false);
                             observed = await ReadCoreAsync(fresh.Owner, ct).ConfigureAwait(false);
-                            if (observed == null || observed.SelfId != fresh.SelfId) break;
+                            if (observed == null || observed.SelfId != fresh.SelfId) { observed = null; break; }
+                            observed.QueueChoices = fresh.QueueChoices;
                             if (Confirms(fresh, observed, action, value))
                             {
                                 _uncertainRoom = null;
@@ -149,7 +203,7 @@ namespace FACM.League
             return LeagueEncounterReplayService.SessionMatches(owner, _session());
         }
 
-        private async Task<LeagueLobbyRoomSnapshot> ReadCoreAsync(LeagueClientSession owner, CancellationToken token)
+        private async Task<LeagueLobbyRoomSnapshot> ReadCoreAsync(LeagueClientSession owner, CancellationToken token, bool includeQueues = false)
         {
             if (owner == null || !Current(owner)) return null;
             var phase = await ReadPhaseAsync(token).ConfigureAwait(false);
@@ -161,6 +215,8 @@ namespace FACM.League
                 ? new LeagueLobbyRoomSnapshot { Owner = owner, SelfId = self, Phase = phase }
                 : ParseLobby(await _read.TryGetBytesAsync(LeagueLiveDataService.LobbyPath, token).ConfigureAwait(false), owner, self);
             if (result == null || !Current(owner)) return null;
+            if (includeQueues)
+                result.QueueChoices = await ReadQueueCatalogAsync(token).ConfigureAwait(false);
             var finalPhase = await ReadPhaseAsync(token).ConfigureAwait(false);
             return finalPhase == phase && Current(owner) ? result : null;
         }
@@ -260,6 +316,13 @@ namespace FACM.League
                 case 3270: return "海克斯大乱斗";
                 default: return "#" + queue.ToString(CultureInfo.InvariantCulture);
             }
+        }
+
+        internal static string CatalogStatus(LeagueLobbyRoomSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.Phase == "Lobby" && !snapshot.IsLeader) return string.Empty;
+            return snapshot.QueueChoices == null ? "队列目录暂不可用，请刷新" :
+                snapshot.QueueChoices.Count == 0 ? "暂无可选队列" : string.Empty;
         }
 
         internal static string Status(string state)

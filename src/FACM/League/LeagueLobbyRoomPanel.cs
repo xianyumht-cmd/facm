@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -59,9 +60,6 @@ namespace FACM.League
             _controls.Controls.Add(MakeRow(_members, _kick, _promote));
             _controls.Controls.Add(_status);
             Controls.Add(_controls);
-            foreach (var id in LeagueLobbyRoomService.Queues)
-                _queues.Items.Add(new Option { Id = id, Label = LeagueLobbyRoomText.QueueLabel(id) });
-            if (_queues.Items.Count > 0) _queues.SelectedIndex = 0;
             UpdateEnabled();
         }
 
@@ -107,12 +105,17 @@ namespace FACM.League
             _controls.Visible = true;
             _description.Text = snapshot == null ? T(LeagueEfficiencyUiTextKeys.RoomUnavailable) :
                 snapshot.Phase == "None" ? T(LeagueEfficiencyUiTextKeys.RoomNone) :
-                LeagueLobbyRoomText.QueueLabel(snapshot.QueueId) + " · " + snapshot.Members.Count + " 人" +
+                snapshot.QueueName + " · " + snapshot.Members.Count + " 人" +
                 (snapshot.IsLeader ? " · 队长" : "");
-            _status.Text = status ?? string.Empty;
+            _status.Text = string.IsNullOrEmpty(status) ? LeagueLobbyRoomText.CatalogStatus(snapshot) : status;
             _members.Items.Clear();
+            _queues.Items.Clear();
             if (snapshot != null)
             {
+                if (snapshot.QueueChoices != null)
+                    foreach (var row in snapshot.QueueChoices.OrderBy(x => x.Key))
+                        _queues.Items.Add(new Option { Id = row.Key, Label = row.Value });
+                if (_queues.Items.Count > 0) _queues.SelectedIndex = 0;
                 for (var index = 0; index < _queues.Items.Count; index++)
                     if (((Option)_queues.Items[index]).Id == snapshot.QueueId) _queues.SelectedIndex = index;
                 foreach (var member in snapshot.Members)

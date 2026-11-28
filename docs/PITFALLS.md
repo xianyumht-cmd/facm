@@ -1,3 +1,7 @@
+## 2026-11-28 — Queue catalog is not entitlement
+
+A queue ID or queue name in a historical list does not establish current availability. Require explicit Available and isVisible from the local queue catalog and recheck it before explicit room creation/switch; do not infer account entitlement from catalog presence. Reject duplicate identifiers, do not use stale fallback IDs when the catalog is unavailable, and keep non-queue room actions independent.
+
 ## 2026-11-28 — Lobby invitation and leadership confirmation
 
 Checking the session in a controller does not pin the transport; pass the expected session to the writer. Do not interpret a missing invitation as accepted/declined or an HTTP 2xx as a transferred leader. Use target-specific terminal state and same-party leader readback. Automatic promotion must reuse the manual room transaction rather than overwrite an unresolved operation independently.

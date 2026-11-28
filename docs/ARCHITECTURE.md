@@ -1,3 +1,7 @@
+## 2026-11-28 — Room catalog is observed, not a fixed list (candidate)
+
+LeagueLobbyRoomService owns the per-view queue choices from the local client; a queue mutation requires the choice in both displayed and freshly read catalogs, in addition to the existing room transaction fences. The typed transport bounds the numeric queue identifier; this is syntax validation, not availability authorization. The room UI does not fetch or authorize independent queue IDs. A missing catalog does not disable leave or member actions, and automatic promotion does not fetch the catalog. No additional resident poller or Shard.
+
 ## 2026-11-28 — Automatic promotion shares the room owner (candidate)
 
 LeagueEfficiencyModule supplies its existing room service to LeagueLobbyInvitationController. Automatic promotion uses the same scoped transaction, readback and unresolved-room gate as the explicit room panel. The existing matchmaking transport exposes session-pinned action/notice methods; no extra transport pool, process, polling loop or Shard. Invitation terminal readback is distinct from party-join verification; only an observed target-specific leadership transition allows the promotion notice.

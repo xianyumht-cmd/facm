@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -142,6 +143,7 @@ namespace FACM.League
 
         private static void ValidateLobbyRoom()
         {
+            ValidateDynamicRoomCatalog();
             var api = new RoomFixture();
             var service = new LeagueLobbyRoomService(api, api, () => api.Owner);
             string method, path, body;
@@ -149,7 +151,7 @@ namespace FACM.League
                 out method, out path, out body) && method == "POST" && path == LeagueLiveDataService.LobbyPath &&
                 body == "{\"queueId\":430}", "Lobby creation must use the researched POST rather than PUT.");
             Require(!LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(LeagueLobbyRoomAction.Queue, 999999,
-                out method, out path, out body), "Unknown queue must not produce a write.");
+                out method, out path, out body), "Invalid queue identifier must not produce a request.");
             Require(LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(LeagueLobbyRoomAction.Kick, 3000000002,
                 out method, out path, out body) && path == "/lol-lobby/v2/lobby/members/3000000002/kick" &&
                 body == null, "Member action must preserve a 64-bit identity.");
@@ -201,6 +203,46 @@ namespace FACM.League
                 "Room management must not act during matchmaking.");
         }
 
+        private static void ValidateDynamicRoomCatalog()
+        {
+            var api = new RoomFixture
+            {
+                Catalog = "[" + QueueEntry(1090, "Available", true) + "," +
+                    QueueEntry(420, "PlatformDisabled", true) + "," + QueueEntry(450, "Available", false) + "]"
+            };
+            var service = new LeagueLobbyRoomService(api, api, () => api.Owner);
+            var snapshot = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(snapshot != null && snapshot.QueueChoices.Count == 1 &&
+                snapshot.Allows(LeagueLobbyRoomAction.Queue, 1090) &&
+                !snapshot.Allows(LeagueLobbyRoomAction.Queue, 420) &&
+                !snapshot.Allows(LeagueLobbyRoomAction.Queue, 450),
+                "Only currently visible and available queues may be selected.");
+            api.Catalog = "[]";
+            var result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 1090, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "stale" && api.Writes == 0 && !result.Snapshot.CanQueue,
+                "A removed queue must not be written using a stale UI snapshot.");
+            api.Catalog = "[" + QueueEntry(1090, "Available", true) + "]";
+            snapshot = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 1090, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && result.Snapshot.QueueId == 1090 && api.Writes == 1,
+                "A newly observed non-preset queue must use the same verified creation transaction.");
+            api.Catalog = null;
+            snapshot = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(snapshot != null && snapshot.QueueChoices == null && !snapshot.CanQueue && snapshot.CanLeave,
+                "Unavailable catalog must not disable unrelated lobby actions or enable unverified queue writes.");
+            result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Leave, 0, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && api.Writes == 2, "Leaving must not depend on catalog availability.");
+            Require(LeagueLobbyRoomService.ParseQueueCatalog(Bytes("[" + QueueEntry(1090, "Available", true) +
+                "," + QueueEntry(1090, "PlatformDisabled", true) + "]")) == null,
+                "Conflicting duplicate queue identities must fail closed.");
+        }
+
+        private static string QueueEntry(int id, string availability, bool visible)
+        {
+            return "{\"id\":" + id + ",\"name\":\"队列 " + id + "\",\"queueAvailability\":\"" +
+                availability + "\",\"isVisible\":" + (visible ? "true" : "false") + "}";
+        }
+
         private sealed class RoomFixture : ILeagueClientApi, ILeagueLobbyRoomWriteApi
         {
             internal LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
@@ -211,9 +253,13 @@ namespace FACM.League
             internal int Queue;
             internal int Writes;
             internal int StatusCode = 204;
+            internal string Catalog = "[" + string.Join(",", new[] { 420, 440, 430, 400, 450, 3270 }
+                .Select(id => QueueEntry(id, "Available", true))) + "]";
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
+                if (path == LeagueLobbyRoomService.QueueCatalogPath)
+                    return Task.FromResult(Bytes(Catalog));
                 if (path == LeaguePostGameAutomationController.GameflowPhasePath)
                     return Task.FromResult(Bytes("\"" + Phase + "\""));
                 if (path == LeaguePostGameAutomationController.CurrentSummonerPath)

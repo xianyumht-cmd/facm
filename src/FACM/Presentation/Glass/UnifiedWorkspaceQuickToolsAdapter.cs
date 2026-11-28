@@ -321,10 +321,11 @@ namespace FACM.Presentation.Glass
                 canManage = snapshot != null && snapshot.CanManageMembers && members.Length > 0,
                 queueId = snapshot == null ? 0 : snapshot.QueueId,
                 description = snapshot == null ? "房间状态不可用" : snapshot.Phase == "None" ? "未加入房间" :
-                    LeagueLobbyRoomText.QueueLabel(snapshot.QueueId) + " · " + snapshot.Members.Count + " 人" +
+                    snapshot.QueueName + " · " + snapshot.Members.Count + " 人" +
                     (snapshot.IsLeader ? " · 队长" : ""),
-                status = status ?? string.Empty,
-                queues = LeagueLobbyRoomService.Queues.Select(id => new { id, label = LeagueLobbyRoomText.QueueLabel(id) }).ToArray(),
+                status = string.IsNullOrEmpty(status) ? LeagueLobbyRoomText.CatalogStatus(snapshot) : status,
+                queues = (snapshot?.QueueChoices ?? new System.Collections.Generic.Dictionary<int, string>())
+                    .OrderBy(x => x.Key).Select(x => new { id = x.Key, label = x.Value }).ToArray(),
                 members = members.Select(x => new
                 {
                     id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), label = x.Name

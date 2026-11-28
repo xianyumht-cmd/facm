@@ -341,7 +341,7 @@ namespace FACM.League
             bool confirmed;
             if (_room != null)
             {
-                var snapshot = await _room.ReadAsync(cancellationToken).ConfigureAwait(false);
+                var snapshot = await _room.ReadAsync(cancellationToken, false).ConfigureAwait(false);
                 if (!IsExpectedOwner(expected) || snapshot == null || snapshot.PartyId != lobby.PartyId ||
                     snapshot.SelfId != lobby.SelfSummonerId ||
                     !snapshot.Allows(LeagueLobbyRoomAction.Promote, target.SummonerId)) return;
