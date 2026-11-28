@@ -21,6 +21,7 @@ namespace FACM.League
     internal sealed class LeaguePostGameWriteApiClient : ILeaguePostGameWriteApi, IDisposable
     {
         internal const string HonorV2Path = "/lol-honor-v2/v1/honor-player";
+        internal const string HonorBallotRefreshPath = "/lol-honor-v2/v1/ballot/refresh";
         internal const string HonorPath = "/lol-honor/v1/honor";
         internal const string HonorBallotSubmitPath = "/lol-honor/v1/ballot";
         internal const string PlayAgainPath = "/lol-lobby/v2/play-again";
@@ -106,6 +107,7 @@ namespace FACM.League
         {
             if (!string.Equals(verb, "POST", StringComparison.Ordinal)) return false;
             return string.Equals(path, HonorV2Path, StringComparison.Ordinal) ||
+                   string.Equals(path, HonorBallotRefreshPath, StringComparison.Ordinal) ||
                    string.Equals(path, HonorPath, StringComparison.Ordinal) ||
                    string.Equals(path, HonorBallotSubmitPath, StringComparison.Ordinal) ||
                    string.Equals(path, PlayAgainPath, StringComparison.Ordinal) ||
