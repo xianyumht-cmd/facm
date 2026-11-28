@@ -10,6 +10,7 @@ namespace FACM.League
     {
         public static void Validate()
         {
+            ValidateLobbyRoom();
             var fixture = new FakeClient();
             fixture.Muted.Add(First);
             var service = new LeagueChampSelectMuteService(fixture, fixture);
@@ -137,6 +138,85 @@ namespace FACM.League
             var estimated = LeagueQueueStatusService.ParseSearch(Bytes("{\"isCurrentlyInQueue\":true}"));
             Require(estimated.Available && estimated.InQueue && !estimated.EstimateKnown && !estimated.ElapsedKnown,
                 "Missing queue durations were presented as numeric data.");
+        }
+
+        private static void ValidateLobbyRoom()
+        {
+            var api = new RoomFixture();
+            var service = new LeagueLobbyRoomService(api, api, () => api.Owner);
+            string method, path, body;
+            Require(LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(LeagueLobbyRoomAction.Queue, 430,
+                out method, out path, out body) && method == "POST" && path == LeagueLiveDataService.LobbyPath &&
+                body == "{\"queueId\":430}", "Lobby creation must use the researched POST rather than PUT.");
+            Require(!LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(LeagueLobbyRoomAction.Queue, 999999,
+                out method, out path, out body), "Unknown queue must not produce a write.");
+            Require(LeagueMatchmakingWriteApiClient.TryBuildRoomRequest(LeagueLobbyRoomAction.Kick, 3000000002,
+                out method, out path, out body) && path == "/lol-lobby/v2/lobby/members/3000000002/kick" &&
+                body == null, "Member action must preserve a 64-bit identity.");
+            var snapshot = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(snapshot != null && snapshot.CanQueue && !snapshot.CanLeave, "No-lobby phase must expose creation only.");
+            var result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 450, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && result.Snapshot.QueueId == 450 && api.Writes == 1,
+                "Creation must confirm the new queue.");
+            var lobby = result.Snapshot;
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Kick, 3000000001, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "stale" && api.Writes == 1, "Room action must not target self.");
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Promote, 3000000002, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && !result.Snapshot.IsLeader && api.Writes == 2,
+                "Promotion must observe the new leader.");
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Kick, 3000000002, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "stale" && api.Writes == 2, "Former leader snapshot must not kick after promotion.");
+            lobby = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Leave, 0, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && result.Snapshot.Phase == "None" && api.Writes == 3,
+                "Leave must verify None rather than merely HTTP success.");
+            snapshot = result.Snapshot;
+            api.Apply = false;
+            result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 440, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && api.Writes == 4, "Unchanged queue must not confirm.");
+            result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 440, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && api.Writes == 4, "Unknown room write must not repeat.");
+            api.Phase = "Matchmaking";
+            Require(service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
+                "Room management must not act during matchmaking.");
+        }
+
+        private sealed class RoomFixture : ILeagueClientApi, ILeagueLobbyRoomWriteApi
+        {
+            internal LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            internal string Phase = "None";
+            internal bool Apply = true;
+            internal bool Leader = true;
+            internal int Queue;
+            internal int Writes;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeaguePostGameAutomationController.GameflowPhasePath)
+                    return Task.FromResult(Bytes("\"" + Phase + "\""));
+                if (path == LeaguePostGameAutomationController.CurrentSummonerPath)
+                    return Task.FromResult(Bytes("{\"summonerId\":3000000001}"));
+                if (path == LeagueLiveDataService.LobbyPath && Phase == "Lobby")
+                    return Task.FromResult(Bytes("{\"partyId\":\"fixture-party\",\"gameConfig\":{\"queueId\":" + Queue +
+                        "},\"localMember\":{\"summonerId\":3000000001,\"isLeader\":" + (Leader ? "true" : "false") +
+                        "},\"members\":[{\"summonerId\":3000000001,\"isLeader\":" + (Leader ? "true" : "false") +
+                        "},{\"summonerId\":3000000002,\"isLeader\":" + (Leader ? "false" : "true") + "}]}"));
+                return Task.FromResult<byte[]>(null);
+            }
+            public Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                Require(LeagueEncounterReplayService.SessionMatches(expected, Owner), "Room transport owner changed.");
+                Writes++;
+                if (Apply)
+                {
+                    if (action == LeagueLobbyRoomAction.Queue) { Phase = "Lobby"; Queue = (int)value; }
+                    if (action == LeagueLobbyRoomAction.Promote) Leader = false;
+                    if (action == LeagueLobbyRoomAction.Leave) Phase = "None";
+                }
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
         }
 
         private const string First = "{\"summonerId\":3000000001,\"puuid\":\"fixture-a\",\"obfuscatedSummonerId\":0,\"obfuscatedPuuid\":\"\"}";

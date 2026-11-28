@@ -20,6 +20,12 @@ namespace FACM.League
             CancellationToken cancellationToken);
     }
 
+    internal interface ILeagueLobbyRoomWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,
+            LeagueClientSession expected, CancellationToken token);
+    }
+
     internal interface ILeagueLobbyInviteWriteApi
     {
         Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken);
@@ -48,7 +54,7 @@ namespace FACM.League
             LeagueClientSession session, string conversationId, string message, CancellationToken token);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, IDisposable
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyRoomWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -77,6 +83,44 @@ namespace FACM.League
                 throw new ArgumentException("LCU write target is not allowed by the Gate 7 transport.", nameof(path));
 
             return await SendAllowedAsync(verb, normalizedPath, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            string method, path, body;
+            if (expected == null || !TryBuildRoomRequest(action, value, out method, out path, out body))
+                return Task.FromResult<LeagueClientWriteResponse>(null);
+            return SendAllowedAsync(method, path, body, token, expected);
+        }
+
+        internal static bool TryBuildRoomRequest(LeagueLobbyRoomAction action, long value,
+            out string method, out string path, out string body)
+        {
+            method = path = body = null;
+            const string lobby = LeagueLiveDataService.LobbyPath;
+            switch (action)
+            {
+                case LeagueLobbyRoomAction.Queue:
+                    if (!LeagueLobbyRoomService.IsKnownQueue(value)) return false;
+                    method = "POST";
+                    path = lobby;
+                    body = "{\"queueId\":" + value.ToString(CultureInfo.InvariantCulture) + "}";
+                    return true;
+                case LeagueLobbyRoomAction.Leave:
+                    if (value != 0) return false;
+                    method = "DELETE";
+                    path = lobby;
+                    return true;
+                case LeagueLobbyRoomAction.Kick:
+                case LeagueLobbyRoomAction.Promote:
+                    if (value <= 0) return false;
+                    method = "POST";
+                    path = lobby + "/members/" + value.ToString(CultureInfo.InvariantCulture) +
+                        (action == LeagueLobbyRoomAction.Kick ? "/kick" : "/promote");
+                    return true;
+                default: return false;
+            }
         }
 
         public Task<LeagueClientWriteResponse> TryInviteAsync(long summonerId, CancellationToken cancellationToken)
@@ -205,7 +249,7 @@ namespace FACM.League
         {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null || expectedSession != null && !expectedSession.Matches(session)) return null;
+            if (session == null || expectedSession != null && !LeagueEncounterReplayService.SessionMatches(expectedSession, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(session); }

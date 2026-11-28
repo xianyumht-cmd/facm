@@ -8,6 +8,13 @@ namespace FACM.League
     {
         public const string Menu = "LeagueEfficiencyMenu";
         public const string InsightOpen = "LeagueEfficiencyInsightOpen";
+        public const string RoomManage = "LeagueEfficiencyRoomManage";
+        public const string RoomQueue = "LeagueEfficiencyRoomQueue";
+        public const string RoomLeave = "LeagueEfficiencyRoomLeave";
+        public const string RoomKick = "LeagueEfficiencyRoomKick";
+        public const string RoomPromote = "LeagueEfficiencyRoomPromote";
+        public const string RoomNone = "LeagueEfficiencyRoomNone";
+        public const string RoomUnavailable = "LeagueEfficiencyRoomUnavailable";
         public const string InsightBack = "LeagueEfficiencyInsightBack";
         public const string InsightRefresh = "LeagueEfficiencyInsightRefresh";
         public const string InsightLoading = "LeagueEfficiencyInsightLoading";
@@ -535,6 +542,13 @@ namespace FACM.League
         {
             { LeagueEfficiencyUiTextKeys.Menu, "快捷工具" },
             { LeagueEfficiencyUiTextKeys.InsightOpen, "数据概览" },
+            { LeagueEfficiencyUiTextKeys.RoomManage, "房间管理" },
+            { LeagueEfficiencyUiTextKeys.RoomQueue, "创建/切换队列" },
+            { LeagueEfficiencyUiTextKeys.RoomLeave, "退出房间" },
+            { LeagueEfficiencyUiTextKeys.RoomKick, "踢出队员" },
+            { LeagueEfficiencyUiTextKeys.RoomPromote, "转让队长" },
+            { LeagueEfficiencyUiTextKeys.RoomNone, "未加入房间" },
+            { LeagueEfficiencyUiTextKeys.RoomUnavailable, "房间状态不可用" },
             { LeagueEfficiencyUiTextKeys.InsightBack, "快捷操作" },
             { LeagueEfficiencyUiTextKeys.InsightRefresh, "刷新" },
             { LeagueEfficiencyUiTextKeys.InsightLoading, "读取中…" },
