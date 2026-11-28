@@ -76,6 +76,31 @@ namespace FACM.League
             Require(rewards.Available && rewards.LootAvailable && !rewards.MissionsAvailable &&
                     rewards.LootItemCount == 0, "Partial reward availability collapsed into numeric zero.");
 
+            var lootFailure = new LeagueRewardsOverviewService(new FakeClient { LootFailure = true, MissionBody = "[]" })
+                .ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(lootFailure.Available && !lootFailure.LootAvailable && lootFailure.MissionsAvailable &&
+                    lootFailure.MissionStatusKnown, "Loot failure discarded healthy missions.");
+            var missionFailure = new LeagueRewardsOverviewService(new FakeClient { MissionFailure = true })
+                .ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(missionFailure.Available && missionFailure.LootAvailable && !missionFailure.MissionsAvailable,
+                "Mission failure discarded healthy loot.");
+            var unknownStatus = new LeagueRewardsOverviewService(new FakeClient { MissionBody = "[{}]" })
+                .ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(unknownStatus.MissionsAvailable && !unknownStatus.MissionStatusKnown && unknownStatus.MissionItemCount == 1,
+                "Unknown mission status was counted as a known zero.");
+            var postgame = new LeagueInsightSnapshot
+            {
+                EndOfGame = new LeagueEndOfGameSummary
+                {
+                    Available = true,
+                    Players = new[] { new LeagueEndOfGamePlayerLine { IsLocalPlayer = true, MinionsKnown = true, MinionsKilled = 0 } }
+                }
+            };
+            var withMinions = LeagueInsightPresentation.Project(postgame, "EndOfGame")["postgame"];
+            postgame.EndOfGame.Players[0].MinionsKnown = false;
+            Require(withMinions != LeagueInsightPresentation.Project(postgame, "EndOfGame")["postgame"],
+                "Known zero CS and missing CS rendered identically.");
+
             var reads = new FakeClient { FriendFailure = true };
             var insights = new LeagueInsightService(reads);
             var idle = insights.ReadAsync("InProgress", CancellationToken.None).GetAwaiter().GetResult();
@@ -112,6 +137,9 @@ namespace FACM.League
             public bool ChangeRoster;
             public bool UncertainWrite;
             public bool FriendFailure;
+            public bool LootFailure;
+            public bool MissionFailure;
+            public string MissionBody;
             public int SearchReads;
             public readonly List<string> Reads = new List<string>();
             public int Writes;
@@ -140,7 +168,16 @@ namespace FACM.League
                 }
                 if (path == LeagueChampSelectMuteService.MutedPlayersPath)
                     body = MutedOverride ?? ("[" + string.Join(",", Muted) + "]");
-                if (path == LeagueRewardsOverviewService.PlayerLootPath) body = "[]";
+                if (path == LeagueRewardsOverviewService.PlayerLootPath)
+                {
+                    if (LootFailure) throw new InvalidOperationException("Fixture loot failure");
+                    body = "[]";
+                }
+                if (path == LeagueRewardsOverviewService.MissionsPath)
+                {
+                    if (MissionFailure) throw new InvalidOperationException("Fixture mission failure");
+                    body = MissionBody;
+                }
                 return Task.FromResult(Bytes(body));
             }
 

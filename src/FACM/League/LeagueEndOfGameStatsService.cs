@@ -23,6 +23,7 @@ namespace FACM.League
         public long DamageToChampions { get; set; }
         public long GoldEarned { get; set; }
         public int MinionsKilled { get; set; }
+        public bool MinionsKnown { get; set; }
         public bool IsLocalPlayer { get; set; }
     }
 
@@ -96,12 +97,13 @@ namespace FACM.League
                         var member = memberItem as Dictionary<string, object>;
                         if (member == null) continue;
                         var stats = member.ContainsKey("stats") ? member["stats"] as Dictionary<string, object> : null;
-                        long kills, deaths, assists, damage, gold;
+                        long kills, deaths, assists, damage, gold, minions;
                         var killsKnown = TryReadNonnegativeLong(stats, "CHAMPIONS_KILLED", out kills) && kills <= int.MaxValue;
                         var deathsKnown = TryReadNonnegativeLong(stats, "NUM_DEATHS", out deaths) && deaths <= int.MaxValue;
                         var assistsKnown = TryReadNonnegativeLong(stats, "ASSISTS", out assists) && assists <= int.MaxValue;
                         var damageKnown = TryReadNonnegativeLong(stats, "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS", out damage);
                         var goldKnown = TryReadNonnegativeLong(stats, "GOLD_EARNED", out gold);
+                        var minionsKnown = TryReadNonnegativeLong(stats, "MINIONS_KILLED", out minions) && minions <= int.MaxValue;
                         var line = new LeagueEndOfGamePlayerLine
                         {
                             TeamId = teamId,
@@ -115,7 +117,8 @@ namespace FACM.League
                             GoldKnown = goldKnown,
                             DamageToChampions = damageKnown ? damage : 0,
                             GoldEarned = goldKnown ? gold : 0,
-                            MinionsKilled = (int)ReadStat(stats, "MINIONS_KILLED")
+                            MinionsKnown = minionsKnown,
+                            MinionsKilled = minionsKnown ? (int)minions : 0
                         };
                         var memberKey = ReadString(member, "summonerId");
                         line.IsLocalPlayer = !string.IsNullOrEmpty(localKey) && string.Equals(localKey, memberKey, StringComparison.Ordinal);

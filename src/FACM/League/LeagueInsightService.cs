@@ -48,6 +48,7 @@ namespace FACM.League
                     if (p.KdaKnown) fields.Add(p.Kills + "/" + p.Deaths + "/" + p.Assists);
                     if (p.DamageKnown) fields.Add("伤害 " + p.DamageToChampions);
                     if (p.GoldKnown) fields.Add("经济 " + p.GoldEarned);
+                    if (p.MinionsKnown) fields.Add("补刀 " + p.MinionsKilled);
                     if (fields.Count > 0) gameText = string.Join(" · ", fields);
                 }
             }
@@ -108,7 +109,7 @@ namespace FACM.League
                 {
                     result.Friends = await ReadGroupAsync(_friends.ReadAsync, cancellationToken).ConfigureAwait(false);
                     result.Ranked = await ReadGroupAsync(_ranked.ReadRankedAsync, cancellationToken).ConfigureAwait(false);
-                    result.Rewards = await ReadGroupAsync(_rewards.ReadAsync, cancellationToken).ConfigureAwait(false);
+                    result.Rewards = await _rewards.ReadAsync(cancellationToken).ConfigureAwait(false);
                 }
                 if (postgame)
                 {
@@ -146,7 +147,7 @@ namespace FACM.League
             catch (InvalidOperationException) { return 0; }
         }
 
-        private static async Task<T> ReadGroupAsync<T>(Func<CancellationToken, Task<T>> read, CancellationToken token)
+        internal static async Task<T> ReadGroupAsync<T>(Func<CancellationToken, Task<T>> read, CancellationToken token)
             where T : class
         {
             token.ThrowIfCancellationRequested();

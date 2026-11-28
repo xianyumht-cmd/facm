@@ -16,6 +16,8 @@ namespace FACM.League
         public bool Available { get; set; }
         public bool LootAvailable { get; set; }
         public bool MissionsAvailable { get; set; }
+        public bool MissionStatusKnown { get; set; }
+        public int MissionItemCount { get; set; }
         public int LootItemCount { get; set; }
         public int SkinsOwned { get; set; }
         public int MissionsCompleted { get; set; }
@@ -27,7 +29,7 @@ namespace FACM.League
             {
                 if (!Available) return "奖励数据不可用";
                 return (LootAvailable ? "战利品 " + LootItemCount + " 项" : "战利品未知") + " · " +
-                       (MissionsAvailable ? "已完成任务 " + MissionsCompleted + " · 进行中 " + MissionsInProgress : "任务未知");
+                       (MissionsAvailable ? (MissionStatusKnown ? "已完成任务 " + MissionsCompleted + " · 进行中 " + MissionsInProgress : "任务 " + MissionItemCount + " 项 · 状态未知") : "任务未知");
             }
         }
     }
@@ -51,8 +53,9 @@ namespace FACM.League
 
         public async Task<LeagueRewardsOverview> ReadAsync(CancellationToken cancellationToken)
         {
-            var loot = await _reader.TryGetBytesAsync(PlayerLootPath, cancellationToken).ConfigureAwait(false);
-            var missions = await _reader.TryGetBytesAsync(MissionsPath, cancellationToken).ConfigureAwait(false);
+            var loot = await LeagueInsightService.ReadGroupAsync(t => _reader.TryGetBytesAsync(PlayerLootPath, t), cancellationToken).ConfigureAwait(false);
+            var missions = await LeagueInsightService.ReadGroupAsync(t => _reader.TryGetBytesAsync(MissionsPath, t), cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
             if (loot == null && missions == null) return LeagueRewardsOverview.Unavailable;
 
             var overview = new LeagueRewardsOverview();
@@ -74,6 +77,8 @@ namespace FACM.League
             if (missionItems != null)
             {
                 overview.MissionsAvailable = true;
+                overview.MissionStatusKnown = true;
+                overview.MissionItemCount = missionItems.Count;
                 foreach (var item in missionItems)
                 {
                     var entry = item as Dictionary<string, object>;
@@ -81,6 +86,7 @@ namespace FACM.League
                     var status = ReadString(entry, "status");
                     if (string.Equals(status, "COMPLETED", StringComparison.OrdinalIgnoreCase)) overview.MissionsCompleted++;
                     else if (string.Equals(status, "IN_PROGRESS", StringComparison.OrdinalIgnoreCase)) overview.MissionsInProgress++;
+                    else overview.MissionStatusKnown = false;
                 }
             }
 

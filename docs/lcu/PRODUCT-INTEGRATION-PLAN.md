@@ -131,3 +131,25 @@ Stop release progression for identity/session correctness defects, unsupported o
 ## 7. Definition of done
 
 All research-derived capabilities within the approved product scope have an explicit ownership and user-facing disposition; implemented functions work through the existing Shards and active UI; no competing active business owner or experimental injection dependency is shipped; phase/account boundaries and partial-data semantics are preserved; deterministic tests and exact-head CI pass; performance evidence is reported with its limitations; documentation and release notes reflect verified facts. Production publication remains a separate authorized step through the established signing and update pipeline.
+
+## Execution checkpoint — 2026-11-28
+
+The executable baseline `03abbebd` passed all four required PR workflows (Windows 46128879004, Glass 46128879002, UI Text 46128879007, Mayhem 46128879033). This is hosted verification, not live client acceptance.
+
+### Ownership reconciliation (source inspection, not a whole-repository runtime trace)
+
+| Capability | Existing owner / overlapping read | Integration disposition |
+| --- | --- | --- |
+| Mute and quit | LeagueRuntimeCompanionController, existing companion presenters | Shared supported C# action path; no second active writer |
+| Queue and restriction | LeagueMatchmakingAutomation.ReadSourceQueueBlockAsync and readiness flow | Overview uses one shared search response; automation retains fresh action-specific reads; do not cache or replace those safety checks |
+| Friends | LeagueFriendInvitationController.ParseFriends | Overview is read-only aggregate; existing invite owner retains its identity/lobby checks; no new periodic reads |
+| Ranked | LeagueRankedStatusService | On-demand standings; do not attribute an uncorrelated LP notification to a match |
+| Rewards | LeagueRewardsOverviewService | Separate bounded loot and mission failures; unknown mission status not interpreted as zero |
+| Postgame | LeagueEndOfGameStatsService, existing history and postgame owners | Overview verifies game ID and projects local-player known fields; history and postgame automation remain independent |
+| Block list | LeagueSocialService (currently unwired) | Read route reported HTTP 200; write descriptions conflict (README vs playbook); sanitized schema and normal-action contract evidence required before enabling management |
+
+The generated endpoints.csv is based on function-name transformation and is not proof of literal HTTP path or request schema. Obtain sanitized read and normal-action evidence for the block-list contract, plus a ranked postgame LP payload with match attribution evidence, from the research workstream. Do not infer current-match LP from notification arrival alone.
+
+### WP4 packaging boundary (static inspection)
+
+FACM.sln references FACM, ToolBundle, PetHost and Updater. FACM.csproj's resource list and project references include the existing application resources, pinned WebView2 loader, tools, updater, and optional PetHost; the inspected ToolBundle project and tools manifest do not include the experimental native tree. The publisher builds FACM.sln, signs the lightweight EXE, copies identical compatibility assets, and checks public bytes and signer before activation. No injected-agent project or distribution reference was observed in those inspected paths. This is a source-level boundary check, not a binary or live-process audit. Experimental runtime is not advanced or deployed in this task.
