@@ -14,12 +14,17 @@ namespace FACM.League
         Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, CancellationToken cancellationToken);
     }
 
+    internal interface ILeagueScopedPresenceWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, LeagueClientSession expected, CancellationToken cancellationToken);
+    }
+
     /// <summary>
     /// Dedicated user-directed presence writer. It shares the existing LeagueClientSessionProvider
     /// and is hard-fenced to PUT /lol-chat/v1/me. It cannot reach Champ Select, matchmaking,
     /// post-game or any other LCU write surface.
     /// </summary>
-    internal sealed class LeaguePresenceWriteApiClient : ILeaguePresenceWriteApi, IDisposable
+    internal sealed class LeaguePresenceWriteApiClient : ILeaguePresenceWriteApi, ILeagueScopedPresenceWriteApi, IDisposable
     {
         internal const string PresencePath = "/lol-chat/v1/me";
 
@@ -32,13 +37,23 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TrySetPresenceAsync(
-            string json,
-            CancellationToken cancellationToken)
+        public Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, CancellationToken cancellationToken)
+        {
+            return TrySetPresenceCoreAsync(json, null, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                TrySetPresenceCoreAsync(json, expected, cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> TrySetPresenceCoreAsync(
+            string json, LeagueClientSession expected, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null || (expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session))) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(session); }
@@ -50,6 +65,7 @@ namespace FACM.League
                 {
                     using (var request = new HttpRequestMessage(HttpMethod.Put, PresencePath))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         request.Content = new StringContent(json ?? string.Empty, Encoding.UTF8, "application/json");
                         using (var response = await lease.Client.SendAsync(
                             request,

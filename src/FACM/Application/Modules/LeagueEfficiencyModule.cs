@@ -168,7 +168,8 @@ namespace FACM.AppHost.Modules
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
             ConfigureLoginSignature();
             _offlineLock = new LeagueOfflineStatusLockController(
-                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
+                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient),
+                sessionProvider: () => _leagueClient.CurrentSession);
             _offlineLock.Configure(LockOfflineStatusEnabled);
             _autoReply = new LeagueAutoReplyController(_leagueClient, (ILeaguePrivateChatWriteApi)_leagueClient,
                 () => _leagueClient.CurrentSession, _offlineLock);

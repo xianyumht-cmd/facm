@@ -137,20 +137,22 @@ namespace FACM.League
         }
 
         internal Task<LeaguePresenceApplyResult> ApplyIfAvailabilityUnchangedAsync(
-            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken)
+            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken,
+            LeagueClientSession expectedSession = null, Func<bool> stillCurrent = null)
         {
             if (string.IsNullOrEmpty(expectedAvailability))
                 return Task.FromResult(new LeaguePresenceApplyResult { Status = "invalid", Mode = mode });
-            return ApplyModeCoreAsync(mode, expectedAvailability, cancellationToken);
+            return ApplyModeCoreAsync(mode, expectedAvailability, cancellationToken, expectedSession, stillCurrent);
         }
 
         private async Task<LeaguePresenceApplyResult> ApplyModeCoreAsync(
-            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken)
+            LeaguePresenceMode mode, string expectedAvailability, CancellationToken cancellationToken,
+            LeagueClientSession expectedSession = null, Func<bool> stillCurrent = null)
         {
             var result = await TryMutatePresenceAsync(
                 root => expectedAvailability == null || string.Equals(
                     ReadString(root, "availability"), expectedAvailability, StringComparison.OrdinalIgnoreCase),
-                root => ApplyMode(root, mode), cancellationToken).ConfigureAwait(false);
+                root => ApplyMode(root, mode), cancellationToken, expectedSession, stillCurrent).ConfigureAwait(false);
             if (result.Outcome == MutationOutcome.Unavailable)
                 return new LeaguePresenceApplyResult { Status = "unavailable", Mode = mode };
             if (result.Outcome == MutationOutcome.Changed)
@@ -163,7 +165,11 @@ namespace FACM.League
 
             if (_firstVerificationDelay > TimeSpan.Zero)
                 await Task.Delay(_firstVerificationDelay, cancellationToken).ConfigureAwait(false);
+            if (stillCurrent != null && !stillCurrent())
+                return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
             var first = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (stillCurrent != null && !stillCurrent())
+                return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
             if (!Matches(first, mode))
             {
                 AppLog.Info("League presence readback did not match; mode=" + mode + "; stage=first");
@@ -172,7 +178,11 @@ namespace FACM.League
 
             if (_settleVerificationDelay > TimeSpan.Zero)
                 await Task.Delay(_settleVerificationDelay, cancellationToken).ConfigureAwait(false);
+            if (stillCurrent != null && !stillCurrent())
+                return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
             var settled = await ReadAsync(cancellationToken).ConfigureAwait(false);
+            if (stillCurrent != null && !stillCurrent())
+                return new LeaguePresenceApplyResult { Status = "overridden", Mode = mode };
             if (!Matches(settled, mode))
             {
                 AppLog.Info("League presence readback was overwritten by client; mode=" + mode + "; stage=settled");
@@ -382,18 +392,26 @@ namespace FACM.League
         private async Task<MutationResult> TryMutatePresenceAsync(
             Func<Dictionary<string, object>, bool> guard,
             Action<Dictionary<string, object>> mutate,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken, LeagueClientSession expectedSession = null, Func<bool> stillCurrent = null)
         {
             await MutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                if (stillCurrent != null && !stillCurrent()) return new MutationResult { Outcome = MutationOutcome.Changed };
                 var root = await ReadRootAsync(cancellationToken).ConfigureAwait(false);
+                if (stillCurrent != null && !stillCurrent()) return new MutationResult { Outcome = MutationOutcome.Changed };
                 if (root == null) return new MutationResult { Outcome = MutationOutcome.Unavailable };
                 if (guard != null && !guard(root)) return new MutationResult { Outcome = MutationOutcome.Changed };
                 cancellationToken.ThrowIfCancellationRequested();
                 mutate(root);
-                var response = await _writer.TrySetPresenceAsync(_json.Serialize(root), cancellationToken)
-                    .ConfigureAwait(false);
+                if (stillCurrent != null && !stillCurrent()) return new MutationResult { Outcome = MutationOutcome.Changed };
+                var scoped = _writer as ILeagueScopedPresenceWriteApi;
+                if (expectedSession != null && scoped == null)
+                    return new MutationResult { Outcome = MutationOutcome.Unavailable };
+                var payload = _json.Serialize(root);
+                var response = expectedSession == null
+                    ? await _writer.TrySetPresenceAsync(payload, cancellationToken).ConfigureAwait(false)
+                    : await scoped.TrySetPresenceAsync(payload, expectedSession, cancellationToken).ConfigureAwait(false);
                 return new MutationResult
                 {
                     Outcome = response != null && response.IsSuccessStatusCode

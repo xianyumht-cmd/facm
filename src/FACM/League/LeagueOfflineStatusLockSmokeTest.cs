@@ -23,6 +23,7 @@ namespace FACM.League
             Require(restored.LeagueLockOfflineStatusEnabled, "Offline lock cloud roundtrip failed.");
             GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = cloud });
             ValidateDirectEvents();
+            ValidateInitialSessionFence();
 
             var api = new Presence { Availability = "chat" };
             using (var controller = NewController(api))
@@ -102,6 +103,40 @@ namespace FACM.League
             }
         }
 
+        private static void ValidateInitialSessionFence()
+        {
+            var first = new LeagueClientSession("fixture", 1, 12345, "fixture-only", "https", "smoke");
+            var second = new LeagueClientSession("fixture", 2, 12345, "fixture-only", "https", "smoke");
+            var current = first;
+            var api = new Presence { Availability = "chat", CurrentSession = () => current };
+            var phase = new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" };
+            using (var controller = new LeagueOfflineStatusLockController(
+                new LeaguePresenceService(api, api, TimeSpan.Zero, TimeSpan.Zero), sessionProvider: () => current))
+            {
+                controller.Configure(true);
+                api.BeforeRead = count => { if (count == 2) current = second; };
+                controller.ObserveInitial(phase);
+                controller.AwaitCurrentForSmokeTestAsync().GetAwaiter().GetResult();
+                Require(api.Writes == 0, "Obsolete session must not receive a presence write.");
+
+                api.BeforeRead = null;
+                controller.ObserveInitial(phase);
+                controller.AwaitCurrentForSmokeTestAsync().GetAwaiter().GetResult();
+                Require(api.Writes == 1 && api.ScopedWrites == 1 && api.Availability == "offline",
+                    "Replacement session must apply initial preference without waiting for the event stream.");
+                var reads = api.Reads;
+                controller.ObserveInitial(phase);
+                controller.AwaitCurrentForSmokeTestAsync().GetAwaiter().GetResult();
+                Require(api.Reads == reads, "Stable session must not add a periodic presence poll.");
+                api.Availability = "away";
+                controller.ObserveEventAsync("away", CancellationToken.None, first).GetAwaiter().GetResult();
+                Require(api.Reads == reads && api.Writes == 1, "Old stream must not write into a new session.");
+                controller.ObserveEventAsync("away", CancellationToken.None, second).GetAwaiter().GetResult();
+                Require(api.Writes == 2 && api.ScopedWrites == 2 && api.Availability == "offline",
+                    "Current stream must retain event-driven correction.");
+            }
+        }
+
         private static LeagueOfflineStatusLockController NewController(Presence api, Func<DateTime> utcNow = null)
         {
             return new LeagueOfflineStatusLockController(
@@ -119,11 +154,13 @@ namespace FACM.League
             if (!value) throw new InvalidOperationException(message);
         }
 
-        private sealed class Presence : ILeagueClientApi, ILeaguePresenceWriteApi
+        private sealed class Presence : ILeagueClientApi, ILeaguePresenceWriteApi, ILeagueScopedPresenceWriteApi
         {
             internal string Availability = "offline";
             internal int Reads;
             internal int Writes;
+            internal int ScopedWrites;
+            internal Func<LeagueClientSession> CurrentSession;
             internal int Status = 204;
             internal Action<int> BeforeRead;
 
@@ -140,6 +177,14 @@ namespace FACM.League
                     { "lol", new Dictionary<string, object> { { "gameStatus", "outOfGame" } } }
                 });
                 return Task.FromResult(Encoding.UTF8.GetBytes(json));
+            }
+
+            public Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, LeagueClientSession expected, CancellationToken cancellationToken)
+            {
+                Require(CurrentSession != null && LeagueEncounterReplayService.SessionMatches(expected, CurrentSession()),
+                    "Scoped write targeted an obsolete session.");
+                ScopedWrites++;
+                return TrySetPresenceAsync(json, cancellationToken);
             }
 
             public Task<LeagueClientWriteResponse> TrySetPresenceAsync(string json, CancellationToken cancellationToken)
