@@ -34,6 +34,16 @@ namespace FACM.League
         public const string PreviousPage = "LeagueRuntimeCompanionPreviousPage";
         public const string NextPage = "LeagueRuntimeCompanionNextPage";
         public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";
+        public const string SwapMenu = "LeagueRuntimeCompanionSwapMenu";
+        public const string SwapChampion = "LeagueRuntimeCompanionSwapChampion";
+        public const string SwapPosition = "LeagueRuntimeCompanionSwapPosition";
+        public const string SwapPickOrder = "LeagueRuntimeCompanionSwapPickOrder";
+        public const string SwapAccept = "LeagueRuntimeCompanionSwapAccept";
+        public const string SwapDecline = "LeagueRuntimeCompanionSwapDecline";
+        public const string SwapCancel = "LeagueRuntimeCompanionSwapCancel";
+        public const string SwapNone = "LeagueRuntimeCompanionSwapNone";
+        public const string SwapConfirmed = "LeagueRuntimeCompanionSwapConfirmed";
+        public const string SwapUnverified = "LeagueRuntimeCompanionSwapUnverified";
         public const string RerollShort = "LeagueRuntimeCompanionRerollShort";
         public const string RerollSuccess = "LeagueRuntimeCompanionRerollSuccess";
         public const string RerollUnverified = "LeagueRuntimeCompanionRerollUnverified";
@@ -114,6 +124,16 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.PreviousPage, "上一页" },
             { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapMenu, "交换" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapChampion, "英雄交换" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapPosition, "位置交换" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapPickOrder, "选人顺序交换" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapAccept, "接受" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapDecline, "拒绝" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapCancel, "取消" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapNone, "暂无可处理的交换请求" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapConfirmed, "交换操作已确认" },
+            { LeagueRuntimeCompanionUiTextKeys.SwapUnverified, "交换未确认，请查看客户端" },
             { LeagueRuntimeCompanionUiTextKeys.RerollShort, "重掷" },
             { LeagueRuntimeCompanionUiTextKeys.RerollSuccess, "已重掷英雄" },
             { LeagueRuntimeCompanionUiTextKeys.RerollUnverified, "重掷未确认，请查看客户端" },
@@ -161,6 +181,20 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.WebApplyRejected, "未成功应用：请确认符文页或英雄状态" },
             { LeagueRuntimeCompanionUiTextKeys.WebApplyFailed, "应用失败或选人状态已变化" }
         };
+
+        internal static string SwapKindKey(LeagueDraftSwapKind kind)
+        {
+            return kind == LeagueDraftSwapKind.Champion ? LeagueRuntimeCompanionUiTextKeys.SwapChampion :
+                kind == LeagueDraftSwapKind.Position ? LeagueRuntimeCompanionUiTextKeys.SwapPosition :
+                LeagueRuntimeCompanionUiTextKeys.SwapPickOrder;
+        }
+
+        internal static string SwapActionKey(LeagueDraftSwapAction action)
+        {
+            return action == LeagueDraftSwapAction.Accept ? LeagueRuntimeCompanionUiTextKeys.SwapAccept :
+                action == LeagueDraftSwapAction.Decline ? LeagueRuntimeCompanionUiTextKeys.SwapDecline :
+                LeagueRuntimeCompanionUiTextKeys.SwapCancel;
+        }
 
         public static string Get(UiTextCatalog ui, string key)
         {

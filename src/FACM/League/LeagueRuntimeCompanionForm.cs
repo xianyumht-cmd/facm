@@ -391,7 +391,7 @@ namespace FACM.League
             _allyTeam = CreateRecommendationSection(
                 "ally-team",
                 CompanionText(LeagueRuntimeCompanionUiTextKeys.AllyTeam),
-                null);
+                CompanionText(LeagueRuntimeCompanionUiTextKeys.SwapMenu));
             _enemyTeam = CreateRecommendationSection(
                 "enemy-team",
                 CompanionText(LeagueRuntimeCompanionUiTextKeys.EnemyTeam),
@@ -400,6 +400,7 @@ namespace FACM.League
             _runes.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.Runes, _runes); };
             _spells.Action.Click += async delegate { await ApplyLoadoutAsync(LeagueRuntimeCompanionApplyTarget.SummonerSpells, _spells); };
             _core.Action.Click += async delegate { await ImportItemSetAsync(); };
+            _allyTeam.Action.Click += async delegate { await ShowDraftSwapsAsync(); };
 
             _sections.Controls.Add(_recentUse.Host);
             foreach (var section in RecommendationSections()) _sections.Controls.Add(section.Host);
@@ -819,6 +820,65 @@ namespace FACM.League
             RenderDraftTeamSection(_allyTeam, snapshot.Players, "ally", snapshot.AllyBans == null ? 0 : snapshot.AllyBans.Count, true, fingerprint);
             RenderDraftTeamSection(_enemyTeam, snapshot.Players, "enemy", snapshot.EnemyBans == null ? 0 : snapshot.EnemyBans.Count, false, fingerprint);
             HideNativeBodyScrollBars();
+        }
+
+        private async Task ShowDraftSwapsAsync()
+        {
+            if (_actionBusy || IsDisposed || !_controller.SupportsDraftSwaps) return;
+            var expected = _controller.CurrentSnapshot;
+            _actionBusy = true;
+            SetActionButtonsEnabled(false);
+            LeagueDraftSwapObservation[] items = Array.Empty<LeagueDraftSwapObservation>();
+            try { items = await _controller.ReadDraftSwapsAsync(expected, _lifetime.Token); }
+            catch (OperationCanceledException) { return; }
+            catch (Exception exception) { AppLog.Info("Runtime Companion swap list failed: " + exception.GetType().Name); }
+            finally
+            {
+                _actionBusy = false;
+                if (!IsDisposed) SetActionButtonsEnabled(true);
+            }
+            if (IsDisposed || !_controller.CurrentSnapshot.SessionAvailable) return;
+            if (items.Length == 0)
+            {
+                SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.SwapNone), FacmDesignSystem.TextMuted);
+                return;
+            }
+            var menu = new ContextMenuStrip();
+            foreach (var item in items)
+            {
+                var group = new ToolStripMenuItem(CompanionText(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)));
+                foreach (var action in new[] { LeagueDraftSwapAction.Accept, LeagueDraftSwapAction.Decline, LeagueDraftSwapAction.Cancel })
+                {
+                    if (!item.Allows(action)) continue;
+                    var choice = new ToolStripMenuItem(CompanionText(LeagueRuntimeCompanionText.SwapActionKey(action)));
+                    choice.Click += async delegate { await HandleDraftSwapAsync(expected, item, action); };
+                    group.DropDownItems.Add(choice);
+                }
+                menu.Items.Add(group);
+            }
+            menu.Closed += delegate { menu.Dispose(); };
+            menu.Show(_allyTeam.Action, new Point(0, _allyTeam.Action.Height));
+        }
+
+        private async Task HandleDraftSwapAsync(LeagueRuntimeCompanionSnapshot expected, LeagueDraftSwapObservation item, LeagueDraftSwapAction action)
+        {
+            if (_actionBusy || IsDisposed) return;
+            _actionBusy = true;
+            SetActionButtonsEnabled(false);
+            try
+            {
+                var result = await _controller.TryHandleDraftSwapAsync(expected, item, action, _lifetime.Token);
+                if (!IsDisposed) SetStatus(CompanionText(result.Success ? LeagueRuntimeCompanionUiTextKeys.SwapConfirmed :
+                    LeagueRuntimeCompanionUiTextKeys.SwapUnverified), result.Success ? FacmDesignSystem.Success : FacmDesignSystem.Warning);
+                await _controller.RefreshAsync(_lifetime.Token);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                AppLog.Info("Runtime Companion swap action failed: " + exception.GetType().Name);
+                if (!IsDisposed) SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.SwapUnverified), FacmDesignSystem.Warning);
+            }
+            finally { _actionBusy = false; if (!IsDisposed) SetActionButtonsEnabled(true); }
         }
 
         private static string BuildDraftFingerprint(LeagueRuntimeCompanionSnapshot snapshot)
@@ -1328,6 +1388,8 @@ namespace FACM.League
                 _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.CanQuit;
             if (_muteButton != null)
                 _muteButton.Enabled = enabled && _controller.SupportsChampSelectMute && _controller.CurrentSnapshot.SessionAvailable;
+            if (_allyTeam.Action != null)
+                _allyTeam.Action.Enabled = enabled && _controller.SupportsDraftSwaps && _controller.CurrentSnapshot.SessionAvailable;
             if (_runes.Action != null)
                 _runes.Action.Enabled = enabled && _controller.CurrentSnapshot.AllowsRunes && _controller.SupportsBuildApply && _runes.Host.Visible;
             if (_spells.Action != null)

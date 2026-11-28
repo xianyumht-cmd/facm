@@ -52,6 +52,10 @@ namespace FACM.League
         private readonly ILeagueChampSelectActionWriteApi _actionWriter;
         private LeagueBenchQuickPickState _latest;
         private LeagueBenchQuickPickState _lastReroll;
+        private LeagueBenchQuickPickState _lastSwapDraft;
+        private readonly System.Collections.Generic.HashSet<string> _handledSwaps =
+            new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        internal bool SupportsDraftSwaps { get { return _writer is ILeagueDraftSwapWriteApi; } }
         internal bool SupportsReroll { get { return _writer is ILeagueAramRerollWriteApi; } }
         private readonly SemaphoreSlim _swapGate = new SemaphoreSlim(1, 1);
 
@@ -169,6 +173,92 @@ namespace FACM.League
                     if (!current.SameDraft(after) || !_live.IsQuickPickClientCurrent(after)) break;
                     if (after.RerollsRemaining.HasValue && after.RerollsRemaining.Value == current.RerollsRemaining.Value - 1 &&
                         after.LocalChampionId > 0 && after.LocalChampionId != current.LocalChampionId)
+                        return Result(LeagueBenchSwapStatus.Success, after.LocalChampionId, response == null ? 0 : response.StatusCode, watch);
+                }
+                return Result(LeagueBenchSwapStatus.VerificationFailed, 0, response == null ? 0 : response.StatusCode, watch);
+            }
+            finally { watch.Stop(); _swapGate.Release(); }
+        }
+
+        private static bool CanHandleDraftSwap(LeagueBenchQuickPickState state)
+        {
+            return state != null && state.SessionAvailable && state.ClientSession != null &&
+                (state.GameId > 0 || !string.IsNullOrEmpty(state.SelectionId)) &&
+                (string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.Ordinal) ||
+                 string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal));
+        }
+
+        private void RefreshSwapFence(LeagueBenchQuickPickState state)
+        {
+            if (_lastSwapDraft == null || !_lastSwapDraft.SameDraft(state))
+            {
+                _handledSwaps.Clear();
+                _lastSwapDraft = state;
+            }
+        }
+
+        private static string SwapKey(LeagueDraftSwapObservation item)
+        {
+            return item.Kind + ":" + item.Id + ":" + item.State;
+        }
+
+        internal async Task<LeagueDraftSwapObservation[]> ReadDraftSwapsAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!SupportsDraftSwaps || !CanHandleDraftSwap(expected)) return Array.Empty<LeagueDraftSwapObservation>();
+                var fresh = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(fresh) || !CanHandleDraftSwap(fresh) || !_live.IsQuickPickClientCurrent(fresh))
+                    return Array.Empty<LeagueDraftSwapObservation>();
+                RefreshSwapFence(fresh);
+                var items = new System.Collections.Generic.List<LeagueDraftSwapObservation>();
+                foreach (var kind in new[] { LeagueDraftSwapKind.Champion, LeagueDraftSwapKind.Position, LeagueDraftSwapKind.PickOrder })
+                {
+                    var item = LeagueDraftSwapObservation.Parse(await _live.ReadDraftSwapAsync(kind, fresh, token).ConfigureAwait(false), kind);
+                    if (item != null && (item.CanAnswer || item.CanCancel) && !_handledSwaps.Contains(SwapKey(item)))
+                        items.Add(item);
+                }
+                return _live.IsQuickPickClientCurrent(fresh) ? items.ToArray() : Array.Empty<LeagueDraftSwapObservation>();
+            }
+            finally { _swapGate.Release(); }
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryHandleDraftSwapAsync(LeagueBenchQuickPickState expected,
+            LeagueDraftSwapObservation request, LeagueDraftSwapAction action, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                var writer = _writer as ILeagueDraftSwapWriteApi;
+                if (writer == null || !CanHandleDraftSwap(expected) || request == null || !request.Allows(action))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                var fresh = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(fresh) || !CanHandleDraftSwap(fresh) ||
+                    fresh.LocalChampionId != expected.LocalChampionId || !_live.IsQuickPickClientCurrent(fresh))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                RefreshSwapFence(fresh);
+                var key = SwapKey(request);
+                if (_handledSwaps.Contains(key)) return Result(LeagueBenchSwapStatus.VerificationFailed, 0, 0, watch);
+                var current = LeagueDraftSwapObservation.Parse(
+                    await _live.ReadDraftSwapAsync(request.Kind, fresh, token).ConfigureAwait(false), request.Kind);
+                if (!request.SameRequest(current) || !current.Allows(action) || !_live.IsQuickPickClientCurrent(fresh))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                _handledSwaps.Add(key);
+                var response = await writer.TryHandleSwapAsync(current.Kind, current.Id, action,
+                    fresh.ClientSession, token).ConfigureAwait(false);
+                if (response != null && !response.IsSuccessStatusCode && response.StatusCode < 500)
+                    return Result(LeagueBenchSwapStatus.WriteRejected, 0, response.StatusCode, watch);
+                for (var i = 0; i < 3; i++)
+                {
+                    await Task.Delay(60 * (i + 1), token).ConfigureAwait(false);
+                    var after = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                    if (!fresh.SameDraft(after) || !_live.IsQuickPickClientCurrent(after)) break;
+                    var bytes = await _live.ReadDraftSwapAsync(current.Kind, after, token).ConfigureAwait(false);
+                    if (LeagueDraftSwapObservation.Confirms(bytes, current.Kind, current.Id, action) &&
+                        (action != LeagueDraftSwapAction.Accept || current.Kind != LeagueDraftSwapKind.Champion ||
+                         current.RequestedChampionId > 0 && after.LocalChampionId == current.RequestedChampionId))
                         return Result(LeagueBenchSwapStatus.Success, after.LocalChampionId, response == null ? 0 : response.StatusCode, watch);
                 }
                 return Result(LeagueBenchSwapStatus.VerificationFailed, 0, response == null ? 0 : response.StatusCode, watch);

@@ -154,7 +154,7 @@ html,body{font-size:12.6px;line-height:1.5}
 <div id="augmentFilters"><button data-filter="all" class="active">全部</button><button data-filter="prism">棱彩</button><button data-filter="gold">黄金</button><button data-filter="silver">白银</button></div>
 <input id="augmentSearch" type="search" placeholder="搜索强化" aria-label="搜索强化" autocomplete="off" style="width:100%;box-sizing:border-box;margin:3px 0 5px;padding:5px 8px;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:6px"><div id="emptyGuide">等待强化数据…</div><div id="augments"></div><button id="augmentMore" hidden>更多</button>
 </section>
-<section class="section" id="teamSection" hidden><div id="teams" class="sub muted">等待队友数据…</div></section>
+<section class="section" id="teamSection" hidden><button id="draftSwaps" disabled></button><div id="swapRequests" class="sub"></div><div id="teams" class="sub muted">等待队友数据…</div></section>
 <section class="section" id="detailSection" hidden>
 <div id="champHint" class="muted sub"></div><div id="recent"></div><div id="source"></div><div id="guideInfo"></div>
 <div id="message" class="muted sub"></div>
@@ -215,6 +215,7 @@ $('spells').onclick=()=>send('apply:spells');
 $('items').onclick=()=>send('apply:items');
 $('quit').onclick=()=>send('quit:yes');
 $('mute').onclick=()=>send('mute:all');
+$('draftSwaps').onclick=()=>{if(snapshot&&snapshot.canDraftSwap&&!snapshot.busy){$('swapRequests').replaceChildren();send('draft-swaps:read')}};
 $('reroll').onclick=()=>{if(snapshot&&snapshot.canReroll&&!snapshot.busy)send('reroll:'+(Number(snapshot.choiceRevision)||0))};
 $('augmentFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{
  filter=b.dataset.filter;augmentLimit=20;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
@@ -347,6 +348,11 @@ $('guideInfo').textContent=g?[
 $('emptyGuide').textContent=snapshot.guideLoading?'加载中…':nice(snapshot.guideError,'暂无强化数据');
 $('emptyGuide').style.display=g&&Array.isArray(g.augments)&&g.augments.length?'none':'block';
 renderAugments();
+$('draftSwaps').textContent=snapshot.swapLabel||'';
+$('draftSwaps').disabled=!snapshot.canDraftSwap||!!snapshot.busy;
+const swapHost=$('swapRequests');
+if(!snapshot.canDraftSwap||swapHost.dataset.choiceRevision!==String(snapshot.choiceRevision))swapHost.replaceChildren();
+for(const button of swapHost.querySelectorAll('button'))button.disabled=!!snapshot.busy;
 const teams=$('teams');teams.replaceChildren();
 for(const p of snapshot.teams||[]){
 teams.appendChild(elem('div','','['+nice(p.side,'队伍')+'] '+nice(p.name,'英雄')+
@@ -373,6 +379,22 @@ else if(m.type==='skin'){
    document.documentElement.style.setProperty(pair[0],pair[1]);});
  document.documentElement.style.colorScheme=m.light?'light':'dark';
  document.documentElement.dataset.skin=m.id||'';
+}
+else if(m.type==='draft-swaps'){
+ const host=$('swapRequests');host.replaceChildren();
+ if(!snapshot||m.choiceRevision!==snapshot.choiceRevision)return;
+ host.dataset.choiceRevision=String(m.choiceRevision);
+ for(const item of m.rows||[]){
+  const row=elem('div','',item.label+' ');
+  for(const action of item.actions||[]){
+   const button=elem('button','',action.label);
+   button.disabled=!!snapshot.busy;
+   button.onclick=()=>{if(snapshot&&!snapshot.busy){host.replaceChildren();send('draft-swaps:apply:'+m.revision+':'+item.index+':'+action.value)}};
+   row.appendChild(button);
+  }
+  host.appendChild(row);
+ }
+ if(!host.childNodes.length)host.textContent=m.empty||'';
 }
 else if(m.type==='status'){showToast(m.message)}
 else if(m.type==='confirm'){confirm(nice(m.title,'确认'),nice(m.message,''),'confirm:yes')}

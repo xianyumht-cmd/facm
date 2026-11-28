@@ -494,6 +494,24 @@ namespace FACM.League
             catch (InvalidOperationException) { return false; }
         }
 
+        internal async Task<byte[]> ReadDraftSwapAsync(LeagueDraftSwapKind kind, LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            var path = LeagueBenchSwapWriteApiClient.OngoingSwapPath(kind);
+            if (string.IsNullOrEmpty(path) || expected == null || expected.ClientSession == null) return null;
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!IsQuickPickClientCurrent(expected)) return null;
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
+                    return IsQuickPickClientCurrent(expected) ? bytes : null;
+                }
+            }
+            finally { _requestGate.Release(); }
+        }
+
         internal bool IsQuickPickClientCurrent(LeagueBenchQuickPickState state)
         {
             if (state == null) return false;

@@ -107,6 +107,20 @@ namespace FACM.League
         }
 
         public bool SupportsReroll { get { return !_disposed && _bench.SupportsReroll; } }
+        public bool SupportsDraftSwaps { get { return !_disposed && _bench.SupportsDraftSwaps; } }
+
+        public Task<LeagueDraftSwapObservation[]> ReadDraftSwapsAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.ReadDraftSwapsAsync(expected == null ? null : expected.QuickPickState, token);
+        }
+
+        public Task<LeagueBenchSwapResult> TryHandleDraftSwapAsync(LeagueRuntimeCompanionSnapshot expected,
+            LeagueDraftSwapObservation request, LeagueDraftSwapAction action, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.TryHandleDraftSwapAsync(expected == null ? null : expected.QuickPickState, request, action, token);
+        }
 
         public Task<LeagueBenchSwapResult> TryRerollAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
         {
