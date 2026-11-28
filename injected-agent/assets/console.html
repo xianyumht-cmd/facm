@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>GGman 控制台</title>
+<link rel="stylesheet" href="/console.css">
+</head>
+<body>
+<header>
+  <h1>GGman 控制台</h1>
+  <span id="phase" class="pill">…</span>
+  <span id="summoner" class="pill">…</span>
+  <span id="timer" class="pill warn" style="display:none"></span>
+  <span id="advice" class="pill bad" style="display:none"></span>
+  <span style="margin-left:auto;color:#5c6675;font-size:12px" id="stamp"></span>
+</header>
+
+<main>
+  <section>
+    <h2>本局情报（选人期自动抓取）</h2>
+    <table>
+      <thead><tr>
+        <th>方</th><th>位置</th><th>玩家</th><th>段位</th><th>胜率</th><th>连胜/连败</th><th>常用英雄</th>
+      </tr></thead>
+      <tbody id="intel"><tr><td colspan="7" style="color:#5c6675">进选人后自动填充</td></tr></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>快捷操作</h2>
+    <div class="actions" id="actions"></div>
+  </section>
+
+  <section>
+    <h2>状态</h2>
+    <div class="kv" id="state"></div>
+  </section>
+</main>
+
+<footer>数据来自注入到客户端的 agent（127.0.0.1 回环，不联网）。每 1.5 秒刷新。</footer>
+
+<script>
+const ACTIONS = [
+  ["立即接受对局", 0], ["给队友点赞", 1], ["结算再来一局", 2], ["重载配置", 3],
+  ["秒退（退出选人）", 4], ["标记对位为踩坑", 5], ["换上熟练度最高的 bench 英雄", 6],
+  ["邀请在线好友", 7], ["邀请最近队友", 8], ["尝试一键静音", 9]
+];
+
+function el(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+
+function renderActions() {
+  const box = document.getElementById('actions');
+  if (box.dataset.done) return;
+  box.dataset.done = "1";
+  for (const [label, id] of ACTIONS) {
+    const b = el('button', label, id === 9 ? 'danger' : '');
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const r = await fetch('/api/action?id=' + id, { method: 'POST' });
+        const j = await r.json();
+        b.textContent = label + (j.ok ? ' ✓' : ' ✗');
+        setTimeout(() => { b.textContent = label; b.disabled = false; }, 1200);
+      } catch (e) {
+        b.textContent = label + ' ✗';
+        b.disabled = false;
+      }
+    };
+    box.appendChild(b);
+  }
+}
+
+function pct(e) {
+  if (!e.games) return '-';
+  return Math.round(e.wins * 100 / e.games) + '%';
+}
+
+function render(d) {
+  document.getElementById('phase').textContent = '阶段 ' + (d.phase || '?');
+  document.getElementById('summoner').textContent =
+    (d.summoner || '?') + '  Lv.' + (d.level || 0) + '  ' + (d.rank || '');
+  const t = document.getElementById('timer');
+  if (d.cs_left >= 0) { t.style.display = ''; t.textContent = '选人剩余 ' + d.cs_left + ' 秒'; }
+  else if (d.queue_secs >= 0) {
+    t.style.display = '';
+    t.textContent = '已排队 ' + Math.floor(d.queue_secs / 60) + ':' + String(d.queue_secs % 60).padStart(2, '0');
+  } else t.style.display = 'none';
+
+  const adv = document.getElementById('advice');
+  if (d.quit_advice) { adv.style.display = ''; adv.textContent = '⚠ 建议秒退：' + d.quit_reason; }
+  else adv.style.display = 'none';
+
+  const tb = document.getElementById('intel');
+  tb.innerHTML = '';
+  if (!d.intel || !d.intel.length) {
+    const tr = el('tr'); const td = el('td', '进选人后自动填充', 'dim');
+    td.colSpan = 7; td.style.color = '#5c6675'; tr.appendChild(td); tb.appendChild(tr);
+  } else {
+    for (const e of d.intel) {
+      const tr = el('tr');
+      if (e.team === 2) tr.classList.add('enemy');
+      if (e.matchup) tr.classList.add('matchup');
+      if (e.known) tr.classList.add('known');
+      tr.appendChild(el('td', e.team === 1 ? '我方' : '敌方'));
+      tr.appendChild(el('td', e.pos || '-'));
+      const nm = el('td', e.name || '?', 'name');
+      if (e.duo) nm.appendChild(el('span', '双排' + e.duo, 'tag duo'));
+      tr.appendChild(nm);
+      tr.appendChild(el('td', e.rank || '-'));
+      const wr = el('td', pct(e) + (e.games ? ' (' + e.games + ')' : ''));
+      tr.appendChild(wr);
+      const st = e.streak || 0;
+      tr.appendChild(el('td', st > 0 ? st + '连胜' : (st < 0 ? (-st) + '连败' : '-')));
+      tr.appendChild(el('td', (e.top || []).filter(x => x).join('/') || '-'));
+      tb.appendChild(tr);
+    }
+  }
+
+  const kv = document.getElementById('state');
+  kv.innerHTML = '';
+  const items = [
+    ['上次动作', d.last_action || '-'],
+    ['选人格 / 我的位置', (d.cs_cell >= 0 ? d.cs_cell : '-') + ' / ' + (d.my_pos || '-')],
+    ['情报进度', d.intel_total + ' 人'],
+    ['踩坑名单', d.known_count + ' 条'],
+    ['agent', d.pid + ' @ ' + d.port]
+  ];
+  for (const [k, v] of items) {
+    const box = el('div');
+    box.appendChild(el('b', k));
+    box.appendChild(el('span', String(v)));
+    kv.appendChild(box);
+  }
+  document.getElementById('stamp').textContent = new Date().toLocaleTimeString();
+}
+
+async function tick() {
+  try {
+    const r = await fetch('/api/state', { cache: 'no-store' });
+    render(await r.json());
+  } catch (e) {
+    document.getElementById('phase').textContent = 'agent 未响应';
+  }
+}
+
+renderActions();
+tick();
+setInterval(tick, 1500);
+</script>
+</body>
+</html>

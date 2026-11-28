@@ -1,0 +1,21 @@
+# build output / runtime artifacts
+dll/build/
+*.dll
+*.exe
+*.pdb
+*.obj
+*.lib
+*.exp
+
+# runtime logs & captures
+*.log
+captures/
+shots/
+known_players.txt
+state.json
+
+# local config (use agent.ini.example as the template)
+dll/agent.ini
+
+# toolchain (zig cross compiler, downloaded locally)
+toolchain/
