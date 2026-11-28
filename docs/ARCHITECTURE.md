@@ -1,3 +1,7 @@
+## 2026-11-28 — Local session discovery recovery (candidate)
+
+The existing LeagueClientSessionProvider remains the single cached session owner. Resilient discovery prefers current UX arguments, then lockfiles, and checks declared live process IDs and the OS IPv4 listener table before selection. When listener enumeration is unavailable it preserves the legacy known-live-PID compatibility path with explicit unknown evidence. A failed transport identity is excluded briefly on rediscovery; no additional polling or write retry. Runtime and diagnostic export share discovery and sanitized socket classification. No external connections or credential logging.
+
 ## 2026-11-28 — Phase-scoped LCU insight and companion contracts (candidate)
 
 The existing LeagueClientModule owns LeagueInsightService; LeagueEfficiencyModule exposes a phase-fenced read to the existing Efficiency Shard adapter. The native owner shares one matchmaking search payload for queue and restriction projections, reads other groups on demand, isolates group failures, validates the current account/client session before and after a read, and publishes only summarized UI data. The adapter cancels on tab/route changes and reuses Gameflow transitions, with no new polling or Shard. The companion's two presentations reuse one C# mute owner with a roster and expected-client-session fence; quit eligibility comes from the parsed session flag and is revalidated by the owner before a supported write. These are candidate source changes, not live-client or release verification.

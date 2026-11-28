@@ -6,6 +6,8 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -259,6 +261,7 @@ namespace FACM.League
                         "League client session discovered; source=" + discovered.Source +
                         "; protocol=" + discovered.Protocol +
                         "; port=" + discovered.Port +
+                        "; pid=" + discovered.ProcessId +
                         (string.IsNullOrWhiteSpace(discovered.PlatformId) ? string.Empty : "; platform=" + discovered.PlatformId));
                 }
                 return _session;
@@ -278,8 +281,19 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_session == null || !_session.Matches(expected)) return;
-                if (_phaseTimeoutObserved) Invalidate(expected);
+                if (_phaseTimeoutObserved) ReportConnectionFailure(expected);
                 else _phaseTimeoutObserved = true;
+            }
+        }
+
+        internal void ReportConnectionFailure(LeagueClientSession expected)
+        {
+            lock (_sync)
+            {
+                if (_session == null || !_session.Matches(expected)) return;
+                var resilient = _discovery as ResilientLeagueClientSessionDiscovery;
+                if (resilient != null) resilient.ReportConnectionFailure(expected);
+                Invalidate(expected);
             }
         }
 
@@ -582,9 +596,8 @@ namespace FACM.League
                 }
                 catch (HttpRequestException exception)
                 {
-                    var web = exception.InnerException as WebException;
-                    RecordPhaseRead(watch, web == null ? "http_request_error" : "web_" + web.Status);
-                    _sessions.Invalidate(session);
+                    RecordPhaseRead(watch, DescribeConnectionFailure(exception));
+                    _sessions.ReportConnectionFailure(session);
                     return null;
                 }
                 catch (ObjectDisposedException)
@@ -598,6 +611,20 @@ namespace FACM.League
                     return null;
                 }
             }
+        }
+
+        internal static string DescribeConnectionFailure(Exception exception)
+        {
+            var outcome = "http_request_error";
+            for (var inner = exception; inner != null; inner = inner.InnerException)
+            {
+                var socket = inner as SocketException;
+                if (socket != null) return outcome + "_socket_" + socket.SocketErrorCode + "_" + socket.NativeErrorCode;
+                var web = inner as WebException;
+                if (web != null) outcome = "web_" + web.Status;
+                if (inner is AuthenticationException) outcome += "_tls_authentication";
+            }
+            return outcome;
         }
 
         private void RecordPhaseRead(Stopwatch watch, string outcome)

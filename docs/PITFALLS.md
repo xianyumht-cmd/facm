@@ -1,3 +1,7 @@
+## 2026-11-28 — Parsed lockfile is not a connected LCU
+
+A syntactically valid lockfile may describe an obsolete or unavailable endpoint. Production 3.5.90 logs repeatedly showed ConnectFailure following successful discovery; neither an unchanged port nor a past file-security event establishes the cause. The candidate prefers current UX arguments, checks live PID/listener evidence and distinguishes connection failure from HTTP rejection. Do not fix an unknown transport fault by increasing timeouts, disabling security controls, or logging credentials. Research success on another machine is not proof of repair on the affected host.
+
 ## 2026-11-28 — LCU route probing and Champion Select exit
 
 Two 404s mean opposite things. `RESOURCE_NOT_FOUND / Invalid URI format` means the route is not

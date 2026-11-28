@@ -219,7 +219,7 @@ namespace FACM.Services
                 builder.Append("UserProxySettings=unavailable_").AppendLine(exception.GetType().Name);
             }
             builder.AppendLine("LCUProbeTransport=direct_loopback");
-            builder.AppendLine("LCUProbeDiscovery=process_lockfile_only");
+            builder.AppendLine("LCUProbeDiscovery=validated_runtime_candidates");
             var watch = Stopwatch.StartNew();
             try { CaptureLcuHealthAsync(builder).GetAwaiter().GetResult(); }
             finally { builder.Append("LCUProbeElapsedMs=").AppendLine(watch.ElapsedMilliseconds.ToString(CultureInfo.InvariantCulture)); }
@@ -241,13 +241,17 @@ namespace FACM.Services
                     return;
                 }
 
-                // This export probe is narrower than runtime discovery: no WMI or external request.
-                var session = new ProcessLockfileLeagueClientSessionDiscovery().TryDiscover();
+                var discovery = new ResilientLeagueClientSessionDiscovery();
+                var session = discovery.TryDiscover();
+                builder.Append("LCUProbeCandidateEvidence=").AppendLine(discovery.LastEvidence);
                 if (session == null)
                 {
-                    builder.AppendLine("LCUProbe=lockfile_not_resolved");
+                    builder.AppendLine("LCUProbe=no_valid_candidate");
                     return;
                 }
+                builder.Append("LCUProbeSource=").AppendLine(session.Source);
+                builder.Append("LCUProbePort=").AppendLine(session.Port.ToString(CultureInfo.InvariantCulture));
+                builder.Append("LCUProbePid=").AppendLine(session.ProcessId.ToString(CultureInfo.InvariantCulture));
                 using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
                 using (var pool = new LeagueSessionHttpClientPool(TimeSpan.FromMilliseconds(2500)))
                 using (var lease = pool.Acquire(session))
@@ -270,10 +274,7 @@ namespace FACM.Services
             catch (OperationCanceledException) { builder.AppendLine("LCUProbe=timeout"); }
             catch (HttpRequestException exception)
             {
-                builder.Append("LCUProbe=http_request_error");
-                var web = exception.InnerException as System.Net.WebException;
-                if (web != null) builder.Append("_").Append(web.Status);
-                builder.AppendLine();
+                builder.Append("LCUProbe=").AppendLine(LeagueClientApiClient.DescribeConnectionFailure(exception));
             }
             catch (Exception exception)
             {

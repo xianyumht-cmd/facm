@@ -14,6 +14,7 @@ namespace FACM.League
             ValidateLockfileParser();
             ValidateSharedLockfileRead();
             ValidateCommandLineParser();
+            ValidateDiscoveryCandidateEvidence();
             ValidateSessionRefreshBoundary();
             ValidatePhaseTimeoutRecoveryBoundary();
             using (var pool = new LeagueSessionHttpClientPool())
@@ -120,6 +121,39 @@ namespace FACM.League
                     !LeagueClientSessionParser.TryParseRiotClientCommandLine(
                     "--app-port=63001 --remoting-auth-token=lcu-only", out riot),
                 "Malformed or LCU-only parameters must not fabricate Riot authentication.");
+        }
+
+        private static void ValidateDiscoveryCandidateEvidence()
+        {
+            var live = new HashSet<int> { 42, 43 };
+            var listeners = new Dictionary<int, HashSet<int>>
+            {
+                { 51001, new HashSet<int> { 42 } },
+                { 51002, new HashSet<int> { 99 } }
+            };
+            var active = new LeagueClientSession("LeagueClientUx", 43, 51001, "fixture", "https", "command-line");
+            var stale = new LeagueClientSession("LeagueClient", 44, 51001, "fixture", "https", "lockfile");
+            var wrongOwner = new LeagueClientSession("LeagueClient", 42, 51002, "fixture", "https", "lockfile");
+            var noListener = new LeagueClientSession("LeagueClient", 42, 51003, "fixture", "https", "lockfile");
+            var invalidPid = new LeagueClientSession("LeagueClient", 0, 51001, "fixture", "https", "lockfile");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(active, live, listeners) == "listener_owned",
+                "Active LCU listener rejected.");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(stale, live, listeners) == "stale_pid",
+                "Stale lockfile PID accepted.");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(wrongOwner, live, listeners) == "listener_owner_mismatch",
+                "Unrelated listener accepted.");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(noListener, live, listeners) == "not_listening",
+                "Missing listener accepted.");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(invalidPid, live, listeners) == "invalid_lockfile_pid",
+                "Invalid lockfile PID accepted.");
+            Require(ResilientLeagueClientSessionDiscovery.CandidateStatus(active, live, null) == "listener_unknown",
+                "Unavailable listener enumeration was not distinguished.");
+            var exception = new System.Net.Http.HttpRequestException("fixture",
+                new System.Net.WebException("fixture",
+                    new System.Net.Sockets.SocketException(10061), System.Net.WebExceptionStatus.ConnectFailure, null));
+            var outcome = LeagueClientApiClient.DescribeConnectionFailure(exception);
+            Require(outcome.Contains("ConnectFailure") && outcome.Contains("10061") && !outcome.Contains("fixture"),
+                "LCU diagnostic did not preserve sanitized socket evidence.");
         }
 
         private static void ValidateSessionRefreshBoundary()
