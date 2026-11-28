@@ -16,13 +16,16 @@ namespace FACM.League
         public int Succeeded { get; set; }
         public int Failed { get; set; }
         public bool NotInChampSelect { get; set; }
+        public bool StateUnavailable { get; set; }
+        public int AlreadyMuted { get; set; }
 
         public string Summary
         {
             get
             {
                 if (NotInChampSelect) return "不在选人阶段";
-                if (Requested == 0) return "没有需要静音的玩家";
+                if (StateUnavailable) return "静音状态不可用" + (Succeeded > 0 ? "，已确认静音 " + Succeeded + " 人" : "");
+                if (Requested == 0) return AlreadyMuted > 0 ? "玩家已静音" : "没有需要静音的玩家";
                 return Failed == 0
                     ? "已静音 " + Succeeded + " 人"
                     : "静音 " + Succeeded + "/" + Requested + "，失败 " + Failed;
@@ -119,6 +122,7 @@ namespace FACM.League
     {
         internal const string SessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
         internal const string MutedPlayersPath = "/lol-champ-select/v1/muted-players";
+        internal const string PhasePath = "/lol-gameflow/v1/gameflow-phase";
 
         private readonly ILeagueClientApi _reader;
         private readonly ILeagueChampSelectMuteWriteApi _writer;
@@ -135,35 +139,59 @@ namespace FACM.League
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var sessionBytes = await _reader.TryGetBytesAsync(SessionPath, cancellationToken).ConfigureAwait(false);
-                var session = Parse(sessionBytes);
-                if (session == null) return new LeagueChampSelectMuteResult { NotInChampSelect = true };
-
-                var selfCell = ReadInt(session, "localPlayerCellId");
-                var targets = CollectIdentities(session, selfCell);
-                if (targets.Count == 0) return new LeagueChampSelectMuteResult();
-
                 var result = new LeagueChampSelectMuteResult();
-                foreach (var identity in targets)
+                var session = await ReadActiveSessionAsync(cancellationToken).ConfigureAwait(false);
+                if (session == null) { result.NotInChampSelect = true; return result; }
+                var selfCell = ReadId(session, "localPlayerCellId");
+                if (selfCell == null || selfCell < 0) { result.StateUnavailable = true; return result; }
+                var targets = CollectIdentities(session, selfCell.Value);
+                if (targets == null) { result.StateUnavailable = true; return result; }
+                if (targets.Count == 0) return result;
+                var roster = RosterKey(session);
+                if (roster == null) { result.StateUnavailable = true; return result; }
+
+                foreach (var target in targets)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var current = await ReadActiveSessionAsync(cancellationToken).ConfigureAwait(false);
+                    if (current == null || !string.Equals(roster, RosterKey(current), StringComparison.Ordinal))
+                    { result.StateUnavailable = true; break; }
+
+                    var muted = ReadMutedIdentities(await _reader.TryGetBytesAsync(
+                        MutedPlayersPath, cancellationToken).ConfigureAwait(false));
+                    if (muted == null) { result.StateUnavailable = true; break; }
+                    if (muted.Contains(target)) { result.AlreadyMuted++; continue; }
+
                     result.Requested++;
-                    var response = await _writer.TryToggleAsync(identity, cancellationToken).ConfigureAwait(false);
-                    if (response != null && response.IsSuccessStatusCode) result.Succeeded++;
-                    else result.Failed++;
+                    var response = await _writer.TryToggleAsync(target, cancellationToken).ConfigureAwait(false);
+                    var settled = ReadMutedIdentities(await _reader.TryGetBytesAsync(
+                        MutedPlayersPath, cancellationToken).ConfigureAwait(false));
+                    if (response != null && response.IsSuccessStatusCode && settled != null && settled.Contains(target))
+                        result.Succeeded++;
+                    else
+                    {
+                        result.Failed++;
+                        // A toggle with an uncertain outcome must not be retried.
+                        if (response == null || settled == null) { result.StateUnavailable = true; break; }
+                    }
                 }
 
                 AppLog.Info("Champ select mute-all: requested=" + result.Requested +
-                            "; ok=" + result.Succeeded + "; failed=" + result.Failed);
+                            "; already=" + result.AlreadyMuted + "; ok=" + result.Succeeded + "; failed=" + result.Failed);
                 return result;
             }
-            finally
-            {
-                _gate.Release();
-            }
+            finally { _gate.Release(); }
         }
 
-        /// 客户端自己发的 body 是四元组，不是 cellId。
-        private static List<string> CollectIdentities(Dictionary<string, object> session, int selfCell)
+        private async Task<Dictionary<string, object>> ReadActiveSessionAsync(CancellationToken token)
+        {
+            var phase = await _reader.TryGetBytesAsync(PhasePath, token).ConfigureAwait(false);
+            if (phase == null || !string.Equals(Encoding.UTF8.GetString(phase).Trim().Trim('"'),
+                    "ChampSelect", StringComparison.OrdinalIgnoreCase)) return null;
+            return Parse(await _reader.TryGetBytesAsync(SessionPath, token).ConfigureAwait(false));
+        }
+
+        private static List<string> CollectIdentities(Dictionary<string, object> session, long selfCell)
         {
             var list = new List<string>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -171,27 +199,80 @@ namespace FACM.League
             {
                 object raw;
                 var members = session.TryGetValue(key, out raw) ? raw as object[] : null;
-                if (members == null) continue;
+                if (members == null) return null;
                 foreach (var item in members)
                 {
                     var member = item as Dictionary<string, object>;
-                    if (member == null) continue;
-                    var cellId = ReadInt(member, "cellId");
-                    if (cellId == selfCell) continue;
-
-                    var summonerId = ReadInt(member, "summonerId");
-                    var puuid = ReadString(member, "puuid") ?? string.Empty;
-                    var obfuscatedSummonerId = ReadInt(member, "obfuscatedSummonerId");
-                    var obfuscatedPuuid = ReadString(member, "obfuscatedPuuid") ?? string.Empty;
-
-                    var identity = "{\"summonerId\":" + summonerId +
-                                   ",\"puuid\":\"" + puuid.Replace("\"", string.Empty) +
-                                   "\",\"obfuscatedSummonerId\":" + obfuscatedSummonerId +
-                                   ",\"obfuscatedPuuid\":\"" + obfuscatedPuuid.Replace("\"", string.Empty) + "\"}";
-                    if (seen.Add(identity)) list.Add(identity);
+                    var cellId = ReadId(member, "cellId");
+                    if (cellId == null || cellId < 0 || cellId == selfCell) continue;
+                    var identity = IdentityKey(member);
+                    if (identity != null && seen.Add(identity)) list.Add(identity);
                 }
             }
             return list;
+        }
+
+        private static string RosterKey(Dictionary<string, object> session)
+        {
+            var selfCell = ReadId(session, "localPlayerCellId");
+            if (selfCell == null || selfCell < 0) return null;
+            var entries = CollectIdentities(session, selfCell.Value);
+            if (entries == null) return null;
+            entries.Sort(StringComparer.Ordinal);
+            return new JavaScriptSerializer().Serialize(new object[]
+            {
+                ReadString(session, "gameId"), selfCell.Value, entries
+            });
+        }
+
+        private static string IdentityKey(Dictionary<string, object> value)
+        {
+            var summoner = ReadId(value, "summonerId");
+            var obfuscated = ReadId(value, "obfuscatedSummonerId");
+            var puuid = ReadString(value, "puuid");
+            var obfuscatedPuuid = ReadString(value, "obfuscatedPuuid");
+            if (summoner == null || obfuscated == null || summoner < 0 || obfuscated < 0 ||
+                puuid == null || obfuscatedPuuid == null) return null;
+            if (summoner == 0 && obfuscated == 0 && !IsMeaningfulIdentity(puuid) &&
+                !IsMeaningfulIdentity(obfuscatedPuuid)) return null;
+            return new JavaScriptSerializer().Serialize(new
+            {
+                summonerId = summoner.Value, puuid = puuid,
+                obfuscatedSummonerId = obfuscated.Value, obfuscatedPuuid = obfuscatedPuuid
+            });
+        }
+
+        private static bool IsMeaningfulIdentity(string value)
+        {
+            return !string.IsNullOrWhiteSpace(value) &&
+                   !string.Equals(value, "00000000-0000-0000-0000-000000000000", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static HashSet<string> ReadMutedIdentities(byte[] bytes)
+        {
+            var items = ParseObject(bytes) as object[];
+            if (items == null) return null;
+            var result = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in items)
+            {
+                var identity = IdentityKey(item as Dictionary<string, object>);
+                if (identity == null) return null;
+                result.Add(identity);
+            }
+            return result;
+        }
+
+        private static object ParseObject(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return null;
+            try { return new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)); }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        private static Dictionary<string, object> Parse(byte[] bytes)
+        {
+            return ParseObject(bytes) as Dictionary<string, object>;
         }
 
         private static string ReadString(Dictionary<string, object> value, string key)
@@ -201,49 +282,11 @@ namespace FACM.League
                 ? Convert.ToString(entry, System.Globalization.CultureInfo.InvariantCulture) : null;
         }
 
-        private static List<int> ReadMutedCells(byte[] bytes)
+        private static long? ReadId(Dictionary<string, object> value, string key)
         {
-            var cells = new List<int>();
-            if (bytes == null || bytes.Length == 0) return cells;
-            object raw;
-            try
-            {
-                raw = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes));
-            }
-            catch (ArgumentException) { return cells; }
-            catch (InvalidOperationException) { return cells; }
-
-            var items = raw as object[];
-            if (items == null) return cells;
-            foreach (var item in items)
-            {
-                var entry = item as Dictionary<string, object>;
-                if (entry == null) continue;
-                var cellId = ReadInt(entry, "cellId");
-                if (cellId >= 0) cells.Add(cellId);
-            }
-            return cells;
-        }
-
-        private static Dictionary<string, object> Parse(byte[] bytes)
-        {
-            if (bytes == null || bytes.Length == 0) return null;
-            try
-            {
-                return new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes))
-                    as Dictionary<string, object>;
-            }
-            catch (ArgumentException) { return null; }
-            catch (InvalidOperationException) { return null; }
-        }
-
-        private static int ReadInt(Dictionary<string, object> value, string key)
-        {
-            object entry;
-            if (value == null || !value.TryGetValue(key, out entry) || entry == null) return -1;
-            int parsed;
-            return int.TryParse(Convert.ToString(entry, System.Globalization.CultureInfo.InvariantCulture),
-                out parsed) ? parsed : -1;
+            long parsed;
+            return long.TryParse(ReadString(value, key), System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture, out parsed) ? (long?)parsed : null;
         }
     }
 }
