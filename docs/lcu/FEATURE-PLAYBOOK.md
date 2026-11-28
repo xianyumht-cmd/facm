@@ -130,6 +130,42 @@ POST /lol-lobby/v2/party/{partyId}/join
 POST /lol-lobby/v2/play-again
 ```
 
+### 2.6 踢人 / 转让队长（源码里就是两个动作名）
+
+```http
+POST /lol-lobby/v2/lobby/members/{summonerId}/kick       // removePlayerFromParty
+POST /lol-lobby/v2/lobby/members/{summonerId}/promote    // transferLeadershipToPlayer
+```
+
+- 两者都走同一个私有方法 `_postMemberAction(e, t)`，`t` 就是 `"kick"` / `"promote"`；
+- 另有 `_postMemberAction` 的同族调用 `sendInvitePrivilegeAction(e, t)`，用于开关成员的邀请权限。
+
+### 2.7 邀请（三套 body）
+
+```http
+POST /lol-lobby/v2/lobby/invitations                     [{"toSummonerId":123}]
+POST /lol-lobby/v2/lobby/invitationsWithContext          [{"puuid":"...","inviteContext":"..."}]
+POST /lol-lobby/v2/received-invitations/{id}/decline
+```
+
+### 2.8 位置偏好 / 观战位
+
+```http
+PUT  /lol-lobby/v1/lobby/members/localMember/position-preferences   <偏好对象>
+POST /lol-lobby/v2/lobby/team/SPECTATOR
+```
+
+### 2.9 自定义房间加人机
+
+```http
+POST /lol-lobby/v1/lobby/custom/bots
+{"botDifficulty":"NONE|EASY|MEDIUM|HARD","championId":123,"teamId":"100|200","position":<pos>,"botUuid":"<uuid>"}
+
+POST /lol-lobby/v1/lobby/custom/bots/{botId}/{botUuid}     // 改已有 bot，body 同上
+```
+
+`botUuid` 由客户端生成（源码里是 `c.v1()`），改 bot 时路径要带原来的两个 id。
+
 ---
 
 ## 三、社交
@@ -231,19 +267,35 @@ Content-Type: application/json
 
 下单后轮询 `/lol-shoppefront/v1/purchases/{token}` 看结果。源码里就是这么写的（12 秒超时）。
 
-### 5.2 战利品
+### 5.2 战利品（合成 / 批量 / 领取，全部来自 loot 插件源码）
 
+```http
+POST   /lol-loot/v1/recipes/{recipeName}/craft?repeat={n}   <craftBody>
+POST   /lol-loot/v1/craft/mass                              <massBody>
+POST   /lol-loot/v1/player-loot/{lootId}/redeem
+POST   /lol-loot/v1/milestones/{milestoneId}/claim
+POST   /lol-loot/v1/refresh
+DELETE /lol-loot/v1/player-loot/{lootId}/new-notification
+GET    /lol-loot/v1/player-loot                              // 实测 200
 ```
-GET  /lol-loot/v1/player-loot                  // 实测 200
-POST /lol-loot/v1/refresh
-POST /lol-loot/v1/player-loot-notifications/{id}/acknowledge
-DELETE /lol-loot/v1/loot-grants/{id}
+
+- `craft` 的 `repeat` 是查询参数，表示一次合成多少次；
+- 三个 body（`craftBody` / `massBody` / 里程碑）客户端是从 UI 状态里拼出来的，
+  实施时要按配方先 `GET /lol-loot/v1/recipes/{recipe}` 拿 `slots`，再填 `lootIds`；
+- 官方等价操作：战利品页面逐个点，批量要开"批量合成"面板。
+
+### 5.3 任务奖励领取（在 `rcp-fe-lol-objectives` 里，不在 missions 插件）
+
+```http
+PUT /lol-missions/v1/player/{missionId}    {"rewardGroups":["<group>"]}
+PUT /lol-missions/v1/player                 {"missionIds":[...],"seriesIds":[]}
 ```
 
-合成配方端点（`/lol-loot/v1/recipes/{recipe}/craft`）在本轮解包的插件里没出现，
-需要再解 `rcp-fe-lol-loot` 的交互组件确认；不要凭猜实现。
+- 第一条是领取某个已完成任务的奖励；
+- 第二条是"选择要做的任务系列"；
+- 官方等价操作：任务页逐个点"领取"。
 
-### 5.3 奖励批量选择
+### 5.4 奖励批量选择
 
 ```http
 POST /lol-rewards/v1/select-bulk
