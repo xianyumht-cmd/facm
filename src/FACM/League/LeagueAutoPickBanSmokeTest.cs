@@ -677,8 +677,8 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.Calls.Count == 1 && writer.Calls[0] == "pick:12:67:True" &&
-                    reader.Paths.Count(p => p == LeagueLiveDataService.GameflowSessionPath) == 2,
-                    "Real Gameflow context must drive ranked profiles and be revalidated before writing.");
+                    reader.Paths.Count(p => p == LeagueLiveDataService.GameflowSessionPath) == 3,
+                    "Real Gameflow context must drive ranked profiles, be revalidated before writing and be read back once.");
             }
             foreach (var flow in new[] { Flow("NORMAL", true), "{}", Flow("RANKED_SOLO_5x5").Replace("ChampSelect", "Lobby") })
             {
@@ -1548,7 +1548,7 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.IntentCalls.Count == 1 && writer.IntentCalls[0] == "10:22" &&
-                        writer.Calls.Count == 0 && reader.ActionPaths.Count == 4,
+                        writer.Calls.Count == 0 && reader.ActionPaths.Count == 5,
                     "Pick intent must respect teammates and issue only an intent payload, not a lock.");
             }
 

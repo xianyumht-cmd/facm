@@ -1,3 +1,7 @@
+## 2026-11-28 — Scoped draft action and manual ARAM reroll (candidate)
+
+The existing selection owner uses the documented combined champion/completed PATCH, pins automatic writes to the observed client session, and reads the original action after accepted/ambiguous writes. Explicit 5xx may retry once after normal preflight; other outcomes consume the episode stage. Existing stage timing and manual preference precedence remain. Reroll shares the bench service gate and existing snapshot/UI owner rather than adding a poller; positive count, explicit enabled flag, ARAM finalization and current draft are required. Success requires a one-count decrease and changed local champion. Native and Glass actions use the same transaction. Missing eligibility leaves reroll unavailable.
+
 ## 2026-11-28 — Postgame phase transition and draft intent (candidate)
 
 Postgame controller waits for real phase before write, adds one researched skip route, guards unresolved honor and mission sequence, and submits play-again once in EndOfGame. The same controller observes Lobby or records bounded unverified outcome; HTTP success alone is insufficient. Transport acquires the expected episode session via a scoped overload. No new timer or worker beyond existing cycle; phase checks are bounded on-demand. Existing draft selection owner now applies teammate-intent filtering to ban candidates and revalidates immediately before writing, honoring the existing explicit override preference.

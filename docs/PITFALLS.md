@@ -1,3 +1,7 @@
+## 2026-11-28 — Draft readback and reroll evidence
+
+An accepted combined PATCH is not a confirmed action. Read the original action even after completion, with the same local cell/context; keep request-count tests aligned with the new bounded readback. Unknown writes must not consume another automatic request or reroll. The plugin-derived rerollsDisabled may be UI-computed; do not infer that an absent raw field means enabled. Actual ARAM support still requires live evidence.
+
 ## 2026-11-28 — HLMD evidence distinctions and postgame/presence defects
 
 A positive ballot game ID is not proof that vote count and eligible candidates are ready. A decreased vote count does not identify the recipient; another game's choice data is not confirmation. An unknown transport outcome must not trigger blind resubmission. The HLMD schema export lists type names only; exact route spelling in plugin/event evidence outranks inferred function-name paths, and different mock versus production payloads need real confirmation. Connected LCU does not establish that the game executable is absent: the historical phase service skipped process observation whenever connected. Presence enablement must not depend solely on a successful chat event handshake; fence asynchronous writes to the current session, avoid steady polling and preserve unrelated fields. Candidate changes are not physical runtime evidence.
