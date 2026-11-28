@@ -24,7 +24,7 @@ namespace FACM.League
             GgmanPortableSettingsStore.Validate(new GgmanPortableSettingsProfile { Settings = cloud });
             ValidateDirectEvents();
 
-            var api = new Presence();
+            var api = new Presence { Availability = "chat" };
             using (var controller = NewController(api))
             {
                 Observe(controller, true);
@@ -32,95 +32,80 @@ namespace FACM.League
                     "Disabled offline lock must not make LCU requests.");
                 controller.Configure(true);
                 Observe(controller, true);
-                Require(api.Reads == 1 && api.Writes == 0,
-                    "First offline observation must establish a baseline only.");
-                api.Availability = "chat";
+                Require(api.Writes == 1 && api.Availability == "offline",
+                    "Enablement must correct an initially online session.");
                 Observe(controller, true);
-                Require(api.Writes == 1 && api.Availability == "offline" && api.Reads == 6,
-                    "Offline->chat transition should generate one verified correction.");
+                Require(api.Writes == 1, "Stable offline state must not repeatedly write.");
+                api.Availability = "dnd";
                 Observe(controller, true);
-                Require(api.Writes == 1 && api.Reads == 7,
-                    "Stable offline availability must not repeatedly write.");
-                api.Availability = "away";
+                Require(api.Writes == 2 && api.Availability == "offline", "DND was not corrected.");
+                Observe(controller, false);
+                api.Availability = "mobile";
                 Observe(controller, true);
-                Require(api.Writes == 2 && api.Availability == "offline",
-                    "Offline->away transition should also be corrected.");
+                Require(api.Writes == 3 && api.Availability == "offline", "Reconnect must apply enabled preference.");
                 controller.Configure(false);
                 api.Availability = "chat";
                 var reads = api.Reads;
                 Observe(controller, true);
-                Require(api.Reads == reads && api.Writes == 2,
-                    "Disabling lock must immediately stop network reads and writes.");
-            }
-
-            api = new Presence { Availability = "chat" };
-            using (var controller = NewController(api))
-            {
-                controller.Configure(true);
-                Observe(controller, true);
-                api.Availability = "away";
-                Observe(controller, true);
-                Require(api.Writes == 0 && api.Availability == "away",
-                    "A session without an observed offline state must never be forcibly hidden.");
-                Observe(controller, false);
-                api.Availability = "chat";
-                Observe(controller, true);
-                Require(api.Writes == 0,
-                    "Reconnect must clear the previous connection's offline baseline.");
-            }
-
-            api = new Presence();
-            api.BeforeRead = count => { if (count == 4) api.Availability = "dnd"; };
-            using (var controller = NewController(api))
-            {
-                controller.Configure(true);
-                Observe(controller, true);
-                api.Availability = "chat";
-                Observe(controller, true);
-                Require(api.Writes == 0 && api.Availability == "dnd",
-                    "Offline lock must abandon a correction when availability changed before PUT.");
+                Require(api.Reads == reads && api.Writes == 3, "Disabled lock performed network work.");
             }
         }
 
         private static void ValidateDirectEvents()
         {
-            var api = new Presence();
-            using (var controller = NewController(api))
+            var now = new DateTime(2026, 11, 28, 0, 0, 0, DateTimeKind.Utc);
+            var api = new Presence { Availability = "chat" };
+            using (var controller = NewController(api, () => now))
             {
                 controller.Configure(true);
                 controller.ObserveConnection(new LeagueDashboardPhaseState { Connected = true });
-                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Reads == 0, "Presence event baseline must not poll LCU.");
-                api.Availability = "away";
-                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Writes == 1 && api.Availability == "offline", "Direct offline-to-away event did not correct.");
-                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Writes == 1, "Duplicate presence event rewrote status.");
-                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
-                controller.ObserveEventAsync("dnd", CancellationToken.None).GetAwaiter().GetResult();
-                api.Availability = "chat";
                 controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Writes == 1, "Intervening DND state must break the offline transition.");
-                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
-                controller.ResetEventBaseline();
+                Require(api.Writes == 1 && api.Availability == "offline", "Initial presence snapshot did not apply lock.");
                 controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Writes == 1, "Reconnected stream reused an old offline baseline.");
-                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 1, "Stale event rewrote offline status.");
                 api.Availability = "dnd";
                 controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
-                Require(api.Writes == 1, "Manual presence change must veto event correction.");
+                Require(api.Writes == 1, "Stale event changed a different current state.");
+                controller.ObserveEventAsync("dnd", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 2 && api.Availability == "offline", "DND event did not correct.");
+                api.Availability = "mobile";
+                controller.ObserveEventAsync("mobile", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 3, "Mobile event did not correct.");
+                api.Availability = "away";
+                controller.ResetEventBaseline();
+                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 3, "Event reconnect bypassed correction budget.");
+                now = now.AddSeconds(31);
+                controller.ObserveEventAsync("away", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 4 && api.Availability == "offline", "New budget window did not recover.");
+                api.Availability = "chat";
+                api.Status = 403;
+                controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 5 && api.Availability == "chat", "Rejection fixture did not run.");
+                controller.ResetEventBaseline();
+                controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
+                Require(api.Writes == 5, "Rejected write was retried on stream reconnect.");
                 controller.Configure(false);
                 var reads = api.Reads;
-                controller.ObserveEventAsync("offline", CancellationToken.None).GetAwaiter().GetResult();
                 controller.ObserveEventAsync("chat", CancellationToken.None).GetAwaiter().GetResult();
                 Require(api.Reads == reads, "Disabled event correction performed reads.");
             }
+
+            api = new Presence { Availability = "chat" };
+            api.BeforeRead = count => { if (count == 2) api.Availability = "dnd"; };
+            using (var controller = NewController(api))
+            {
+                controller.Configure(true);
+                Observe(controller, true);
+                Require(api.Writes == 0 && api.Availability == "dnd",
+                    "Changed availability between observation and write must veto correction.");
+            }
         }
 
-        private static LeagueOfflineStatusLockController NewController(Presence api)
+        private static LeagueOfflineStatusLockController NewController(Presence api, Func<DateTime> utcNow = null)
         {
             return new LeagueOfflineStatusLockController(
-                new LeaguePresenceService(api, api, TimeSpan.Zero, TimeSpan.Zero));
+                new LeaguePresenceService(api, api, TimeSpan.Zero, TimeSpan.Zero), utcNow);
         }
 
         private static void Observe(LeagueOfflineStatusLockController controller, bool connected)
@@ -139,6 +124,7 @@ namespace FACM.League
             internal string Availability = "offline";
             internal int Reads;
             internal int Writes;
+            internal int Status = 204;
             internal Action<int> BeforeRead;
 
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
@@ -163,8 +149,8 @@ namespace FACM.League
                 Require(root != null && (string)root["availability"] == "offline" &&
                     (string)root["statusMessage"] == "preserve", "Offline lock changed unrelated presence fields.");
                 Writes++;
-                Availability = (string)root["availability"];
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204, Body = Array.Empty<byte>() });
+                if (Status >= 200 && Status < 300) Availability = (string)root["availability"];
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = Status, Body = Array.Empty<byte>() });
             }
         }
     }
