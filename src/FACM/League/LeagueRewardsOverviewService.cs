@@ -14,6 +14,8 @@ namespace FACM.League
         public static readonly LeagueRewardsOverview Unavailable = new LeagueRewardsOverview { Available = false };
 
         public bool Available { get; set; }
+        public bool LootAvailable { get; set; }
+        public bool MissionsAvailable { get; set; }
         public int LootItemCount { get; set; }
         public int SkinsOwned { get; set; }
         public int MissionsCompleted { get; set; }
@@ -24,8 +26,8 @@ namespace FACM.League
             get
             {
                 if (!Available) return "奖励数据不可用";
-                return "战利品 " + LootItemCount + " 项 · 已完成任务 " + MissionsCompleted +
-                       " · 进行中 " + MissionsInProgress;
+                return (LootAvailable ? "战利品 " + LootItemCount + " 项" : "战利品未知") + " · " +
+                       (MissionsAvailable ? "已完成任务 " + MissionsCompleted + " · 进行中 " + MissionsInProgress : "任务未知");
             }
         }
     }
@@ -53,10 +55,11 @@ namespace FACM.League
             var missions = await _reader.TryGetBytesAsync(MissionsPath, cancellationToken).ConfigureAwait(false);
             if (loot == null && missions == null) return LeagueRewardsOverview.Unavailable;
 
-            var overview = new LeagueRewardsOverview { Available = true };
+            var overview = new LeagueRewardsOverview();
             var lootItems = ParseArray(loot);
             if (lootItems != null)
             {
+                overview.LootAvailable = true;
                 overview.LootItemCount = lootItems.Count;
                 foreach (var item in lootItems)
                 {
@@ -70,6 +73,7 @@ namespace FACM.League
             var missionItems = ParseArray(missions);
             if (missionItems != null)
             {
+                overview.MissionsAvailable = true;
                 foreach (var item in missionItems)
                 {
                     var entry = item as Dictionary<string, object>;
@@ -80,6 +84,7 @@ namespace FACM.League
                 }
             }
 
+            overview.Available = overview.LootAvailable || overview.MissionsAvailable;
             AppLog.Info("Rewards overview: loot=" + overview.LootItemCount +
                         "; missionsDone=" + overview.MissionsCompleted +
                         "; missionsActive=" + overview.MissionsInProgress);
@@ -91,7 +96,10 @@ namespace FACM.League
             if (bytes == null || bytes.Length == 0) return null;
             try
             {
-                return new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                var items = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (items == null) return null;
+                foreach (var item in items) if (!(item is Dictionary<string, object>)) return null;
+                return items;
             }
             catch (ArgumentException) { return null; }
             catch (InvalidOperationException) { return null; }
