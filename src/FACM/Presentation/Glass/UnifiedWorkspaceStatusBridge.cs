@@ -12,7 +12,7 @@ namespace FACM.Presentation.Glass
             {
                 if (_gameflowAdapter == null)
                     _gameflowAdapter = new UnifiedWorkspaceGameflowAdapter(
-                        delegate { return _ready && !_closing && !IsDisposed && _browser.CoreWebView2 != null; },
+                        delegate { return Visible && _ready && !_closing && !IsDisposed && _browser.CoreWebView2 != null; },
                         delegate(string json) { _browser.CoreWebView2.PostWebMessageAsJson(json); });
                 return _gameflowAdapter;
             }

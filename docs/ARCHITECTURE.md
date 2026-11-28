@@ -1,3 +1,7 @@
+## 2026-11-28 — WebView2 reuse and ownership (candidate)
+
+The desktop workspace remains a reusable hidden form; the champion-select companion remains episode-scoped. Both acquire the same per-STA environment creation task and profile, with separate window-owned controllers and existing navigation/security settings. Browser failure invalidates only the matching environment reference. Hidden workspace retains native Gameflow state without publishing background status messages, cancels route work on dismissal, and detaches cloud/profile UI observers. A visible-time startup budget avoids treating hidden render-frame readiness as failure. Direct disposal follows the same idempotent resource-release path as normal close. No persistent companion, new resident poller, or external browser dependency.
+
 ## 2026-11-28 — Local session discovery recovery (candidate)
 
 The existing LeagueClientSessionProvider remains the single cached session owner. Resilient discovery prefers current UX arguments, then lockfiles, and checks declared live process IDs and the OS IPv4 listener table before selection. When listener enumeration is unavailable it preserves the legacy known-live-PID compatibility path with explicit unknown evidence. A failed transport identity is excluded briefly on rediscovery; no additional polling or write retry. Runtime and diagnostic export share discovery and sanitized socket classification. No external connections or credential logging.

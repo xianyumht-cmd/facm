@@ -37,6 +37,9 @@ namespace FACM.Presentation.Glass
         private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2097152 };
         private bool _starting;
+        private bool _resourcesReleased;
+        private Task<CoreWebView2Environment> _environmentCreation;
+        private readonly CancellationToken _lifetimeToken;
         private bool _ready;
         private bool _documentReady;
         private bool _navigationSucceeded;
@@ -72,6 +75,7 @@ namespace FACM.Presentation.Glass
             LeaguePlayerDataService player,
             AppSettings settings)
         {
+            _lifetimeToken = _lifetime.Token;
             _controller = new LeagueRuntimeCompanionController(bench, leagueClient, advisor, apply, items, player);
             _settings = settings;
             Text = UiTextRuntime.Text(UiTextKeys.AppName);
@@ -153,14 +157,8 @@ namespace FACM.Presentation.Glass
             AppLog.Info("Runtime Companion WebView2 initialization started.");
             try
             {
-#if UNIFIED_RELEASE_CANDIDATE
-                UnifiedWebView2Bundle.PrepareNativeLoader();
-                if (!UnifiedWebView2Bundle.IsRuntimeAvailable(null))
-                    throw new InvalidOperationException("WebView2 Evergreen Runtime unavailable.");
-#endif
-                var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FACM", "UnifiedWorkspaceWebView2");
-                var environment = await CoreWebView2Environment.CreateAsync(null, data);
+                _environmentCreation = UnifiedWebView2Bundle.GetEnvironmentAsync();
+                var environment = await _environmentCreation;
                 if (IsDisposed || _unavailable) return;
                 await _web.EnsureCoreWebView2Async(environment);
                 if (IsDisposed || _unavailable || _web.CoreWebView2 == null) return;
@@ -249,6 +247,7 @@ namespace FACM.Presentation.Glass
         {
             if (_unavailable || IsDisposed) return;
             _unavailable = true;
+            UnifiedWebView2Bundle.InvalidateEnvironment(_environmentCreation);
             _startupTimer.Stop();
             _refreshTimer.Stop();
             AppLog.Info("Runtime Companion WebView2 fallback: " + reason);
@@ -424,7 +423,7 @@ namespace FACM.Presentation.Glass
                 if (!Current(generation)) return;
                 try
                 {
-                    var bytes = await _controller.LoadBenchChampionIconAsync(id, _lifetime.Token);
+                    var bytes = await _controller.LoadBenchChampionIconAsync(id, _lifetimeToken);
                     if (!Current(generation) || bytes == null || bytes.Length == 0 || bytes.Length > 2097152) continue;
                     using (var input = new MemoryStream(bytes, false))
                     using (var original = Image.FromStream(input))
@@ -464,7 +463,7 @@ namespace FACM.Presentation.Glass
                     assets.Add(new KeyValuePair<string, string>(key, reference));
             }
             if (assets.Count == 0) return;
-            try { await _assetGate.WaitAsync(_lifetime.Token); }
+            try { await _assetGate.WaitAsync(_lifetimeToken); }
             catch (OperationCanceledException) { return; }
             try
             {
@@ -473,7 +472,7 @@ namespace FACM.Presentation.Glass
                 if (!CurrentAsset(generation)) return;
                 try
                 {
-                    using (var image = await _controller.LoadGuideAssetAsync(asset.Value, _lifetime.Token))
+                    using (var image = await _controller.LoadGuideAssetAsync(asset.Value, _lifetimeToken))
                     {
                         if (!CurrentAsset(generation) || image == null) continue;
                         using (var thumb = new Bitmap(28, 28))
@@ -507,7 +506,7 @@ namespace FACM.Presentation.Glass
         {
             if (!_ready || _refreshing || IsDisposed || _unavailable || _lifetime.IsCancellationRequested) return;
             _refreshing = true;
-            try { await _controller.RefreshAsync(_lifetime.Token); }
+            try { await _controller.RefreshAsync(_lifetimeToken); }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
             catch (Exception e) { AppLog.Info("Runtime Companion HTML refresh skipped: " + e.GetType().Name); }
@@ -632,7 +631,7 @@ namespace FACM.Presentation.Glass
             Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapBusy) });
             try
             {
-                var result = await _controller.TryChooseAsync(championId, state, _lifetime.Token);
+                var result = await _controller.TryChooseAsync(championId, state, _lifetimeToken);
                 Post(new { type = "status", message = result != null && result.Success ?
                     Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapSuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebSwapRejected) });
                 await RefreshAsync();
@@ -657,7 +656,7 @@ namespace FACM.Presentation.Glass
             {
                 if (target == "items")
                 {
-                    _pendingItems = await _controller.PrepareItemSetAsync(_lifetime.Token);
+                    _pendingItems = await _controller.PrepareItemSetAsync(_lifetimeToken);
                     if (_pendingItems == null || !_pendingItems.HasItems)
                     {
                         Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetUnavailable) });
@@ -668,7 +667,7 @@ namespace FACM.Presentation.Glass
                 {
                     var kind = target == "runes" ? LeagueRuntimeCompanionApplyTarget.Runes :
                         LeagueRuntimeCompanionApplyTarget.SummonerSpells;
-                    _pendingLoadout = await _controller.PrepareApplyAsync(kind, _lifetime.Token);
+                    _pendingLoadout = await _controller.PrepareApplyAsync(kind, _lifetimeToken);
                     if (_pendingLoadout == null || !_pendingLoadout.IsUsable)
                     {
                         Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.WebApplyMissing) });
@@ -706,13 +705,13 @@ namespace FACM.Presentation.Glass
             {
                 if (loadout != null)
                 {
-                    var result = await _controller.ApplyPreparedAsync(loadout, _lifetime.Token);
+                    var result = await _controller.ApplyPreparedAsync(loadout, _lifetimeToken);
                     Post(new { type = "status", message = result != null && result.AnyApplied ?
                         Copy(LeagueRuntimeCompanionUiTextKeys.WebApplySuccess) : Copy(LeagueRuntimeCompanionUiTextKeys.WebApplyRejected) });
                 }
                 else
                 {
-                    var result = await _controller.ApplyItemSetAsync(items, _lifetime.Token);
+                    var result = await _controller.ApplyItemSetAsync(items, _lifetimeToken);
                     Post(new { type = "status", message = result != null && result.Succeeded ?
                         Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetSucceeded) : Copy(LeagueRuntimeCompanionUiTextKeys.ItemSetFailed) });
                 }
@@ -733,7 +732,7 @@ namespace FACM.Presentation.Glass
             PublishSnapshot(_controller.CurrentSnapshot);
             try
             {
-                var result = await _controller.QuitChampSelectAsync(_lifetime.Token);
+                var result = await _controller.QuitChampSelectAsync(_lifetimeToken);
                 Post(new { type = "status", message = result != null && result.Success ?
                     Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectSucceeded) : Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBlocked) });
             }
@@ -753,7 +752,7 @@ namespace FACM.Presentation.Glass
             PublishSnapshot(_controller.CurrentSnapshot);
             try
             {
-                var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
+                var result = await _controller.MuteAllChampSelectAsync(_lifetimeToken);
                 Post(new { type = "status", message = result == null ? Copy(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed) : result.Summary });
             }
             catch (OperationCanceledException) { }
@@ -765,8 +764,21 @@ namespace FACM.Presentation.Glass
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
 
-        private void HandleClosed(object sender, FormClosedEventArgs args)
+        private void HandleClosed(object sender, FormClosedEventArgs args) { ReleaseCompanionResources(); }
+
+        protected override void Dispose(bool disposing)
         {
+            if (disposing) ReleaseCompanionResources();
+            base.Dispose(disposing);
+        }
+
+        private void ReleaseCompanionResources()
+        {
+            if (_resourcesReleased) return;
+            _resourcesReleased = true;
+            _ready = false;
+            _unavailable = true;
+            _assetGeneration++;
             _startupTimer.Stop();
             _refreshTimer.Stop();
             _controller.SnapshotChanged -= HandleSnapshotChanged;
@@ -780,7 +792,7 @@ namespace FACM.Presentation.Glass
             _lifetime.Dispose();
             if (_web.CoreWebView2 != null)
             {
-                try { _web.CoreWebView2.Stop(); }
+                try { _web.CoreWebView2.WebMessageReceived -= HandleWebMessage; _web.CoreWebView2.Stop(); }
                 catch (InvalidOperationException) { }
             }
             _web.Dispose();
