@@ -34,6 +34,9 @@ namespace FACM.League
         public const string PreviousPage = "LeagueRuntimeCompanionPreviousPage";
         public const string NextPage = "LeagueRuntimeCompanionNextPage";
         public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";
+        public const string MuteChampSelectShort = "LeagueRuntimeCompanionMuteChampSelectShort";
+        public const string MuteChampSelectBusy = "LeagueRuntimeCompanionMuteChampSelectBusy";
+        public const string MuteChampSelectFailed = "LeagueRuntimeCompanionMuteChampSelectFailed";
         public const string QuitChampSelectShort = "LeagueRuntimeCompanionQuitChampSelectShort";
         public const string QuitChampSelectTooltip = "LeagueRuntimeCompanionQuitChampSelectTooltip";
         public const string QuitChampSelectBusy = "LeagueRuntimeCompanionQuitChampSelectBusy";
@@ -108,6 +111,9 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.PreviousPage, "上一页" },
             { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectShort, "静音" },
+            { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectBusy, "正在静音…" },
+            { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed, "静音失败" },
             { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectShort, "退" },
             { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectTooltip, "退出当前选人，保留大厅/队伍；游戏自身的秒退处罚仍可能生效" },
             { LeagueRuntimeCompanionUiTextKeys.QuitChampSelectBusy, "正在退出当前选人" },

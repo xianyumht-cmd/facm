@@ -231,7 +231,7 @@ namespace FACM.League
             _quitButton.ForeColor = FacmDesignSystem.Warning;
             _quitButton.Enabled = false;
             _quitButton.Click += async delegate { await QuitChampSelectAsync(); };
-            _muteButton = CreateChromeButton("静音", 148, 30);
+            _muteButton = CreateChromeButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectShort), 148, 30);
             _muteButton.ForeColor = FacmDesignSystem.TextMuted;
             _muteButton.Enabled = false;
             _muteButton.Click += async delegate { await MuteAllChampSelectAsync(); };
@@ -1121,13 +1121,13 @@ namespace FACM.League
             _actionBusy = true;
             SetActionButtonsEnabled(false);
             _contextStatus.ForeColor = FacmDesignSystem.TextMuted;
-            _contextStatus.Text = "静音全场中…";
+            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectBusy);
             try
             {
                 var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
                 var ok = result != null && !result.NotInChampSelect && !result.StateUnavailable && result.Failed == 0;
                 _contextStatus.ForeColor = ok ? FacmDesignSystem.Success : FacmDesignSystem.Warning;
-                _contextStatus.Text = result == null ? "静音失败" : result.Summary;
+                _contextStatus.Text = result == null ? CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed) : result.Summary;
                 SetStatus(_contextStatus.Text, _contextStatus.ForeColor);
                 AppLog.Info("Runtime Companion mute Champion Select: " +
                             (result == null ? "no-result" : result.Summary));
@@ -1136,7 +1136,7 @@ namespace FACM.League
             catch (Exception exception)
             {
                 _contextStatus.ForeColor = FacmDesignSystem.Error;
-                _contextStatus.Text = "静音失败";
+                _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed);
                 SetStatus(_contextStatus.Text, FacmDesignSystem.Error);
                 AppLog.Info("Runtime Companion mute Champion Select failed: " + exception.Message);
             }

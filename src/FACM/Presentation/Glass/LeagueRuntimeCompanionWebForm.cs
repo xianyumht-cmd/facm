@@ -754,13 +754,13 @@ namespace FACM.Presentation.Glass
             try
             {
                 var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
-                Post(new { type = "status", message = result == null ? "静音失败" : result.Summary });
+                Post(new { type = "status", message = result == null ? Copy(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed) : result.Summary });
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
                 AppLog.Info("Runtime Companion HTML mute failed: " + e.GetType().Name);
-                Post(new { type = "status", message = "静音失败" });
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed) });
             }
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }

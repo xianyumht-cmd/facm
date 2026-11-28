@@ -205,16 +205,14 @@ namespace FACM.League
                             ChampSelectSessionPath, cancellationToken).ConfigureAwait(false);
                         if (remainingSession == null || remainingSession.Length == 0)
                         {
-                            AppLog.Info("League quit Champion Select: success; route=" +
-                                        "quit" +
+                            AppLog.Info("League quit Champion Select: success; route=quit" +
                                         "; phase=Lobby; lobbyPreserved=true");
                             return Result(LeagueChampSelectQuitStatus.Success, response.StatusCode, settledPhase, true);
                         }
                     }
                 }
 
-                AppLog.Info("League quit Champion Select: verification-failed; route=" +
-                            (usedFallback ? "request-lobby" : "quit") +
+                AppLog.Info("League quit Champion Select: verification-failed; route=quit" +
                             "; http=" + response.StatusCode +
                             "; phase=" + Safe(settledPhase) +
                             "; lobbyPreserved=" + lobbyPreserved.ToString().ToLowerInvariant());
