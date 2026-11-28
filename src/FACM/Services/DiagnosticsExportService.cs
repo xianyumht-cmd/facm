@@ -206,6 +206,7 @@ namespace FACM.Services
                 builder.Append("ProcessMetrics=unavailable_").AppendLine(exception.GetType().Name);
             }
             builder.Append("ToolBundleIntegrity=").AppendLine(ToolBundleLoader.InspectIntegrity());
+            builder.Append("ToolBundleSecurityState=").AppendLine(ToolBundleLoader.SecurityState);
             try
             {
                 using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Internet Settings"))

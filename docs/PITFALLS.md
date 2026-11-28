@@ -1,3 +1,7 @@
+## 2026-11-28 — Tool bundle integrity is not safety
+
+The current ToolBundle embeds only one historical executable despite the six-entry extracted-tool inventory. A signed outer EXE and matching SHA-256 values do not independently authenticate or establish safety of an opaque embedded binary. Windows 225/226 errors are explicit security-product evidence, unlike sharing violations or general access denied. The candidate stops repeated loading after such a report and preserves diagnostics; never bypass a protection verdict or equate a later successful hash with a false positive.
+
 ## 2026-11-28 — Parsed lockfile is not a connected LCU
 
 A syntactically valid lockfile may describe an obsolete or unavailable endpoint. Production 3.5.90 logs repeatedly showed ConnectFailure following successful discovery; neither an unchanged port nor a past file-security event establishes the cause. The candidate prefers current UX arguments, checks live PID/listener evidence and distinguishes connection failure from HTTP rejection. Do not fix an unknown transport fault by increasing timeouts, disabling security controls, or logging credentials. Research success on another machine is not proof of repair on the affected host.

@@ -10,7 +10,12 @@ namespace FACM.Services
         {
             var executable = ToolBundleLoader.Extract("tool-a");
             AppLog.Info("Run built-in tool A");
-            Start(executable, string.Empty);
+            try { Start(executable, string.Empty); }
+            catch (Exception exception)
+            {
+                ToolBundleLoader.ObserveSecurityBlock(exception, "tool_launch");
+                throw;
+            }
         }
 
         [Obsolete("League game repair is FACM-native. Use LeagueGameRepairModule instead.")]
