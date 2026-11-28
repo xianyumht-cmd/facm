@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -43,6 +45,15 @@ namespace FACM.Services
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex SensitiveAssignmentRegex = new Regex(
             @"(?i)\b(token|password|passwd|secret|authorization|api[-_]?key)\s*[:=]\s*[^\s;,\r\n]+",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex JsonSensitiveRegex = new Regex(
+            @"(?i)""(?:token|password|passwd|secret|authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|remoting-auth-token|cookie|puuid|obfuscatedPuuid|summonerId|obfuscatedSummonerId)""\s*:\s*(?:""(?:\\.|[^""\\])*""|[^,}\]\s]+)",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex UrlQueryRegex = new Regex(
+            @"(?i)\bhttps?://[^\s""<>?#]+[?#][^\s""<>]*",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        private static readonly Regex UrlUserInfoRegex = new Regex(
+            @"(?i)(https?://)[^/\s""<>@]+@",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
         private static readonly Regex WindowsPathRegex = new Regex(
             @"(?i)(?<![A-Za-z0-9])[A-Z]:\\(?:[^\\/:*?<>|\r\n]+\\)*[^\\/:*?<>|\r\n]*",
@@ -97,11 +108,14 @@ namespace FACM.Services
                     }
 
                     string text;
+                    long actualBytes;
                     using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                    using (var reader = new StreamReader(stream, Encoding.UTF8, true, 4096))
-                        text = reader.ReadToEnd();
-
-                    totalInput += info.Length;
+                    {
+                        var limit = Math.Min(MaxLogFileBytes, MaxTotalInputBytes - totalInput);
+                        text = ReadBoundedLog(stream, limit, out actualBytes);
+                    }
+                    if (text == null) { skipped++; continue; }
+                    totalInput += actualBytes;
                     selectedLogs.Add(new KeyValuePair<string, string>(name, ScrubText(text)));
                 }
                 catch (IOException)
@@ -170,6 +184,27 @@ namespace FACM.Services
             }
         }
 
+        private static string ReadBoundedLog(Stream stream, long limit, out long actualBytes)
+        {
+            actualBytes = 0;
+            using (var buffer = new MemoryStream())
+            {
+                var chunk = new byte[8192];
+                while (true)
+                {
+                    var remaining = limit - actualBytes;
+                    var read = stream.Read(chunk, 0, (int)Math.Min(chunk.Length, remaining + 1));
+                    if (read == 0) break;
+                    actualBytes += read;
+                    if (actualBytes > limit) return null;
+                    buffer.Write(chunk, 0, read);
+                }
+                buffer.Position = 0;
+                using (var reader = new StreamReader(buffer, Encoding.UTF8, true))
+                    return reader.ReadToEnd();
+            }
+        }
+
         internal static string ScrubText(string value)
         {
             var safe = value ?? string.Empty;
@@ -181,6 +216,13 @@ namespace FACM.Services
             {
                 return match.Groups[1].Value + "=[redacted]";
             });
+            safe = JsonSensitiveRegex.Replace(safe, "\"[redacted-field]\":\"[redacted]\"");
+            safe = UrlUserInfoRegex.Replace(safe, "$1[redacted]@");
+            safe = UrlQueryRegex.Replace(safe, delegate(Match match)
+            {
+                var index = match.Value.IndexOfAny(new[] { '?', '#' });
+                return match.Value.Substring(0, index) + "?[redacted]";
+            });
             safe = WindowsPathRegex.Replace(safe, "[path]");
             safe = UncPathRegex.Replace(safe, "[path]");
             return safe;
@@ -189,7 +231,7 @@ namespace FACM.Services
         private static string CaptureHealth()
         {
             var builder = new StringBuilder();
-            builder.AppendLine("HealthSchema=1");
+            builder.AppendLine("HealthSchema=2");
             builder.Append("HealthCapturedUtc=").AppendLine(DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture));
             try
             {
@@ -198,6 +240,8 @@ namespace FACM.Services
                     builder.Append("WorkingSetBytes=").AppendLine(process.WorkingSet64.ToString(CultureInfo.InvariantCulture));
                     builder.Append("PrivateMemoryBytes=").AppendLine(process.PrivateMemorySize64.ToString(CultureInfo.InvariantCulture));
                     builder.Append("ThreadCount=").AppendLine(process.Threads.Count.ToString(CultureInfo.InvariantCulture));
+                    builder.Append("HandleCount=").AppendLine(process.HandleCount.ToString(CultureInfo.InvariantCulture));
+                    builder.Append("ProcessUptimeMs=").AppendLine(Math.Max(0L, (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
                     builder.Append("TotalCpuMs=").AppendLine(((long)process.TotalProcessorTime.TotalMilliseconds).ToString(CultureInfo.InvariantCulture));
                 }
             }
@@ -205,6 +249,7 @@ namespace FACM.Services
             {
                 builder.Append("ProcessMetrics=unavailable_").AppendLine(exception.GetType().Name);
             }
+            DiagnosticsProcessTree.AppendWebViewMetrics(builder);
             builder.Append("ToolBundleIntegrity=").AppendLine(ToolBundleLoader.InspectIntegrity());
             builder.Append("ToolBundleSecurityState=").AppendLine(ToolBundleLoader.SecurityState);
             try
@@ -253,6 +298,9 @@ namespace FACM.Services
                 builder.Append("LCUProbeSource=").AppendLine(session.Source);
                 builder.Append("LCUProbePort=").AppendLine(session.Port.ToString(CultureInfo.InvariantCulture));
                 builder.Append("LCUProbePid=").AppendLine(session.ProcessId.ToString(CultureInfo.InvariantCulture));
+                if (discovery.LastEvidence == "listener_owned")
+                    builder.Append("LCUProbeTcp=").AppendLine(await ProbeLoopbackTcpAsync(session.Port).ConfigureAwait(false));
+                else builder.AppendLine("LCUProbeTcp=not_run_owner_unconfirmed");
                 using (var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3)))
                 using (var pool = new LeagueSessionHttpClientPool(TimeSpan.FromMilliseconds(2500)))
                 using (var lease = pool.Acquire(session))
@@ -280,6 +328,33 @@ namespace FACM.Services
             catch (Exception exception)
             {
                 builder.Append("LCUProbe=error_").AppendLine(exception.GetType().Name);
+            }
+        }
+
+        private static async Task<string> ProbeLoopbackTcpAsync(int port)
+        {
+            using (var client = new TcpClient(AddressFamily.InterNetwork))
+            {
+                try
+                {
+                    var pending = client.ConnectAsync(IPAddress.Loopback, port);
+                    if (await Task.WhenAny(pending, Task.Delay(750)).ConfigureAwait(false) != pending)
+                    {
+                        client.Close();
+                        // Observe the socket completion after closing, without delaying export.
+                        _ = pending.ContinueWith(task => { var ignored = task.Exception; },
+                            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                            TaskScheduler.Default);
+                        return "timeout";
+                    }
+                    await pending.ConfigureAwait(false);
+                    return "connected";
+                }
+                catch (SocketException error)
+                {
+                    return "socket_" + error.SocketErrorCode + "_" + error.NativeErrorCode;
+                }
+                catch (Exception error) { return "error_" + error.GetType().Name; }
             }
         }
 
@@ -352,6 +427,14 @@ namespace FACM.Services
 
         internal static void ValidateForSmokeTest()
         {
+            DiagnosticsProcessTree.ValidateForSmokeTest();
+            long readBytes;
+            using (var oversized = new MemoryStream(new byte[9]))
+                if (ReadBoundedLog(oversized, 8, out readBytes) != null || readBytes != 9)
+                    throw new InvalidOperationException("Growing diagnostic log escaped byte limit.");
+            var scrubbed = ScrubText("{\"access_token\":\"fixture-json\",\"puuid\":\"fixture-id\"} https://fixture-user:fixture-pass@example.org/a?sig=fixture-query");
+            foreach (var secret in new[] { "fixture-json", "fixture-id", "fixture-user", "fixture-pass", "fixture-query" })
+                if (scrubbed.Contains(secret)) throw new InvalidOperationException("Diagnostics structured redaction regressed.");
             var root = Path.Combine(Path.GetTempPath(), "FACM-Diagnostics-" + Guid.NewGuid().ToString("N"));
             var logs = Path.Combine(root, "logs");
             var output = Path.Combine(root, "out");

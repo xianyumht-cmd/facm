@@ -1,3 +1,7 @@
+## 2026-11-28 — Diagnostic health schema 2 (candidate)
+
+Export on demand using the existing diagnostics command. HealthSchema=2 adds host handles/uptime, WebViewProcessCount and WebViewSampledCount, descendant working-set/private-memory/thread sums and explicit metric availability. These are single snapshots, not total system memory or leak measurements; working-set sums can double-count shared pages. LCUProbeCandidateEvidence describes discovery; LCUProbeTcp distinguishes an independent bounded TCP connection from the authenticated HTTP phase request, and is not run when listener ownership is unconfirmed. A TCP success does not imply TLS/authentication success. Export still includes only the existing bounded FACM log allowlist and summary, with no automatic upload or raw process command lines. Review before sharing.
+
 ## 2026-11-27 — EXE audit native signature verification
 
 ## 2026-11-27 — Release 3.5.90 closure candidate
