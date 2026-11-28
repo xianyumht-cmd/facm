@@ -278,12 +278,12 @@ namespace FACM.AppHost.Modules
         }
 
         Task<LeagueClientWriteResponse> ILeagueChampSelectMuteWriteApi.TryToggleAsync(
-            int cellId, CancellationToken cancellationToken)
+            string identityJson, CancellationToken cancellationToken)
         {
             var writer = _champSelectMuteWriter;
             return writer == null
                 ? Task.FromResult<LeagueClientWriteResponse>(null)
-                : writer.TryToggleAsync(cellId, cancellationToken);
+                : writer.TryToggleAsync(identityJson, cancellationToken);
         }
 
         Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryRequestLobbyAsync(CancellationToken cancellationToken)

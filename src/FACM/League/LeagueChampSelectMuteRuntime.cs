@@ -32,13 +32,14 @@ namespace FACM.League
 
     internal interface ILeagueChampSelectMuteWriteApi
     {
-        Task<LeagueClientWriteResponse> TryToggleAsync(int cellId, CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryToggleAsync(string identityJson, CancellationToken cancellationToken);
     }
 
     /// <summary>
     /// Writes only to the legacy champion-select mute route. The team-builder plugin does not
     /// expose toggle-player-muted (verified against a live client), so this path must stay on
     /// /lol-champ-select/v1 even during a team-builder champion select.
+    /// The request body mirrors the client's own component: four identity fields, not a cellId.
     /// </summary>
     internal sealed class LeagueChampSelectMuteWriteApiClient : ILeagueChampSelectMuteWriteApi, IDisposable
     {
@@ -53,7 +54,8 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TryToggleAsync(int cellId, CancellationToken cancellationToken)
+        public async Task<LeagueClientWriteResponse> TryToggleAsync(
+            string identityJson, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
@@ -70,7 +72,7 @@ namespace FACM.League
                     using (var request = new HttpRequestMessage(HttpMethod.Post, TogglePath))
                     {
                         request.Content = new StringContent(
-                            "{\"cellId\":" + cellId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}",
+                            identityJson ?? "{}",
                             Encoding.UTF8,
                             "application/json");
 
@@ -138,18 +140,14 @@ namespace FACM.League
                 if (session == null) return new LeagueChampSelectMuteResult { NotInChampSelect = true };
 
                 var selfCell = ReadInt(session, "localPlayerCellId");
-                var targets = CollectCells(session, selfCell);
+                var targets = CollectIdentities(session, selfCell);
                 if (targets.Count == 0) return new LeagueChampSelectMuteResult();
 
-                var alreadyMuted = new HashSet<int>(ReadMutedCells(
-                    await _reader.TryGetBytesAsync(MutedPlayersPath, cancellationToken).ConfigureAwait(false)));
-
                 var result = new LeagueChampSelectMuteResult();
-                foreach (var cellId in targets)
+                foreach (var identity in targets)
                 {
-                    if (alreadyMuted.Contains(cellId)) continue;
                     result.Requested++;
-                    var response = await _writer.TryToggleAsync(cellId, cancellationToken).ConfigureAwait(false);
+                    var response = await _writer.TryToggleAsync(identity, cancellationToken).ConfigureAwait(false);
                     if (response != null && response.IsSuccessStatusCode) result.Succeeded++;
                     else result.Failed++;
                 }
@@ -164,9 +162,11 @@ namespace FACM.League
             }
         }
 
-        private static List<int> CollectCells(Dictionary<string, object> session, int selfCell)
+        /// 客户端自己发的 body 是四元组，不是 cellId。
+        private static List<string> CollectIdentities(Dictionary<string, object> session, int selfCell)
         {
-            var cells = new List<int>();
+            var list = new List<string>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var key in new[] { "myTeam", "theirTeam" })
             {
                 object raw;
@@ -177,11 +177,28 @@ namespace FACM.League
                     var member = item as Dictionary<string, object>;
                     if (member == null) continue;
                     var cellId = ReadInt(member, "cellId");
-                    if (cellId < 0 || cellId == selfCell) continue;
-                    if (!cells.Contains(cellId)) cells.Add(cellId);
+                    if (cellId == selfCell) continue;
+
+                    var summonerId = ReadInt(member, "summonerId");
+                    var puuid = ReadString(member, "puuid") ?? string.Empty;
+                    var obfuscatedSummonerId = ReadInt(member, "obfuscatedSummonerId");
+                    var obfuscatedPuuid = ReadString(member, "obfuscatedPuuid") ?? string.Empty;
+
+                    var identity = "{\"summonerId\":" + summonerId +
+                                   ",\"puuid\":\"" + puuid.Replace("\"", string.Empty) +
+                                   "\",\"obfuscatedSummonerId\":" + obfuscatedSummonerId +
+                                   ",\"obfuscatedPuuid\":\"" + obfuscatedPuuid.Replace("\"", string.Empty) + "\"}";
+                    if (seen.Add(identity)) list.Add(identity);
                 }
             }
-            return cells;
+            return list;
+        }
+
+        private static string ReadString(Dictionary<string, object> value, string key)
+        {
+            object entry;
+            return value != null && value.TryGetValue(key, out entry) && entry != null
+                ? Convert.ToString(entry, System.Globalization.CultureInfo.InvariantCulture) : null;
         }
 
         private static List<int> ReadMutedCells(byte[] bytes)
