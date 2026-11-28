@@ -25,7 +25,7 @@ namespace FACM.League
             {
                 if (NotInChampSelect) return "不在选人阶段";
                 if (StateUnavailable) return "静音状态不可用" + (Succeeded > 0 ? "，已确认静音 " + Succeeded + " 人" : "");
-                if (Requested == 0) return AlreadyMuted > 0 ? "玩家已静音" : "没有需要静音的玩家";
+                if (Requested == 0) return AlreadyMuted > 0 ? "玩家已静音" : "没有可静音的玩家";
                 return Failed == 0
                     ? "已静音 " + Succeeded + " 人"
                     : "静音 " + Succeeded + "/" + Requested + "，失败 " + Failed;
@@ -35,7 +35,7 @@ namespace FACM.League
 
     internal interface ILeagueChampSelectMuteWriteApi
     {
-        Task<LeagueClientWriteResponse> TryToggleAsync(string identityJson, CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryToggleAsync(string identityJson, LeagueClientSession expected, CancellationToken cancellationToken);
     }
 
     /// <summary>
@@ -58,11 +58,11 @@ namespace FACM.League
         }
 
         public async Task<LeagueClientWriteResponse> TryToggleAsync(
-            string identityJson, CancellationToken cancellationToken)
+            string identityJson, LeagueClientSession expected, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (!LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(session); }
@@ -134,7 +134,7 @@ namespace FACM.League
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
         }
 
-        public async Task<LeagueChampSelectMuteResult> MuteAllAsync(CancellationToken cancellationToken)
+        public async Task<LeagueChampSelectMuteResult> MuteAllAsync(CancellationToken cancellationToken, LeagueClientSession expected = null)
         {
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
@@ -147,6 +147,7 @@ namespace FACM.League
                 var targets = CollectIdentities(session, selfCell.Value);
                 if (targets == null) { result.StateUnavailable = true; return result; }
                 if (targets.Count == 0) return result;
+                if (targets.Count > 20) { result.StateUnavailable = true; return result; }
                 var roster = RosterKey(session);
                 if (roster == null) { result.StateUnavailable = true; return result; }
 
@@ -163,9 +164,12 @@ namespace FACM.League
                     if (muted.Contains(target)) { result.AlreadyMuted++; continue; }
 
                     result.Requested++;
-                    var response = await _writer.TryToggleAsync(target, cancellationToken).ConfigureAwait(false);
+                    var response = await _writer.TryToggleAsync(target, expected, cancellationToken).ConfigureAwait(false);
                     var settled = ReadMutedIdentities(await _reader.TryGetBytesAsync(
                         MutedPlayersPath, cancellationToken).ConfigureAwait(false));
+                    var settledSession = await ReadActiveSessionAsync(cancellationToken).ConfigureAwait(false);
+                    if (settledSession == null || !string.Equals(roster, RosterKey(settledSession), StringComparison.Ordinal))
+                    { result.Failed++; result.StateUnavailable = true; break; }
                     if (response != null && response.IsSuccessStatusCode && settled != null && settled.Contains(target))
                         result.Succeeded++;
                     else
@@ -221,7 +225,7 @@ namespace FACM.League
             entries.Sort(StringComparer.Ordinal);
             return new JavaScriptSerializer().Serialize(new object[]
             {
-                ReadString(session, "gameId"), selfCell.Value, entries
+                ReadString(session, "gameId"), ReadString(session, "id"), selfCell.Value, entries
             });
         }
 

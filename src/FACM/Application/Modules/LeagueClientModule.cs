@@ -71,6 +71,7 @@ namespace FACM.AppHost.Modules
         internal async Task<LeagueInsightSnapshot> ReadInsightsAsync(string phase, CancellationToken token)
         {
             var owner = _insights;
+            if (!LeagueInsightService.IsApplicablePhase(phase)) return new LeagueInsightSnapshot();
             var session = CurrentSession;
             if (owner == null || session == null) return null;
             var before = await ReadInsightAccountAsync(token).ConfigureAwait(false);
@@ -311,12 +312,12 @@ namespace FACM.AppHost.Modules
         }
 
         Task<LeagueClientWriteResponse> ILeagueChampSelectMuteWriteApi.TryToggleAsync(
-            string identityJson, CancellationToken cancellationToken)
+            string identityJson, LeagueClientSession expected, CancellationToken cancellationToken)
         {
             var writer = _champSelectMuteWriter;
             return writer == null
                 ? Task.FromResult<LeagueClientWriteResponse>(null)
-                : writer.TryToggleAsync(identityJson, cancellationToken);
+                : writer.TryToggleAsync(identityJson, expected, cancellationToken);
         }
 
         Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryRequestLobbyAsync(CancellationToken cancellationToken)

@@ -1,3 +1,7 @@
+## 2026-11-28 — Phase-scoped LCU insight and companion contracts (candidate)
+
+The existing LeagueClientModule owns LeagueInsightService; LeagueEfficiencyModule exposes a phase-fenced read to the existing Efficiency Shard adapter. The native owner shares one matchmaking search payload for queue and restriction projections, reads other groups on demand, isolates group failures, validates the current account/client session before and after a read, and publishes only summarized UI data. The adapter cancels on tab/route changes and reuses Gameflow transitions, with no new polling or Shard. The companion's two presentations reuse one C# mute owner with a roster and expected-client-session fence; quit eligibility comes from the parsed session flag and is revalidated by the owner before a supported write. These are candidate source changes, not live-client or release verification.
+
 ## 2026-11-27 — Public asset policy and EXE route audit
 
 ## 2026-11-27 — Release 3.5.90 closure candidate

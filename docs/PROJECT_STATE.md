@@ -1,3 +1,9 @@
+## 2026-11-28 — LCU product integration candidate (implementation in progress)
+
+Research evidence at 33b3e01a and ef93da84 established matchmaking restriction errors and mute-state transitions in Tencent 16.23 Practice Tool (synthetic identity only). The candidate now reads and verifies mute state, skips existing mute entries, uses 64-bit identity fields and an expected LCU client session, and stops on unavailable state or changed roster. No blind toggle or unsupported quit fallback is used. WebView2 and native companion are wired to the same C# owners; the quit action checks explicit server eligibility. Real PvP, concurrent manual mute, cross-session persistence, and physical DPI remain unverified.
+
+The existing Efficiency Shard has a WebView2 Data Overview tab for six read-only groups. It uses the existing Gameflow phase, one shared matchmaking read, sequential bounded reads, account/session fences, partial availability, and route cancellation. No new periodic poller or Shard. Ranked LP-change attribution, block-list UI, native fallback overview, full duplicate-owner inventory, runtime performance and release readiness remain open. Research-derived smoke fixtures are registered in the existing league-history test; exact-head Windows CI is pending. Experimental native components are not a production dependency.
+
 ## 2026-11-28 — LCU capability survey and client-side read/write owners
 
 The local client `/help` schema was fully exported: 1452 functions (1432 map to HTTP routes), 692
@@ -26,8 +32,7 @@ New client-side owners added on branch `feat/champ-select-mute-20261128` (all co
 - `LeagueBlockedPlayersService` — block list read and toggle
 - `LeagueInsightService` — parallel aggregate, registered in `LeagueClientModule`
 
-Only the mute action is wired to UI. Runtime verification is pending: mute needs one Champion Select,
-end-of-game stats need one completed game; the remaining reads work immediately.
+At the initial research baseline, only the native mute action was wired to UI. See the newer product integration candidate entry above for current implementation status.
 
 ## 2026-11-27 — EXE audit native signature verification
 

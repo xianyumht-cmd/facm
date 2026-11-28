@@ -36,6 +36,12 @@ namespace FACM.League
             _endOfGame = new LeagueEndOfGameStatsService(reader);
         }
 
+        internal static bool IsApplicablePhase(string phase)
+        {
+            return phase == "Lobby" || phase == "None" || phase == "Matchmaking" || phase == "ReadyCheck" ||
+                phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame";
+        }
+
         public async Task<LeagueInsightSnapshot> ReadAsync(string phase, CancellationToken cancellationToken)
         {
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);

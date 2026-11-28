@@ -312,7 +312,10 @@ namespace FACM.League
             ThrowIfDisposed();
             if (_muteService == null)
                 throw new InvalidOperationException("Runtime Companion Champion Select mute owner is unavailable.");
-            return _muteService.MuteAllAsync(cancellationToken);
+            var state = CurrentSnapshot.QuickPickState;
+            if (state == null || state.ClientSession == null)
+                return Task.FromResult(new LeagueChampSelectMuteResult { StateUnavailable = true });
+            return _muteService.MuteAllAsync(cancellationToken, state.ClientSession);
         }
 
         internal static void TrimPlanForTarget(

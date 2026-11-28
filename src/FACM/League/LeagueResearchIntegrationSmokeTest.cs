@@ -75,6 +75,18 @@ namespace FACM.League
                 .ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(rewards.Available && rewards.LootAvailable && !rewards.MissionsAvailable &&
                     rewards.LootItemCount == 0, "Partial reward availability collapsed into numeric zero.");
+
+            var reads = new FakeClient { FriendFailure = true };
+            var insights = new LeagueInsightService(reads);
+            var idle = insights.ReadAsync("InProgress", CancellationToken.None).GetAwaiter().GetResult();
+            Require(reads.Reads.Count == 0 && idle.Queue == null, "In-game insight loaded lobby data.");
+            var overview = insights.ReadAsync("Lobby", CancellationToken.None).GetAwaiter().GetResult();
+            Require(reads.SearchReads == 1 && overview.Leaver.HasPenalty && overview.Queue.Available &&
+                    overview.Friends == null && overview.Rewards != null && overview.Rewards.LootAvailable,
+                "Insight aggregation repeated search or lost a healthy group after another failed.");
+            var estimated = LeagueQueueStatusService.ParseSearch(Bytes("{\"isCurrentlyInQueue\":true}"));
+            Require(estimated.Available && estimated.InQueue && !estimated.EstimateKnown && !estimated.ElapsedKnown,
+                "Missing queue durations were presented as numeric data.");
         }
 
         private const string First = "{\"summonerId\":3000000001,\"puuid\":\"fixture-a\",\"obfuscatedSummonerId\":0,\"obfuscatedPuuid\":\"\"}";
@@ -92,6 +104,9 @@ namespace FACM.League
             public string MutedOverride;
             public bool ChangeRoster;
             public bool UncertainWrite;
+            public bool FriendFailure;
+            public int SearchReads;
+            public readonly List<string> Reads = new List<string>();
             public int Writes;
             private int _sessionReads;
             public readonly HashSet<string> Muted = new HashSet<string>(StringComparer.Ordinal);
@@ -99,7 +114,14 @@ namespace FACM.League
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                Reads.Add(path);
                 string body = null;
+                if (path == LeagueQueueStatusService.SearchPath)
+                {
+                    SearchReads++;
+                    body = "{\"isCurrentlyInQueue\":false,\"errors\":[{\"errorType\":\"QUEUE_DODGER\",\"penaltyTimeRemaining\":39233.063}]}";
+                }
+                if (path == LeagueFriendActivityService.FriendsPath && FriendFailure) throw new InvalidOperationException("Fixture failure");
                 if (path == LeagueChampSelectMuteService.PhasePath) body = "\"" + Phase + "\"";
                 if (path == LeagueChampSelectMuteService.SessionPath)
                 {
@@ -115,7 +137,7 @@ namespace FACM.League
                 return Task.FromResult(Bytes(body));
             }
 
-            public Task<LeagueClientWriteResponse> TryToggleAsync(string identityJson, CancellationToken cancellationToken)
+            public Task<LeagueClientWriteResponse> TryToggleAsync(string identityJson, LeagueClientSession expected, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Writes++;
