@@ -17,6 +17,9 @@ namespace FACM.League
             ValidateTeamBuilderFallback();
             ValidateBenchQuickPick();
             ValidateSubsetCardAndBenchChoice();
+            ValidateReroll();
+            ValidateDraftSwaps();
+            ValidateMasteryBenchChoice();
             ValidatePollingBudget();
             ValidateCancellation();
             ValidateSgpLiveTeamEnrichment();
@@ -263,6 +266,184 @@ namespace FACM.League
                     "The bench writer used an unverified route or phase.");
                 Swaps++;
                 LocalChampionId = championId;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private static void ValidateReroll()
+        {
+            var api = new RerollFixture();
+            var live = new LeagueLiveDataService(api, new PerformanceBudgetProvider(), session: () => api.Owner);
+            var service = new LeagueBenchQuickPickService(live, api);
+            var initial = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(initial.CanReroll && initial.RerollsRemaining == 2, "Eligible ARAM reroll must be exposed.");
+            var result = service.TryRerollAsync(initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Success && result.ChampionId == 55 && api.Writes == 1 && api.Remaining == 1,
+                "Reroll requires a confirmed new champion and one consumed reroll.");
+            result = service.TryRerollAsync(initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 1, "Old reroll snapshot must not spend another reroll.");
+            var fresh = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.Apply = false;
+            result = service.TryRerollAsync(fresh, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "Unchanged state must not confirm success.");
+            fresh = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            result = service.TryRerollAsync(fresh, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "Unknown result must not repeat at the same reroll count.");
+            api.Disabled = true;
+            Require(!service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult().CanReroll,
+                "Explicitly disabled reroll must be unavailable.");
+            api.Disabled = null;
+            Require(!service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult().CanReroll,
+                "Unknown reroll eligibility must not be invented.");
+        }
+
+        private sealed class RerollFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi, ILeagueAramRerollWriteApi
+        {
+            public LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            public int Remaining = 2;
+            public int Champion = 22;
+            public int Writes;
+            public bool? Disabled = false;
+            public bool Apply = true;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.PickableChampionIdsPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[22,55]"));
+                if (path != LeagueLiveDataService.ChampSelectSessionPath &&
+                    path != LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
+                    return Task.FromResult<byte[]>(null);
+                return Task.FromResult(Encoding.UTF8.GetBytes("{\"id\":\"fixture-draft\",\"gameId\":100," +
+                    "\"queueId\":450,\"gameMode\":\"ARAM\",\"localPlayerCellId\":1,\"benchEnabled\":true," +
+                    "\"isLegacyChampSelect\":true,\"rerollsRemaining\":" + Remaining +
+                    (Disabled.HasValue ? ",\"rerollsDisabled\":" + (Disabled.Value ? "true" : "false") : "") +
+                    ",\"timer\":{\"phase\":\"FINALIZATION\"},\"myTeam\":[{\"cellId\":1,\"championId\":" +
+                    Champion + "}]}"));
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, CancellationToken token)
+            {
+                throw new InvalidOperationException("Reroll must not use bench swap.");
+            }
+            public Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Require(LeagueEncounterReplayService.SessionMatches(Owner, expected), "Reroll must be scoped.");
+                Writes++;
+                if (Apply) { Remaining--; Champion = 55; }
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private static void ValidateMasteryBenchChoice()
+        {
+            var api = new MasteryChoiceFixture();
+            var service = new LeagueBenchQuickPickService(
+                new LeagueLiveDataService(api, new PerformanceBudgetProvider(), session: () => api.Owner), api);
+            var draft = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(LeagueBenchQuickPickService.SelectMasteryBenchTarget(Encoding.UTF8.GetBytes(api.Mastery), draft) == 55,
+                "Only eligible bench champions with known mastery should be ranked.");
+            Require(LeagueBenchQuickPickService.SelectMasteryBenchTarget(Encoding.UTF8.GetBytes("not-json"), draft) == 0,
+                "Unparseable mastery must not choose an arbitrary hero.");
+            var result = service.TryChooseMasteryAsync(draft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Success && api.Writes == 1 && api.Champion == 55,
+                "Mastery action must use the same scoped verified bench writer.");
+            result = service.TryChooseMasteryAsync(draft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 1, "Stale held champion must veto a second mastery choice.");
+        }
+
+        private sealed class MasteryChoiceFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi
+        {
+            public LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            public int Champion = 22;
+            public int Writes;
+            public string Mastery = "[{\"championId\":55,\"championPoints\":150000},{\"championId\":67,\"championPoints\":90000},{\"championId\":99,\"championPoints\":999999}]";
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.LocalMasteryPath) return Task.FromResult(Encoding.UTF8.GetBytes(Mastery));
+                if (path == LeagueLiveDataService.PickableChampionIdsPath) return Task.FromResult(Encoding.UTF8.GetBytes("[55,67]"));
+                if (path != LeagueLiveDataService.ChampSelectSessionPath) return Task.FromResult<byte[]>(null);
+                return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":100,\"queueId\":450,\"gameMode\":\"ARAM\"," +
+                    "\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":true,\"benchChampionIds\":[55,67]," +
+                    "\"timer\":{\"phase\":\"FINALIZATION\"},\"myTeam\":[{\"cellId\":1,\"championId\":" + Champion + "}]}"));
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, CancellationToken token)
+            { throw new InvalidOperationException("Mastery choice must use scoped bench write."); }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(LeagueEncounterReplayService.SessionMatches(Owner, expected), "Mastery owner mismatch.");
+                Writes++;
+                Champion = id;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private static void ValidateDraftSwaps()
+        {
+            var api = new DraftSwapFixture();
+            var service = new LeagueBenchQuickPickService(
+                new LeagueLiveDataService(api, new PerformanceBudgetProvider(), session: () => api.Owner), api);
+            var draft = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var items = service.ReadDraftSwapsAsync(draft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(items.Length == 3 && items[0].CanAnswer && items[1].CanCancel && items[2].CanAnswer,
+                "Three swap families must retain independent direction and eligibility.");
+            Require(LeagueBenchSwapWriteApiClient.BuildDraftSwapPath(LeagueDraftSwapKind.Position, 2, LeagueDraftSwapAction.Cancel) ==
+                "/lol-champ-select/v1/session/position-swaps/2/cancel" &&
+                LeagueBenchSwapWriteApiClient.BuildDraftSwapPath(LeagueDraftSwapKind.PickOrder, 3, LeagueDraftSwapAction.Decline) ==
+                "/lol-champ-select/v1/session/pick-order-swaps/3/decline" &&
+                LeagueBenchSwapWriteApiClient.BuildDraftSwapPath((LeagueDraftSwapKind)99, 3, LeagueDraftSwapAction.Decline) == "",
+                "Draft swap routes must be limited to the three researched kinds and known actions.");
+            var wrong = service.TryHandleDraftSwapAsync(draft, items[1], LeagueDraftSwapAction.Accept, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!wrong.Success && api.Writes == 0, "An outgoing request cannot be accepted.");
+            var result = service.TryHandleDraftSwapAsync(draft, items[1], LeagueDraftSwapAction.Cancel, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Success && api.Writes == 1, "Outgoing position cancellation needs explicit same-id confirmation.");
+            api.Apply = false;
+            result = service.TryHandleDraftSwapAsync(draft, items[2], LeagueDraftSwapAction.Decline, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "An unchanged swap cannot confirm success.");
+            result = service.TryHandleDraftSwapAsync(draft, items[2], LeagueDraftSwapAction.Decline, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "An uncertain swap cannot be replayed.");
+            api.GameId++;
+            result = service.TryHandleDraftSwapAsync(draft, items[0], LeagueDraftSwapAction.Accept, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "Old draft request must not reach the new selection.");
+        }
+
+        private sealed class DraftSwapFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi, ILeagueDraftSwapWriteApi
+        {
+            public LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            public int GameId = 100;
+            public int Writes;
+            public bool Apply = true;
+            private readonly string[] _states = { "RECEIVED", "SENT", "RECEIVED" };
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.ChampSelectSessionPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":" + GameId + ",\"queueId\":420," +
+                        "\"localPlayerCellId\":1,\"timer\":{\"phase\":\"BAN_PICK\"},\"myTeam\":[{\"cellId\":1,\"championId\":22}]}"));
+                foreach (var kind in new[] { LeagueDraftSwapKind.Champion, LeagueDraftSwapKind.Position, LeagueDraftSwapKind.PickOrder })
+                {
+                    if (path != LeagueBenchSwapWriteApiClient.OngoingSwapPath(kind)) continue;
+                    var i = (int)kind;
+                    var type = i == 0 ? "CHAMPION" : i == 1 ? "POSITION" : "PICK_ORDER";
+                    return Task.FromResult(Encoding.UTF8.GetBytes("{\"id\":" + (i + 1) + ",\"type\":\"" + type +
+                        "\",\"state\":\"" + _states[i] + "\",\"initiatedByLocalPlayer\":" + (i == 1 ? "true" : "false") +
+                        ",\"requesterChampionId\":55}"));
+                }
+                return Task.FromResult<byte[]>(null);
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken token)
+            { throw new InvalidOperationException("Draft swaps must not call bench swap."); }
+            public Task<LeagueClientWriteResponse> TryHandleSwapAsync(LeagueDraftSwapKind kind, int id,
+                LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(LeagueEncounterReplayService.SessionMatches(Owner, expected) && id == (int)kind + 1,
+                    "Swap target or owner changed.");
+                Writes++;
+                if (Apply) _states[(int)kind] = action == LeagueDraftSwapAction.Cancel ? "CANCELLED" :
+                    action == LeagueDraftSwapAction.Accept ? "ACCEPTED" : "DECLINED";
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
             }
         }

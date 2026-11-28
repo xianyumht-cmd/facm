@@ -15,11 +15,21 @@ namespace FACM.League
         private bool _connected;
         private bool _enabled;
         private bool _disposed;
-        private string _lastAvailability;
+        private bool _rejected;
+        private DateTime _windowStart;
+        private int _attempts;
+        private readonly Func<DateTime> _utcNow;
+        private readonly Func<LeagueClientSession> _sessionProvider;
+        private LeagueClientSession _owner;
+        private bool _initialPending;
+        private int _initialAttempts;
 
-        internal LeagueOfflineStatusLockController(LeaguePresenceService presence)
+        internal LeagueOfflineStatusLockController(LeaguePresenceService presence, Func<DateTime> utcNow = null,
+            Func<LeagueClientSession> sessionProvider = null)
         {
             _presence = presence ?? throw new ArgumentNullException(nameof(presence));
+            _utcNow = utcNow ?? (() => DateTime.UtcNow);
+            _sessionProvider = sessionProvider;
         }
 
         internal void Configure(bool enabled)
@@ -29,7 +39,7 @@ namespace FACM.League
             {
                 if (_disposed || _enabled == enabled) return;
                 _enabled = enabled;
-                _lastAvailability = null;
+                ResetAttempts();
                 _generation++;
                 previous = _active;
                 _active = null;
@@ -39,15 +49,28 @@ namespace FACM.League
 
         internal void Observe(LeagueDashboardPhaseState state)
         {
+            ObserveCore(state, false);
+        }
+
+        internal void ObserveInitial(LeagueDashboardPhaseState state)
+        {
+            ObserveCore(state, true);
+        }
+
+        private void ObserveCore(LeagueDashboardPhaseState state, bool initialOnly)
+        {
             ObserveConnection(state);
             if (state == null || !state.Connected) return;
             lock (_sync)
             {
-                if (_disposed || !_enabled || !_connected || _active != null) return;
+                if (_disposed || !_enabled || !_connected || _active != null || _rejected ||
+                    (initialOnly && (!_initialPending || _initialAttempts >= 3))) return;
+                if (initialOnly) _initialAttempts++;
                 var active = new CancellationTokenSource();
                 _active = active;
                 var generation = _generation;
-                _running = Task.Run(() => RunAsync(active, generation));
+                var owner = _owner;
+                _running = Task.Run(() => RunAsync(active, generation, null, owner));
             }
         }
 
@@ -58,10 +81,13 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
-                if (_connected != connected)
+                var owner = connected && _enabled && _sessionProvider != null ? _sessionProvider() : null;
+                if (_enabled && _sessionProvider != null && owner == null) connected = false;
+                if (_connected != connected || !SameOwner(_owner, owner))
                 {
                     _connected = connected;
-                    _lastAvailability = null;
+                    _owner = owner;
+                    ResetAttempts();
                     _generation++;
                     previous = _active;
                     _active = null;
@@ -70,67 +96,98 @@ namespace FACM.League
             Cancel(previous);
         }
 
-        internal void ResetEventBaseline()
+        private void ResetAttempts()
         {
-            lock (_sync) _lastAvailability = null;
+            _rejected = false;
+            _attempts = 0;
+            _windowStart = DateTime.MinValue;
+            _initialPending = true;
+            _initialAttempts = 0;
         }
 
-        internal async Task ObserveEventAsync(string availability, CancellationToken token)
+        private static bool SameOwner(LeagueClientSession first, LeagueClientSession second)
         {
+            return first == null ? second == null : LeagueEncounterReplayService.SessionMatches(first, second);
+        }
+
+        // Stream reconnection does not reset the correction budget or override a rejection.
+        internal void ResetEventBaseline() { }
+
+        private static bool NeedsOffline(string availability)
+        {
+            return string.Equals(availability, "chat", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(availability, "online", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(availability, "away", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(availability, "dnd", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(availability, "mobile", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal Task ObserveEventAsync(string availability, CancellationToken token, LeagueClientSession source = null)
+        {
+            if (!NeedsOffline(availability)) return Task.CompletedTask;
+            token.ThrowIfCancellationRequested();
+            CancellationTokenSource active;
             int generation;
-            bool correct;
+            LeagueClientSession owner;
             lock (_sync)
             {
-                if (_disposed || !_enabled || !_connected) return;
+                if (_disposed || !_enabled || !_connected || _active != null || _rejected ||
+                    (_sessionProvider != null && !SameOwner(_owner, source))) return Task.CompletedTask;
+                owner = _owner;
+                active = CancellationTokenSource.CreateLinkedTokenSource(token);
+                _active = active;
                 generation = _generation;
-                correct = _lastAvailability == "offline" && (availability == "away" || availability == "chat");
-                _lastAvailability = availability;
             }
-            if (!correct) return;
-            token.ThrowIfCancellationRequested();
-            var current = await _presence.ReadAsync(token).ConfigureAwait(false);
-            if (!current.Connected || current.Availability != availability) return;
-            lock (_sync) if (!IsCurrent(generation)) return;
-            var result = await _presence.ApplyIfAvailabilityUnchangedAsync(LeaguePresenceMode.Offline, availability, token).ConfigureAwait(false);
-            AppLog.Info("League offline event lock: " + (result == null ? "unverified" : result.Status));
+            return RunAsync(active, generation, availability, owner);
         }
 
-        private async Task RunAsync(CancellationTokenSource active, int generation)
+        private async Task RunAsync(CancellationTokenSource active, int generation, string expected, LeagueClientSession owner)
         {
             try
             {
-                var first = await _presence.ReadAsync(active.Token).ConfigureAwait(false);
-                if (!first.Connected) return;
-                var availability = first.Availability ?? string.Empty;
-                bool shouldLock;
+                lock (_sync) if (!IsCurrent(generation)) return;
+                var current = await _presence.ReadAsync(active.Token).ConfigureAwait(false);
+                if (!current.Connected) return;
+                var offline = string.Equals(current.Availability, "offline", StringComparison.OrdinalIgnoreCase);
+                if (!offline && !NeedsOffline(current.Availability)) return;
+
+                active.Token.ThrowIfCancellationRequested();
+                lock (_sync)
+                {
+                    if (!IsCurrent(generation) || _rejected) return;
+                    if (offline)
+                    {
+                        _initialPending = false;
+                        return;
+                    }
+                    if (expected != null && !string.Equals(current.Availability, expected, StringComparison.OrdinalIgnoreCase)) return;
+                    var now = _utcNow();
+                    if (_attempts == 0 || now - _windowStart >= TimeSpan.FromSeconds(30))
+                    {
+                        _windowStart = now;
+                        _attempts = 0;
+                    }
+                    if (_attempts >= 3) return;
+                    _attempts++;
+                    _initialPending = false;
+                }
+
+                var result = await _presence.ApplyIfAvailabilityUnchangedAsync(
+                    LeaguePresenceMode.Offline, current.Availability, active.Token, owner,
+                    () => { lock (_sync) return IsCurrent(generation); }).ConfigureAwait(false);
+                var status = result == null ? "unverified" : result.Status;
                 lock (_sync)
                 {
                     if (!IsCurrent(generation)) return;
-                    shouldLock = string.Equals(_lastAvailability, "offline", StringComparison.OrdinalIgnoreCase) &&
-                        (string.Equals(availability, "chat", StringComparison.OrdinalIgnoreCase) ||
-                         string.Equals(availability, "away", StringComparison.OrdinalIgnoreCase));
-                    _lastAvailability = availability;
-                }
-                if (!shouldLock) return;
-
-                active.Token.ThrowIfCancellationRequested();
-                var current = await _presence.ReadAsync(active.Token).ConfigureAwait(false);
-                if (!current.Connected || !string.Equals(current.Availability, availability,
-                    StringComparison.OrdinalIgnoreCase)) return;
-                lock (_sync) if (!IsCurrent(generation)) return;
-
-                var result = await _presence.ApplyIfAvailabilityUnchangedAsync(
-                    LeaguePresenceMode.Offline, availability, active.Token).ConfigureAwait(false);
-                AppLog.Info("League offline lock: " + (result == null ? "unverified" : result.Status));
-                if (result != null && result.Status == "success")
-                {
-                    lock (_sync)
-                        if (IsCurrent(generation)) _lastAvailability = "offline";
+                    AppLog.Info("League offline lock: " + status);
+                    // A refusal or unverifiable result is not an invitation to keep rewriting.
+                    if (status != "success") _rejected = true;
                 }
             }
             catch (OperationCanceledException) { }
             catch (Exception exception)
             {
+                lock (_sync) if (IsCurrent(generation)) _rejected = true;
                 AppLog.Info("League offline lock skipped: " + exception.GetType().Name);
             }
             finally
@@ -143,7 +200,8 @@ namespace FACM.League
 
         private bool IsCurrent(int generation)
         {
-            return !_disposed && _enabled && _connected && _generation == generation;
+            return !_disposed && _enabled && _connected && _generation == generation &&
+                (_sessionProvider == null || (_owner != null && SameOwner(_owner, _sessionProvider())));
         }
 
         private static void Cancel(CancellationTokenSource source)

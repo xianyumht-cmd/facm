@@ -58,11 +58,11 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed) return;
-                _offlineLock?.ObserveConnection(state);
+                _offlineLock?.ObserveInitial(state);
                 var session = state != null && state.Connected && (_enabled && _text.Length > 0 || _lockOffline) ? _session() : null;
-                if (session == null || _observed != null && !_observed.Matches(session)) _active?.Cancel();
+                if (session == null || _observed != null && !LeagueEncounterReplayService.SessionMatches(_observed, session)) _active?.Cancel();
                 if (_running != null && !_running.IsCompleted || session == null || DateTime.UtcNow < _retryAfter) return;
-                if (_observed == null || !_observed.Matches(session)) { _seen.Clear(); _seenOrder.Clear(); }
+                if (_observed == null || !LeagueEncounterReplayService.SessionMatches(_observed, session)) { _seen.Clear(); _seenOrder.Clear(); }
                 _observed = session;
                 _active = new CancellationTokenSource();
                 var active = _active;
@@ -77,16 +77,16 @@ namespace FACM.League
                         _offlineLock?.ResetEventBaseline();
                         await LeagueChatEventStream.RunAsync(session, (message, token) =>
                         {
-                            if (!session.Matches(_session())) { active.Cancel(); return Task.CompletedTask; }
+                            if (!LeagueEncounterReplayService.SessionMatches(session, _session())) { active.Cancel(); return Task.CompletedTask; }
                             if (message.Availability != null)
-                                return lockOffline && _offlineLock != null ? _offlineLock.ObserveEventAsync(message.Availability, token) : Task.CompletedTask;
+                                return lockOffline && _offlineLock != null ? _offlineLock.ObserveEventAsync(message.Availability, token, session) : Task.CompletedTask;
                             return replyEnabled ? ProcessAsync(session, message, text, away, token) : Task.CompletedTask;
                         }, active.Token, async token =>
                         {
                             if (!lockOffline || _offlineLock == null) return;
                             var presence = await ReadAsync("/lol-chat/v1/me", token).ConfigureAwait(false);
-                            if (session.Matches(_session()))
-                                await _offlineLock.ObserveEventAsync(LeagueChatEventStream.Text(presence, "availability"), token).ConfigureAwait(false);
+                            if (LeagueEncounterReplayService.SessionMatches(session, _session()))
+                                await _offlineLock.ObserveEventAsync(LeagueChatEventStream.Text(presence, "availability"), token, session).ConfigureAwait(false);
                         }).ConfigureAwait(false);
                     }
                     catch (Exception exception)
@@ -112,7 +112,7 @@ namespace FACM.League
             token.ThrowIfCancellationRequested();
             if (incoming == null || !LeagueChatEventStream.SafeId(incoming.ConversationId) ||
                 !LeagueChatEventStream.SafeId(incoming.MessageId) || incoming.SenderId <= 0 ||
-                NormalizeText(text) != text || string.IsNullOrEmpty(text) || !session.Matches(_session())) return;
+                NormalizeText(text) != text || string.IsNullOrEmpty(text) || !LeagueEncounterReplayService.SessionMatches(session, _session())) return;
             var key = incoming.ConversationId + "/" + incoming.MessageId;
             if (!_seen.Add(key)) return;
             _seenOrder.Enqueue(key);
@@ -134,7 +134,7 @@ namespace FACM.League
             }
             var current = await ReadAsync("/lol-summoner/v1/current-summoner", token).ConfigureAwait(false);
             if (LeagueChatEventStream.Text(current, "summonerId") != self.ToString(System.Globalization.CultureInfo.InvariantCulture) ||
-                !session.Matches(_session())) return;
+                !LeagueEncounterReplayService.SessionMatches(session, _session())) return;
             token.ThrowIfCancellationRequested();
             var response = await _writer.TryReplyAsync(session, incoming.ConversationId, text, token).ConfigureAwait(false);
             AppLog.Info("League private auto-reply: " + (response != null && response.StatusCode >= 200 && response.StatusCode < 300 ? "submitted" : "unverified"));

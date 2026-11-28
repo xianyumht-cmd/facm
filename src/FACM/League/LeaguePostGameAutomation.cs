@@ -90,6 +90,8 @@ namespace FACM.League
         internal const string TeamChoicesPath = "/lol-honor-v2/v1/team-choices";
         internal const string VoteCompletionPath = "/lol-honor-v2/v1/vote-completion";
         internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
+        internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
+        internal const string GameflowPhasePath = "/lol-gameflow/v1/gameflow-phase";
         internal const string EndOfGamePartyPath = "/lol-lobby/v2/party/eog-status";
         internal const string CurrentSequenceEventPath = "/lol-pre-end-of-game/v1/currentSequenceEvent";
         private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(600);
@@ -122,6 +124,11 @@ namespace FACM.League
         private bool _autoReturn;
         private bool _insidePostGame;
         private bool _cycleStarted;
+        private bool _ballotRefreshAttempted;
+        private bool _returnPending;
+        private string _lastReturnOutcome;
+
+        internal string LastReturnOutcome { get { lock (_sync) return _lastReturnOutcome; } }
         private bool _disposed;
 
         public LeaguePostGameAutomationController(ILeagueClientApi read, ILeaguePostGameWriteApi write)
@@ -219,6 +226,8 @@ namespace FACM.League
                 _cycleStarted = false;
                 _missionAttempted = false;
                 _missionAttempts = 0;
+                _returnPending = false;
+                _lastReturnOutcome = null;
                 _episodeOwner = next;
             }
         }
@@ -336,6 +345,10 @@ namespace FACM.League
                 _autoHonor = autoHonor;
                 _autoReturn = autoReturn;
                 _insidePostGame = true;
+                _returnPending = false;
+                _lastReturnOutcome = null;
+                _lastHonorStatus = null;
+                _ballotRefreshAttempted = false;
                 if (_sessionProvider != null) _episodeOwner = _sessionProvider();
             }
             await RunCycleAsync(phase, cancellationToken).ConfigureAwait(false);
@@ -351,6 +364,9 @@ namespace FACM.League
                 if (_disposed || !IsOwnerCurrentLocked()) return false;
                 if (!postGame)
                 {
+                    if (_returnPending)
+                        FinishReturnLocked(string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) && state.Connected
+                            ? "lobby-observed" : "phase-changed-unverified");
                     _insidePostGame = false;
                     _cycleStarted = false;
                     CancelCycleLocked();
@@ -360,6 +376,10 @@ namespace FACM.League
                 _insidePostGame = true;
                 if (_cycleStarted || (!_autoHonor && !_autoReturn)) return false;
                 _cycleStarted = true;
+                _returnPending = false;
+                _lastReturnOutcome = null;
+                _lastHonorStatus = null;
+                _ballotRefreshAttempted = false;
                 CancelCycleLocked();
                 _cycleCancellation = new CancellationTokenSource();
                 token = _cycleCancellation.Token;
@@ -392,12 +412,115 @@ namespace FACM.League
 
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsStillEnabledForReturn()) return;
-            var response = await SendScopedAsync(
-                "POST",
-                LeaguePostGameWriteApiClient.PlayAgainPath,
-                null,
-                cancellationToken).ConfigureAwait(false);
-            AppLog.Info("League auto return lobby: " + (response != null && response.IsSuccessStatusCode ? "success" : "failed"));
+            await ReturnToLobbyAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task ReturnToLobbyAsync(CancellationToken token)
+        {
+            var skipAttempted = false;
+            // The official skip operation and play-again are separate state transitions.
+            // Do not dismiss an unresolved honor ballot or a mission celebration.
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                if (!IsStillEnabledForReturn()) return;
+                var phase = await ReadPhaseAsync(token).ConfigureAwait(false);
+                if (!IsStillEnabledForReturn()) return;
+                if (string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase))
+                {
+                    lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("already-lobby");
+                    return;
+                }
+                if (string.Equals(phase, "EndOfGame", StringComparison.OrdinalIgnoreCase))
+                {
+                    lock (_sync)
+                    {
+                        if (!IsStillEnabledForReturn()) return;
+                        _returnPending = true;
+                    }
+                    var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.PlayAgainPath,
+                        null, token).ConfigureAwait(false);
+                    AppLog.Info("League auto return lobby: " + (IsSuccess(response) ? "submitted" : "submission-unverified"));
+                    // Even a lost response may have moved the client. Never repeat play-again blindly.
+                    for (var check = 0; check < 10; check++)
+                    {
+                        await _clock.Delay(TimeSpan.FromMilliseconds(600), token).ConfigureAwait(false);
+                        var observed = await ReadPhaseAsync(token).ConfigureAwait(false);
+                        lock (_sync)
+                        {
+                            if (!_returnPending || !IsOwnerCurrentLocked()) return;
+                            if (string.Equals(observed, "Lobby", StringComparison.OrdinalIgnoreCase))
+                            {
+                                FinishReturnLocked("lobby-observed");
+                                return;
+                            }
+                            if (!string.IsNullOrEmpty(observed) && !IsPostGamePhase(observed))
+                            {
+                                FinishReturnLocked("phase-changed-unverified");
+                                return;
+                            }
+                        }
+                    }
+                    lock (_sync) if (_returnPending && IsOwnerCurrentLocked()) FinishReturnLocked("return-unverified");
+                    return;
+                }
+                if (!string.IsNullOrEmpty(phase) && !IsPostGamePhase(phase))
+                {
+                    lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("phase-ineligible");
+                    return;
+                }
+                if (!skipAttempted && string.Equals(phase, "PreEndOfGame", StringComparison.OrdinalIgnoreCase) &&
+                    CanSkipSequence())
+                {
+                    var current = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                    var sequence = ReadString(ParseObject(current), "name");
+                    if (!string.IsNullOrWhiteSpace(sequence) &&
+                        !string.Equals(sequence, "missions-celebration", StringComparison.Ordinal) &&
+                        sequence.IndexOf("honor", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        CanSkipSequence() && IsStillEnabledForReturn())
+                    {
+                        var fresh = await ReadPhaseAsync(token).ConfigureAwait(false);
+                        if (string.Equals(fresh, "PreEndOfGame", StringComparison.OrdinalIgnoreCase) &&
+                            CanSkipSequence() && IsStillEnabledForReturn())
+                        {
+                            var confirmation = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                            if (string.Equals(sequence, ReadString(ParseObject(confirmation), "name"), StringComparison.Ordinal) &&
+                                CanSkipSequence() && IsStillEnabledForReturn())
+                            {
+                                skipAttempted = true;
+                                var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.SkipPreEndOfGamePath,
+                                    null, token).ConfigureAwait(false);
+                                AppLog.Info("League pre-end-of-game skip: " + (IsSuccess(response) ? "submitted" : "unverified"));
+                            }
+                        }
+                    }
+                }
+                await _clock.Delay(TimeSpan.FromMilliseconds(600), token).ConfigureAwait(false);
+            }
+            lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("phase-timeout");
+        }
+
+        private bool CanSkipSequence()
+        {
+            lock (_sync)
+                return _missionCancellation == null && (!_autoHonor || _lastHonorStatus != null &&
+                    (_lastHonorStatus.State == "success" || _lastHonorStatus.State == "skipped" &&
+                     (_lastHonorStatus.Detail == "no-votes" || _lastHonorStatus.Detail == "strategy-opt-out")));
+        }
+
+        private async Task<string> ReadPhaseAsync(CancellationToken token)
+        {
+            var bytes = await _read.TryGetBytesAsync(GameflowPhasePath, token).ConfigureAwait(false);
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 256) return null;
+            try { return new JavaScriptSerializer().Deserialize<string>(Encoding.UTF8.GetString(bytes)); }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        private void FinishReturnLocked(string outcome)
+        {
+            _returnPending = false;
+            _lastReturnOutcome = outcome;
+            AppLog.Info("League auto return lobby: " + outcome);
         }
 
         private async Task RunHonorAsync(CancellationToken cycleToken)
@@ -459,7 +582,17 @@ namespace FACM.League
                 if (!IsStillEnabledForHonor()) return null;
                 var bytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
                 var ballot = ParseBallot(bytes);
-                if (ballot != null && ballot.GameId > 0) return ballot;
+                if (ballot != null && ballot.GameId > 0 && ballot.HasVoteCount)
+                {
+                    var gameflow = ParseObject(await _read.TryGetBytesAsync(GameflowSessionPath, cancellationToken)
+                        .ConfigureAwait(false));
+                    var expectedGameId = ReadLong(ReadDictionary(gameflow, "gameData"), "gameId");
+                    if ((expectedGameId <= 0 || expectedGameId == ballot.GameId) &&
+                        (ballot.Votes == 0 || ballot.Allies.Concat(ballot.Opponents).Any(IsEligibleIdentity)))
+                        return ballot;
+                }
+                if (elapsed >= BallotPollInterval)
+                    await TryRefreshBallotAsync(cancellationToken).ConfigureAwait(false);
 
                 var remaining = BallotWaitLimit - elapsed;
                 var delay = remaining < BallotPollInterval ? remaining : BallotPollInterval;
@@ -468,6 +601,24 @@ namespace FACM.League
                 elapsed += delay;
             }
             return null;
+        }
+
+        private async Task TryRefreshBallotAsync(CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            lock (_sync)
+            {
+                if (_ballotRefreshAttempted || !IsStillEnabledForHonor()) return;
+                _ballotRefreshAttempted = true;
+            }
+            var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.HonorBallotRefreshPath,
+                null, token).ConfigureAwait(false);
+            AppLog.Info("League honor ballot refresh: " + (IsSuccess(response) ? "submitted" : "unverified"));
+        }
+
+        private static bool IsEligibleIdentity(LeagueHonorCandidate candidate)
+        {
+            return candidate != null && !candidate.BotPlayer && !string.IsNullOrWhiteSpace(candidate.Puuid);
         }
 
         private async Task TryHonorBallotAsync(LeagueHonorBallot ballot, CancellationToken cancellationToken)
@@ -481,6 +632,11 @@ namespace FACM.League
             }
             var selfPuuid = await TryReadSelfPuuidAsync(cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(selfPuuid))
+            {
+                PublishHonorStatus(Status(ballot.GameId, "skipped", "none", "self-unavailable", 0, 0, null, false), cancellationToken);
+                return;
+            }
             var eligibleAllies = ballot.Allies
                 .Where(item => item != null && !item.BotPlayer && !string.IsNullOrWhiteSpace(item.Puuid))
                 .Where(item => string.IsNullOrEmpty(selfPuuid) || !string.Equals(item.Puuid, selfPuuid, StringComparison.Ordinal))
@@ -557,7 +713,7 @@ namespace FACM.League
                         var current = ParseBallot(await _read.TryGetBytesAsync(BallotPath, cancellationToken)
                             .ConfigureAwait(false));
                         cancellationToken.ThrowIfCancellationRequested();
-                        if (current == null || current.GameId != ballot.GameId || current.Votes <= 0 ||
+                        if (current == null || current.GameId != ballot.GameId || !current.HasVoteCount || current.Votes <= 0 ||
                             current.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal) ||
                             !ContainsCandidate(current, selected))
                         {
@@ -567,7 +723,7 @@ namespace FACM.League
                             return;
                         }
                     }
-                    var result = await TryHonorV2Async(ballot, selected, cancellationToken, true).ConfigureAwait(false);
+                    var result = await TryHonorV2Async(ballot, selected, cancellationToken).ConfigureAwait(false);
                     if (result == null)
                     {
                         if (confirmed == 0) break;
@@ -683,7 +839,8 @@ namespace FACM.League
                 {
                     if (honored.Contains(target.Puuid, StringComparer.Ordinal)) return true;
                     string matchedBy;
-                    return hasChoices && MatchesTeamChoice(choices, target, out matchedBy);
+                    return after != null && after.GameId == before.GameId &&
+                        hasChoices && MatchesTeamChoice(choices, target, out matchedBy);
                 });
                 if (verified == targets.Count) return verified;
             }
@@ -711,8 +868,7 @@ namespace FACM.League
         private async Task<LeagueHonorAttemptStatus> TryHonorV2Async(
             LeagueHonorBallot ballot,
             LeagueHonorCandidate selected,
-            CancellationToken cancellationToken,
-            bool requireTargetReadback = false)
+            CancellationToken cancellationToken)
         {
             var body = _json.Serialize(new Dictionary<string, object>
             {
@@ -737,11 +893,12 @@ namespace FACM.League
                 return null;
             }
 
-            var verification = await VerifyHonorAsync(ballot, selected, cancellationToken, requireTargetReadback).ConfigureAwait(false);
+            var verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
             if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
                 return Status(ballot.GameId, "success", "v2", verification.Detail, StatusCode(response), attempts, selected, true);
 
-            var safeRetry = !IsSuccess(response) && string.Equals(verification.State, "not-applied", StringComparison.Ordinal);
+            var safeRetry = response != null && response.StatusCode >= 500 &&
+                string.Equals(verification.State, "not-applied", StringComparison.Ordinal);
             if (safeRetry)
             {
                 await _clock.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
@@ -753,7 +910,7 @@ namespace FACM.League
                     body,
                     cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                verification = await VerifyHonorAsync(ballot, selected, cancellationToken, requireTargetReadback).ConfigureAwait(false);
+                verification = await VerifyHonorAsync(ballot, selected, cancellationToken).ConfigureAwait(false);
                 if (string.Equals(verification.State, "confirmed", StringComparison.Ordinal))
                     return Status(ballot.GameId, "success", "v2", verification.Detail + ";safe-retry", StatusCode(response), attempts, selected, true);
             }
@@ -761,7 +918,8 @@ namespace FACM.League
             if (IsSuccess(response))
                 return Status(ballot.GameId, "unknown", "v2", "submitted-unverified:" + verification.Detail, StatusCode(response), attempts, selected, true);
 
-            return Status(ballot.GameId, "failed", "v2", "submit-failed:" + verification.Detail, StatusCode(response), attempts, selected, true);
+            return Status(ballot.GameId, response == null ? "unknown" : "failed", "v2",
+                "submit-failed:" + verification.Detail, StatusCode(response), attempts, selected, true);
         }
 
         private async Task<LeagueHonorAttemptStatus> TryHonorLegacyAsync(
@@ -803,8 +961,7 @@ namespace FACM.League
         private async Task<LeagueHonorVerificationResult> VerifyHonorAsync(
             LeagueHonorBallot before,
             LeagueHonorCandidate selected,
-            CancellationToken cancellationToken,
-            bool requireTargetReadback = false)
+            CancellationToken cancellationToken)
         {
             var sameGameBallotSeen = false;
             var targetStillEligibleOnLastRead = false;
@@ -822,21 +979,24 @@ namespace FACM.League
                 var choicesBytes = await _read.TryGetBytesAsync(TeamChoicesPath, cancellationToken).ConfigureAwait(false);
                 List<string> choices;
                 string shape;
-                if (TryParseTeamChoices(choicesBytes, out choices, out shape))
+                var hasChoices = TryParseTeamChoices(choicesBytes, out choices, out shape);
+                if (hasChoices)
                 {
                     teamChoicesRead = true;
                     teamChoicesCount = choices.Count;
                     teamChoicesShape = shape;
-                    string matchKind;
-                    if (MatchesTeamChoice(choices, selected, out matchKind))
-                        return Verification("confirmed", "team-choices-confirmed:" + matchKind);
                 }
 
                 var ballotBytes = await _read.TryGetBytesAsync(BallotPath, cancellationToken).ConfigureAwait(false);
                 var after = ParseBallot(ballotBytes);
+                targetStillEligibleOnLastRead = false;
+                voteCountUnchangedOnLastRead = false;
                 if (after != null && after.GameId == before.GameId)
                 {
                     sameGameBallotSeen = true;
+                    string matchKind;
+                    if (hasChoices && MatchesTeamChoice(choices, selected, out matchKind))
+                        return Verification("confirmed", "team-choices-confirmed:" + matchKind);
                     if (!string.IsNullOrWhiteSpace(selected.Puuid) &&
                         after.HonoredPuuids.Contains(selected.Puuid, StringComparer.Ordinal))
                         return Verification("confirmed", "ballot-honored-player-confirmed");
@@ -845,11 +1005,12 @@ namespace FACM.League
                     voteCountUnchangedOnLastRead = false;
                     if (before.HasVoteCount && after.HasVoteCount)
                     {
-                        if (!requireTargetReadback && after.Votes < before.Votes)
-                            return Verification("confirmed", "ballot-vote-decreased");
                         voteCountUnchangedOnLastRead = after.Votes == before.Votes;
                     }
                 }
+
+                if (targetStillEligibleOnLastRead && voteCountUnchangedOnLastRead)
+                    await TryRefreshBallotAsync(cancellationToken).ConfigureAwait(false);
 
                 var completionBytes = await _read.TryGetBytesAsync(VoteCompletionPath, cancellationToken).ConfigureAwait(false);
                 long completionGameId;
@@ -886,23 +1047,18 @@ namespace FACM.League
             if (root == null) return null;
             var ballot = new LeagueHonorBallot { GameId = ReadLong(root, "gameId") };
 
-            if (root.ContainsKey("numVotes"))
+            int votes;
+            var rawVotes = root.ContainsKey("numVotes") ? ReadValue(root, "numVotes") :
+                ReadValue(ReadDictionary(root, "votePool"), "votes");
+            if (rawVotes != null && int.TryParse(Convert.ToString(rawVotes, CultureInfo.InvariantCulture),
+                NumberStyles.None, CultureInfo.InvariantCulture, out votes))
             {
                 ballot.HasVoteCount = true;
-                ballot.Votes = ReadInt(root, "numVotes");
-            }
-            else
-            {
-                var votePool = ReadDictionary(root, "votePool");
-                if (votePool != null && votePool.ContainsKey("votes"))
-                {
-                    ballot.HasVoteCount = true;
-                    ballot.Votes = ReadInt(votePool, "votes");
-                }
+                ballot.Votes = votes;
             }
 
             var modernAllies = EnumerateDictionaries(ReadValue(root, "eligibleAllies")).ToList();
-            var rows = modernAllies.Count > 0
+            var rows = root.ContainsKey("eligibleAllies")
                 ? modernAllies
                 : EnumerateDictionaries(ReadValue(root, "eligiblePlayers")).ToList();
             foreach (var row in rows)
@@ -932,8 +1088,6 @@ namespace FACM.League
                     ballot.HonoredPuuids.Add(puuid);
             }
 
-            if (!ballot.HasVoteCount && ballot.Allies.Count > 0)
-                ballot.Votes = 1;
             return ballot;
         }
 
@@ -965,8 +1119,17 @@ namespace FACM.League
             string method, string path, string body, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            lock (_sync) { if (_disposed || !IsOwnerCurrentLocked()) return null; }
-            var response = await _write.TrySendAsync(method, path, body, token).ConfigureAwait(false);
+            LeagueClientSession owner;
+            lock (_sync)
+            {
+                if (_disposed || !IsOwnerCurrentLocked()) return null;
+                owner = _episodeOwner;
+            }
+            var scoped = _write as ILeagueScopedPostGameWriteApi;
+            if (_sessionProvider != null && scoped == null) return null;
+            var response = _sessionProvider == null
+                ? await _write.TrySendAsync(method, path, body, token).ConfigureAwait(false)
+                : await scoped.TrySendAsync(method, path, body, owner, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             lock (_sync) return !_disposed && IsOwnerCurrentLocked() ? response : null;
         }
@@ -1057,12 +1220,13 @@ namespace FACM.League
             {
                 var parsed = _json.DeserializeObject(Encoding.UTF8.GetString(bytes));
                 var enumerable = parsed as IEnumerable;
-                if (enumerable == null || parsed is string) return false;
+                if (enumerable == null || parsed is string || parsed is IDictionary) return false;
                 var numeric = 0;
                 var text = 0;
                 foreach (var item in enumerable)
                 {
                     if (item == null) continue;
+                    if (!(item is string) && !(item is int) && !(item is long)) return false;
                     var value = Convert.ToString(item, CultureInfo.InvariantCulture);
                     if (string.IsNullOrWhiteSpace(value)) continue;
                     values.Add(value);

@@ -8,6 +8,13 @@ namespace FACM.League
     {
         public const string Menu = "LeagueEfficiencyMenu";
         public const string InsightOpen = "LeagueEfficiencyInsightOpen";
+        public const string RoomManage = "LeagueEfficiencyRoomManage";
+        public const string RoomQueue = "LeagueEfficiencyRoomQueue";
+        public const string RoomLeave = "LeagueEfficiencyRoomLeave";
+        public const string RoomKick = "LeagueEfficiencyRoomKick";
+        public const string RoomPromote = "LeagueEfficiencyRoomPromote";
+        public const string RoomNone = "LeagueEfficiencyRoomNone";
+        public const string RoomUnavailable = "LeagueEfficiencyRoomUnavailable";
         public const string InsightBack = "LeagueEfficiencyInsightBack";
         public const string InsightRefresh = "LeagueEfficiencyInsightRefresh";
         public const string InsightLoading = "LeagueEfficiencyInsightLoading";
@@ -169,6 +176,8 @@ namespace FACM.League
         public const string AdvancedIgnoreIntent = "LeagueEfficiencyAdvancedIgnoreIntent";
         public const string AdvancedBenchSwap = "LeagueEfficiencyAdvancedBenchSwap";
         public const string AdvancedBenchUpgrade = "LeagueEfficiencyAdvancedBenchUpgrade";
+        public const string AdvancedBenchMastery = "LeagueEfficiencyAdvancedBenchMastery";
+        public const string AdvancedBenchMinMastery = "LeagueEfficiencyAdvancedBenchMinMastery";
         public const string AdvancedTrade = "LeagueEfficiencyAdvancedTrade";
         public const string AdvancedBenchDelay = "LeagueEfficiencyAdvancedBenchDelay";
         public const string AdvancedImportAkari = "LeagueEfficiencyAdvancedImportAkari";
@@ -533,6 +542,13 @@ namespace FACM.League
         {
             { LeagueEfficiencyUiTextKeys.Menu, "快捷工具" },
             { LeagueEfficiencyUiTextKeys.InsightOpen, "数据概览" },
+            { LeagueEfficiencyUiTextKeys.RoomManage, "房间管理" },
+            { LeagueEfficiencyUiTextKeys.RoomQueue, "创建/切换队列" },
+            { LeagueEfficiencyUiTextKeys.RoomLeave, "退出房间" },
+            { LeagueEfficiencyUiTextKeys.RoomKick, "踢出队员" },
+            { LeagueEfficiencyUiTextKeys.RoomPromote, "转让队长" },
+            { LeagueEfficiencyUiTextKeys.RoomNone, "未加入房间" },
+            { LeagueEfficiencyUiTextKeys.RoomUnavailable, "房间状态不可用" },
             { LeagueEfficiencyUiTextKeys.InsightBack, "快捷操作" },
             { LeagueEfficiencyUiTextKeys.InsightRefresh, "刷新" },
             { LeagueEfficiencyUiTextKeys.InsightLoading, "读取中…" },
@@ -694,6 +710,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedIgnoreIntent, "忽略队友的英雄预选" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchSwap, "自动换候选席英雄（需开启自动选人）" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchMastery, "按熟练度自动换人" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchMinMastery, "最低熟练度" },
             { LeagueEfficiencyUiTextKeys.AdvancedTrade, "按优先级自动接受或拒绝交换" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedImportAkari, "导入 Akari" },

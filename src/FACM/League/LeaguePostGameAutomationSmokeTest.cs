@@ -14,6 +14,8 @@ namespace FACM.League
         {
             ValidateTransportFence();
             ValidateBallotCompatibility();
+            ValidateDelayedBallotRefresh();
+            ValidateHonorReadbackSafety();
             ValidateHonorStrategySelection();
             ValidateMultiVotePartyPriority();
             ValidateMultiVoteIncludesOpponents();
@@ -30,6 +32,7 @@ namespace FACM.League
             ValidateHonorDisableCancelsInFlightButPreservesReturn();
             ValidateExactlyOnceCycle();
             ValidateReturnOnly();
+            ValidateReturnPhaseSafety();
             ValidateMissionCelebration();
             ValidateMissionRetryBudget();
             ValidateMissionChangedBeforeWrite();
@@ -41,12 +44,18 @@ namespace FACM.League
         {
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.HonorV2Path),
                 "Gate 6 transport blocked Honor V2 write.");
+            Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.HonorBallotRefreshPath) &&
+                    !LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.HonorBallotRefreshPath + "?extra=1"),
+                "Ballot refresh must be limited to the exact researched POST route.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.HonorPath),
                 "Gate 6 transport blocked legacy honor write.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.HonorBallotSubmitPath),
                 "Gate 6 transport blocked ballot submit.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.PlayAgainPath),
                 "Gate 6 transport blocked play-again.");
+            Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.SkipPreEndOfGamePath) &&
+                !LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("GET", LeaguePostGameWriteApiClient.SkipPreEndOfGamePath),
+                "Skip must use the exact researched POST route.");
             Require(LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath),
                 "Gate 6 transport blocked the pinned pre-end-of-game completion.");
             Require(!LeaguePostGameWriteApiClient.IsAllowedTargetForSmokeTest("POST", "/lol-pre-end-of-game/v1/complete/other"),
@@ -85,6 +94,77 @@ namespace FACM.League
             }
             Require(LeaguePostGameAutomationController.BallotPath == "/lol-honor-v2/v1/ballot",
                 "Honor V2 ballot path must not rely on a trailing-slash redirect.");
+        }
+
+        private static void ValidateDelayedBallotRefresh()
+        {
+            var read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.GameflowSessionPath, "{\"gameData\":{\"gameId\":123}}");
+            read.Set(LeaguePostGameAutomationController.BallotPath, "{\"gameId\":123,\"eligibleAllies\":[]}");
+            var write = new FakePostGameWriteApi();
+            write.OnRefresh = () => read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(1, true, true, null));
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, "ally-a"));
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                var invalid = controller.ParseBallot(Bytes("{\"gameId\":123,\"numVotes\":null,\"eligibleAllies\":[{\"puuid\":\"a\"}]}"));
+                Require(invalid != null && !invalid.HasVoteCount && invalid.Votes == 0,
+                    "Unknown votes must not be interpreted as a usable ballot or synthetic one vote.");
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(controller.LastHonorStatus != null && controller.LastHonorStatus.State == "success",
+                    "Delayed ballot did not recover after refresh.");
+            }
+            Require(write.Calls.Count == 2 && write.Calls[0].Path == LeaguePostGameWriteApiClient.HonorBallotRefreshPath &&
+                    write.Calls[1].Path == LeaguePostGameWriteApiClient.HonorV2Path,
+                "An incomplete ballot must refresh once before voting, never vote blindly.");
+
+            read = StandardRead();
+            read.Set(LeaguePostGameAutomationController.GameflowSessionPath, "{\"gameData\":{\"gameId\":456}}");
+            write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1 && write.Calls[0].Path == LeaguePostGameWriteApiClient.HonorBallotRefreshPath &&
+                        controller.LastHonorStatus != null && controller.LastHonorStatus.Detail == "ballot-timeout",
+                    "A stale game ballot must not receive a vote.");
+            }
+        }
+
+        private static void ValidateHonorReadbackSafety()
+        {
+            var read = StandardRead();
+            var write = new FakePostGameWriteApi();
+            write.OnV2Call = count => read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, null));
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(controller.LastHonorStatus != null && controller.LastHonorStatus.State == "unknown",
+                    "A reduced vote count alone cannot confirm the selected recipient.");
+            }
+
+            read = StandardRead();
+            write = new FakePostGameWriteApi();
+            write.OnV2Call = count =>
+            {
+                read.Set(LeaguePostGameAutomationController.BallotPath, BallotJson(0, true, true, null).Replace("123", "456"));
+                read.Set(LeaguePostGameAutomationController.TeamChoicesPath, "[101]");
+            };
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(controller.LastHonorStatus != null && controller.LastHonorStatus.State == "unknown",
+                    "Another game's team choices must not confirm an honor.");
+            }
+
+            read = StandardRead();
+            write = new FakePostGameWriteApi();
+            write.V2Statuses.Enqueue(null);
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", true, false, CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.HonorV2Path) == 1 &&
+                        controller.LastHonorStatus != null && controller.LastHonorStatus.State == "unknown",
+                    "A lost response without target confirmation must not trigger another vote.");
+            }
         }
 
         private static void ValidateHonorStrategySelection()
@@ -478,6 +558,9 @@ namespace FACM.League
                 controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.PlayAgainPath) == 1,
                     "A new same-phase LCU owner must start its own post-game cycle.");
+                Require(write.ExpectedOwners.Count == 1 &&
+                    LeagueEncounterReplayService.SessionMatches(second, write.ExpectedOwners[0]),
+                    "Replacement episode must pass its exact owner to the scoped transport.");
             }
 
             current = first;
@@ -526,17 +609,59 @@ namespace FACM.League
         private static void ValidateReturnOnly()
         {
             var read = new FakeReadApi();
+            read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"PreEndOfGame\"");
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath, "{\"name\":\"animation\"}");
             var write = new FakePostGameWriteApi();
+            write.OnWrite = path =>
+            {
+                if (path == LeaguePostGameWriteApiClient.SkipPreEndOfGamePath)
+                    read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"EndOfGame\"");
+                if (path == LeaguePostGameWriteApiClient.PlayAgainPath)
+                    read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"Lobby\"");
+            };
             var clock = new FakeClock();
             using (var controller = new LeaguePostGameAutomationController(read, write, clock, count => 0))
             {
                 controller.RunCycleForSmokeTestAsync("PreEndOfGame", false, true, CancellationToken.None).GetAwaiter().GetResult();
+                Require(controller.LastReturnOutcome == "lobby-observed", "Return must verify actual lobby phase.");
             }
-            Require(read.RequestCount == 0, "Return-only mode must not poll honor endpoints.");
-            Require(write.Calls.Count == 1 && write.Calls[0].Path == LeaguePostGameWriteApiClient.PlayAgainPath,
-                "Return-only mode must emit exactly one play-again write.");
-            Require(clock.Delays.Count == 1 && clock.Delays[0] == TimeSpan.FromMilliseconds(3250),
-                "PreEndOfGame return-only delay changed unexpectedly.");
+            Require(read.Paths.All(path => !path.StartsWith("/lol-honor", StringComparison.Ordinal)),
+                "Return-only mode must not poll honor endpoints.");
+            Require(write.Calls.Select(call => call.Path).SequenceEqual(new[] {
+                LeaguePostGameWriteApiClient.SkipPreEndOfGamePath, LeaguePostGameWriteApiClient.PlayAgainPath }),
+                "Skip and play-again must follow the real phase in order.");
+            Require(clock.Delays[0] == TimeSpan.FromMilliseconds(3250), "Initial return delay changed.");
+        }
+
+        private static void ValidateReturnPhaseSafety()
+        {
+            var read = new FakeReadApi();
+            var write = new FakePostGameWriteApi();
+            read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"Matchmaking\"");
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", false, true, CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0 && controller.LastReturnOutcome == "phase-ineligible",
+                    "Stale postgame phase must never issue play-again.");
+            }
+            read = new FakeReadApi();
+            write = new FakePostGameWriteApi();
+            read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"PreEndOfGame\"");
+            read.Set(LeaguePostGameAutomationController.CurrentSequenceEventPath, "{\"name\":\"missions-celebration\"}");
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("PreEndOfGame", false, true, CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 0 && controller.LastReturnOutcome == "phase-timeout",
+                    "Unfinished mission sequence must not be skipped or followed by premature play-again.");
+            }
+            read = new FakeReadApi();
+            write = new FakePostGameWriteApi();
+            using (var controller = new LeaguePostGameAutomationController(read, write, new FakeClock(), count => 0))
+            {
+                controller.RunCycleForSmokeTestAsync("EndOfGame", false, true, CancellationToken.None).GetAwaiter().GetResult();
+                Require(write.Calls.Count == 1 && controller.LastReturnOutcome == "return-unverified",
+                    "Unchanged phase after play-again must not be reported as success or repeated.");
+            }
         }
 
         private static void ValidateMissionCelebration()
@@ -554,7 +679,8 @@ namespace FACM.League
 
                 controller.Configure(false, true);
                 controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
-                Require(read.RequestCount == 2, "Mission completion must confirm the current event before writing.");
+                Require(read.Paths.Count(path => path == LeaguePostGameAutomationController.CurrentSequenceEventPath) == 2,
+                    "Mission completion must confirm the current event before writing.");
                 Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.CompleteMissionCelebrationPath) == 1,
                     "Mission celebration must be completed once alongside automatic return.");
                 controller.ObserveForSmokeTestAsync(State("PreEndOfGame")).GetAwaiter().GetResult();
@@ -688,7 +814,13 @@ namespace FACM.League
         {
             private readonly Dictionary<string, byte[]> _responses = new Dictionary<string, byte[]>(StringComparer.Ordinal);
             public int RequestCount;
+            public readonly List<string> Paths = new List<string>();
             public Func<string, int, byte[]> OnRead;
+
+            public FakeReadApi()
+            {
+                Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"EndOfGame\"");
+            }
 
             public void Set(string path, string json) { _responses[path] = Bytes(json); }
             public void Set(string path, byte[] bytes) { _responses[path] = bytes; }
@@ -697,6 +829,7 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 RequestCount++;
+                Paths.Add(path);
                 var overrideResult = OnRead == null ? null : OnRead(path, RequestCount);
                 if (overrideResult != null) return Task.FromResult(overrideResult);
                 byte[] value;
@@ -705,7 +838,7 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakePostGameWriteApi : ILeaguePostGameWriteApi
+        private sealed class FakePostGameWriteApi : ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi
         {
             internal sealed class Call
             {
@@ -719,7 +852,18 @@ namespace FACM.League
             public readonly Queue<int> MissionStatuses = new Queue<int>();
             public Action<int> OnV2Call;
             public Action OnBallotSubmit;
+            public Action OnRefresh;
+            public Action<string> OnWrite;
             private int _v2Calls;
+            public readonly List<LeagueClientSession> ExpectedOwners = new List<LeagueClientSession>();
+
+            public Task<LeagueClientWriteResponse> TrySendAsync(
+                string method, string path, string json, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped postgame write requires the episode owner.");
+                ExpectedOwners.Add(expected);
+                return TrySendAsync(method, path, json, token);
+            }
 
             public Task<LeagueClientWriteResponse> TrySendAsync(
                 string method,
@@ -729,6 +873,7 @@ namespace FACM.League
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(new Call { Method = method, Path = path, Json = json });
+                if (OnWrite != null) OnWrite(path);
                 if (path == LeaguePostGameWriteApiClient.HonorV2Path)
                 {
                     _v2Calls++;
@@ -745,6 +890,8 @@ namespace FACM.League
                     return Task.FromResult(Response(MissionStatuses.Dequeue()));
                 if (path == LeaguePostGameWriteApiClient.HonorBallotSubmitPath && OnBallotSubmit != null)
                     OnBallotSubmit();
+                if (path == LeaguePostGameWriteApiClient.HonorBallotRefreshPath && OnRefresh != null)
+                    OnRefresh();
                 return Task.FromResult(Response(204));
             }
 

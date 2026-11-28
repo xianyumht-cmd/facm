@@ -34,6 +34,9 @@ namespace FACM.League
     {
         private int _heldChampion;
         private bool _blocked;
+        internal bool MasteryReadAttempted;
+        internal Dictionary<int, long> MasteryScores;
+        internal bool MasterySwapAttempted;
         private readonly Dictionary<int, long> _benchFirstSeen = new Dictionary<int, long>();
         private readonly Dictionary<string, long> _tradeFirstSeen = new Dictionary<string, long>(StringComparer.Ordinal);
 
@@ -275,7 +278,7 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || _temporarilyDisabled || !_inChampSelect || _episode != null ||
-                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0 || p.BenchHandleTradeEnabled)) &&
+                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0 || p.BenchHandleTradeEnabled || p.PickEnabled && p.BenchAutoSwapEnabled && p.BenchUseMastery)) &&
                     (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
                 var owner = _session == null ? null : _session();
                 if (_session != null && owner == null) return;
@@ -448,7 +451,7 @@ namespace FACM.League
                 : action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
                     ? action.ChampionId : candidates.FirstOrDefault(id =>
                         CandidateAvailable(availableIds, id, action.Type, mode) &&
-                        (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
+                        (profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
             if (desired == 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
@@ -481,25 +484,20 @@ namespace FACM.League
             CompactTraceLog.Record(trace, "autoselect", "preflight", "ok", watch.ElapsedMilliseconds);
             var lockImmediately = strategy == "lock-in-immediately" ||
                 staged && attempted.Contains(shownKey);
-            var result = await _write.TryApplyAsync(action.Type, action.Id, desired, lockImmediately, episode.Token)
-                .ConfigureAwait(false);
-            // Only a confirmed successful write consumes this action stage. A transient
-            // HTTP failure can retry on the existing phase-scoped two-second tick.
-            if (result != null && result.IsSuccessStatusCode)
-            {
-                attempted.Add(staged ? (lockImmediately ? lockedKey : shownKey) : key);
-                if (staged && !lockImmediately)
-                    attempted.Add(shownKey + ":" + desired.ToString(CultureInfo.InvariantCulture));
-            }
+            var stageKey = staged ? (lockImmediately ? lockedKey : shownKey) : key;
+            var result = await SendActionAsync(episode, action, desired, lockImmediately, false).ConfigureAwait(false);
+            RecordAttempt(attempted, stageKey, result);
+            var submitted = result != null && result.IsSuccessStatusCode;
+            if (submitted && staged && !lockImmediately)
+                attempted.Add(shownKey + ":" + desired.ToString(CultureInfo.InvariantCulture));
+            byte[] shownBytes = null;
+            if ((submitted || result == null) && IsCurrent(episode))
+                shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect", "write",
-                result == null ? "failed_unavailable" :
-                result.IsSuccessStatusCode ? (lockImmediately ? "lock_submitted" : "show_submitted") :
-                "failed_http_" + result.StatusCode,
+                DescribeActionOutcome(result, shownBytes, action, desired, lockImmediately),
                 watch.ElapsedMilliseconds);
-            if (!staged || lockImmediately || result == null || !result.IsSuccessStatusCode ||
-                !IsCurrent(episode)) return;
+            if (!staged || lockImmediately || !submitted || !IsCurrent(episode)) return;
 
-            var shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             var shown = ParseCurrentAction(shownBytes);
             if (shown == null || shown.Id != action.Id || shown.ContextKey != action.ContextKey) return;
             var lockDelay = LeagueAutoSelectContext.PhaseDelay(isPick ? profile.PickDelayMs : profile.BanDelayMs,
@@ -511,13 +509,12 @@ namespace FACM.League
                 CompactTraceLog.Record(trace, "autoselect", "lock_preflight", "stale", watch.ElapsedMilliseconds);
                 return;
             }
-            var locked = await _write.TryApplyAsync(action.Type, action.Id, desired, true, episode.Token)
-                .ConfigureAwait(false);
-            if (locked != null && locked.IsSuccessStatusCode) attempted.Add(lockedKey);
+            var locked = await SendActionAsync(episode, action, desired, true, false).ConfigureAwait(false);
+            RecordAttempt(attempted, lockedKey, locked);
+            var settled = IsCurrent(episode) && (locked == null || locked.IsSuccessStatusCode)
+                ? await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false) : null;
             CompactTraceLog.Record(trace, "autoselect", "lock",
-                locked == null ? "failed_unavailable" :
-                locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,
-                watch.ElapsedMilliseconds);
+                DescribeActionOutcome(locked, settled, action, desired, true), watch.ElapsedMilliseconds);
         }
 
         private async Task<bool> TryPickIntentAsync(CancellationTokenSource episode, byte[] session,
@@ -579,13 +576,80 @@ namespace FACM.League
                 var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
                 if (!IsCurrent(episode) || !ParseAvailableIds(subset).Contains(desired)) return true;
             }
-            var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
-            if (result != null && result.IsSuccessStatusCode) attempted.Add("intent:" + intent.Id);
+            var result = await SendActionAsync(episode, intent, desired, false, true).ConfigureAwait(false);
+            RecordAttempt(attempted, "intent:" + intent.Id, result);
+            var settled = IsCurrent(episode) && (result == null || result.IsSuccessStatusCode)
+                ? await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false) : null;
             CompactTraceLog.Record(trace, "autoselect-intent", "write",
-                result == null ? "failed_unavailable" :
-                result.IsSuccessStatusCode ? "submitted" : "failed_http_" + result.StatusCode,
-                watch.ElapsedMilliseconds);
+                DescribeActionOutcome(result, settled, intent, desired, false), watch.ElapsedMilliseconds);
             return true;
+        }
+
+        private Task<LeagueClientWriteResponse> SendActionAsync(CancellationTokenSource episode,
+            LeagueAutoSelectAction action, int championId, bool completed, bool intent)
+        {
+            LeagueClientSession owner;
+            lock (_sync)
+            {
+                if (!IsCurrent(episode)) return Task.FromResult<LeagueClientWriteResponse>(null);
+                owner = _episodeOwner;
+            }
+            if (_session == null)
+                return intent ? _write.TryIntentAsync(action.Id, championId, episode.Token) :
+                    _write.TryApplyAsync(action.Type, action.Id, championId, completed, episode.Token);
+            var scoped = _write as ILeagueScopedChampSelectActionWriteApi;
+            if (scoped == null || owner == null) return Task.FromResult<LeagueClientWriteResponse>(null);
+            return intent ? scoped.TryIntentAsync(action.Id, championId, owner, episode.Token) :
+                scoped.TryApplyAsync(action.Type, action.Id, championId, completed, owner, episode.Token);
+        }
+
+        private static void RecordAttempt(HashSet<string> attempted, string key, LeagueClientWriteResponse response)
+        {
+            // One retry for an explicit server failure, after normal fresh preflight.
+            // Lost responses, rejections and accepted writes must not be blindly replayed.
+            if (response == null || response.IsSuccessStatusCode || response.StatusCode < 500 ||
+                !attempted.Add(key + ":retry"))
+                attempted.Add(key);
+        }
+
+        private static string DescribeActionOutcome(LeagueClientWriteResponse response, byte[] session,
+            LeagueAutoSelectAction expected, int desired, bool completed)
+        {
+            if (ActionMatchesReadback(session, expected, desired, completed)) return "confirmed";
+            return response == null ? "unverified_transport" :
+                response.IsSuccessStatusCode ? "submitted_unverified" : "failed_http_" + response.StatusCode;
+        }
+
+        internal static bool ActionMatchesReadback(byte[] session, LeagueAutoSelectAction expected,
+            int desired, bool completed)
+        {
+            if (expected == null || session == null || session.Length == 0 || session.Length > 2 * 1024 * 1024)
+                return false;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(session)) as Dictionary<string, object>;
+                object groups, cell;
+                if (root == null || !root.TryGetValue("localPlayerCellId", out cell) || !(cell is int) ||
+                    (int)cell != expected.LocalCellId ||
+                    ReadString(root, "autoSelectContext") != (expected.ContextKey ?? string.Empty) ||
+                    !root.TryGetValue("actions", out groups)) return false;
+                foreach (var group in groups as IEnumerable ?? Array.Empty<object>())
+                foreach (var value in group as IEnumerable ?? Array.Empty<object>())
+                {
+                    var action = value as Dictionary<string, object>;
+                    object id, actor, champion, done;
+                    if (action != null && action.TryGetValue("id", out id) && id is int &&
+                        (int)id == expected.Id && action.TryGetValue("actorCellId", out actor) && actor is int &&
+                        (int)actor == expected.LocalCellId && ReadString(action, "type") == expected.Type &&
+                        action.TryGetValue("championId", out champion) && champion is int && (int)champion == desired &&
+                        action.TryGetValue("completed", out done) && done is bool && (bool)done == completed)
+                        return true;
+                }
+            }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            return false;
         }
 
         internal static LeagueAutoSelectAction ParsePickIntentAction(byte[] session)
@@ -738,17 +802,34 @@ namespace FACM.League
                 return true;
             }
             CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "ok", watch.ElapsedMilliseconds);
-            var written = await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false);
-            // Retry only explicit server errors. A null/ambiguous response or a definitive
-            // rejection is one-shot; the next tick must not blindly repeat a possible write.
-            if (written == null || written.IsSuccessStatusCode ||
-                written.StatusCode < 500 || written.StatusCode > 599)
-                attempted.Add(key);
-            CompactTraceLog.Record(trace, "autoselect-trade", "write",
-                written == null ? "failed_unavailable" :
-                written.IsSuccessStatusCode ? (accept ? "accept_submitted" : "decline_submitted") :
-                "failed_http_" + written.StatusCode,
-                watch.ElapsedMilliseconds);
+            LeagueClientSession owner;
+            lock (_sync) owner = _episodeOwner;
+            if (!IsCurrent(episode)) return true;
+            var scoped = _tradeWrite as ILeagueDraftSwapWriteApi;
+            var written = _session == null
+                ? await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false)
+                : scoped == null || owner == null ? null
+                    : await scoped.TryHandleSwapAsync(LeagueDraftSwapKind.Champion, incoming.Id,
+                        accept ? LeagueDraftSwapAction.Accept : LeagueDraftSwapAction.Decline, owner, episode.Token).ConfigureAwait(false);
+            RecordAttempt(attempted, key, written);
+            var outcome = written == null ? "unverified_transport" :
+                written.IsSuccessStatusCode ? "submitted_unverified" : "failed_http_" + written.StatusCode;
+            if ((written == null || written.IsSuccessStatusCode) && IsCurrent(episode))
+            {
+                var after = LeagueLiveDataService.ParseBenchPayload(
+                    await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false));
+                if (IsCurrent(episode) && SameBenchIdentity(state, after))
+                {
+                    var status = await _read.TryGetBytesAsync(OngoingChampionTradePath, episode.Token).ConfigureAwait(false);
+                    if (IsCurrent(episode) &&
+                        LeagueDraftSwapObservation.Confirms(status, LeagueDraftSwapKind.Champion, incoming.Id,
+                            accept ? LeagueDraftSwapAction.Accept : LeagueDraftSwapAction.Decline) &&
+                        (!accept || after.LocalChampionId == incoming.RequestedChampionId))
+                        outcome = "confirmed";
+                }
+                if (outcome != "confirmed") guard.BlockUncertainWrite();
+            }
+            CompactTraceLog.Record(trace, "autoselect-trade", "write", outcome, watch.ElapsedMilliseconds);
             return true;
         }
 
@@ -817,11 +898,30 @@ namespace FACM.League
                 RecordOnce(reported, trace, "bench", "manual_choice_guard");
                 return;
             }
-            var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
+            if (profile.BenchUseMastery)
+            {
+                if (guard.MasterySwapAttempted || state.IsSubsetPhase ||
+                    !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal) ||
+                    state.ChampionIds.Count == 0) return;
+                if (!guard.MasteryReadAttempted)
+                {
+                    guard.MasteryReadAttempted = true;
+                    var mastery = await _read.TryGetBytesAsync(LeagueLiveDataService.LocalMasteryPath, episode.Token).ConfigureAwait(false);
+                    if (!IsCurrent(episode)) return;
+                    guard.MasteryScores = LeagueBenchQuickPickService.ParseMasteryScores(mastery);
+                }
+                if (guard.MasteryScores == null)
+                {
+                    RecordOnce(reported, trace, "bench_mastery", "unavailable");
+                    return;
+                }
+            }
+            var candidates = profile.BenchUseMastery ? null : LeagueAutoSelectGroupCatalog.FilterSpecials(
                 LeagueAutoSelectProfiles.Candidates(profiles, mode, role, true, pickId), mode,
                 _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
-            var desired = SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds,
-                profile.BenchPreferHigherPriority);
+            var desired = profile.BenchUseMastery
+                ? SelectMasteryTarget(guard.MasteryScores, state, profile.BenchMinMasteryPoints, profile.BenchPreferHigherPriority)
+                : SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds, profile.BenchPreferHigherPriority);
             if (desired <= 0) return;
 
             var key = "bench:" + state.LocalChampionId + ":" + desired;
@@ -845,9 +945,10 @@ namespace FACM.League
             if (!IsCurrent(episode)) return;
             var fresh = await ReadBenchAsync(confirmation, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
-            if (!SameBenchContext(state, fresh, desired) ||
-                SelectBenchTarget(candidates, fresh.LocalChampionId, fresh.ChampionIds,
-                    profile.BenchPreferHigherPriority) != desired)
+            var freshTarget = profile.BenchUseMastery
+                ? SelectMasteryTarget(guard.MasteryScores, fresh, profile.BenchMinMasteryPoints, profile.BenchPreferHigherPriority)
+                : SelectBenchTarget(candidates, fresh.LocalChampionId, fresh.ChampionIds, profile.BenchPreferHigherPriority);
+            if (!SameBenchContext(state, fresh, desired) || freshTarget != desired)
             {
                 CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "stale", watch.ElapsedMilliseconds);
                 return;
@@ -855,13 +956,25 @@ namespace FACM.League
             CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "ok", watch.ElapsedMilliseconds);
             // A stale preflight may recover on the next phase tick. Fence only an actual POST.
             attempted.Add(key);
-            var response = await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token)
-                .ConfigureAwait(false);
+            if (profile.BenchUseMastery) guard.MasterySwapAttempted = true;
+            LeagueClientSession owner;
+            lock (_sync) owner = _episodeOwner;
+            if (!IsCurrent(episode)) return;
+            var scoped = _benchWrite as ILeagueScopedBenchSwapWriteApi;
+            var response = _session == null
+                ? await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token).ConfigureAwait(false)
+                : scoped == null || owner == null ? null
+                    : await scoped.TrySwapAsync(desired, fresh.SwapRoute, owner, episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect-bench", "write",
                 response == null ? "failed_unavailable" :
                 response.IsSuccessStatusCode ? "submitted" : "failed_http_" + response.StatusCode,
                 watch.ElapsedMilliseconds);
-            if (response == null || !response.IsSuccessStatusCode || !IsCurrent(episode)) return;
+            if (!IsCurrent(episode)) return;
+            if (response != null && !response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode >= 500) guard.BlockUncertainWrite();
+                return;
+            }
 
             // Do not retry the POST when the client has acknowledged it but state has not settled.
             // A confirmed new champion is the only permitted continuation of an automatic sequence.
@@ -942,6 +1055,19 @@ namespace FACM.League
             }
         }
 
+        internal static int SelectMasteryTarget(Dictionary<int, long> scores, LeagueBenchQuickPickState state,
+            int minimum, bool upgrade)
+        {
+            if (scores == null || state == null || state.IsSubsetPhase || !state.BenchEnabled ||
+                state.LocalChampionId <= 0 || minimum < 0 ||
+                !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal)) return 0;
+            long heldScore = 0;
+            if (upgrade && !scores.TryGetValue(state.LocalChampionId, out heldScore)) return 0;
+            return state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id) &&
+                    scores[id] >= minimum && (!upgrade || scores[id] > heldScore))
+                .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
+        }
+
         internal static int SelectBenchTarget(IReadOnlyList<int> priorities, int held,
             IReadOnlyList<int> bench, bool upgrade)
         {
@@ -992,8 +1118,8 @@ namespace FACM.League
                 fresh.GameMode != expected.GameMode || fresh.ContextKey != expected.ContextKey || fresh.Completed ||
                 fresh.AllowSubsetPicks != expected.AllowSubsetPicks ||
                 fresh.ChampionId != 0 && fresh.ChampionId != desired ||
-                fresh.Type == "pick" && fresh.ChampionId != desired &&
-                fresh.TeammateIntentIds.Contains(desired) && !ignoreTeammateIntent) return false;
+                fresh.TeammateIntentIds.Contains(desired) && !ignoreTeammateIntent &&
+                (fresh.Type == "ban" || fresh.ChampionId != desired)) return false;
             if (fresh.Type == "pick" && fresh.AllowSubsetPicks && desired > 0)
             {
                 var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);

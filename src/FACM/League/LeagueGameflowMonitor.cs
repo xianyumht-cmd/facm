@@ -45,6 +45,7 @@ namespace FACM.League
                 Connected = state.Connected,
                 ClientProcessDetected = state.ClientProcessDetected,
                 GameProcessDetected = state.GameProcessDetected,
+                GameProcessObserved = state.GameProcessObserved,
                 Phase = state.Phase,
                 IsRankedQueue = state.IsRankedQueue,
                 Activity = state.Activity,
@@ -122,13 +123,14 @@ namespace FACM.League
                             _current.Activity != next.Activity ||
                             !string.Equals(_current.Phase, next.Phase, StringComparison.OrdinalIgnoreCase) ||
                             _current.ClientProcessDetected != next.ClientProcessDetected ||
-                            _current.GameProcessDetected != next.GameProcessDetected;
+                            _current.GameProcessDetected != next.GameProcessDetected ||
+                            _current.GameProcessObserved != next.GameProcessObserved;
                         _current = LeagueGameflowEventDispatcher.Clone(next);
                     }
                     if (changed)
                         AppLog.Info("Gameflow health; connected=" + next.Connected +
                             "; phase=" + next.Phase + "; activity=" + next.Activity + "; clientProcess=" + next.ClientProcessDetected +
-                            "; gameProcess=" + next.GameProcessDetected);
+                            "; gameProcess=" + (next.GameProcessObserved.HasValue ? next.GameProcessObserved.Value.ToString() : "unknown"));
                     LeagueGameflowEventDispatcher.DispatchSafely(StateChanged, next, "monitor");
                 }
 

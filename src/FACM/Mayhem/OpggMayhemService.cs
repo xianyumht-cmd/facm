@@ -22,6 +22,71 @@ namespace FACM.Mayhem
         private static readonly object Sync = new object();
         private static readonly Dictionary<string, CacheEntry> Cache = new Dictionary<string, CacheEntry>(StringComparer.OrdinalIgnoreCase);
         private static readonly HttpClient Client = CreateClient();
+        private static readonly Dictionary<string, SharedRankingPage> SharedRankingPages =
+            new Dictionary<string, SharedRankingPage>(StringComparer.Ordinal)
+            {
+                { HexdataHeroesUrl, new SharedRankingPage(html => MayhemRankingSourceService.IsComplete(ParseHexdataFullRanking(html))) },
+                { AramggRankingUrl, new SharedRankingPage(html => MayhemRankingSourceService.IsComplete(MayhemRankingSourceService.ParseAramgg(html))) },
+                { RankingBaseUrl + "/", new SharedRankingPage(html => MayhemRankingSourceService.IsComplete(
+                    new MayhemRankingSnapshot { Patch = MayhemRankingSourceService.ReadPatch(html), TopTen = ParseTopTen(html) })) }
+            };
+
+        // Only fixed global ranking pages are retained; per-champion pages keep their existing cache policy.
+        private sealed class SharedRankingPage
+        {
+            private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
+            private readonly Func<string, bool> _validate;
+            private readonly Func<DateTime> _now;
+            private string _html;
+            private DateTime _fetched;
+            private DateTime _retryAt;
+            internal SharedRankingPage(Func<string, bool> validate, Func<DateTime> now = null)
+            {
+                _validate = validate;
+                _now = now ?? (() => DateTime.UtcNow);
+            }
+
+            internal async Task<string> ReadAsync(Func<CancellationToken, Task<string>> fetch, CancellationToken token)
+            {
+                await _gate.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    token.ThrowIfCancellationRequested();
+                    var now = _now();
+                    var age = now - _fetched;
+                    if (_html != null && age >= TimeSpan.Zero && age < TimeSpan.FromMinutes(3))
+                        return _html;
+                    _html = null;
+                    if (now < _retryAt) return null;
+                    var html = await fetch(token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    if (!string.IsNullOrWhiteSpace(html) && html.Length <= 2 * 1024 * 1024)
+                    {
+                        bool valid = false;
+                        try { valid = _validate(html); }
+                        catch (Exception exception)
+                        {
+                            AppLog.Info("Mayhem shared ranking validation skipped: " + exception.GetType().Name);
+                        }
+                        token.ThrowIfCancellationRequested();
+                        if (valid)
+                        {
+                            _html = html;
+                            _fetched = _now();
+                            _retryAt = DateTime.MinValue;
+                        }
+                    }
+                    return html;
+                }
+                finally { _gate.Release(); }
+            }
+
+            internal void ObserveUnavailable(int status)
+            {
+                if (status == 503 || status == 429)
+                    _retryAt = _now().AddMinutes(2);
+            }
+        }
 
         private sealed class CacheEntry
         {
@@ -233,6 +298,51 @@ namespace FACM.Mayhem
                 result.Rank = current.Rank;
                 result.WinRate = current.WinRate;
                 result.Tier = current.Tier;
+            }
+        }
+
+        internal static void ValidateSharedRankingPagesForSmokeTest()
+        {
+            var now = new DateTime(2026, 11, 29, 0, 0, 0, DateTimeKind.Utc);
+            var page = new SharedRankingPage(html => html == "valid", () => now);
+            var calls = 0;
+            Func<CancellationToken, Task<string>> valid = ct => { calls++; return Task.FromResult("valid"); };
+            Func<CancellationToken, Task<string>> unavailable = ct =>
+            {
+                calls++;
+                page.ObserveUnavailable(503);
+                return Task.FromResult<string>(null);
+            };
+            if (page.ReadAsync(valid, CancellationToken.None).GetAwaiter().GetResult() != "valid" ||
+                page.ReadAsync(valid, CancellationToken.None).GetAwaiter().GetResult() != "valid" || calls != 1)
+                throw new InvalidOperationException("Shared rankings must reuse a validated fresh page.");
+            now = now.AddMinutes(3);
+            if (page.ReadAsync(unavailable, CancellationToken.None).GetAwaiter().GetResult() != null ||
+                page.ReadAsync(valid, CancellationToken.None).GetAwaiter().GetResult() != null || calls != 2)
+                throw new InvalidOperationException("HTTP 503 cooldown must suppress repeated global fetches.");
+            now = now.AddMinutes(2);
+            if (page.ReadAsync(valid, CancellationToken.None).GetAwaiter().GetResult() != "valid" || calls != 3)
+                throw new InvalidOperationException("Expired source cooldown must allow recovery.");
+            now = now.AddMinutes(3);
+            page.ReadAsync(ct => { calls++; return Task.FromResult("invalid"); }, CancellationToken.None).GetAwaiter().GetResult();
+            if (page.ReadAsync(valid, CancellationToken.None).GetAwaiter().GetResult() != "valid" || calls != 5)
+                throw new InvalidOperationException("Invalid HTTP success must not poison shared ranking cache.");
+
+            now = now.AddMinutes(3);
+            var pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var first = page.ReadAsync(ct => { calls++; return pending.Task; }, CancellationToken.None);
+            using (var cancel = new CancellationTokenSource())
+            {
+                var abandoned = page.ReadAsync(valid, cancel.Token);
+                var second = page.ReadAsync(valid, CancellationToken.None);
+                cancel.Cancel();
+                var cancelled = false;
+                try { abandoned.GetAwaiter().GetResult(); }
+                catch (OperationCanceledException) { cancelled = true; }
+                pending.SetResult("valid");
+                if (!cancelled || first.GetAwaiter().GetResult() != "valid" ||
+                    second.GetAwaiter().GetResult() != "valid" || calls != 6)
+                    throw new InvalidOperationException("Shared ranking gate must deduplicate without cancelling another caller.");
             }
         }
 
@@ -635,7 +745,17 @@ namespace FACM.Mayhem
                 GetSafeAsync(url, budget, deadline), caller);
         }
 
-        private static async Task<string> GetSafeAsync(string url, TimeSpan budget, CancellationToken token)
+        private static Task<string> GetSafeAsync(string url, TimeSpan budget, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            SharedRankingPage shared;
+            if (SharedRankingPages.TryGetValue(url, out shared))
+                return shared.ReadAsync(ct => FetchSourceAsync(url, budget, shared, ct), token);
+            return FetchSourceAsync(url, budget, null, token);
+        }
+
+        private static async Task<string> FetchSourceAsync(string url, TimeSpan budget,
+            SharedRankingPage shared, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
             if (!CloudRouteControl.PublicSourceAllowed(url, ref budget)) return null;
@@ -650,7 +770,10 @@ namespace FACM.Mayhem
                     {
                         if (!response.IsSuccessStatusCode)
                         {
-                            AppLog.Info("Mayhem source returned HTTP " + (int)response.StatusCode + ": " + url + "; ms=" + watch.ElapsedMilliseconds);
+                            token.ThrowIfCancellationRequested();
+                            var status = (int)response.StatusCode;
+                            if (shared != null) shared.ObserveUnavailable(status);
+                            AppLog.Info("Mayhem source returned HTTP " + status + ": " + url + "; ms=" + watch.ElapsedMilliseconds);
                             return null;
                         }
                         var text = await CancelableHttpContentReader.ReadStringAsync(response.Content, timeout.Token).ConfigureAwait(false);

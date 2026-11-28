@@ -27,8 +27,89 @@ namespace FACM.League
             int tradeId, bool accept, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, IDisposable
+    internal interface ILeagueScopedBenchSwapWriteApi
     {
+        Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route,
+            LeagueClientSession expected, CancellationToken token);
+    }
+
+    internal enum LeagueDraftSwapKind { Champion, Position, PickOrder }
+    internal enum LeagueDraftSwapAction { Accept, Decline, Cancel }
+
+    internal interface ILeagueDraftSwapWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryHandleSwapAsync(LeagueDraftSwapKind kind, int id,
+            LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token);
+    }
+
+    internal interface ILeagueAramRerollWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token);
+    }
+
+    internal sealed class LeagueDraftSwapObservation
+    {
+        internal LeagueDraftSwapKind Kind { get; private set; }
+        internal int Id { get; private set; }
+        internal string State { get; private set; }
+        internal bool LocalInitiated { get; private set; }
+        internal int RequestedChampionId { get; private set; }
+        internal bool CanAnswer { get { return State == "RECEIVED" && !LocalInitiated; } }
+        internal bool CanCancel { get { return State == "SENT" && LocalInitiated; } }
+
+        internal bool Allows(LeagueDraftSwapAction action)
+        {
+            return action == LeagueDraftSwapAction.Cancel ? CanCancel :
+                (action == LeagueDraftSwapAction.Accept || action == LeagueDraftSwapAction.Decline) && CanAnswer;
+        }
+
+        internal bool SameRequest(LeagueDraftSwapObservation other)
+        {
+            return other != null && Kind == other.Kind && Id == other.Id && State == other.State &&
+                LocalInitiated == other.LocalInitiated && RequestedChampionId == other.RequestedChampionId;
+        }
+
+        internal static LeagueDraftSwapObservation Parse(byte[] bytes, LeagueDraftSwapKind kind)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 32768) return null;
+            try
+            {
+                var root = new System.Web.Script.Serialization.JavaScriptSerializer()
+                    .DeserializeObject(System.Text.Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                object id, type, state, local, champion;
+                var expectedType = kind == LeagueDraftSwapKind.Champion ? "CHAMPION" :
+                    kind == LeagueDraftSwapKind.Position ? "POSITION" :
+                    kind == LeagueDraftSwapKind.PickOrder ? "PICK_ORDER" : "";
+                if (root == null || expectedType.Length == 0 ||
+                    !root.TryGetValue("id", out id) || !(id is int) || (int)id <= 0 ||
+                    !root.TryGetValue("type", out type) || !string.Equals(type as string, expectedType, StringComparison.Ordinal) ||
+                    !root.TryGetValue("state", out state) || !(state is string) ||
+                    !root.TryGetValue("initiatedByLocalPlayer", out local) || !(local is bool)) return null;
+                root.TryGetValue("requesterChampionId", out champion);
+                return new LeagueDraftSwapObservation { Kind = kind, Id = (int)id, State = (string)state,
+                    LocalInitiated = (bool)local, RequestedChampionId = champion is int ? (int)champion : 0 };
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        internal static bool Confirms(byte[] bytes, LeagueDraftSwapKind kind, int id, LeagueDraftSwapAction action)
+        {
+            var result = Parse(bytes, kind);
+            if (result == null || result.Id != id) return false;
+            switch (action)
+            {
+                case LeagueDraftSwapAction.Accept: return result.State == "ACCEPTED";
+                case LeagueDraftSwapAction.Decline: return result.State == "DECLINED";
+                case LeagueDraftSwapAction.Cancel: return result.State == "CANCELLED" || result.State == "CANCELED";
+                default: return false;
+            }
+        }
+    }
+
+    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueDraftSwapWriteApi, ILeagueAramRerollWriteApi, IDisposable
+    {
+        internal const string RerollPath = "/lol-champ-select/v1/session/my-selection/reroll";
         internal const string LegacySwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
         internal const string TeamBuilderSwapPathPrefix = "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/";
         internal const string ChampionTradePathPrefix = "/lol-champ-select/v1/session/champion-swaps/";
@@ -53,6 +134,54 @@ namespace FACM.League
             return SendBodylessPostAsync(BuildPathForSmokeTest(championId, route), cancellationToken);
         }
 
+        public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            if (championId <= 0 || expected == null) return Task.FromResult<LeagueClientWriteResponse>(null);
+            return SendBodylessPostAsync(BuildPathForSmokeTest(championId, route), token, expected);
+        }
+
+        internal static string OngoingSwapPath(LeagueDraftSwapKind kind)
+        {
+            switch (kind)
+            {
+                case LeagueDraftSwapKind.Champion: return "/lol-champ-select/v1/ongoing-champion-swap";
+                case LeagueDraftSwapKind.Position: return "/lol-champ-select/v1/ongoing-position-swap";
+                case LeagueDraftSwapKind.PickOrder: return "/lol-champ-select/v1/ongoing-pick-order-swap";
+                default: return string.Empty;
+            }
+        }
+
+        internal static string BuildDraftSwapPath(LeagueDraftSwapKind kind, int id, LeagueDraftSwapAction action)
+        {
+            if (id <= 0) return string.Empty;
+            string prefix;
+            switch (kind)
+            {
+                case LeagueDraftSwapKind.Champion: prefix = ChampionTradePathPrefix; break;
+                case LeagueDraftSwapKind.Position: prefix = "/lol-champ-select/v1/session/position-swaps/"; break;
+                case LeagueDraftSwapKind.PickOrder: prefix = "/lol-champ-select/v1/session/pick-order-swaps/"; break;
+                default: return string.Empty;
+            }
+            string suffix;
+            switch (action)
+            {
+                case LeagueDraftSwapAction.Accept: suffix = "/accept"; break;
+                case LeagueDraftSwapAction.Decline: suffix = "/decline"; break;
+                case LeagueDraftSwapAction.Cancel: suffix = "/cancel"; break;
+                default: return string.Empty;
+            }
+            return prefix + id.ToString(System.Globalization.CultureInfo.InvariantCulture) + suffix;
+        }
+
+        public Task<LeagueClientWriteResponse> TryHandleSwapAsync(LeagueDraftSwapKind kind, int id,
+            LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token)
+        {
+            var path = BuildDraftSwapPath(kind, id, action);
+            if (expected == null || path.Length == 0) return Task.FromResult<LeagueClientWriteResponse>(null);
+            return SendBodylessPostAsync(path, token, expected);
+        }
+
         public Task<LeagueClientWriteResponse> TryAnswerAsync(
             int tradeId, bool accept, CancellationToken cancellationToken)
         {
@@ -60,13 +189,19 @@ namespace FACM.League
             return SendBodylessPostAsync(BuildTradePathForSmokeTest(tradeId, accept), cancellationToken);
         }
 
+        public Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                SendBodylessPostAsync(RerollPath, token, expected);
+        }
+
         private async Task<LeagueClientWriteResponse> SendBodylessPostAsync(
-            string path, CancellationToken cancellationToken)
+            string path, CancellationToken cancellationToken, LeagueClientSession expected = null)
         {
 
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null || expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try

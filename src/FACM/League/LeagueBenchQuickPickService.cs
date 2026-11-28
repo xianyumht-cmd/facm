@@ -1,5 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Web.Script.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Performance;
@@ -51,6 +55,12 @@ namespace FACM.League
         private readonly ILeagueBenchSwapWriteApi _writer;
         private readonly ILeagueChampSelectActionWriteApi _actionWriter;
         private LeagueBenchQuickPickState _latest;
+        private LeagueBenchQuickPickState _lastReroll;
+        private LeagueBenchQuickPickState _lastSwapDraft;
+        private readonly System.Collections.Generic.HashSet<string> _handledSwaps =
+            new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        internal bool SupportsDraftSwaps { get { return _writer is ILeagueDraftSwapWriteApi; } }
+        internal bool SupportsReroll { get { return _writer is ILeagueAramRerollWriteApi; } }
         private readonly SemaphoreSlim _swapGate = new SemaphoreSlim(1, 1);
 
         public LeagueBenchQuickPickService(LeagueLiveDataService live, ILeagueBenchSwapWriteApi writer,
@@ -107,10 +117,23 @@ namespace FACM.League
                 {
                     if (_actionWriter == null || !state.LocalPickActionId.HasValue)
                         return Result(LeagueBenchSwapStatus.BenchDisabled, championId, 0, stopwatch);
-                    response = await _actionWriter.TryApplyAsync("pick", state.LocalPickActionId.Value,
-                        championId, true, cancellationToken).ConfigureAwait(false);
+                    var scopedAction = _actionWriter as ILeagueScopedChampSelectActionWriteApi;
+                    response = state.ClientSession == null
+                        ? await _actionWriter.TryApplyAsync("pick", state.LocalPickActionId.Value,
+                            championId, true, cancellationToken).ConfigureAwait(false)
+                        : scopedAction == null ? null
+                            : await scopedAction.TryApplyAsync("pick", state.LocalPickActionId.Value,
+                                championId, true, state.ClientSession, cancellationToken).ConfigureAwait(false);
                 }
-                else response = await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false);
+                else
+                {
+                    var scopedBench = _writer as ILeagueScopedBenchSwapWriteApi;
+                    response = state.ClientSession == null
+                        ? await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false)
+                        : scopedBench == null ? null
+                            : await scopedBench.TrySwapAsync(championId, state.SwapRoute, state.ClientSession,
+                                cancellationToken).ConfigureAwait(false);
+                }
                 try
                 {
                     return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, state).ConfigureAwait(false);
@@ -118,6 +141,190 @@ namespace FACM.League
                 finally { Volatile.Write(ref _latest, null); }
             }
             finally { stopwatch.Stop(); _swapGate.Release(); }
+        }
+
+        internal static int SelectMasteryBenchTarget(byte[] bytes, LeagueBenchQuickPickState state)
+        {
+            if (state == null || state.IsSubsetPhase || !state.BenchEnabled) return 0;
+            var scores = ParseMasteryScores(bytes);
+            return scores == null ? 0 : state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id))
+                .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
+        }
+
+        internal static Dictionary<int, long> ParseMasteryScores(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024) return null;
+            try
+            {
+                var rows = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (rows == null) return null;
+                var scores = new Dictionary<int, long>();
+                foreach (var row in rows)
+                {
+                    var item = row as Dictionary<string, object>;
+                    object champion, points;
+                    if (item == null || !item.TryGetValue("championId", out champion) || !(champion is int) ||
+                        (int)champion <= 0 || !item.TryGetValue("championPoints", out points)) return null;
+                    long score;
+                    if (points is int) score = (int)points;
+                    else if (points is long) score = (long)points;
+                    else return null;
+                    if (score < 0 || scores.ContainsKey((int)champion)) return null;
+                    scores.Add((int)champion, score);
+                }
+                return scores;
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryChooseMasteryAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            var watch = Stopwatch.StartNew();
+            if (expected == null || expected.ClientSession == null || expected.IsSubsetPhase ||
+                !expected.ChampionIds.Any(expected.CanChoose))
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+
+            var initial = await RefreshAsync(token).ConfigureAwait(false);
+            if (!expected.SameDraft(initial) || initial.LocalChampionId != expected.LocalChampionId ||
+                !_live.IsQuickPickClientCurrent(initial))
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            var mastery = await _live.ReadLocalMasteryAsync(initial, token).ConfigureAwait(false);
+            var fresh = await RefreshAsync(token).ConfigureAwait(false);
+            if (!initial.SameDraft(fresh) || fresh.LocalChampionId != initial.LocalChampionId ||
+                !_live.IsQuickPickClientCurrent(fresh) || fresh.IsSubsetPhase)
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            var target = SelectMasteryBenchTarget(mastery, fresh);
+            if (target <= 0) return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            return await TryChooseAsync(target, fresh, token).ConfigureAwait(false);
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryRerollAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                var reroll = _writer as ILeagueAramRerollWriteApi;
+                if (reroll == null || expected == null || !expected.CanReroll || expected.ClientSession == null)
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                var current = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(current) || !_live.IsQuickPickClientCurrent(current) || !current.CanReroll ||
+                    current.LocalChampionId != expected.LocalChampionId ||
+                    current.RerollsRemaining != expected.RerollsRemaining)
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                if (_lastReroll != null && _lastReroll.SameDraft(current) &&
+                    _lastReroll.RerollsRemaining == current.RerollsRemaining)
+                    return Result(LeagueBenchSwapStatus.VerificationFailed, 0, 0, watch);
+
+                // One explicit click, one scoped bodyless POST; a lost response is not safe to repeat.
+                _lastReroll = current;
+                Volatile.Write(ref _latest, null);
+                var response = await reroll.TryRerollAsync(current.ClientSession, token).ConfigureAwait(false);
+                if (response != null && !response.IsSuccessStatusCode && response.StatusCode < 500)
+                {
+                    _lastReroll = null;
+                    return Result(LeagueBenchSwapStatus.WriteRejected, 0, response.StatusCode, watch);
+                }
+                for (var i = 0; i < 3; i++)
+                {
+                    await Task.Delay(60 * (i + 1), token).ConfigureAwait(false);
+                    var after = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                    if (!current.SameDraft(after) || !_live.IsQuickPickClientCurrent(after)) break;
+                    if (after.RerollsRemaining.HasValue && after.RerollsRemaining.Value == current.RerollsRemaining.Value - 1 &&
+                        after.LocalChampionId > 0 && after.LocalChampionId != current.LocalChampionId)
+                        return Result(LeagueBenchSwapStatus.Success, after.LocalChampionId, response == null ? 0 : response.StatusCode, watch);
+                }
+                return Result(LeagueBenchSwapStatus.VerificationFailed, 0, response == null ? 0 : response.StatusCode, watch);
+            }
+            finally { watch.Stop(); _swapGate.Release(); }
+        }
+
+        private static bool CanHandleDraftSwap(LeagueBenchQuickPickState state)
+        {
+            return state != null && state.SessionAvailable && state.ClientSession != null &&
+                (state.GameId > 0 || !string.IsNullOrEmpty(state.SelectionId)) &&
+                (string.Equals(state.TimerPhase, "BAN_PICK", StringComparison.Ordinal) ||
+                 string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal));
+        }
+
+        private void RefreshSwapFence(LeagueBenchQuickPickState state)
+        {
+            if (_lastSwapDraft == null || !_lastSwapDraft.SameDraft(state))
+            {
+                _handledSwaps.Clear();
+                _lastSwapDraft = state;
+            }
+        }
+
+        private static string SwapKey(LeagueDraftSwapObservation item)
+        {
+            return item.Kind + ":" + item.Id + ":" + item.State;
+        }
+
+        internal async Task<LeagueDraftSwapObservation[]> ReadDraftSwapsAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!SupportsDraftSwaps || !CanHandleDraftSwap(expected)) return Array.Empty<LeagueDraftSwapObservation>();
+                var fresh = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(fresh) || !CanHandleDraftSwap(fresh) || !_live.IsQuickPickClientCurrent(fresh))
+                    return Array.Empty<LeagueDraftSwapObservation>();
+                RefreshSwapFence(fresh);
+                var items = new System.Collections.Generic.List<LeagueDraftSwapObservation>();
+                foreach (var kind in new[] { LeagueDraftSwapKind.Champion, LeagueDraftSwapKind.Position, LeagueDraftSwapKind.PickOrder })
+                {
+                    var item = LeagueDraftSwapObservation.Parse(await _live.ReadDraftSwapAsync(kind, fresh, token).ConfigureAwait(false), kind);
+                    if (item != null && (item.CanAnswer || item.CanCancel) && !_handledSwaps.Contains(SwapKey(item)))
+                        items.Add(item);
+                }
+                return _live.IsQuickPickClientCurrent(fresh) ? items.ToArray() : Array.Empty<LeagueDraftSwapObservation>();
+            }
+            finally { _swapGate.Release(); }
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryHandleDraftSwapAsync(LeagueBenchQuickPickState expected,
+            LeagueDraftSwapObservation request, LeagueDraftSwapAction action, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                var writer = _writer as ILeagueDraftSwapWriteApi;
+                if (writer == null || !CanHandleDraftSwap(expected) || request == null || !request.Allows(action))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                var fresh = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(fresh) || !CanHandleDraftSwap(fresh) ||
+                    fresh.LocalChampionId != expected.LocalChampionId || !_live.IsQuickPickClientCurrent(fresh))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                RefreshSwapFence(fresh);
+                var key = SwapKey(request);
+                if (_handledSwaps.Contains(key)) return Result(LeagueBenchSwapStatus.VerificationFailed, 0, 0, watch);
+                var current = LeagueDraftSwapObservation.Parse(
+                    await _live.ReadDraftSwapAsync(request.Kind, fresh, token).ConfigureAwait(false), request.Kind);
+                if (!request.SameRequest(current) || !current.Allows(action) || !_live.IsQuickPickClientCurrent(fresh))
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                _handledSwaps.Add(key);
+                var response = await writer.TryHandleSwapAsync(current.Kind, current.Id, action,
+                    fresh.ClientSession, token).ConfigureAwait(false);
+                if (response != null && !response.IsSuccessStatusCode && response.StatusCode < 500)
+                    return Result(LeagueBenchSwapStatus.WriteRejected, 0, response.StatusCode, watch);
+                for (var i = 0; i < 3; i++)
+                {
+                    await Task.Delay(60 * (i + 1), token).ConfigureAwait(false);
+                    var after = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                    if (!fresh.SameDraft(after) || !_live.IsQuickPickClientCurrent(after)) break;
+                    var bytes = await _live.ReadDraftSwapAsync(current.Kind, after, token).ConfigureAwait(false);
+                    if (LeagueDraftSwapObservation.Confirms(bytes, current.Kind, current.Id, action) &&
+                        (action != LeagueDraftSwapAction.Accept || current.Kind != LeagueDraftSwapKind.Champion ||
+                         current.RequestedChampionId > 0 && after.LocalChampionId == current.RequestedChampionId))
+                        return Result(LeagueBenchSwapStatus.Success, after.LocalChampionId, response == null ? 0 : response.StatusCode, watch);
+                }
+                return Result(LeagueBenchSwapStatus.VerificationFailed, 0, response == null ? 0 : response.StatusCode, watch);
+            }
+            finally { watch.Stop(); _swapGate.Release(); }
         }
 
         public Task<byte[]> LoadChampionIconAsync(int championId, CancellationToken cancellationToken)

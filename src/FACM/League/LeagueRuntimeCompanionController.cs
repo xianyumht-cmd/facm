@@ -106,6 +106,34 @@ namespace FACM.League
             get { return _quitService != null && !_disposed; }
         }
 
+        public bool SupportsReroll { get { return !_disposed && _bench.SupportsReroll; } }
+        public bool SupportsDraftSwaps { get { return !_disposed && _bench.SupportsDraftSwaps; } }
+
+        public Task<LeagueDraftSwapObservation[]> ReadDraftSwapsAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.ReadDraftSwapsAsync(expected == null ? null : expected.QuickPickState, token);
+        }
+
+        public Task<LeagueBenchSwapResult> TryHandleDraftSwapAsync(LeagueRuntimeCompanionSnapshot expected,
+            LeagueDraftSwapObservation request, LeagueDraftSwapAction action, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.TryHandleDraftSwapAsync(expected == null ? null : expected.QuickPickState, request, action, token);
+        }
+
+        public Task<LeagueBenchSwapResult> TryChooseMasteryAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.TryChooseMasteryAsync(expected == null ? null : expected.QuickPickState, token);
+        }
+
+        public Task<LeagueBenchSwapResult> TryRerollAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.TryRerollAsync(expected == null ? null : expected.QuickPickState, token);
+        }
+
         public bool SupportsChampSelectMute
         {
             get { return _muteService != null && !_disposed; }
@@ -159,6 +187,7 @@ namespace FACM.League
                     if (prior == null || !prior.SameDraft(state) ||
                         (state != null && (prior.IsInitialCardSelection != state.IsInitialCardSelection ||
                             prior.LocalChampionId != state.LocalChampionId || prior.LocalPickActionId != state.LocalPickActionId ||
+                            prior.RerollsRemaining != state.RerollsRemaining || prior.RerollsDisabled != state.RerollsDisabled ||
                             !string.Equals(prior.TimerPhase, state.TimerPhase, StringComparison.Ordinal))))
                         _snapshot.ChoiceRevision++;
                     _snapshot.QuickPickState = state;

@@ -21,6 +21,8 @@ namespace FACM.League
             ValidateCancelledPreflight();
             ValidateLeaderPromotion();
             ValidateLeaderRoomNotice();
+            ValidateSharedRoomPromotion();
+            ValidateInvitationReadback();
             ValidateDisabledByDefault();
             ValidateSessionScopedLobbyActions();
             LeagueFriendInvitationSmokeTest.Validate();
@@ -211,7 +213,10 @@ namespace FACM.League
             var conversation = "[{\"type\":\"customGame\",\"id\":\"room-leader@party\"}]";
             var read = new Read();
             var write = new Write();
-            read.Set(LeagueLobbyInvitationController.LobbyPath, leader);
+            var promoted = "{\"partyId\":\"party-notice\",\"localMember\":{\"summonerId\":10,\"isLeader\":false}," +
+                "\"members\":[{\"summonerId\":20,\"isLeader\":true}]}";
+            read.SetSequence(LeagueLobbyInvitationController.LobbyPath, leader, leader, promoted, promoted);
+            read.Set(LeagueLobbyInvitationController.LobbyPath, promoted);
             read.Set(LeagueFriendInvitationController.ConversationsPath, conversation);
             using (var controller = new LeagueLobbyInvitationController(read, write, write))
             {
@@ -219,14 +224,14 @@ namespace FACM.League
                 Run(controller, "Lobby");
                 Run(controller, "Lobby");
                 Require(write.Calls.Count == 1 && write.Notices.SequenceEqual(new[]
-                    { "room-leader@party|已发起队长转让" }),
+                    { "room-leader@party|队长已转让" }),
                     "Successful automatic leader promotion must announce at most once to its custom-game room.");
             }
 
             read = new Read();
             write = new Write();
-            read.SetSequence(LeagueLobbyInvitationController.LobbyPath, leader, leader,
-                leader.Replace("party-notice", "party-replaced"));
+            read.SetSequence(LeagueLobbyInvitationController.LobbyPath, leader, leader, promoted,
+                promoted.Replace("party-notice", "party-replaced"));
             read.Set(LeagueFriendInvitationController.ConversationsPath, conversation);
             using (var controller = new LeagueLobbyInvitationController(read, write, write))
             {
@@ -245,6 +250,56 @@ namespace FACM.League
                 Run(controller, "Lobby");
                 Require(write.Notices.Count == 0,
                     "Rejected promotion must not announce a successful leader change.");
+            }
+        }
+
+        private static void ValidateInvitationReadback()
+        {
+            using (var controller = new LeagueLobbyInvitationController(new Read(), new Write()))
+            {
+                Require(controller.ConfirmsInvitation(Encoding.UTF8.GetBytes(Invitations("inv-a", "NORMAL", "Accepted", true)),
+                    "inv-a", LeagueInvitationPolicies.Accept), "Exact accepted invitation should confirm.");
+                Require(!controller.ConfirmsInvitation(Encoding.UTF8.GetBytes("[]"), "inv-a", LeagueInvitationPolicies.Accept) &&
+                    !controller.ConfirmsInvitation(Encoding.UTF8.GetBytes(Invitations("inv-b", "NORMAL", "Accepted", true)),
+                    "inv-a", LeagueInvitationPolicies.Accept) &&
+                    !controller.ConfirmsInvitation(Encoding.UTF8.GetBytes(Invitations("inv-a", "NORMAL", "Declined", true)),
+                    "inv-a", LeagueInvitationPolicies.Accept), "Missing, unrelated or opposite terminal states must not confirm.");
+            }
+        }
+
+        private static void ValidateSharedRoomPromotion()
+        {
+            var owner = new LeagueClientSession("LeagueClientUx", 77, 2999, "test", "https", "fixture", "HN1", "HN1");
+            var read = new Read();
+            var write = new Write();
+            var leader = "{\"partyId\":\"party-shared\",\"gameConfig\":{\"queueId\":450}," +
+                "\"localMember\":{\"summonerId\":10,\"isLeader\":true},\"members\":[{\"summonerId\":10,\"isLeader\":true}," +
+                "{\"summonerId\":20,\"ready\":true,\"isLeader\":false}]}";
+            read.Set(LeagueLobbyInvitationController.LobbyPath, leader);
+            read.Set(LeaguePostGameAutomationController.GameflowPhasePath, "\"Lobby\"");
+            read.Set(LeaguePostGameAutomationController.CurrentSummonerPath, "{\"summonerId\":10}");
+            var room = new LeagueLobbyRoomService(read, write, () => owner);
+            var snapshot = room.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var result = room.ApplyAsync(snapshot, LeagueLobbyRoomAction.Kick, 20, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && write.RoomCalls == 1, "Unresolved manual action must retain room ownership.");
+            using (var controller = new LeagueLobbyInvitationController(read, write, write, () => owner, room))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Require(write.RoomCalls == 1 && write.Calls.Count == 0 && write.Notices.Count == 0,
+                    "Automatic promotion must share the unresolved manual room fence.");
+            }
+            var promoted = leader.Replace("\"isLeader\":true", "\"isLeader\":false");
+            promoted = promoted.Replace("\"ready\":true,\"isLeader\":false", "\"ready\":true,\"isLeader\":true");
+            var freshRoom = new LeagueLobbyRoomService(read, write, () => owner);
+            read.Set(LeagueFriendInvitationController.ConversationsPath, "[{\"type\":\"customGame\",\"id\":\"room-leader@party\"}]");
+            write.OnRoom = () => read.Set(LeagueLobbyInvitationController.LobbyPath, promoted);
+            using (var controller = new LeagueLobbyInvitationController(read, write, write, () => owner, freshRoom))
+            {
+                controller.Configure(false, false, "{}", true);
+                Run(controller, "Lobby");
+                Require(write.RoomCalls == 2 && write.Calls.Count == 0 && write.Notices.Count == 1 && write.ScopedOwner == owner,
+                    "Verified automatic promotion must use the shared transaction and scoped notice.");
             }
         }
 
@@ -273,8 +328,8 @@ namespace FACM.League
                 read.OnRead = null;
                 controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "None" });
                 Run(controller, "None");
-                Require(write.Calls.Count == 1,
-                    "The replacement LCU owner must independently accept its pending invitation.");
+                Require(write.Calls.Count == 1 && write.ScopedOwner == second,
+                    "The replacement LCU owner must independently accept its pending invitation through scoped transport.");
             }
 
             current = first;
@@ -354,12 +409,36 @@ namespace FACM.League
             }
         }
 
-        private sealed class Write : ILeagueMatchmakingWriteApi, ILeagueLobbyNoticeWriteApi
+        private sealed class Write : ILeagueMatchmakingWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueScopedMatchmakingWriteApi, ILeagueLobbyRoomWriteApi
         {
             internal readonly List<string> Calls = new List<string>();
             internal readonly List<string> Notices = new List<string>();
             internal int Status = 204;
             internal Action OnSend;
+            internal Action OnRoom;
+            internal int RoomCalls;
+            internal LeagueClientSession ScopedOwner;
+            public Task<LeagueClientWriteResponse> TrySendScopedAsync(string method, string path,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                ScopedOwner = expected;
+                return TrySendAsync(method, path, token);
+            }
+            public Task<LeagueClientWriteResponse> TrySendScopedNoticeAsync(string conversationId, string message,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                ScopedOwner = expected;
+                return TrySendNoticeAsync(conversationId, message, token);
+            }
+            public Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                ScopedOwner = expected;
+                RoomCalls++;
+                if (OnRoom != null) OnRoom();
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = Status });
+            }
             public Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();

@@ -8,6 +8,7 @@ namespace FACM.League
         public bool Connected { get; set; }
         public bool ClientProcessDetected { get; set; }
         public bool GameProcessDetected { get; set; }
+        public bool? GameProcessObserved { get; set; }
         public string Phase { get; set; }
         public bool? IsRankedQueue { get; set; }
         public LeagueActivityLevel Activity { get; set; }

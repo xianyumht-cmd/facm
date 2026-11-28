@@ -90,11 +90,10 @@ namespace FACM.Mayhem
                         {
                             read = await input.ReadAsync(buffer, 0, buffer.Length, cancellationToken).ConfigureAwait(false);
                         }
-                        catch (Exception exception)
+                        catch (Exception exception) when (cancellationToken.IsCancellationRequested &&
+                            IsCancellationSideEffect(exception, true))
                         {
-                            if (cancellationToken.IsCancellationRequested && IsCancellationSideEffect(exception))
-                                throw new OperationCanceledException("HTTP response body read was cancelled.", exception, cancellationToken);
-                            throw;
+                            throw new OperationCanceledException("HTTP response body read was cancelled.", exception, cancellationToken);
                         }
 
                         if (read <= 0) break;
@@ -109,18 +108,22 @@ namespace FACM.Mayhem
             }
             catch (Exception exception)
             {
-                if (cancellationToken.IsCancellationRequested && IsCancellationSideEffect(exception))
+                if (!(exception is OperationCanceledException) && cancellationToken.IsCancellationRequested &&
+                    IsCancellationSideEffect(exception, true))
                     throw new OperationCanceledException("HTTP response body read was cancelled.", exception, cancellationToken);
                 throw;
             }
         }
 
-        internal static bool IsCancellationSideEffect(Exception exception)
+        internal static bool IsCancellationSideEffect(Exception exception, bool readingBody = false)
         {
+            // Stream implementations can report a plain InvalidOperationException after disposal.
+            // Only the body reader may classify it, and only when its own token was cancelled.
             for (var cause = exception; cause != null; cause = cause.InnerException)
             {
                 if (cause is OperationCanceledException || cause is ObjectDisposedException ||
-                    cause is IOException || cause is HttpRequestException || cause is WebException)
+                    cause is IOException || cause is HttpRequestException || cause is WebException ||
+                    (readingBody && cause is InvalidOperationException))
                     return true;
             }
             return false;

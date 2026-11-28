@@ -18,12 +18,20 @@ namespace FACM.League
             CancellationToken cancellationToken);
     }
 
-    internal sealed class LeaguePostGameWriteApiClient : ILeaguePostGameWriteApi, IDisposable
+    internal interface ILeagueScopedPostGameWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendAsync(string method, string path, string json,
+            LeagueClientSession expected, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeaguePostGameWriteApiClient : ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi, IDisposable
     {
         internal const string HonorV2Path = "/lol-honor-v2/v1/honor-player";
+        internal const string HonorBallotRefreshPath = "/lol-honor-v2/v1/ballot/refresh";
         internal const string HonorPath = "/lol-honor/v1/honor";
         internal const string HonorBallotSubmitPath = "/lol-honor/v1/ballot";
         internal const string PlayAgainPath = "/lol-lobby/v2/play-again";
+        internal const string SkipPreEndOfGamePath = "/lol-pre-end-of-game/v1/skip-pre-end-of-game";
         internal const string CompleteMissionCelebrationPath = "/lol-pre-end-of-game/v1/complete/missions-celebration";
 
         private readonly LeagueClientSessionProvider _sessions;
@@ -35,11 +43,21 @@ namespace FACM.League
             _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         }
 
-        public async Task<LeagueClientWriteResponse> TrySendAsync(
-            string method,
-            string path,
-            string json,
-            CancellationToken cancellationToken)
+        public Task<LeagueClientWriteResponse> TrySendAsync(
+            string method, string path, string json, CancellationToken cancellationToken)
+        {
+            return SendCoreAsync(method, path, json, null, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendAsync(
+            string method, string path, string json, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                SendCoreAsync(method, path, json, expected, cancellationToken);
+        }
+
+        private async Task<LeagueClientWriteResponse> SendCoreAsync(
+            string method, string path, string json, LeagueClientSession expected, CancellationToken cancellationToken)
         {
             var verb = (method ?? string.Empty).Trim().ToUpperInvariant();
             var normalizedPath = NormalizePath(path);
@@ -48,7 +66,7 @@ namespace FACM.League
 
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null || expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(session); }
@@ -106,9 +124,11 @@ namespace FACM.League
         {
             if (!string.Equals(verb, "POST", StringComparison.Ordinal)) return false;
             return string.Equals(path, HonorV2Path, StringComparison.Ordinal) ||
+                   string.Equals(path, HonorBallotRefreshPath, StringComparison.Ordinal) ||
                    string.Equals(path, HonorPath, StringComparison.Ordinal) ||
                    string.Equals(path, HonorBallotSubmitPath, StringComparison.Ordinal) ||
                    string.Equals(path, PlayAgainPath, StringComparison.Ordinal) ||
+                   string.Equals(path, SkipPreEndOfGamePath, StringComparison.Ordinal) ||
                    string.Equals(path, CompleteMissionCelebrationPath, StringComparison.Ordinal);
         }
 

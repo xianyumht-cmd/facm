@@ -162,6 +162,16 @@ namespace FACM.League
     {
         public bool SessionAvailable { get; set; }
         public bool CanQuit { get { return SessionAvailable && QuickPickState != null && QuickPickState.ShowQuitButton; } }
+        public bool CanReroll { get { return QuickPickState != null && QuickPickState.CanReroll; } }
+        public bool CanChooseMastery
+        {
+            get
+            {
+                return QuickPickState != null && QuickPickState.ClientSession != null &&
+                    !QuickPickState.IsSubsetPhase && QuickPickState.ChampionIds.Exists(QuickPickState.CanChoose);
+            }
+        }
+        public int RerollsRemaining { get { return QuickPickState == null ? 0 : QuickPickState.RerollsRemaining.GetValueOrDefault(); } }
         public bool BenchEnabled { get; set; }
         public LeagueRuntimeCompanionGuideKind GuideKind { get; set; }
         public bool HasBenchSurface { get { return BenchEnabled || GuideKind != LeagueRuntimeCompanionGuideKind.None; } }

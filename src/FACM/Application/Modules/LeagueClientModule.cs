@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeagueScopedChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueScopedMatchmakingWriteApi, ILeagueLobbyRoomWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi, ILeagueAramRerollWriteApi, ILeagueChampionTradeWriteApi, ILeagueDraftSwapWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueScopedPresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -202,6 +202,14 @@ namespace FACM.AppHost.Modules
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, json, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueScopedPostGameWriteApi.TrySendAsync(
+            string method, string path, string json, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            var writer = _postGameWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TrySendAsync(method, path, json, expected, cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueReplayWriteApi.TryCreateMetadataAsync(
             LeagueClientSession session, LeaguePlayerMatchSummary match, string gameVersion, CancellationToken token)
         {
@@ -220,6 +228,30 @@ namespace FACM.AppHost.Modules
         {
             var writer = _matchmakingWriter;
             return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TrySendAsync(method, path, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedMatchmakingWriteApi.TrySendScopedAsync(string method,
+            string path, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _matchmakingWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TrySendScopedAsync(method, path, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedMatchmakingWriteApi.TrySendScopedNoticeAsync(string conversationId,
+            string message, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _matchmakingWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TrySendScopedNoticeAsync(conversationId, message, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueLobbyRoomWriteApi.TryApplyRoomAsync(LeagueLobbyRoomAction action,
+            long value, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _matchmakingWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryApplyRoomAsync(action, value, expected, token);
         }
 
         Task<LeagueClientWriteResponse> ILeagueLobbyInviteWriteApi.TryInviteAsync(long summonerId, CancellationToken cancellationToken)
@@ -286,12 +318,50 @@ namespace FACM.AppHost.Modules
                 : writer.TryIntentAsync(actionId, championId, cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueScopedChampSelectActionWriteApi.TryApplyAsync(
+            string actionType, int actionId, int championId, bool completed, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _champSelectActionWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryApplyAsync(actionType, actionId, championId, completed, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedChampSelectActionWriteApi.TryIntentAsync(
+            int actionId, int championId, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _champSelectActionWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryIntentAsync(actionId, championId, expected, token);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken cancellationToken)
         {
             var writer = _benchSwapWriter;
             return writer == null
                 ? Task.FromResult<LeagueClientWriteResponse>(null)
                 : writer.TrySwapAsync(championId, route, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedBenchSwapWriteApi.TrySwapAsync(int championId,
+            LeagueBenchSwapRoute route, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _benchSwapWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TrySwapAsync(championId, route, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueDraftSwapWriteApi.TryHandleSwapAsync(LeagueDraftSwapKind kind,
+            int id, LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _benchSwapWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryHandleSwapAsync(kind, id, action, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueAramRerollWriteApi.TryRerollAsync(LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _benchSwapWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) : writer.TryRerollAsync(expected, token);
         }
 
         Task<LeagueClientWriteResponse> ILeagueChampionTradeWriteApi.TryAnswerAsync(
@@ -334,6 +404,14 @@ namespace FACM.AppHost.Modules
             return writer == null
                 ? Task.FromResult<LeagueClientWriteResponse>(null)
                 : writer.TrySetPresenceAsync(json, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedPresenceWriteApi.TrySetPresenceAsync(
+            string json, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            var writer = _presenceWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TrySetPresenceAsync(json, expected, cancellationToken);
         }
 
         Task<LeagueClientWriteResponse> ILeagueProfileWriteApi.TrySetSummonerProfileAsync(string json, CancellationToken cancellationToken)

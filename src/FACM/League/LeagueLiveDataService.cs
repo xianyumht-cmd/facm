@@ -494,6 +494,40 @@ namespace FACM.League
             catch (InvalidOperationException) { return false; }
         }
 
+        internal const string LocalMasteryPath = "/lol-champion-mastery/v1/local-player/champion-mastery";
+
+        internal Task<byte[]> ReadLocalMasteryAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            return ReadScopedQuickPickDataAsync(LocalMasteryPath, expected, token);
+        }
+
+        internal Task<byte[]> ReadDraftSwapAsync(LeagueDraftSwapKind kind, LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            return ReadScopedQuickPickDataAsync(LeagueBenchSwapWriteApiClient.OngoingSwapPath(kind), expected, token);
+        }
+
+        private async Task<byte[]> ReadScopedQuickPickDataAsync(string path, LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(path) || expected == null || expected.ClientSession == null) return null;
+            await _requestGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                if (!IsQuickPickClientCurrent(expected)) return null;
+                using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+                {
+                    timeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    try
+                    {
+                        var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
+                        token.ThrowIfCancellationRequested();
+                        return !timeout.IsCancellationRequested && IsQuickPickClientCurrent(expected) ? bytes : null;
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
+                }
+            }
+            finally { _requestGate.Release(); }
+        }
+
         internal bool IsQuickPickClientCurrent(LeagueBenchQuickPickState state)
         {
             if (state == null) return false;
@@ -608,6 +642,10 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.ShowQuitButton = ReadValue(data, "showQuitButton") is bool && (bool)ReadValue(data, "showQuitButton");
+            var rerolls = ReadValue(data, "rerollsRemaining");
+            if (rerolls is int && (int)rerolls >= 0) state.RerollsRemaining = (int)rerolls;
+            var rerollsDisabled = ReadValue(data, "rerollsDisabled");
+            if (rerollsDisabled is bool) state.RerollsDisabled = (bool)rerollsDisabled;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
             state.AllowsSubsetChampionPicks = ReadBool(data, "allowSubsetChampionPicks");
             state.GameId = ReadLong(data, "gameId");

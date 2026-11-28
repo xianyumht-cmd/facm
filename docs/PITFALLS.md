@@ -1,3 +1,43 @@
+## 2026-11-29 — Repeated global Mayhem page downloads
+
+A per-champion result cache does not prevent downloading identical global ranking pages on champion changes. Share only fixed global URLs with bounded lifetime and size, validate before retention, and isolate cooldown per source. Never interpret cancelled consumers as provider failure; a 503/429 is evidence for temporary cooldown, not permanent unavailability. Preserve existing official-version comparison and independent alternatives.
+
+## 2026-11-29 — Closed response stream at the deadline
+
+A disposed HTTP body stream can report a plain InvalidOperationException rather than ObjectDisposedException. Only normalize the plain type at the body-read boundary with its own cancelled token; never globally classify parser or unrelated invalid operations as cancellation. Do not infer a memory leak from a single diagnostics export snapshot or prioritize aggressive resource reductions without measured gameplay impact.
+
+## 2026-11-29 — Room capability readback
+
+Role preference request field names differ from localMember response field names. Confirm both requested roles, not HTTP alone. Spectator slot entry requires explicit custom-room eligibility and local spectator readback; it is distinct from launching a spectator client. Invite privilege changes require explicit local toggle authority and known target permission; missing permission is not false. Include these values in the room snapshot fence.
+
+## 2026-11-28 — Queue catalog is not entitlement
+
+A queue ID or queue name in a historical list does not establish current availability. Require explicit Available and isVisible from the local queue catalog and recheck it before explicit room creation/switch; do not infer account entitlement from catalog presence. Reject duplicate identifiers, do not use stale fallback IDs when the catalog is unavailable, and keep non-queue room actions independent.
+
+## 2026-11-28 — Lobby invitation and leadership confirmation
+
+Checking the session in a controller does not pin the transport; pass the expected session to the writer. Do not interpret a missing invitation as accepted/declined or an HTTP 2xx as a transferred leader. Use target-specific terminal state and same-party leader readback. Automatic promotion must reuse the manual room transaction rather than overwrite an unresolved operation independently.
+
+## 2026-11-28 — Unresolved room mutation ownership
+
+A one-record uncertainty fence keyed only by action/value can be overwritten by a different manual action in the same unchanged room. Fence all mutations against that unchanged observed room until a changed snapshot or a definitive rejection; do not treat HTTP 408 or redirects as definitive rejection. Check cancellation before recording the transport attempt. This is room-service-local arbitration, not a claim of coordination across independent automatic controllers.
+
+## 2026-11-28 — Research corpus visibility and room verification
+
+A reported upload is not a readable source until the exact repository ref/path is verified; inspect nontruncated trees and current workflow heads, preserve concurrent commits and distinguish absent access from absent research. Do not use slash-expanded method-name exports to invent request bodies. Lobby queue switch is POST with queueId, not PUT. Leaving a party is distinct from closing the client process. The leader, local member, party and current roster must be freshly checked; accepted status alone does not prove the intended member/queue change. Unknown outcomes remain explicit and do not trigger automatic replay. Preserve 64-bit summoner IDs as strings when crossing JavaScript.
+
+## 2026-11-28 — Swap and mastery evidence
+
+The slash-expanded endpoint export is not an exact URI contract. Use the hyphenated plugin paths for the three swap families; do not infer clear/request body/state from type names. The native experiment chose the first bench hero on missing mastery; the production explicit mastery action must instead report unknown and avoid an arbitrary swap. A missing terminal trade record does not prove an accept, decline or cancel. Scope the result to the observed ID and client/draft, and do not assume an HTTP response proves the role or champion changed.
+
+## 2026-11-28 — Draft readback and reroll evidence
+
+An accepted combined PATCH is not a confirmed action. Read the original action even after completion, with the same local cell/context; keep request-count tests aligned with the new bounded readback. Unknown writes must not consume another automatic request or reroll. The plugin-derived rerollsDisabled may be UI-computed; do not infer that an absent raw field means enabled. Actual ARAM support still requires live evidence.
+
+## 2026-11-28 — HLMD evidence distinctions and postgame/presence defects
+
+A positive ballot game ID is not proof that vote count and eligible candidates are ready. A decreased vote count does not identify the recipient; another game's choice data is not confirmation. An unknown transport outcome must not trigger blind resubmission. The HLMD schema export lists type names only; exact route spelling in plugin/event evidence outranks inferred function-name paths, and different mock versus production payloads need real confirmation. Connected LCU does not establish that the game executable is absent: the historical phase service skipped process observation whenever connected. Presence enablement must not depend solely on a successful chat event handshake; fence asynchronous writes to the current session, avoid steady polling and preserve unrelated fields. Candidate changes are not physical runtime evidence.
+
 ## 2026-11-28 — Optional source scope ownership
 
 Returning the first usable ranking or an unresolved champion must not dispose a linked cancellation source while started child requests still depend on it. Cancel and observe remaining tasks before scope disposal. Normalize closed-stream and wrapped transport failures as cancellation only when the relevant token is cancelled; an ordinary I/O failure is still a failure. Caller cancellation wins over stale-cache fallback. Preserve the available sibling result and the existing source budgets. A historical closed-stream log is evidence of a symptom, not proof of which disposal path triggered it.

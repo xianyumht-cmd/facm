@@ -66,6 +66,7 @@ namespace FACM.AppHost.Modules
         private LeaguePostGameAutomationController _postGame;
         private LeagueMatchmakingAutomationController _matchmaking;
         private LeagueMatchmakingStopController _matchmakingStop;
+        private readonly LeagueLobbyRoomService _lobbyRoom;
         private LeagueGameflowReconnectController _reconnect;
         private LeagueAutoPickBanController _autoSelect;
         private LeagueLobbyInvitationController _lobbyInvitations;
@@ -94,6 +95,8 @@ namespace FACM.AppHost.Modules
             _settingsModule = settingsModule ?? throw new ArgumentNullException(nameof(settingsModule));
             _leagueClient = leagueClient ?? throw new ArgumentNullException(nameof(leagueClient));
             _dashboard = dashboard ?? throw new ArgumentNullException(nameof(dashboard));
+            _lobbyRoom = new LeagueLobbyRoomService(_leagueClient, (ILeagueLobbyRoomWriteApi)_leagueClient,
+                () => _leagueClient.CurrentSession);
             _playerTags = LeaguePlayerTagStore.CreateDefault();
             _encounterHistory = LeagueEncounterHistoryStore.CreateDefault();
             _encounterDetails = new LeagueEncounterMatchDetailService(_leagueClient,
@@ -157,7 +160,7 @@ namespace FACM.AppHost.Modules
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient,
                 matchmakingWriter, (ILeagueLobbyNoticeWriteApi)_leagueClient,
-                () => _leagueClient.CurrentSession);
+                () => _leagueClient.CurrentSession, _lobbyRoom);
             ConfigureLobbyInvitations();
             _friendInvitations = new LeagueFriendInvitationController(_leagueClient,
                 (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient,
@@ -168,7 +171,8 @@ namespace FACM.AppHost.Modules
                 new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
             ConfigureLoginSignature();
             _offlineLock = new LeagueOfflineStatusLockController(
-                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient));
+                new LeaguePresenceService(_leagueClient, (ILeaguePresenceWriteApi)_leagueClient),
+                sessionProvider: () => _leagueClient.CurrentSession);
             _offlineLock.Configure(LockOfflineStatusEnabled);
             _autoReply = new LeagueAutoReplyController(_leagueClient, (ILeaguePrivateChatWriteApi)_leagueClient,
                 () => _leagueClient.CurrentSession, _offlineLock);
@@ -265,6 +269,19 @@ namespace FACM.AppHost.Modules
                 var state = _dashboard.CurrentGameflowState;
                 return state != null && state.Connected ? state.Phase : null;
             }
+        }
+
+        internal Task<LeagueLobbyRoomSnapshot> ReadLobbyRoomAsync(CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _lobbyRoom.ReadAsync(token);
+        }
+
+        internal Task<LeagueLobbyRoomResult> ApplyLobbyRoomAsync(LeagueLobbyRoomSnapshot expected,
+            LeagueLobbyRoomAction action, long value, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _lobbyRoom.ApplyAsync(expected, action, value, token);
         }
 
         internal async Task<LeagueInsightSnapshot> ReadInsightsAsync(string phase, CancellationToken token)

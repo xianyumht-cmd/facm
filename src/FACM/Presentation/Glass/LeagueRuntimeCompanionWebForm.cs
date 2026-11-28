@@ -63,6 +63,10 @@ namespace FACM.Presentation.Glass
         private readonly SemaphoreSlim _assetGate = new SemaphoreSlim(1, 1);
         private LeagueRuntimeCompanionApplyPreparation _pendingLoadout;
         private LeagueItemSetPlan _pendingItems;
+        private LeagueRuntimeCompanionSnapshot _swapSnapshot;
+        private LeagueDraftSwapObservation[] _swapItems = Array.Empty<LeagueDraftSwapObservation>();
+        private int _swapListRevision;
+        private DateTime _swapListExpires;
 
         internal event Action BrowserUnavailable;
 
@@ -352,6 +356,13 @@ namespace FACM.Presentation.Glass
                 connected = snapshot.SessionAvailable,
                 canQuit = _controller.SupportsChampSelectQuit && snapshot.CanQuit,
                 canMute = _controller.SupportsChampSelectMute && snapshot.SessionAvailable,
+                canDraftSwap = _controller.SupportsDraftSwaps && snapshot.SessionAvailable,
+                swapLabel = Copy(LeagueRuntimeCompanionUiTextKeys.SwapMenu),
+                canChooseMastery = snapshot.CanChooseMastery,
+                masteryLabel = Copy(LeagueRuntimeCompanionUiTextKeys.MasteryChoose),
+                canReroll = _controller.SupportsReroll && snapshot.CanReroll,
+                rerolls = snapshot.RerollsRemaining,
+                rerollLabel = Copy(LeagueRuntimeCompanionUiTextKeys.RerollShort),
                 championId = snapshot.LocalChampionId,
                 name = build == null ? string.Empty : build.ChampionName,
                 timer = Math.Max(0, snapshot.TimerMillisecondsLeft / 1000),
@@ -587,6 +598,24 @@ namespace FACM.Presentation.Glass
             if (command == "confirm:yes") { _ = ApplyPreparedAsync(); return; }
             if (command == "quit:yes") { _ = QuitAsync(); return; }
             if (command == "mute:all") { _ = MuteAllAsync(); return; }
+            if (command == "draft-swaps:read") { _ = ReadDraftSwapsAsync(); return; }
+            if (command.StartsWith("draft-swaps:apply:", StringComparison.Ordinal))
+            {
+                var parts = command.Split(':');
+                int revision, index, action;
+                if (parts.Length == 5 && int.TryParse(parts[2], out revision) &&
+                    int.TryParse(parts[3], out index) && int.TryParse(parts[4], out action) &&
+                    Enum.IsDefined(typeof(LeagueDraftSwapAction), action))
+                    _ = HandleDraftSwapAsync(revision, index, (LeagueDraftSwapAction)action);
+                return;
+            }
+            if (command.StartsWith("reroll:", StringComparison.Ordinal) || command.StartsWith("mastery-choice:", StringComparison.Ordinal))
+            {
+                var mastery = command.StartsWith("mastery-choice:", StringComparison.Ordinal);
+                int revision;
+                if (int.TryParse(command.Substring(mastery ? 15 : 7), out revision)) _ = RerollOrMasteryAsync(revision, mastery);
+                return;
+            }
             if (command.StartsWith("swap:", StringComparison.Ordinal) ||
                 command.StartsWith("pick:", StringComparison.Ordinal))
             {
@@ -741,6 +770,90 @@ namespace FACM.Presentation.Glass
             {
                 AppLog.Info("Runtime Companion HTML quit failed: " + e.GetType().Name);
                 Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed) });
+            }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
+        }
+
+        private async Task ReadDraftSwapsAsync()
+        {
+            if (_busy || !_controller.SupportsDraftSwaps) return;
+            _busy = true;
+            var expected = _controller.CurrentSnapshot;
+            PublishSnapshot(expected);
+            try
+            {
+                _swapItems = await _controller.ReadDraftSwapsAsync(expected, _lifetimeToken);
+                _swapSnapshot = expected;
+                _swapListExpires = DateTime.UtcNow.AddSeconds(10);
+                _swapListRevision++;
+                Post(new { type = "draft-swaps", revision = _swapListRevision, choiceRevision = expected.ChoiceRevision,
+                    empty = Copy(LeagueRuntimeCompanionUiTextKeys.SwapNone),
+                    rows = _swapItems.Select((item, index) => new { index,
+                        label = Copy(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)) +
+                            (item.Kind == LeagueDraftSwapKind.Champion && item.RequestedChampionId > 0
+                                ? " #" + item.RequestedChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty),
+                        actions = new[] { LeagueDraftSwapAction.Accept, LeagueDraftSwapAction.Decline, LeagueDraftSwapAction.Cancel }
+                            .Where(item.Allows).Select(action => new { value = (int)action,
+                                label = Copy(LeagueRuntimeCompanionText.SwapActionKey(action)) }).ToArray() }).ToArray() });
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                _swapItems = Array.Empty<LeagueDraftSwapObservation>();
+                AppLog.Info("Runtime Companion HTML swap list failed: " + error.GetType().Name);
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.SwapUnverified) });
+            }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
+        }
+
+        private async Task HandleDraftSwapAsync(int revision, int index, LeagueDraftSwapAction action)
+        {
+            if (_busy || revision != _swapListRevision || DateTime.UtcNow > _swapListExpires ||
+                _swapSnapshot == null || _swapSnapshot.ChoiceRevision != _controller.CurrentSnapshot.ChoiceRevision ||
+                index < 0 || index >= _swapItems.Length || !_swapItems[index].Allows(action)) return;
+            var item = _swapItems[index];
+            var expected = _swapSnapshot;
+            _swapItems = Array.Empty<LeagueDraftSwapObservation>();
+            _swapSnapshot = null;
+            _busy = true;
+            PublishSnapshot(_controller.CurrentSnapshot);
+            try
+            {
+                var result = await _controller.TryHandleDraftSwapAsync(expected, item, action, _lifetimeToken);
+                Post(new { type = "status", message = Copy(result.Success ? LeagueRuntimeCompanionUiTextKeys.SwapConfirmed :
+                    LeagueRuntimeCompanionUiTextKeys.SwapUnverified) });
+                await _controller.RefreshAsync(_lifetimeToken);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                AppLog.Info("Runtime Companion HTML swap failed: " + error.GetType().Name);
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.SwapUnverified) });
+            }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
+        }
+
+        private async Task RerollOrMasteryAsync(int revision, bool mastery)
+        {
+            var expected = _controller.CurrentSnapshot;
+            if (_busy || expected.ChoiceRevision != revision ||
+                (mastery ? !expected.CanChooseMastery : !_controller.SupportsReroll || !expected.CanReroll)) return;
+            var success = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryChosen : LeagueRuntimeCompanionUiTextKeys.RerollSuccess;
+            var unverified = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryUnavailable : LeagueRuntimeCompanionUiTextKeys.RerollUnverified;
+            _busy = true;
+            PublishSnapshot(expected);
+            try
+            {
+                var result = mastery ? await _controller.TryChooseMasteryAsync(expected, _lifetimeToken) :
+                    await _controller.TryRerollAsync(expected, _lifetimeToken);
+                Post(new { type = "status", message = Copy(result.Success ? success : unverified) });
+                await _controller.RefreshAsync(_lifetimeToken);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                AppLog.Info("Runtime Companion HTML bench choice failed: " + e.GetType().Name);
+                Post(new { type = "status", message = Copy(unverified) });
             }
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }

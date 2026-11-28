@@ -1,3 +1,47 @@
+## 2026-11-29 — Shared global Mayhem ranking reads (candidate)
+
+OpggMayhemService owns exactly three fixed global page slots. A per-slot asynchronous gate prevents overlapping duplicate downloads; only a complete patch-labelled ranking within the body cap is reused for three minutes. A 503/429 opens a two-minute per-slot cooldown; next demand after expiry probes again. Existing public source policy gates network access, and validated fresh cached pages remain usable. Existing champion result cache, source ranking/patch validation, and optional source cancellation remain authoritative. No timer, background worker or new network client.
+
+## 2026-11-29 — Body reader cancellation boundary (candidate)
+
+CancelableHttpContentReader retains the existing bounded stream reads and cancellation-disposal registration; its body-only exception classification recognizes plain InvalidOperationException after cancellation. General transport classification remains unchanged. No new thread, timer, HTTP pool or dependency.
+
+## 2026-11-29 — Extended room transaction actions (candidate)
+
+The existing room service owns role preference pairs, spectator-slot entry and invite privilege grant/revoke. Fixed role IDs cross the existing revisioned bridge as one numeric pair; member identities remain decimal strings. Native and Glass use the same capability snapshot, typed transport, gate and readback. Explicit position-selector, custom spectator policy and invite-toggle/target permission fields gate the new actions; missing fields do not imply eligibility. Room fingerprints include the new observed state so changed settings invalidate stale requests. No new Shard, polling loop or transport pool.
+
+## 2026-11-28 — Room catalog is observed, not a fixed list (candidate)
+
+LeagueLobbyRoomService owns the per-view queue choices from the local client; a queue mutation requires the choice in both displayed and freshly read catalogs, in addition to the existing room transaction fences. The typed transport bounds the numeric queue identifier; this is syntax validation, not availability authorization. The room UI does not fetch or authorize independent queue IDs. A missing catalog does not disable leave or member actions, and automatic promotion does not fetch the catalog. No additional resident poller or Shard.
+
+## 2026-11-28 — Automatic promotion shares the room owner (candidate)
+
+LeagueEfficiencyModule supplies its existing room service to LeagueLobbyInvitationController. Automatic promotion uses the same scoped transaction, readback and unresolved-room gate as the explicit room panel. The existing matchmaking transport exposes session-pinned action/notice methods; no extra transport pool, process, polling loop or Shard. Invitation terminal readback is distinct from party-join verification; only an observed target-specific leadership transition allows the promotion notice.
+
+## 2026-11-28 — Room mutation uncertainty fence (candidate)
+
+The existing room service gate now prevents any subsequent explicit mutation against the same unchanged room while its prior mutation outcome is unresolved. A fresh changed room snapshot permits a new explicit request; definitive rejection clears the fence. No additional resident worker, transport, or Shard. Independent automatic controllers remain a separate arbitration target.
+
+## 2026-11-28 — Mastery strategy and explicit room transactions (candidate)
+
+Automatic mastery is an opt-in existing profile setting, uses a bounded episode-local score map from the researched local-player mastery route, and reuses the current draft task, cooldown, manual-choice guard and scoped bench writer. The optional GGman-specific Akari transfer fields preserve the native option without changing ordinary imported profile defaults. Room management belongs to the existing Efficiency owner: typed LeagueLobbyRoomService transactions use the existing matchmaking transport and session pool. The view opens on demand; both native and Glass use the same observed room model and operation result. Glass passes a revision plus typed action and value; 64-bit member IDs cross the HTML boundary as strings. No separate process/poller or new Shard. The current supported queue selection is a curated initial list; normal service eligibility remains authoritative. True inline League Client placement and arbitration against independent automatic room controllers remain outstanding.
+
+## 2026-11-28 — Swap response and mastery bench ownership (candidate)
+
+Existing bench transport owns typed fixed champion/position/pick-order swap response routes and scoped automatic/manual bench writes. Existing Live owner performs bounded on-demand reads, manual bench gate owns draft/response validation and one-shot fence, companion controller exposes typed commands, native menu and Glass team view render observed requests only. No periodic swap fan-out. Manual mastery choice reads local-player mastery once on demand, ranks eligible known bench scores, refreshes draft and uses existing verified choose transaction. Actual League Client inline placement, live enum/body compatibility, initiation/clear and shared arbitration with independent automatic trade owner remain unresolved.
+
+## 2026-11-28 — Scoped draft action and manual ARAM reroll (candidate)
+
+The existing selection owner uses the documented combined champion/completed PATCH, pins automatic writes to the observed client session, and reads the original action after accepted/ambiguous writes. Explicit 5xx may retry once after normal preflight; other outcomes consume the episode stage. Existing stage timing and manual preference precedence remain. Reroll shares the bench service gate and existing snapshot/UI owner rather than adding a poller; positive count, explicit enabled flag, ARAM finalization and current draft are required. Success requires a one-count decrease and changed local champion. Native and Glass actions use the same transaction. Missing eligibility leaves reroll unavailable.
+
+## 2026-11-28 — Postgame phase transition and draft intent (candidate)
+
+Postgame controller waits for real phase before write, adds one researched skip route, guards unresolved honor and mission sequence, and submits play-again once in EndOfGame. The same controller observes Lobby or records bounded unverified outcome; HTTP success alone is insufficient. Transport acquires the expected episode session via a scoped overload. No new timer or worker beyond existing cycle; phase checks are bounded on-demand. Existing draft selection owner now applies teammate-intent filtering to ban candidates and revalidates immediately before writing, honoring the existing explicit override preference.
+
+## 2026-11-28 — HLMD presence, postgame and process observation (candidate)
+
+The existing postgame controller owns ballot readiness and one bounded refresh per episode. Explicit valid vote count and current gameData.gameId when available gate voting; recipient-specific readback is scoped to matching ballot game, not merely a decreased count. The existing dedicated write transport adds only the researched exact POST refresh path. Offline preference uses the existing Gameflow observation for bounded initial reconciliation and the existing shared chat event stream thereafter; no new timer. A dedicated scoped overload pins the expected LCU owner at the presence writer, with generation checks around read/mutation/readback. Manual presence writers retain existing contracts. Game-process observation is independent of connected Gameflow at existing monitor cadence; nullable evidence is propagated through monitor and dashboard details. LCU phase remains authoritative for activity when connected. No game-memory access or production publication.
+
 ## 2026-11-28 — WebView2 reuse and ownership (candidate)
 
 The desktop workspace remains a reusable hidden form; the champion-select companion remains episode-scoped. Both acquire the same per-STA environment creation task and profile, with separate window-owned controllers and existing navigation/security settings. Browser failure invalidates only the matching environment reference. Hidden workspace retains native Gameflow state without publishing background status messages, cancels route work on dismissal, and detaches cloud/profile UI observers. A visible-time startup budget avoids treating hidden render-frame readiness as failure. Direct disposal follows the same idempotent resource-release path as normal close. No persistent companion, new resident poller, or external browser dependency.

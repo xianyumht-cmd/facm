@@ -25,6 +25,7 @@ namespace FACM.League
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
             ValidateTransientEligibilityRecoveryAsync().GetAwaiter().GetResult();
             ValidateWriteRetryAsync().GetAwaiter().GetResult();
+            ValidateActionReadbackAndUnknownAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -57,6 +58,7 @@ namespace FACM.League
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
             ValidatePickIntentAsync().GetAwaiter().GetResult();
             ValidateAutoBenchAsync().GetAwaiter().GetResult();
+            ValidateAutoMasteryBenchAsync().GetAwaiter().GetResult();
             ValidateChampionTradesAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
         }
@@ -473,8 +475,9 @@ namespace FACM.League
             {
                 controller.Configure(true, 22, false, 0);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
-                Require(stableWrite.Calls.Count == 1,
-                    "Stable current-region draft must preserve the existing automatic pick.");
+                Require(stableWrite.Calls.Count == 1 && stableWrite.ExpectedOwners.Count == 1 &&
+                    LeagueEncounterReplayService.SessionMatches(first, stableWrite.ExpectedOwners[0]),
+                    "Stable current-region draft must preserve the existing automatic pick and pin its session.");
             }
 
             var replacement = new LeagueClientSession("LeagueClientUx", 43, 5001, "fixture",
@@ -675,8 +678,8 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.Calls.Count == 1 && writer.Calls[0] == "pick:12:67:True" &&
-                    reader.Paths.Count(p => p == LeagueLiveDataService.GameflowSessionPath) == 2,
-                    "Real Gameflow context must drive ranked profiles and be revalidated before writing.");
+                    reader.Paths.Count(p => p == LeagueLiveDataService.GameflowSessionPath) == 3,
+                    "Real Gameflow context must drive ranked profiles, be revalidated before writing and be read back once.");
             }
             foreach (var flow in new[] { Flow("NORMAL", true), "{}", Flow("RANKED_SOLO_5x5").Replace("ChampSelect", "Lobby") })
             {
@@ -973,6 +976,55 @@ namespace FACM.League
             }
         }
 
+        private static async Task ValidateAutoMasteryBenchAsync()
+        {
+            var profile = new LeagueAutoSelectProfile { Mode = "aram", BenchAutoSwapEnabled = true,
+                BenchUseMastery = true, BenchMinMasteryPoints = 100000, BenchSwapDelayMs = 0 };
+            var json = LeagueAutoSelectProfiles.Serialize(new[] { profile });
+            var roundtrip = LeagueAkariAutoSelectTransfer.Import(LeagueAkariAutoSelectTransfer.Export(new[] { profile }),
+                new LeagueAutoSelectProfile[0]).Single(p => p.Mode == "aram" && p.Role == "default");
+            Require(roundtrip.BenchUseMastery && roundtrip.BenchMinMasteryPoints == 100000,
+                "Native mastery preferences must survive profile transfer.");
+            var read = new FakeRead { SessionJson = BenchSession(34, "[22,55]", 450, false),
+                MasteryJson = "[{\"championId\":55,\"championPoints\":150000},{\"championId\":22,\"championPoints\":90000},{\"championId\":34,\"championPoints\":120000}]" };
+            var write = new FakeBenchWrite { AfterWrite = id => read.SessionJson = BenchSession(id, "[34,22]", 450, false) };
+            var clock = new BenchRetryClock();
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, clock))
+            {
+                controller.Configure(true, 0, false, 0, json);
+                controller.Observe(Selecting());
+                Require(write.Calls == 1 && write.LastId == 55 &&
+                    read.Paths.Count(path => path == LeagueLiveDataService.LocalMasteryPath) == 1 && clock.PollDelays == 2,
+                    "Mastery-only profile must arm and choose the highest eligible score once.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+            profile.BenchMinMasteryPoints = 200000;
+            json = LeagueAutoSelectProfiles.Serialize(new[] { profile });
+            read = new FakeRead { SessionJson = BenchSession(34, "[22,55]", 450, false),
+                MasteryJson = "[{\"championId\":55,\"championPoints\":150000}]" };
+            write = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, json);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(write.Calls == 0, "Mastery threshold must veto the swap.");
+            }
+            profile.BenchMinMasteryPoints = 0;
+            profile.BenchPreferHigherPriority = true;
+            var state = LeagueLiveDataService.ParseBenchPayload(Bytes(BenchSession(34, "[55]", 450, false)));
+            Require(LeagueAutoPickBanController.SelectMasteryTarget(new Dictionary<int, long> { { 34, 200 }, { 55, 100 } },
+                state, 0, true) == 0, "Upgrade-only mastery must preserve the stronger held champion.");
+            read.MasteryJson = "not-json";
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, LeagueAutoSelectProfiles.Serialize(new[] { profile }));
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(write.Calls == 0, "Unavailable mastery must not fall back to arbitrary heroes.");
+            }
+        }
+
         internal static async Task ValidateAutoBenchAsync()
         {
             Require(LeagueAutoPickBanController.SelectBenchTarget(new[] { 55, 34, 22 }, 34,
@@ -1182,7 +1234,7 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(accepted.Calls == 1 && accepted.Id == 73 && accepted.Accept &&
-                        incoming.ActionPaths.Count == 4,
+                        incoming.ActionPaths.Count == 6,
                     "An offered higher-priority hero should be accepted after two guarded reads.");
             }
 
@@ -1397,7 +1449,7 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(pickWrite.Calls.Count == 1 && pickWrite.Calls[0] == "pick:0:22:True",
                     "Pick write must only target the active local action.");
-                Require(pickRead.ActionPaths.Count == 3 && pickRead.ActionPaths[1] == LeagueAutoPickBanController.PickablePath,
+                Require(pickRead.ActionPaths.Count == 4 && pickRead.ActionPaths[1] == LeagueAutoPickBanController.PickablePath,
                     "Pick must read active session, pickable list and live preflight.");
             }
 
@@ -1409,7 +1461,7 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(banWrite.Calls.Count == 1 && banWrite.Calls[0] == "ban:4:67:True",
                     "Ban write must only target the active local action.");
-                Require(banRead.ActionPaths.Count == 3 && banRead.ActionPaths[1] == LeagueAutoPickBanController.BannablePath,
+                Require(banRead.ActionPaths.Count == 4 && banRead.ActionPaths[1] == LeagueAutoPickBanController.BannablePath,
                     "Ban must read the bannable list, not the pickable list.");
             }
 
@@ -1463,6 +1515,31 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(staleIntentWrite.Calls.Count == 0,
                     "New teammate intent before lock preflight must cancel the active pick write.");
+            }
+
+            var avoidBan = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Bans = new List<int> { 67, 22 } }
+            });
+            var banReserved = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithReservation("ban", 14, 67), Bannable = "[22,67]" },
+                banReserved, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, avoidBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(banReserved.Calls.SequenceEqual(new[] { "ban:14:22:True" }),
+                    "Auto ban must avoid a teammate's intended champion and choose an eligible fallback.");
+            }
+            var newBanReservation = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("ban", 15, "TOP"),
+                    NextSessionJson = SessionWithReservation("ban", 15, 67), Bannable = "[22,67]" },
+                newBanReservation, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, avoidBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(newBanReservation.Calls.Count == 0, "New teammate intent must veto a stale ban before writing.");
             }
 
             var showAndLock = LeagueAutoSelectProfiles.Serialize(new[]
@@ -1521,7 +1598,7 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(writer.IntentCalls.Count == 1 && writer.IntentCalls[0] == "10:22" &&
-                        writer.Calls.Count == 0 && reader.ActionPaths.Count == 4,
+                        writer.Calls.Count == 0 && reader.ActionPaths.Count == 5,
                     "Pick intent must respect teammates and issue only an intent payload, not a lock.");
             }
 
@@ -1614,6 +1691,32 @@ namespace FACM.League
             }
         }
 
+
+        private static async Task ValidateActionReadbackAndUnknownAsync()
+        {
+            var action = LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 71, 0)));
+            Require(LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 22, false, "FINALIZATION", true)), action, 22, true),
+                "Completed local action must be visible even after BAN_PICK ends.");
+            Require(!LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 67, false, "FINALIZATION", true)), action, 22, true) &&
+                !LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 22)), action, 22, true) &&
+                !LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 72, 22, false, "FINALIZATION", true)), action, 22, true),
+                "Different action, champion or completion state must not confirm a lock.");
+            Require(LeagueChampSelectActionWriteApiClient.BuildActionJson(22, true) == "{\"championId\":22,\"completed\":true}",
+                "Combined PATCH body must match HLMD.");
+            var read = new FakeRead { SessionJson = Session("pick", 71, 0) };
+            var writer = new FakeWrite { LoseFirstResponse = true };
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(writer.Calls.Count == 1 && clock.Delays == 2,
+                    "Unknown write outcome must not repeat on the next draft tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+        }
 
         internal static async Task ValidateWriteRetryAsync()
         {
@@ -1901,6 +2004,7 @@ namespace FACM.League
             public string TeamBuilderJson;
             public string TradeJson;
             public string NextTradeJson;
+            public string MasteryJson;
             public string Pickable = "[22,67]";
             public string NextPickable;
             private int _pickableCount;
@@ -1950,6 +2054,8 @@ namespace FACM.League
                 }
                 if (path == LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
                     return Task.FromResult(Bytes(TeamBuilderJson ?? "{}"));
+                if (path == LeagueLiveDataService.LocalMasteryPath)
+                    return Task.FromResult(MasteryJson == null ? null : Bytes(MasteryJson));
                 if (path == LeagueAutoPickBanController.OngoingChampionTradePath)
                 {
                     _tradeCount++;
@@ -1960,12 +2066,19 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi
+        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi
         {
             public int Calls;
             public int LastId;
             public LeagueBenchSwapRoute Route;
             public Action<int> AfterWrite;
+
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped bench operation must specify its owner.");
+                return TrySwapAsync(championId, route, token);
+            }
 
             public Task<LeagueClientWriteResponse> TrySwapAsync(int championId,
                 LeagueBenchSwapRoute route, CancellationToken cancellationToken)
@@ -1979,13 +2092,20 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeTradeWrite : ILeagueChampionTradeWriteApi
+        private sealed class FakeTradeWrite : ILeagueChampionTradeWriteApi, ILeagueDraftSwapWriteApi
         {
             public int Calls;
             public int Id;
             public bool Accept;
             public int FailFirstResponses;
             public int NullFirstResponses;
+
+            public Task<LeagueClientWriteResponse> TryHandleSwapAsync(LeagueDraftSwapKind kind, int id,
+                LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null && kind == LeagueDraftSwapKind.Champion, "Automatic trade must be scoped to its owner and kind.");
+                return TryAnswerAsync(id, action == LeagueDraftSwapAction.Accept, token);
+            }
 
             public Task<LeagueClientWriteResponse> TryAnswerAsync(
                 int tradeId, bool accept, CancellationToken cancellationToken)
@@ -2005,19 +2125,41 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeWrite : ILeagueChampSelectActionWriteApi
+        private sealed class FakeWrite : ILeagueChampSelectActionWriteApi, ILeagueScopedChampSelectActionWriteApi
         {
             public readonly List<string> Calls = new List<string>();
             public readonly List<string> IntentCalls = new List<string>();
             public int FailFirstResponses;
             public int FailFirstCompletedResponses;
             public int FailFirstIntentResponses;
+            public bool LoseFirstResponse;
+            public readonly List<LeagueClientSession> ExpectedOwners = new List<LeagueClientSession>();
+
+            public Task<LeagueClientWriteResponse> TryApplyAsync(string type, int id, int championId, bool completed,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped draft write needs owner.");
+                ExpectedOwners.Add(expected);
+                return TryApplyAsync(type, id, championId, completed, token);
+            }
+
+            public Task<LeagueClientWriteResponse> TryIntentAsync(int id, int championId, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped draft intent needs owner.");
+                ExpectedOwners.Add(expected);
+                return TryIntentAsync(id, championId, token);
+            }
 
             public Task<LeagueClientWriteResponse> TryApplyAsync(
                 string type, int id, int championId, bool completed, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(type + ":" + id + ":" + championId + ":" + completed);
+                if (LoseFirstResponse)
+                {
+                    LoseFirstResponse = false;
+                    return Task.FromResult<LeagueClientWriteResponse>(null);
+                }
                 var fail = FailFirstResponses > 0;
                 if (fail) FailFirstResponses--;
                 else if (completed && FailFirstCompletedResponses > 0)

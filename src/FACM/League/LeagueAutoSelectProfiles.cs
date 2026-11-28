@@ -21,6 +21,8 @@ namespace FACM.League
         public int BanDelayMs { get; set; }
         public bool BenchAutoSwapEnabled { get; set; }
         public bool BenchPreferHigherPriority { get; set; }
+        public bool BenchUseMastery { get; set; }
+        public int BenchMinMasteryPoints { get; set; }
         public bool BenchHandleTradeEnabled { get; set; }
         // Source-imported groups use exactly the assigned role list; native profiles retain fallbacks.
         public bool AkariExactPickRoles { get; set; }
@@ -194,6 +196,7 @@ namespace FACM.League
                 profile.PickDelayMs >= 0 && profile.PickDelayMs <= 15000 &&
                 profile.BanDelayMs >= 0 && profile.BanDelayMs <= 15000 &&
                 profile.BenchSwapDelayMs >= 0 && profile.BenchSwapDelayMs <= 15000 &&
+                profile.BenchMinMasteryPoints >= 0 &&
                 ValidIds(profile.Picks, profile.Mode == "cherry" ||
                     LeagueAutoSelectGroupCatalog.IsDynamicGroupId(profile.Mode) ? -3 : 0) &&
                 ValidIds(profile.Bans, -1);

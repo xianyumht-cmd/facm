@@ -16,7 +16,15 @@ namespace FACM.League
             int actionId, int championId, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueChampSelectActionWriteApiClient : ILeagueChampSelectActionWriteApi, IDisposable
+    internal interface ILeagueScopedChampSelectActionWriteApi
+    {
+        Task<LeagueClientWriteResponse> TryApplyAsync(string actionType, int actionId, int championId,
+            bool completed, LeagueClientSession expected, CancellationToken cancellationToken);
+        Task<LeagueClientWriteResponse> TryIntentAsync(int actionId, int championId,
+            LeagueClientSession expected, CancellationToken cancellationToken);
+    }
+
+    internal sealed class LeagueChampSelectActionWriteApiClient : ILeagueChampSelectActionWriteApi, ILeagueScopedChampSelectActionWriteApi, IDisposable
     {
         internal const string ActionPathPrefix = "/lol-champ-select/v1/session/actions/";
 
@@ -31,30 +39,60 @@ namespace FACM.League
         public Task<LeagueClientWriteResponse> TryApplyAsync(
             string actionType, int actionId, int championId, bool completed, CancellationToken cancellationToken)
         {
+            return ApplyCoreAsync(actionType, actionId, championId, completed, null, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryApplyAsync(string actionType, int actionId, int championId,
+            bool completed, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                ApplyCoreAsync(actionType, actionId, championId, completed, expected, cancellationToken);
+        }
+
+        private Task<LeagueClientWriteResponse> ApplyCoreAsync(string actionType, int actionId, int championId,
+            bool completed, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
             if (!IsAllowedForSmokeTest("PATCH", actionType, actionId, championId))
                 throw new ArgumentException("Champ Select action target is not allowed.", nameof(actionId));
 
-            var json = "{\"type\":\"" + actionType + "\",\"championId\":" +
-                championId.ToString(CultureInfo.InvariantCulture) +
+            var json = BuildActionJson(championId, completed);
+            return SendActionPatchAsync(actionId, json, expected, cancellationToken);
+        }
+
+        internal static string BuildActionJson(int championId, bool completed)
+        {
+            return "{\"championId\":" + championId.ToString(CultureInfo.InvariantCulture) +
                 ",\"completed\":" + (completed ? "true" : "false") + "}";
-            return SendActionPatchAsync(actionId, json, cancellationToken);
         }
 
         public Task<LeagueClientWriteResponse> TryIntentAsync(
             int actionId, int championId, CancellationToken cancellationToken)
         {
+            return IntentCoreAsync(actionId, championId, null, cancellationToken);
+        }
+
+        public Task<LeagueClientWriteResponse> TryIntentAsync(int actionId, int championId,
+            LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                IntentCoreAsync(actionId, championId, expected, cancellationToken);
+        }
+
+        private Task<LeagueClientWriteResponse> IntentCoreAsync(int actionId, int championId,
+            LeagueClientSession expected, CancellationToken cancellationToken)
+        {
             if (!IsAllowedIntentForSmokeTest(actionId, championId))
                 throw new ArgumentException("Champ Select intent target is not allowed.", nameof(actionId));
             var json = "{\"championId\":" + championId.ToString(CultureInfo.InvariantCulture) + "}";
-            return SendActionPatchAsync(actionId, json, cancellationToken);
+            return SendActionPatchAsync(actionId, json, expected, cancellationToken);
         }
 
         private async Task<LeagueClientWriteResponse> SendActionPatchAsync(
-            int actionId, string json, CancellationToken cancellationToken)
+            int actionId, string json, LeagueClientSession expected, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null || expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try { lease = _clients.Acquire(session); }
