@@ -17,9 +17,10 @@ A 2xx is not success. `POST /lol-gameflow/v1/session/request-lobby` returns `200
 `false` during PvP Champion Select, and `POST /lol-gameflow/v1/session/dodge` returns `204` without
 changing the phase. Writes must verify the body or re-read `gameflow-phase`.
 
-Leaver penalties live in `GET /lol-leaver-buster/v1/notifications`; `ranked-restriction` only
-reports ranked bans. Judging "no penalty" from `ranked-restriction` led to repeated retries and
-escalated the lock from 5 to 30 minutes.
+Active queue penalties are reported by `GET /lol-matchmaking/v1/search` inside `errors[]` as
+`errorType: QUEUE_DODGER` with `penaltyTimeRemaining`. `leaver-buster/v1/notifications` returned an
+empty array while a 10.9-hour lock was in force, and `ranked-restriction` only covers ranked bans.
+Judging "no penalty" from either of those led to repeated retries that escalated the lock.
 
 Champion Select plugin JavaScript is not on disk: `assets.wad` files are zstd resource packs and
 `resources.pak` holds only CEF service-worker code. The only way to read it is to scan the running

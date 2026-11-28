@@ -233,12 +233,26 @@ LCU 的 404 有两种，含义完全不同：
 命中后用 capstone 反汇编上下文。适用于"字符串确实在二进制里"的场景；
 本项目验证过路由字符串不在二进制里，所以主战场是 7.5。
 
+### 7.4 惩罚有三个出口，`notifications` 可能是空的
 
+2026-11-28 实测：同一个账号、同一时刻，三个端点给出三种答案：
 
-- `lol-leaver-buster/v1/notifications` → 裁决之镰时间锁（真正会拦排队）
-- `lol-leaver-buster/v1/ranked-restriction` → 只反映排位禁赛
+```
+GET /lol-leaver-buster/v1/notifications        → []                    ← 空，但惩罚真实存在
+GET /lol-leaver-buster/v1/ranked-restriction   → 无限制
+GET /lol-matchmaking/v1/search                 → errors[].errorType = "QUEUE_DODGER"
+                                                  penaltyTimeRemaining = 39233   ← 真正在拦排队
+```
 
-只看后者会误判"没有惩罚"，进而连续重试，惩罚从 5 分钟升到 30 分钟（本项目踩过）。
+| 出口 | 反映什么 | 有惩罚时会不会为空 |
+|---|---|---|
+| `matchmaking/v1/search` → `errors[]` | **进行中的排队惩罚（QUEUE_DODGER）+ 剩余秒数** | 不会 |
+| `leaver-buster/v1/notifications` | 已生成的通知 | **会，实测就是 `[]`** |
+| `leaver-buster/v1/ranked-restriction` | 只反映排位禁赛，与 dodge 无关 | 会 |
+
+**判断"现在能不能排队"只认 `matchmaking/v1/search` 的 `errors[]`。**
+本项目早期只看 `ranked-restriction` 判"没惩罚"，连续重试后锁从 5 分钟涨到 30 分钟，最终累积到
+10.9 小时——这就是把错误端点当判据的代价。
 
 ---
 
@@ -263,6 +277,6 @@ LCU 的 404 有两种，含义完全不同：
 1. **先判档再写代码**：T0/T1 用普通 HTTP 客户端即可；T3 必须确认是否落在 T4；
 2. **不要按前缀整体重写**，只重写确认存在的子路径；
 3. **写操作必须校验 body 与 phase**，不能只看状态码；
-4. **惩罚检测只看 `notifications`**，不要看 `ranked-restriction`；
+4. **惩罚检测只看 `matchmaking/v1/search` 的 `errors[]`**；`notifications` 有惩罚时也可能为空，`ranked-restriction` 只反映排位；
 5. **要 JS 实现就扫内存**，磁盘上没有明文；
 6. **WAMP 只能订阅**，需要"调用"就只能走 HTTP。
