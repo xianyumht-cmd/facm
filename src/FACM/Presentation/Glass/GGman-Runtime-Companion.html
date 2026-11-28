@@ -136,7 +136,7 @@ html,body{font-size:12.6px;line-height:1.5}
 </header>
 <main id="content">
 <div id="status"><span id="dot"></span><span id="statusText">连接英雄选择中…</span></div>
-<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div><button id="quit" class="warn" title="退出选人" aria-label="退出选人">退</button></div>
+<div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div><button id="mute" title="静音全部可识别玩家" aria-label="静音全部可识别玩家" disabled>静音</button><button id="quit" class="warn" title="退出选人" aria-label="退出选人" disabled>退</button></div>
 <section class="section" id="benchSection" hidden>
 <div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div>
 </section>
@@ -214,6 +214,7 @@ $('runes').onclick=()=>send('apply:runes');
 $('spells').onclick=()=>send('apply:spells');
 $('items').onclick=()=>send('apply:items');
 $('quit').onclick=()=>send('quit:yes');
+$('mute').onclick=()=>send('mute:all');
 $('augmentFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{
  filter=b.dataset.filter;augmentLimit=20;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
 });
@@ -288,7 +289,8 @@ const canApply=!!(b&&snapshot.connected&&!snapshot.busy&&snapshot.canApply);
 const mayhem=snapshot.guideKind==='Mayhem';
 $('runes').hidden=mayhem;$('runes').closest('.actions').classList.toggle('mayhem',mayhem);
 for(const id of ['runes','spells','items'])$(id).disabled=!canApply||(id==='runes'&&!snapshot.allowsRunes);
-$('quit').disabled=!snapshot.connected||!!snapshot.busy;
+$('quit').disabled=!snapshot.connected||!snapshot.canQuit||!!snapshot.busy;
+ $('mute').disabled=!snapshot.connected||!snapshot.canMute||!!snapshot.busy;
 }
 function renderAugments(){
 const host=$('augments');host.replaceChildren();

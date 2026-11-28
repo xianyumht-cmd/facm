@@ -161,6 +161,7 @@ namespace FACM.League
     internal sealed class LeagueRuntimeCompanionSnapshot
     {
         public bool SessionAvailable { get; set; }
+        public bool CanQuit { get { return SessionAvailable && QuickPickState != null && QuickPickState.ShowQuitButton; } }
         public bool BenchEnabled { get; set; }
         public LeagueRuntimeCompanionGuideKind GuideKind { get; set; }
         public bool HasBenchSurface { get { return BenchEnabled || GuideKind != LeagueRuntimeCompanionGuideKind.None; } }

@@ -351,6 +351,8 @@ namespace FACM.Presentation.Glass
                 assetGeneration = _assetGeneration,
                 guideChanged,
                 connected = snapshot.SessionAvailable,
+                canQuit = _controller.SupportsChampSelectQuit && snapshot.CanQuit,
+                canMute = _controller.SupportsChampSelectMute && snapshot.SessionAvailable,
                 championId = snapshot.LocalChampionId,
                 name = build == null ? string.Empty : build.ChampionName,
                 timer = Math.Max(0, snapshot.TimerMillisecondsLeft / 1000),
@@ -585,6 +587,7 @@ namespace FACM.Presentation.Glass
             }
             if (command == "confirm:yes") { _ = ApplyPreparedAsync(); return; }
             if (command == "quit:yes") { _ = QuitAsync(); return; }
+            if (command == "mute:all") { _ = MuteAllAsync(); return; }
             if (command.StartsWith("swap:", StringComparison.Ordinal) ||
                 command.StartsWith("pick:", StringComparison.Ordinal))
             {
@@ -725,8 +728,9 @@ namespace FACM.Presentation.Glass
 
         private async Task QuitAsync()
         {
-            if (_busy || !_controller.SupportsChampSelectQuit) return;
+            if (_busy || !_controller.SupportsChampSelectQuit || !_controller.CurrentSnapshot.CanQuit) return;
             _busy = true;
+            PublishSnapshot(_controller.CurrentSnapshot);
             try
             {
                 var result = await _controller.QuitChampSelectAsync(_lifetime.Token);
@@ -739,7 +743,26 @@ namespace FACM.Presentation.Glass
                 AppLog.Info("Runtime Companion HTML quit failed: " + e.GetType().Name);
                 Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed) });
             }
-            finally { _busy = false; }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
+        }
+
+        private async Task MuteAllAsync()
+        {
+            if (_busy || !_controller.SupportsChampSelectMute || !_controller.CurrentSnapshot.SessionAvailable) return;
+            _busy = true;
+            PublishSnapshot(_controller.CurrentSnapshot);
+            try
+            {
+                var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
+                Post(new { type = "status", message = result == null ? "静音失败" : result.Summary });
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                AppLog.Info("Runtime Companion HTML mute failed: " + e.GetType().Name);
+                Post(new { type = "status", message = "静音失败" });
+            }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
 
         private void HandleClosed(object sender, FormClosedEventArgs args)

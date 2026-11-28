@@ -1149,7 +1149,7 @@ namespace FACM.League
 
         private async Task QuitChampSelectAsync()
         {
-            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit) return;
+            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit || !_controller.CurrentSnapshot.CanQuit) return;
             _actionBusy = true;
             SetActionButtonsEnabled(false);
             _contextStatus.ForeColor = FacmDesignSystem.Warning;
@@ -1325,7 +1325,7 @@ namespace FACM.League
         private void SetActionButtonsEnabled(bool enabled)
         {
             if (_quitButton != null)
-                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.SessionAvailable;
+                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.CanQuit;
             if (_muteButton != null)
                 _muteButton.Enabled = enabled && _controller.SupportsChampSelectMute && _controller.CurrentSnapshot.SessionAvailable;
             if (_runes.Action != null)

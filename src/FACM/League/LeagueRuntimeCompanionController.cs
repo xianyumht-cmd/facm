@@ -769,6 +769,10 @@ namespace FACM.League
         internal static void ValidateForSmokeTest()
         {
             LeagueChampSelectQuitSmokeTest.Validate();
+            if (!LeagueLiveDataService.ParseBenchPayload(System.Text.Encoding.UTF8.GetBytes("{\"showQuitButton\":true}")).ShowQuitButton ||
+                LeagueLiveDataService.ParseBenchPayload(System.Text.Encoding.UTF8.GetBytes("{\"showQuitButton\":false}")).ShowQuitButton ||
+                LeagueLiveDataService.ParseBenchPayload(System.Text.Encoding.UTF8.GetBytes("{}")).ShowQuitButton)
+                throw new InvalidOperationException("Champion Select eligibility projection regressed.");
             if (BuildRefreshInterval < TimeSpan.FromSeconds(2))
                 throw new InvalidOperationException("Runtime Companion build refresh became too aggressive.");
             if (LeagueRuntimeCompanionModePolicy.Resolve(true, 450, "ARAM") != LeagueRuntimeCompanionGuideKind.AramBalance)
