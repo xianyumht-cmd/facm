@@ -2,7 +2,7 @@
 
 Baseline: PR #370, executable candidate bc266594 plus scoped postgame transport in this commit. Previous full CI: 9b52b943 (Windows 46148139501, Glass 46148139491, UI Text 46148139489, Mayhem 46148139490); Windows job 140988616748 executed history smoke and host/response/performance/update contracts. This ledger is an initial source mapping, not a completion report. Source paths below are relative to src/FACM/League unless specified. UI placement, every individual request body and real-client behavior are still open unless explicitly evidenced.
 
-## Playbook inventory (28 numbered sections + two unnumbered sections)
+## Playbook inventory (29 numbered sections + two unnumbered sections)
 
 | Source | Intended operation / plugin | Current owner or located evidence | State / next verification |
 |---|---|---|---|
