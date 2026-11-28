@@ -1125,7 +1125,7 @@ namespace FACM.League
             try
             {
                 var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
-                var ok = result != null && result.Failed == 0;
+                var ok = result != null && !result.NotInChampSelect && !result.StateUnavailable && result.Failed == 0;
                 _contextStatus.ForeColor = ok ? FacmDesignSystem.Success : FacmDesignSystem.Warning;
                 _contextStatus.Text = result == null ? "静音失败" : result.Summary;
                 SetStatus(_contextStatus.Text, _contextStatus.ForeColor);
