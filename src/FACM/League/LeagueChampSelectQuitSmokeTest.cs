@@ -12,8 +12,8 @@ namespace FACM.League
         {
             Require(LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST",
                 LeagueChampSelectQuitWriteApiClient.QuitPath), "Primary quit route is blocked.");
-            Require(LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST",
-                LeagueChampSelectQuitWriteApiClient.RequestLobbyPath), "Lobby request route is blocked.");
+            Require(!LeagueChampSelectQuitWriteApiClient.IsAllowedTargetForSmokeTest("POST",
+                LeagueChampSelectQuitWriteApiClient.RequestLobbyPath), "Unsupported lobby request route is allowed.");
             foreach (var path in new[] { "/lol-lobby/v2/lobby", "/lol-lobby-team-builder/v1/lobby",
                                          "/lol-gameflow/v1/session/dodge" })
             {
@@ -26,18 +26,19 @@ namespace FACM.League
             var normal = new FakeQuitSession(200);
             AssertResult(normal, LeagueChampSelectQuitStatus.Success, true, 1, 0);
 
-            var matchmade = new FakeQuitSession(400) { FallbackResponse = Response(200, "true") };
-            AssertResult(matchmade, LeagueChampSelectQuitStatus.Success, true, 1, 1);
-
+            var matchmade = new FakeQuitSession(400) { Session = "{\"showQuitButton\":false}" };
+            AssertResult(matchmade, LeagueChampSelectQuitStatus.WriteRejected, false, 0, 0);
+            var missingFlag = new FakeQuitSession(200) { Session = "{}" };
+            AssertResult(missingFlag, LeagueChampSelectQuitStatus.WriteRejected, false, 0, 0);
             var declined = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
-            AssertResult(declined, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 1);
+            AssertResult(declined, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
 
             var repeated = new FakeQuitSession(400) { FallbackResponse = Response(200, "false") };
             var repeatedService = new LeagueChampSelectQuitService(repeated, repeated);
             repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
             var tooSoon = repeatedService.QuitAsync(CancellationToken.None).GetAwaiter().GetResult();
             Require(tooSoon.Status == LeagueChampSelectQuitStatus.WriteRejected &&
-                    repeated.PrimaryCount == 1 && repeated.FallbackCount == 1,
+                    repeated.PrimaryCount == 1 && repeated.FallbackCount == 0,
                 "Repeated click submitted another rejected quit before cooldown.");
 
             var unavailable = new FakeQuitSession(400) { OriginalLobby = null };
@@ -52,11 +53,11 @@ namespace FACM.League
             var forbidden = new FakeQuitSession(403);
             AssertResult(forbidden, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
 
-            var lostOriginal = new FakeQuitSession(400) { RestoredLobby = DifferentLobby };
-            AssertResult(lostOriginal, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 1);
+            var lostOriginal = new FakeQuitSession(200) { RestoredLobby = DifferentLobby };
+            AssertResult(lostOriginal, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 0);
 
             var changedPhase = new FakeQuitSession(400) { ChangePhaseOnRejectedPrimary = true };
-            AssertResult(changedPhase, LeagueChampSelectQuitStatus.VerificationFailed, false, 1, 0);
+            AssertResult(changedPhase, LeagueChampSelectQuitStatus.WriteRejected, false, 1, 0);
 
             var notSelecting = new FakeQuitSession(200) { Phase = "Lobby" };
             AssertResult(notSelecting, LeagueChampSelectQuitStatus.NotInChampSelect, false, 0, 0);
@@ -114,6 +115,7 @@ namespace FACM.League
             }
 
             public string Phase = "ChampSelect";
+            public string Session = "{\"showQuitButton\":true}";
             public string OriginalLobby = SameLobby;
             public string RestoredLobby = SameLobby;
             public bool ChangePhaseOnRejectedPrimary;
@@ -131,7 +133,7 @@ namespace FACM.League
                     body = "\"" + Phase + "\"";
                 if (path == LeagueChampSelectQuitService.ChampSelectSessionPath &&
                     string.Equals(Phase, "ChampSelect", StringComparison.Ordinal))
-                    body = "{}";
+                    body = Session;
                 if (path == LeagueChampSelectQuitService.LobbyPath)
                     body = _sentWrite ? RestoredLobby : OriginalLobby;
                 return Task.FromResult(body == null ? null : Encoding.UTF8.GetBytes(body));
