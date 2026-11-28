@@ -14,7 +14,9 @@ namespace FACM.Mayhem
             try
             {
                 VerifyNormalRead();
-                VerifyStalledBodyCanBeCancelled();
+                VerifyStalledBodyCanBeCancelled(false);
+                VerifyStalledBodyCanBeCancelled(true);
+                VerifyUncancelledInvalidOperationIsNotHidden();
                 VerifySizeLimit();
                 VerifyOptionalSourceDeadline();
                 VerifyEarlyReturnCleanup();
@@ -88,9 +90,9 @@ namespace FACM.Mayhem
             }
         }
 
-        private static void VerifyStalledBodyCanBeCancelled()
+        private static void VerifyStalledBodyCanBeCancelled(bool plainInvalidOperation)
         {
-            using (var stream = new StalledAfterFirstReadStream())
+            using (var stream = new StalledAfterFirstReadStream(plainInvalidOperation))
             using (var content = new StreamContent(stream))
             using (var cancellation = new CancellationTokenSource())
             {
@@ -104,9 +106,9 @@ namespace FACM.Mayhem
                         .GetAwaiter()
                         .GetResult();
                 }
-                catch (OperationCanceledException)
+                catch (OperationCanceledException exception)
                 {
-                    cancelled = true;
+                    cancelled = exception.CancellationToken == cancellation.Token;
                 }
                 stopwatch.Stop();
 
@@ -114,6 +116,27 @@ namespace FACM.Mayhem
                     throw new InvalidOperationException("Stalled response body was not cancelled.");
                 if (stopwatch.Elapsed > TimeSpan.FromSeconds(2))
                     throw new TimeoutException("Stalled response body cancellation took too long: " + stopwatch.Elapsed + ".");
+            }
+        }
+
+        private static void VerifyUncancelledInvalidOperationIsNotHidden()
+        {
+            var failure = new InvalidOperationException("fixture: stream failed before cancellation");
+            if (CancelableHttpContentReader.IsCancellationSideEffect(failure) ||
+                !CancelableHttpContentReader.IsCancellationSideEffect(failure, true))
+                throw new InvalidOperationException("Plain invalid operation classification escaped the body reader.");
+            using (var stream = new StalledAfterFirstReadStream(true, failure))
+            using (var content = new StreamContent(stream))
+            {
+                var observed = false;
+                try
+                {
+                    CancelableHttpContentReader.ReadBytesAsync(content, CancellationToken.None, 1024)
+                        .GetAwaiter().GetResult();
+                }
+                catch (InvalidOperationException exception) { observed = ReferenceEquals(exception, failure); }
+                if (!observed)
+                    throw new InvalidOperationException("Uncancelled stream failure was not preserved.");
             }
         }
 
@@ -144,6 +167,14 @@ namespace FACM.Mayhem
             private readonly TaskCompletionSource<int> _blocked = new TaskCompletionSource<int>();
             private bool _firstRead = true;
             private bool _disposed;
+            private readonly bool _plainInvalidOperation;
+            private readonly Exception _initialFailure;
+
+            internal StalledAfterFirstReadStream(bool plainInvalidOperation, Exception initialFailure = null)
+            {
+                _plainInvalidOperation = plainInvalidOperation;
+                _initialFailure = initialFailure;
+            }
 
             public override bool CanRead => true;
             public override bool CanSeek => false;
@@ -174,6 +205,7 @@ namespace FACM.Mayhem
                 if (_firstRead)
                 {
                     _firstRead = false;
+                    if (_initialFailure != null) return Task.FromException<int>(_initialFailure);
                     buffer[offset] = 0x46;
                     return Task.FromResult(1);
                 }
@@ -188,7 +220,9 @@ namespace FACM.Mayhem
                 if (disposing && !_disposed)
                 {
                     _disposed = true;
-                    _blocked.TrySetException(new ObjectDisposedException(nameof(StalledAfterFirstReadStream)));
+                    _blocked.TrySetException(_plainInvalidOperation
+                        ? new InvalidOperationException("fixture: response stream closed")
+                        : new ObjectDisposedException(nameof(StalledAfterFirstReadStream)));
                 }
                 base.Dispose(disposing);
             }

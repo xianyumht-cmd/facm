@@ -1,3 +1,7 @@
+## 2026-11-29 — Closed response stream at the deadline
+
+A disposed HTTP body stream can report a plain InvalidOperationException rather than ObjectDisposedException. Only normalize the plain type at the body-read boundary with its own cancelled token; never globally classify parser or unrelated invalid operations as cancellation. Do not infer a memory leak from a single diagnostics export snapshot or prioritize aggressive resource reductions without measured gameplay impact.
+
 ## 2026-11-29 — Room capability readback
 
 Role preference request field names differ from localMember response field names. Confirm both requested roles, not HTTP alone. Spectator slot entry requires explicit custom-room eligibility and local spectator readback; it is distinct from launching a spectator client. Invite privilege changes require explicit local toggle authority and known target permission; missing permission is not false. Include these values in the room snapshot fence.

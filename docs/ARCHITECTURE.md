@@ -1,3 +1,7 @@
+## 2026-11-29 — Body reader cancellation boundary (candidate)
+
+CancelableHttpContentReader retains the existing bounded stream reads and cancellation-disposal registration; its body-only exception classification recognizes plain InvalidOperationException after cancellation. General transport classification remains unchanged. No new thread, timer, HTTP pool or dependency.
+
 ## 2026-11-29 — Extended room transaction actions (candidate)
 
 The existing room service owns role preference pairs, spectator-slot entry and invite privilege grant/revoke. Fixed role IDs cross the existing revisioned bridge as one numeric pair; member identities remain decimal strings. Native and Glass use the same capability snapshot, typed transport, gate and readback. Explicit position-selector, custom spectator policy and invite-toggle/target permission fields gate the new actions; missing fields do not imply eligibility. Room fingerprints include the new observed state so changed settings invalidate stale requests. No new Shard, polling loop or transport pool.
