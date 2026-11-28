@@ -358,6 +358,8 @@ namespace FACM.Presentation.Glass
                 canMute = _controller.SupportsChampSelectMute && snapshot.SessionAvailable,
                 canDraftSwap = _controller.SupportsDraftSwaps && snapshot.SessionAvailable,
                 swapLabel = Copy(LeagueRuntimeCompanionUiTextKeys.SwapMenu),
+                canChooseMastery = snapshot.CanChooseMastery,
+                masteryLabel = Copy(LeagueRuntimeCompanionUiTextKeys.MasteryChoose),
                 canReroll = _controller.SupportsReroll && snapshot.CanReroll,
                 rerolls = snapshot.RerollsRemaining,
                 rerollLabel = Copy(LeagueRuntimeCompanionUiTextKeys.RerollShort),
@@ -607,10 +609,11 @@ namespace FACM.Presentation.Glass
                     _ = HandleDraftSwapAsync(revision, index, (LeagueDraftSwapAction)action);
                 return;
             }
-            if (command.StartsWith("reroll:", StringComparison.Ordinal))
+            if (command.StartsWith("reroll:", StringComparison.Ordinal) || command.StartsWith("mastery-choice:", StringComparison.Ordinal))
             {
+                var mastery = command.StartsWith("mastery-choice:", StringComparison.Ordinal);
                 int revision;
-                if (int.TryParse(command.Substring(7), out revision)) _ = RerollAsync(revision);
+                if (int.TryParse(command.Substring(mastery ? 15 : 7), out revision)) _ = RerollOrMasteryAsync(revision, mastery);
                 return;
             }
             if (command.StartsWith("swap:", StringComparison.Ordinal) ||
@@ -828,24 +831,27 @@ namespace FACM.Presentation.Glass
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
 
-        private async Task RerollAsync(int revision)
+        private async Task RerollOrMasteryAsync(int revision, bool mastery)
         {
             var expected = _controller.CurrentSnapshot;
-            if (_busy || !_controller.SupportsReroll || !expected.CanReroll || expected.ChoiceRevision != revision) return;
+            if (_busy || expected.ChoiceRevision != revision ||
+                (mastery ? !expected.CanChooseMastery : !_controller.SupportsReroll || !expected.CanReroll)) return;
+            var success = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryChosen : LeagueRuntimeCompanionUiTextKeys.RerollSuccess;
+            var unverified = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryUnavailable : LeagueRuntimeCompanionUiTextKeys.RerollUnverified;
             _busy = true;
             PublishSnapshot(expected);
             try
             {
-                var result = await _controller.TryRerollAsync(expected, _lifetimeToken);
-                Post(new { type = "status", message = Copy(result.Success ? LeagueRuntimeCompanionUiTextKeys.RerollSuccess :
-                    LeagueRuntimeCompanionUiTextKeys.RerollUnverified) });
+                var result = mastery ? await _controller.TryChooseMasteryAsync(expected, _lifetimeToken) :
+                    await _controller.TryRerollAsync(expected, _lifetimeToken);
+                Post(new { type = "status", message = Copy(result.Success ? success : unverified) });
                 await _controller.RefreshAsync(_lifetimeToken);
             }
             catch (OperationCanceledException) { }
             catch (Exception e)
             {
-                AppLog.Info("Runtime Companion HTML reroll failed: " + e.GetType().Name);
-                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.RerollUnverified) });
+                AppLog.Info("Runtime Companion HTML bench choice failed: " + e.GetType().Name);
+                Post(new { type = "status", message = Copy(unverified) });
             }
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }

@@ -19,6 +19,7 @@ namespace FACM.League
             ValidateSubsetCardAndBenchChoice();
             ValidateReroll();
             ValidateDraftSwaps();
+            ValidateMasteryBenchChoice();
             ValidatePollingBudget();
             ValidateCancellation();
             ValidateSgpLiveTeamEnrichment();
@@ -330,6 +331,51 @@ namespace FACM.League
                 Require(LeagueEncounterReplayService.SessionMatches(Owner, expected), "Reroll must be scoped.");
                 Writes++;
                 if (Apply) { Remaining--; Champion = 55; }
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private static void ValidateMasteryBenchChoice()
+        {
+            var api = new MasteryChoiceFixture();
+            var service = new LeagueBenchQuickPickService(
+                new LeagueLiveDataService(api, new PerformanceBudgetProvider(), session: () => api.Owner), api);
+            var draft = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(LeagueBenchQuickPickService.SelectMasteryBenchTarget(Encoding.UTF8.GetBytes(api.Mastery), draft) == 55,
+                "Only eligible bench champions with known mastery should be ranked.");
+            Require(LeagueBenchQuickPickService.SelectMasteryBenchTarget(Encoding.UTF8.GetBytes("not-json"), draft) == 0,
+                "Unparseable mastery must not choose an arbitrary hero.");
+            var result = service.TryChooseMasteryAsync(draft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Success && api.Writes == 1 && api.Champion == 55,
+                "Mastery action must use the same scoped verified bench writer.");
+            result = service.TryChooseMasteryAsync(draft, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 1, "Stale held champion must veto a second mastery choice.");
+        }
+
+        private sealed class MasteryChoiceFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi
+        {
+            public LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            public int Champion = 22;
+            public int Writes;
+            public string Mastery = "[{\"championId\":55,\"championPoints\":150000},{\"championId\":67,\"championPoints\":90000},{\"championId\":99,\"championPoints\":999999}]";
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.LocalMasteryPath) return Task.FromResult(Encoding.UTF8.GetBytes(Mastery));
+                if (path == LeagueLiveDataService.PickableChampionIdsPath) return Task.FromResult(Encoding.UTF8.GetBytes("[55,67]"));
+                if (path != LeagueLiveDataService.ChampSelectSessionPath) return Task.FromResult<byte[]>(null);
+                return Task.FromResult(Encoding.UTF8.GetBytes("{\"gameId\":100,\"queueId\":450,\"gameMode\":\"ARAM\"," +
+                    "\"localPlayerCellId\":1,\"benchEnabled\":true,\"isLegacyChampSelect\":true,\"benchChampionIds\":[55,67]," +
+                    "\"timer\":{\"phase\":\"FINALIZATION\"},\"myTeam\":[{\"cellId\":1,\"championId\":" + Champion + "}]}"));
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, CancellationToken token)
+            { throw new InvalidOperationException("Mastery choice must use scoped bench write."); }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(LeagueEncounterReplayService.SessionMatches(Owner, expected), "Mastery owner mismatch.");
+                Writes++;
+                Champion = id;
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
             }
         }

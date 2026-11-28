@@ -494,9 +494,20 @@ namespace FACM.League
             catch (InvalidOperationException) { return false; }
         }
 
-        internal async Task<byte[]> ReadDraftSwapAsync(LeagueDraftSwapKind kind, LeagueBenchQuickPickState expected, CancellationToken token)
+        internal const string LocalMasteryPath = "/lol-champion-mastery/v1/local-player/champion-mastery";
+
+        internal Task<byte[]> ReadLocalMasteryAsync(LeagueBenchQuickPickState expected, CancellationToken token)
         {
-            var path = LeagueBenchSwapWriteApiClient.OngoingSwapPath(kind);
+            return ReadScopedQuickPickDataAsync(LocalMasteryPath, expected, token);
+        }
+
+        internal Task<byte[]> ReadDraftSwapAsync(LeagueDraftSwapKind kind, LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            return ReadScopedQuickPickDataAsync(LeagueBenchSwapWriteApiClient.OngoingSwapPath(kind), expected, token);
+        }
+
+        private async Task<byte[]> ReadScopedQuickPickDataAsync(string path, LeagueBenchQuickPickState expected, CancellationToken token)
+        {
             if (string.IsNullOrEmpty(path) || expected == null || expected.ClientSession == null) return null;
             await _requestGate.WaitAsync(token).ConfigureAwait(false);
             try
@@ -505,8 +516,13 @@ namespace FACM.League
                 using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
                 {
                     timeout.CancelAfter(TimeSpan.FromSeconds(2));
-                    var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
-                    return IsQuickPickClientCurrent(expected) ? bytes : null;
+                    try
+                    {
+                        var bytes = await _client.TryGetBytesAsync(path, timeout.Token).ConfigureAwait(false);
+                        token.ThrowIfCancellationRequested();
+                        return !timeout.IsCancellationRequested && IsQuickPickClientCurrent(expected) ? bytes : null;
+                    }
+                    catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
                 }
             }
             finally { _requestGate.Release(); }

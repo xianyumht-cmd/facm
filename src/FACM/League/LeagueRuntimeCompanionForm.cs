@@ -2265,7 +2265,8 @@ namespace FACM.League
             var pages = Math.Max(1, (int)Math.Ceiling(ids.Length / (double)BenchPageSize));
             _benchPage = Math.Max(0, Math.Min(_benchPage, pages - 1));
             var rerollAvailable = _controller.SupportsReroll && snapshot.CanReroll;
-            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.ChoiceRevision + "|" + rerollAvailable +
+            var masteryAvailable = snapshot.CanChooseMastery;
+            var fingerprint = rosterFingerprint + "|" + _benchPage + "|" + snapshot.ChoiceRevision + "|" + rerollAvailable + "|" + masteryAvailable +
                 "|" + string.Join(",", ids.Where(snapshot.CanChoose)) + "|" + _actionBusy;
             if (string.Equals(_benchRenderFingerprint, fingerprint, StringComparison.Ordinal)) return;
             _benchRenderFingerprint = fingerprint;
@@ -2275,7 +2276,7 @@ namespace FACM.League
             foreach (var control in old) control.Dispose();
             // Ten visible slots even if the bench has not populated yet. Only an unexpected
             // future mode with more than ten choices uses the separate overflow navigation row.
-            _benchHost.Height = (int)Math.Round((BenchHeight + (pages > 1 || rerollAvailable ? BenchButtonHeight + BenchControlVerticalMargin : 0)) *
+            _benchHost.Height = (int)Math.Round((BenchHeight + (pages > 1 || rerollAvailable || masteryAvailable ? BenchButtonHeight + BenchControlVerticalMargin : 0)) *
                 LeagueRuntimeCompanionWindowState.ResolveDpiScale(this));
             var pageIds = ids.Skip(_benchPage * BenchPageSize).Take(BenchPageSize).ToArray();
             for (var index = 0; index < BenchPageSize; index++)
@@ -2309,8 +2310,16 @@ namespace FACM.League
                 var reroll = CreateInlineButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.RerollShort) +
                     " (" + snapshot.RerollsRemaining + ")", Point.Empty, new Size(86, BenchButtonHeight));
                 reroll.Enabled = !_actionBusy;
-                reroll.Click += async delegate { await RerollAsync(snapshot); };
+                reroll.Click += async delegate { await RerollOrMasteryAsync(snapshot, false); };
                 _benchPanel.Controls.Add(reroll);
+            }
+            if (masteryAvailable)
+            {
+                var mastery = CreateInlineButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.MasteryChoose),
+                    Point.Empty, new Size(86, BenchButtonHeight));
+                mastery.Enabled = !_actionBusy;
+                mastery.Click += async delegate { await RerollOrMasteryAsync(snapshot, true); };
+                _benchPanel.Controls.Add(mastery);
             }
             if (pages > 1)
             {
@@ -2319,25 +2328,29 @@ namespace FACM.League
             }
         }
 
-        private async Task RerollAsync(LeagueRuntimeCompanionSnapshot expected)
+        private async Task RerollOrMasteryAsync(LeagueRuntimeCompanionSnapshot expected, bool mastery)
         {
-            if (_actionBusy || IsDisposed || !_controller.SupportsReroll || expected == null || !expected.CanReroll) return;
+            if (_actionBusy || IsDisposed || expected == null ||
+                (mastery ? !expected.CanChooseMastery : !_controller.SupportsReroll || !expected.CanReroll)) return;
+            var success = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryChosen : LeagueRuntimeCompanionUiTextKeys.RerollSuccess;
+            var unverified = mastery ? LeagueRuntimeCompanionUiTextKeys.MasteryUnavailable : LeagueRuntimeCompanionUiTextKeys.RerollUnverified;
             _actionBusy = true;
             SetActionButtonsEnabled(false);
             foreach (var control in _benchPanel.Controls.OfType<Button>()) control.Enabled = false;
             try
             {
-                var result = await _controller.TryRerollAsync(expected, _lifetime.Token);
-                if (!IsDisposed) SetStatus(CompanionText(result.Success ? LeagueRuntimeCompanionUiTextKeys.RerollSuccess :
-                    LeagueRuntimeCompanionUiTextKeys.RerollUnverified), result.Success ? FacmDesignSystem.Success : FacmDesignSystem.Warning);
+                var result = mastery ? await _controller.TryChooseMasteryAsync(expected, _lifetime.Token) :
+                    await _controller.TryRerollAsync(expected, _lifetime.Token);
+                if (!IsDisposed) SetStatus(CompanionText(result.Success ? success : unverified),
+                    result.Success ? FacmDesignSystem.Success : FacmDesignSystem.Warning);
                 await _controller.RefreshAsync(_lifetime.Token);
             }
             catch (OperationCanceledException) { }
             catch (ObjectDisposedException) { }
             catch (Exception exception)
             {
-                AppLog.Info("Runtime Companion reroll failed: " + exception.GetType().Name);
-                if (!IsDisposed) SetStatus(CompanionText(LeagueRuntimeCompanionUiTextKeys.RerollUnverified), FacmDesignSystem.Warning);
+                AppLog.Info("Runtime Companion bench choice failed: " + exception.GetType().Name);
+                if (!IsDisposed) SetStatus(CompanionText(unverified), FacmDesignSystem.Warning);
             }
             finally
             {

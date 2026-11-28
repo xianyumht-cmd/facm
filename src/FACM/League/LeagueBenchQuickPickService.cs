@@ -1,5 +1,9 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Web.Script.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using FACM.Performance;
@@ -137,6 +141,58 @@ namespace FACM.League
                 finally { Volatile.Write(ref _latest, null); }
             }
             finally { stopwatch.Stop(); _swapGate.Release(); }
+        }
+
+        internal static int SelectMasteryBenchTarget(byte[] bytes, LeagueBenchQuickPickState state)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024 ||
+                state == null || state.IsSubsetPhase || !state.BenchEnabled) return 0;
+            try
+            {
+                var rows = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (rows == null) return 0;
+                var scores = new Dictionary<int, long>();
+                foreach (var row in rows)
+                {
+                    var item = row as Dictionary<string, object>;
+                    object champion, points;
+                    if (item == null || !item.TryGetValue("championId", out champion) || !(champion is int) ||
+                        (int)champion <= 0 || !item.TryGetValue("championPoints", out points)) return 0;
+                    long score;
+                    if (points is int) score = (int)points;
+                    else if (points is long) score = (long)points;
+                    else return 0;
+                    if (score < 0 || scores.ContainsKey((int)champion)) return 0;
+                    scores.Add((int)champion, score);
+                }
+                // Missing champions are not ranked ahead of known mastery values.
+                return state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id))
+                    .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
+            }
+            catch (ArgumentException) { return 0; }
+            catch (InvalidOperationException) { return 0; }
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryChooseMasteryAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            var watch = Stopwatch.StartNew();
+            if (expected == null || expected.ClientSession == null || expected.IsSubsetPhase ||
+                !expected.ChampionIds.Any(expected.CanChoose))
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+
+            var initial = await RefreshAsync(token).ConfigureAwait(false);
+            if (!expected.SameDraft(initial) || initial.LocalChampionId != expected.LocalChampionId ||
+                !_live.IsQuickPickClientCurrent(initial))
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            var mastery = await _live.ReadLocalMasteryAsync(initial, token).ConfigureAwait(false);
+            var fresh = await RefreshAsync(token).ConfigureAwait(false);
+            if (!initial.SameDraft(fresh) || fresh.LocalChampionId != initial.LocalChampionId ||
+                !_live.IsQuickPickClientCurrent(fresh) || fresh.IsSubsetPhase)
+                return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            var target = SelectMasteryBenchTarget(mastery, fresh);
+            if (target <= 0) return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+            return await TryChooseAsync(target, fresh, token).ConfigureAwait(false);
         }
 
         internal async Task<LeagueBenchSwapResult> TryRerollAsync(LeagueBenchQuickPickState expected, CancellationToken token)

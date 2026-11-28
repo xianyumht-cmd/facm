@@ -122,6 +122,12 @@ namespace FACM.League
             return _bench.TryHandleDraftSwapAsync(expected == null ? null : expected.QuickPickState, request, action, token);
         }
 
+        public Task<LeagueBenchSwapResult> TryChooseMasteryAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            return _bench.TryChooseMasteryAsync(expected == null ? null : expected.QuickPickState, token);
+        }
+
         public Task<LeagueBenchSwapResult> TryRerollAsync(LeagueRuntimeCompanionSnapshot expected, CancellationToken token)
         {
             ThrowIfDisposed();
