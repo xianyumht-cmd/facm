@@ -608,6 +608,10 @@ namespace FACM.League
 
             state.SessionAvailable = true;
             state.ShowQuitButton = ReadValue(data, "showQuitButton") is bool && (bool)ReadValue(data, "showQuitButton");
+            var rerolls = ReadValue(data, "rerollsRemaining");
+            if (rerolls is int && (int)rerolls >= 0) state.RerollsRemaining = (int)rerolls;
+            var rerollsDisabled = ReadValue(data, "rerollsDisabled");
+            if (rerollsDisabled is bool) state.RerollsDisabled = (bool)rerollsDisabled;
             state.BenchEnabled = ReadBool(data, "benchEnabled");
             state.AllowsSubsetChampionPicks = ReadBool(data, "allowSubsetChampionPicks");
             state.GameId = ReadLong(data, "gameId");

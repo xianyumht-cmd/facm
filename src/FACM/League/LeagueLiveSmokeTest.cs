@@ -17,6 +17,7 @@ namespace FACM.League
             ValidateTeamBuilderFallback();
             ValidateBenchQuickPick();
             ValidateSubsetCardAndBenchChoice();
+            ValidateReroll();
             ValidatePollingBudget();
             ValidateCancellation();
             ValidateSgpLiveTeamEnrichment();
@@ -263,6 +264,71 @@ namespace FACM.League
                     "The bench writer used an unverified route or phase.");
                 Swaps++;
                 LocalChampionId = championId;
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+            }
+        }
+
+        private static void ValidateReroll()
+        {
+            var api = new RerollFixture();
+            var live = new LeagueLiveDataService(api, new PerformanceBudgetProvider(), session: () => api.Owner);
+            var service = new LeagueBenchQuickPickService(live, api);
+            var initial = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(initial.CanReroll && initial.RerollsRemaining == 2, "Eligible ARAM reroll must be exposed.");
+            var result = service.TryRerollAsync(initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.Success && result.ChampionId == 55 && api.Writes == 1 && api.Remaining == 1,
+                "Reroll requires a confirmed new champion and one consumed reroll.");
+            result = service.TryRerollAsync(initial, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 1, "Old reroll snapshot must not spend another reroll.");
+            var fresh = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.Apply = false;
+            result = service.TryRerollAsync(fresh, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "Unchanged state must not confirm success.");
+            fresh = service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
+            result = service.TryRerollAsync(fresh, CancellationToken.None).GetAwaiter().GetResult();
+            Require(!result.Success && api.Writes == 2, "Unknown result must not repeat at the same reroll count.");
+            api.Disabled = true;
+            Require(!service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult().CanReroll,
+                "Explicitly disabled reroll must be unavailable.");
+            api.Disabled = null;
+            Require(!service.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult().CanReroll,
+                "Unknown reroll eligibility must not be invented.");
+        }
+
+        private sealed class RerollFixture : ILeagueClientApi, ILeagueBenchSwapWriteApi, ILeagueAramRerollWriteApi
+        {
+            public LeagueClientSession Owner = new LeagueClientSession("LeagueClientUx", 42, 5001, "fixture",
+                "https", "smoke", "HN1", "TENCENT");
+            public int Remaining = 2;
+            public int Champion = 22;
+            public int Writes;
+            public bool? Disabled = false;
+            public bool Apply = true;
+            public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                if (path == LeagueLiveDataService.PickableChampionIdsPath)
+                    return Task.FromResult(Encoding.UTF8.GetBytes("[22,55]"));
+                if (path != LeagueLiveDataService.ChampSelectSessionPath &&
+                    path != LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
+                    return Task.FromResult<byte[]>(null);
+                return Task.FromResult(Encoding.UTF8.GetBytes("{\"id\":\"fixture-draft\",\"gameId\":100," +
+                    "\"queueId\":450,\"gameMode\":\"ARAM\",\"localPlayerCellId\":1,\"benchEnabled\":true," +
+                    "\"isLegacyChampSelect\":true,\"rerollsRemaining\":" + Remaining +
+                    (Disabled.HasValue ? ",\"rerollsDisabled\":" + (Disabled.Value ? "true" : "false") : "") +
+                    ",\"timer\":{\"phase\":\"FINALIZATION\"},\"myTeam\":[{\"cellId\":1,\"championId\":" +
+                    Champion + "}]}"));
+            }
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int id, LeagueBenchSwapRoute route, CancellationToken token)
+            {
+                throw new InvalidOperationException("Reroll must not use bench swap.");
+            }
+            public Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token)
+            {
+                token.ThrowIfCancellationRequested();
+                Require(LeagueEncounterReplayService.SessionMatches(Owner, expected), "Reroll must be scoped.");
+                Writes++;
+                if (Apply) { Remaining--; Champion = 55; }
                 return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
             }
         }

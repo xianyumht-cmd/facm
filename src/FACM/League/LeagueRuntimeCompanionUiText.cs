@@ -34,6 +34,9 @@ namespace FACM.League
         public const string PreviousPage = "LeagueRuntimeCompanionPreviousPage";
         public const string NextPage = "LeagueRuntimeCompanionNextPage";
         public const string ChampionResolving = "LeagueRuntimeCompanionChampionResolving";
+        public const string RerollShort = "LeagueRuntimeCompanionRerollShort";
+        public const string RerollSuccess = "LeagueRuntimeCompanionRerollSuccess";
+        public const string RerollUnverified = "LeagueRuntimeCompanionRerollUnverified";
         public const string MuteChampSelectShort = "LeagueRuntimeCompanionMuteChampSelectShort";
         public const string MuteChampSelectBusy = "LeagueRuntimeCompanionMuteChampSelectBusy";
         public const string MuteChampSelectFailed = "LeagueRuntimeCompanionMuteChampSelectFailed";
@@ -111,6 +114,9 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.PreviousPage, "上一页" },
             { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.RerollShort, "重掷" },
+            { LeagueRuntimeCompanionUiTextKeys.RerollSuccess, "已重掷英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.RerollUnverified, "重掷未确认，请查看客户端" },
             { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectShort, "静音" },
             { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectBusy, "正在静音…" },
             { LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed, "静音失败" },

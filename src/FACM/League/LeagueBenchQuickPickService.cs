@@ -51,6 +51,8 @@ namespace FACM.League
         private readonly ILeagueBenchSwapWriteApi _writer;
         private readonly ILeagueChampSelectActionWriteApi _actionWriter;
         private LeagueBenchQuickPickState _latest;
+        private LeagueBenchQuickPickState _lastReroll;
+        internal bool SupportsReroll { get { return _writer is ILeagueAramRerollWriteApi; } }
         private readonly SemaphoreSlim _swapGate = new SemaphoreSlim(1, 1);
 
         public LeagueBenchQuickPickService(LeagueLiveDataService live, ILeagueBenchSwapWriteApi writer,
@@ -118,6 +120,47 @@ namespace FACM.League
                 finally { Volatile.Write(ref _latest, null); }
             }
             finally { stopwatch.Stop(); _swapGate.Release(); }
+        }
+
+        internal async Task<LeagueBenchSwapResult> TryRerollAsync(LeagueBenchQuickPickState expected, CancellationToken token)
+        {
+            await _swapGate.WaitAsync(token).ConfigureAwait(false);
+            var watch = Stopwatch.StartNew();
+            try
+            {
+                var reroll = _writer as ILeagueAramRerollWriteApi;
+                if (reroll == null || expected == null || !expected.CanReroll || expected.ClientSession == null)
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                var current = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                if (!expected.SameDraft(current) || !_live.IsQuickPickClientCurrent(current) || !current.CanReroll ||
+                    current.LocalChampionId != expected.LocalChampionId ||
+                    current.RerollsRemaining != expected.RerollsRemaining)
+                    return Result(LeagueBenchSwapStatus.TargetUnavailable, 0, 0, watch);
+                if (_lastReroll != null && _lastReroll.SameDraft(current) &&
+                    _lastReroll.RerollsRemaining == current.RerollsRemaining)
+                    return Result(LeagueBenchSwapStatus.VerificationFailed, 0, 0, watch);
+
+                // One explicit click, one scoped bodyless POST; a lost response is not safe to repeat.
+                _lastReroll = current;
+                Volatile.Write(ref _latest, null);
+                var response = await reroll.TryRerollAsync(current.ClientSession, token).ConfigureAwait(false);
+                if (response != null && !response.IsSuccessStatusCode && response.StatusCode < 500)
+                {
+                    _lastReroll = null;
+                    return Result(LeagueBenchSwapStatus.WriteRejected, 0, response.StatusCode, watch);
+                }
+                for (var i = 0; i < 3; i++)
+                {
+                    await Task.Delay(60 * (i + 1), token).ConfigureAwait(false);
+                    var after = await _live.RefreshBenchAsync(token).ConfigureAwait(false);
+                    if (!current.SameDraft(after) || !_live.IsQuickPickClientCurrent(after)) break;
+                    if (after.RerollsRemaining.HasValue && after.RerollsRemaining.Value == current.RerollsRemaining.Value - 1 &&
+                        after.LocalChampionId > 0 && after.LocalChampionId != current.LocalChampionId)
+                        return Result(LeagueBenchSwapStatus.Success, after.LocalChampionId, response == null ? 0 : response.StatusCode, watch);
+                }
+                return Result(LeagueBenchSwapStatus.VerificationFailed, 0, response == null ? 0 : response.StatusCode, watch);
+            }
+            finally { watch.Stop(); _swapGate.Release(); }
         }
 
         public Task<byte[]> LoadChampionIconAsync(int championId, CancellationToken cancellationToken)

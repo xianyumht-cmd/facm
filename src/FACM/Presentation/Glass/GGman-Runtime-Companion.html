@@ -138,7 +138,7 @@ html,body{font-size:12.6px;line-height:1.5}
 <div id="status"><span id="dot"></span><span id="statusText">连接英雄选择中…</span></div>
 <div id="champ"><div style="flex:1"><div id="champTitle">等待选定英雄</div></div><div id="tier"></div><button id="mute" title="静音全部可识别玩家" aria-label="静音全部可识别玩家" disabled>静音</button><button id="quit" class="warn" title="退出选人" aria-label="退出选人" disabled>退</button></div>
 <section class="section" id="benchSection" hidden>
-<div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div>
+<div id="benchEmpty"></div><div id="bench" role="group" aria-label="可交换的英雄"></div><button id="reroll" hidden disabled></button>
 </section>
 <nav id="tabs" aria-label="对局助手功能">
 <button data-tab="augments" aria-controls="augmentSection">强化排行</button>
@@ -215,6 +215,7 @@ $('spells').onclick=()=>send('apply:spells');
 $('items').onclick=()=>send('apply:items');
 $('quit').onclick=()=>send('quit:yes');
 $('mute').onclick=()=>send('mute:all');
+$('reroll').onclick=()=>{if(snapshot&&snapshot.canReroll&&!snapshot.busy)send('reroll:'+(Number(snapshot.choiceRevision)||0))};
 $('augmentFilters').querySelectorAll('button').forEach(b=>b.onclick=()=>{
  filter=b.dataset.filter;augmentLimit=20;$('augmentFilters').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));renderAugments();
 });
@@ -231,6 +232,9 @@ const ids=snapshot&&snapshot.bench&&Array.isArray(snapshot.choices)?
  Array.from(new Set(snapshot.choices.filter(id=>Number.isInteger(id)&&id>0))):[];
 const visible=!!(snapshot&&(snapshot.benchSurface||snapshot.bench));
 $('benchSection').hidden=!visible;
+$('reroll').hidden=!(snapshot&&snapshot.canReroll);
+$('reroll').disabled=!(snapshot&&snapshot.canReroll&&!snapshot.busy);
+$('reroll').textContent=snapshot&&snapshot.canReroll?(snapshot.rerollLabel||'')+' ('+snapshot.rerolls+')':'';
 if(!visible){benchSlots=Array(10).fill(0);benchFingerprint='';host.replaceChildren();return;}
 const total=Math.max(10,Math.ceil(ids.length/5)*5);
 const remaining=new Set(ids);

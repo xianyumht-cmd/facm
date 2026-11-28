@@ -27,8 +27,14 @@ namespace FACM.League
             int tradeId, bool accept, CancellationToken cancellationToken);
     }
 
-    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, IDisposable
+    internal interface ILeagueAramRerollWriteApi
     {
+        Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token);
+    }
+
+    internal sealed class LeagueBenchSwapWriteApiClient : ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueAramRerollWriteApi, IDisposable
+    {
+        internal const string RerollPath = "/lol-champ-select/v1/session/my-selection/reroll";
         internal const string LegacySwapPathPrefix = "/lol-champ-select/v1/session/bench/swap/";
         internal const string TeamBuilderSwapPathPrefix = "/lol-lobby-team-builder/champ-select/v1/session/bench/swap/";
         internal const string ChampionTradePathPrefix = "/lol-champ-select/v1/session/champion-swaps/";
@@ -60,13 +66,19 @@ namespace FACM.League
             return SendBodylessPostAsync(BuildTradePathForSmokeTest(tradeId, accept), cancellationToken);
         }
 
+        public Task<LeagueClientWriteResponse> TryRerollAsync(LeagueClientSession expected, CancellationToken token)
+        {
+            return expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                SendBodylessPostAsync(RerollPath, token, expected);
+        }
+
         private async Task<LeagueClientWriteResponse> SendBodylessPostAsync(
-            string path, CancellationToken cancellationToken)
+            string path, CancellationToken cancellationToken, LeagueClientSession expected = null)
         {
 
             cancellationToken.ThrowIfCancellationRequested();
             var session = _sessions.GetSession();
-            if (session == null) return null;
+            if (session == null || expected != null && !LeagueEncounterReplayService.SessionMatches(expected, session)) return null;
 
             LeagueSessionHttpClientPool.Lease lease;
             try

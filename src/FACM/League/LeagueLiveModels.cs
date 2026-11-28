@@ -66,6 +66,19 @@ namespace FACM.League
 
         public bool SessionAvailable { get; set; }
         public bool ShowQuitButton { get; set; }
+        public int? RerollsRemaining { get; set; }
+        public bool? RerollsDisabled { get; set; }
+        public bool CanReroll
+        {
+            get
+            {
+                return SessionAvailable && BenchEnabled && !AllowsSubsetChampionPicks &&
+                    (QueueId == 450 || string.Equals(GameMode, "ARAM", StringComparison.OrdinalIgnoreCase)) &&
+                    LocalChampionId > 0 && RerollsRemaining.GetValueOrDefault() > 0 &&
+                    RerollsDisabled == false && string.Equals(TimerPhase, "FINALIZATION", StringComparison.Ordinal) &&
+                    (GameId > 0 || !string.IsNullOrEmpty(SelectionId));
+            }
+        }
         public bool BenchEnabled { get; set; }
         public bool AllowsSubsetChampionPicks { get; set; }
         public long GameId { get; set; }

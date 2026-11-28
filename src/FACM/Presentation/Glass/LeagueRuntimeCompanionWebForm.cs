@@ -352,6 +352,9 @@ namespace FACM.Presentation.Glass
                 connected = snapshot.SessionAvailable,
                 canQuit = _controller.SupportsChampSelectQuit && snapshot.CanQuit,
                 canMute = _controller.SupportsChampSelectMute && snapshot.SessionAvailable,
+                canReroll = _controller.SupportsReroll && snapshot.CanReroll,
+                rerolls = snapshot.RerollsRemaining,
+                rerollLabel = Copy(LeagueRuntimeCompanionUiTextKeys.RerollShort),
                 championId = snapshot.LocalChampionId,
                 name = build == null ? string.Empty : build.ChampionName,
                 timer = Math.Max(0, snapshot.TimerMillisecondsLeft / 1000),
@@ -587,6 +590,12 @@ namespace FACM.Presentation.Glass
             if (command == "confirm:yes") { _ = ApplyPreparedAsync(); return; }
             if (command == "quit:yes") { _ = QuitAsync(); return; }
             if (command == "mute:all") { _ = MuteAllAsync(); return; }
+            if (command.StartsWith("reroll:", StringComparison.Ordinal))
+            {
+                int revision;
+                if (int.TryParse(command.Substring(7), out revision)) _ = RerollAsync(revision);
+                return;
+            }
             if (command.StartsWith("swap:", StringComparison.Ordinal) ||
                 command.StartsWith("pick:", StringComparison.Ordinal))
             {
@@ -741,6 +750,28 @@ namespace FACM.Presentation.Glass
             {
                 AppLog.Info("Runtime Companion HTML quit failed: " + e.GetType().Name);
                 Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.QuitChampSelectFailed) });
+            }
+            finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
+        }
+
+        private async Task RerollAsync(int revision)
+        {
+            var expected = _controller.CurrentSnapshot;
+            if (_busy || !_controller.SupportsReroll || !expected.CanReroll || expected.ChoiceRevision != revision) return;
+            _busy = true;
+            PublishSnapshot(expected);
+            try
+            {
+                var result = await _controller.TryRerollAsync(expected, _lifetimeToken);
+                Post(new { type = "status", message = Copy(result.Success ? LeagueRuntimeCompanionUiTextKeys.RerollSuccess :
+                    LeagueRuntimeCompanionUiTextKeys.RerollUnverified) });
+                await _controller.RefreshAsync(_lifetimeToken);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                AppLog.Info("Runtime Companion HTML reroll failed: " + e.GetType().Name);
+                Post(new { type = "status", message = Copy(LeagueRuntimeCompanionUiTextKeys.RerollUnverified) });
             }
             finally { _busy = false; PublishSnapshot(_controller.CurrentSnapshot); }
         }
