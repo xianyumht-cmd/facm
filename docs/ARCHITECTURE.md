@@ -1,3 +1,7 @@
+## 2026-11-28 — Room mutation uncertainty fence (candidate)
+
+The existing room service gate now prevents any subsequent explicit mutation against the same unchanged room while its prior mutation outcome is unresolved. A fresh changed room snapshot permits a new explicit request; definitive rejection clears the fence. No additional resident worker, transport, or Shard. Independent automatic controllers remain a separate arbitration target.
+
 ## 2026-11-28 — Mastery strategy and explicit room transactions (candidate)
 
 Automatic mastery is an opt-in existing profile setting, uses a bounded episode-local score map from the researched local-player mastery route, and reuses the current draft task, cooldown, manual-choice guard and scoped bench writer. The optional GGman-specific Akari transfer fields preserve the native option without changing ordinary imported profile defaults. Room management belongs to the existing Efficiency owner: typed LeagueLobbyRoomService transactions use the existing matchmaking transport and session pool. The view opens on demand; both native and Glass use the same observed room model and operation result. Glass passes a revision plus typed action and value; 64-bit member IDs cross the HTML boundary as strings. No separate process/poller or new Shard. The current supported queue selection is a curated initial list; normal service eligibility remains authoritative. True inline League Client placement and arbitration against independent automatic room controllers remain outstanding.

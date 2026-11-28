@@ -176,6 +176,26 @@ namespace FACM.League
             Require(result.State == "unverified" && api.Writes == 4, "Unchanged queue must not confirm.");
             result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 440, CancellationToken.None).GetAwaiter().GetResult();
             Require(result.State == "unverified" && api.Writes == 4, "Unknown room write must not repeat.");
+            result = service.ApplyAsync(snapshot, LeagueLobbyRoomAction.Queue, 430, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && api.Writes == 4, "A different action must not overwrite an unresolved room mutation.");
+            api.Phase = "Lobby";
+            api.Queue = 440;
+            api.Leader = true;
+            lobby = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.StatusCode = 408;
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Leave, 0, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && api.Writes == 5, "HTTP 408 is not definitive rejection.");
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Promote, 3000000002, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "unverified" && api.Writes == 5, "A timed-out leave must fence another room mutation.");
+            api.Queue = 450;
+            lobby = service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            api.StatusCode = 403;
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Leave, 0, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "rejected" && api.Writes == 6, "Definitive rejection must remain distinguishable.");
+            api.StatusCode = 204;
+            api.Apply = true;
+            result = service.ApplyAsync(lobby, LeagueLobbyRoomAction.Leave, 0, CancellationToken.None).GetAwaiter().GetResult();
+            Require(result.State == "confirmed" && api.Writes == 7, "A new explicit action after rejection may proceed.");
             api.Phase = "Matchmaking";
             Require(service.ReadAsync(CancellationToken.None).GetAwaiter().GetResult() == null,
                 "Room management must not act during matchmaking.");
@@ -190,6 +210,7 @@ namespace FACM.League
             internal bool Leader = true;
             internal int Queue;
             internal int Writes;
+            internal int StatusCode = 204;
             public Task<byte[]> TryGetBytesAsync(string path, CancellationToken token)
             {
                 token.ThrowIfCancellationRequested();
@@ -215,7 +236,7 @@ namespace FACM.League
                     if (action == LeagueLobbyRoomAction.Promote) Leader = false;
                     if (action == LeagueLobbyRoomAction.Leave) Phase = "None";
                 }
-                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = 204 });
+                return Task.FromResult(new LeagueClientWriteResponse { StatusCode = StatusCode });
             }
         }
 

@@ -68,8 +68,6 @@ namespace FACM.League
         private readonly Func<LeagueClientSession> _session;
         private readonly SemaphoreSlim _gate = new SemaphoreSlim(1, 1);
         private LeagueLobbyRoomSnapshot _uncertainRoom;
-        private LeagueLobbyRoomAction _uncertainAction;
-        private long _uncertainValue;
 
         internal LeagueLobbyRoomService(ILeagueClientApi read, ILeagueLobbyRoomWriteApi write, Func<LeagueClientSession> session)
         {
@@ -113,17 +111,14 @@ namespace FACM.League
                         if (!expected.SameRoom(fresh) || !fresh.Allows(action, value)) return Result("stale", fresh);
                         if (action == LeagueLobbyRoomAction.Queue && fresh.Phase == "Lobby" && fresh.QueueId == value)
                             return Result("already", fresh);
-                        if (_uncertainRoom != null && _uncertainRoom.SameRoom(fresh) &&
-                            _uncertainAction == action && _uncertainValue == value)
+                        if (_uncertainRoom != null && _uncertainRoom.SameRoom(fresh))
                             return Result("unverified", fresh);
 
-                        // Fence the one operation before transport; a lost response is not a retry signal.
-                        _uncertainRoom = fresh;
-                        _uncertainAction = action;
-                        _uncertainValue = value;
+                        // An unresolved mutation owns the unchanged room, including different actions.
                         ct.ThrowIfCancellationRequested();
+                        _uncertainRoom = fresh;
                         var response = await _write.TryApplyRoomAsync(action, value, fresh.Owner, ct).ConfigureAwait(false);
-                        if (response != null && !response.IsSuccessStatusCode && response.StatusCode < 500)
+                        if (response != null && response.StatusCode >= 400 && response.StatusCode < 500 && response.StatusCode != 408)
                         {
                             _uncertainRoom = null;
                             return Result("rejected", fresh);

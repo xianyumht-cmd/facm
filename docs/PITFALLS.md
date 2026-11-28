@@ -1,3 +1,7 @@
+## 2026-11-28 — Unresolved room mutation ownership
+
+A one-record uncertainty fence keyed only by action/value can be overwritten by a different manual action in the same unchanged room. Fence all mutations against that unchanged observed room until a changed snapshot or a definitive rejection; do not treat HTTP 408 or redirects as definitive rejection. Check cancellation before recording the transport attempt. This is room-service-local arbitration, not a claim of coordination across independent automatic controllers.
+
 ## 2026-11-28 — Research corpus visibility and room verification
 
 A reported upload is not a readable source until the exact repository ref/path is verified; inspect nontruncated trees and current workflow heads, preserve concurrent commits and distinguish absent access from absent research. Do not use slash-expanded method-name exports to invent request bodies. Lobby queue switch is POST with queueId, not PUT. Leaving a party is distinct from closing the client process. The leader, local member, party and current roster must be freshly checked; accepted status alone does not prove the intended member/queue change. Unknown outcomes remain explicit and do not trigger automatic replay. Preserve 64-bit summoner IDs as strings when crossing JavaScript.
