@@ -14,7 +14,7 @@ namespace FACM.League
 {
     /// <summary>
     /// Narrow writer for the League Client's team-builder Champion Select quit action.
-    /// This owner can write to two allowlisted Champion Select exit routes but cannot delete or create a lobby.
+    /// This owner can write only to the supported Champion Select quit route.
     /// </summary>
     internal interface ILeagueChampSelectQuitWriteApi
     {
@@ -43,7 +43,8 @@ namespace FACM.League
 
         public Task<LeagueClientWriteResponse> TryRequestLobbyAsync(CancellationToken cancellationToken)
         {
-            return SendAsync(RequestLobbyPath, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<LeagueClientWriteResponse>(null);
         }
 
         private async Task<LeagueClientWriteResponse> SendAsync(string path, CancellationToken cancellationToken)
@@ -102,8 +103,7 @@ namespace FACM.League
         internal static bool IsAllowedTargetForSmokeTest(string method, string path)
         {
             return string.Equals((method ?? string.Empty).Trim(), "POST", StringComparison.OrdinalIgnoreCase) &&
-                   (string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal) ||
-                    string.Equals((path ?? string.Empty).Trim(), RequestLobbyPath, StringComparison.Ordinal));
+                   string.Equals((path ?? string.Empty).Trim(), QuitPath, StringComparison.Ordinal);
         }
 
         public void Dispose()
@@ -138,13 +138,13 @@ namespace FACM.League
 
     /// <summary>
     /// Explicit one-click transaction for leaving only the current Champion Select episode.
-    /// It reads the current gameflow and original party, sends one primary quit and optionally
-    /// one guarded fallback, then verifies a settled Lobby and preserved original party.
+    /// It reads current server eligibility and the original party, sends one supported quit,
+    /// then verifies a settled Lobby and preserved original party.
     /// </summary>
     internal sealed class LeagueChampSelectQuitService
     {
         internal const string GameflowPhasePath = "/lol-gameflow/v1/gameflow-phase";
-        internal const string ChampSelectSessionPath = "/lol-champ-select/v1/session";
+        internal const string ChampSelectSessionPath = "/lol-lobby-team-builder/champ-select/v1/session";
         internal const string LobbyPath = "/lol-lobby/v2/lobby";
 
         private readonly ILeagueClientApi _reader;
@@ -173,38 +173,19 @@ namespace FACM.League
 
                 var before = ReadLobbyIdentity(
                     await _reader.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false));
+                if (!AllowsQuit(session) || !string.Equals(await ReadPhaseAsync(cancellationToken).ConfigureAwait(false),
+                    "ChampSelect", StringComparison.OrdinalIgnoreCase) ||
+                    !AllowsQuit(await _reader.TryGetBytesAsync(ChampSelectSessionPath, cancellationToken).ConfigureAwait(false)))
+                    return Result(LeagueChampSelectQuitStatus.WriteRejected, 0, phase, false);
                 var response = await _writer.TryQuitAsync(cancellationToken).ConfigureAwait(false);
                 if (response == null)
                     return Result(LeagueChampSelectQuitStatus.SessionUnavailable, 0, phase, false);
 
-                var usedFallback = false;
                 if (!response.IsSuccessStatusCode)
                 {
                     AppLog.Info("League quit Champion Select: primary-rejected; http=" + response.StatusCode +
-                                "; errorCode=" + ReadErrorCode(response.Body) +
-                                "; originalLobbyKnown=" + (before != null).ToString().ToLowerInvariant());
-
-                    // An uncertain transport result is never retried. The fallback requires
-                    // a locally observed party identity before any further write is attempted.
-                    if (response.StatusCode != 400 || before == null)
-                        return RejectWithCooldown(response.StatusCode, phase);
-
-                    // Do not change gameflow after the initial rejection if the user
-                    // has already left Champion Select through another action.
-                    if (!string.Equals(await ReadPhaseAsync(cancellationToken).ConfigureAwait(false),
-                                       "ChampSelect", StringComparison.OrdinalIgnoreCase))
-                        return VerifyFailedWithCooldown(response.StatusCode, phase);
-
-                    usedFallback = true;
-                    response = await _writer.TryRequestLobbyAsync(cancellationToken).ConfigureAwait(false);
-                    if (response == null)
-                        return Result(LeagueChampSelectQuitStatus.SessionUnavailable, 0, phase, false);
-                    if (!response.IsSuccessStatusCode || !IsAcceptedLobbyRequest(response.Body))
-                    {
-                        AppLog.Info("League quit Champion Select: request-lobby-rejected; http=" + response.StatusCode +
-                                    "; errorCode=" + ReadErrorCode(response.Body));
-                        return RejectWithCooldown(response.StatusCode, phase);
-                    }
+                                "; errorCode=" + ReadErrorCode(response.Body));
+                    return RejectWithCooldown(response.StatusCode, phase);
                 }
 
                 string settledPhase = phase;
@@ -216,7 +197,7 @@ namespace FACM.League
                     var lobby = await _reader.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false);
                     var after = ReadLobbyIdentity(lobby);
                     lobbyPreserved = before == null
-                        ? !usedFallback && lobby != null && lobby.Length > 0
+                        ? lobby != null && lobby.Length > 0
                         : MatchesOriginalLobby(before, after);
                     if (string.Equals(settledPhase, "Lobby", StringComparison.OrdinalIgnoreCase) && lobbyPreserved)
                     {
@@ -225,7 +206,7 @@ namespace FACM.League
                         if (remainingSession == null || remainingSession.Length == 0)
                         {
                             AppLog.Info("League quit Champion Select: success; route=" +
-                                        (usedFallback ? "request-lobby" : "quit") +
+                                        "quit" +
                                         "; phase=Lobby; lobbyPreserved=true");
                             return Result(LeagueChampSelectQuitStatus.Success, response.StatusCode, settledPhase, true);
                         }
@@ -299,10 +280,19 @@ namespace FACM.League
                 : null;
         }
 
-        private static bool IsAcceptedLobbyRequest(byte[] body)
+        internal static bool AllowsQuit(byte[] body)
         {
-            return body != null && string.Equals(
-                Encoding.UTF8.GetString(body).Trim(), "true", StringComparison.OrdinalIgnoreCase);
+            if (body == null || body.Length == 0) return false;
+            try
+            {
+                var session = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(body))
+                    as Dictionary<string, object>;
+                object allowed;
+                return session != null && session.TryGetValue("showQuitButton", out allowed) &&
+                    allowed is bool && (bool)allowed;
+            }
+            catch (ArgumentException) { return false; }
+            catch (InvalidOperationException) { return false; }
         }
 
         private static string ReadErrorCode(byte[] body)
