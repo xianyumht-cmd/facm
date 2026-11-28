@@ -17,6 +17,9 @@ namespace FACM.League
         public int Kills { get; set; }
         public int Deaths { get; set; }
         public int Assists { get; set; }
+        public bool KdaKnown { get; set; }
+        public bool DamageKnown { get; set; }
+        public bool GoldKnown { get; set; }
         public long DamageToChampions { get; set; }
         public long GoldEarned { get; set; }
         public int MinionsKilled { get; set; }
@@ -93,16 +96,25 @@ namespace FACM.League
                         var member = memberItem as Dictionary<string, object>;
                         if (member == null) continue;
                         var stats = member.ContainsKey("stats") ? member["stats"] as Dictionary<string, object> : null;
+                        long kills, deaths, assists, damage, gold;
+                        var killsKnown = TryReadNonnegativeLong(stats, "CHAMPIONS_KILLED", out kills) && kills <= int.MaxValue;
+                        var deathsKnown = TryReadNonnegativeLong(stats, "NUM_DEATHS", out deaths) && deaths <= int.MaxValue;
+                        var assistsKnown = TryReadNonnegativeLong(stats, "ASSISTS", out assists) && assists <= int.MaxValue;
+                        var damageKnown = TryReadNonnegativeLong(stats, "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS", out damage);
+                        var goldKnown = TryReadNonnegativeLong(stats, "GOLD_EARNED", out gold);
                         var line = new LeagueEndOfGamePlayerLine
                         {
                             TeamId = teamId,
                             ChampionId = (int)ReadDouble(member, "championId"),
                             DisplayName = ReadString(member, "summonerName") ?? ReadString(member, "riotIdGameName"),
-                            Kills = (int)ReadStat(stats, "CHAMPIONS_KILLED"),
-                            Deaths = (int)ReadStat(stats, "NUM_DEATHS"),
-                            Assists = (int)ReadStat(stats, "ASSISTS"),
-                            DamageToChampions = (long)ReadStat(stats, "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS"),
-                            GoldEarned = (long)ReadStat(stats, "GOLD_EARNED"),
+                            Kills = killsKnown ? (int)kills : 0,
+                            Deaths = deathsKnown ? (int)deaths : 0,
+                            Assists = assistsKnown ? (int)assists : 0,
+                            KdaKnown = killsKnown && deathsKnown && assistsKnown,
+                            DamageKnown = damageKnown,
+                            GoldKnown = goldKnown,
+                            DamageToChampions = damageKnown ? damage : 0,
+                            GoldEarned = goldKnown ? gold : 0,
                             MinionsKilled = (int)ReadStat(stats, "MINIONS_KILLED")
                         };
                         var memberKey = ReadString(member, "summonerId");
@@ -112,10 +124,13 @@ namespace FACM.League
                 }
             }
 
+            long gameId;
+            if (!TryReadNonnegativeLong(root, "gameId", out gameId) || gameId == 0 || players.Count == 0)
+                return LeagueEndOfGameSummary.Unavailable;
             var summary = new LeagueEndOfGameSummary
             {
                 Available = true,
-                GameId = (long)ReadDouble(root, "gameId"),
+                GameId = gameId,
                 GameLengthSeconds = (int)ReadDouble(root, "gameLength"),
                 GameMode = ReadString(root, "gameMode"),
                 QueueId = (int)ReadDouble(root, "queueId"),
@@ -141,6 +156,11 @@ namespace FACM.League
             double parsed;
             return double.TryParse(Convert.ToString(entry, CultureInfo.InvariantCulture),
                 NumberStyles.Any, CultureInfo.InvariantCulture, out parsed) ? parsed : 0;
+        }
+
+        private static bool TryReadNonnegativeLong(Dictionary<string, object> value, string key, out long result)
+        {
+            return long.TryParse(ReadString(value, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out result) && result >= 0;
         }
 
         private static double ReadStat(Dictionary<string, object> stats, string key)

@@ -20,7 +20,9 @@ namespace FACM.Presentation.Glass
 
         internal void UpdateGameflowState(LeagueDashboardPhaseState state)
         {
-            if (!IsDisposed) GameflowAdapter.Update(state);
+            if (IsDisposed) return;
+            GameflowAdapter.Update(state);
+            if (_quickToolsAdapter != null) _quickToolsAdapter.InsightPhaseChanged(state);
         }
 
         private void SyncGameflowState() { GameflowAdapter.Sync(); }

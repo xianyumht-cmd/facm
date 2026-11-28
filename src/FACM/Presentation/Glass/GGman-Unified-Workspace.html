@@ -666,6 +666,8 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
     <div class="actions"><button data-route="dashboard">打开完整 LOL 工作台</button><button data-route="presence">在线状态工具</button></div>
   </section>
   <section id="quicktools">
+    <div class="actions" role="group" aria-label="快捷工具视图"><button data-action="insight-close" aria-pressed="true">快捷操作</button><button data-action="insight-open" aria-pressed="false">数据概览</button></div>
+    <div id="quickToolsActions">
     <div class="tool-caption">快捷操作</div>
     <div class="quick-actions" role="group" aria-label="游戏快捷操作">
       <button data-quick-action="close-lobby"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="m9 9 6 5m0-5-6 5"/></svg><span>关闭大厅</span></button>
@@ -689,6 +691,18 @@ main>section:not(#home)>p[role="status"]:empty,.advanced-feedback:empty{display:
       <button data-action="hotkeys-save">保存快捷键</button>
     </div>
     <div class="actions"><button data-route="matchmaking-settings">排队设置</button><button data-route="auto-selection">自动选禁</button><button data-route="postgame-settings">赛后处理</button><button data-route="efficiency-advanced">高级工具</button></div>
+    </div>
+    <div id="quickInsights" style="display:none">
+      <div class="actions"><button data-action="insight-refresh">刷新</button></div>
+      <div id="quickInsightRows" class="dashboard-cards" role="status" aria-live="polite">
+        <div class="dashboard-card"><span class="small">排队限制</span><strong id="insightPenalty">—</strong></div>
+        <div class="dashboard-card"><span class="small">排队时间</span><strong id="insightQueue">—</strong></div>
+        <div class="dashboard-card"><span class="small">好友动态</span><strong id="insightFriends">—</strong></div>
+        <div class="dashboard-card"><span class="small">奖励</span><strong id="insightRewards">—</strong></div>
+        <div class="dashboard-card"><span class="small">段位</span><strong id="insightRanked">—</strong></div>
+        <div class="dashboard-card"><span class="small">赛后统计</span><strong id="insightPostgame">—</strong></div>
+      </div>
+    </div>
   </section>
   <section id="advancedDashboardPage">
     <h2>完整 LOL 工作台</h2>
@@ -1262,6 +1276,13 @@ function modeName(value){
   });
 });
 function post(action){if(window.chrome&&window.chrome.webview)window.chrome.webview.postMessage(action);}
+function resetQuickInsights(open){
+  get("quickToolsActions").style.display=open?"none":"block";
+  get("quickInsights").style.display=open?"block":"none";
+  document.querySelector("[data-action=insight-open]").setAttribute("aria-pressed",String(open));
+  document.querySelector("[data-action=insight-close]").setAttribute("aria-pressed",String(!open));
+  ["Penalty","Queue","Friends","Rewards","Ranked","Postgame"].forEach(function(key){get("insight"+key).textContent=open?"读取中…":"—";});
+}
 function setMode(next,title){
   var previous=mode;
   mode=next==="quicktools"?"quicktools":next==="appearance"?"appearance":next==="client-status"?"client-status":next==="matchmaking-settings"?"matchmaking-settings":next==="auto-selection"?"auto-selection":next==="postgame-settings"?"postgame-settings":next==="dashboard"?"dashboard":next==="dashboard-advanced"?"dashboard-advanced":next==="profile-customization"?"profile-customization":next==="player-advanced"?"player-advanced":next==="presence"?"presence":next==="repair"?"repair":next==="live"?"live":next==="bench"?"bench":next==="player"?"player":next==="mayhem"?"mayhem":next==="recommendation"?"recommendation":next==="cloud-sync"?"cloud-sync":next==="updates"?"updates":next==="cleanup"?"cleanup":next==="profile"?"profile":next==="efficiency-advanced"?"advanced-tools":next==="quick-messages"?"quick-messages":next==="detail"?"detail":next==="more"?"more":"home";
@@ -1270,6 +1291,7 @@ function setMode(next,title){
   document.getElementById("home").style.display=mode==="home"?"block":"none";
   document.getElementById("routeTitle").textContent=mode==="more"?"全部功能":(titles[title]||"LOL 工作台");
   if(previous!==mode){
+    if(previous==="quicktools"||mode==="quicktools")resetQuickInsights(false);
     get("pages").scrollTop=0;
     if(mode==="more")requestAnimationFrame(function(){get("toolSearch").focus();});
     else if(mode==="home")requestAnimationFrame(function(){get("clientConnection").closest("button").focus();});
@@ -1505,6 +1527,11 @@ document.addEventListener("click",function(event){
     if(target.disabled)return;
     get("toolResult").textContent="正在关闭大厅";
     post("quick-action:close-lobby");return;
+  }
+  if(mode==="quicktools"&&["insight-open","insight-close","insight-refresh"].includes(target.dataset.action)){
+    if(target.dataset.action==="insight-open")resetQuickInsights(true);
+    else if(target.dataset.action==="insight-close")resetQuickInsights(false);
+    post("insight:"+target.dataset.action.substring(8));return;
   }
   if(target.dataset.action==="hotkeys-save"){
     target.disabled=true;
@@ -1858,6 +1885,13 @@ if(window.chrome&&window.chrome.webview)window.chrome.webview.addEventListener("
   if(e.data&&typeof e.data==="object"&&e.data.type==="matchmaking-result"){
     document.getElementById("saveMatchmaking").disabled=false;
     document.getElementById("matchmakingResult").textContent=e.data.ok?"设置已保存":String(e.data.message||"设置保存失败");return;
+  }
+  if(e.data&&typeof e.data==="object"&&(e.data.type==="quick-insights"||e.data.type==="quick-insights-loading")){
+    if(mode==="quicktools"&&get("quickInsights").style.display!=="none"){
+      ["Penalty","Queue","Friends","Rewards","Ranked","Postgame"].forEach(function(key){
+        get("insight"+key).textContent=e.data.type==="quick-insights-loading"?"读取中…":String(e.data[key.toLowerCase()]||"未知");
+      });
+    }return;
   }
   if(e.data&&typeof e.data==="object"&&e.data.type==="quick-tools"){
     Object.keys(e.data.values||{}).forEach(function(key){
