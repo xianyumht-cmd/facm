@@ -1,3 +1,7 @@
+## 2026-11-28 — HLMD evidence distinctions and postgame/presence defects
+
+A positive ballot game ID is not proof that vote count and eligible candidates are ready. A decreased vote count does not identify the recipient; another game's choice data is not confirmation. An unknown transport outcome must not trigger blind resubmission. The HLMD schema export lists type names only; exact route spelling in plugin/event evidence outranks inferred function-name paths, and different mock versus production payloads need real confirmation. Connected LCU does not establish that the game executable is absent: the historical phase service skipped process observation whenever connected. Presence enablement must not depend solely on a successful chat event handshake; fence asynchronous writes to the current session, avoid steady polling and preserve unrelated fields. Candidate changes are not physical runtime evidence.
+
 ## 2026-11-28 — Optional source scope ownership
 
 Returning the first usable ranking or an unresolved champion must not dispose a linked cancellation source while started child requests still depend on it. Cancel and observe remaining tasks before scope disposal. Normalize closed-stream and wrapped transport failures as cancellation only when the relevant token is cancelled; an ordinary I/O failure is still a failure. Caller cancellation wins over stale-cache fallback. Preserve the available sibling result and the existing source budgets. A historical closed-stream log is evidence of a symptom, not proof of which disposal path triggered it.

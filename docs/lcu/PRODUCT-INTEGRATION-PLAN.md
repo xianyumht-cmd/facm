@@ -10,6 +10,12 @@ Mandatory inputs: README.md, CAPABILITY-MATRIX.md, FEATURE-PLAYBOOK.md, PLUGIN-B
 
 At each takeover read AGENTS.md, applicable nested rules, AI_WORKSTYLE.md, PROJECT_STATE.md, ARCHITECTURE.md, DECISIONS.md, PITFALLS.md, OPERATIONS.md and AI_CONTEXT.md if present. Verify actual main, active task PR, production manifest, current Shard registration, source and tests. Do not overwrite concurrent changes.
 
+### 1.1 Corpus inventory and supplemental research obligations
+
+The actual checked-in tables contain 1,432 HTTP rows, 680 event rows, 3,569 type names (no field definitions), 48 plugin index entries (43 marked ok), and 1,569 extracted route/resource strings. The 200 enumerated write-table rows are distinct from the report's 277 raw call count. Do not confuse README headline counts (1,452/692) with current exported rows.
+
+Review all 17 experimental reports, not only the original capability matrix. Track supplemental obligations in the same ledger: role-specific champion selection, per-champion rune/spell mappings, configurable lock delay and ban rotation, bounded action/swap deduplication, 64-bit game/identity handling, recent performance and shared-match inference, local player tags and encounter persistence, mastery-aware ARAM bench choice, explicit eligible friend/recent-teammate invites, actual Cross component inventory and reversible maintenance of verified nonessential components, actual lobby resource measurement, client-following compact/expandable UI, click-through and focus safety, phase-aware visibility, draggable persisted placement, client-matching appearance, nonblocking data fetching and redraw throttling, stall recovery and local-control UI parity through existing owners. Research reports include both mock and limited live evidence; never infer general compatibility or add security-control modifications. The original window-anchored experimental panel and genuine page integration are separate acceptance targets.
+
 ## 2. Architecture and traceability
 
 Preserve C#/.NET Framework 4.8, WinForms host, WebView2, Shards, native fallback, signed single-EXE distribution and existing cloud-control/updater contracts. No Electron, Tauri or parallel production runtime. Keep UnifiedWorkspaceForm a lifecycle/navigation/dispatch owner. One authoritative business owner per operation; reuse shared Gameflow, LCU transport, settings, caches, event streams and cancellation. Verify the historical 23-Shard count. Demand-driven, phase-aware work; no redundant pollers, WebView environments or permanent background work.
