@@ -1,3 +1,7 @@
+## 2026-11-28 — Automatic promotion shares the room owner (candidate)
+
+LeagueEfficiencyModule supplies its existing room service to LeagueLobbyInvitationController. Automatic promotion uses the same scoped transaction, readback and unresolved-room gate as the explicit room panel. The existing matchmaking transport exposes session-pinned action/notice methods; no extra transport pool, process, polling loop or Shard. Invitation terminal readback is distinct from party-join verification; only an observed target-specific leadership transition allows the promotion notice.
+
 ## 2026-11-28 — Room mutation uncertainty fence (candidate)
 
 The existing room service gate now prevents any subsequent explicit mutation against the same unchanged room while its prior mutation outcome is unresolved. A fresh changed room snapshot permits a new explicit request; definitive rejection clears the fence. No additional resident worker, transport, or Shard. Independent automatic controllers remain a separate arbitration target.

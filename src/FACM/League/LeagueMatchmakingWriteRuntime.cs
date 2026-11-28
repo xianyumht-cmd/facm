@@ -20,6 +20,14 @@ namespace FACM.League
             CancellationToken cancellationToken);
     }
 
+    internal interface ILeagueScopedMatchmakingWriteApi
+    {
+        Task<LeagueClientWriteResponse> TrySendScopedAsync(string method, string path,
+            LeagueClientSession expected, CancellationToken token);
+        Task<LeagueClientWriteResponse> TrySendScopedNoticeAsync(string conversationId, string message,
+            LeagueClientSession expected, CancellationToken token);
+    }
+
     internal interface ILeagueLobbyRoomWriteApi
     {
         Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,
@@ -54,7 +62,7 @@ namespace FACM.League
             LeagueClientSession session, string conversationId, string message, CancellationToken token);
     }
 
-    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueLobbyRoomWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, IDisposable
+    internal sealed class LeagueMatchmakingWriteApiClient : ILeagueMatchmakingWriteApi, ILeagueScopedMatchmakingWriteApi, ILeagueLobbyRoomWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, IDisposable
     {
         internal const string SearchPath = "/lol-lobby/v2/lobby/matchmaking/search";
         internal const string AcceptPath = "/lol-matchmaking/v1/ready-check/accept";
@@ -83,6 +91,25 @@ namespace FACM.League
                 throw new ArgumentException("LCU write target is not allowed by the Gate 7 transport.", nameof(path));
 
             return await SendAllowedAsync(verb, normalizedPath, null, cancellationToken).ConfigureAwait(false);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendScopedAsync(string method, string path,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            var verb = (method ?? string.Empty).Trim().ToUpperInvariant();
+            var normalizedPath = NormalizePath(path);
+            if (expected == null || !IsAllowedTarget(verb, normalizedPath))
+                return Task.FromResult<LeagueClientWriteResponse>(null);
+            return SendAllowedAsync(verb, normalizedPath, null, token, expected);
+        }
+
+        public Task<LeagueClientWriteResponse> TrySendScopedNoticeAsync(string conversationId, string message,
+            LeagueClientSession expected, CancellationToken token)
+        {
+            if (expected == null || !IsSafeConversationId(conversationId))
+                return Task.FromResult<LeagueClientWriteResponse>(null);
+            return SendAllowedAsync("POST", ConversationsPrefix + conversationId + "/messages",
+                BuildRoomNoticeJson(conversationId, message), token, expected);
         }
 
         public Task<LeagueClientWriteResponse> TryApplyRoomAsync(LeagueLobbyRoomAction action, long value,

@@ -117,6 +117,7 @@ namespace FACM.League
         private readonly ILeagueMatchmakingWriteApi _write;
         private readonly ILeagueLobbyNoticeWriteApi _notices;
         private readonly Func<LeagueClientSession> _sessionProvider;
+        private readonly LeagueLobbyRoomService _room;
         private LeagueClientSession _owner;
         private readonly JavaScriptSerializer _json = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 };
         private readonly HashSet<string> _attemptedInvitations = new HashSet<string>(StringComparer.Ordinal);
@@ -140,9 +141,10 @@ namespace FACM.League
 
         internal LeagueLobbyInvitationController(
             ILeagueClientApi read, ILeagueMatchmakingWriteApi write, ILeagueLobbyNoticeWriteApi notices,
-            Func<LeagueClientSession> sessionProvider)
+            Func<LeagueClientSession> sessionProvider, LeagueLobbyRoomService room = null)
         {
             _sessionProvider = sessionProvider;
+            _room = room;
             _read = read ?? throw new ArgumentNullException(nameof(read));
             _write = write ?? throw new ArgumentNullException(nameof(write));
             _notices = notices;
@@ -300,11 +302,15 @@ namespace FACM.League
             var path = ReceivedInvitationsPath + "/" + candidate.Item.Id + "/" + candidate.Action;
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsExpectedOwner(expected)) return;
-            var response = await _write.TrySendAsync("POST", path, cancellationToken).ConfigureAwait(false);
+            var response = await SendScopedAsync(path, expected, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsExpectedOwner(expected)) return;
+            var observed = await _read.TryGetBytesAsync(ReceivedInvitationsPath, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected)) return;
+            var confirmed = ConfirmsInvitation(observed, candidate.Item.Id, candidate.Action);
             AppLog.Info("League invitation automation: " + candidate.Action + "/" +
-                (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
+                (confirmed ? "confirmed" : response != null && response.IsSuccessStatusCode ? "submitted-unverified" : "unverified"));
         }
 
         private async Task SkipLeaderAsync(LeagueClientSession expected, CancellationToken cancellationToken)
@@ -330,33 +336,86 @@ namespace FACM.League
                     _lastLeaderFingerprint == lobby.Fingerprint) return;
                 _lastLeaderFingerprint = lobby.Fingerprint;
             }
-            var path = LobbyPath + "/members/" + target.SummonerId + "/promote";
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsExpectedOwner(expected) || string.IsNullOrEmpty(lobby.PartyId)) return;
+            bool confirmed;
+            if (_room != null)
+            {
+                var snapshot = await _room.ReadAsync(cancellationToken).ConfigureAwait(false);
+                if (!IsExpectedOwner(expected) || snapshot == null || snapshot.PartyId != lobby.PartyId ||
+                    snapshot.SelfId != lobby.SelfSummonerId ||
+                    !snapshot.Allows(LeagueLobbyRoomAction.Promote, target.SummonerId)) return;
+                lock (_sync)
+                    if (!IsLeaderEnabledLocked()) return;
+                var result = await _room.ApplyAsync(snapshot, LeagueLobbyRoomAction.Promote,
+                    target.SummonerId, cancellationToken).ConfigureAwait(false);
+                confirmed = result.State == "confirmed";
+            }
+            else
+            {
+                var path = LobbyPath + "/members/" + target.SummonerId + "/promote";
+                await SendScopedAsync(path, expected, cancellationToken).ConfigureAwait(false);
+                var observed = await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false);
+                confirmed = ConfirmsLeaderPromotion(observed, lobby, target.SummonerId);
+            }
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsExpectedOwner(expected)) return;
-            var response = await _write.TrySendAsync("POST", path, cancellationToken).ConfigureAwait(false);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsExpectedOwner(expected)) return;
-            AppLog.Info("League auto skip leader: " +
-                (response != null && response.IsSuccessStatusCode ? "submitted" : "unverified"));
-            if (response == null || !response.IsSuccessStatusCode || _notices == null ||
-                string.IsNullOrEmpty(lobby.PartyId)) return;
+            AppLog.Info("League auto skip leader: " + (confirmed ? "confirmed" : "unverified"));
+            if (!confirmed || _notices == null) return;
             var room = LeagueFriendInvitationController.ParseCustomGameConversation(
                 await _read.TryGetBytesAsync(LeagueFriendInvitationController.ConversationsPath, cancellationToken)
                     .ConfigureAwait(false));
             cancellationToken.ThrowIfCancellationRequested();
             if (room == null) return;
-            var postPromotion = ParseLeader(await _read.TryGetBytesAsync(LobbyPath, cancellationToken)
-                .ConfigureAwait(false));
+            var postPromotion = await _read.TryGetBytesAsync(LobbyPath, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsExpectedOwner(expected) || postPromotion == null ||
-                postPromotion.PartyId != lobby.PartyId ||
-                postPromotion.SelfSummonerId != lobby.SelfSummonerId) return;
+            if (!IsExpectedOwner(expected) || !ConfirmsLeaderPromotion(postPromotion, lobby, target.SummonerId)) return;
             lock (_sync)
                 if (!IsLeaderEnabledLocked() || !IsExpectedOwner(expected)) return;
-            var notice = await _notices.TrySendNoticeAsync(
-                room, "已发起队长转让", cancellationToken).ConfigureAwait(false);
+            var scoped = _write as ILeagueScopedMatchmakingWriteApi;
+            var notice = expected == null && _sessionProvider == null
+                ? await _notices.TrySendNoticeAsync(room, "队长已转让", cancellationToken).ConfigureAwait(false)
+                : scoped == null ? null : await scoped.TrySendScopedNoticeAsync(
+                    room, "队长已转让", expected, cancellationToken).ConfigureAwait(false);
             AppLog.Info("League auto skip leader room notice: " +
                 (notice != null && notice.IsSuccessStatusCode ? "submitted" : "unverified"));
+        }
+
+        private Task<LeagueClientWriteResponse> SendScopedAsync(string path, LeagueClientSession expected,
+            CancellationToken token)
+        {
+            if (_sessionProvider == null) return _write.TrySendAsync("POST", path, token);
+            var scoped = _write as ILeagueScopedMatchmakingWriteApi;
+            return scoped == null || expected == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                scoped.TrySendScopedAsync("POST", path, expected, token);
+        }
+
+        internal bool ConfirmsInvitation(byte[] bytes, string id, string action)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 256 * 1024) return false;
+            var terminal = action == LeagueInvitationPolicies.Accept ? "Accepted" :
+                action == LeagueInvitationPolicies.Decline ? "Declined" : null;
+            if (terminal == null) return false;
+            object[] rows;
+            try { rows = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[]; }
+            catch { return false; }
+            if (rows == null || rows.Length > 100) return false;
+            var matches = rows.OfType<Dictionary<string, object>>()
+                .Where(row => ReadString(row, "invitationId") == id).ToList();
+            return matches.Count == 1 && ReadString(matches[0], "state") == terminal;
+        }
+
+        private bool ConfirmsLeaderPromotion(byte[] bytes, LeagueLobbyLeaderSnapshot before, long target)
+        {
+            var root = ParseObject(bytes);
+            var local = ReadDictionary(root, "localMember");
+            if (ReadString(root, "partyId") != before.PartyId || ReadLong(local, "summonerId") != before.SelfSummonerId ||
+                !(ReadValue(local, "isLeader") is bool) || ReadBool(local, "isLeader")) return false;
+            var members = ReadValue(root, "members") as object[];
+            if (members == null || members.Length > 25) return false;
+            var leaders = members.OfType<Dictionary<string, object>>()
+                .Where(row => ReadValue(row, "isLeader") is bool && ReadBool(row, "isLeader")).ToList();
+            return leaders.Count == 1 && ReadLong(leaders[0], "summonerId") == target;
         }
 
         internal List<LeagueReceivedInvitation> ParseInvitations(byte[] bytes)
@@ -365,9 +424,10 @@ namespace FACM.League
             object parsed;
             try { parsed = _json.DeserializeObject(Encoding.UTF8.GetString(bytes)); }
             catch { return null; }
-            var rows = parsed as IEnumerable;
-            if (rows == null || parsed is string) return null;
+            var rows = parsed as object[];
+            if (rows == null || rows.Length > 100) return null;
             var result = new List<LeagueReceivedInvitation>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var item in rows)
             {
                 if (result.Count >= 100) return null;
@@ -375,6 +435,7 @@ namespace FACM.League
                 if (row == null || ReadString(row, "state") != "Pending") continue;
                 var id = ReadString(row, "invitationId");
                 if (!LeagueMatchmakingWriteApiClient.IsSafeInvitationId(id)) continue;
+                if (!seen.Add(id)) return null;
                 var game = ReadDictionary(row, "gameConfig");
                 result.Add(new LeagueReceivedInvitation
                 {

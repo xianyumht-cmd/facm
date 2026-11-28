@@ -1,3 +1,7 @@
+## 2026-11-28 — Lobby invitation and leadership confirmation
+
+Checking the session in a controller does not pin the transport; pass the expected session to the writer. Do not interpret a missing invitation as accepted/declined or an HTTP 2xx as a transferred leader. Use target-specific terminal state and same-party leader readback. Automatic promotion must reuse the manual room transaction rather than overwrite an unresolved operation independently.
+
 ## 2026-11-28 — Unresolved room mutation ownership
 
 A one-record uncertainty fence keyed only by action/value can be overwritten by a different manual action in the same unchanged room. Fence all mutations against that unchanged observed room until a changed snapshot or a definitive rejection; do not treat HTTP 408 or redirects as definitive rejection. Check cancellation before recording the transport attempt. This is room-service-local arbitration, not a claim of coordination across independent automatic controllers.

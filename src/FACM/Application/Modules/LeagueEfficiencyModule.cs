@@ -160,7 +160,7 @@ namespace FACM.AppHost.Modules
             ConfigureAutoSelect();
             _lobbyInvitations = new LeagueLobbyInvitationController(_leagueClient,
                 matchmakingWriter, (ILeagueLobbyNoticeWriteApi)_leagueClient,
-                () => _leagueClient.CurrentSession);
+                () => _leagueClient.CurrentSession, _lobbyRoom);
             ConfigureLobbyInvitations();
             _friendInvitations = new LeagueFriendInvitationController(_leagueClient,
                 (ILeagueLobbyInviteWriteApi)_leagueClient, (ILeagueLobbyNoticeWriteApi)_leagueClient,
