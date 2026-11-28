@@ -1119,8 +1119,17 @@ namespace FACM.League
             string method, string path, string body, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            lock (_sync) { if (_disposed || !IsOwnerCurrentLocked()) return null; }
-            var response = await _write.TrySendAsync(method, path, body, token).ConfigureAwait(false);
+            LeagueClientSession owner;
+            lock (_sync)
+            {
+                if (_disposed || !IsOwnerCurrentLocked()) return null;
+                owner = _episodeOwner;
+            }
+            var scoped = _write as ILeagueScopedPostGameWriteApi;
+            if (_sessionProvider != null && scoped == null) return null;
+            var response = _sessionProvider == null
+                ? await _write.TrySendAsync(method, path, body, token).ConfigureAwait(false)
+                : await scoped.TrySendAsync(method, path, body, owner, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             lock (_sync) return !_disposed && IsOwnerCurrentLocked() ? response : null;
         }

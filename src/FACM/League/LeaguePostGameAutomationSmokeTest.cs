@@ -558,6 +558,9 @@ namespace FACM.League
                 controller.ObserveForSmokeTestAsync(State("EndOfGame")).GetAwaiter().GetResult();
                 Require(write.Calls.Count(call => call.Path == LeaguePostGameWriteApiClient.PlayAgainPath) == 1,
                     "A new same-phase LCU owner must start its own post-game cycle.");
+                Require(write.ExpectedOwners.Count == 1 &&
+                    LeagueEncounterReplayService.SessionMatches(second, write.ExpectedOwners[0]),
+                    "Replacement episode must pass its exact owner to the scoped transport.");
             }
 
             current = first;
@@ -835,7 +838,7 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakePostGameWriteApi : ILeaguePostGameWriteApi
+        private sealed class FakePostGameWriteApi : ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi
         {
             internal sealed class Call
             {
@@ -852,6 +855,15 @@ namespace FACM.League
             public Action OnRefresh;
             public Action<string> OnWrite;
             private int _v2Calls;
+            public readonly List<LeagueClientSession> ExpectedOwners = new List<LeagueClientSession>();
+
+            public Task<LeagueClientWriteResponse> TrySendAsync(
+                string method, string path, string json, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped postgame write requires the episode owner.");
+                ExpectedOwners.Add(expected);
+                return TrySendAsync(method, path, json, token);
+            }
 
             public Task<LeagueClientWriteResponse> TrySendAsync(
                 string method,
