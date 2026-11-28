@@ -1184,7 +1184,7 @@ namespace FACM.League
                 controller.Configure(true, 0, false, 0, profiles);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(accepted.Calls == 1 && accepted.Id == 73 && accepted.Accept &&
-                        incoming.ActionPaths.Count == 4,
+                        incoming.ActionPaths.Count == 6,
                     "An offered higher-priority hero should be accepted after two guarded reads.");
             }
 
@@ -2013,12 +2013,19 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi
+        private sealed class FakeBenchWrite : ILeagueBenchSwapWriteApi, ILeagueScopedBenchSwapWriteApi
         {
             public int Calls;
             public int LastId;
             public LeagueBenchSwapRoute Route;
             public Action<int> AfterWrite;
+
+            public Task<LeagueClientWriteResponse> TrySwapAsync(int championId, LeagueBenchSwapRoute route,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped bench operation must specify its owner.");
+                return TrySwapAsync(championId, route, token);
+            }
 
             public Task<LeagueClientWriteResponse> TrySwapAsync(int championId,
                 LeagueBenchSwapRoute route, CancellationToken cancellationToken)
@@ -2032,13 +2039,20 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeTradeWrite : ILeagueChampionTradeWriteApi
+        private sealed class FakeTradeWrite : ILeagueChampionTradeWriteApi, ILeagueDraftSwapWriteApi
         {
             public int Calls;
             public int Id;
             public bool Accept;
             public int FailFirstResponses;
             public int NullFirstResponses;
+
+            public Task<LeagueClientWriteResponse> TryHandleSwapAsync(LeagueDraftSwapKind kind, int id,
+                LeagueDraftSwapAction action, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null && kind == LeagueDraftSwapKind.Champion, "Automatic trade must be scoped to its owner and kind.");
+                return TryAnswerAsync(id, action == LeagueDraftSwapAction.Accept, token);
+            }
 
             public Task<LeagueClientWriteResponse> TryAnswerAsync(
                 int tradeId, bool accept, CancellationToken cancellationToken)

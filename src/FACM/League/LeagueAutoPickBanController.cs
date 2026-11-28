@@ -799,17 +799,34 @@ namespace FACM.League
                 return true;
             }
             CompactTraceLog.Record(trace, "autoselect-trade", "preflight", "ok", watch.ElapsedMilliseconds);
-            var written = await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false);
-            // Retry only explicit server errors. A null/ambiguous response or a definitive
-            // rejection is one-shot; the next tick must not blindly repeat a possible write.
-            if (written == null || written.IsSuccessStatusCode ||
-                written.StatusCode < 500 || written.StatusCode > 599)
-                attempted.Add(key);
-            CompactTraceLog.Record(trace, "autoselect-trade", "write",
-                written == null ? "failed_unavailable" :
-                written.IsSuccessStatusCode ? (accept ? "accept_submitted" : "decline_submitted") :
-                "failed_http_" + written.StatusCode,
-                watch.ElapsedMilliseconds);
+            LeagueClientSession owner;
+            lock (_sync) owner = _episodeOwner;
+            if (!IsCurrent(episode)) return true;
+            var scoped = _tradeWrite as ILeagueDraftSwapWriteApi;
+            var written = _session == null
+                ? await _tradeWrite.TryAnswerAsync(incoming.Id, accept, episode.Token).ConfigureAwait(false)
+                : scoped == null || owner == null ? null
+                    : await scoped.TryHandleSwapAsync(LeagueDraftSwapKind.Champion, incoming.Id,
+                        accept ? LeagueDraftSwapAction.Accept : LeagueDraftSwapAction.Decline, owner, episode.Token).ConfigureAwait(false);
+            RecordAttempt(attempted, key, written);
+            var outcome = written == null ? "unverified_transport" :
+                written.IsSuccessStatusCode ? "submitted_unverified" : "failed_http_" + written.StatusCode;
+            if ((written == null || written.IsSuccessStatusCode) && IsCurrent(episode))
+            {
+                var after = LeagueLiveDataService.ParseBenchPayload(
+                    await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false));
+                if (IsCurrent(episode) && SameBenchIdentity(state, after))
+                {
+                    var status = await _read.TryGetBytesAsync(OngoingChampionTradePath, episode.Token).ConfigureAwait(false);
+                    if (IsCurrent(episode) &&
+                        LeagueDraftSwapObservation.Confirms(status, LeagueDraftSwapKind.Champion, incoming.Id,
+                            accept ? LeagueDraftSwapAction.Accept : LeagueDraftSwapAction.Decline) &&
+                        (!accept || after.LocalChampionId == incoming.RequestedChampionId))
+                        outcome = "confirmed";
+                }
+                if (outcome != "confirmed") guard.BlockUncertainWrite();
+            }
+            CompactTraceLog.Record(trace, "autoselect-trade", "write", outcome, watch.ElapsedMilliseconds);
             return true;
         }
 
@@ -916,13 +933,24 @@ namespace FACM.League
             CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "ok", watch.ElapsedMilliseconds);
             // A stale preflight may recover on the next phase tick. Fence only an actual POST.
             attempted.Add(key);
-            var response = await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token)
-                .ConfigureAwait(false);
+            LeagueClientSession owner;
+            lock (_sync) owner = _episodeOwner;
+            if (!IsCurrent(episode)) return;
+            var scoped = _benchWrite as ILeagueScopedBenchSwapWriteApi;
+            var response = _session == null
+                ? await _benchWrite.TrySwapAsync(desired, fresh.SwapRoute, episode.Token).ConfigureAwait(false)
+                : scoped == null || owner == null ? null
+                    : await scoped.TrySwapAsync(desired, fresh.SwapRoute, owner, episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect-bench", "write",
                 response == null ? "failed_unavailable" :
                 response.IsSuccessStatusCode ? "submitted" : "failed_http_" + response.StatusCode,
                 watch.ElapsedMilliseconds);
-            if (response == null || !response.IsSuccessStatusCode || !IsCurrent(episode)) return;
+            if (!IsCurrent(episode)) return;
+            if (response != null && !response.IsSuccessStatusCode)
+            {
+                if (response.StatusCode >= 500) guard.BlockUncertainWrite();
+                return;
+            }
 
             // Do not retry the POST when the client has acknowledged it but state has not settled.
             // A confirmed new champion is the only permitted continuation of an automatic sequence.

@@ -109,10 +109,23 @@ namespace FACM.League
                 {
                     if (_actionWriter == null || !state.LocalPickActionId.HasValue)
                         return Result(LeagueBenchSwapStatus.BenchDisabled, championId, 0, stopwatch);
-                    response = await _actionWriter.TryApplyAsync("pick", state.LocalPickActionId.Value,
-                        championId, true, cancellationToken).ConfigureAwait(false);
+                    var scopedAction = _actionWriter as ILeagueScopedChampSelectActionWriteApi;
+                    response = state.ClientSession == null
+                        ? await _actionWriter.TryApplyAsync("pick", state.LocalPickActionId.Value,
+                            championId, true, cancellationToken).ConfigureAwait(false)
+                        : scopedAction == null ? null
+                            : await scopedAction.TryApplyAsync("pick", state.LocalPickActionId.Value,
+                                championId, true, state.ClientSession, cancellationToken).ConfigureAwait(false);
                 }
-                else response = await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false);
+                else
+                {
+                    var scopedBench = _writer as ILeagueScopedBenchSwapWriteApi;
+                    response = state.ClientSession == null
+                        ? await _writer.TrySwapAsync(championId, state.SwapRoute, cancellationToken).ConfigureAwait(false)
+                        : scopedBench == null ? null
+                            : await scopedBench.TrySwapAsync(championId, state.SwapRoute, state.ClientSession,
+                                cancellationToken).ConfigureAwait(false);
+                }
                 try
                 {
                     return await VerifyResponseAsync(response, championId, stopwatch, cancellationToken, state).ConfigureAwait(false);
