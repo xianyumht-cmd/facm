@@ -56,7 +56,7 @@ namespace FACM.League
         {
             get
             {
-                if (!Available) return "无 LP 变化";
+                if (!Available) return "胜点变化未知";
                 var sign = LeaguePointsDelta >= 0 ? "+" : string.Empty;
                 var text = QueueType + " " + sign + LeaguePointsDelta + " LP";
                 if (Promoted) text += " · 晋级";
@@ -141,13 +141,17 @@ namespace FACM.League
             }
             catch (ArgumentException) { return LeagueLpChangeNotice.None; }
             catch (InvalidOperationException) { return LeagueLpChangeNotice.None; }
-            if (root == null) return LeagueLpChangeNotice.None;
+            int delta;
+            var queue = ReadString(root, "queueType");
+            if (root == null || string.IsNullOrWhiteSpace(queue) ||
+                !int.TryParse(ReadString(root, "leaguePointsDelta"), NumberStyles.Integer, CultureInfo.InvariantCulture, out delta))
+                return LeagueLpChangeNotice.None;
 
             var notice = new LeagueLpChangeNotice
             {
                 Available = true,
-                LeaguePointsDelta = (int)ReadDouble(root, "leaguePointsDelta"),
-                QueueType = ReadString(root, "queueType"),
+                LeaguePointsDelta = delta,
+                QueueType = queue,
                 Tier = ReadString(root, "tier"),
                 Division = ReadString(root, "division"),
                 Promoted = ReadBool(root, "promoted"),

@@ -60,6 +60,11 @@ namespace FACM.League
         private readonly Label _invitationStatus;
         private bool _loading = true;
         private bool _loginSignatureDirty;
+        private TableLayoutPanel _settingsRoot, _insightsRoot;
+        private readonly Dictionary<string, Label> _insightLabels = new Dictionary<string, Label>();
+        private CancellationTokenSource _insightRequest;
+        private string _shownInsightPhase;
+        private bool _insightsOpen;
         private static readonly Dictionary<string, string> RankedDisplayKeys =
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -146,7 +151,11 @@ namespace FACM.League
             root.RowStyles.Insert(root.RowStyles.Count - 1, new RowStyle(SizeType.Absolute, 82));
             root.RowCount = root.RowStyles.Count;
 
-            root.Controls.Add(new Label
+            _settingsRoot = root;
+            var titleBar = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            titleBar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            titleBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124F));
+            titleBar.Controls.Add(new Label
             {
                 Text = T(LeagueEfficiencyUiTextKeys.Title),
                 Dock = DockStyle.Fill,
@@ -155,6 +164,10 @@ namespace FACM.League
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleLeft
             }, 0, 0);
+            var openInsights = CreateButton(T(LeagueEfficiencyUiTextKeys.InsightOpen), 116, FacmButtonTone.Secondary);
+            openInsights.Click += delegate { ShowInsights(); };
+            titleBar.Controls.Add(openInsights, 1, 0);
+            root.Controls.Add(titleBar, 0, 0);
             _help = new Label
             {
                 Text = T(LeagueEfficiencyUiTextKeys.Hint),
@@ -479,15 +492,122 @@ namespace FACM.League
             root.Controls.Add(quickMessages, 0, 47);
 
             _module.HonorStatusChanged += HandleHonorStatusChanged;
+            _module.DynamicMessageContextChanged += HandleInsightContextChanged;
             AppSettings.Saved += HandleSettingsSaved;
             FormClosed += HandleFormClosed;
             InstallSectionJump(root);
             Controls.Add(root);
+            VisibleChanged += delegate
+            {
+                if (!Visible) CancelInsightRead();
+                else if (_insightsOpen) RefreshInsights();
+            };
             root.SizeChanged += delegate { if (Visible) ReflowSettingRows(root); };
             Shown += delegate { BeginInvoke(new Action(delegate { ReflowSettingRows(root); })); };
             _loading = false;
             UpdateMatchmakingControlStates();
             _ = LoadChampionCatalogAsync();
+        }
+
+        private void ShowInsights()
+        {
+            if (_insightsRoot == null)
+            {
+                _insightsRoot = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill, Padding = new Padding(24), ColumnCount = 1,
+                    RowCount = 7, AutoScroll = true, BackColor = FacmDesignSystem.Canvas
+                };
+                _insightsRoot.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                _insightsRoot.RowStyles.Add(new RowStyle(SizeType.Absolute, 50F));
+                var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+                var back = CreateButton(T(LeagueEfficiencyUiTextKeys.InsightBack), 120, FacmButtonTone.Secondary);
+                back.Click += delegate
+                {
+                    _insightsOpen = false;
+                    CancelInsightRead();
+                    _insightsRoot.Hide();
+                    _settingsRoot.Show();
+                };
+                var refresh = CreateButton(T(LeagueEfficiencyUiTextKeys.InsightRefresh), 100, FacmButtonTone.Secondary);
+                refresh.Click += delegate { RefreshInsights(); };
+                actions.Controls.Add(back);
+                actions.Controls.Add(refresh);
+                _insightsRoot.Controls.Add(actions, 0, 0);
+                var keys = new[] { "penalty", "queue", "friends", "rewards", "ranked", "postgame" };
+                var titles = new[] { LeagueEfficiencyUiTextKeys.InsightPenalty, LeagueEfficiencyUiTextKeys.InsightQueue,
+                    LeagueEfficiencyUiTextKeys.InsightFriends, LeagueEfficiencyUiTextKeys.InsightRewards,
+                    LeagueEfficiencyUiTextKeys.InsightRanked, LeagueEfficiencyUiTextKeys.InsightPostgame };
+                for (var i = 0; i < keys.Length; i++)
+                {
+                    _insightsRoot.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                    var row = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 2, Padding = new Padding(4, 8, 4, 8) };
+                    row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+                    row.Controls.Add(SectionLabel(T(titles[i])), 0, 0);
+                    var value = new Label { AutoSize = true, Dock = DockStyle.Top, ForeColor = FacmDesignSystem.Text,
+                        Margin = new Padding(0, 4, 0, 4), Text = T(LeagueEfficiencyUiTextKeys.InsightLoading) };
+                    row.Controls.Add(value, 0, 1);
+                    _insightLabels.Add(keys[i], value);
+                    _insightsRoot.Controls.Add(row, 0, i + 1);
+                }
+                Controls.Add(_insightsRoot);
+            }
+            _insightsOpen = true;
+            _settingsRoot.Hide();
+            _insightsRoot.Show();
+            _insightsRoot.BringToFront();
+            RefreshInsights();
+        }
+
+        private void HandleInsightContextChanged()
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(new Action(delegate
+                {
+                    if (!IsDisposed && Visible && _insightsOpen &&
+                        !string.Equals(_shownInsightPhase, _module.InsightPhase, StringComparison.Ordinal))
+                        RefreshInsights();
+                }));
+            }
+            catch (InvalidOperationException) { }
+        }
+
+        private void CancelInsightRead()
+        {
+            var previous = _insightRequest;
+            _insightRequest = null;
+            if (previous != null) previous.Cancel();
+            _shownInsightPhase = null;
+            foreach (var label in _insightLabels.Values)
+                if (!label.IsDisposed) label.Text = T(LeagueEfficiencyUiTextKeys.InsightLoading);
+        }
+
+        private async void RefreshInsights()
+        {
+            if (IsDisposed || Disposing || !Visible || !_insightsOpen) return;
+            CancelInsightRead();
+            var phase = _module.InsightPhase;
+            _shownInsightPhase = phase;
+            var source = new CancellationTokenSource();
+            _insightRequest = source;
+            try
+            {
+                LeagueInsightSnapshot snapshot = null;
+                try { snapshot = await _module.ReadInsightsAsync(phase, source.Token); }
+                catch (OperationCanceledException) { return; }
+                catch (Exception e) { AppLog.Info("Native insight view unavailable: " + e.GetType().Name); }
+                if (IsDisposed || Disposing || !Visible || !_insightsOpen || source.IsCancellationRequested ||
+                    !ReferenceEquals(_insightRequest, source) || !string.Equals(phase, _module.InsightPhase, StringComparison.Ordinal)) return;
+                foreach (var entry in LeagueInsightPresentation.Project(snapshot, phase))
+                    _insightLabels[entry.Key].Text = entry.Value;
+            }
+            finally
+            {
+                if (ReferenceEquals(_insightRequest, source)) _insightRequest = null;
+                source.Dispose();
+            }
         }
 
         internal static bool RankedDisplayCoverageForSmokeTest()
@@ -1543,6 +1663,9 @@ namespace FACM.League
 
         private void HandleFormClosed(object sender, FormClosedEventArgs e)
         {
+            _insightsOpen = false;
+            CancelInsightRead();
+            _module.DynamicMessageContextChanged -= HandleInsightContextChanged;
             _catalogRequest.Cancel();
             _catalogRequest.Dispose();
             _module.HonorStatusChanged -= HandleHonorStatusChanged;

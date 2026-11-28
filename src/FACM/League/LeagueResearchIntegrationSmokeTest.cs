@@ -84,6 +84,13 @@ namespace FACM.League
             Require(reads.SearchReads == 1 && overview.Leaver.HasPenalty && overview.Queue.Available &&
                     overview.Friends == null && overview.Rewards != null && overview.Rewards.LootAvailable,
                 "Insight aggregation repeated search or lost a healthy group after another failed.");
+            var rendered = LeagueInsightPresentation.Project(overview, "Lobby");
+            Require(rendered.Count == 6 && rendered["penalty"] == overview.Leaver.Summary &&
+                    rendered["postgame"] == LeagueInsightPresentation.Project(null, "Lobby")["postgame"],
+                "Shared insight projection lost a group or exposed postgame data in lobby.");
+            var disconnected = LeagueInsightPresentation.Project(overview, null);
+            foreach (var value in disconnected.Values)
+                Require(value == disconnected["queue"], "Disconnected insight retained phase data.");
             var estimated = LeagueQueueStatusService.ParseSearch(Bytes("{\"isCurrentlyInQueue\":true}"));
             Require(estimated.Available && estimated.InQueue && !estimated.EstimateKnown && !estimated.ElapsedKnown,
                 "Missing queue durations were presented as numeric data.");

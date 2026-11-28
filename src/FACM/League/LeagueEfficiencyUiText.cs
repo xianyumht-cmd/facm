@@ -7,6 +7,16 @@ namespace FACM.League
     internal static class LeagueEfficiencyUiTextKeys
     {
         public const string Menu = "LeagueEfficiencyMenu";
+        public const string InsightOpen = "LeagueEfficiencyInsightOpen";
+        public const string InsightBack = "LeagueEfficiencyInsightBack";
+        public const string InsightRefresh = "LeagueEfficiencyInsightRefresh";
+        public const string InsightLoading = "LeagueEfficiencyInsightLoading";
+        public const string InsightPenalty = "LeagueEfficiencyInsightPenalty";
+        public const string InsightQueue = "LeagueEfficiencyInsightQueue";
+        public const string InsightFriends = "LeagueEfficiencyInsightFriends";
+        public const string InsightRewards = "LeagueEfficiencyInsightRewards";
+        public const string InsightRanked = "LeagueEfficiencyInsightRanked";
+        public const string InsightPostgame = "LeagueEfficiencyInsightPostgame";
         public const string WindowTitle = "LeagueEfficiencyWindowTitle";
         public const string Title = "LeagueEfficiencyTitle";
         public const string Hint = "LeagueEfficiencyHint";
@@ -522,6 +532,16 @@ namespace FACM.League
         private static readonly Dictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { LeagueEfficiencyUiTextKeys.Menu, "快捷工具" },
+            { LeagueEfficiencyUiTextKeys.InsightOpen, "数据概览" },
+            { LeagueEfficiencyUiTextKeys.InsightBack, "快捷操作" },
+            { LeagueEfficiencyUiTextKeys.InsightRefresh, "刷新" },
+            { LeagueEfficiencyUiTextKeys.InsightLoading, "读取中…" },
+            { LeagueEfficiencyUiTextKeys.InsightPenalty, "排队限制" },
+            { LeagueEfficiencyUiTextKeys.InsightQueue, "排队时间" },
+            { LeagueEfficiencyUiTextKeys.InsightFriends, "好友动态" },
+            { LeagueEfficiencyUiTextKeys.InsightRewards, "奖励" },
+            { LeagueEfficiencyUiTextKeys.InsightRanked, "段位" },
+            { LeagueEfficiencyUiTextKeys.InsightPostgame, "赛后统计" },
             { LeagueEfficiencyUiTextKeys.WindowTitle, "GGman · 快捷工具" },
             { LeagueEfficiencyUiTextKeys.Title, "快捷工具" },
             { LeagueEfficiencyUiTextKeys.Hint, "常用操作都放这里；把鼠标移到选项上方可查看说明。" },

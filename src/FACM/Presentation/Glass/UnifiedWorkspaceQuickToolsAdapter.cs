@@ -221,44 +221,9 @@ namespace FACM.Presentation.Glass
         private void PublishInsights(LeagueInsightSnapshot data, string phase)
         {
             if (!_canPublish() || !_insightsOpen) return;
-            var lobby = phase == "Lobby" || phase == "None";
-            var queue = phase == "Matchmaking" || phase == "ReadyCheck";
-            var postgame = phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame";
-            var other = string.IsNullOrEmpty(phase) ? "等待客户端连接" : "当前阶段不适用";
-            var ranked = data == null ? null : data.Ranked;
-            var rankedText = "段位数据未知";
-            if (ranked != null && ranked.Available && ranked.Queues != null)
-            {
-                var rows = ranked.Queues.Where(x => x != null &&
-                    (x.QueueType == "RANKED_SOLO_5x5" || x.QueueType == "RANKED_FLEX_SR")).Take(2)
-                    .Select(x => x.Display.Replace("RANKED_SOLO_5x5", "单双排").Replace("RANKED_FLEX_SR", "灵活组排")).ToArray();
-                rankedText = rows.Length == 0 ? "未报告单双排或灵活段位" : string.Join(" · ", rows);
-            }
-            var game = data == null ? null : data.EndOfGame;
-            var gameText = "本局统计未确认";
-            if (game != null && game.Available && game.Players != null)
-            {
-                var local = game.Players.Where(x => x.IsLocalPlayer).Take(2).ToArray();
-                if (local.Length == 1)
-                {
-                    var p = local[0];
-                    var fields = new List<string>();
-                    if (p.KdaKnown) fields.Add(p.Kills + "/" + p.Deaths + "/" + p.Assists);
-                    if (p.DamageKnown) fields.Add("伤害 " + p.DamageToChampions);
-                    if (p.GoldKnown) fields.Add("经济 " + p.GoldEarned);
-                    if (fields.Count > 0) gameText = string.Join(" · ", fields);
-                }
-            }
-            _publish(new JavaScriptSerializer().Serialize(new
-            {
-                type = "quick-insights",
-                penalty = lobby || queue ? (data?.Leaver?.Summary ?? "排队限制状态未知") : other,
-                queue = lobby || queue ? (data?.Queue?.Summary ?? "队列状态未知") : other,
-                friends = lobby ? (data?.Friends?.Summary ?? "好友状态未知") : other,
-                rewards = lobby ? (data?.Rewards?.Summary ?? "奖励数据未知") : other,
-                ranked = lobby ? rankedText : other,
-                postgame = postgame ? gameText : other
-            }));
+            var values = LeagueInsightPresentation.Project(data, phase);
+            values.Add("type", "quick-insights");
+            _publish(new JavaScriptSerializer().Serialize(values));
         }
 
         private static bool TryParseSetting(string request, out string key, out bool enabled)
