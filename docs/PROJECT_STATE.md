@@ -1661,15 +1661,15 @@ Started from verified remote `0dca7805629ea78e44e40d329358101020478b41`. The sel
 <!-- FACM_RELEASE_STATE_BEGIN -->
 ## 当前正式版（发布工作流维护）
 
-- 版本：GGman 3.5.90
-- GitHub Release：v3.5.90
+- 版本：GGman 3.5.91
+- GitHub Release：v3.5.91
 - 在线更新：已启用
 - minimum_version：3.0.0
 - force_update：false
-- 发布基础 main：ebf648f9414b46706d5b423a0265362087705580
-- 发布元数据提交：bb200b16569c212337dd915a4b4fc609317529ef
-- Release GGman.exe SHA-256：136DEF7E3C1BAE4378C473EFE083E0276D2AB2CFF591133849F6DD4EDC027444
-- release_notes：GGman 3.5.90：优化国服客户端连接恢复、选人助手、战绩分页和海斗攻略；新增签名云端配置、公告及公共数据源维护策略；分离更新检查与安装包下载线路评分，改善离线回退。非强制正式在线更新。
+- 发布基础 main：e15da51995082619ad92219df630fcbf2d327881
+- 发布元数据提交：0410a5c3515ffcc00dce2b9b7f73e036612ddade
+- Release GGman.exe SHA-256：1ED0A19324E02B4C16E3807B3C6D80ACE01D57C16525ED5F08710A8EBF0A2BBB
+- release_notes：GGman 3.5.91：优化国服客户端连接发现与失败恢复；新增选人阶段一键静音、排队与限制状态、好友及奖励概览；改善海斗攻略请求取消与多源容错、WebView2 窗口复用和资源释放；加强工具组件异常处理及诊断日志。非强制正式在线更新。
 <!-- FACM_RELEASE_STATE_END -->
 
 ## 2026-11-04 — 3.5.79 screenshot-driven League UI readability repair
