@@ -846,7 +846,9 @@ namespace FACM.League
             var menu = new ContextMenuStrip();
             foreach (var item in items)
             {
-                var group = new ToolStripMenuItem(CompanionText(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)));
+                var group = new ToolStripMenuItem(CompanionText(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)) +
+                    (item.Kind == LeagueDraftSwapKind.Champion && item.RequestedChampionId > 0
+                        ? " #" + item.RequestedChampionId.ToString(CultureInfo.InvariantCulture) : string.Empty));
                 foreach (var action in new[] { LeagueDraftSwapAction.Accept, LeagueDraftSwapAction.Decline, LeagueDraftSwapAction.Cancel })
                 {
                     if (!item.Allows(action)) continue;

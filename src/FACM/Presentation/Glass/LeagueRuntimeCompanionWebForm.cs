@@ -789,7 +789,9 @@ namespace FACM.Presentation.Glass
                 Post(new { type = "draft-swaps", revision = _swapListRevision, choiceRevision = expected.ChoiceRevision,
                     empty = Copy(LeagueRuntimeCompanionUiTextKeys.SwapNone),
                     rows = _swapItems.Select((item, index) => new { index,
-                        label = Copy(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)),
+                        label = Copy(LeagueRuntimeCompanionText.SwapKindKey(item.Kind)) +
+                            (item.Kind == LeagueDraftSwapKind.Champion && item.RequestedChampionId > 0
+                                ? " #" + item.RequestedChampionId.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty),
                         actions = new[] { LeagueDraftSwapAction.Accept, LeagueDraftSwapAction.Decline, LeagueDraftSwapAction.Cancel }
                             .Where(item.Allows).Select(action => new { value = (int)action,
                                 label = Copy(LeagueRuntimeCompanionText.SwapActionKey(action)) }).ToArray() }).ToArray() });

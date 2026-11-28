@@ -1,3 +1,7 @@
+## 2026-11-28 — Swap response and mastery bench ownership (candidate)
+
+Existing bench transport owns typed fixed champion/position/pick-order swap response routes and scoped automatic/manual bench writes. Existing Live owner performs bounded on-demand reads, manual bench gate owns draft/response validation and one-shot fence, companion controller exposes typed commands, native menu and Glass team view render observed requests only. No periodic swap fan-out. Manual mastery choice reads local-player mastery once on demand, ranks eligible known bench scores, refreshes draft and uses existing verified choose transaction. Actual League Client inline placement, live enum/body compatibility, initiation/clear and shared arbitration with independent automatic trade owner remain unresolved.
+
 ## 2026-11-28 — Scoped draft action and manual ARAM reroll (candidate)
 
 The existing selection owner uses the documented combined champion/completed PATCH, pins automatic writes to the observed client session, and reads the original action after accepted/ambiguous writes. Explicit 5xx may retry once after normal preflight; other outcomes consume the episode stage. Existing stage timing and manual preference precedence remain. Reroll shares the bench service gate and existing snapshot/UI owner rather than adding a poller; positive count, explicit enabled flag, ARAM finalization and current draft are required. Success requires a one-count decrease and changed local champion. Native and Glass actions use the same transaction. Missing eligibility leaves reroll unavailable.

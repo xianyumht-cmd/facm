@@ -1,3 +1,7 @@
+## 2026-11-28 — Swap and mastery evidence
+
+The slash-expanded endpoint export is not an exact URI contract. Use the hyphenated plugin paths for the three swap families; do not infer clear/request body/state from type names. The native experiment chose the first bench hero on missing mastery; the production explicit mastery action must instead report unknown and avoid an arbitrary swap. A missing terminal trade record does not prove an accept, decline or cancel. Scope the result to the observed ID and client/draft, and do not assume an HTTP response proves the role or champion changed.
+
 ## 2026-11-28 — Draft readback and reroll evidence
 
 An accepted combined PATCH is not a confirmed action. Read the original action even after completion, with the same local cell/context; keep request-count tests aligned with the new bounded readback. Unknown writes must not consume another automatic request or reroll. The plugin-derived rerollsDisabled may be UI-computed; do not infer that an absent raw field means enabled. Actual ARAM support still requires live evidence.

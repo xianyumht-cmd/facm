@@ -128,7 +128,7 @@ namespace FACM.League
             { LeagueRuntimeCompanionUiTextKeys.NextPage, "下一页" },
             { LeagueRuntimeCompanionUiTextKeys.ChampionResolving, "正在读取英雄" },
             { LeagueRuntimeCompanionUiTextKeys.MasteryChoose, "熟练度最高" },
-            { LeagueRuntimeCompanionUiTextKeys.MasteryChosen, "已换上熟练度最高的可用英雄" },
+            { LeagueRuntimeCompanionUiTextKeys.MasteryChosen, "已换上已知熟练度最高的可用英雄" },
             { LeagueRuntimeCompanionUiTextKeys.MasteryUnavailable, "熟练度或换人结果未确认" },
             { LeagueRuntimeCompanionUiTextKeys.SwapMenu, "交换" },
             { LeagueRuntimeCompanionUiTextKeys.SwapChampion, "英雄交换" },
