@@ -101,13 +101,31 @@ namespace FACM.League
             Require(withMinions != LeagueInsightPresentation.Project(postgame, "EndOfGame")["postgame"],
                 "Known zero CS and missing CS rendered identically.");
 
-            var reads = new FakeClient { FriendFailure = true };
+            Require(LeagueBlockedPlayersService.ParseCount(Bytes("[]")) == 0 &&
+                    LeagueBlockedPlayersService.ParseCount(Bytes("[{\"id\":\"fixture-a\"},{\"id\":\"fixture-a\"}]")) == 1 &&
+                    !LeagueBlockedPlayersService.ParseCount(Bytes("[{}]")).HasValue &&
+                    !LeagueBlockedPlayersService.ParseCount(Bytes("{}")).HasValue &&
+                    !LeagueBlockedPlayersService.ParseCount(null).HasValue,
+                "Blocked list count confused absent state with a validated collection.");
+            var rank = new LeagueRankedQueueLine { QueueType = "RANKED_SOLO_5x5", Tier = "EMERALD", Division = "II" };
+            Require(rank.Display.Contains("翡翠") && !rank.Display.Contains("EMERALD") && rank.Display.Contains("胜点未知"),
+                "Rank display exposed raw enum or invented LP.");
+            rank.Tier = null;
+            Require(!rank.Display.Contains("未定级"), "Absent tier was presented as unranked.");
+            var invalidLocal = new LeagueEndOfGameStatsService(new FakeClient
+            {
+                EogBody = "{\"gameId\":123,\"localPlayer\":{\"summonerId\":0},\"teams\":[{\"players\":[{\"summonerId\":0,\"stats\":{}}]}]}"
+            }).ReadAsync(CancellationToken.None).GetAwaiter().GetResult();
+            Require(invalidLocal.Available && !invalidLocal.Players[0].IsLocalPlayer,
+                "Zero summoner identity was attributed to the local player.");
+
+            var reads = new FakeClient { FriendFailure = true, BlockedBody = "[]" };
             var insights = new LeagueInsightService(reads);
             var idle = insights.ReadAsync("InProgress", CancellationToken.None).GetAwaiter().GetResult();
             Require(reads.Reads.Count == 0 && idle.Queue == null, "In-game insight loaded lobby data.");
             var overview = insights.ReadAsync("Lobby", CancellationToken.None).GetAwaiter().GetResult();
             Require(reads.SearchReads == 1 && overview.Leaver.HasPenalty && overview.Queue.Available &&
-                    overview.Friends == null && overview.Rewards != null && overview.Rewards.LootAvailable,
+                    overview.Friends == null && overview.BlockedPlayerCount == 0 && overview.Rewards != null && overview.Rewards.LootAvailable,
                 "Insight aggregation repeated search or lost a healthy group after another failed.");
             var rendered = LeagueInsightPresentation.Project(overview, "Lobby");
             Require(rendered.Count == 6 && rendered["penalty"] == overview.Leaver.Summary &&
@@ -140,6 +158,8 @@ namespace FACM.League
             public bool LootFailure;
             public bool MissionFailure;
             public string MissionBody;
+            public string BlockedBody;
+            public string EogBody;
             public int SearchReads;
             public readonly List<string> Reads = new List<string>();
             public int Writes;
@@ -156,6 +176,8 @@ namespace FACM.League
                     SearchReads++;
                     body = "{\"isCurrentlyInQueue\":false,\"errors\":[{\"errorType\":\"QUEUE_DODGER\",\"penaltyTimeRemaining\":39233.063}]}";
                 }
+                if (path == LeagueBlockedPlayersService.BlockedPlayersPath) body = BlockedBody;
+                if (path == LeagueEndOfGameStatsService.StatsPath) body = EogBody;
                 if (path == LeagueFriendActivityService.FriendsPath && FriendFailure) throw new InvalidOperationException("Fixture failure");
                 if (path == LeagueChampSelectMuteService.PhasePath) body = "\"" + Phase + "\"";
                 if (path == LeagueChampSelectMuteService.SessionPath)

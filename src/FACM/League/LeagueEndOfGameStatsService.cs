@@ -79,7 +79,8 @@ namespace FACM.League
             if (root == null) return LeagueEndOfGameSummary.Unavailable;
 
             var localPlayer = root.ContainsKey("localPlayer") ? root["localPlayer"] as Dictionary<string, object> : null;
-            var localKey = localPlayer == null ? null : ReadString(localPlayer, "summonerId");
+            long localId;
+            var localKnown = TryReadNonnegativeLong(localPlayer, "summonerId", out localId) && localId > 0;
 
             var players = new List<LeagueEndOfGamePlayerLine>();
             var teams = root.ContainsKey("teams") ? root["teams"] as object[] : null;
@@ -120,8 +121,8 @@ namespace FACM.League
                             MinionsKnown = minionsKnown,
                             MinionsKilled = minionsKnown ? (int)minions : 0
                         };
-                        var memberKey = ReadString(member, "summonerId");
-                        line.IsLocalPlayer = !string.IsNullOrEmpty(localKey) && string.Equals(localKey, memberKey, StringComparison.Ordinal);
+                        long memberId;
+                        line.IsLocalPlayer = localKnown && TryReadNonnegativeLong(member, "summonerId", out memberId) && memberId == localId;
                         players.Add(line);
                     }
                 }

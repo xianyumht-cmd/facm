@@ -1,5 +1,7 @@
 using System;
 using System.Net;
+using System.Collections.Generic;
+using System.Web.Script.Serialization;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
@@ -105,6 +107,29 @@ namespace FACM.League
         public Task<byte[]> ReadAsync(CancellationToken cancellationToken)
         {
             return _reader.TryGetBytesAsync(BlockedPlayersPath, cancellationToken);
+        }
+
+        internal static int? ParseCount(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return null;
+            try
+            {
+                var items = new JavaScriptSerializer().DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
+                if (items == null) return null;
+                var ids = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var item in items)
+                {
+                    var entry = item as Dictionary<string, object>;
+                    object raw;
+                    if (entry == null || !entry.TryGetValue("id", out raw)) return null;
+                    var id = raw as string;
+                    if (string.IsNullOrWhiteSpace(id) || id.Length > 256) return null;
+                    ids.Add(id);
+                }
+                return ids.Count;
+            }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
         }
 
         public async Task<bool> SetBlockedAsync(string playerId, bool blocked, CancellationToken cancellationToken)

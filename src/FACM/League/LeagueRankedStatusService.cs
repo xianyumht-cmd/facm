@@ -24,11 +24,36 @@ namespace FACM.League
         {
             get
             {
-                if (string.IsNullOrEmpty(Tier)) return QueueType + " 未定级";
-                return QueueType + " " + Tier + " " + Division +
+                var queue = QueueType == "RANKED_SOLO_5x5" ? LeaguePresenceText.Get(null, LeaguePresenceUiTextKeys.RankedQueueSolo) :
+                    QueueType == "RANKED_FLEX_SR" ? LeaguePresenceText.Get(null, LeaguePresenceUiTextKeys.RankedQueueFlex) : "其他队列";
+                if (string.Equals(Tier, "UNRANKED", StringComparison.OrdinalIgnoreCase)) return queue + " 未定级";
+                var tier = TierLabel(Tier);
+                if (tier == null) return queue + " 段位未知";
+                var division = Division == "I" || Division == "II" || Division == "III" || Division == "IV" ? " " + Division : string.Empty;
+                return queue + " " + tier + division +
                     (LeaguePointsKnown ? " " + LeaguePoints + " LP" : " · 胜点未知") +
                     (RecordKnown ? " (" + Wins + "胜" + Losses + "负)" : string.Empty);
             }
+        }
+
+        private static string TierLabel(string tier)
+        {
+            string key;
+            switch (tier)
+            {
+                case "IRON": key = LeaguePresenceUiTextKeys.RankedTierIron; break;
+                case "BRONZE": key = LeaguePresenceUiTextKeys.RankedTierBronze; break;
+                case "SILVER": key = LeaguePresenceUiTextKeys.RankedTierSilver; break;
+                case "GOLD": key = LeaguePresenceUiTextKeys.RankedTierGold; break;
+                case "PLATINUM": key = LeaguePresenceUiTextKeys.RankedTierPlatinum; break;
+                case "EMERALD": key = LeaguePresenceUiTextKeys.RankedTierEmerald; break;
+                case "DIAMOND": key = LeaguePresenceUiTextKeys.RankedTierDiamond; break;
+                case "MASTER": key = LeaguePresenceUiTextKeys.RankedTierMaster; break;
+                case "GRANDMASTER": key = LeaguePresenceUiTextKeys.RankedTierGrandmaster; break;
+                case "CHALLENGER": key = LeaguePresenceUiTextKeys.RankedTierChallenger; break;
+                default: return null;
+            }
+            return LeaguePresenceText.Get(null, key);
         }
     }
 

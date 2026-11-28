@@ -14,6 +14,7 @@ namespace FACM.League
         public LeagueLeaverBusterStatus Leaver { get; set; }
         public LeagueQueueStatus Queue { get; set; }
         public LeagueFriendActivitySnapshot Friends { get; set; }
+        public int? BlockedPlayerCount { get; set; }
         public LeagueRewardsOverview Rewards { get; set; }
         public LeagueRankedSnapshot Ranked { get; set; }
         public LeagueEndOfGameSummary EndOfGame { get; set; }
@@ -33,7 +34,7 @@ namespace FACM.League
             {
                 var rows = ranked.Queues.Where(x => x != null &&
                     (x.QueueType == "RANKED_SOLO_5x5" || x.QueueType == "RANKED_FLEX_SR")).Take(2)
-                    .Select(x => x.Display.Replace("RANKED_SOLO_5x5", "单双排").Replace("RANKED_FLEX_SR", "灵活组排")).ToArray();
+                    .Select(x => x.Display).ToArray();
                 rankedText = rows.Length == 0 ? "未报告单双排或灵活段位" : string.Join(" · ", rows);
             }
             var game = data == null ? null : data.EndOfGame;
@@ -56,7 +57,8 @@ namespace FACM.League
             {
                 { "penalty", lobby || queue ? (data?.Leaver?.Summary ?? "排队限制状态未知") : other },
                 { "queue", lobby || queue ? (data?.Queue?.Summary ?? "队列状态未知") : other },
-                { "friends", lobby ? (data?.Friends?.Summary ?? "好友状态未知") : other },
+                { "friends", lobby ? (data?.Friends?.Summary ?? "好友状态未知") +
+                    (data?.BlockedPlayerCount.HasValue == true ? " · 屏蔽 " + data.BlockedPlayerCount.Value + " 人" : " · 屏蔽名单未知") : other },
                 { "rewards", lobby ? (data?.Rewards?.Summary ?? "奖励数据未知") : other },
                 { "ranked", lobby ? rankedText : other },
                 { "postgame", postgame ? gameText : other }
@@ -108,6 +110,9 @@ namespace FACM.League
                 if (lobby)
                 {
                     result.Friends = await ReadGroupAsync(_friends.ReadAsync, cancellationToken).ConfigureAwait(false);
+                    var blocked = await ReadGroupAsync(t => _reader.TryGetBytesAsync(LeagueBlockedPlayersService.BlockedPlayersPath, t),
+                        cancellationToken).ConfigureAwait(false);
+                    result.BlockedPlayerCount = LeagueBlockedPlayersService.ParseCount(blocked);
                     result.Ranked = await ReadGroupAsync(_ranked.ReadRankedAsync, cancellationToken).ConfigureAwait(false);
                     result.Rewards = await _rewards.ReadAsync(cancellationToken).ConfigureAwait(false);
                 }
@@ -154,7 +159,12 @@ namespace FACM.League
             using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 deadline.CancelAfter(TimeSpan.FromSeconds(3));
-                try { return await read(deadline.Token).ConfigureAwait(false); }
+                try
+                {
+                    var result = await read(deadline.Token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    return deadline.IsCancellationRequested ? null : result;
+                }
                 catch (OperationCanceledException)
                 {
                     token.ThrowIfCancellationRequested();
@@ -162,6 +172,7 @@ namespace FACM.League
                 }
                 catch (Exception e)
                 {
+                    token.ThrowIfCancellationRequested();
                     AppLog.Info("League insight group unavailable: " + e.GetType().Name);
                     return null;
                 }
