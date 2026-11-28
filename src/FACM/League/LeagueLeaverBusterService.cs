@@ -31,23 +31,22 @@ namespace FACM.League
         {
             get
             {
-                if (!Available) return "裁决之镰状态未知";
-                if (!HasPenalty || Entries == null || Entries.Count == 0) return "无裁决之镰处罚";
-                var total = (int)Math.Ceiling(MaxSecondsRemaining);
+                if (!Available) return "排队限制状态未知";
+                if (!HasPenalty) return "未报告排队限制";
+                var total = (long)Math.Ceiling(MaxSecondsRemaining);
                 return total > 0
-                    ? "裁决之镰：还需等待 " + total / 60 + " 分 " + total % 60 + " 秒"
-                    : "裁决之镰：处罚已到期，可重新排队";
+                    ? "排队限制：还需等待 " + total / 60 + " 分 " + total % 60 + " 秒"
+                    : "客户端报告排队限制，剩余时间未知";
             }
         }
     }
 
     /// <summary>
-    /// Reads the leaver-buster penalty list. The ranked-restriction route reports only ranked
-    /// bans, so a live dodge penalty shows up here and nowhere else.
+    /// Reads reported matchmaking restrictions. Notification absence does not prove eligibility.
     /// </summary>
     internal sealed class LeagueLeaverBusterService
     {
-        internal const string NotificationsPath = "/lol-leaver-buster/v1/notifications";
+        internal const string SearchPath = LeagueQueueStatusService.SearchPath;
 
         private readonly ILeagueClientApi _reader;
 
@@ -58,7 +57,12 @@ namespace FACM.League
 
         public async Task<LeagueLeaverBusterStatus> ReadAsync(CancellationToken cancellationToken)
         {
-            var bytes = await _reader.TryGetBytesAsync(NotificationsPath, cancellationToken).ConfigureAwait(false);
+            var bytes = await _reader.TryGetBytesAsync(SearchPath, cancellationToken).ConfigureAwait(false);
+            return ParseSearch(bytes);
+        }
+
+        internal static LeagueLeaverBusterStatus ParseSearch(byte[] bytes)
+        {
             if (bytes == null || bytes.Length == 0) return LeagueLeaverBusterStatus.Unknown;
 
             object raw;
@@ -69,7 +73,9 @@ namespace FACM.League
             catch (ArgumentException) { return LeagueLeaverBusterStatus.Unknown; }
             catch (InvalidOperationException) { return LeagueLeaverBusterStatus.Unknown; }
 
-            var items = raw as object[];
+            var root = raw as Dictionary<string, object>;
+            object errors;
+            var items = root != null && root.TryGetValue("errors", out errors) ? errors as object[] : null;
             if (items == null) return LeagueLeaverBusterStatus.Unknown;
 
             var entries = new List<LeagueLeaverBusterEntry>();
@@ -77,11 +83,12 @@ namespace FACM.League
             foreach (var item in items)
             {
                 var entry = item as Dictionary<string, object>;
-                if (entry == null) continue;
+                if (entry == null || string.IsNullOrWhiteSpace(ReadString(entry, "errorType")))
+                    return LeagueLeaverBusterStatus.Unknown;
 
                 var parsed = new LeagueLeaverBusterEntry
                 {
-                    Type = ReadString(entry, "type"),
+                    Type = ReadString(entry, "errorType"),
                     Reason = ReadString(entry, "reason"),
                     PenaltySecondsRemaining = ReadDouble(entry, "penaltyTimeRemaining"),
                     PenaltySeconds = ReadDouble(entry, "penaltyTime")
@@ -98,7 +105,7 @@ namespace FACM.League
                 Entries = entries
             };
             AppLog.Info("Leaver buster status: entries=" + entries.Count +
-                        "; maxRemaining=" + ((int)maxRemaining).ToString(CultureInfo.InvariantCulture));
+                        "; maxRemaining=" + maxRemaining.ToString(CultureInfo.InvariantCulture));
             return status;
         }
 
@@ -116,7 +123,8 @@ namespace FACM.League
             if (value == null || !value.TryGetValue(key, out entry) || entry == null) return 0;
             double parsed;
             return double.TryParse(Convert.ToString(entry, CultureInfo.InvariantCulture),
-                NumberStyles.Any, CultureInfo.InvariantCulture, out parsed) ? parsed : 0;
+                NumberStyles.Any, CultureInfo.InvariantCulture, out parsed) &&
+                !double.IsNaN(parsed) && !double.IsInfinity(parsed) && parsed >= 0 && parsed <= int.MaxValue ? parsed : 0;
         }
     }
 }
