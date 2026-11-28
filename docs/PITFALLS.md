@@ -1,3 +1,7 @@
+## 2026-11-29 — Repeated global Mayhem page downloads
+
+A per-champion result cache does not prevent downloading identical global ranking pages on champion changes. Share only fixed global URLs with bounded lifetime and size, validate before retention, and isolate cooldown per source. Never interpret cancelled consumers as provider failure; a 503/429 is evidence for temporary cooldown, not permanent unavailability. Preserve existing official-version comparison and independent alternatives.
+
 ## 2026-11-29 — Closed response stream at the deadline
 
 A disposed HTTP body stream can report a plain InvalidOperationException rather than ObjectDisposedException. Only normalize the plain type at the body-read boundary with its own cancelled token; never globally classify parser or unrelated invalid operations as cancellation. Do not infer a memory leak from a single diagnostics export snapshot or prioritize aggressive resource reductions without measured gameplay impact.

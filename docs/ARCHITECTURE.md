@@ -1,3 +1,7 @@
+## 2026-11-29 — Shared global Mayhem ranking reads (candidate)
+
+OpggMayhemService owns exactly three fixed global page slots. A per-slot asynchronous gate prevents overlapping duplicate downloads; only a complete patch-labelled ranking within the body cap is reused for three minutes. A 503/429 opens a two-minute per-slot cooldown; next demand after expiry probes again. Existing public source policy gates network access, and validated fresh cached pages remain usable. Existing champion result cache, source ranking/patch validation, and optional source cancellation remain authoritative. No timer, background worker or new network client.
+
 ## 2026-11-29 — Body reader cancellation boundary (candidate)
 
 CancelableHttpContentReader retains the existing bounded stream reads and cancellation-disposal registration; its body-only exception classification recognizes plain InvalidOperationException after cancellation. General transport classification remains unchanged. No new thread, timer, HTTP pool or dependency.

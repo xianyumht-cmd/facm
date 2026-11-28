@@ -1,6 +1,6 @@
 # HLMD — Capability and operation traceability ledger
 
-Baseline: PR #370, executable candidate 7ff70262. Latest verified full head 1aa4ebf4 (Windows 46163109360, Glass 46163109359, UI Text 46163109398, Mayhem 46163109399). Extended room actions passed CI; diagnostics body-cancellation candidate pending CI. Previous full CI: 9b52b943 (Windows 46148139501, Glass 46148139491, UI Text 46148139489, Mayhem 46148139490); Windows job 140988616748 executed history smoke and host/response/performance/update contracts. This ledger is an initial source mapping, not a completion report. Source paths below are relative to src/FACM/League unless specified. UI placement, every individual request body and real-client behavior are still open unless explicitly evidenced.
+Baseline: PR #370, executable candidate 7ff70262. Latest verified full head 76aea19b (Windows 46164390255, Glass 46164390270, UI Text 46164390242, Mayhem 46164390239). Diagnostics body-cancellation candidate passed CI; shared global Mayhem ranking page candidate pending CI. Previous full CI: 9b52b943 (Windows 46148139501, Glass 46148139491, UI Text 46148139489, Mayhem 46148139490); Windows job 140988616748 executed history smoke and host/response/performance/update contracts. This ledger is an initial source mapping, not a completion report. Source paths below are relative to src/FACM/League unless specified. UI placement, every individual request body and real-client behavior are still open unless explicitly evidenced.
 
 ## Playbook inventory (29 numbered sections + two unnumbered sections)
 
