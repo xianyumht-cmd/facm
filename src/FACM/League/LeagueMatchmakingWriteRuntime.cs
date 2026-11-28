@@ -139,12 +139,30 @@ namespace FACM.League
                     method = "DELETE";
                     path = lobby;
                     return true;
+                case LeagueLobbyRoomAction.Positions:
+                    if (!LeagueLobbyRoomService.ValidRolePair(value)) return false;
+                    method = "PUT";
+                    path = "/lol-lobby/v1/lobby/members/localMember/position-preferences";
+                    body = new JavaScriptSerializer().Serialize(new
+                    {
+                        firstPreference = LeagueLobbyRoomService.RoleName(value / 10),
+                        secondPreference = LeagueLobbyRoomService.RoleName(value % 10)
+                    });
+                    return true;
+                case LeagueLobbyRoomAction.Spectator:
+                    if (value != 0) return false;
+                    method = "POST";
+                    path = lobby + "/team/SPECTATOR";
+                    return true;
                 case LeagueLobbyRoomAction.Kick:
                 case LeagueLobbyRoomAction.Promote:
+                case LeagueLobbyRoomAction.GrantInvite:
+                case LeagueLobbyRoomAction.RevokeInvite:
                     if (value <= 0) return false;
                     method = "POST";
                     path = lobby + "/members/" + value.ToString(CultureInfo.InvariantCulture) +
-                        (action == LeagueLobbyRoomAction.Kick ? "/kick" : "/promote");
+                        (action == LeagueLobbyRoomAction.Kick ? "/kick" : action == LeagueLobbyRoomAction.Promote
+                            ? "/promote" : action == LeagueLobbyRoomAction.GrantInvite ? "/grant-invite" : "/revoke-invite");
                     return true;
                 default: return false;
             }

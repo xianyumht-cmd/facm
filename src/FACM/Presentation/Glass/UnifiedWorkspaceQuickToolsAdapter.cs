@@ -319,16 +319,23 @@ namespace FACM.Presentation.Glass
                 canQueue = snapshot != null && snapshot.CanQueue,
                 canLeave = snapshot != null && snapshot.CanLeave,
                 canManage = snapshot != null && snapshot.CanManageMembers && members.Length > 0,
+                canSetPositions = snapshot != null && snapshot.CanSetPositions,
+                canSpectate = snapshot != null && snapshot.CanSpectate,
+                firstRole = snapshot == null ? 0 : snapshot.FirstRole,
+                secondRole = snapshot == null ? 0 : snapshot.SecondRole,
+                roles = Enumerable.Range(0, 7).Select(id => new { id, label = LeagueLobbyRoomText.RoleLabel(id) }).ToArray(),
                 queueId = snapshot == null ? 0 : snapshot.QueueId,
                 description = snapshot == null ? "房间状态不可用" : snapshot.Phase == "None" ? "未加入房间" :
                     snapshot.QueueName + " · " + snapshot.Members.Count + " 人" +
-                    (snapshot.IsLeader ? " · 队长" : ""),
+                    (snapshot.IsLeader ? " · 队长" : "") + (snapshot.IsSpectator == true ? " · 观战" : ""),
                 status = string.IsNullOrEmpty(status) ? LeagueLobbyRoomText.CatalogStatus(snapshot) : status,
                 queues = (snapshot?.QueueChoices ?? new System.Collections.Generic.Dictionary<int, string>())
                     .OrderBy(x => x.Key).Select(x => new { id = x.Key, label = x.Value }).ToArray(),
                 members = members.Select(x => new
                 {
-                    id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), label = x.Name
+                    id = x.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), label = x.Name,
+                    canGrant = snapshot.Allows(LeagueLobbyRoomAction.GrantInvite, x.Id),
+                    canRevoke = snapshot.Allows(LeagueLobbyRoomAction.RevokeInvite, x.Id)
                 }).ToArray()
             }));
         }

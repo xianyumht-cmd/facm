@@ -1,3 +1,7 @@
+## 2026-11-29 — Room capability readback
+
+Role preference request field names differ from localMember response field names. Confirm both requested roles, not HTTP alone. Spectator slot entry requires explicit custom-room eligibility and local spectator readback; it is distinct from launching a spectator client. Invite privilege changes require explicit local toggle authority and known target permission; missing permission is not false. Include these values in the room snapshot fence.
+
 ## 2026-11-28 — Queue catalog is not entitlement
 
 A queue ID or queue name in a historical list does not establish current availability. Require explicit Available and isVisible from the local queue catalog and recheck it before explicit room creation/switch; do not infer account entitlement from catalog presence. Reject duplicate identifiers, do not use stale fallback IDs when the catalog is unavailable, and keep non-queue room actions independent.

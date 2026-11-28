@@ -1,3 +1,7 @@
+## 2026-11-29 — Extended room transaction actions (candidate)
+
+The existing room service owns role preference pairs, spectator-slot entry and invite privilege grant/revoke. Fixed role IDs cross the existing revisioned bridge as one numeric pair; member identities remain decimal strings. Native and Glass use the same capability snapshot, typed transport, gate and readback. Explicit position-selector, custom spectator policy and invite-toggle/target permission fields gate the new actions; missing fields do not imply eligibility. Room fingerprints include the new observed state so changed settings invalidate stale requests. No new Shard, polling loop or transport pool.
+
 ## 2026-11-28 — Room catalog is observed, not a fixed list (candidate)
 
 LeagueLobbyRoomService owns the per-view queue choices from the local client; a queue mutation requires the choice in both displayed and freshly read catalogs, in addition to the existing room transaction fences. The typed transport bounds the numeric queue identifier; this is syntax validation, not availability authorization. The room UI does not fetch or authorize independent queue IDs. A missing catalog does not disable leave or member actions, and automatic promotion does not fetch the catalog. No additional resident poller or Shard.

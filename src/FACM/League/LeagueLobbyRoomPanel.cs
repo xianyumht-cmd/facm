@@ -21,7 +21,8 @@ namespace FACM.League
         private readonly LeagueEfficiencyModule _module;
         private readonly UiTextCatalog _ui;
         private readonly Button _refresh, _queue, _leave, _kick, _promote;
-        private readonly ComboBox _queues, _members;
+        private readonly ComboBox _queues, _members, _firstRole, _secondRole;
+        private readonly Button _positions, _spectator, _grant, _revoke;
         private readonly Label _status, _description;
         private readonly FlowLayoutPanel _controls;
         private CancellationTokenSource _request;
@@ -47,6 +48,24 @@ namespace FACM.League
             _status = new Label { AutoSize = true, ForeColor = FacmDesignSystem.TextMuted, Margin = new Padding(4, 4, 4, 4) };
             _queues = MakeCombo();
             _members = MakeCombo();
+            _firstRole = MakeCombo();
+            _secondRole = MakeCombo();
+            _firstRole.Width = _secondRole.Width = 88;
+            _firstRole.AccessibleName = "首选位置";
+            _secondRole.AccessibleName = "次选位置";
+            for (var role = 0; role <= 6; role++)
+            {
+                _firstRole.Items.Add(new Option { Id = role, Label = LeagueLobbyRoomText.RoleLabel(role) });
+                _secondRole.Items.Add(new Option { Id = role, Label = LeagueLobbyRoomText.RoleLabel(role) });
+            }
+            _positions = MakeButton("设置位置");
+            _spectator = MakeButton("进入观战位");
+            _grant = MakeButton("授予邀请权限");
+            _revoke = MakeButton("撤销邀请权限");
+            _positions.Click += async delegate { await ExecuteAsync(LeagueLobbyRoomAction.Positions, Selected(_firstRole) * 10 + Selected(_secondRole)); };
+            _spectator.Click += async delegate { await ExecuteAsync(LeagueLobbyRoomAction.Spectator, 0); };
+            _grant.Click += async delegate { await ExecuteAsync(LeagueLobbyRoomAction.GrantInvite, Selected(_members)); };
+            _revoke.Click += async delegate { await ExecuteAsync(LeagueLobbyRoomAction.RevokeInvite, Selected(_members)); };
             _queue = MakeButton(T(LeagueEfficiencyUiTextKeys.RoomQueue));
             _leave = MakeButton(T(LeagueEfficiencyUiTextKeys.RoomLeave));
             _kick = MakeButton(T(LeagueEfficiencyUiTextKeys.RoomKick));
@@ -58,6 +77,12 @@ namespace FACM.League
             _controls.Controls.Add(_description);
             _controls.Controls.Add(MakeRow(_queues, _queue, _leave));
             _controls.Controls.Add(MakeRow(_members, _kick, _promote));
+            _controls.Controls.Add(MakeRow(_grant, _revoke));
+            _controls.Controls.Add(MakeRow(_firstRole, _secondRole, _positions));
+            _controls.Controls.Add(MakeRow(_spectator));
+            _members.SelectedIndexChanged += delegate { UpdateEnabled(); };
+            _firstRole.SelectedIndexChanged += delegate { UpdateEnabled(); };
+            _secondRole.SelectedIndexChanged += delegate { UpdateEnabled(); };
             _controls.Controls.Add(_status);
             Controls.Add(_controls);
             UpdateEnabled();
@@ -97,6 +122,12 @@ namespace FACM.League
             _leave.Enabled = idle && _snapshot != null && _snapshot.CanLeave;
             _members.Enabled = _kick.Enabled = _promote.Enabled = idle && _snapshot != null &&
                 _snapshot.CanManageMembers && _members.Items.Count > 0;
+            _firstRole.Enabled = _secondRole.Enabled = idle && _snapshot != null && _snapshot.CanSetPositions;
+            _positions.Enabled = idle && _snapshot != null && _snapshot.Allows(LeagueLobbyRoomAction.Positions,
+                Selected(_firstRole) * 10 + Selected(_secondRole));
+            _spectator.Enabled = idle && _snapshot != null && _snapshot.CanSpectate;
+            _grant.Enabled = idle && _snapshot != null && _snapshot.Allows(LeagueLobbyRoomAction.GrantInvite, Selected(_members));
+            _revoke.Enabled = idle && _snapshot != null && _snapshot.Allows(LeagueLobbyRoomAction.RevokeInvite, Selected(_members));
         }
 
         private void Render(LeagueLobbyRoomSnapshot snapshot, string status)
@@ -106,10 +137,12 @@ namespace FACM.League
             _description.Text = snapshot == null ? T(LeagueEfficiencyUiTextKeys.RoomUnavailable) :
                 snapshot.Phase == "None" ? T(LeagueEfficiencyUiTextKeys.RoomNone) :
                 snapshot.QueueName + " · " + snapshot.Members.Count + " 人" +
-                (snapshot.IsLeader ? " · 队长" : "");
+                (snapshot.IsLeader ? " · 队长" : "") + (snapshot.IsSpectator == true ? " · 观战" : "");
             _status.Text = string.IsNullOrEmpty(status) ? LeagueLobbyRoomText.CatalogStatus(snapshot) : status;
             _members.Items.Clear();
             _queues.Items.Clear();
+            _firstRole.SelectedIndex = snapshot == null ? 0 : snapshot.FirstRole;
+            _secondRole.SelectedIndex = snapshot == null ? 0 : snapshot.SecondRole;
             if (snapshot != null)
             {
                 if (snapshot.QueueChoices != null)

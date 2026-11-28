@@ -9,13 +9,14 @@ using System.Web.Script.Serialization;
 
 namespace FACM.League
 {
-    internal enum LeagueLobbyRoomAction { Queue, Leave, Kick, Promote }
+    internal enum LeagueLobbyRoomAction { Queue, Leave, Kick, Promote, Positions, Spectator, GrantInvite, RevokeInvite }
 
     internal sealed class LeagueLobbyRoomMember
     {
         internal long Id { get; set; }
         internal string Name { get; set; }
         internal bool IsLeader { get; set; }
+        internal bool? CanInvite { get; set; }
     }
 
     internal sealed class LeagueLobbyRoomSnapshot
@@ -28,6 +29,16 @@ namespace FACM.League
         internal bool IsLeader { get; set; }
         internal List<LeagueLobbyRoomMember> Members { get; } = new List<LeagueLobbyRoomMember>();
         internal Dictionary<int, string> QueueChoices { get; set; }
+        internal bool ShowPositions { get; set; }
+        internal int FirstRole { get; set; }
+        internal int SecondRole { get; set; }
+        internal bool? IsSpectator { get; set; }
+        internal bool IsCustom { get; set; }
+        internal string SpectatorPolicy { get; set; }
+        internal bool CanToggleInvite { get; set; }
+        internal bool CanSetPositions { get { return Phase == "Lobby" && ShowPositions && IsSpectator == false; } }
+        internal bool CanSpectate { get { return Phase == "Lobby" && IsCustom && IsSpectator == false &&
+            (SpectatorPolicy == "LobbyAllowed" || SpectatorPolicy == "FriendsAllowed" || SpectatorPolicy == "AllAllowed"); } }
         internal bool CanQueue { get { return (Phase == "None" || Phase == "Lobby" && IsLeader) &&
             QueueChoices != null && QueueChoices.Count > 0; } }
         internal string QueueName
@@ -48,6 +59,13 @@ namespace FACM.League
             {
                 case LeagueLobbyRoomAction.Queue: return CanQueue && LeagueLobbyRoomService.IsQueueId(value) && QueueChoices.ContainsKey((int)value);
                 case LeagueLobbyRoomAction.Leave: return CanLeave && value == 0;
+                case LeagueLobbyRoomAction.Positions: return CanSetPositions && LeagueLobbyRoomService.ValidRolePair(value);
+                case LeagueLobbyRoomAction.Spectator: return CanSpectate && value == 0;
+                case LeagueLobbyRoomAction.GrantInvite:
+                case LeagueLobbyRoomAction.RevokeInvite:
+                    return CanManageMembers && CanToggleInvite && value > 0 && value != SelfId &&
+                        Members.Any(x => x.Id == value && !x.IsLeader &&
+                            x.CanInvite == (action == LeagueLobbyRoomAction.RevokeInvite));
                 case LeagueLobbyRoomAction.Kick:
                 case LeagueLobbyRoomAction.Promote:
                     return CanManageMembers && value > 0 && value != SelfId && Members.Any(x => x.Id == value);
@@ -60,7 +78,11 @@ namespace FACM.League
             return other != null && LeagueEncounterReplayService.SessionMatches(Owner, other.Owner) &&
                 SelfId == other.SelfId && Phase == other.Phase && PartyId == other.PartyId &&
                 QueueId == other.QueueId && IsLeader == other.IsLeader &&
-                Members.Select(x => x.Id).OrderBy(x => x).SequenceEqual(other.Members.Select(x => x.Id).OrderBy(x => x));
+                ShowPositions == other.ShowPositions && FirstRole == other.FirstRole && SecondRole == other.SecondRole &&
+                IsSpectator == other.IsSpectator && IsCustom == other.IsCustom &&
+                SpectatorPolicy == other.SpectatorPolicy && CanToggleInvite == other.CanToggleInvite &&
+                Members.OrderBy(x => x.Id).Select(x => new { x.Id, x.IsLeader, x.CanInvite }).SequenceEqual(
+                    other.Members.OrderBy(x => x.Id).Select(x => new { x.Id, x.IsLeader, x.CanInvite }));
         }
     }
 
@@ -87,6 +109,14 @@ namespace FACM.League
         }
 
         internal static bool IsQueueId(long id) { return id > 0 && id <= 100000; }
+        private static readonly string[] RoleNames = { "", "TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY", "FILL" };
+        internal static string RoleName(long id) { return id >= 1 && id <= 6 ? RoleNames[(int)id] : null; }
+        internal static bool ValidRolePair(long value)
+        {
+            return value >= 11 && value <= 66 && RoleName(value / 10) != null &&
+                RoleName(value % 10) != null && value / 10 != value % 10;
+        }
+        private static int RoleId(object value) { return Math.Max(0, Array.IndexOf(RoleNames, value as string)); }
 
         internal static Dictionary<int, string> ParseQueueCatalog(byte[] bytes)
         {
@@ -162,7 +192,8 @@ namespace FACM.League
                         if (fresh != null && action != LeagueLobbyRoomAction.Queue && fresh.SelfId == expected.SelfId)
                             fresh.QueueChoices = expected.QueueChoices;
                         if (!expected.SameRoom(fresh) || !fresh.Allows(action, value)) return Result("stale", fresh);
-                        if (action == LeagueLobbyRoomAction.Queue && fresh.Phase == "Lobby" && fresh.QueueId == value)
+                        if (action == LeagueLobbyRoomAction.Queue && fresh.Phase == "Lobby" && fresh.QueueId == value ||
+                            action == LeagueLobbyRoomAction.Positions && fresh.FirstRole * 10 + fresh.SecondRole == value)
                             return Result("already", fresh);
                         if (_uncertainRoom != null && _uncertainRoom.SameRoom(fresh))
                             return Result("unverified", fresh);
@@ -244,7 +275,14 @@ namespace FACM.League
                 party.Length > 128 || members == null || members.Length == 0 || members.Length > 25)
                 return null;
             var result = new LeagueLobbyRoomSnapshot { Owner = owner, SelfId = self, Phase = "Lobby",
-                PartyId = party, QueueId = (int)queue, IsLeader = (bool)leader };
+                PartyId = party, QueueId = (int)queue, IsLeader = (bool)leader,
+                ShowPositions = Bool(game, "showPositionSelector") == true,
+                FirstRole = RoleId(Value(local, "firstPositionPreference")),
+                SecondRole = RoleId(Value(local, "secondPositionPreference")),
+                IsSpectator = Bool(local, "isSpectator"),
+                IsCustom = Bool(game, "isCustom") == true,
+                SpectatorPolicy = Value(game, "customSpectatorPolicy") as string,
+                CanToggleInvite = Bool(local, "allowedToggleInvite") == true };
             var seen = new HashSet<long>();
             foreach (var value in members)
             {
@@ -257,7 +295,7 @@ namespace FACM.League
                 if (string.IsNullOrWhiteSpace(name) || name.Length > 128 || name.Any(char.IsControl))
                     name = "#" + id.ToString(CultureInfo.InvariantCulture);
                 result.Members.Add(new LeagueLobbyRoomMember { Id = id, Name = name,
-                    IsLeader = Value(row, "isLeader") is bool && (bool)Value(row, "isLeader") });
+                    IsLeader = Bool(row, "isLeader") == true, CanInvite = Bool(row, "allowedInviteOthers") });
             }
             return seen.Contains(self) ? result : null;
         }
@@ -271,6 +309,12 @@ namespace FACM.League
             if (action == LeagueLobbyRoomAction.Leave) return after.Phase == "None";
             if (after.Phase != "Lobby" || before.PartyId != after.PartyId) return false;
             if (action == LeagueLobbyRoomAction.Kick) return !after.Members.Any(x => x.Id == value);
+            if (before.QueueId != after.QueueId) return false;
+            if (action == LeagueLobbyRoomAction.Positions)
+                return after.FirstRole == value / 10 && after.SecondRole == value % 10;
+            if (action == LeagueLobbyRoomAction.Spectator) return after.IsSpectator == true;
+            if (action == LeagueLobbyRoomAction.GrantInvite || action == LeagueLobbyRoomAction.RevokeInvite)
+                return after.Members.Any(x => x.Id == value && x.CanInvite == (action == LeagueLobbyRoomAction.GrantInvite));
             return action == LeagueLobbyRoomAction.Promote && !after.IsLeader &&
                 after.Members.Any(x => x.Id == value && x.IsLeader);
         }
@@ -295,6 +339,12 @@ namespace FACM.League
             return root != null && root.TryGetValue(name, out value) ? value : null;
         }
 
+        private static bool? Bool(Dictionary<string, object> root, string name)
+        {
+            var value = Value(root, name);
+            return value is bool ? (bool?)value : null;
+        }
+
         private static long Long(Dictionary<string, object> root, string name)
         {
             var value = Value(root, name);
@@ -304,6 +354,20 @@ namespace FACM.League
 
     internal static class LeagueLobbyRoomText
     {
+        internal static string RoleLabel(int role)
+        {
+            switch (role)
+            {
+                case 1: return "上路";
+                case 2: return "打野";
+                case 3: return "中路";
+                case 4: return "下路";
+                case 5: return "辅助";
+                case 6: return "补位";
+                default: return "未选择";
+            }
+        }
+
         internal static string QueueLabel(int queue)
         {
             switch (queue)
@@ -330,7 +394,7 @@ namespace FACM.League
             switch (state)
             {
                 case "confirmed": return "房间操作已确认";
-                case "already": return "已在所选队列";
+                case "already": return "已是所选设置";
                 case "rejected": return "客户端拒绝操作";
                 case "stale": return "房间状态已变化，请刷新";
                 default: return "房间操作未确认，请查看客户端";
