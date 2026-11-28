@@ -988,13 +988,13 @@ namespace FACM.League
             var read = new FakeRead { SessionJson = BenchSession(34, "[22,55]", 450, false),
                 MasteryJson = "[{\"championId\":55,\"championPoints\":150000},{\"championId\":22,\"championPoints\":90000},{\"championId\":34,\"championPoints\":120000}]" };
             var write = new FakeBenchWrite { AfterWrite = id => read.SessionJson = BenchSession(id, "[34,22]", 450, false) };
-            var clock = new TwoStepClock();
+            var clock = new BenchRetryClock();
             using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, clock))
             {
                 controller.Configure(true, 0, false, 0, json);
                 controller.Observe(Selecting());
                 Require(write.Calls == 1 && write.LastId == 55 &&
-                    read.Paths.Count(path => path == LeagueLiveDataService.LocalMasteryPath) == 1,
+                    read.Paths.Count(path => path == LeagueLiveDataService.LocalMasteryPath) == 1 && clock.PollDelays == 2,
                     "Mastery-only profile must arm and choose the highest eligible score once.");
                 var pending = controller.RunningForSmokeTest;
                 controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
