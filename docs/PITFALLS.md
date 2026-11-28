@@ -1,3 +1,7 @@
+## 2026-11-28 — Research corpus visibility and room verification
+
+A reported upload is not a readable source until the exact repository ref/path is verified; inspect nontruncated trees and current workflow heads, preserve concurrent commits and distinguish absent access from absent research. Do not use slash-expanded method-name exports to invent request bodies. Lobby queue switch is POST with queueId, not PUT. Leaving a party is distinct from closing the client process. The leader, local member, party and current roster must be freshly checked; accepted status alone does not prove the intended member/queue change. Unknown outcomes remain explicit and do not trigger automatic replay. Preserve 64-bit summoner IDs as strings when crossing JavaScript.
+
 ## 2026-11-28 — Swap and mastery evidence
 
 The slash-expanded endpoint export is not an exact URI contract. Use the hyphenated plugin paths for the three swap families; do not infer clear/request body/state from type names. The native experiment chose the first bench hero on missing mastery; the production explicit mastery action must instead report unknown and avoid an arbitrary swap. A missing terminal trade record does not prove an accept, decline or cancel. Scope the result to the observed ID and client/draft, and do not assume an HTTP response proves the role or champion changed.
