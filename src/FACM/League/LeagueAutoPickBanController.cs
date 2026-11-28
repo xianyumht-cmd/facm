@@ -481,25 +481,20 @@ namespace FACM.League
             CompactTraceLog.Record(trace, "autoselect", "preflight", "ok", watch.ElapsedMilliseconds);
             var lockImmediately = strategy == "lock-in-immediately" ||
                 staged && attempted.Contains(shownKey);
-            var result = await _write.TryApplyAsync(action.Type, action.Id, desired, lockImmediately, episode.Token)
-                .ConfigureAwait(false);
-            // Only a confirmed successful write consumes this action stage. A transient
-            // HTTP failure can retry on the existing phase-scoped two-second tick.
-            if (result != null && result.IsSuccessStatusCode)
-            {
-                attempted.Add(staged ? (lockImmediately ? lockedKey : shownKey) : key);
-                if (staged && !lockImmediately)
-                    attempted.Add(shownKey + ":" + desired.ToString(CultureInfo.InvariantCulture));
-            }
+            var stageKey = staged ? (lockImmediately ? lockedKey : shownKey) : key;
+            var result = await SendActionAsync(episode, action, desired, lockImmediately, false).ConfigureAwait(false);
+            RecordAttempt(attempted, stageKey, result);
+            var submitted = result != null && result.IsSuccessStatusCode;
+            if (submitted && staged && !lockImmediately)
+                attempted.Add(shownKey + ":" + desired.ToString(CultureInfo.InvariantCulture));
+            byte[] shownBytes = null;
+            if ((submitted || result == null) && IsCurrent(episode))
+                shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             CompactTraceLog.Record(trace, "autoselect", "write",
-                result == null ? "failed_unavailable" :
-                result.IsSuccessStatusCode ? (lockImmediately ? "lock_submitted" : "show_submitted") :
-                "failed_http_" + result.StatusCode,
+                DescribeActionOutcome(result, shownBytes, action, desired, lockImmediately),
                 watch.ElapsedMilliseconds);
-            if (!staged || lockImmediately || result == null || !result.IsSuccessStatusCode ||
-                !IsCurrent(episode)) return;
+            if (!staged || lockImmediately || !submitted || !IsCurrent(episode)) return;
 
-            var shownBytes = await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false);
             var shown = ParseCurrentAction(shownBytes);
             if (shown == null || shown.Id != action.Id || shown.ContextKey != action.ContextKey) return;
             var lockDelay = LeagueAutoSelectContext.PhaseDelay(isPick ? profile.PickDelayMs : profile.BanDelayMs,
@@ -511,13 +506,12 @@ namespace FACM.League
                 CompactTraceLog.Record(trace, "autoselect", "lock_preflight", "stale", watch.ElapsedMilliseconds);
                 return;
             }
-            var locked = await _write.TryApplyAsync(action.Type, action.Id, desired, true, episode.Token)
-                .ConfigureAwait(false);
-            if (locked != null && locked.IsSuccessStatusCode) attempted.Add(lockedKey);
+            var locked = await SendActionAsync(episode, action, desired, true, false).ConfigureAwait(false);
+            RecordAttempt(attempted, lockedKey, locked);
+            var settled = IsCurrent(episode) && (locked == null || locked.IsSuccessStatusCode)
+                ? await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false) : null;
             CompactTraceLog.Record(trace, "autoselect", "lock",
-                locked == null ? "failed_unavailable" :
-                locked.IsSuccessStatusCode ? "submitted" : "failed_http_" + locked.StatusCode,
-                watch.ElapsedMilliseconds);
+                DescribeActionOutcome(locked, settled, action, desired, true), watch.ElapsedMilliseconds);
         }
 
         private async Task<bool> TryPickIntentAsync(CancellationTokenSource episode, byte[] session,
@@ -579,13 +573,80 @@ namespace FACM.League
                 var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);
                 if (!IsCurrent(episode) || !ParseAvailableIds(subset).Contains(desired)) return true;
             }
-            var result = await _write.TryIntentAsync(intent.Id, desired, episode.Token).ConfigureAwait(false);
-            if (result != null && result.IsSuccessStatusCode) attempted.Add("intent:" + intent.Id);
+            var result = await SendActionAsync(episode, intent, desired, false, true).ConfigureAwait(false);
+            RecordAttempt(attempted, "intent:" + intent.Id, result);
+            var settled = IsCurrent(episode) && (result == null || result.IsSuccessStatusCode)
+                ? await ReadSelectionSessionAsync(episode.Token).ConfigureAwait(false) : null;
             CompactTraceLog.Record(trace, "autoselect-intent", "write",
-                result == null ? "failed_unavailable" :
-                result.IsSuccessStatusCode ? "submitted" : "failed_http_" + result.StatusCode,
-                watch.ElapsedMilliseconds);
+                DescribeActionOutcome(result, settled, intent, desired, false), watch.ElapsedMilliseconds);
             return true;
+        }
+
+        private Task<LeagueClientWriteResponse> SendActionAsync(CancellationTokenSource episode,
+            LeagueAutoSelectAction action, int championId, bool completed, bool intent)
+        {
+            LeagueClientSession owner;
+            lock (_sync)
+            {
+                if (!IsCurrent(episode)) return Task.FromResult<LeagueClientWriteResponse>(null);
+                owner = _episodeOwner;
+            }
+            if (_session == null)
+                return intent ? _write.TryIntentAsync(action.Id, championId, episode.Token) :
+                    _write.TryApplyAsync(action.Type, action.Id, championId, completed, episode.Token);
+            var scoped = _write as ILeagueScopedChampSelectActionWriteApi;
+            if (scoped == null || owner == null) return Task.FromResult<LeagueClientWriteResponse>(null);
+            return intent ? scoped.TryIntentAsync(action.Id, championId, owner, episode.Token) :
+                scoped.TryApplyAsync(action.Type, action.Id, championId, completed, owner, episode.Token);
+        }
+
+        private static void RecordAttempt(HashSet<string> attempted, string key, LeagueClientWriteResponse response)
+        {
+            // One retry for an explicit server failure, after normal fresh preflight.
+            // Lost responses, rejections and accepted writes must not be blindly replayed.
+            if (response == null || response.IsSuccessStatusCode || response.StatusCode < 500 ||
+                !attempted.Add(key + ":retry"))
+                attempted.Add(key);
+        }
+
+        private static string DescribeActionOutcome(LeagueClientWriteResponse response, byte[] session,
+            LeagueAutoSelectAction expected, int desired, bool completed)
+        {
+            if (ActionMatchesReadback(session, expected, desired, completed)) return "confirmed";
+            return response == null ? "unverified_transport" :
+                response.IsSuccessStatusCode ? "submitted_unverified" : "failed_http_" + response.StatusCode;
+        }
+
+        internal static bool ActionMatchesReadback(byte[] session, LeagueAutoSelectAction expected,
+            int desired, bool completed)
+        {
+            if (expected == null || session == null || session.Length == 0 || session.Length > 2 * 1024 * 1024)
+                return false;
+            try
+            {
+                var root = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
+                    .DeserializeObject(Encoding.UTF8.GetString(session)) as Dictionary<string, object>;
+                object groups, cell;
+                if (root == null || !root.TryGetValue("localPlayerCellId", out cell) || !(cell is int) ||
+                    (int)cell != expected.LocalCellId ||
+                    ReadString(root, "autoSelectContext") != (expected.ContextKey ?? string.Empty) ||
+                    !root.TryGetValue("actions", out groups)) return false;
+                foreach (var group in groups as IEnumerable ?? Array.Empty<object>())
+                foreach (var value in group as IEnumerable ?? Array.Empty<object>())
+                {
+                    var action = value as Dictionary<string, object>;
+                    object id, actor, champion, done;
+                    if (action != null && action.TryGetValue("id", out id) && id is int &&
+                        (int)id == expected.Id && action.TryGetValue("actorCellId", out actor) && actor is int &&
+                        (int)actor == expected.LocalCellId && ReadString(action, "type") == expected.Type &&
+                        action.TryGetValue("championId", out champion) && champion is int && (int)champion == desired &&
+                        action.TryGetValue("completed", out done) && done is bool && (bool)done == completed)
+                        return true;
+                }
+            }
+            catch (ArgumentException) { }
+            catch (InvalidOperationException) { }
+            return false;
         }
 
         internal static LeagueAutoSelectAction ParsePickIntentAction(byte[] session)

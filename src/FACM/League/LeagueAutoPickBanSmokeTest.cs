@@ -25,6 +25,7 @@ namespace FACM.League
             ValidateSubsetPicksAsync().GetAwaiter().GetResult();
             ValidateTransientEligibilityRecoveryAsync().GetAwaiter().GetResult();
             ValidateWriteRetryAsync().GetAwaiter().GetResult();
+            ValidateActionReadbackAndUnknownAsync().GetAwaiter().GetResult();
             Require(!new AppSettings().LeagueAutoPickEnabled && !new AppSettings().LeagueAutoBanEnabled,
                 "Automatic pick/ban must default disabled.");
             var settings = AppSettings.ParseLines(new[]
@@ -473,8 +474,9 @@ namespace FACM.League
             {
                 controller.Configure(true, 22, false, 0);
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
-                Require(stableWrite.Calls.Count == 1,
-                    "Stable current-region draft must preserve the existing automatic pick.");
+                Require(stableWrite.Calls.Count == 1 && stableWrite.ExpectedOwners.Count == 1 &&
+                    LeagueEncounterReplayService.SessionMatches(first, stableWrite.ExpectedOwners[0]),
+                    "Stable current-region draft must preserve the existing automatic pick and pin its session.");
             }
 
             var replacement = new LeagueClientSession("LeagueClientUx", 43, 5001, "fixture",
@@ -1397,7 +1399,7 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(pickWrite.Calls.Count == 1 && pickWrite.Calls[0] == "pick:0:22:True",
                     "Pick write must only target the active local action.");
-                Require(pickRead.ActionPaths.Count == 3 && pickRead.ActionPaths[1] == LeagueAutoPickBanController.PickablePath,
+                Require(pickRead.ActionPaths.Count == 4 && pickRead.ActionPaths[1] == LeagueAutoPickBanController.PickablePath,
                     "Pick must read active session, pickable list and live preflight.");
             }
 
@@ -1409,7 +1411,7 @@ namespace FACM.League
                 await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
                 Require(banWrite.Calls.Count == 1 && banWrite.Calls[0] == "ban:4:67:True",
                     "Ban write must only target the active local action.");
-                Require(banRead.ActionPaths.Count == 3 && banRead.ActionPaths[1] == LeagueAutoPickBanController.BannablePath,
+                Require(banRead.ActionPaths.Count == 4 && banRead.ActionPaths[1] == LeagueAutoPickBanController.BannablePath,
                     "Ban must read the bannable list, not the pickable list.");
             }
 
@@ -1639,6 +1641,32 @@ namespace FACM.League
             }
         }
 
+
+        private static async Task ValidateActionReadbackAndUnknownAsync()
+        {
+            var action = LeagueAutoPickBanController.ParseCurrentAction(Bytes(Session("pick", 71, 0)));
+            Require(LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 22, false, "FINALIZATION", true)), action, 22, true),
+                "Completed local action must be visible even after BAN_PICK ends.");
+            Require(!LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 67, false, "FINALIZATION", true)), action, 22, true) &&
+                !LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 71, 22)), action, 22, true) &&
+                !LeagueAutoPickBanController.ActionMatchesReadback(Bytes(Session("pick", 72, 22, false, "FINALIZATION", true)), action, 22, true),
+                "Different action, champion or completion state must not confirm a lock.");
+            Require(LeagueChampSelectActionWriteApiClient.BuildActionJson(22, true) == "{\"championId\":22,\"completed\":true}",
+                "Combined PATCH body must match HLMD.");
+            var read = new FakeRead { SessionJson = Session("pick", 71, 0) };
+            var writer = new FakeWrite { LoseFirstResponse = true };
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, writer, clock))
+            {
+                controller.Configure(true, 22, false, 0);
+                controller.Observe(Selecting());
+                Require(writer.Calls.Count == 1 && clock.Delays == 2,
+                    "Unknown write outcome must not repeat on the next draft tick.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+        }
 
         internal static async Task ValidateWriteRetryAsync()
         {
@@ -2030,19 +2058,41 @@ namespace FACM.League
             }
         }
 
-        private sealed class FakeWrite : ILeagueChampSelectActionWriteApi
+        private sealed class FakeWrite : ILeagueChampSelectActionWriteApi, ILeagueScopedChampSelectActionWriteApi
         {
             public readonly List<string> Calls = new List<string>();
             public readonly List<string> IntentCalls = new List<string>();
             public int FailFirstResponses;
             public int FailFirstCompletedResponses;
             public int FailFirstIntentResponses;
+            public bool LoseFirstResponse;
+            public readonly List<LeagueClientSession> ExpectedOwners = new List<LeagueClientSession>();
+
+            public Task<LeagueClientWriteResponse> TryApplyAsync(string type, int id, int championId, bool completed,
+                LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped draft write needs owner.");
+                ExpectedOwners.Add(expected);
+                return TryApplyAsync(type, id, championId, completed, token);
+            }
+
+            public Task<LeagueClientWriteResponse> TryIntentAsync(int id, int championId, LeagueClientSession expected, CancellationToken token)
+            {
+                Require(expected != null, "Scoped draft intent needs owner.");
+                ExpectedOwners.Add(expected);
+                return TryIntentAsync(id, championId, token);
+            }
 
             public Task<LeagueClientWriteResponse> TryApplyAsync(
                 string type, int id, int championId, bool completed, CancellationToken cancellationToken)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Calls.Add(type + ":" + id + ":" + championId + ":" + completed);
+                if (LoseFirstResponse)
+                {
+                    LoseFirstResponse = false;
+                    return Task.FromResult<LeagueClientWriteResponse>(null);
+                }
                 var fail = FailFirstResponses > 0;
                 if (fail) FailFirstResponses--;
                 else if (completed && FailFirstCompletedResponses > 0)

@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueScopedPresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeagueScopedChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueScopedPostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueScopedPresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -292,6 +292,22 @@ namespace FACM.AppHost.Modules
             return writer == null
                 ? Task.FromResult<LeagueClientWriteResponse>(null)
                 : writer.TryIntentAsync(actionId, championId, cancellationToken);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedChampSelectActionWriteApi.TryApplyAsync(
+            string actionType, int actionId, int championId, bool completed, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _champSelectActionWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryApplyAsync(actionType, actionId, championId, completed, expected, token);
+        }
+
+        Task<LeagueClientWriteResponse> ILeagueScopedChampSelectActionWriteApi.TryIntentAsync(
+            int actionId, int championId, LeagueClientSession expected, CancellationToken token)
+        {
+            var writer = _champSelectActionWriter;
+            return writer == null ? Task.FromResult<LeagueClientWriteResponse>(null) :
+                writer.TryIntentAsync(actionId, championId, expected, token);
         }
 
         Task<LeagueClientWriteResponse> ILeagueBenchSwapWriteApi.TrySwapAsync(int championId, LeagueBenchSwapRoute route, CancellationToken cancellationToken)
