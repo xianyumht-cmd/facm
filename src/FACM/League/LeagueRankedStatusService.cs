@@ -15,6 +15,8 @@ namespace FACM.League
         public string Tier { get; set; }
         public string Division { get; set; }
         public int LeaguePoints { get; set; }
+        public bool LeaguePointsKnown { get; set; }
+        public bool RecordKnown { get; set; }
         public int Wins { get; set; }
         public int Losses { get; set; }
 
@@ -23,7 +25,9 @@ namespace FACM.League
             get
             {
                 if (string.IsNullOrEmpty(Tier)) return QueueType + " 未定级";
-                return QueueType + " " + Tier + " " + Division + " " + LeaguePoints + " LP (" + Wins + "胜" + Losses + "负)";
+                return QueueType + " " + Tier + " " + Division +
+                    (LeaguePointsKnown ? " " + LeaguePoints + " LP" : " · 胜点未知") +
+                    (RecordKnown ? " (" + Wins + "胜" + Losses + "负)" : string.Empty);
             }
         }
     }
@@ -97,20 +101,26 @@ namespace FACM.League
             object queuesRaw;
             var queueMap = root.TryGetValue("queueMap", out queuesRaw)
                 ? queuesRaw as Dictionary<string, object> : null;
-            if (queueMap != null)
+            if (queueMap == null) return LeagueRankedSnapshot.Unavailable;
             {
                 foreach (var pair in queueMap)
                 {
                     var entry = pair.Value as Dictionary<string, object>;
-                    if (entry == null) continue;
+                    if (entry == null) return LeagueRankedSnapshot.Unavailable;
+                    int lp, wins, losses;
+                    var lpKnown = TryReadNonnegativeInt(entry, "leaguePoints", out lp);
+                    var winsKnown = TryReadNonnegativeInt(entry, "wins", out wins);
+                    var lossesKnown = TryReadNonnegativeInt(entry, "losses", out losses);
                     queues.Add(new LeagueRankedQueueLine
                     {
                         QueueType = pair.Key,
                         Tier = ReadString(entry, "tier"),
                         Division = ReadString(entry, "division"),
-                        LeaguePoints = (int)ReadDouble(entry, "leaguePoints"),
-                        Wins = (int)ReadDouble(entry, "wins"),
-                        Losses = (int)ReadDouble(entry, "losses")
+                        LeaguePoints = lp,
+                        LeaguePointsKnown = lpKnown,
+                        RecordKnown = winsKnown && lossesKnown,
+                        Wins = wins,
+                        Losses = losses
                     });
                 }
             }
@@ -145,6 +155,11 @@ namespace FACM.League
             };
             AppLog.Info("LP change: " + notice.Summary);
             return notice;
+        }
+
+        private static bool TryReadNonnegativeInt(Dictionary<string, object> value, string key, out int result)
+        {
+            return int.TryParse(ReadString(value, key), NumberStyles.Integer, CultureInfo.InvariantCulture, out result) && result >= 0;
         }
 
         private static bool ReadBool(Dictionary<string, object> value, string key)

@@ -81,8 +81,9 @@ namespace FACM.League
             foreach (var item in items)
             {
                 var entry = item as Dictionary<string, object>;
-                if (entry == null) continue;
+                if (entry == null) return LeagueFriendActivitySnapshot.Unavailable;
                 var availability = ReadString(entry, "availability");
+                if (string.IsNullOrWhiteSpace(availability)) return LeagueFriendActivitySnapshot.Unavailable;
                 var offline = string.Equals(availability, "offline", StringComparison.OrdinalIgnoreCase);
 
                 object lolRaw;

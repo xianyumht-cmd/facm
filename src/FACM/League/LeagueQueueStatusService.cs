@@ -14,6 +14,8 @@ namespace FACM.League
 
         public bool Available { get; set; }
         public bool InQueue { get; set; }
+        public bool ElapsedKnown { get; set; }
+        public bool EstimateKnown { get; set; }
         public double EstimatedSeconds { get; set; }
         public double SecondsInQueue { get; set; }
         public int QueueId { get; set; }
@@ -28,8 +30,8 @@ namespace FACM.League
                 if (!InQueue) return "未在排队";
                 var queued = (int)Math.Round(SecondsInQueue);
                 var estimate = (int)Math.Round(EstimatedSeconds);
-                var text = "排队中 " + queued / 60 + ":" + (queued % 60).ToString("00", CultureInfo.InvariantCulture);
-                if (estimate > 0) text += " · 预计 " + estimate + " 秒";
+                var text = ElapsedKnown ? "排队中 " + queued / 60 + ":" + (queued % 60).ToString("00", CultureInfo.InvariantCulture) : "排队中";
+                text += EstimateKnown && estimate > 0 ? " · 预计 " + estimate + " 秒" : " · 预计时间未知";
                 return text;
             }
         }
@@ -53,6 +55,11 @@ namespace FACM.League
         public async Task<LeagueQueueStatus> ReadAsync(CancellationToken cancellationToken)
         {
             var bytes = await _reader.TryGetBytesAsync(SearchPath, cancellationToken).ConfigureAwait(false);
+            return ParseSearch(bytes);
+        }
+
+        internal static LeagueQueueStatus ParseSearch(byte[] bytes)
+        {
             if (bytes == null || bytes.Length == 0) return LeagueQueueStatus.Unavailable;
 
             System.Collections.Generic.Dictionary<string, object> root;
@@ -63,7 +70,11 @@ namespace FACM.League
             }
             catch (ArgumentException) { return LeagueQueueStatus.Unavailable; }
             catch (InvalidOperationException) { return LeagueQueueStatus.Unavailable; }
-            if (root == null) return LeagueQueueStatus.Unavailable;
+            object inQueue;
+            if (root == null || !root.TryGetValue("isCurrentlyInQueue", out inQueue) || !(inQueue is bool)) return LeagueQueueStatus.Unavailable;
+            double elapsed, estimate;
+            var elapsedKnown = TryReadDuration(root, "timeInQueue", out elapsed);
+            var estimateKnown = TryReadDuration(root, "estimatedQueueTime", out estimate);
 
             object lowRaw;
             var low = root.TryGetValue("lowPriorityData", out lowRaw)
@@ -72,19 +83,26 @@ namespace FACM.League
             return new LeagueQueueStatus
             {
                 Available = true,
-                InQueue = ReadBool(root, "isCurrentlyInQueue"),
-                EstimatedSeconds = ReadDouble(root, "estimatedQueueTime"),
-                SecondsInQueue = ReadDouble(root, "timeInQueue"),
+                InQueue = (bool)inQueue,
+                ElapsedKnown = elapsedKnown,
+                EstimateKnown = estimateKnown,
+                EstimatedSeconds = estimate,
+                SecondsInQueue = elapsed,
                 QueueId = (int)ReadDouble(root, "queueId"),
                 PenaltySecondsRemaining = ReadDouble(low, "penaltyTimeRemaining"),
                 SearchState = ReadString(root, "searchState")
             };
         }
 
-        private static bool ReadBool(System.Collections.Generic.Dictionary<string, object> value, string key)
+        private static bool TryReadDuration(System.Collections.Generic.Dictionary<string, object> value, string key, out double result)
         {
-            object entry;
-            return value != null && value.TryGetValue(key, out entry) && entry is bool && (bool)entry;
+            result = 0;
+            var raw = ReadString(value, key);
+            double parsed;
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed) ||
+                double.IsNaN(parsed) || double.IsInfinity(parsed) || parsed < 0 || parsed > int.MaxValue) return false;
+            result = parsed;
+            return true;
         }
 
         private static string ReadString(System.Collections.Generic.Dictionary<string, object> value, string key)

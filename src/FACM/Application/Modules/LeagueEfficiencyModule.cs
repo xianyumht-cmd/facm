@@ -258,6 +258,23 @@ namespace FACM.AppHost.Modules
             return true;
         }
 
+        internal string InsightPhase
+        {
+            get
+            {
+                var state = _dashboard.CurrentGameflowState;
+                return state != null && state.Connected ? state.Phase : null;
+            }
+        }
+
+        internal async Task<LeagueInsightSnapshot> ReadInsightsAsync(string phase, CancellationToken token)
+        {
+            ThrowIfDisposed();
+            if (string.IsNullOrEmpty(phase) || !string.Equals(phase, InsightPhase, StringComparison.Ordinal)) return null;
+            var result = await _leagueClient.ReadInsightsAsync(phase, token).ConfigureAwait(false);
+            return !_disposed && string.Equals(phase, InsightPhase, StringComparison.Ordinal) ? result : null;
+        }
+
         public Task<LeagueDynamicMessageSnapshot> LoadDynamicMessagesAsync(CancellationToken token,
             int? historyLoadCount = null, string historyTagPreference = null,
             bool? queryInLobbyPhase = null, int? historyConcurrency = null)

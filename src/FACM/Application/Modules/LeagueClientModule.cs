@@ -68,6 +68,39 @@ namespace FACM.AppHost.Modules
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
         }
 
+        internal async Task<LeagueInsightSnapshot> ReadInsightsAsync(string phase, CancellationToken token)
+        {
+            var owner = _insights;
+            var session = CurrentSession;
+            if (owner == null || session == null) return null;
+            var before = await ReadInsightAccountAsync(token).ConfigureAwait(false);
+            if (!LeagueDynamicMessageService.SafePuuid(before) || !LeagueEncounterReplayService.SessionMatches(session, CurrentSession)) return null;
+            var snapshot = await owner.ReadAsync(phase, token).ConfigureAwait(false);
+            var after = await ReadInsightAccountAsync(token).ConfigureAwait(false);
+            return ReferenceEquals(owner, _insights) && string.Equals(before, after, StringComparison.Ordinal) &&
+                LeagueEncounterReplayService.SessionMatches(session, CurrentSession) ? snapshot : null;
+        }
+
+        private async Task<string> ReadInsightAccountAsync(CancellationToken token)
+        {
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(3));
+                try
+                {
+                    var bytes = await TryGetBytesAsync("/lol-summoner/v1/current-summoner", deadline.Token).ConfigureAwait(false);
+                    if (bytes == null || bytes.Length == 0) return null;
+                    var root = new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(
+                        System.Text.Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                    object value;
+                    return root != null && root.TryGetValue("puuid", out value) ? value as string : null;
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+                catch (ArgumentException) { return null; }
+                catch (InvalidOperationException) { return null; }
+            }
+        }
+
         public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
         {
             var api = _api;
@@ -375,6 +408,7 @@ namespace FACM.AppHost.Modules
             _benchSwapWriter = null;
             _champSelectQuitWriter = null;
             _champSelectMuteWriter = null;
+            _insights = null;
             _matchmakingWriter = null;
             _champSelectActionWriter = null;
             _postGameWriter = null;
