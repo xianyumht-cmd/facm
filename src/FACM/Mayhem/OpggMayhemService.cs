@@ -62,12 +62,15 @@ namespace FACM.Mayhem
             {
                 overall.CancelAfter(TimeSpan.FromSeconds(5.5));
                 var requestToken = overall.Token;
+                var started = new List<Task>();
                 try
                 {
                     Report(progress, "正在读取国内排行与国服版本...");
                     var hexdataTask = GetQuerySourceAsync(HexdataHeroesUrl, TimeSpan.FromSeconds(2.8), requestToken, token);
                     var officialTask = CancelableHttpContentReader.AwaitOptionalSourceAsync(
                         TencentMayhemPatchService.FetchLatestAsync(requestToken), token);
+                    started.Add(hexdataTask);
+                    started.Add(officialTask);
 
                     string slug;
                     string hexdataHtml = null;
@@ -101,6 +104,7 @@ namespace FACM.Mayhem
                     var aramggTask = GetQuerySourceAsync(AramggRankingUrl, TimeSpan.FromSeconds(3.4), requestToken, token);
                     var opggTask = GetQuerySourceAsync(result.SourceUrl, TimeSpan.FromSeconds(2.2), requestToken, token);
 
+                    started.AddRange(new Task[] { rankingTask, rankingTopTask, aramggTask, opggTask });
                     if (hexdataHtml == null) hexdataHtml = await hexdataTask.ConfigureAwait(false);
                     await Task.WhenAll(rankingTask, rankingTopTask, aramggTask, opggTask).ConfigureAwait(false);
                     var rankingHtml = rankingTask.Result;
@@ -184,6 +188,10 @@ namespace FACM.Mayhem
                     AppLog.Error("Mayhem resilient query failed", exception);
                     result.ErrorMessage = "读取数据失败：" + exception.Message;
                     return result;
+                }
+                finally
+                {
+                    await CancelableHttpContentReader.CancelAndObserveSourcesAsync(overall, started).ConfigureAwait(false);
                 }
             }
         }
@@ -311,6 +319,7 @@ namespace FACM.Mayhem
         // One cached full ranking serves every visible champion and tier label.
         internal static async Task<MayhemRankingSnapshot> QueryCompactRankingAsync(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             bool stale;
             var existing = GetCachedCompactRanking(out stale);
             if (existing != null && !stale) return existing;
@@ -332,6 +341,8 @@ namespace FACM.Mayhem
 
                     // Return promptly when a full, patch-labeled source is available. No per-avatar HTTP.
                     var tasks = new List<Task<string>> { hexTask, aramTask, mayhemTask };
+                    try
+                    {
                     while (tasks.Count > 0)
                     {
                         Task<string> done;
@@ -342,6 +353,7 @@ namespace FACM.Mayhem
                         try { html = await done.ConfigureAwait(false); }
                         catch (OperationCanceledException) { if (token.IsCancellationRequested) throw; }
                         catch (Exception) { }
+                        token.ThrowIfCancellationRequested();
                         MayhemRankingSnapshot candidate;
                         if (ReferenceEquals(done, hexTask))
                         {
@@ -370,10 +382,16 @@ namespace FACM.Mayhem
                             // Best-effort atomic save; never hold back the primary UI result on disk failure.
                             MayhemCompactRankingCache.TrySave(selected, null, now);
                             // Release outstanding CDN requests as soon as one valid ranking is available.
-                            timeout.Cancel();
                             return selected;
                         }
                         if (ct.IsCancellationRequested) break;
+                    }
+                    token.ThrowIfCancellationRequested();
+                    }
+                    finally
+                    {
+                        await CancelableHttpContentReader.CancelAndObserveSourcesAsync(timeout,
+                            new Task[] { hexTask, aramTask, mayhemTask }).ConfigureAwait(false);
                     }
                 }
                 return null;
@@ -385,6 +403,7 @@ namespace FACM.Mayhem
         // a CN full ranking may fill the other champion badges without blocking first paint.
         internal static async Task<MayhemRankingSnapshot> QueryCompactFullRosterAsync(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             bool stale;
             var current = GetCachedCompactRanking(out stale);
             if (MayhemRankingSourceService.IsExpandedValid(current)) return current;
@@ -405,6 +424,7 @@ namespace FACM.Mayhem
                 await CompactRankingGate.WaitAsync(token).ConfigureAwait(false);
                 try
                 {
+                    token.ThrowIfCancellationRequested();
                     current = GetCachedCompactRanking(out stale);
                     var winner = MayhemRankingSourceService.Select(current, candidate);
                     if (!ReferenceEquals(winner, candidate)) return null;
@@ -647,6 +667,12 @@ namespace FACM.Mayhem
                 }
                 catch (Exception exception)
                 {
+                    token.ThrowIfCancellationRequested();
+                    if (timeout.IsCancellationRequested && CancelableHttpContentReader.IsCancellationSideEffect(exception))
+                    {
+                        AppLog.Info("Mayhem source budget expired: " + url + "; ms=" + watch.ElapsedMilliseconds);
+                        return null;
+                    }
                     AppLog.Info("Mayhem source request failed: " + url + "; ms=" + watch.ElapsedMilliseconds + "; " + exception.GetType().Name);
                     return null;
                 }

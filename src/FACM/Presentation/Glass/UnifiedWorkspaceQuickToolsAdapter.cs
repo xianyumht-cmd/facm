@@ -1,6 +1,9 @@
 using System;
 using System.Web.Script.Serialization;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using FACM.League;
 using FACM.AppHost.Modules;
 using FACM.Services;
 
@@ -12,6 +15,9 @@ namespace FACM.Presentation.Glass
         private readonly Action<string> _publish;
         private readonly Func<LeagueEfficiencyModule> _owner;
         private bool _actionBusy;
+        private bool _insightsOpen;
+        private string _insightPhase;
+        private CancellationTokenSource _insightCancellation;
 
         internal UnifiedWorkspaceQuickToolsAdapter(Func<bool> canPublish,
             Action<string> publish, Func<LeagueEfficiencyModule> owner)
@@ -141,6 +147,83 @@ namespace FACM.Presentation.Glass
                 exitHotkey = module.ExitGameHotkey,
                 lobbyHotkey = module.CloseLobbyHotkey
             }));
+        }
+
+        internal void OpenInsights()
+        {
+            if (!_canPublish()) return;
+            _insightsOpen = true;
+            RefreshInsights();
+        }
+
+        internal void InsightPhaseChanged(LeagueDashboardPhaseState state)
+        {
+            if (!_insightsOpen || !_canPublish()) return;
+            var phase = state != null && state.Connected ? state.Phase : null;
+            if (!string.Equals(_insightPhase, phase, StringComparison.Ordinal)) RefreshInsights();
+        }
+
+        internal void CancelInsights()
+        {
+            _insightsOpen = false;
+            CancelInsightRequest();
+            _insightPhase = null;
+        }
+
+        private void CancelInsightRequest()
+        {
+            var previous = _insightCancellation;
+            _insightCancellation = null;
+            if (previous != null) previous.Cancel();
+        }
+
+        internal async void RefreshInsights()
+        {
+            if (!_insightsOpen || !_canPublish()) return;
+            CancelInsightRequest();
+            var module = _owner();
+            _insightPhase = module == null ? null : module.InsightPhase;
+            var phase = _insightPhase;
+            if (string.IsNullOrEmpty(phase))
+            {
+                PublishInsights(null, phase);
+                return;
+            }
+
+            var source = new CancellationTokenSource();
+            _insightCancellation = source;
+            _publish("{\"type\":\"quick-insights-loading\"}");
+            try
+            {
+                var result = await module.ReadInsightsAsync(phase, source.Token);
+                if (InsightCurrent(module, source, phase)) PublishInsights(result, phase);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e)
+            {
+                AppLog.Info("League insight view unavailable: " + e.GetType().Name);
+                if (InsightCurrent(module, source, phase)) PublishInsights(null, phase);
+            }
+            finally
+            {
+                if (ReferenceEquals(_insightCancellation, source)) _insightCancellation = null;
+                source.Dispose();
+            }
+        }
+
+        private bool InsightCurrent(LeagueEfficiencyModule module, CancellationTokenSource source, string phase)
+        {
+            return _insightsOpen && _canPublish() && ReferenceEquals(_insightCancellation, source) &&
+                !source.IsCancellationRequested && ReferenceEquals(module, _owner()) &&
+                string.Equals(phase, module.InsightPhase, StringComparison.Ordinal);
+        }
+
+        private void PublishInsights(LeagueInsightSnapshot data, string phase)
+        {
+            if (!_canPublish() || !_insightsOpen) return;
+            var values = LeagueInsightPresentation.Project(data, phase);
+            values.Add("type", "quick-insights");
+            _publish(new JavaScriptSerializer().Serialize(values));
         }
 
         private static bool TryParseSetting(string request, out string key, out bool enabled)

@@ -3,6 +3,9 @@ using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
+using Microsoft.Web.WebView2.Core;
+using FACM.Services;
 
 namespace FACM.Presentation.Glass
 {
@@ -16,6 +19,30 @@ namespace FACM.Presentation.Glass
         private static readonly object Sync = new object();
         private static bool _registered;
         private static IntPtr _nativeHandle;
+        [ThreadStatic] private static Task<CoreWebView2Environment> _environment;
+
+        // Both surfaces use the same profile on the UI STA. Controllers remain window-owned.
+        internal static Task<CoreWebView2Environment> GetEnvironmentAsync()
+        {
+            if (_environment != null && !_environment.IsFaulted && !_environment.IsCanceled)
+            {
+                AppLog.Info("GGman WebView2 environment reused.");
+                return _environment;
+            }
+#if UNIFIED_RELEASE_CANDIDATE
+            PrepareNativeLoader();
+            if (!IsRuntimeAvailable(null)) throw new InvalidOperationException("WebView2 Evergreen Runtime unavailable.");
+#endif
+            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "FACM", "UnifiedWorkspaceWebView2");
+            _environment = CoreWebView2Environment.CreateAsync(null, data);
+            return _environment;
+        }
+
+        internal static void InvalidateEnvironment(Task<CoreWebView2Environment> expected)
+        {
+            if (expected != null && ReferenceEquals(_environment, expected)) _environment = null;
+        }
 
         internal static void Register()
         {

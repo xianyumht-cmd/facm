@@ -11,23 +11,87 @@ namespace FACM.Services
         private const string StoreTypeName = "FACM.ToolBundle.EmbeddedToolStore";
         private static readonly object SyncRoot = new object();
         private static MethodInfo _extractMethod;
+        private static volatile bool _securityBlocked;
+        internal static string SecurityState { get { return _securityBlocked ? "blocked_this_process" : "not_reported"; } }
 
         public static void Prepare()
         {
-            EnsureLoaded();
+            lock (SyncRoot)
+            {
+                ThrowIfSecurityBlocked();
+                try { EnsureLoaded(); }
+                catch (Exception exception)
+                {
+                    ObserveSecurityBlock(exception, "bundle_prepare");
+                    throw;
+                }
+            }
         }
 
         public static string Extract(string toolId)
         {
-            EnsureLoaded();
-            try
+            lock (SyncRoot)
             {
-                return (string)_extractMethod.Invoke(null, new object[] { toolId });
+                ThrowIfSecurityBlocked();
+                try
+                {
+                    EnsureLoaded();
+                    return (string)_extractMethod.Invoke(null, new object[] { toolId });
+                }
+                catch (TargetInvocationException exception)
+                {
+                    var cause = exception.InnerException ?? exception;
+                    ObserveSecurityBlock(cause, "tool_extract");
+                    throw cause;
+                }
+                catch (Exception exception)
+                {
+                    ObserveSecurityBlock(exception, "bundle_or_tool_extract");
+                    throw;
+                }
             }
-            catch (TargetInvocationException exception)
+        }
+
+        private static void ThrowIfSecurityBlocked()
+        {
+            if (_securityBlocked)
+                throw new InvalidOperationException("工具组件已被系统安全机制阻止，本次运行不可用。");
+        }
+
+        internal static bool IsSecurityBlock(Exception exception)
+        {
+            for (var cause = exception; cause != null; cause = cause.InnerException)
             {
-                throw exception.InnerException ?? exception;
+                var io = cause as IOException;
+                if (io != null && (io.HResult == unchecked((int)0x800700E1) ||
+                    io.HResult == unchecked((int)0x800700E2))) return true;
+                var win32 = cause as System.ComponentModel.Win32Exception;
+                if (win32 != null && (win32.NativeErrorCode == 225 || win32.NativeErrorCode == 226)) return true;
             }
+            return false;
+        }
+
+        internal static void ObserveSecurityBlock(Exception exception, string stage)
+        {
+            if (!IsSecurityBlock(exception)) return;
+            lock (SyncRoot)
+            {
+                if (_securityBlocked) return;
+                _securityBlocked = true;
+                AppLog.Info("Tool bundle unavailable: system security block; stage=" + stage);
+            }
+        }
+
+        internal static void ValidateForSmokeTest()
+        {
+            var blocked = new IOException("fixture", unchecked((int)0x800700E1));
+            var removed = new System.ComponentModel.Win32Exception(226);
+            if (!IsSecurityBlock(blocked) ||
+                !IsSecurityBlock(new TargetInvocationException(removed)) ||
+                IsSecurityBlock(new IOException("fixture", unchecked((int)0x80070020))) ||
+                IsSecurityBlock(new UnauthorizedAccessException()) ||
+                IsSecurityBlock(null))
+                throw new InvalidOperationException("Tool security classification regressed.");
         }
 
         private static void EnsureLoaded()
@@ -101,8 +165,12 @@ namespace FACM.Services
             catch (UnauthorizedAccessException) { return "access_denied"; }
             catch (IOException exception)
             {
-                var code = exception.HResult & 0xffff;
-                return code == 225 || code == 226 ? "security_block_reported" : "io_error_" + code;
+                if (IsSecurityBlock(exception))
+                {
+                    ObserveSecurityBlock(exception, "integrity_inspection");
+                    return "security_block_reported";
+                }
+                return "io_error_" + (exception.HResult & 0xffff);
             }
             catch (Exception exception) { return "unknown_" + exception.GetType().Name; }
         }

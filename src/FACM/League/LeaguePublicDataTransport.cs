@@ -53,6 +53,7 @@ namespace FACM.League
             CancellationToken cancellationToken,
             bool allowStale = true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Uri uri;
             if (!Uri.TryCreate(url, UriKind.Absolute, out uri) || !IsApproved(uri))
                 throw new InvalidDataException("LOL 公共数据地址不在允许范围内。");
@@ -69,6 +70,7 @@ namespace FACM.League
             await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (TryReadCache(cachePath, FreshCacheAge, false, out cached)) return cached;
 
                 var started = Stopwatch.StartNew();
@@ -78,6 +80,7 @@ namespace FACM.League
                     if (!CloudRouteControl.PublicSourceAllowed(uri.AbsoluteUri, ref timeout))
                         throw new InvalidOperationException("Public source temporarily disabled.");
                     var bytes = await DownloadAsync(uri, timeout, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
                     WriteCache(cachePath, bytes);
                     started.Stop();
                     AppLog.Info("LOL public data source succeeded: direct; host=" + uri.Host + "; ms=" + started.ElapsedMilliseconds);
@@ -96,6 +99,7 @@ namespace FACM.League
                 }
                 catch (Exception exception)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     started.Stop();
                     if (allowStale && TryReadCache(cachePath, StaleCacheAge, true, out cached))
                     {
@@ -164,11 +168,19 @@ namespace FACM.League
             {
                 linked.CancelAfter(timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(6) : timeout);
                 request.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7");
-                using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false))
+                try
                 {
-                    response.EnsureSuccessStatusCode();
-                    return await FACM.Mayhem.CancelableHttpContentReader.ReadBytesAsync(
-                        response.Content, linked.Token, (int)MaximumBodyBytes).ConfigureAwait(false);
+                    using (var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false))
+                    {
+                        response.EnsureSuccessStatusCode();
+                        return await FACM.Mayhem.CancelableHttpContentReader.ReadBytesAsync(
+                            response.Content, linked.Token, (int)MaximumBodyBytes).ConfigureAwait(false);
+                    }
+                }
+                catch (Exception exception) when (linked.IsCancellationRequested &&
+                    FACM.Mayhem.CancelableHttpContentReader.IsCancellationSideEffect(exception))
+                {
+                    throw new OperationCanceledException("Public source request cancelled.", exception, linked.Token);
                 }
             }
         }

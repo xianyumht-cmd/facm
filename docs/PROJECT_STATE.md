@@ -1,3 +1,73 @@
+## 2026-11-28 — Owner-authorized GGman 3.5.91 release request (PR #369)
+
+Owner explicitly authorizes a normal production online update for 3.5.91. Nonforced, non-prerelease, minimum 3.0.0. Preflight executable baseline 6d2fa74a passed Windows 46136855602, Glass 46136855601, UI Text 46136855589 and Mayhem 46136855593. Windows job 140953967595 explicitly ran all five mandatory contract entry points successfully; candidate signing used the existing self-signed verification path (not default Windows trust). The release request and assembly identity are now staged on the same PR. Final versioned-head gates must pass before merge triggers the main-only publisher; automatic merge is disabled and main does not enforce required checks. Production remains 3.5.90 until the signed release assets are independently read back and the manifest enabled. No cloud-control policy changes are part of this release. Personal field acceptance is waived, not claimed as passed. Unverified field recovery, physical performance, legacy tool provenance and remaining interface evidence are unchanged limitations.
+
+## 2026-11-28 — Integrated release preflight (PR #369)
+
+Diagnostic baseline 272ba5d8 passed Windows 46136367855, Glass 46136367842, UI Text 46136367864 and Mayhem 46136367887. Job-level inspection confirms the history synthetic gate, workspace routing and candidate package checks ran; five unrelated live CloudBase authorization checks were skipped by branch conditions. The Mayhem live-probe job remains informational on PRs. Source inspection confirms 23 registered workspace shards, the four existing solution projects, unchanged release request 3.5.90, and no experimental injection dependency in the inspected build graph. PR #369 is open, draft and mergeable against main 4c8a55fb. Main's online/version.json remains enabled, nonforced 3.5.90; control revision 20261127211002. No release or cloud mutation performed.
+
+Preflight found a coverage gap: the normal Windows gate explicitly executed only the history synthetic entry point; additional host, body-cancellation, performance-contract and update-mirror entry points were not all enforced. Candidate workflow changes require these existing deterministic contract entry points in Windows CI and require all five before signing in the official publisher. Exact-head 6d2fa74a executed the expanded gates successfully (Windows 46136855602; job 140953967595). Compilation and earlier green workflows are not proof that these newly enforced contracts pass. The owner waived personal in-game experimentation; actual affected-host recovery, live block/unblock/LP evidence, binary provenance and physical performance remain open. Production publication is separately authorized under AGENTS.md.
+
+## 2026-11-28 — Diagnostic export expansion (PR #369)
+
+WebView2 baseline d410a8c8 passed Windows 46135791910, Glass 46135791936, UI Text 46135791923 and Mayhem 46135791922. Health schema 2 adds on-demand host handle/uptime metrics, bounded WebView2 descendant process metrics with sampled count and explicit partial/unavailable status, and a separate bounded IPv4 TCP probe only for an OS-owner-validated LCU candidate. HTTP phase probe and socket classification remain independent. ZIP entry allowlist, size ceilings and atomic publication are unchanged; actual bytes read are now bounded even if a log grows after inspection. JSON secret/identity fields and URL query/fragment/userinfo redaction are strengthened, with synthetic coverage. No continuous sampler, command-line export, request body capture, credentials, external uploads or security changes. Descendant sums are snapshot estimates (shared working-set pages may be counted twice; detached/shared browsers outside the tree are not included), not a full-system or longitudinal benchmark. Exact-head 272ba5d8 passed all four workflows. The six planned work areas now have candidate changes; block/unblock, match-attributed LP, opaque tool provenance, affected-host root cause and physical performance remain unresolved or unverified. Production unchanged.
+
+## 2026-11-28 — WebView2 lifetime optimization (PR #369)
+
+Productization baseline 8b8e2535 passed Windows 46135116768, Glass 46135116766, UI Text 46135116774 and Mayhem 46135116783. Existing workbench already hides and reuses its controller; companion remains episode-scoped. Candidate shares the existing profile's environment creation task on the UI STA, evicts the matching failed environment, and does not retain closed companion controllers. Hidden workbench suppresses Gameflow publication and route reads, releases UI observers and refreshes the latest state on show. Startup's existing 20-second budget now accrues only while visible, preserving the render-frame readiness handshake across dismissal. Both forms release resources on direct Dispose as well as FormClosed. Added synthetic visibility/budget tests; exact-head d410a8c8 passed all four workflows. No background prewarming, browser suspension, new polling, or architecture change. Physical timing, browser process tree memory and repeated-open behavior are unmeasured. No production changes.
+
+## 2026-11-28 — LCU productization follow-up (PR #369)
+
+Guide response lifetime baseline 4b719b40 passed Windows 46134413628, Glass 46134413596, UI Text 46134413570 and Mayhem 46134413582. Product follow-up adds read-only blocked-list count to the shared friend overview using the reported GET route. Nonempty array entries must contain valid string IDs; unknown shapes remain unavailable. No identities are projected or logged, no new polling or write owner. Plugin path evidence supports a parameterized DELETE but does not establish its full normal-action contract; management remains disabled. Ranked tier labels reuse existing Chinese copy and distinguish missing from explicit UNRANKED. Postgame local attribution rejects zero IDs. Read groups honor caller cancellation and discard expired results. Synthetic fixtures cover these changes. Exact-head 8b8e2535 passed all four workflows. Match-attributed LP, actual blocked-list nonempty schema, block/unblock writes, real PvP and physical performance remain unverified; experimental injection stays outside production.
+
+## 2026-11-28 — Public guide response lifetime (PR #369)
+
+Tool security baseline 9a0a6a58 passed Windows 46133823469, Glass 46133823442, UI Text 46133823434 and Mayhem 46133823435. Production diagnostics from 2026-11-27 17:11 show Hexdata HTTP 503, ARAMMayhem ranking deadline, Jinx build response closed-stream exception, followed by usable ARAMGG 26.23 selection. Exact cause of the historical stream closure is not proven. The candidate already had cancellable body reads; this follow-up closes early-return scope lifetime gaps in champion lookup and compact ranking, cancels and observes all started source tasks before disposing the linked source, distinguishes cancellation-related transport errors from non-cancellation faults, and checks caller cancellation before cache publication and stale fallback. No provider priorities or network budgets changed. Synthetic cleanup and classification tests added to existing body-reader smoke. Exact-head 4b719b40 passed all four workflows; actual public-provider reliability remains external.
+
+## 2026-11-28 — Tool bundle security review (PR #369)
+
+LCU recovery baseline d56411c9 passed Windows 46133122860, Glass 46133122849, UI Text 46133122888 and Mayhem 46133122895. Tool bundle source inspection confirms only the legacy clean driver.exe is embedded; the other five historical inventory entries are not embedded in the current ToolBundle project. The old Fix-LCU-Window path is disabled in ToolRunner in favor of the native repair owner. The host EXE is signed by the existing publisher, and embedded resources are checked against SHA-256. Neither hash equality nor the host signature proves the legacy executable is safe or independently signed. The historical binary's publisher, source provenance and security detection verdict remain unverified; no execution or security-product changes were performed. Candidate changes classify Windows security errors 225/226, stop further bundle loading/extraction in the same process after a reported block, preserve unrelated application startup and export the classified state. Existing inventory hash checks remain unchanged. Synthetic classification tests are registered in host smoke. Exact-head 9a0a6a58 passed all four workflows; no production changes. A vendor security review or replacement with independently reviewed source is needed before declaring the binary safe.
+
+## 2026-11-28 — LCU connection recovery candidate (PR #369)
+
+Baseline 4a951729 passed Windows (46131734680), Glass (46131734704), UI Text (46131734683), Mayhem (46131734702). Production 3.5.90 diagnostics show repeated loopback ConnectFailure after successful lockfile parsing; exact TCP/TLS cause remains unknown. Research tools prefer current UX arguments over lockfiles. The candidate changes existing discovery ordering, validates active process IDs and IPv4 listening ownership when the OS table is available, and briefly excludes transport-failed identities before reconsideration. If listener enumeration is unavailable, only candidates with a known live declared PID retain the existing compatibility path, explicitly marked unknown. No new timer, dependency, proxy, authentication change or longer HTTP timeout. Diagnostics now export safe candidate evidence and nested socket/TLS exception classifications. Synthetic fixtures cover candidate selection evidence and sanitized errors. Physical comparison experiments are explicitly waived by the owner; exact-head d56411c9 passed all four workflows. Production remains unchanged.
+
+## 2026-11-28 — LCU product integration candidate (implementation in progress)
+
+Research evidence at 33b3e01a and ef93da84 established matchmaking restriction errors and mute-state transitions in Tencent 16.23 Practice Tool (synthetic identity only). The candidate now reads and verifies mute state, skips existing mute entries, uses 64-bit identity fields and an expected LCU client session, and stops on unavailable state or changed roster. No blind toggle or unsupported quit fallback is used. WebView2 and native companion are wired to the same C# owners; the quit action checks explicit server eligibility. Real PvP, concurrent manual mute, cross-session persistence, and physical DPI remain unverified.
+
+The existing Efficiency Shard has a WebView2 Data Overview tab for six read-only groups. It uses the existing Gameflow phase, one shared matchmaking read, sequential bounded reads, account/session fences, partial availability, and route cancellation. No new periodic poller or Shard. Ranked LP-change attribution, block-list UI, native fallback runtime validation, full duplicate-owner inventory, runtime performance and release readiness remain open. Research-derived smoke fixtures are registered in the existing league-history test; initial exact-head CI at 43dd03d5 passed Mayhem Source Probe (46128017613) but failed Windows Build (46128017615) and Glass (46128017621) on a stale usedFallback reference (CS0103), and UI Text Contract (46128017606) on six inline mute strings. Candidate correction removes the stale reference and routes those strings through the existing companion text registry. Corrected head a66d9db8 passed Windows Build (46128305071), Glass (46128305113), UI Text Contract (46128305123) and Mayhem Source Probe (46128305087). A subsequent candidate shares the overview projection between WebView2 and the existing native Efficiency form, with an inline overview, on-demand refresh, phase-change cancellation and no new polling. Missing LP delta/queue is now unknown, not zero; attribution to the current match remains unverified and is not displayed. Block-list removal route differs between README and FEATURE-PLAYBOOK, and write contract needs confirmed evidence before integration. Head 03abbebd passed Windows (46128879004), Glass (46128879002), UI Text (46128879007) and Mayhem (46128879033). The follow-up candidate isolates loot and mission failures with individual deadlines, distinguishes unknown mission status and known-zero CS, and adds synthetic regression fixtures. Source ownership and static packaging boundary findings are recorded in the integration plan. Block-list management and match-attributed LP still require sanitized live evidence. Candidate CI pending; production unchanged. Experimental native components are not a production dependency.
+
+## 2026-11-28 — LCU capability survey and client-side read/write owners
+
+The local client `/help` schema was fully exported: 1452 functions (1432 map to HTTP routes), 692
+events (680 resolve to routes), 3569 types. Artifacts live in `docs/lcu/`: `endpoints-full.md`,
+`events-full.md`, `types-full.md`, `endpoints.csv`, plus `README.md` (tiered analysis T0–T6),
+`QUIT-INVESTIGATION.md` and `CAPABILITY-MATRIX.md`.
+
+Champion Select exit is gated server-side, not by the UI. The plugin source (recovered from Ux
+process memory) posts to `/lol-lobby-team-builder/champ-select/v1/session/quit`, and button
+visibility reads only `session.showQuitButton`. Training/custom returns `showQuitButton=true` and the
+quit returns `204` with no penalty; PvP returns `false`, quit returns `400`
+`Current champ select does not allow quitting`, and `request-lobby` returns `200 false`. Seven exit
+paths were measured; the only one that changes phase in PvP is terminating `LeagueClient.exe`, which
+kills the whole chain and recovers in 17–21 seconds.
+
+New client-side owners added on branch `feat/champ-select-mute-20261128` (all compile with
+`dotnet build src\FACM\FACM.csproj`, .NET SDK 8.0.428 is now installed locally):
+
+- `LeagueChampSelectMuteRuntime` — mute-all in Champion Select (wired into the Companion header)
+- `LeagueLeaverBusterService` — penalty remaining time
+- `LeagueQueueStatusService` — queue estimate and low-priority seconds
+- `LeagueFriendActivityService` — real friend presence (mode/champion/joinable)
+- `LeagueEndOfGameStatsService` — post-game damage/gold/CS per player
+- `LeagueRewardsOverviewService` — loot and mission counts
+- `LeagueRankedStatusService` — standings and LP change notice
+- `LeagueBlockedPlayersService` — block list read and toggle
+- `LeagueInsightService` — parallel aggregate, registered in `LeagueClientModule`
+
+At the initial research baseline, only the native mute action was wired to UI. See the newer product integration candidate entry above for current implementation status.
+
 ## 2026-11-27 — EXE audit native signature verification
 
 ## 2026-11-27 — Release 3.5.90 closure candidate

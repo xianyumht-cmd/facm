@@ -66,6 +66,7 @@ namespace FACM.League
         private readonly Label _status;
         private readonly Label _timerLabel;
         private readonly Button _quitButton;
+        private readonly Button _muteButton;
         private readonly Button _pinButton;
         private readonly Button _collapseButton;
         private readonly Panel _context;
@@ -230,6 +231,10 @@ namespace FACM.League
             _quitButton.ForeColor = FacmDesignSystem.Warning;
             _quitButton.Enabled = false;
             _quitButton.Click += async delegate { await QuitChampSelectAsync(); };
+            _muteButton = CreateChromeButton(CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectShort), 148, 30);
+            _muteButton.ForeColor = FacmDesignSystem.TextMuted;
+            _muteButton.Enabled = false;
+            _muteButton.Click += async delegate { await MuteAllChampSelectAsync(); };
             _pinButton = CreateChromeButton("↑", 216, 30);
             _pinButton.ForeColor = FacmDesignSystem.Accent;
             _pinButton.Click += delegate { TogglePin(); };
@@ -243,6 +248,7 @@ namespace FACM.League
             _header.Controls.Add(_timerLabel);
             _header.Controls.Add(_status);
             _header.Controls.Add(_quitButton);
+            _header.Controls.Add(_muteButton);
             _header.Controls.Add(_pinButton);
             _header.Controls.Add(_collapseButton);
             _header.Controls.Add(close);
@@ -1109,9 +1115,41 @@ namespace FACM.League
             }
         }
 
+        private async Task MuteAllChampSelectAsync()
+        {
+            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectMute) return;
+            _actionBusy = true;
+            SetActionButtonsEnabled(false);
+            _contextStatus.ForeColor = FacmDesignSystem.TextMuted;
+            _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectBusy);
+            try
+            {
+                var result = await _controller.MuteAllChampSelectAsync(_lifetime.Token);
+                var ok = result != null && !result.NotInChampSelect && !result.StateUnavailable && result.Failed == 0;
+                _contextStatus.ForeColor = ok ? FacmDesignSystem.Success : FacmDesignSystem.Warning;
+                _contextStatus.Text = result == null ? CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed) : result.Summary;
+                SetStatus(_contextStatus.Text, _contextStatus.ForeColor);
+                AppLog.Info("Runtime Companion mute Champion Select: " +
+                            (result == null ? "no-result" : result.Summary));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception exception)
+            {
+                _contextStatus.ForeColor = FacmDesignSystem.Error;
+                _contextStatus.Text = CompanionText(LeagueRuntimeCompanionUiTextKeys.MuteChampSelectFailed);
+                SetStatus(_contextStatus.Text, FacmDesignSystem.Error);
+                AppLog.Info("Runtime Companion mute Champion Select failed: " + exception.Message);
+            }
+            finally
+            {
+                _actionBusy = false;
+                if (!IsDisposed) SetActionButtonsEnabled(true);
+            }
+        }
+
         private async Task QuitChampSelectAsync()
         {
-            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit) return;
+            if (_actionBusy || IsDisposed || _lifetime.IsCancellationRequested || !_controller.SupportsChampSelectQuit || !_controller.CurrentSnapshot.CanQuit) return;
             _actionBusy = true;
             SetActionButtonsEnabled(false);
             _contextStatus.ForeColor = FacmDesignSystem.Warning;
@@ -1287,7 +1325,9 @@ namespace FACM.League
         private void SetActionButtonsEnabled(bool enabled)
         {
             if (_quitButton != null)
-                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.SessionAvailable;
+                _quitButton.Enabled = enabled && _controller.SupportsChampSelectQuit && _controller.CurrentSnapshot.CanQuit;
+            if (_muteButton != null)
+                _muteButton.Enabled = enabled && _controller.SupportsChampSelectMute && _controller.CurrentSnapshot.SessionAvailable;
             if (_runes.Action != null)
                 _runes.Action.Enabled = enabled && _controller.CurrentSnapshot.AllowsRunes && _controller.SupportsBuildApply && _runes.Host.Visible;
             if (_spells.Action != null)

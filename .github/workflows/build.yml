@@ -145,6 +145,16 @@ jobs:
             throw "League history synthetic smoke failed with exit code $($smoke.ExitCode)"
           }
 
+      - name: Run host, response lifetime, performance and update contracts
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          foreach ($argument in @('--facm-host-test', '--mayhem-body-cancellation-test', '--performance-contract-test', '--update-mirror-test')) {
+            Write-Host "Running required contract: $argument"
+            $result = Start-Process -FilePath $exe -ArgumentList $argument -Wait -PassThru -NoNewWindow
+            if ($result.ExitCode -ne 0) { throw "Required contract failed: $argument (exit $($result.ExitCode))" }
+          }
+
       - name: Verify lightweight GGman.exe
         id: verify
         shell: pwsh

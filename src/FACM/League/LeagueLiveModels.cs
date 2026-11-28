@@ -65,6 +65,7 @@ namespace FACM.League
         }
 
         public bool SessionAvailable { get; set; }
+        public bool ShowQuitButton { get; set; }
         public bool BenchEnabled { get; set; }
         public bool AllowsSubsetChampionPicks { get; set; }
         public long GameId { get; set; }

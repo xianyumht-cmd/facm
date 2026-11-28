@@ -32,6 +32,7 @@ namespace FACM.AppHost
                 CloudBaseClient.ValidateForSmokeTest();
                 AppLog.ValidateForSmokeTest();
                 DiagnosticsExportService.ValidateForSmokeTest();
+                ToolBundleLoader.ValidateForSmokeTest();
                 FACM.Theming.FacmControlPrimitivesSmokeTest.Validate();
                 FACM.Mayhem.MayhemAutomaticGuideService.ValidateForSmokeTest();
                 LeagueChampSelectAssistantForm.ValidateForSmokeTest();

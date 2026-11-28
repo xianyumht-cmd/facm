@@ -68,6 +68,7 @@ namespace FACM.Presentation.Glass
                 message.StartsWith("toggle:", StringComparison.Ordinal) ||
                 message.StartsWith("hotkeys-save:", StringComparison.Ordinal) ||
                 message == "quick-action:close-lobby" ||
+                message == "insight:open" || message == "insight:refresh" || message == "insight:close" ||
                 message == "repair-action:exit" ||
                 message == "repair-action:restart" ||
                 message == "repair-action:window");
@@ -86,9 +87,13 @@ namespace FACM.Presentation.Glass
             else if (message.StartsWith("hotkeys-save:", StringComparison.Ordinal))
                 workspace.SaveQuickHotkeys(message.Substring("hotkeys-save:".Length));
             else if (message == "quick-action:close-lobby") workspace.CloseQuickLobby();
+            else if (message == "insight:open") workspace.OpenQuickInsights();
+            else if (message == "insight:refresh") workspace.RefreshQuickInsights();
+            else if (message == "insight:close") workspace.CancelQuickInsights();
             else workspace.ApplyRepairAction(message.Substring("repair-action:".Length));
         }
-        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute) { }
+        public void CancelOutside(UnifiedWorkspaceForm workspace, string nextRoute)
+        { if (!string.Equals(nextRoute, Route, StringComparison.Ordinal)) workspace.CancelQuickInsights(); }
     }
 
     internal sealed class AppearanceShard : IUnifiedWorkspaceShard

@@ -162,6 +162,16 @@ jobs:
             throw "GGman.exe was not produced: $env:OUTPUT_EXE"
           }
 
+      - name: Run required release contracts before signing
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path $env:OUTPUT_EXE).Path
+          foreach ($argument in @('--league-history-test', '--facm-host-test', '--mayhem-body-cancellation-test', '--performance-contract-test', '--update-mirror-test')) {
+            Write-Host "Running required release contract: $argument"
+            $result = Start-Process -FilePath $exe -ArgumentList $argument -Wait -PassThru -NoNewWindow
+            if ($result.ExitCode -ne 0) { throw "Required release contract failed: $argument (exit $($result.ExitCode))" }
+          }
+
       - name: Verify unified workspace and isolated single-EXE dependencies
         shell: pwsh
         run: |

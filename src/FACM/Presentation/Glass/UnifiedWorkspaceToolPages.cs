@@ -46,6 +46,10 @@ namespace FACM.Presentation.Glass
             SyncRepairState();
         }
 
+        internal void OpenQuickInsights() { QuickToolsAdapter.OpenInsights(); }
+        internal void RefreshQuickInsights() { QuickToolsAdapter.RefreshInsights(); }
+        internal void CancelQuickInsights() { if (_quickToolsAdapter != null) _quickToolsAdapter.CancelInsights(); }
+
         internal void ApplyQuickSetting(string request) { QuickToolsAdapter.Apply(request); }
         internal void SyncQuickSettings() { QuickToolsAdapter.Sync(); }
         internal void CloseQuickLobby() { QuickToolsAdapter.CloseLobby(); }

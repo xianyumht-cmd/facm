@@ -607,6 +607,7 @@ namespace FACM.League
             if (data == null) return state;
 
             state.SessionAvailable = true;
+            state.ShowQuitButton = ReadValue(data, "showQuitButton") is bool && (bool)ReadValue(data, "showQuitButton");
             state.BenchEnabled = ReadBool(data, "benchEnabled");
             state.AllowsSubsetChampionPicks = ReadBool(data, "allowSubsetChampionPicks");
             state.GameId = ReadLong(data, "gameId");

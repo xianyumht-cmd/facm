@@ -62,6 +62,16 @@ namespace FACM.Presentation.Glass
                 !runningDisconnected.Contains("\"clientProcess\":true") ||
                 !Serialize(null).Contains("\"observed\":false"))
                 throw new InvalidOperationException("Gameflow must distinguish initial detection, idle and a running disconnected client.");
+            var canPublish = false;
+            string latest = null;
+            var retained = new UnifiedWorkspaceGameflowAdapter(() => canPublish, json => latest = json);
+            retained.Update(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+            if (latest != null) throw new InvalidOperationException("Hidden workspace published gameflow.");
+            retained.Update(new LeagueDashboardPhaseState { Connected = true, Phase = "ChampSelect" });
+            canPublish = true;
+            retained.Sync();
+            if (latest == null || !latest.Contains("ChampSelect") || latest.Contains("Lobby"))
+                throw new InvalidOperationException("Reopened workspace did not publish the latest gameflow.");
             var posted = 0;
             var hidden = new UnifiedWorkspaceGameflowAdapter(() => false,
                 delegate { throw new InvalidOperationException("Hidden gameflow status published."); });

@@ -44,6 +44,8 @@ namespace FACM.Presentation.Glass
         private readonly System.Windows.Forms.Timer _startupTimer;
         private readonly Stopwatch _startupStopwatch = new Stopwatch();
         private bool _starting;
+        private bool _resourcesReleased;
+        private Task<CoreWebView2Environment> _environmentCreation;
         private bool _ready;
         private bool _navigationSucceeded;
         private bool _documentReady;
@@ -84,6 +86,7 @@ namespace FACM.Presentation.Glass
             _startupTimer = new System.Windows.Forms.Timer { Interval = StartupTimeoutMs };
             _startupTimer.Tick += delegate
             {
+                if (!Visible) { _startupTimer.Stop(); return; }
                 FailWebWorkspace("startup timeout; content handshake not received within " +
                     StartupTimeoutMs + "ms", null);
             };
@@ -108,22 +111,72 @@ namespace FACM.Presentation.Glass
             Shown += async delegate
             {
                 ApplyRoundedRegion();
-                _startupStopwatch.Start();
-                _startupTimer.Start();
+                ResumeStartupBudget();
                 await InitializeAsync();
             };
             FormClosing += HandleClosing;
-            FormClosed += delegate
+            VisibleChanged += HandleWorkspaceVisibility;
+            FormClosed += delegate { ReleaseWorkspaceResources(); };
+        }
+
+        private void ResumeStartupBudget()
+        {
+            if (!Visible || _ready || _closing || _browserUnavailable || _resourcesReleased) return;
+            _startupStopwatch.Start();
+            _startupTimer.Interval = RemainingStartupBudget(_startupStopwatch.ElapsedMilliseconds);
+            _startupTimer.Start();
+        }
+
+        internal static int RemainingStartupBudget(long elapsed)
+        {
+            return (int)Math.Max(1L, StartupTimeoutMs - Math.Max(0L, elapsed));
+        }
+
+        private void HandleWorkspaceVisibility(object sender, EventArgs args)
+        {
+            if (_closing || _resourcesReleased || IsDisposed) return;
+            if (!Visible)
             {
                 _startupTimer.Stop();
-                _startupTimer.Dispose();
-                try { if (_browser.CoreWebView2 != null) _browser.CoreWebView2.Stop(); }
-                catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.Message); }
-                UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
+                _startupStopwatch.Stop();
                 UnhookCloudEvents();
                 UnhookLocalStats();
-                _browser.Dispose();
-            };
+                return;
+            }
+            if (!_ready)
+            {
+                if (_starting) ResumeStartupBudget();
+                return;
+            }
+            SyncWebNavigation();
+            SyncGameflowState();
+            SyncThemeOptions();
+        }
+
+        private void ReleaseWorkspaceResources()
+        {
+            if (_resourcesReleased) return;
+            _resourcesReleased = true;
+            _closing = true;
+            VisibleChanged -= HandleWorkspaceVisibility;
+            _startupTimer.Stop();
+            _startupTimer.Dispose();
+            UnifiedWorkspaceShardCatalog.CancelOutside(this, null);
+            UnhookCloudEvents();
+            UnhookLocalStats();
+            try
+            {
+                var core = _browser.CoreWebView2;
+                if (core != null) { core.WebMessageReceived -= HandleWebMessage; core.Stop(); }
+            }
+            catch (Exception exception) { AppLog.Info("Unified workspace WebView2 shutdown: " + exception.GetType().Name); }
+            _browser.Dispose();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) ReleaseWorkspaceResources();
+            base.Dispose(disposing);
         }
 
         private static Panel CreateLoadingSurface(UiTextCatalog ui, ThemeDefinition palette)
@@ -170,14 +223,8 @@ namespace FACM.Presentation.Glass
             AppLog.Info("Unified workspace WebView2 initialization started.");
             try
             {
-                var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FACM", "UnifiedWorkspaceWebView2");
-#if UNIFIED_RELEASE_CANDIDATE
-                UnifiedWebView2Bundle.PrepareNativeLoader();
-                if (!UnifiedWebView2Bundle.IsRuntimeAvailable(null))
-                    throw new InvalidOperationException("WebView2 Evergreen Runtime is not installed.");
-#endif
-                var environment = await CoreWebView2Environment.CreateAsync(null, data);
+                _environmentCreation = UnifiedWebView2Bundle.GetEnvironmentAsync();
+                var environment = await _environmentCreation;
                 if (IsDisposed || _browserUnavailable) return;
                 await _browser.EnsureCoreWebView2Async(environment);
                 if (IsDisposed || _browserUnavailable || _browser.CoreWebView2 == null) return;
@@ -272,8 +319,7 @@ namespace FACM.Presentation.Glass
             SyncWebNavigation();
             SyncGameflowState();
             SyncThemeOptions();
-            HookCloudEvents();
-            UnifiedWorkspaceShardCatalog.Ready(this, _navigation.Current);
+            if (Visible) UnifiedWorkspaceShardCatalog.Ready(this, _navigation.Current);
         }
 
         private static bool HasCompletedStartup(bool navigationSucceeded, bool documentReady)
@@ -283,7 +329,7 @@ namespace FACM.Presentation.Glass
 
         private bool CanPublishOnRoute(string route, string relatedRoute = null)
         {
-            return !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
+            return Visible && !IsDisposed && !_closing && _ready && _browser.CoreWebView2 != null &&
                 (_navigation.Current == route ||
                  (relatedRoute != null && _navigation.Current == relatedRoute));
         }
@@ -323,6 +369,7 @@ namespace FACM.Presentation.Glass
             _startupTimer.Stop();
             _browserUnavailable = true;
             _ready = false;
+            UnifiedWebView2Bundle.InvalidateEnvironment(_environmentCreation);
             if (exception == null)
                 AppLog.Info("Unified workspace WebView2 fallback: " + reason);
             else
@@ -337,8 +384,8 @@ namespace FACM.Presentation.Glass
         {
             if (IsDisposed || _closing || !CanDismiss(_browserUnavailable, _ownerBall.IsExiting,
                 RequiresForcedOnlineUpdate, OnlineInstalling, HasActiveCleanup)) return false;
-            Hide();
             ReturnHome();
+            Hide();
             return true;
         }
 
@@ -360,7 +407,7 @@ namespace FACM.Presentation.Glass
                 CompleteWebWorkspaceReady();
                 return;
             }
-            if (!_ready) return;
+            if (!_ready || !Visible) return;
             if (message == "close")
             {
                 RequestCloseFromWeb();
@@ -485,7 +532,7 @@ namespace FACM.Presentation.Glass
 
         private void SyncWebNavigation()
         {
-            if (!_ready || IsDisposed || _browser.CoreWebView2 == null) return;
+            if (!Visible || !_ready || IsDisposed || _browser.CoreWebView2 == null) return;
             _browser.CoreWebView2.PostWebMessageAsString(
                 _navigation.IsHome ? "home" : "detail:" + _navigation.Current);
         }
@@ -575,6 +622,9 @@ namespace FACM.Presentation.Glass
                 throw new InvalidOperationException("Unified workspace HTML must acknowledge complete script initialization.");
             if (!html.Contains("requestAnimationFrame(function(){requestAnimationFrame(function(){post(\"shell-ready\");});});"))
                 throw new InvalidOperationException("Unified workspace must wait for a render opportunity before hiding its native startup surface.");
+            if (RemainingStartupBudget(0) != StartupTimeoutMs || RemainingStartupBudget(1500) != StartupTimeoutMs - 1500 ||
+                RemainingStartupBudget(StartupTimeoutMs + 1L) != 1)
+                throw new InvalidOperationException("Hidden startup must preserve the remaining visible-time budget.");
             if (!CanDismiss(false, false, false, false, false) ||
                 CanDismiss(true, false, false, false, false) ||
                 CanDismiss(false, true, false, false, false) ||

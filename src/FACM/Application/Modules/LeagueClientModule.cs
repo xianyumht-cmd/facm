@@ -8,7 +8,7 @@ using FACM.Services;
 
 namespace FACM.AppHost.Modules
 {
-    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi
+    internal sealed class LeagueClientModule : IFacmModule, ILeagueClientApi, ILeagueRiotAliasLookupApi, ILeagueSgpMatchHistoryApi, ILeagueSgpTaggedHistoryApi, ILeagueSgpPlayerChallengesApi, ILeagueSgpGsmApi, ILeagueSgpStatsEogApi, ILeagueMasteryReadApi, ILeagueClientWriteApi, ILeagueGameflowReconnectWriteApi, ILeagueChampSelectActionWriteApi, ILeaguePostGameWriteApi, ILeagueReplayWriteApi, ILeagueMatchmakingWriteApi, ILeagueLobbyInviteWriteApi, ILeagueLobbyNoticeWriteApi, ILeagueChampSelectSideWriteApi, ILeaguePrivateChatWriteApi, ILeagueQuickMessageWriteApi, ILeagueTaggedPlayerNoticeWriteApi, ILeagueBenchSwapWriteApi, ILeagueChampionTradeWriteApi, ILeagueChampSelectQuitWriteApi, ILeaguePresenceWriteApi, ILeagueProfileWriteApi, ILeagueRegaliaWriteApi, ILeagueChallengePreferencesWriteApi, ILeagueEmoteLoadoutWriteApi, ILeagueClientUxRepairWriteApi, ILeagueChampSelectMuteWriteApi
     {
         private static readonly IReadOnlyList<string> NoDependencies = Array.Empty<string>();
         private readonly ILeagueClientSessionDiscovery _discovery;
@@ -23,6 +23,8 @@ namespace FACM.AppHost.Modules
         private LeagueChampSelectActionWriteApiClient _champSelectActionWriter;
         private LeagueBenchSwapWriteApiClient _benchSwapWriter;
         private LeagueChampSelectQuitWriteApiClient _champSelectQuitWriter;
+        private LeagueChampSelectMuteWriteApiClient _champSelectMuteWriter;
+        private LeagueInsightService _insights;
         private LeaguePresenceWriteApiClient _presenceWriter;
         private LeagueProfileWriteApiClient _profileWriter;
         private LeagueRegaliaWriteApiClient _regaliaWriter;
@@ -55,6 +57,8 @@ namespace FACM.AppHost.Modules
             _champSelectActionWriter = new LeagueChampSelectActionWriteApiClient(_sessions);
             _benchSwapWriter = new LeagueBenchSwapWriteApiClient(_sessions);
             _champSelectQuitWriter = new LeagueChampSelectQuitWriteApiClient(_sessions);
+            _champSelectMuteWriter = new LeagueChampSelectMuteWriteApiClient(_sessions);
+            _insights = new LeagueInsightService(_api);
             _presenceWriter = new LeaguePresenceWriteApiClient(_sessions);
             _profileWriter = new LeagueProfileWriteApiClient(_sessions);
             _regaliaWriter = new LeagueRegaliaWriteApiClient(_sessions);
@@ -62,6 +66,40 @@ namespace FACM.AppHost.Modules
             _emoteLoadoutWriter = new LeagueEmoteLoadoutWriteApiClient(_sessions);
             _uxRepairWriter = new LeagueClientUxRepairWriteApiClient(_sessions);
             AppLog.Info("LeagueClient module initialized; local LCU session discovery is on-demand.");
+        }
+
+        internal async Task<LeagueInsightSnapshot> ReadInsightsAsync(string phase, CancellationToken token)
+        {
+            var owner = _insights;
+            if (!LeagueInsightService.IsApplicablePhase(phase)) return new LeagueInsightSnapshot();
+            var session = CurrentSession;
+            if (owner == null || session == null) return null;
+            var before = await ReadInsightAccountAsync(token).ConfigureAwait(false);
+            if (!LeagueDynamicMessageService.SafePuuid(before) || !LeagueEncounterReplayService.SessionMatches(session, CurrentSession)) return null;
+            var snapshot = await owner.ReadAsync(phase, token).ConfigureAwait(false);
+            var after = await ReadInsightAccountAsync(token).ConfigureAwait(false);
+            return ReferenceEquals(owner, _insights) && string.Equals(before, after, StringComparison.Ordinal) &&
+                LeagueEncounterReplayService.SessionMatches(session, CurrentSession) ? snapshot : null;
+        }
+
+        private async Task<string> ReadInsightAccountAsync(CancellationToken token)
+        {
+            using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+            {
+                deadline.CancelAfter(TimeSpan.FromSeconds(3));
+                try
+                {
+                    var bytes = await TryGetBytesAsync("/lol-summoner/v1/current-summoner", deadline.Token).ConfigureAwait(false);
+                    if (bytes == null || bytes.Length == 0) return null;
+                    var root = new System.Web.Script.Serialization.JavaScriptSerializer().DeserializeObject(
+                        System.Text.Encoding.UTF8.GetString(bytes)) as Dictionary<string, object>;
+                    object value;
+                    return root != null && root.TryGetValue("puuid", out value) ? value as string : null;
+                }
+                catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
+                catch (ArgumentException) { return null; }
+                catch (InvalidOperationException) { return null; }
+            }
         }
 
         public Task<byte[]> TryGetBytesAsync(string path, CancellationToken cancellationToken)
@@ -273,6 +311,15 @@ namespace FACM.AppHost.Modules
                 : writer.TryQuitAsync(cancellationToken);
         }
 
+        Task<LeagueClientWriteResponse> ILeagueChampSelectMuteWriteApi.TryToggleAsync(
+            string identityJson, LeagueClientSession expected, CancellationToken cancellationToken)
+        {
+            var writer = _champSelectMuteWriter;
+            return writer == null
+                ? Task.FromResult<LeagueClientWriteResponse>(null)
+                : writer.TryToggleAsync(identityJson, expected, cancellationToken);
+        }
+
         Task<LeagueClientWriteResponse> ILeagueChampSelectQuitWriteApi.TryRequestLobbyAsync(CancellationToken cancellationToken)
         {
             var writer = _champSelectQuitWriter;
@@ -344,6 +391,7 @@ namespace FACM.AppHost.Modules
             var presenceWriter = _presenceWriter;
             var benchSwapWriter = _benchSwapWriter;
             var champSelectQuitWriter = _champSelectQuitWriter;
+            var champSelectMuteWriter = _champSelectMuteWriter;
             var matchmakingWriter = _matchmakingWriter;
             var champSelectActionWriter = _champSelectActionWriter;
             var postGameWriter = _postGameWriter;
@@ -360,6 +408,8 @@ namespace FACM.AppHost.Modules
             _presenceWriter = null;
             _benchSwapWriter = null;
             _champSelectQuitWriter = null;
+            _champSelectMuteWriter = null;
+            _insights = null;
             _matchmakingWriter = null;
             _champSelectActionWriter = null;
             _postGameWriter = null;
@@ -377,6 +427,7 @@ namespace FACM.AppHost.Modules
             if (presenceWriter != null) presenceWriter.Dispose();
             if (benchSwapWriter != null) benchSwapWriter.Dispose();
             if (champSelectQuitWriter != null) champSelectQuitWriter.Dispose();
+            if (champSelectMuteWriter != null) champSelectMuteWriter.Dispose();
             if (matchmakingWriter != null) matchmakingWriter.Dispose();
             if (champSelectActionWriter != null) champSelectActionWriter.Dispose();
             if (postGameWriter != null) postGameWriter.Dispose();

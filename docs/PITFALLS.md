@@ -1,3 +1,48 @@
+## 2026-11-28 — Optional source scope ownership
+
+Returning the first usable ranking or an unresolved champion must not dispose a linked cancellation source while started child requests still depend on it. Cancel and observe remaining tasks before scope disposal. Normalize closed-stream and wrapped transport failures as cancellation only when the relevant token is cancelled; an ordinary I/O failure is still a failure. Caller cancellation wins over stale-cache fallback. Preserve the available sibling result and the existing source budgets. A historical closed-stream log is evidence of a symptom, not proof of which disposal path triggered it.
+
+## 2026-11-28 — Tool bundle integrity is not safety
+
+The current ToolBundle embeds only one historical executable despite the six-entry extracted-tool inventory. A signed outer EXE and matching SHA-256 values do not independently authenticate or establish safety of an opaque embedded binary. Windows 225/226 errors are explicit security-product evidence, unlike sharing violations or general access denied. The candidate stops repeated loading after such a report and preserves diagnostics; never bypass a protection verdict or equate a later successful hash with a false positive.
+
+## 2026-11-28 — Parsed lockfile is not a connected LCU
+
+A syntactically valid lockfile may describe an obsolete or unavailable endpoint. Production 3.5.90 logs repeatedly showed ConnectFailure following successful discovery; neither an unchanged port nor a past file-security event establishes the cause. The candidate prefers current UX arguments, checks live PID/listener evidence and distinguishes connection failure from HTTP rejection. Do not fix an unknown transport fault by increasing timeouts, disabling security controls, or logging credentials. Research success on another machine is not proof of repair on the affected host.
+
+## 2026-11-28 — LCU route probing and Champion Select exit
+
+Two 404s mean opposite things. `RESOURCE_NOT_FOUND / Invalid URI format` means the route is not
+registered; `RPC_ERROR / No champ select session in progress` (or `No active delegate`,
+`LOBBY_NOT_FOUND`) means the route exists and the session is simply absent. Judge availability by
+which 404 you get, never by the status code alone.
+
+Champion Select runs on two different plugins. PvP uses `lol-lobby-team-builder`
+(`/lol-lobby-team-builder/champ-select/v1/*`); custom and training use the legacy
+`/lol-champ-select/v1/*`. `GET /lol-lobby-team-builder/champ-select/v1/implementation-active` is the
+discriminator. Rewriting one prefix onto the other must be limited to paths that exist on both
+sides: `session`, `session/timer`, `session/actions` only exist under team-builder during PvP,
+while `toggle-player-muted` and `muted-players` exist **only** under the legacy prefix. A blanket
+prefix rewrite silently turns mute into a 404.
+
+A 2xx is not success. `POST /lol-gameflow/v1/session/request-lobby` returns `200` with body
+`false` during PvP Champion Select, and `POST /lol-gameflow/v1/session/dodge` returns `204` without
+changing the phase. Writes must verify the body or re-read `gameflow-phase`.
+
+Active queue penalties are reported by `GET /lol-matchmaking/v1/search` inside `errors[]` as
+`errorType: QUEUE_DODGER` with `penaltyTimeRemaining`. `leaver-buster/v1/notifications` returned an
+empty array while a 10.9-hour lock was in force, and `ranked-restriction` only covers ranked bans.
+Judging "no penalty" from either of those led to repeated retries that escalated the lock.
+
+Champion Select plugin JavaScript is not on disk: `assets.wad` files are zstd resource packs and
+`resources.pak` holds only CEF service-worker code. The only way to read it is to scan the running
+`LeagueClientUx` process memory for feature strings and dump the surrounding bytes. The same
+technique yields other plugins.
+
+Inspect the nearest existing implementation before adding an owner. Two writers were duplicated in
+this pass because `ILeaguePresenceWriteApi` (`PUT /lol-chat/v1/me`) and the message sender in
+`LeagueMatchmakingWriteRuntime` already existed.
+
 ## 2026-11-27 — EXE audit native signature verification
 
 ## 2026-11-27 — Release 3.5.90 closure candidate

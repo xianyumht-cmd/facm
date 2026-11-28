@@ -119,6 +119,11 @@ namespace FACM.Presentation.Glass
                 !Routes["quick-messages"].Recognizes("quick-message-save:{}") ||
                 Routes["quick-messages"].Recognizes("advanced-save:{}") ||
                 !Routes[LeagueHubNavigation.Efficiency].Recognizes("quick-action:close-lobby") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("insight:open") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("insight:refresh") ||
+                !Routes[LeagueHubNavigation.Efficiency].Recognizes("insight:close") ||
+                Routes[LeagueHubNavigation.Efficiency].Recognizes("insight:unknown") ||
+                Routes[LeagueHubNavigation.Player].Recognizes("insight:open") ||
                 !Routes[LeagueHubNavigation.Efficiency].Recognizes("hotkeys-save:{}") ||
                 !Routes[LeagueHubNavigation.Efficiency].Recognizes("repair-action:exit") ||
                 Routes[LeagueHubNavigation.Efficiency].Recognizes("repair-action:unknown") ||
