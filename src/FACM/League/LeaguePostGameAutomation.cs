@@ -91,6 +91,7 @@ namespace FACM.League
         internal const string VoteCompletionPath = "/lol-honor-v2/v1/vote-completion";
         internal const string CurrentSummonerPath = "/lol-summoner/v1/current-summoner";
         internal const string GameflowSessionPath = "/lol-gameflow/v1/session";
+        internal const string GameflowPhasePath = "/lol-gameflow/v1/gameflow-phase";
         internal const string EndOfGamePartyPath = "/lol-lobby/v2/party/eog-status";
         internal const string CurrentSequenceEventPath = "/lol-pre-end-of-game/v1/currentSequenceEvent";
         private static readonly TimeSpan BallotPollInterval = TimeSpan.FromMilliseconds(600);
@@ -124,6 +125,10 @@ namespace FACM.League
         private bool _insidePostGame;
         private bool _cycleStarted;
         private bool _ballotRefreshAttempted;
+        private bool _returnPending;
+        private string _lastReturnOutcome;
+
+        internal string LastReturnOutcome { get { lock (_sync) return _lastReturnOutcome; } }
         private bool _disposed;
 
         public LeaguePostGameAutomationController(ILeagueClientApi read, ILeaguePostGameWriteApi write)
@@ -221,6 +226,8 @@ namespace FACM.League
                 _cycleStarted = false;
                 _missionAttempted = false;
                 _missionAttempts = 0;
+                _returnPending = false;
+                _lastReturnOutcome = null;
                 _episodeOwner = next;
             }
         }
@@ -338,6 +345,9 @@ namespace FACM.League
                 _autoHonor = autoHonor;
                 _autoReturn = autoReturn;
                 _insidePostGame = true;
+                _returnPending = false;
+                _lastReturnOutcome = null;
+                _lastHonorStatus = null;
                 _ballotRefreshAttempted = false;
                 if (_sessionProvider != null) _episodeOwner = _sessionProvider();
             }
@@ -354,6 +364,9 @@ namespace FACM.League
                 if (_disposed || !IsOwnerCurrentLocked()) return false;
                 if (!postGame)
                 {
+                    if (_returnPending)
+                        FinishReturnLocked(string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase) && state.Connected
+                            ? "lobby-observed" : "phase-changed-unverified");
                     _insidePostGame = false;
                     _cycleStarted = false;
                     CancelCycleLocked();
@@ -363,6 +376,9 @@ namespace FACM.League
                 _insidePostGame = true;
                 if (_cycleStarted || (!_autoHonor && !_autoReturn)) return false;
                 _cycleStarted = true;
+                _returnPending = false;
+                _lastReturnOutcome = null;
+                _lastHonorStatus = null;
                 _ballotRefreshAttempted = false;
                 CancelCycleLocked();
                 _cycleCancellation = new CancellationTokenSource();
@@ -396,12 +412,115 @@ namespace FACM.League
 
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsStillEnabledForReturn()) return;
-            var response = await SendScopedAsync(
-                "POST",
-                LeaguePostGameWriteApiClient.PlayAgainPath,
-                null,
-                cancellationToken).ConfigureAwait(false);
-            AppLog.Info("League auto return lobby: " + (IsSuccess(response) ? "submitted" : "failed"));
+            await ReturnToLobbyAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task ReturnToLobbyAsync(CancellationToken token)
+        {
+            var skipAttempted = false;
+            // The official skip operation and play-again are separate state transitions.
+            // Do not dismiss an unresolved honor ballot or a mission celebration.
+            for (var attempt = 0; attempt < 16; attempt++)
+            {
+                if (!IsStillEnabledForReturn()) return;
+                var phase = await ReadPhaseAsync(token).ConfigureAwait(false);
+                if (!IsStillEnabledForReturn()) return;
+                if (string.Equals(phase, "Lobby", StringComparison.OrdinalIgnoreCase))
+                {
+                    lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("already-lobby");
+                    return;
+                }
+                if (string.Equals(phase, "EndOfGame", StringComparison.OrdinalIgnoreCase))
+                {
+                    lock (_sync)
+                    {
+                        if (!IsStillEnabledForReturn()) return;
+                        _returnPending = true;
+                    }
+                    var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.PlayAgainPath,
+                        null, token).ConfigureAwait(false);
+                    AppLog.Info("League auto return lobby: " + (IsSuccess(response) ? "submitted" : "submission-unverified"));
+                    // Even a lost response may have moved the client. Never repeat play-again blindly.
+                    for (var check = 0; check < 10; check++)
+                    {
+                        await _clock.Delay(TimeSpan.FromMilliseconds(600), token).ConfigureAwait(false);
+                        var observed = await ReadPhaseAsync(token).ConfigureAwait(false);
+                        lock (_sync)
+                        {
+                            if (!_returnPending || !IsOwnerCurrentLocked()) return;
+                            if (string.Equals(observed, "Lobby", StringComparison.OrdinalIgnoreCase))
+                            {
+                                FinishReturnLocked("lobby-observed");
+                                return;
+                            }
+                            if (!string.IsNullOrEmpty(observed) && !IsPostGamePhase(observed))
+                            {
+                                FinishReturnLocked("phase-changed-unverified");
+                                return;
+                            }
+                        }
+                    }
+                    lock (_sync) if (_returnPending && IsOwnerCurrentLocked()) FinishReturnLocked("return-unverified");
+                    return;
+                }
+                if (!string.IsNullOrEmpty(phase) && !IsPostGamePhase(phase))
+                {
+                    lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("phase-ineligible");
+                    return;
+                }
+                if (!skipAttempted && string.Equals(phase, "PreEndOfGame", StringComparison.OrdinalIgnoreCase) &&
+                    CanSkipSequence())
+                {
+                    var current = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                    var sequence = ReadString(ParseObject(current), "name");
+                    if (!string.IsNullOrWhiteSpace(sequence) &&
+                        !string.Equals(sequence, "missions-celebration", StringComparison.Ordinal) &&
+                        sequence.IndexOf("honor", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        CanSkipSequence() && IsStillEnabledForReturn())
+                    {
+                        var fresh = await ReadPhaseAsync(token).ConfigureAwait(false);
+                        if (string.Equals(fresh, "PreEndOfGame", StringComparison.OrdinalIgnoreCase) &&
+                            CanSkipSequence() && IsStillEnabledForReturn())
+                        {
+                            var confirmation = await _read.TryGetBytesAsync(CurrentSequenceEventPath, token).ConfigureAwait(false);
+                            if (string.Equals(sequence, ReadString(ParseObject(confirmation), "name"), StringComparison.Ordinal) &&
+                                CanSkipSequence() && IsStillEnabledForReturn())
+                            {
+                                skipAttempted = true;
+                                var response = await SendScopedAsync("POST", LeaguePostGameWriteApiClient.SkipPreEndOfGamePath,
+                                    null, token).ConfigureAwait(false);
+                                AppLog.Info("League pre-end-of-game skip: " + (IsSuccess(response) ? "submitted" : "unverified"));
+                            }
+                        }
+                    }
+                }
+                await _clock.Delay(TimeSpan.FromMilliseconds(600), token).ConfigureAwait(false);
+            }
+            lock (_sync) if (IsOwnerCurrentLocked()) FinishReturnLocked("phase-timeout");
+        }
+
+        private bool CanSkipSequence()
+        {
+            lock (_sync)
+                return _missionCancellation == null && (!_autoHonor || _lastHonorStatus != null &&
+                    (_lastHonorStatus.State == "success" || _lastHonorStatus.State == "skipped" &&
+                     (_lastHonorStatus.Detail == "no-votes" || _lastHonorStatus.Detail == "strategy-opt-out")));
+        }
+
+        private async Task<string> ReadPhaseAsync(CancellationToken token)
+        {
+            var bytes = await _read.TryGetBytesAsync(GameflowPhasePath, token).ConfigureAwait(false);
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 256) return null;
+            try { return new JavaScriptSerializer().Deserialize<string>(Encoding.UTF8.GetString(bytes)); }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
+        }
+
+        private void FinishReturnLocked(string outcome)
+        {
+            _returnPending = false;
+            _lastReturnOutcome = outcome;
+            AppLog.Info("League auto return lobby: " + outcome);
         }
 
         private async Task RunHonorAsync(CancellationToken cycleToken)

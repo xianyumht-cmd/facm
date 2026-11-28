@@ -1465,6 +1465,31 @@ namespace FACM.League
                     "New teammate intent before lock preflight must cancel the active pick write.");
             }
 
+            var avoidBan = LeagueAutoSelectProfiles.Serialize(new[]
+            {
+                new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Bans = new List<int> { 67, 22 } }
+            });
+            var banReserved = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithReservation("ban", 14, 67), Bannable = "[22,67]" },
+                banReserved, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, avoidBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(banReserved.Calls.SequenceEqual(new[] { "ban:14:22:True" }),
+                    "Auto ban must avoid a teammate's intended champion and choose an eligible fallback.");
+            }
+            var newBanReservation = new FakeWrite();
+            using (var controller = new LeagueAutoPickBanController(
+                new FakeRead { SessionJson = SessionWithRole("ban", 15, "TOP"),
+                    NextSessionJson = SessionWithReservation("ban", 15, 67), Bannable = "[22,67]" },
+                newBanReservation, new InstantClock()))
+            {
+                controller.Configure(false, 0, true, 0, avoidBan);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(newBanReservation.Calls.Count == 0, "New teammate intent must veto a stale ban before writing.");
+            }
+
             var showAndLock = LeagueAutoSelectProfiles.Serialize(new[]
             {
                 new LeagueAutoSelectProfile { Mode = "rift", Role = "top", Picks = new List<int> { 67 },

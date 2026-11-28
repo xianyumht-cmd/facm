@@ -448,7 +448,7 @@ namespace FACM.League
                 : action.ChampionId != 0 && CandidateAvailable(availableIds, action.ChampionId, action.Type, mode)
                     ? action.ChampionId : candidates.FirstOrDefault(id =>
                         CandidateAvailable(availableIds, id, action.Type, mode) &&
-                        (!isPick || profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
+                        (profile.IgnoreTeammateIntent || !action.TeammateIntentIds.Contains(id)));
             if (desired == 0)
             {
                 CompactTraceLog.Record(trace, "autoselect", "eligibility", "unavailable", watch.ElapsedMilliseconds);
@@ -992,8 +992,8 @@ namespace FACM.League
                 fresh.GameMode != expected.GameMode || fresh.ContextKey != expected.ContextKey || fresh.Completed ||
                 fresh.AllowSubsetPicks != expected.AllowSubsetPicks ||
                 fresh.ChampionId != 0 && fresh.ChampionId != desired ||
-                fresh.Type == "pick" && fresh.ChampionId != desired &&
-                fresh.TeammateIntentIds.Contains(desired) && !ignoreTeammateIntent) return false;
+                fresh.TeammateIntentIds.Contains(desired) && !ignoreTeammateIntent &&
+                (fresh.Type == "ban" || fresh.ChampionId != desired)) return false;
             if (fresh.Type == "pick" && fresh.AllowSubsetPicks && desired > 0)
             {
                 var subset = await _read.TryGetBytesAsync(SubsetPath, episode.Token).ConfigureAwait(false);

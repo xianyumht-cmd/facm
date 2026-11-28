@@ -25,6 +25,7 @@ namespace FACM.League
         internal const string HonorPath = "/lol-honor/v1/honor";
         internal const string HonorBallotSubmitPath = "/lol-honor/v1/ballot";
         internal const string PlayAgainPath = "/lol-lobby/v2/play-again";
+        internal const string SkipPreEndOfGamePath = "/lol-pre-end-of-game/v1/skip-pre-end-of-game";
         internal const string CompleteMissionCelebrationPath = "/lol-pre-end-of-game/v1/complete/missions-celebration";
 
         private readonly LeagueClientSessionProvider _sessions;
@@ -111,6 +112,7 @@ namespace FACM.League
                    string.Equals(path, HonorPath, StringComparison.Ordinal) ||
                    string.Equals(path, HonorBallotSubmitPath, StringComparison.Ordinal) ||
                    string.Equals(path, PlayAgainPath, StringComparison.Ordinal) ||
+                   string.Equals(path, SkipPreEndOfGamePath, StringComparison.Ordinal) ||
                    string.Equals(path, CompleteMissionCelebrationPath, StringComparison.Ordinal);
         }
 
