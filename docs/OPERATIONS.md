@@ -1,3 +1,7 @@
+## 2026-11-28 — GGman 3.5.91 release execution
+
+The owner authorizes a nonforced production update (minimum 3.0.0). Stage release/3.5-request.json and assembly identity on PR #369. After the final versioned HEAD passes all four workflows, verify main and PR identity, merge through the existing main-only publisher trigger, then confirm required release contracts, signing, re-downloaded public bytes and signer, and enabled online/version.json. Keep the current signed cloud-control revision unless a separate policy change is needed. No personal installation/gameplay acceptance is required before publication; record remaining field uncertainties explicitly. Do not mark the release published until readback evidence exists.
+
 ## 2026-11-28 — Required release contract gates (candidate)
 
 The Windows PR build must execute the existing league-history, host, Mayhem body-cancellation, performance-contract and update-mirror test entry points, checking each process exit code. The official publisher repeats all five against its unified release build before signing; existing route, fallback, isolated bundle and public-byte/signature gates remain required. A successful build alone does not establish that a test entry point ran. The scheduled/live Mayhem provider probe is informational on PRs, separate from mandatory deterministic response-lifetime coverage. Branch-specific CloudBase live checks may be skipped; do not record those as passed. Personal field acceptance waiver does not waive any required automated release gate.
