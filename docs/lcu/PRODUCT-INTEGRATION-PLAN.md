@@ -1,6 +1,6 @@
 # GGman — LCU Research Product Integration and Release Execution Plan
 
-**Date:** 2026-11-28  
+**Date:** 2026-11-28 (revised after research-author review)  
 **Status:** Proposed execution plan; implementation and release not yet authorized by this document.  
 **Task branch:** `feat/champ-select-mute-20261128`  
 **Audited executable baseline:** `9743f5e2f8c2c4b5e9979571810a561b6d5847a7`  
@@ -14,7 +14,7 @@ Convert the November 28 LCU research into complete, useful, maintainable GGman p
 
 A capability is complete only when the correct existing business owner exposes a validated contract, the intended player can discover and use it in the appropriate game phase, cancellation and account/session transitions are handled, unavailable data is distinguished from actual zero, and the relevant tests and release gates provide evidence. Compilation alone is not completion. Do not add controls that silently do nothing. Use concise Chinese product labels and the existing UI text contract; keep English technical documentation.
 
-Reuse research evidence for legitimate, user-authorized functionality through existing local-client interfaces. Respect platform restrictions and server-side eligibility. Do not circumvent matchmaking penalties, hidden player identity restrictions, anti-cheat, or access controls. Treat process injection and intrusive research utilities as isolated experimental material, not a dependency or prerequisite of the production product. No work in this plan requires loading code into a third-party process, disabling security controls, or changing the game process.
+Reuse research evidence for legitimate, user-authorized functionality through existing local-client interfaces. Respect platform restrictions and server-side eligibility. Do not circumvent matchmaking penalties, hidden player identity restrictions, anti-cheat, or access controls. Treat process injection and intrusive research utilities as isolated experimental material for this delivery scope, not a dependency or prerequisite of the production product. This is a release boundary, not a permanent decision to abandon the underlying UX goals; see WP4. No work in this plan requires loading code into a third-party process, disabling security controls, or changing the game process.
 
 ## 2. Evidence inventory and baseline findings
 
@@ -52,11 +52,11 @@ Treat read results as available, partial, unavailable or stale according to exis
 - Exit: exact baseline recorded, affected owners and tests identified, no unrelated release/config changes.
 
 ### WP1 — Correctness of existing player-facing operations (P0)
-- Fix the user-facing mute contract so repeating an explicit mute action cannot intentionally unmute an already-muted player. If reliable state cannot be established, report unavailability without guessing or issuing blind changes. Use the existing authenticated client owner and structured serialization; validate identifiers without narrowing their numeric range or resolving hidden identities.
+- The researched toggle-player-muted operation is a toggle, not a set-muted operation. Read muted-players on demand and establish whether its response is reliable for the current session and identity; an empty response alone is not proof that all players are unmuted. Where reliable state exists, offer an explicit idempotent mute action that does not unmute already-muted players. Where reliable state is unavailable, retain a separately and clearly labeled manual toggle action (Chinese label: 切换静音; tooltip: 逐个反转当前静音状态，可能解除已有静音). Do not silently fall back from mute-all to toggle-all or promise that the next click will uniformly unmute mixed-state players. Never schedule automatic toggling or retry an ambiguous write. Use the existing authenticated client owner and structured serialization; validate identifiers without narrowing their numeric range or resolving hidden identities.
 - Preserve intentional scope, exclude the local player, handle duplicate or incomplete identities, cancellation, partial success and session changes. Do not treat HTTP success alone as proof of settled state.
 - Trace the native companion and active WebView2 command path, including localized labels, accessibility, phase eligibility, busy-state release and window disposal.
-- Reconcile the existing quit UI with the documented supported server eligibility. When unavailable or rejected, display an accurate disabled/unavailable state; no automatic fallback involving forced disconnects or process termination.
-- Exit: synthetic tests for already-muted, mixed-state, repeated request, missing state, cancellation, phase/session changes, partial errors and unavailable operations. No penalty-bypass behavior.
+- Use the current champion-select session.showQuitButton as the primary server-supplied eligibility field, as documented in QUIT-INVESTIGATION.md and FEATURE-PLAYBOOK.md. Read on phase entry from the existing session snapshot and revalidate on state changes and before an explicit quit. Enable only when the field is explicitly true and the current phase, session and relevant UI context are valid; missing/false/stale is unavailable. Do not probe eligibility by issuing a write expected to fail. The researched request-lobby response of HTTP 200 with false is not success or a supported alternate exit. Reconcile legacy C# behavior accordingly; the server remains authoritative and can still reject an eligible-looking request. No forced-disconnect or process-termination fallback.
+- Exit: synthetic tests for already-muted, mixed-state, repeated request, empty/unreliable state, explicit toggle labeling, cancellation, phase/session changes, partial errors, and showQuitButton true/false/missing/stale. No penalty-bypass behavior.
 
 ### WP2 — Service consolidation and data contracts (P0/P1)
 - Expose LeagueInsightService through an appropriate narrow existing module contract or replace it with existing owner-specific projections where that better fits architecture. Do not add an unused public interface merely to increase coverage.
@@ -70,6 +70,8 @@ Treat read results as available, partial, unavailable or stale according to exis
 - Exit: all nine additions have an explicit disposition and real consumer or a documented replacement; no redundant active writer or periodic network owner.
 
 ### WP3 — Phase-aware UI and Shard integration (P1)
+- First delivery slice: after WP0 confirms existing ownership, integrate the six read-only feature groups (penalty, queue, friends, postgame statistics, rewards, ranked/LP) into one compact tab in the existing Efficiency surface, reusing existing cards, native owners and snapshots. Render phase-relevant groups first; load optional groups only on entry or explicit refresh. Do not add six separate pages, six pollers, or duplicate existing functional views. Use a single typed snapshot contract only where it avoids duplication. The champion-select mute and social block/unblock remain explicit, separately scoped actions in their appropriate existing surfaces.
+- Second delivery slice: add minimal phase-context summaries or deep links only where the existing workspace already offers a relevant surface and the data materially benefits the player. The following phase mappings describe intended behavior, not a requirement to create separate new UIs for every item.
 - Disconnected: show existing connection state; no stale account data and no repeated feature queries.
 - Lobby: expose current ranked summary and penalty status through existing profile/efficiency surfaces. Display friends through the existing social entry; load rewards and block list only when opened or explicitly refreshed.
 - Matchmaking: add compact elapsed/estimated wait and applicable low-priority information to the existing phase shortcut or matching surface. Unknown estimates must remain unknown.
@@ -80,6 +82,7 @@ Treat read results as available, partial, unavailable or stale according to exis
 - Exit: each approved feature has a discoverable path from the shipping UI, with a typed bridge contract, deterministic UI tests, and no independent transport from the renderer.
 
 ### WP4 — Independent native research boundary and resource assessment (P1)
+- Product direction checkpoint (owner decision pending): in-client inline controls, advertising-related presentation changes and deeper visual integration are requested UX goals, not approved deliverables of this particular work package. Keep them in the backlog with feasibility, compatibility, authorization and maintenance risks explicitly recorded. Do not represent experimental code as shipped or declare these UX goals permanently abandoned. The current candidate remains an external GGman application using existing supported interfaces; consider app-owned companion UI and officially supported extension mechanisms for comparable experiences. Any change of product scope requires a separate decision and review, and does not block WP1–WP3 or WP5.
 - Treat injected-agent/ and its related tools as an experimental source tree. Audit whether any project item, build script, packaging glob, startup configuration, manifest or distribution rule accidentally includes experimental components. Report any inclusion and keep them out of the production build.
 - Use historical incident records to identify general reliability lessons: synchronous work on UI threads, blocking I/O, missing resource ownership, unmanaged handles, unclear shutdown, and competing business owners.
 - Apply relevant lessons to GGman's own processes and supported local-client integration. Measure application-owned CPU, memory, handle count, responsiveness and request frequency on isolated synthetic fixtures or GGman's own test harness.
@@ -107,14 +110,14 @@ Treat read results as available, partial, unavailable or stale according to exis
 
 | Capability | Target surface | Required evidence |
 | --- | --- | --- |
-| Explicit mute | Existing champion-select companion | Repeat action, mixed state, partial failure, account/phase fence, WebView2 and fallback |
-| Queue estimate | Existing matchmaking phase surface | Known/unknown estimates, reconnect, no additional idle polling |
-| Penalty status | Existing efficiency/lobby surface | Valid/absent status, no unsupported bypass |
-| Friend activity | Existing social surface | Current-account permission, stable unavailable state, on-demand refresh |
-| Postgame stats | Existing history/postgame surface | Exact match identity, source-consistent stats, missing-vs-zero |
-| Ranked / LP | Existing profile and postgame | Queue identity, known/unknown LP change, no duplicate request |
+| Explicit mute / clearly labeled manual toggle | Existing champion-select companion | Repeat action, mixed state, unreliable state, partial failure, account/phase fence, WebView2 and fallback |
+| Queue estimate | Efficiency overview; existing matchmaking phase surface where useful | Known/unknown estimates, reconnect, no additional idle polling |
+| Penalty status | Efficiency overview; existing lobby status where useful | Valid/absent status, no unsupported bypass |
+| Friend activity | Efficiency overview; existing social surface for details | Current-account permission, stable unavailable state, on-demand refresh |
+| Postgame stats | Efficiency overview; existing history/postgame surface for details | Exact match identity, source-consistent stats, missing-vs-zero |
+| Ranked / LP | Efficiency overview; existing profile and postgame where useful | Queue identity, known/unknown LP change, no duplicate request |
 | Block list | Existing social management | Explicit block/unblock, stale session rejection, result feedback |
-| Rewards overview | Existing optional utility surface | Partial source availability, accurate counts, no transactional automation |
+| Rewards overview | Efficiency overview, on demand | Partial source availability, accurate counts, no transactional automation |
 | Insight aggregation | Native owner only | Bounded demand, partial failure, cancellation, actual consumer |
 
 ## 6. Execution tracking and stop conditions
