@@ -38,6 +38,8 @@ namespace FACM.League
                     row.IgnoreTeammateIntent = false;
                     row.BenchAutoSwapEnabled = false;
                     row.BenchPreferHigherPriority = false;
+                    row.BenchUseMastery = false;
+                    row.BenchMinMasteryPoints = 0;
                     row.BenchHandleTradeEnabled = false;
                 }
             if (hasBans)
@@ -70,6 +72,8 @@ namespace FACM.League
                     p.IgnoreTeammateIntent != first.IgnoreTeammateIntent ||
                     p.BenchAutoSwapEnabled != first.BenchAutoSwapEnabled ||
                     p.BenchPreferHigherPriority != first.BenchPreferHigherPriority ||
+                    p.BenchUseMastery != first.BenchUseMastery ||
+                    p.BenchMinMasteryPoints != first.BenchMinMasteryPoints ||
                     p.BenchHandleTradeEnabled != first.BenchHandleTradeEnabled ||
                     p.BenchSwapDelayMs != first.BenchSwapDelayMs ||
                     p.BanEnabled != first.BanEnabled ||
@@ -93,7 +97,9 @@ namespace FACM.League
                     benchSelectFirstAvailableChampion = first.BenchPreferHigherPriority,
                     benchSwapAccumulatedDelaySeconds = first.BenchSwapDelayMs / 1000.0,
                     benchHandleTradeEnabled = first.BenchHandleTradeEnabled,
-                    ggmanBenchSwapEnabled = first.BenchAutoSwapEnabled
+                    ggmanBenchSwapEnabled = first.BenchAutoSwapEnabled,
+                    ggmanBenchUseMastery = first.BenchUseMastery,
+                    ggmanBenchMinMasteryPoints = first.BenchMinMasteryPoints
                 };
                 bans[group.Key] = new
                 {
@@ -148,6 +154,16 @@ namespace FACM.League
                         LeagueAutoSelectGroupCatalog.SupportsBench(group.Key)));
                 if (pick && fields.ContainsKey("ggmanBenchSwapEnabled") && !(rawBench is bool))
                     throw new ArgumentException("Invalid bench enable flag.");
+                var benchMastery = pick && fields.ContainsKey("ggmanBenchUseMastery") &&
+                    Boolean(fields, "ggmanBenchUseMastery");
+                var minMastery = 0;
+                object rawMinMastery;
+                if (pick && fields.TryGetValue("ggmanBenchMinMasteryPoints", out rawMinMastery))
+                {
+                    if (!(rawMinMastery is int) || (int)rawMinMastery < 0)
+                        throw new ArgumentException("Invalid bench mastery threshold.");
+                    minMastery = (int)rawMinMastery;
+                }
 
                 var roles = new HashSet<string>(
                     profiles.Where(p => p.Mode == group.Key).Select(p => p.Role), StringComparer.Ordinal)
@@ -177,6 +193,8 @@ namespace FACM.League
                         row.IgnoreTeammateIntent = ignoreIntent;
                         row.BenchAutoSwapEnabled = benchEnabled;
                         row.BenchPreferHigherPriority = benchUpgrade;
+                        row.BenchUseMastery = benchMastery;
+                        row.BenchMinMasteryPoints = minMastery;
                         row.BenchHandleTradeEnabled = benchTrade;
                         row.BenchSwapDelayMs = benchDelay;
                     }
@@ -204,6 +222,8 @@ namespace FACM.League
                 IgnoreTeammateIntent = row.IgnoreTeammateIntent,
                 BenchAutoSwapEnabled = row.BenchAutoSwapEnabled,
                 BenchPreferHigherPriority = row.BenchPreferHigherPriority,
+                BenchUseMastery = row.BenchUseMastery,
+                BenchMinMasteryPoints = row.BenchMinMasteryPoints,
                 BenchHandleTradeEnabled = row.BenchHandleTradeEnabled,
                 AkariExactPickRoles = row.AkariExactPickRoles,
                 AkariExactBanRoles = row.AkariExactBanRoles,

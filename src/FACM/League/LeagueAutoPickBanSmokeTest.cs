@@ -58,6 +58,7 @@ namespace FACM.League
             ValidatePickAndBanAsync().GetAwaiter().GetResult();
             ValidatePickIntentAsync().GetAwaiter().GetResult();
             ValidateAutoBenchAsync().GetAwaiter().GetResult();
+            ValidateAutoMasteryBenchAsync().GetAwaiter().GetResult();
             ValidateChampionTradesAsync().GetAwaiter().GetResult();
             ValidateFailureAndCancellationAsync().GetAwaiter().GetResult();
         }
@@ -972,6 +973,55 @@ namespace FACM.League
                 catch (ArgumentException) { rejected = true; }
                 Require(rejected && original[0].Picks.SequenceEqual(new[] { 157 }),
                     "Malformed Akari transfer must reject atomically.");
+            }
+        }
+
+        private static async Task ValidateAutoMasteryBenchAsync()
+        {
+            var profile = new LeagueAutoSelectProfile { Mode = "aram", BenchAutoSwapEnabled = true,
+                BenchUseMastery = true, BenchMinMasteryPoints = 100000, BenchSwapDelayMs = 0 };
+            var json = LeagueAutoSelectProfiles.Serialize(new[] { profile });
+            var roundtrip = LeagueAkariAutoSelectTransfer.Import(LeagueAkariAutoSelectTransfer.Export(new[] { profile }),
+                new LeagueAutoSelectProfile[0]).Single(p => p.Mode == "aram" && p.Role == "default");
+            Require(roundtrip.BenchUseMastery && roundtrip.BenchMinMasteryPoints == 100000,
+                "Native mastery preferences must survive profile transfer.");
+            var read = new FakeRead { SessionJson = BenchSession(34, "[22,55]", 450, false),
+                MasteryJson = "[{\"championId\":55,\"championPoints\":150000},{\"championId\":22,\"championPoints\":90000},{\"championId\":34,\"championPoints\":120000}]" };
+            var write = new FakeBenchWrite { AfterWrite = id => read.SessionJson = BenchSession(id, "[34,22]", 450, false) };
+            var clock = new TwoStepClock();
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, clock))
+            {
+                controller.Configure(true, 0, false, 0, json);
+                controller.Observe(Selecting());
+                Require(write.Calls == 1 && write.LastId == 55 &&
+                    read.Paths.Count(path => path == LeagueLiveDataService.LocalMasteryPath) == 1,
+                    "Mastery-only profile must arm and choose the highest eligible score once.");
+                var pending = controller.RunningForSmokeTest;
+                controller.Observe(new LeagueDashboardPhaseState { Connected = true, Phase = "Lobby" });
+                await pending.ConfigureAwait(false);
+            }
+            profile.BenchMinMasteryPoints = 200000;
+            json = LeagueAutoSelectProfiles.Serialize(new[] { profile });
+            read = new FakeRead { SessionJson = BenchSession(34, "[22,55]", 450, false),
+                MasteryJson = "[{\"championId\":55,\"championPoints\":150000}]" };
+            write = new FakeBenchWrite();
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, json);
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(write.Calls == 0, "Mastery threshold must veto the swap.");
+            }
+            profile.BenchMinMasteryPoints = 0;
+            profile.BenchPreferHigherPriority = true;
+            var state = LeagueLiveDataService.ParseBenchPayload(Bytes(BenchSession(34, "[55]", 450, false)));
+            Require(LeagueAutoPickBanController.SelectMasteryTarget(new Dictionary<int, long> { { 34, 200 }, { 55, 100 } },
+                state, 0, true) == 0, "Upgrade-only mastery must preserve the stronger held champion.");
+            read.MasteryJson = "not-json";
+            using (var controller = new LeagueAutoPickBanController(read, new FakeWrite(), write, new InstantClock()))
+            {
+                controller.Configure(true, 0, false, 0, LeagueAutoSelectProfiles.Serialize(new[] { profile }));
+                await controller.RunOnceForSmokeTestAsync(CancellationToken.None).ConfigureAwait(false);
+                Require(write.Calls == 0, "Unavailable mastery must not fall back to arbitrary heroes.");
             }
         }
 
@@ -1954,6 +2004,7 @@ namespace FACM.League
             public string TeamBuilderJson;
             public string TradeJson;
             public string NextTradeJson;
+            public string MasteryJson;
             public string Pickable = "[22,67]";
             public string NextPickable;
             private int _pickableCount;
@@ -2003,6 +2054,8 @@ namespace FACM.League
                 }
                 if (path == LeagueLiveDataService.TeamBuilderChampSelectSessionPath)
                     return Task.FromResult(Bytes(TeamBuilderJson ?? "{}"));
+                if (path == LeagueLiveDataService.LocalMasteryPath)
+                    return Task.FromResult(MasteryJson == null ? null : Bytes(MasteryJson));
                 if (path == LeagueAutoPickBanController.OngoingChampionTradePath)
                 {
                     _tradeCount++;

@@ -145,33 +145,38 @@ namespace FACM.League
 
         internal static int SelectMasteryBenchTarget(byte[] bytes, LeagueBenchQuickPickState state)
         {
-            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024 ||
-                state == null || state.IsSubsetPhase || !state.BenchEnabled) return 0;
+            if (state == null || state.IsSubsetPhase || !state.BenchEnabled) return 0;
+            var scores = ParseMasteryScores(bytes);
+            return scores == null ? 0 : state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id))
+                .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
+        }
+
+        internal static Dictionary<int, long> ParseMasteryScores(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0 || bytes.Length > 2 * 1024 * 1024) return null;
             try
             {
                 var rows = new JavaScriptSerializer { MaxJsonLength = 2 * 1024 * 1024 }
                     .DeserializeObject(Encoding.UTF8.GetString(bytes)) as object[];
-                if (rows == null) return 0;
+                if (rows == null) return null;
                 var scores = new Dictionary<int, long>();
                 foreach (var row in rows)
                 {
                     var item = row as Dictionary<string, object>;
                     object champion, points;
                     if (item == null || !item.TryGetValue("championId", out champion) || !(champion is int) ||
-                        (int)champion <= 0 || !item.TryGetValue("championPoints", out points)) return 0;
+                        (int)champion <= 0 || !item.TryGetValue("championPoints", out points)) return null;
                     long score;
                     if (points is int) score = (int)points;
                     else if (points is long) score = (long)points;
-                    else return 0;
-                    if (score < 0 || scores.ContainsKey((int)champion)) return 0;
+                    else return null;
+                    if (score < 0 || scores.ContainsKey((int)champion)) return null;
                     scores.Add((int)champion, score);
                 }
-                // Missing champions are not ranked ahead of known mastery values.
-                return state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id))
-                    .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
+                return scores;
             }
-            catch (ArgumentException) { return 0; }
-            catch (InvalidOperationException) { return 0; }
+            catch (ArgumentException) { return null; }
+            catch (InvalidOperationException) { return null; }
         }
 
         internal async Task<LeagueBenchSwapResult> TryChooseMasteryAsync(LeagueBenchQuickPickState expected, CancellationToken token)

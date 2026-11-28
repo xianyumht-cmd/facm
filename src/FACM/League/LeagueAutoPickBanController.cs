@@ -34,6 +34,9 @@ namespace FACM.League
     {
         private int _heldChampion;
         private bool _blocked;
+        internal bool MasteryReadAttempted;
+        internal Dictionary<int, long> MasteryScores;
+        internal bool MasterySwapAttempted;
         private readonly Dictionary<int, long> _benchFirstSeen = new Dictionary<int, long>();
         private readonly Dictionary<string, long> _tradeFirstSeen = new Dictionary<string, long>(StringComparer.Ordinal);
 
@@ -275,7 +278,7 @@ namespace FACM.League
             lock (_sync)
             {
                 if (_disposed || _temporarilyDisabled || !_inChampSelect || _episode != null ||
-                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0 || p.BenchHandleTradeEnabled)) &&
+                    (!_autoPick || _pickId <= 0 && !_profiles.Any(p => p.Picks.Count > 0 || p.BenchHandleTradeEnabled || p.PickEnabled && p.BenchAutoSwapEnabled && p.BenchUseMastery)) &&
                     (!_autoBan || _banId <= 0 && !_profiles.Any(p => p.Bans.Count > 0))) return;
                 var owner = _session == null ? null : _session();
                 if (_session != null && owner == null) return;
@@ -895,11 +898,30 @@ namespace FACM.League
                 RecordOnce(reported, trace, "bench", "manual_choice_guard");
                 return;
             }
-            var candidates = LeagueAutoSelectGroupCatalog.FilterSpecials(
+            if (profile.BenchUseMastery)
+            {
+                if (guard.MasterySwapAttempted || state.IsSubsetPhase ||
+                    !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal) ||
+                    state.ChampionIds.Count == 0) return;
+                if (!guard.MasteryReadAttempted)
+                {
+                    guard.MasteryReadAttempted = true;
+                    var mastery = await _read.TryGetBytesAsync(LeagueLiveDataService.LocalMasteryPath, episode.Token).ConfigureAwait(false);
+                    if (!IsCurrent(episode)) return;
+                    guard.MasteryScores = LeagueBenchQuickPickService.ParseMasteryScores(mastery);
+                }
+                if (guard.MasteryScores == null)
+                {
+                    RecordOnce(reported, trace, "bench_mastery", "unavailable");
+                    return;
+                }
+            }
+            var candidates = profile.BenchUseMastery ? null : LeagueAutoSelectGroupCatalog.FilterSpecials(
                 LeagueAutoSelectProfiles.Candidates(profiles, mode, role, true, pickId), mode,
                 _session == null ? null : LeagueSgpMatchHistoryApiClient.CurrentServerId(_session()), true);
-            var desired = SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds,
-                profile.BenchPreferHigherPriority);
+            var desired = profile.BenchUseMastery
+                ? SelectMasteryTarget(guard.MasteryScores, state, profile.BenchMinMasteryPoints, profile.BenchPreferHigherPriority)
+                : SelectBenchTarget(candidates, state.LocalChampionId, state.ChampionIds, profile.BenchPreferHigherPriority);
             if (desired <= 0) return;
 
             var key = "bench:" + state.LocalChampionId + ":" + desired;
@@ -923,9 +945,10 @@ namespace FACM.League
             if (!IsCurrent(episode)) return;
             var fresh = await ReadBenchAsync(confirmation, episode.Token).ConfigureAwait(false);
             if (!IsCurrent(episode)) return;
-            if (!SameBenchContext(state, fresh, desired) ||
-                SelectBenchTarget(candidates, fresh.LocalChampionId, fresh.ChampionIds,
-                    profile.BenchPreferHigherPriority) != desired)
+            var freshTarget = profile.BenchUseMastery
+                ? SelectMasteryTarget(guard.MasteryScores, fresh, profile.BenchMinMasteryPoints, profile.BenchPreferHigherPriority)
+                : SelectBenchTarget(candidates, fresh.LocalChampionId, fresh.ChampionIds, profile.BenchPreferHigherPriority);
+            if (!SameBenchContext(state, fresh, desired) || freshTarget != desired)
             {
                 CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "stale", watch.ElapsedMilliseconds);
                 return;
@@ -933,6 +956,7 @@ namespace FACM.League
             CompactTraceLog.Record(trace, "autoselect-bench", "preflight", "ok", watch.ElapsedMilliseconds);
             // A stale preflight may recover on the next phase tick. Fence only an actual POST.
             attempted.Add(key);
+            if (profile.BenchUseMastery) guard.MasterySwapAttempted = true;
             LeagueClientSession owner;
             lock (_sync) owner = _episodeOwner;
             if (!IsCurrent(episode)) return;
@@ -1029,6 +1053,19 @@ namespace FACM.League
                 case "UTILITY": case "SUPPORT": case "SUP": return "support";
                 default: return null;
             }
+        }
+
+        internal static int SelectMasteryTarget(Dictionary<int, long> scores, LeagueBenchQuickPickState state,
+            int minimum, bool upgrade)
+        {
+            if (scores == null || state == null || state.IsSubsetPhase || !state.BenchEnabled ||
+                state.LocalChampionId <= 0 || minimum < 0 ||
+                !string.Equals(state.TimerPhase, "FINALIZATION", StringComparison.Ordinal)) return 0;
+            long heldScore = 0;
+            if (upgrade && !scores.TryGetValue(state.LocalChampionId, out heldScore)) return 0;
+            return state.ChampionIds.Where(id => state.CanChoose(id) && scores.ContainsKey(id) &&
+                    scores[id] >= minimum && (!upgrade || scores[id] > heldScore))
+                .OrderByDescending(id => scores[id]).ThenBy(id => id).FirstOrDefault();
         }
 
         internal static int SelectBenchTarget(IReadOnlyList<int> priorities, int held,

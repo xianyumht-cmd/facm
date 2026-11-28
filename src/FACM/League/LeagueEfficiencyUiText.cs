@@ -169,6 +169,8 @@ namespace FACM.League
         public const string AdvancedIgnoreIntent = "LeagueEfficiencyAdvancedIgnoreIntent";
         public const string AdvancedBenchSwap = "LeagueEfficiencyAdvancedBenchSwap";
         public const string AdvancedBenchUpgrade = "LeagueEfficiencyAdvancedBenchUpgrade";
+        public const string AdvancedBenchMastery = "LeagueEfficiencyAdvancedBenchMastery";
+        public const string AdvancedBenchMinMastery = "LeagueEfficiencyAdvancedBenchMinMastery";
         public const string AdvancedTrade = "LeagueEfficiencyAdvancedTrade";
         public const string AdvancedBenchDelay = "LeagueEfficiencyAdvancedBenchDelay";
         public const string AdvancedImportAkari = "LeagueEfficiencyAdvancedImportAkari";
@@ -694,6 +696,8 @@ namespace FACM.League
             { LeagueEfficiencyUiTextKeys.AdvancedIgnoreIntent, "忽略队友的英雄预选" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchSwap, "自动换候选席英雄（需开启自动选人）" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchUpgrade, "发现更高优先级英雄时继续换" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchMastery, "按熟练度自动换人" },
+            { LeagueEfficiencyUiTextKeys.AdvancedBenchMinMastery, "最低熟练度" },
             { LeagueEfficiencyUiTextKeys.AdvancedTrade, "按优先级自动接受或拒绝交换" },
             { LeagueEfficiencyUiTextKeys.AdvancedBenchDelay, "候选席等待（秒）" },
             { LeagueEfficiencyUiTextKeys.AdvancedImportAkari, "导入 Akari" },

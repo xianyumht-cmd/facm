@@ -31,6 +31,8 @@ namespace FACM.League
         private readonly CheckBox _showIntent;
         private readonly CheckBox _ignoreIntent;
         private readonly CheckBox _benchUpgrade;
+        private readonly CheckBox _benchMastery;
+        private readonly NumericUpDown _benchMinMastery;
         private readonly CheckBox _autoTrade;
         private readonly NumericUpDown _benchDelay;
         private readonly Label _status;
@@ -56,7 +58,7 @@ namespace FACM.League
             };
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
             root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            foreach (var height in new[] { 54, 46, 46, 46, 266, 48, 48, 70, 86, 55 })
+            foreach (var height in new[] { 54, 46, 46, 46, 266, 48, 48, 70, 122, 55 })
                 root.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
 
             var header = new Label
@@ -157,6 +159,16 @@ namespace FACM.League
             benchRow.Controls.Add(_autoTrade);
             benchRow.Controls.Add(benchDelayLabel);
             benchRow.Controls.Add(_benchDelay);
+            _benchMastery = new CheckBox { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchMastery),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 6, 15, 5) };
+            var masteryLabel = new Label { AutoSize = true, Text = T(LeagueEfficiencyUiTextKeys.AdvancedBenchMinMastery),
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 8, 8, 5) };
+            _benchMinMastery = new NumericUpDown { Minimum = 0, Maximum = int.MaxValue, Increment = 1000,
+                Width = 100, ThousandsSeparator = true, BackColor = FacmDesignSystem.CanvasRaised,
+                ForeColor = FacmDesignSystem.Text, Margin = new Padding(0, 5, 6, 5) };
+            benchRow.Controls.Add(_benchMastery);
+            benchRow.Controls.Add(masteryLabel);
+            benchRow.Controls.Add(_benchMinMastery);
             root.Controls.Add(benchRow, 1, 8);
 
             _status = new Label { Dock = DockStyle.Fill, ForeColor = FacmDesignSystem.TextMuted,
@@ -206,6 +218,8 @@ namespace FACM.League
             _benchUpgrade.CheckedChanged += BenchChanged;
             _autoTrade.CheckedChanged += BenchChanged;
             _benchDelay.ValueChanged += BenchChanged;
+            _benchMastery.CheckedChanged += BenchChanged;
+            _benchMinMastery.ValueChanged += BenchChanged;
             _mode.SelectedIndex = 0;
             _role.SelectedIndex = 0;
             _action.SelectedIndex = 0;
@@ -390,6 +404,10 @@ namespace FACM.League
                 _benchUpgrade.Checked = profile.BenchPreferHigherPriority;
                 _autoTrade.Checked = profile.BenchHandleTradeEnabled;
                 _benchDelay.Value = profile.BenchSwapDelayMs / 1000m;
+                _benchMastery.Checked = profile.BenchUseMastery;
+                _benchMinMastery.Value = profile.BenchMinMasteryPoints;
+                _benchMastery.Enabled = benchSettingsVisible && profile.BenchAutoSwapEnabled;
+                _benchMinMastery.Enabled = _benchMastery.Enabled && _benchMastery.Checked;
             }
             finally { _binding = false; }
         }
@@ -462,8 +480,12 @@ namespace FACM.League
             profile.BenchPreferHigherPriority = _benchUpgrade.Checked;
             profile.BenchHandleTradeEnabled = _autoTrade.Checked;
             profile.BenchSwapDelayMs = (int)(_benchDelay.Value * 1000);
+            profile.BenchUseMastery = _benchMastery.Checked;
+            profile.BenchMinMasteryPoints = (int)_benchMinMastery.Value;
             _benchUpgrade.Enabled = _benchSwap.Checked;
             _benchDelay.Enabled = _benchSwap.Checked;
+            _benchMastery.Enabled = _benchSwap.Checked;
+            _benchMinMastery.Enabled = _benchSwap.Checked && _benchMastery.Checked;
         }
 
         private void IntentChanged(object sender, EventArgs e)
